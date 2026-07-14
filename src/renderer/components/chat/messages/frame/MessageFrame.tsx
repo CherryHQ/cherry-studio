@@ -1,9 +1,9 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types'
-import { classNames, cn } from '@renderer/utils'
+import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { classNames, cn } from '@renderer/utils/style'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
@@ -15,7 +15,7 @@ import {
   getMessageEnterMotionVariant,
   useMessageEnterMotionActive
 } from '../../motion/messageEnterMotion'
-import { useMessageParts } from '../blocks'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,

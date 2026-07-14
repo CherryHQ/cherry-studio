@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import type { Assistant, FileMetadata, Topic } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types'
+import type { Assistant } from '@renderer/types/assistant'
 import type { SerializedError } from '@renderer/types/error'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
@@ -20,6 +20,7 @@ import {
   MessageBlockType,
   UserMessageStatus
 } from '@renderer/types/newMessage'
+import type { Topic } from '@renderer/types/topic'
 import { v4 as uuidv4 } from 'uuid'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>

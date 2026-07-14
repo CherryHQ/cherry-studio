@@ -1,4 +1,4 @@
-import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -38,7 +38,7 @@ export const messageTable = sqliteTable(
     // Model identifier: FK to user_model(id) — UniqueModelId "providerId::modelId"
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     // Snapshot of model at message creation time
-    modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
+    messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
 
@@ -101,7 +101,7 @@ export type InsertMessageRow = typeof messageTable.$inferInsert
 
 /**
  * Custom SQL statements that Drizzle cannot manage
- * These are executed after every migration via DbService.runCustomMigrations()
+ * These are executed after every migration via applyMigrations()
  *
  * All statements should be idempotent (IF NOT EXISTS / DROP IF EXISTS / rebuild-safe).
  */

@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { CreateCreationDto, ListCreationsQueryParams, UpdateCreationDto } from '@shared/data/api/schemas/creations'
 import type { Creation, CreationKind } from '@shared/data/types/creation'
-import { isUndefined, omitBy } from 'lodash'
+import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 
 /**

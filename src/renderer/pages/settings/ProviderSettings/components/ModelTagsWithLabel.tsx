@@ -1,4 +1,4 @@
-import { getModelDisplayTags, ModelTag } from '@renderer/components/Tags/Model'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import type { Model } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { memo } from 'react'

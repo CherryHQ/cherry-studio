@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryInOauthServiceMock } =
+const { appMock, loggerMock, handlersMock, ipcApiServiceMock, mainWindowServiceMock, oauthRuntimeServiceMock } =
   vi.hoisted(() => {
     const appMock = {
       on: vi.fn(),
@@ -19,16 +19,16 @@ const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceM
       handleNavigateProtocolUrl: vi.fn(),
       handleProvidersProtocolUrl: vi.fn()
     }
-    const windowManagerMock = {
+    const ipcApiServiceMock = {
       broadcast: vi.fn()
     }
     const mainWindowServiceMock = {
       showMainWindow: vi.fn()
     }
-    const cherryInOauthServiceMock = {
-      handleOAuthCallback: vi.fn()
+    const oauthRuntimeServiceMock = {
+      handleDeepLinkCallback: vi.fn()
     }
-    return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryInOauthServiceMock }
+    return { appMock, loggerMock, handlersMock, ipcApiServiceMock, mainWindowServiceMock, oauthRuntimeServiceMock }
   })
 
 vi.mock('electron', () => ({ app: appMock }))
@@ -42,9 +42,9 @@ vi.mock('@logger', () => ({
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'WindowManager') return windowManagerMock
+      if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'CherryInOauthService') return cherryInOauthServiceMock
+      if (name === 'OAuthRuntimeService') return oauthRuntimeServiceMock
       throw new Error(`unexpected service: ${name}`)
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
@@ -96,7 +96,7 @@ describe('ProtocolService', () => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
-    cherryInOauthServiceMock.handleOAuthCallback.mockResolvedValue(undefined)
+    oauthRuntimeServiceMock.handleDeepLinkCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
 
@@ -147,7 +147,7 @@ describe('ProtocolService', () => {
   it('broadcasts unknown protocol hosts to all windows', () => {
     ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
 
-    expect(windowManagerMock.broadcast).toHaveBeenCalledWith('protocol-data', {
+    expect(ipcApiServiceMock.broadcast).toHaveBeenCalledWith('navigation.protocol_data', {
       url: 'cherrystudio://unknown/path?foo=bar',
       params: { foo: 'bar' }
     })
@@ -167,10 +167,10 @@ describe('ProtocolService', () => {
       handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
 
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
-      expect(cherryInOauthServiceMock.handleOAuthCallback).toHaveBeenCalledTimes(1)
-      const url = cherryInOauthServiceMock.handleOAuthCallback.mock.calls[0][0] as URL
+      expect(oauthRuntimeServiceMock.handleDeepLinkCallback).toHaveBeenCalledTimes(1)
+      const url = oauthRuntimeServiceMock.handleDeepLinkCallback.mock.calls[0][0] as URL
       expect(url.href).toBe('cherrystudio://oauth/callback?code=abc')
-      expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
 
     it('surfaces the main window when argv has no protocol URL', async () => {
@@ -180,7 +180,7 @@ describe('ProtocolService', () => {
       handler({}, ['/path/to/electron', '.'])
 
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
-      expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
   })
 })

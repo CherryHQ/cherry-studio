@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { IpcError, IpcErrorCode, type SerializedIpcError } from '../errors'
+import { IpcError, IpcErrorCode, type SerializedIpcError } from '../errors/IpcError'
 
 describe('IpcError', () => {
   it('is an Error subclass carrying a string code', () => {
@@ -56,7 +56,7 @@ describe('IpcError', () => {
 })
 
 describe('IpcErrorCode', () => {
-  it('is the single source of truth for exactly the framework error codes', () => {
+  it('is the single source of truth for known framework error codes', () => {
     expect(IpcErrorCode).toEqual({
       ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
       VALIDATION_FAILED: 'VALIDATION_FAILED',

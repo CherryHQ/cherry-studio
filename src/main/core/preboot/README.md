@@ -13,7 +13,7 @@ that builds the IoC container and runs the lifecycle stages
 But some setup must happen even earlier — synchronously, with no lifecycle
 services available — because `application.bootstrap()` itself depends on it.
 Most importantly: `application.initPathRegistry()` is called from preboot
-in `main/index.ts` after userData resolution, the single-instance lock,
+in `main/main.ts` after userData resolution, the single-instance lock,
 Chromium flag setup, and crash telemetry setup. It calls
 `buildPathRegistry()` to build a frozen snapshot of the path registry by
 reading `app.getPath('userData')` and other Electron paths. So all
@@ -101,8 +101,9 @@ renderer copied the unlocked bulk while running, and the main process
 copied the occupied dirs during the next startup's narrow "no renderer
 yet" window. v2 abandons that distinction entirely — the whole directory
 is copied at startup **after** the previous process has fully exited, so
-nothing is locked. See `src/renderer/config/constant.ts:occupiedDirs`
-for the deprecated v1 constant.
+nothing is locked. See `occupiedDirs` in
+`src/renderer/pages/settings/DataSettings/BasicDataSettings.tsx` for the
+deprecated v1 constant.
 
 ## Layout
 
@@ -113,7 +114,10 @@ preboot/
 │                        dev instances with different userData suffixes use
 │                        isolated locks.
 ├── userDataLocation.ts  decides where userData lives (dev suffix or
-│                        BootConfig-driven), performs relaunch copy
+│                        BootConfig-driven), performs relaunch copy; also
+│                        exports the shared isUsableDataDir(p) validator
+│                        (isDirectory ∧ R_OK|W_OK|X_OK) that the v1→v2
+│                        migration path selector reuses for one identical bar
 ├── chromiumFlags.ts     Chromium startup flags (command-line switches and
 │                        hardware-acceleration toggles) that must run
 │                        before app.whenReady()
@@ -121,6 +125,16 @@ preboot/
 │                        webContents hardening (Document-Policy response
 │                        header and unresponsive renderer call-stack
 │                        collection)
+├── backupRestoreGate.ts
+│                        backup-restore gate; promotes a staged restored DB
+│                        (if any) at the top of startApp(), after the
+│                        single-instance lock and the frozen path registry,
+│                        before v2MigrationGate reads the DB. Thin shell that
+│                        never throws — except when recovery left no live DB
+│                        at all (booting on would create a fresh empty
+│                        database), where it fails fast instead. The
+│                        promotion logic lives in src/main/data/db/restore/
+│                        (same layering as v2MigrationGate → MigrationEngine).
 ├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
 │                        bootstrap. Calls resolveMigrationPaths() to
 │                        detect v1 legacy userData before engine init.
@@ -170,5 +184,5 @@ Each preboot module has its own timing contract (`userDataLocation` must run
 before `initPathRegistry`; `chromiumFlags` must run before `app.whenReady`).
 A barrel export would fold away which function lives in which module — and
 therefore which timing rules apply — making the preboot sequence in
-`main/index.ts` harder to reason about. Importing from concrete paths keeps
+`main/main.ts` harder to reason about. Importing from concrete paths keeps
 the timing story visible at every call site.

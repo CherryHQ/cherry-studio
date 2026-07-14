@@ -1,5 +1,5 @@
 import type { MessageListActions, MessageListMeta } from '@renderer/components/chat/messages/types'
-import UserPopup from '@renderer/components/Popups/UserPopup'
+import UserPopup from '@renderer/components/UserPopup'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCallback, useMemo } from 'react'
 

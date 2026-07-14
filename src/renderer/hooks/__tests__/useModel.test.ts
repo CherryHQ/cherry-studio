@@ -1,5 +1,5 @@
 import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
@@ -174,15 +174,16 @@ describe('useModelMutations', () => {
     vi.clearAllMocks()
   })
 
-  it('should set up POST, DELETE, single PATCH, and bulk PATCH mutations', () => {
+  it('should set up POST, single DELETE, bulk DELETE, single PATCH, and bulk PATCH mutations', () => {
     renderHook(() => useModelMutations())
 
     const calls = mockUseMutation.mock.calls
     expect(calls.find((c: any[]) => c[0] === 'POST' && c[1] === '/models')).toBeDefined()
     expect(calls.find((c: any[]) => c[0] === 'DELETE' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
+    expect(calls.find((c: any[]) => c[0] === 'DELETE' && c[1] === '/models')).toBeDefined()
     expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
     expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models')).toBeDefined()
-    expect(mockUseMutation).toHaveBeenCalledTimes(4)
+    expect(mockUseMutation).toHaveBeenCalledTimes(5)
   })
 
   it('should configure all mutations to refresh /models', () => {
@@ -348,6 +349,42 @@ describe('useModelMutations', () => {
     })
   })
 
+  it('should call bulk DELETE mutation trigger with query ids when deleteModels is invoked', async () => {
+    const bulkDeleteTrigger = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models' && _method === 'DELETE' ? bulkDeleteTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const ids = ['openai::gpt-4o', 'openai::gpt-4o-mini'] as UniqueModelId[]
+    await act(async () => {
+      await result.current.deleteModels(ids)
+    })
+
+    expect(bulkDeleteTrigger).toHaveBeenCalledWith({ query: { ids } })
+  })
+
+  it('should preserve commas inside model ids when deleteModels is invoked', async () => {
+    const bulkDeleteTrigger = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models' && _method === 'DELETE' ? bulkDeleteTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const ids = ['openai::model,with-comma'] as UniqueModelId[]
+    await act(async () => {
+      await result.current.deleteModels(ids)
+    })
+
+    expect(bulkDeleteTrigger).toHaveBeenCalledWith({ query: { ids } })
+  })
+
   it('should call bulk PATCH mutation trigger with the full item array when updateModels is invoked', async () => {
     const bulkUpdateTrigger = vi.fn().mockResolvedValue([])
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
@@ -432,6 +469,25 @@ describe('useModelMutations', () => {
     expect(loggerSpy).toHaveBeenCalledWith('Failed to bulk update models', { count: 1, error })
   })
 
+  it('should log and rethrow deleteModels errors', async () => {
+    const error = new Error('Bulk delete failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models' && _method === 'DELETE' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const ids = ['openai::gpt-4o'] as UniqueModelId[]
+    await act(async () => {
+      await expect(result.current.deleteModels(ids)).rejects.toThrow('Bulk delete failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to bulk delete models', { count: 1, error })
+  })
+
   it('should build uniqueModelId param correctly for simple IDs', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
@@ -488,9 +544,9 @@ describe('useModelMutations', () => {
   })
 
   it('should expose mutation loading states', () => {
-    mockUseMutation.mockImplementation((_method: string) => ({
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: vi.fn(),
-      isLoading: _method === 'POST',
+      isLoading: _method === 'POST' && path === '/models',
       error: undefined
     }))
 
@@ -498,6 +554,23 @@ describe('useModelMutations', () => {
 
     expect(result.current.isCreating).toBe(true)
     expect(result.current.isDeleting).toBe(false)
+    expect(result.current.isBulkDeleting).toBe(false)
+    expect(result.current.isUpdating).toBe(false)
+    expect(result.current.isBulkUpdating).toBe(false)
+  })
+
+  it('should expose bulk delete loading state', () => {
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: vi.fn(),
+      isLoading: _method === 'DELETE' && path === '/models',
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    expect(result.current.isCreating).toBe(false)
+    expect(result.current.isDeleting).toBe(false)
+    expect(result.current.isBulkDeleting).toBe(true)
     expect(result.current.isUpdating).toBe(false)
     expect(result.current.isBulkUpdating).toBe(false)
   })

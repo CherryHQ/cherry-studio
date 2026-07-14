@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { StorageHealth } from '@shared/types/storageMonitor'
-import { notification } from 'antd'
 import { t } from 'i18next'
 import { useEffect } from 'react'
 
@@ -11,10 +11,12 @@ const logger = loggerService.withContext('useStorageMonitorNotification')
  *
  * Detection and capacity-adaptive polling live in the main-process
  * StorageMonitorService; this hook is a thin subscriber that maps health
- * transitions onto an antd notification, mirroring useAppUpdateHandler.
+ * transitions onto a persistent toast, mirroring useAppUpdateHandler.
  *
- * TODO(v2-ui): the antd `notification` here is retained intentionally — migrate
- * it to `@cherrystudio/ui` as part of the broader v2 UI refactor, not piecemeal.
+ * Intentionally a React hook, not a service (mirroring useAppUpdateHandler):
+ * service-ification was considered and rejected — it depends on React-visible toast
+ * state and manages its own effect cleanup, and the renderer has no service lifecycle
+ * container, so a service would only add manual start/stop wiring for no gain.
  */
 export function useStorageMonitorNotification(): void {
   useEffect(() => {
@@ -29,15 +31,15 @@ export function useStorageMonitorNotification(): void {
       if (!active) return
       if (health.level === 'low' && !warningKey) {
         warningKey = `disk-warning-${Date.now()}`
-        notification.warning({
-          message: t('settings.data.limit.appDataDiskQuota'),
+        toast.warning({
           description: t('settings.data.limit.appDataDiskQuotaDescription'),
-          duration: 0,
-          key: warningKey
+          key: warningKey,
+          timeout: 0,
+          title: t('settings.data.limit.appDataDiskQuota')
         })
         logger.info('Low disk space, showing warning notification')
       } else if (health.level === 'ok' && warningKey) {
-        notification.destroy(warningKey)
+        toast.closeToast(warningKey)
         warningKey = null
         logger.info('Disk space recovered, dismissing warning notification')
       }

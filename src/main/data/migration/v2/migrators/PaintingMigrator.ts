@@ -1,8 +1,8 @@
 import { creationTable } from '@data/db/schemas/creation'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { creationFileRefTable } from '@data/db/schemas/fileRelations'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { creationSourceType } from '@shared/data/types/file/ref'
 import { inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -20,6 +20,7 @@ import {
 const logger = loggerService.withContext('PaintingMigrator')
 
 const INSERT_BATCH_SIZE = 100
+const INARRAY_CHUNK = 500
 
 export class PaintingMigrator extends BaseMigrator {
   readonly id = 'painting'
@@ -34,7 +35,7 @@ export class PaintingMigrator extends BaseMigrator {
   /**
    * `creation.id` → output/input file ids extracted from the legacy record.
    * Resolved against `file_entry` at execute() time so we never insert a
-   * `file_ref` row with a dangling FK (legacy rows can reference file ids
+   * `creation_file_ref` row with a dangling FK (legacy rows can reference file ids
    * that the FileMigrator skipped as malformed).
    */
   private preparedFileRefs = new Map<string, LegacyPaintingFileRefs>()
@@ -148,10 +149,10 @@ export class PaintingMigrator extends BaseMigrator {
 
       logger.info('[execute] insert summary', { total: paintings.length })
 
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
           const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
-          await tx.insert(creationTable).values(batch)
+          tx.insert(creationTable).values(batch).run()
 
           this.reportProgress(
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
@@ -159,11 +160,11 @@ export class PaintingMigrator extends BaseMigrator {
           )
         }
 
-        // ─── file_ref rows ───
+        // ─── painting_file_ref rows ───
         // Legacy painting rows carry output/input `file_entry.id`s in JSON.
-        // The v2 schema dropped that column; emit `file_ref` rows so the
-        // painting still points at its files via the new (sourceType,
-        // sourceId, role) trio. File ids that the FileMigrator skipped
+        // The v2 schema dropped that column; emit `creation_file_ref` rows so
+        // the painting still points at its files via the new (sourceId, role)
+        // pair. File ids that the FileMigrator skipped
         // (malformed v1 rows) are filtered out here to avoid FK violations
         // — they would be silently dropped by `inArray`, but we count them
         // explicitly so the validate() step has a stat to report.
@@ -174,14 +175,19 @@ export class PaintingMigrator extends BaseMigrator {
         }
         if (allFileIds.size > 0) {
           const idList = Array.from(allFileIds)
-          const existing = await tx
-            .select({ id: fileEntryTable.id })
-            .from(fileEntryTable)
-            .where(inArray(fileEntryTable.id, idList))
-          const existingIds = new Set(existing.map((r) => r.id))
+          const existingIds = new Set<string>()
+          for (let i = 0; i < idList.length; i += INARRAY_CHUNK) {
+            const chunk = idList.slice(i, i + INARRAY_CHUNK)
+            const existing = tx
+              .select({ id: fileEntryTable.id })
+              .from(fileEntryTable)
+              .where(inArray(fileEntryTable.id, chunk))
+              .all()
+            for (const row of existing) existingIds.add(row.id)
+          }
 
           const now = Date.now()
-          const refRows: Array<typeof fileRefTable.$inferInsert> = []
+          const refRows: Array<typeof creationFileRefTable.$inferInsert> = []
           for (const [paintingId, files] of this.preparedFileRefs) {
             for (const fileId of files.output) {
               if (!existingIds.has(fileId)) {
@@ -191,7 +197,6 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: creationSourceType,
                 sourceId: paintingId,
                 role: 'output',
                 createdAt: now,
@@ -206,7 +211,6 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: creationSourceType,
                 sourceId: paintingId,
                 role: 'input',
                 createdAt: now,
@@ -217,10 +221,10 @@ export class PaintingMigrator extends BaseMigrator {
 
           for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
-            await tx.insert(fileRefTable).values(batch).onConflictDoNothing()
+            tx.insert(creationFileRefTable).values(batch).onConflictDoNothing().run()
           }
 
-          logger.info('[execute] painting file_ref summary', {
+          logger.info('[execute] painting_file_ref summary', {
             referenced: refRows.length,
             droppedDangling: this.droppedFileRefs
           })
@@ -243,7 +247,7 @@ export class PaintingMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const countResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(creationTable).get()
+      const countResult = ctx.db.select({ count: sql<number>`count(*)` }).from(creationTable).get()
       const targetCount = countResult?.count ?? 0
       const errors: Array<{ key: string; message: string }> = []
 

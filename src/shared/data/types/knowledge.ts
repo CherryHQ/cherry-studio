@@ -62,11 +62,6 @@ export const KNOWLEDGE_ITEM_STATUSES = [
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
-export const KNOWLEDGE_SEARCH_MODES = ['vector', 'bm25', 'hybrid'] as const
-export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
-export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
-export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
-
 export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
 export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
 export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
@@ -105,14 +100,20 @@ export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode =
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KNOWLEDGE_CHUNK_STRATEGIES = ['structured', 'delimiter'] as const
+export const KnowledgeChunkStrategySchema = z.enum(KNOWLEDGE_CHUNK_STRATEGIES)
+export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema>
+// Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
+export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
-export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
+export const DEFAULT_KNOWLEDGE_CHUNK_STRATEGY: KnowledgeChunkStrategy = 'structured'
+export const DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR = '\\n\\n'
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
 
@@ -135,24 +136,16 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
   chunkOverlap: KnowledgeChunkOverlapSchema,
+  chunkStrategy: KnowledgeChunkStrategySchema,
+  chunkSeparator: KnowledgeChunkSeparatorSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema,
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
 
 export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
   if (value.status === 'completed') {
-    if (value.embeddingModelId === null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['embeddingModelId'],
-        message: 'Completed knowledge base requires an embedding model'
-      })
-    }
-
     if (value.error !== null) {
       ctx.addIssue({
         code: 'custom',
@@ -161,11 +154,13 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       })
     }
 
-    if (value.dimensions === null) {
+    // Embedding model and dimensions are paired: a vector base has both, a
+    // BM25-only base has neither. A half-set pair is invalid either way.
+    if ((value.embeddingModelId === null) !== (value.dimensions === null)) {
       ctx.addIssue({
         code: 'custom',
         path: ['dimensions'],
-        message: 'Completed knowledge base requires positive dimensions'
+        message: 'Embedding model and dimensions must be set together'
       })
     }
   }
@@ -185,39 +180,46 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       message: 'Chunk overlap must be smaller than chunk size'
     })
   }
-
-  if (value.hybridAlpha != null && value.searchMode !== 'hybrid') {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['hybridAlpha'],
-      message: 'Hybrid alpha requires hybrid search mode'
-    })
-  }
 })
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
 /**
- * A knowledge base that has finished embedding and is ready for vector-store
- * operations. Narrows away the states `KnowledgeBaseSchema.superRefine` already
- * rejects for `status === 'completed'` (null dimensions / embedding model, or a
- * lingering error), so consumers can read `dimensions` as a plain `number`
- * instead of re-asserting at each call site.
+ * A knowledge base that has finished setup and is ready for runtime operations
+ * (opening its index store, BM25 search, indexing). Covers both a vector base
+ * (embedding model + dimensions) and a BM25-only base (neither) — both are valid
+ * `completed` states. Use {@link isCompletedVectorKnowledgeBase} when you
+ * specifically need embeddings/dimensions.
  */
 export type CompletedKnowledgeBase = KnowledgeBase & {
   status: 'completed'
-  dimensions: number
-  embeddingModelId: string
   error: null
 }
 
 export function isCompletedKnowledgeBase(base: KnowledgeBase): base is CompletedKnowledgeBase {
+  return base.status === 'completed' && base.error === null
+}
+
+/**
+ * A completed base that uses embeddings: it has a resolved embedding model and a
+ * positive vector width, so vector/hybrid retrieval and the embedding pipeline
+ * can read `dimensions`/`embeddingModelId` as plain non-null values. A base
+ * without an embedding model is BM25-only and is intentionally excluded.
+ */
+export type VectorKnowledgeBase = CompletedKnowledgeBase & {
+  dimensions: number
+  embeddingModelId: string
+}
+
+// Named for the `completed` gate, not just the field shape: a *failed* base with a
+// model and dimensions still returns false here — those fields alone don't mean
+// the base is ready to embed/query.
+export function isCompletedVectorKnowledgeBase(base: KnowledgeBase): base is VectorKnowledgeBase {
   return (
-    base.status === 'completed' &&
+    isCompletedKnowledgeBase(base) &&
     typeof base.dimensions === 'number' &&
     Number.isInteger(base.dimensions) &&
     base.dimensions > 0 &&
-    base.embeddingModelId !== null &&
-    base.error === null
+    base.embeddingModelId !== null
   )
 }
 
@@ -507,7 +509,12 @@ export const KnowledgeSearchResultSchema = z.strictObject({
   rank: z.number().int().positive(),
   metadata: KnowledgeChunkMetadataSchema,
   itemId: KnowledgeItemIdSchema.optional(),
-  chunkId: z.string()
+  chunkId: z.string(),
+  // Concept ID (the material's relative path, OKF §2) and display title of the
+  // source document, so a hit can be followed up with kb_read. Optional
+  // because a not-yet-indexed snapshot has no relativePath to derive the id from.
+  conceptId: z.string().optional(),
+  title: z.string().optional()
 })
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
 
@@ -524,19 +531,30 @@ export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 // ============================================================================
 
 const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1),
+  // Optional and paired: a vector base supplies both, a BM25-only base omits both.
+  dimensions: z.number().int().positive().nullable().optional(),
+  embeddingModelId: z.string().trim().min(1).nullable().optional(),
   rerankModelId: z.string().nullable().optional(),
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
   chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  chunkStrategy: KnowledgeChunkStrategySchema.optional(),
+  chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
   threshold: KnowledgeThresholdSchema.optional(),
-  documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
+  documentCount: KnowledgeDocumentCountSchema.optional()
 })
 
 const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
+  // Vector/hybrid retrieval needs an embedding model, and a model is useless
+  // without its vector width — require both or neither.
+  if ((value.embeddingModelId == null) !== (value.dimensions == null)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['dimensions'],
+      message: 'Embedding model and dimensions must be provided together'
+    })
+  }
+
   if (value.chunkOverlap != null && value.chunkSize == null) {
     ctx.addIssue({
       code: 'custom',

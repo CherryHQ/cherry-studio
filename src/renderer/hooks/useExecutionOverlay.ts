@@ -23,7 +23,7 @@ import { loggerService } from '@logger'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { readUIMessageStream } from 'ai'
+import { isToolUIPart, readUIMessageStream } from 'ai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useTopicStreamSubscription } from './useTopicStreamSubscription'
@@ -54,8 +54,14 @@ export interface ExecutionOverlayApi {
 }
 
 interface ReaderHandle {
+  executionId: UniqueModelId
+  anchorMessageId?: string
   cancel: () => void
   unregister: () => void
+}
+
+function executionKey(executionId: UniqueModelId, anchorMessageId?: string): string {
+  return JSON.stringify([executionId, anchorMessageId ?? null])
 }
 
 function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): CherryUIMessage | undefined {
@@ -69,6 +75,69 @@ function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): Cher
   // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
   // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
   return { ...found, parts: structuredClone(found.parts ?? []) }
+}
+
+function canReuseSettledPart(previous: CherryMessagePart, next: CherryMessagePart): boolean {
+  if (previous.type !== next.type) return false
+
+  if (previous.type === 'text' && next.type === 'text') {
+    return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
+  }
+
+  if (previous.type === 'reasoning' && next.type === 'reasoning') {
+    return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
+  }
+
+  if (isToolUIPart(previous) && isToolUIPart(next)) {
+    const previousTool = previous as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    const nextTool = next as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    if (previousTool.toolCallId !== nextTool.toolCallId || previousTool.state !== nextTool.state) return false
+    if (previousTool.state === 'output-available') {
+      return previousTool.preliminary !== true && nextTool.preliminary !== true
+    }
+    return (
+      previousTool.state === 'output-error' ||
+      previousTool.state === 'output-denied' ||
+      previousTool.state === 'cancelled'
+    )
+  }
+
+  // These transport parts are append-only in processUIMessageStream. Data
+  // parts are deliberately excluded because an id-bearing data part can be
+  // updated in place by a later chunk.
+  return (
+    previous.type === 'file' ||
+    previous.type === 'source-url' ||
+    previous.type === 'source-document' ||
+    previous.type === 'step-start'
+  )
+}
+
+/**
+ * `readUIMessageStream` clones the complete message for every chunk. Restore
+ * references for protocol-settled parts so rendering work stays proportional
+ * to the live frontier instead of the full accumulated transcript.
+ */
+function shareSettledPartReferences(
+  previous: CherryMessagePart[] | undefined,
+  next: CherryMessagePart[]
+): CherryMessagePart[] {
+  if (!previous || previous.length === 0 || next.length === 0) return next
+
+  let reusedAny = false
+  let reusedAll = previous.length === next.length
+  const shared = next.map((part, index) => {
+    const previousPart = previous[index]
+    if (previousPart === part || (previousPart && canReuseSettledPart(previousPart, part))) {
+      reusedAny = true
+      return previousPart
+    }
+    reusedAll = false
+    return part
+  })
+
+  if (reusedAll) return previous
+  return reusedAny ? shared : next
 }
 
 export function useExecutionOverlay(
@@ -88,7 +157,7 @@ export function useExecutionOverlay(
   uiMessagesRef.current = uiMessages
   const onFinishRef = useRef(options.onFinish)
   onFinishRef.current = options.onFinish
-  const readersRef = useRef<Map<UniqueModelId, ReaderHandle>>(new Map())
+  const readersRef = useRef<Map<string, ReaderHandle>>(new Map())
 
   // Topic switch → tear down the previous topic's readers and drop all stale
   // overlay state. Runs as an effect (not in the render body) so the teardown
@@ -106,19 +175,21 @@ export function useExecutionOverlay(
 
   useEffect(() => {
     const readers = readersRef.current
-    const live = new Set(activeExecutions.map((e) => e.executionId))
+    const live = new Set(activeExecutions.map((e) => executionKey(e.executionId, e.anchorMessageId)))
 
-    for (const [executionId, handle] of [...readers]) {
-      if (live.has(executionId)) continue
+    for (const [key, handle] of [...readers]) {
+      if (live.has(key)) continue
       handle.cancel()
       handle.unregister()
-      readers.delete(executionId)
+      readers.delete(key)
     }
 
     for (const { executionId, anchorMessageId } of activeExecutions) {
-      if (readers.has(executionId)) continue
+      const key = executionKey(executionId, anchorMessageId)
+      if (readers.has(key)) continue
 
-      const branch = sub.register(executionId)
+      const branch = sub.register(executionId, anchorMessageId)
+      // Readers use execution+anchor keys; snapshots stay executionId-keyed because only one anchor is live per execution.
       // New turn for this execution: clear any retained prior snapshot.
       setSnapshots((prev) => {
         if (!(executionId in prev)) return prev
@@ -130,17 +201,21 @@ export function useExecutionOverlay(
       let cancelled = false
       let terminal: { isAbort: boolean; isError: boolean } | undefined
       const offTerminal = sub.onExecutionTerminal((id, t) => {
-        if (id === executionId) terminal = t
+        if (id !== executionId) return
+        if (t.anchorMessageId !== undefined && t.anchorMessageId !== anchorMessageId) return
+        terminal = t
       })
       const seed = pickSeed(uiMessagesRef.current, anchorMessageId)
 
-      readers.set(executionId, {
+      readers.set(key, {
+        executionId,
+        anchorMessageId,
         cancel: () => {
           cancelled = true
         },
         unregister: () => {
           offTerminal()
-          sub.unregister(executionId)
+          sub.unregister(executionId, anchorMessageId)
         }
       })
 
@@ -154,8 +229,13 @@ export function useExecutionOverlay(
             onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
           })) {
             if (cancelled) break
-            last = snapshot
-            setSnapshots((prev) => ({ ...prev, [executionId]: snapshot }))
+            const sharedParts = shareSettledPartReferences(
+              last?.parts as CherryMessagePart[] | undefined,
+              snapshot.parts as CherryMessagePart[]
+            )
+            const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
+            last = nextSnapshot
+            setSnapshots((prev) => ({ ...prev, [executionId]: nextSnapshot }))
           }
         } catch (err) {
           logger.warn('execution reader threw', { topicId, executionId, err })

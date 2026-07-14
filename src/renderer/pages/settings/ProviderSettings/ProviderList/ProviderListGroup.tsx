@@ -2,9 +2,9 @@ import { ReorderableList } from '@cherrystudio/ui'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, GripVertical, Plus } from 'lucide-react'
 import { type ReactNode, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -56,6 +56,7 @@ export default function ProviderListGroup({
   const bodyId = useId()
   const label = t(getProviderLabelKey(presetProviderId))
   const headerHighlight = !expanded && containsSelected
+  const hasEnabledMember = members.some((member) => member.isEnabled)
 
   return (
     <div className="w-full">
@@ -68,7 +69,12 @@ export default function ProviderListGroup({
         onClick={onToggle}
         className={cn(providerListClasses.groupHeader, headerHighlight && providerListClasses.groupHeaderHasSelected)}>
         <div className={providerListClasses.itemMain}>
-          <span aria-hidden className={providerListClasses.itemDragHandleSpacer} />
+          <span
+            aria-hidden
+            data-testid={`provider-list-group-drag-handle-${presetProviderId}`}
+            className={providerListClasses.itemDragHandle}>
+            <GripVertical size={16} />
+          </span>
           <div className={providerListClasses.itemIdentity}>
             <ProviderAvatar
               provider={{ id: presetProviderId, name: label }}
@@ -76,13 +82,26 @@ export default function ProviderListGroup({
               className={providerListClasses.itemAvatar}
             />
             <span className={cn(providerListClasses.itemLabel, 'text-foreground')}>{label}</span>
-            <span className={providerListClasses.groupCount}>{members.length}</span>
           </div>
         </div>
-        <ChevronRight
-          size={12}
-          className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
-        />
+        <div className={providerListClasses.groupTrailing}>
+          {hasEnabledMember && (
+            <span
+              aria-hidden
+              data-testid={`provider-list-group-enabled-dot-${presetProviderId}`}
+              className={providerListClasses.groupEnabledDot}
+            />
+          )}
+          <ChevronRight
+            size={12}
+            data-testid={`provider-list-group-chevron-${presetProviderId}`}
+            className={cn(
+              providerListClasses.groupChevron,
+              expanded && providerListClasses.groupChevronOpen,
+              hasEnabledMember && providerListClasses.groupChevronHiddenUntilHover
+            )}
+          />
+        </div>
       </button>
       {expanded && (
         <div

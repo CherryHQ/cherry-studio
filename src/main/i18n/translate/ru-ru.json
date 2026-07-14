@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Путь к рабочей области недоступен: {{path}}",
+        "missing": "Путь к рабочей области не существует: {{path}}",
+        "not_directory": "Путь к рабочей области не является каталогом: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "О",
+    "close": "Закрыть окно",
+    "copy": "Копировать",
+    "cut": "Резать",
+    "delete": "Удалить",
+    "documentation": "Документация",
+    "edit": "Редактировать",
+    "feedback": "Обратная связь",
+    "file": "Файл",
+    "forceReload": "Принудительная перезагрузка",
+    "front": "Показать все поверх других",
+    "help": "Помощь",
+    "hide": "Скрыть",
+    "hideOthers": "Скрыть остальные",
+    "minimize": "Минимизировать",
+    "paste": "Вставить",
+    "quit": "Выйти",
+    "redo": "Переделать",
+    "releases": "Релизы",
+    "reload": "Перезагрузка",
+    "resetZoom": "Настоящий размер",
+    "selectAll": "Выбрать все",
+    "services": "Услуги",
+    "toggleDevTools": "Переключить инструменты разработчика",
+    "toggleFullscreen": "Переключить полноэкранный режим",
+    "undo": "Отменить",
+    "unhide": "Показать все",
+    "view": "Вид",
+    "website": "Веб-сайт",
+    "window": "Окно",
+    "zoom": "Zoom",
+    "zoomIn": "Увеличить",
+    "zoomOut": "Отдалить"
+  },
+  "common": {
+    "copy": "Копировать",
+    "cut": "Вырезать",
+    "inspect": "Осмотреть",
+    "paste": "Вставить"
+  },
+  "dialog": {
+    "all_files": "Все файлы",
+    "html_files": "Файлы HTML",
+    "open_file": "Открыть файл",
+    "pdf_files": "Файлы PDF",
+    "png_image": "PNG-изображение",
+    "save_as_html": "Сохранить как HTML",
+    "save_as_pdf": "Сохранить как PDF",
+    "save_file": "Сохранить файл",
+    "select_folder": "Выбрать папку",
+    "word_document": "Документ Word"
+  },
+  "paintings": {
+    "generate_failed": "Не удалось сгенерировать изображение",
+    "image_mix_failed": "Не удалось объединить изображения"
+  },
+  "selection": {
+    "name": "Помощник выбора"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
+          "title": "Аутентификация Успешна"
+        }
+      }
+    },
+    "title": "Настройки"
+  },
+  "tray": {
+    "quit": "Выйти",
+    "show_quick_assistant": "Быстрый помощник",
+    "show_window": "Показать окно"
+  }
+}

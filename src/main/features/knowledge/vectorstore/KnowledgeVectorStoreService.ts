@@ -3,22 +3,14 @@ import fs from 'node:fs'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../utils/items'
-import {
-  deleteKnowledgeBaseDir,
-  getKnowledgeVectorStoreFilePath,
-  getKnowledgeVectorStoreFilePathSync
-} from '../utils/storage/pathStorage'
-import { ensureIndexMeta, hasAnyMaterial, hasLegacyVectorStoreTable } from './indexStore/indexMeta'
-import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
-import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
-import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
-import { createKnowledgeIndexSchema } from './indexStore/schema'
-import type { SqliteDriver } from './indexStore/types'
+import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../utils/storage/pathStorage'
+import { createKnowledgeIndexStoreAtPath } from './indexStore/createIndexStore'
+import type { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
 
@@ -43,11 +35,11 @@ function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is Comple
 @Injectable('KnowledgeVectorStoreService')
 @ServicePhase(Phase.WhenReady)
 export class KnowledgeVectorStoreService extends BaseService {
-  // Caches the in-flight open promise, not the resolved store, so concurrent
-  // getIndexStore calls for the same base share one open (one libsql client)
-  // instead of racing — the loser of a "resolve then set" race would otherwise
-  // leak an orphaned store that no one ever closes.
-  private instanceCache = new Map<string, Promise<KnowledgeIndexStore>>()
+  // Opening a store (better-sqlite3 connect + schema + meta) is fully synchronous
+  // (see openIndexStore), so it runs to completion in one JS turn — no concurrent
+  // getIndexStore call for the same base can ever observe an in-flight open, and a
+  // failed open never gets cached (the throw happens before .set() below runs).
+  private instanceCache = new Map<string, KnowledgeIndexStore>()
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
   async getIndexStore(base: KnowledgeBase): Promise<KnowledgeIndexStore> {
@@ -59,20 +51,10 @@ export class KnowledgeVectorStoreService extends BaseService {
       return cached
     }
 
-    const opening = this.openIndexStore(base)
-    this.instanceCache.set(base.id, opening)
-    try {
-      const store = await opening
-      logger.info('Opened knowledge index store', { baseId: base.id, cacheSize: this.instanceCache.size })
-      return store
-    } catch (error) {
-      // Evict the rejected promise so a later call retries the open instead of
-      // forever re-awaiting the same failure (only if it is still the cached one).
-      if (this.instanceCache.get(base.id) === opening) {
-        this.instanceCache.delete(base.id)
-      }
-      throw error
-    }
+    const store = this.openIndexStore(base)
+    this.instanceCache.set(base.id, store)
+    logger.info('Opened knowledge index store', { baseId: base.id, cacheSize: this.instanceCache.size })
+    return store
   }
 
   /** Reuse or open the store only if its file already exists on disk; used by cleanup paths that must not create one. */
@@ -101,12 +83,12 @@ export class KnowledgeVectorStoreService extends BaseService {
    * and `index.sqlite` alike. Only safe when deleting the whole base.
    */
   async deleteStore(baseId: string): Promise<void> {
-    const opening = this.instanceCache.get(baseId)
+    const store = this.instanceCache.get(baseId)
 
     try {
-      await this.closeStoreInstance(opening)
+      await this.closeStoreInstance(store)
       await deleteKnowledgeBaseDir(baseId)
-      logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(opening) })
+      logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(store) })
     } finally {
       this.instanceCache.delete(baseId)
     }
@@ -117,9 +99,9 @@ export class KnowledgeVectorStoreService extends BaseService {
     logger.info('Stopping knowledge index stores', { storeCount })
 
     try {
-      for (const [baseId, opening] of this.instanceCache.entries()) {
+      for (const [baseId, store] of this.instanceCache.entries()) {
         try {
-          await this.closeStoreInstance(opening)
+          await this.closeStoreInstance(store)
         } catch (error) {
           logger.error('Failed to close knowledge index store', error as Error, { baseId })
         }
@@ -130,37 +112,26 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
   }
 
-  private async openIndexStore(base: CompletedKnowledgeBase): Promise<KnowledgeIndexStore> {
-    const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
-    const driver = await openLibsqlIndexDriver(dbPath)
-    try {
-      await createKnowledgeIndexSchema(driver)
-      // Stamp + verify the meta identity row before handing out the store,
-      // so an index.sqlite swapped in from another base is rejected here (§4.1).
-      // That is the only refusal — a blank/recreated file is stamped as fresh and
-      // mounts empty; reportInvisibleIndexContents below makes that state loud.
-      await ensureIndexMeta(driver, { baseId: base.id })
-      await this.reportInvisibleIndexContents(driver, base.id)
-      return new KnowledgeIndexStore(driver, libsqlVectorIndex)
-    } catch (error) {
-      // Close the driver opened above so a failed open never leaks the libsql
-      // file handle (which on Windows would later block deleting the base dir).
-      await driver.close()
-      throw error
-    }
+  private openIndexStore(base: CompletedKnowledgeBase): KnowledgeIndexStore {
+    // The canonical open sequence (driver → version-aware schema → meta → store) lives in
+    // createKnowledgeIndexStoreAtPath, shared with the v1→v2 vector migrator. The empty-index
+    // diagnostic runs through the factory's `afterOpen` hook — INSIDE its close-on-throw region
+    // and BEFORE the store is returned — so a throwing probe still closes the driver (a leaked
+    // index.sqlite handle would later block deleting the base dir on Windows). Keeping this fully
+    // synchronous (the factory and the probe are sync) preserves the single-flight open invariant
+    // getIndexStore relies on: no `await` runs between its cache-miss and cache-set.
+    return createKnowledgeIndexStoreAtPath(getKnowledgeVectorStoreFilePathSync(base.id), {
+      baseId: base.id,
+      afterOpen: (store) => this.reportInvisibleIndexContents(store, base.id)
+    })
   }
 
   /**
    * Loud-failure guard for an index that mounts cleanly but holds no readable
-   * vectors. The migrator now writes the final 7-table layout, so a freshly
-   * migrated base mounts populated; the legacy single-table layout only survives
-   * in `index.sqlite` files written by pre-PR-B code paths (the removed vendored
-   * store, or an install that ran a pre-PR-B experiment build whose one-shot
-   * migration never re-runs to fix it). The runtime layout mounts cleanly beside
-   * that remnant but sees none of its vectors, so search would silently return
-   * empty forever. Detect that remnant, and the broader "base has completed
-   * items but the index holds nothing" state (deleted/blanked file), and log an
-   * error so the silent-empty symptom is diagnosable.
+   * vectors. A freshly migrated or indexed base mounts populated, so an index
+   * that holds zero materials while the base still has completed items means the
+   * `index.sqlite` was deleted, blanked or replaced — log an error so the
+   * silent-empty symptom is diagnosable.
    *
    * Probe failures propagate and fail the open on purpose: swallowing them here
    * would re-silence the deleted-base race this guard exists to expose (an open
@@ -168,20 +139,12 @@ export class KnowledgeVectorStoreService extends BaseService {
    * NOT_FOUND is what turns that into a loud failure instead of a cached
    * forever-empty store).
    */
-  private async reportInvisibleIndexContents(driver: SqliteDriver, baseId: string): Promise<void> {
-    if (await hasLegacyVectorStoreTable(driver)) {
-      logger.error(
-        'index.sqlite holds the legacy single-table vector layout (written by a pre-PR-B build), which the runtime store cannot read — search will return empty results until the base is reindexed',
-        { baseId }
-      )
+  private reportInvisibleIndexContents(store: KnowledgeIndexStore, baseId: string): void {
+    if (store.hasAnyMaterial()) {
       return
     }
 
-    if (await hasAnyMaterial(driver)) {
-      return
-    }
-
-    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+    const items = knowledgeItemService.getItemsByBaseId(baseId)
     if (items.some((item) => isIndexableKnowledgeItem(item) && item.status === 'completed')) {
       logger.error(
         'Index store mounted with zero materials while the base has completed items — the index file was deleted, blanked or replaced; search will return empty results until the base is reindexed',
@@ -202,14 +165,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
   }
 
-  private async closeStoreInstance(opening: Promise<KnowledgeIndexStore> | undefined): Promise<void> {
-    if (!opening) {
-      return
-    }
-    // A store that never opened needs no close (the open path already closed its
-    // driver on failure) — swallow the rejection here instead of re-throwing the
-    // open error into an unrelated delete/shutdown operation.
-    const store = await opening.catch(() => undefined)
+  private async closeStoreInstance(store: KnowledgeIndexStore | undefined): Promise<void> {
     if (!store) {
       return
     }

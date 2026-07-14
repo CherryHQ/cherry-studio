@@ -1,4 +1,6 @@
+import { regionService } from '@main/services/RegionService'
 import { defaultAppHeaders } from '@main/utils/http'
+import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { withoutTrailingSlash } from '@shared/utils/api'
 import { net } from 'electron'
@@ -7,6 +9,13 @@ import * as z from 'zod'
 import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { BaseSearchContext } from '../base/context'
+
+// Jina serves a China-accessible mirror for users whose global endpoints are blocked.
+// Maps each built-in preset host to its mainland-China counterpart.
+const JINA_CHINA_HOST_BY_DEFAULT: Record<string, string> = {
+  'https://s.jina.ai': 'https://s.jinaai.cn',
+  'https://r.jina.ai': 'https://r.jinaai.cn'
+}
 
 const JinaReaderResponseSchema = z.looseObject({
   code: z.union([z.number(), z.string()]).optional(),
@@ -61,7 +70,7 @@ export class JinaProvider extends BaseWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchResponse> {
-    const context = this.prepareSearchKeywordsContext(query, config, httpOptions)
+    const context = await this.prepareSearchKeywordsContext(query, config, httpOptions)
     const payload = await this.executeSearchKeywords(context)
 
     return this.buildSearchKeywordsResponse(context, payload)
@@ -72,43 +81,63 @@ export class JinaProvider extends BaseWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchResponse> {
-    const context = this.prepareFetchUrlsContext(query, config, httpOptions)
+    const context = await this.prepareFetchUrlsContext(query, config, httpOptions)
     const payload = await this.executeFetchUrls(context)
 
     return this.buildFetchUrlsResponse(context, payload)
   }
 
-  private prepareSearchKeywordsContext(
+  /**
+   * Resolve the request host for a capability, swapping the built-in Jina default
+   * for its China mirror when the user is in mainland China. A user-customized
+   * apiHost is never rewritten — only the untouched preset default is region-aware.
+   */
+  private async resolveRegionAwareApiHost(capability: WebSearchCapability): Promise<string> {
+    const apiHost = resolveProviderApiHost(this.provider, capability)
+    const chinaHost = JINA_CHINA_HOST_BY_DEFAULT[apiHost]
+
+    // Region detection sits on the search/fetch hot path; a rejection (e.g. an
+    // unavailable ProxyService/CacheService) must not fail the request — fall
+    // back to the global host instead of routing to the China mirror.
+    if (chinaHost && (await regionService.isInChina().catch(() => false))) {
+      return chinaHost
+    }
+
+    return apiHost
+  }
+
+  private async prepareSearchKeywordsContext(
     query: string,
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
-  ): JinaContext {
+  ): Promise<JinaContext> {
     const normalizedQuery = query.trim()
+    const apiHost = await this.resolveRegionAwareApiHost('searchKeywords')
 
     return {
       apiKey: this.resolveApiKey(),
       query: normalizedQuery,
       maxResults: config.maxResults,
-      requestUrl: `${withoutTrailingSlash(resolveProviderApiHost(this.provider, 'searchKeywords'))}/${encodeURIComponent(
-        normalizedQuery
-      )}`,
+      requestUrl: `${withoutTrailingSlash(apiHost)}/${encodeURIComponent(normalizedQuery)}`,
       signal: httpOptions?.signal ?? undefined
     }
   }
 
-  private prepareFetchUrlsContext(
+  private async prepareFetchUrlsContext(
     query: string,
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
-  ): JinaContext {
+  ): Promise<JinaContext> {
     const url = query.trim()
+    const apiHost = await this.resolveRegionAwareApiHost('fetchUrls')
 
     return {
-      apiKey: this.resolveApiKey(),
+      // Jina Reader works without a key (rate-limited); a key is optional and only raises the limits.
+      apiKey: this.resolveApiKey(false),
       query: url,
       maxResults: config.maxResults,
       // Jina Reader expects the raw target URL after the host; encoding it changes the API path semantics.
-      requestUrl: `${withoutTrailingSlash(resolveProviderApiHost(this.provider, 'fetchUrls'))}/${url}`,
+      requestUrl: `${withoutTrailingSlash(apiHost)}/${url}`,
       signal: httpOptions?.signal ?? undefined
     }
   }
@@ -135,14 +164,19 @@ export class JinaProvider extends BaseWebSearchProvider {
   }
 
   private async executeFetchUrls(context: JinaContext) {
+    const headers: Record<string, string> = {
+      ...defaultAppHeaders(),
+      Accept: 'application/json',
+      'X-Retain-Images': 'none'
+    }
+    // Only authenticate when a key is configured; Jina Reader accepts anonymous requests.
+    if (context.apiKey) {
+      headers.Authorization = `Bearer ${context.apiKey}`
+    }
+
     const response = await net.fetch(context.requestUrl, {
       method: 'GET',
-      headers: {
-        ...defaultAppHeaders(),
-        Accept: 'application/json',
-        Authorization: `Bearer ${context.apiKey}`,
-        'X-Retain-Images': 'none'
-      },
+      headers,
       signal: context.signal
     })
 

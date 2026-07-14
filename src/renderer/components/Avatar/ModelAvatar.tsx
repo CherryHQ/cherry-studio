@@ -1,11 +1,12 @@
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
-import { getModelLogo } from '@renderer/config/models'
-import { cn } from '@renderer/utils'
-import { first } from 'lodash'
+import { useIcon } from '@cherrystudio/ui/icons'
+import { getModelLogoRef } from '@renderer/utils/model'
+import { cn } from '@renderer/utils/style'
+import { first } from 'es-toolkit/compat'
 import type { FC } from 'react'
 
 /**
- * Structural minimum the avatar needs. `getModelLogo` is shape-agnostic
+ * Structural minimum the avatar needs. `getModelLogoRef` is shape-agnostic
  * (accepts both v1 `provider` and v2 `providerId`), so this component works
  * with either Model shape — no v1 `@renderer/types` dependency.
  */
@@ -23,7 +24,7 @@ interface Props {
 }
 
 const ModelAvatar: FC<Props> = ({ model, size, className }) => {
-  const Icon = getModelLogo(model)
+  const Icon = useIcon(getModelLogoRef(model))
   if (Icon) {
     return <Icon.Avatar size={size} className={className} />
   }

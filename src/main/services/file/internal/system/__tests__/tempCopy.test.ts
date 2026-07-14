@@ -20,10 +20,9 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { withTempCopy } = await import('../tempCopy')
 const { createInternal } = await import('../../entry/create')
-const { exists } = await import('@main/utils/file/fs')
+const { exists } = await import('@main/utils/file')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -63,8 +62,7 @@ describe('internal/system/tempCopy', () => {
         onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
         clear: vi.fn()
       },
-      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
     }
   })
 
@@ -117,7 +115,7 @@ describe('internal/system/tempCopy', () => {
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
     const fnErr = new Error('library failed')
     const cleanupErr = Object.assign(new Error('EBUSY: dir held by external process'), { code: 'EBUSY' })
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     vi.spyOn(fsModule, 'removeDir').mockRejectedValueOnce(cleanupErr)
 
     await expect(
@@ -137,7 +135,7 @@ describe('internal/system/tempCopy', () => {
     // rejection — caller already got its result; the leak is a side effect.
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
     const cleanupErr = Object.assign(new Error('EACCES'), { code: 'EACCES' })
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     vi.spyOn(fsModule, 'removeDir').mockRejectedValueOnce(cleanupErr)
 
     const result = await withTempCopy(deps, e.id, async () => 'ok')

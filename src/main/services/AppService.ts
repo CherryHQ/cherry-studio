@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 
 const logger = loggerService.withContext('AppService')
@@ -16,7 +15,7 @@ export class AppService {
       app.setLoginItemSettings({ openAtLogin: isLaunchOnBoot })
     } else if (isLinux) {
       try {
-        const autostartDir = path.join(os.homedir(), '.config', 'autostart')
+        const autostartDir = application.getPath('sys.appdata.autostart')
         const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
 
         if (isLaunchOnBoot) {

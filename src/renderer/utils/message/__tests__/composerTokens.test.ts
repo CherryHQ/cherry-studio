@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getComposerTextFromMessage,
   getComposerTokenClipboardText,
+  getRenderableComposerTokens,
   replaceComposerTokenPromptText
 } from '../composerTokens'
 
@@ -59,6 +60,18 @@ describe('getComposerTokenClipboardText', () => {
   it('returns the raw label for other kinds', () => {
     expect(getComposerTokenClipboardText(token({ kind: 'file', label: 'a.txt' }))).toBe('a.txt')
   })
+
+  it('returns the folder path prompt text for folder tokens', () => {
+    expect(
+      getComposerTokenClipboardText(
+        token({
+          kind: 'folder',
+          label: 'Project Notes',
+          promptText: '/Users/jd/Notes/Project Notes'
+        })
+      )
+    ).toBe('/Users/jd/Notes/Project Notes')
+  })
 })
 
 describe('replaceComposerTokenPromptText', () => {
@@ -95,6 +108,22 @@ describe('replaceComposerTokenPromptText', () => {
       ])
     )
     expect(result).toBe('t0t1')
+  })
+
+  it('renders folder tokens and replaces their prompt text with the path fallback', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const composer = snapshot([
+      token({
+        id: 'folder-1',
+        kind: 'folder',
+        label: 'Project Notes',
+        promptText: folderPath,
+        textOffset: 5
+      })
+    ])
+
+    expect(getRenderableComposerTokens(composer)).toMatchObject([{ kind: 'folder', label: 'Project Notes' }])
+    expect(replaceComposerTokenPromptText(`Read ${folderPath}`, composer)).toBe(`Read ${folderPath}`)
   })
 })
 

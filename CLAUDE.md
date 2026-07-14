@@ -27,6 +27,7 @@ How to approach any coding task in this repo.
 - Match existing style even if you would do it differently.
 - If you notice unrelated dead code, mention it — do not delete it.
 - Remove imports / variables / functions that **your** changes orphaned. Leave pre-existing dead code alone unless asked.
+- **v1 residue is a standing exception:** during the v2 refactor you may delete (not just flag) v1 dead code in an area you're already editing — see [v2 Refactoring → Coexistence Mindset](#coexistence-mindset). Unrelated v1 code and *fixing* v1 remain out of scope.
 - Every changed line must trace directly to the user's request.
 
 #### Goal-Driven Execution
@@ -51,7 +52,7 @@ Project-specific tools, paths, and conventions.
 - **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
 - **Library-first, custom-last**: Before writing custom code, check library/framework docs for built-in options or existing solutions. Write custom code only when no adequate alternative exists.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
-- **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component; never add `antd`, `HeroUI`, or `styled-components`.
+- **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
 - **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
@@ -64,12 +65,12 @@ Project-specific tools, paths, and conventions.
 
 ### Commands
 
-Run `pnpm install` first (requires Node ≥22, pnpm 10.27.0). For every other script, read `package.json` — the ones you must know:
+Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
-- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format check
+- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
 - `pnpm test` — run all Vitest tests
 - `pnpm format` — Biome format + lint (write mode)
-- `pnpm build:check` — **REQUIRED before commits** (`pnpm lint && pnpm test`). If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first.
+- `pnpm build:check` — **REQUIRED before commits**. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
 
 ### Testing
 
@@ -90,7 +91,7 @@ Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.
 
 ### Code Review
 
-Do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — inspect CI via `gh` instead.
+When reviewing a GitHub PR, do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — its CI already ran them; inspect via `gh` instead.
 
 ### Issues
 
@@ -117,8 +118,6 @@ logger.warn("message");
 logger.error("message", error);
 ```
 
-- Never use `console.log` — always use `loggerService`
-
 ### Paths
 
 **MUST READ**: [src/main/core/paths/README.md](src/main/core/paths/README.md) — namespaces, naming, adding new keys, testing patterns. (Rule stated in Guiding Principle "Access paths centrally".)
@@ -139,7 +138,9 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 
 Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/naming-conventions.md)).
 
-- [Main Process Architecture](docs/references/main-process-architecture.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`) and dependency direction.
+A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/references/naming-conventions.md)).
+
+- [Main Process Architecture](docs/references/main-process-architecture.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
 - [Renderer Architecture](docs/references/renderer-architecture.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
 - [Shared Layer Architecture](docs/references/shared-layer-architecture.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
 
@@ -157,13 +158,13 @@ Where each file and directory belongs — read the doc for the process you're to
 Scope:
 
 - **BootConfig**: sync file-based; direct in main (pre-lifecycle), via `usePreference('BootConfig.*')` otherwise
-- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist is renderer-only (main relays IPC but doesn't store)
+- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist on both too but as **independent** stores (renderer = localStorage, main = JSON file at `{userData}/cache.json`), never shared — main additionally relays renderer persist sync between windows
 - **Preference**: cross-process (main + renderer); auto-syncs across windows
 - **DataApi**: SQLite-backed; no auto-sync, fetch on demand from renderer
 
-Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `pnpm db:migrations:generate`
+Database: SQLite via **better-sqlite3** + Drizzle ORM — the driver is **synchronous** (queries and transactions run inline with no `await`, unlike the app's otherwise-async data layers), so `getDb()` queries and `withWriteTx(fn)` callbacks must be written synchronously. Schemas in `src/main/data/db/schemas/`, migrations via `pnpm db:migrations:generate`
 
-**Write serialization**: concurrent write paths MUST go through `application.get('DbService').withWriteTx(fn)` instead of `db.transaction(fn)` to avoid `SQLITE_BUSY` from libsql client-ts upstream issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288). See [Database Patterns — Write Serialization](docs/references/data/database-patterns.md#write-serialization-dbservicewritewritetx).
+**Write atomicity**: use `application.get('DbService').withWriteTx(fn)` to commit multiple writes (or a read-then-write) all-or-nothing in one synchronous `BEGIN IMMEDIATE` transaction; `fn` must be synchronous. A single write doesn't need it — better-sqlite3 runs each statement atomically on its one connection. See [Database Patterns — Write Serialization](docs/references/data/database-patterns.md#write-serialization-dbservicewritewritetx).
 
 **DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
 
@@ -171,7 +172,7 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 
 **MUST READ**: [docs/references/ipc/README.md](docs/references/ipc/README.md) — paradigm boundary (RPC vs REST), schema/router/preload/facade layering, `IpcContext`, error model, security.
 
-Non-data command IPC (window/system/shell/notification/external/file) goes through **IpcApi** — the fifth subsystem alongside BootConfig/Cache/Preference/DataApi, RPC-over-IPC with single-point schemas (`schema + handler` to add a route; `ipcApi.request('namespace.action', input)` to call; `IpcApiService.broadcast`/`send` + `useIpcOn` for events). Framework shipped (Stage 0); domains migrate incrementally and coexist with legacy IPC. Decision: SQLite data → DataApi; user setting → Preference; losable/shared → Cache; everything else imperative → IpcApi.
+Non-data command IPC (window/system/shell/notification/external/file) goes through **IpcApi** — the fifth subsystem alongside BootConfig/Cache/Preference/DataApi, RPC-over-IPC with single-point schemas (`schema + handler` to add a route; `ipcApi.request('namespace.action', input)` to call; `IpcApiService.broadcast`/`send` + `useIpcOn` for events). Legacy command IPC still coexists, so you'll encounter both. Decision: SQLite data → DataApi; user setting → Preference; losable/shared → Cache; everything else imperative → IpcApi.
 
 ### Window Manager
 
@@ -206,25 +207,30 @@ For detailed code examples, see [Usage Guide](docs/references/lifecycle/lifecycl
 
 Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
+### BinaryManager (CLI binary acquisition)
+
+**MUST READ**: [docs/references/binary-manager/README.md](docs/references/binary-manager/README.md) — scope criterion (in/out), persisted surface, bundled-vs-mise state contract, adding a new tool, China mirror behavior.
+
+All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installTool(...)` and keep runtime orchestration (config, spawn, health) on their side.
+
 ## v2 Refactoring (In Progress)
 
-> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the default branch for active development, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. v1 maintenance fixes (hotfixes and subsequent v1 releases) go to the `v1` branch, not `main`; forward-port to `main` with a separate PR if the bug also exists there.
+> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the default branch for active development, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. (For where v1 fixes land, see **Target the right branch** in Operational Rules.)
 
 ### Data Layer
 
-- **Removing**: Redux, Dexie, ElectronStore
+- **Removing**: Dexie, ElectronStore (Redux is fully removed)
 - **Adopting**: Cache / Preference / DataApi architecture (see [Data](#data))
 
 ### UI Layer
 
-- **Prohibited**: antd, HeroUI, styled-components
-- **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
+- **Adopting**: `@cherrystudio/ui`. The adoption rule lives in **Build with Tailwind CSS & Shadcn UI** (Operational Rules).
 
 ### Coexistence Mindset
 
 Two things on this branch are throwaway — do not defend them.
 
-**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Redux, Dexie, ElectronStore) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work; leave mixed-branch v1 code alone unless it blocks v2.
+**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Dexie, ElectronStore — Redux already removed) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work (v1 fixes go to the `v1` branch). The refactor is now in its cleanup stage, so the posture shifts from leaving v1 alone to **opportunistic removal**: when you're already editing an area, delete the v1 residue you touch — orphaned legacy-stack call sites, dead v1 reads/writes, now-unused modules — instead of leaving it in place. Don't go hunting for v1 code to delete in unrelated PRs, and never delete code still wired into live v2 behavior (flag it instead).
 
 **Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
@@ -241,7 +247,7 @@ The following four files are **auto-generated — NEVER edit them by hand**:
 - `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
 - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 
-To change any of them, edit `classification.json` or `target-key-definitions.json`, then regenerate:
+To change any of them, edit `classification.json` or `target-key-definitions.json` (both in `v2-refactor-temp/tools/data-classify/data/`), then regenerate:
 
 ```bash
 cd v2-refactor-temp/tools/data-classify && npm run generate
@@ -251,10 +257,6 @@ cd v2-refactor-temp/tools/data-classify && npm run generate
 
 When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
 
-## Security
+## Local Instructions
 
-- Never expose Node.js APIs directly to renderer; use `contextBridge` in preload
-- Validate all IPC inputs in main process handlers
-- URL sanitization via `strict-url-sanitise`
-- IP validation via `ipaddr.js` (API server)
-- `express-validator` for API server request validation
+If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), read it in full before acting on anything in this file — it holds the developer's private instructions and **OVERRIDES this file wherever they conflict**. Tools that auto-load it (e.g. Claude Code) need not re-read it.

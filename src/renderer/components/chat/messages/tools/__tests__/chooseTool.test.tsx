@@ -1,4 +1,4 @@
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +17,7 @@ vi.mock('../agent', () => ({
   AgentExecutionTimeline: () => <div data-testid="agent-card" />
 }))
 // Empty enum → isAgentTool only matches the `mcp__` prefix, not our builtin names.
-vi.mock('../agent/types', () => ({ AgentToolsType: {}, isAskUserQuestionToolName: () => false }))
+vi.mock('../shared/agentToolTypes', () => ({ AgentToolsType: {}, isAskUserQuestionToolName: () => false }))
 
 const { chooseTool } = await import('../chooseTool')
 

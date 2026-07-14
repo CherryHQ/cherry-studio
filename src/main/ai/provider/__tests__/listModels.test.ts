@@ -1,5 +1,5 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -12,7 +12,7 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
 const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, getCopilotTokenMock, aiSdkGetFromApiMock } =
   vi.hoisted(() => ({
-    getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
+    getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
     getAuthConfigMock: vi.fn(),
     getAuthHeadersMock: vi.fn(),
     getCopilotTokenMock: vi.fn(),
@@ -51,7 +51,7 @@ const { listModels } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getRotatedApiKeyMock.mockResolvedValue('AIza-secret-key')
+  getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
@@ -240,6 +240,60 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
   })
 })
 
+describe('listModels — anthropicFetcher (x-api-key + anthropic-version transport)', () => {
+  function makeAnthropicProvider() {
+    return makeProvider({
+      id: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
+      }
+    })
+  }
+
+  it('hits /v1/models with x-api-key + anthropic-version, never Authorization: Bearer', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-ant-secret')
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'claude-opus-4-8', display_name: 'Claude Opus 4.8' }] }
+    })
+
+    const models = await listModels(makeAnthropicProvider())
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    expect(call.url).toBe('https://api.anthropic.com/v1/models?limit=1000')
+    expect(call.headers['x-api-key']).toBe('sk-ant-secret')
+    expect(call.headers['anthropic-version']).toBe('2023-06-01')
+    expect(call.headers.Authorization).toBeUndefined()
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe('claude-opus-4-8')
+    expect(models[0].name).toBe('Claude Opus 4.8')
+    expect(models[0].ownedBy).toBe('anthropic')
+  })
+
+  it('routes copied Anthropic providers (uuid id + presetProviderId) through the Anthropic fetcher (REGRESSION)', async () => {
+    const copied = makeProvider({
+      id: 'a1b2c3d4-e5f6-7089-1234-56789abcdef0',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'claude-opus-4-8' }, { id: 'claude-opus-4-8' }] }
+    })
+
+    const models = await listModels(copied)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { headers: Record<string, string> }
+    expect(call.headers['anthropic-version']).toBe('2023-06-01')
+    // dedup keeps a single entry for the repeated id
+    expect(models.map((m) => m.apiModelId)).toEqual(['claude-opus-4-8'])
+  })
+})
+
 describe('listModels — copilotFetcher (preset-aware routing)', () => {
   it('routes copied Copilot providers (uuid id + presetProviderId) through the Copilot fetcher and its audio filter (REGRESSION)', async () => {
     const copiedCopilotProvider = makeProvider({
@@ -260,6 +314,143 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
 
     expect(getCopilotTokenMock).toHaveBeenCalledTimes(1)
     expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
+  })
+})
+
+describe('listModels — ppioFetcher capability mapping', () => {
+  it('keeps only RERANK when the same model id appears in chat and reranker endpoints', async () => {
+    const provider = makeProvider({
+      id: 'ppio',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.ppio.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/models?model_type=embedding')) {
+        return Promise.resolve({ value: { data: [{ id: 'ppio-embedding' }] } })
+      }
+      if (url.endsWith('/models?model_type=reranker')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              {
+                id: 'ppio-reranker',
+                owned_by: 'ppio-rerank',
+                name: 'PPIO Rerank Pro',
+                description: 'Reranker endpoint metadata',
+                group: 'rerankers'
+              }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'ppio-chat' }, { id: 'ppio-reranker' }] } })
+    })
+
+    const models = await listModels(provider)
+    const chatModel = models.find((model) => model.apiModelId === 'ppio-chat')
+    const rerankerModel = models.find((model) => model.apiModelId === 'ppio-reranker')
+
+    expect(chatModel?.capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.ownedBy).toBeUndefined()
+    expect(rerankerModel?.name).toBe('ppio-reranker')
+    expect(rerankerModel?.description).toBeUndefined()
+    expect(rerankerModel?.group).toBe('ppio')
+  })
+})
+
+describe('listModels — copied preset provider routing', () => {
+  it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
+    const provider = makeProvider({
+      id: '550e8400-e29b-41d4-a716-446655440001',
+      presetProviderId: 'github'
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: [{ id: 'openai/gpt-4o', name: 'GPT-4o', publisher: 'OpenAI' }]
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'https://models.github.ai/catalog/models'
+    })
+    expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
+  })
+})
+
+describe('listModels — newApiFetcher endpoint types', () => {
+  it('maps supported_endpoint_types from NewAPI model responses', async () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://newapi.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'agent/deepseek-v3.2',
+            object: 'model',
+            created: 1626777600,
+            owned_by: 'custom',
+            supported_endpoint_types: [
+              'openai',
+              'openai-response',
+              'openai-response-compact',
+              'anthropic',
+              'gemini',
+              'jina-rerank',
+              'image-generation',
+              'image-edit'
+            ]
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'agent/deepseek-v3.2',
+      ownedBy: 'custom',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ENDPOINT_TYPE.JINA_RERANK,
+        ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+      ]
+    })
+  })
+
+  it('routes aionly through the NewAPI-compatible model parser', async () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aionly.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'deepseek-v3.2',
+            supported_endpoint_types: ['anthropic']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 })
 
@@ -309,6 +500,99 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
   })
 })
 
+describe('listModels — aiHubMixFetcher (configured base URL)', () => {
+  it('builds the models URL from the configured base URL, stripping a trailing /v1', async () => {
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://custom.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ model_id: 'qwen3.6-plus', model_name: 'Qwen3.6 Plus', desc: 'test' }] }
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://custom.example.com/api/v1/models')
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
+  })
+})
+
+describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
+  function makeNewApiProvider() {
+    return makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' }
+      }
+    })
+  }
+
+  it('marks normalized primary jina-rerank models while ignoring unknown endpoint routing metadata', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'opaque-model-id',
+            owned_by: 'new-api',
+            supported_endpoint_types: [' JINA-RERANK ', 'openai', 'unknown-endpoint']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('does not mark jina-rerank when a chat endpoint has higher priority', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'multi-endpoint-chat-model',
+            supported_endpoint_types: ['openai', 'jina-rerank']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
+    expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+  })
+
+  it('derives the capability for other capability-exclusive primary endpoints (image)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'opaque-image-model',
+            supported_endpoint_types: ['image-generation', 'openai']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(models[0].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ])
+  })
+})
+
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   function makeVertexProvider() {
     return makeProvider({
@@ -320,7 +604,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   }
 
   beforeEach(() => {
-    getAuthConfigMock.mockResolvedValue({
+    getAuthConfigMock.mockReturnValue({
       type: 'iam-gcp',
       project: 'my-project',
       location: 'us-central1',
@@ -385,7 +669,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   })
 
   it('returns [] when the provider is not configured with iam-gcp auth', async () => {
-    getAuthConfigMock.mockResolvedValue(null)
+    getAuthConfigMock.mockReturnValue(null)
 
     const models = await listModels(makeVertexProvider())
 

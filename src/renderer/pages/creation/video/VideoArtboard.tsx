@@ -1,9 +1,10 @@
 import { Button } from '@cherrystudio/ui'
-import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata } from '@renderer/types'
-import { motion } from 'framer-motion'
+import type { FileMetadata } from '@renderer/types/file'
+import { motion } from 'motion/react'
 import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { getPaintingFileUrl } from '../../paintings/utils/paintingFileUrl'
 
 export interface VideoArtboardProps {
   files: FileMetadata[]
@@ -40,7 +41,7 @@ const LoadingStateCard: FC<{ text: string; onCancel: () => void; cancelLabel: st
  * Video counterpart of the painting `Artboard`: renders the generated clip(s)
  * in a native `<video controls>` element (vs `<img>`), with prev/next nav when
  * a model returns more than one clip and the same spinner overlay while a job
- * runs. URLs come from `FileManager.getFileUrl` — the same path the image
+ * runs. URLs come from `getPaintingFileUrl` — the same path the image
  * Artboard uses, which works as a `<video src>` too.
  */
 const VideoArtboard: FC<VideoArtboardProps> = ({ files, isLoading, onCancel }) => {
@@ -48,7 +49,7 @@ const VideoArtboard: FC<VideoArtboardProps> = ({ files, isLoading, onCancel }) =
   const [index, setIndex] = useState(0)
   const displayedIndex = files.length > 0 ? Math.min(index, files.length - 1) : 0
   const currentFile = files[displayedIndex]
-  const currentUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
+  const currentUrl = currentFile ? (getPaintingFileUrl(currentFile) ?? '') : ''
 
   const onPrev = useCallback(() => {
     setIndex((i) => (i > 0 ? i - 1 : Math.max(0, files.length - 1)))

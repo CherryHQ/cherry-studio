@@ -1,7 +1,8 @@
-import type { ConversationComposerPlacement } from '@renderer/components/chat/composer/ConversationComposerStage'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import type { Citation, GetAgentResponse } from '@renderer/types'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import type { Citation } from '@renderer/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ComponentProps } from 'react'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
@@ -16,7 +17,6 @@ interface AgentChatMainProps {
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
-  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -34,7 +34,6 @@ export default function AgentChatMain({
   activeAgent,
   partsByMessageId,
   optimisticAskUserQuestionInputsByToolCallId,
-  modelFallback,
   isLoading,
   hasOlder,
   loadOlder,
@@ -56,7 +55,6 @@ export default function AgentChatMain({
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
           optimisticAskUserQuestionInputsByToolCallId={optimisticAskUserQuestionInputsByToolCallId}
-          modelFallback={modelFallback}
           isLoading={isLoading}
           hasOlder={hasOlder}
           loadOlder={loadOlder}

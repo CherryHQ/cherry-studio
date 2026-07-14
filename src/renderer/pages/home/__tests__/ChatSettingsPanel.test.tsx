@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -53,9 +53,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  OverlayHost: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     topRightTool,
     sidePanel,
@@ -88,7 +87,7 @@ vi.mock('@renderer/components/ContentSearch', () => ({
   ContentSearch: () => <div data-testid="content-search" />
 }))
 
-vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+vi.mock('@renderer/components/popups/PromptPopup', () => ({
   default: { show: vi.fn() }
 }))
 
@@ -122,9 +121,9 @@ vi.mock('../components/ChatNavbar', () => ({
 
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
-    Toggle: ({ disabled }: { disabled?: boolean }) => (
-      <button type="button" disabled={disabled}>
-        branch toggle
+    Shortcuts: ({ topicId }: { topicId?: string }) => (
+      <button type="button" data-topic-id={topicId ?? ''}>
+        branch shortcuts
       </button>
     ),
     Host: ({
@@ -254,7 +253,7 @@ describe('Chat panels', () => {
 
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'branch shortcuts' })).toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'topic-1')
     expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'topic-1')
 
@@ -272,7 +271,7 @@ describe('Chat panels', () => {
     render(<Chat activeTopic={emptyTopic} />)
 
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'branch shortcuts' })).not.toBeDisabled()
     expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'empty-topic')
     expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'empty-topic')
   })

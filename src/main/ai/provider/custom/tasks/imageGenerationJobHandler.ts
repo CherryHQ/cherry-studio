@@ -5,11 +5,15 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { providerToAiSdkConfig } from '../../config'
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportDescriptor
+} from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
@@ -42,9 +46,9 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const input = ctx.input
     try {
       const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
-      const provider = await providerService.getByProviderId(providerId)
+      const provider = providerService.getByProviderId(providerId)
       if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
-      const model = await modelService.getByKey(providerId, modelId)
+      const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
       const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
@@ -98,6 +102,17 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
+/**
+ * Jobs enqueued before `modelDescriptor` became a typed payload field carried
+ * it inside the vendor bag instead (`providerParams.modelDescriptor`). A job
+ * still queued (or mid-poll) across that upgrade resumes with the new field
+ * absent — fall back to the legacy bag location so PPIO/DashScope submit/poll
+ * still route correctly.
+ */
+function resolveModelDescriptor(input: ImageGenerationJobPayload): ImageTransportDescriptor | undefined {
+  return input.modelDescriptor ?? (input.providerParams?.modelDescriptor as ImageTransportDescriptor | undefined)
+}
+
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
   modelId: string,
@@ -113,6 +128,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
+    modelDescriptor: resolveModelDescriptor(input),
     providerParams: input.providerParams,
     signal
   }
@@ -147,9 +163,9 @@ async function pollUntilDone(
     return await transport.poll(taskId, {
       signal: ctx.signal,
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the submit-time vendor bag so a restart-resumed poll can rebuild
-      // per-task state (e.g. DashScope's response-family descriptor).
-      providerParams: ctx.input.providerParams
+      // Carry the persisted descriptor so a restart-resumed poll on a fresh
+      // transport instance rebuilds per-task state (DashScope's response family).
+      modelDescriptor: resolveModelDescriptor(ctx.input)
     })
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
@@ -185,7 +201,7 @@ async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal):
 
 /**
  * Best-effort delete the per-job temp input/mask FileEntries created by
- * `generateImageViaJob`. They carry no `file_ref`, so without this they would
+ * `generateImageViaJob`. They carry no FileManager ref, so without this they would
  * leak permanently (the orphan scan only reports, never deletes). Idempotent and
  * non-throwing so it is safe to call from both the handler and the IPC `finally`.
  */

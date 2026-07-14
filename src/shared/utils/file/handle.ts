@@ -1,5 +1,5 @@
-import type { FileEntryId } from '@shared/data/types/file'
-import type { FileEntryHandle, FileHandle, FilePath, FilePathHandle } from '@shared/types/file'
+import type { FileEntryHandle, FileEntryId, FileHandle, FilePathHandle } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file'
 
 /**
  * Wrap a FileEntry ID as a `FileEntryHandle`.
@@ -27,7 +27,8 @@ export function createFileEntryHandle(entryId: FileEntryId): FileEntryHandle {
  *
  * Rejected inputs:
  * - Relative paths (`./foo`, `foo/bar`)
- * - `file://` URLs — use `FileURLString` and a dedicated conversion path
+ * - `file://` URLs — use `FileUrlString` and a dedicated conversion path
+ * - Null bytes
  * - Empty string
  *
  * Accepted: POSIX absolute (`/...`) and Windows absolute (`C:\...`).
@@ -40,6 +41,9 @@ export function createFilePathHandle(path: FilePath): FilePathHandle {
   }
   if (path.startsWith('file://')) {
     throw new TypeError('createFilePathHandle: path must be a filesystem path, not a file:// URL')
+  }
+  if (path.includes('\0')) {
+    throw new TypeError('createFilePathHandle: path must not contain null bytes')
   }
   const isPosixAbsolute = path.startsWith('/')
   const isWindowsAbsolute = /^[A-Za-z]:\\/.test(path)

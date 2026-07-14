@@ -1,5 +1,9 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
+import { useTheme } from '@renderer/hooks/useTheme'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import Ansi from 'ansi-to-react'
 import {
   Bot,
   DoorOpen,
@@ -21,9 +25,11 @@ import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './agent/GenericTools'
-import { AgentToolsType } from './agent/types'
+import { AgentToolsType } from './shared/agentToolTypes'
+import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
+import { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from './shared/terminalOutputHelpers'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 export interface ToolActivity {
@@ -45,16 +51,12 @@ export interface ToolHeaderProps {
   status?: ToolStatus
   hasError?: boolean
   showStatus?: boolean // default true
+  shimmer?: boolean
 
   // Style variant
   variant?: 'standalone' | 'collapse-label'
 }
 
-/**
- * Per-tool chat-header display: icon + (optional) i18n label key. Table-driven (replaces the
- * former icon/label switches). Tools absent here fall back to a generic wrench icon + the raw
- * tool name.
- */
 export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string }> = {
   [AgentToolsType.Agent]: { icon: <Bot size={14} /> },
   [AgentToolsType.Read]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' },
@@ -156,6 +158,43 @@ function getReadablePathTarget(filePath: string | undefined, t: Translate): stri
 }
 
 const SEARCH_PATTERN_META_RE = /[\\^$.*+?()[\]{}|]/
+const COMMAND_PREVIEW_MAX_LENGTH = 160
+
+function normalizeCommandPreview(command: string): string {
+  return command.replace(/\s+/g, ' ').trim()
+}
+
+function truncateCommandPreview(command: string): string {
+  const normalized = normalizeCommandPreview(command)
+  if (normalized.length <= COMMAND_PREVIEW_MAX_LENGTH) return normalized
+
+  const maxContentLength = COMMAND_PREVIEW_MAX_LENGTH - 1
+  const prefix = normalized.slice(0, maxContentLength)
+  const separatorIndex = Math.max(
+    prefix.lastIndexOf(' && '),
+    prefix.lastIndexOf(' || '),
+    prefix.lastIndexOf(' ; '),
+    prefix.lastIndexOf(' | ')
+  )
+  if (separatorIndex > 0) return `${prefix.slice(0, separatorIndex).trimEnd()}…`
+
+  const whitespaceIndex = prefix.lastIndexOf(' ')
+  if (whitespaceIndex > 0) return `${prefix.slice(0, whitespaceIndex).trimEnd()}…`
+
+  return `${prefix}…`
+}
+
+function getCommandPreview(toolName: string, args: unknown): { text: string; fullText: string } | undefined {
+  if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return undefined
+
+  const command = getStringArg(args, 'command')
+  if (!command) return undefined
+
+  return {
+    text: truncateCommandPreview(command),
+    fullText: normalizeCommandPreview(command)
+  }
+}
 
 function getReadableSearchTarget(value: string | undefined, t: Translate): string {
   const text = value?.trim()
@@ -496,26 +535,37 @@ const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>
   />
 )
 
+const DESCRIPTION_CLASS =
+  'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-foreground-secondary'
+
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
-    className={[
-      'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-foreground-secondary',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
+  <span className={[DESCRIPTION_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
 
+const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-foreground-secondary'
+
 const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
-    className={['shrink-0 whitespace-nowrap font-normal text-[13px] text-foreground-secondary', className]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
+  <span className={[STATS_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
+
+const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) => {
+  const { theme } = useTheme()
+  const isLightTheme = theme === ThemeMode.light
+  const palette = isLightTheme ? shellColorPalettes.light : shellColorPalettes.dark
+  const colorized = colorizeShellOutput(text, true, palette)
+
+  return (
+    <code
+      data-testid="tool-command-preview"
+      title={fullText}
+      className={[
+        "hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] leading-4 sm:block",
+        TERMINAL_SURFACE_CLASS
+      ].join(' ')}>
+      <Ansi>{colorized}</Ansi>
+    </code>
+  )
+}
 
 const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div className={['ml-auto flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
@@ -544,6 +594,7 @@ interface McpToolHeaderProps {
   showStatus: boolean
   status?: ToolStatus
   hasError: boolean
+  shimmer: boolean
   Container: typeof HeaderContainer
   variant: ToolHeaderProps['variant']
 }
@@ -555,6 +606,7 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   showStatus,
   status,
   hasError,
+  shimmer,
   Container,
   variant
 }) => {
@@ -562,15 +614,22 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
   const autoApproved = isToolAutoApproved?.(tool) ?? false
   const isIconBreathing = variant === 'collapse-label' && isActiveStatus(status)
+
   return (
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
         <span className={getToolIconClassName(isIconBreathing)}>
           <Wrench size={14} />
         </span>
-        <span className="name min-w-0 max-w-full truncate">
-          {tool.serverName} : {tool.name}
-        </span>
+        {shimmer ? (
+          <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">
+            {tool.serverName} : {tool.name}
+          </PlaceholderShimmerText>
+        ) : (
+          <span className="name min-w-0 max-w-full truncate">
+            {tool.serverName} : {tool.name}
+          </span>
+        )}
         {autoApproved && (
           <Tooltip content={t('message.tools.autoApproveEnabled')}>
             <ShieldCheck size={14} color="var(--color-primary)" />
@@ -601,6 +660,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   status: propStatus,
   hasError: propHasError,
   showStatus = true,
+  shimmer = false,
   variant = 'standalone'
 }) => {
   const { t } = useTranslation()
@@ -616,6 +676,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   const activity = getReadableToolActivity(toolName, args, isStreaming || isActiveStatus(status), t)
   const displayLabel = propLabel ?? activity?.label ?? getAgentToolLabel(toolName, t)
   const description = params ?? activity?.description ?? getToolDescription(toolName, args, t)
+  const commandPreview = getCommandPreview(toolName, args)
   const isIconBreathing = variant === 'collapse-label' && isActiveStatus(status)
 
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
@@ -629,6 +690,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
         showStatus={showStatus}
         status={status}
         hasError={hasError}
+        shimmer={shimmer}
         Container={Container}
         variant={variant}
       />
@@ -638,10 +700,17 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   return (
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
-        <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
-        <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
+        {variant !== 'collapse-label' && (
+          <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
+        )}
+        {shimmer ? (
+          <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">{displayLabel}</PlaceholderShimmerText>
+        ) : (
+          <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
+        )}
       </ToolName>
       {description && <Description>{description}</Description>}
+      {commandPreview && <CommandPreview text={commandPreview.text} fullText={commandPreview.fullText} />}
       {stats && <Stats>{stats}</Stats>}
       {showStatus && status && (
         <StatusWrapper>

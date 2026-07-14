@@ -4,7 +4,7 @@ import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { Group } from '@shared/data/types/group'
 import { useCallback, useMemo } from 'react'
 
-import { normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('useKnowledgeGroups')
 

@@ -1,39 +1,31 @@
-/**
- * TODO(v2): Performance — run() blocks up to ~100s before opening terminal
- *
- * Problem:
- * - isUserInChina() makes HTTP request (5s timeout) with no caching, called 2-3x per run()
- * - getVersionInfo() blocks on npm registry fetch (15s) + local --version (10s)
- * - updatePackage() blocks on bun install (60s) when autoUpdateToLatest is enabled
- * - All above run serially BEFORE spawn(terminal)
- *
- * Fix:
- * 1. Cache isUserInChina() promise at module level in ipService.ts (process-lifetime)
- * 2. Extract local-only getInstalledVersion() for qwen-code --auth-type check
- * 3. Move getVersionInfo() + updatePackage() to fire-and-forget background task
- * 4. Cache getNpmRegistryUrl() at instance level
- * 5. Track background update promise in lifecycle (registerDisposable / onStop)
- */
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
-import { removeEnvProxy } from '@main/utils'
-import { isUserInChina } from '@main/utils/ipService'
-import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
-import { getBinaryName } from '@main/utils/process'
-import { IpcChannel } from '@shared/IpcChannel'
-import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
-import type { CodeToolsRunResult } from '@shared/types/codeTools'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
+import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import {
+  CodeCli,
+  LOGIN_CAPABLE_CLI_TOOLS,
+  TerminalApp,
+  type TerminalConfig,
+  type TerminalConfigWithCommand
+} from '@shared/types/codeCli'
+import type { OperationResult } from '@shared/types/codeTools'
+import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { spawn } from 'child_process'
-import semver from 'semver'
 import { promisify } from 'util'
 
+import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
+import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
+import { posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -44,12 +36,6 @@ import {
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeCliService')
 
-interface VersionInfo {
-  installed: string | null
-  latest: string | null
-  needsUpdate: boolean
-}
-
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
 export class CodeCliService extends BaseService {
@@ -57,58 +43,64 @@ export class CodeCliService extends BaseService {
   private static pendingBatCleanups = new Set<string>()
   private static exitCleanupRegistered = false
 
-  private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
   private terminalsCache: {
     terminals: TerminalConfig[]
     timestamp: number
   } | null = null
-  private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
-  private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
-  private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
-  private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
   }
 
-  private registerIpcHandlers(): void {
-    this.ipcHandle(
-      IpcChannel.CodeCli_Run,
-      (
-        event,
-        cliTool: string,
-        model: string,
-        directory: string,
-        env: Record<string, string>,
-        options?: { autoUpdateToLatest?: boolean; terminal?: string }
-      ) => this.run(event, cliTool, model, directory, env, options)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
-    this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
-      this.setCustomTerminalPath(terminalId, path)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
-      this.getCustomTerminalPath(terminalId)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
-      this.removeCustomTerminalPath(terminalId)
-    )
+  /**
+   * Read-only probe of whether the user already has a Claude Code CLI
+   * subscription login (Claude Pro/Max OAuth) usable by the Agent SDK. Never
+   * reads or stores the credential value itself — only its presence.
+   *
+   * macOS: the OAuth token lives in the global login Keychain under the generic
+   * password service `Claude Code-credentials` (independent of CLAUDE_CONFIG_DIR);
+   * we query existence without `-w` so no secret is read and no ACL prompt fires.
+   * Linux/Windows: it lives in `<CLAUDE_CONFIG_DIR>/.credentials.json` (default
+   * `~/.claude`). A present token may still be expired — the SDK refreshes on use;
+   * this is a best-effort "is the user signed in" hint for the settings UI.
+   */
+  public async checkClaudeLogin(): Promise<boolean> {
+    if (isMac) {
+      try {
+        await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
+        return true
+      } catch {
+        // `security` exits non-zero when the keychain item is absent — the
+        // normal "not signed in" signal, so this path stays silent.
+        return false
+      }
+    }
+    try {
+      // Resolve from the same source the runtime uses (settingsBuilder reads the
+      // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
+      // process does not inherit rc-exported vars, so probing process.env alone
+      // falsely reports "not signed in".
+      const shellEnv = await getShellEnv()
+      const configDir =
+        shellEnv.CLAUDE_CONFIG_DIR ||
+        process.env.CLAUDE_CONFIG_DIR ||
+        path.join(application.getPath('sys.home'), '.claude')
+      return fs.existsSync(path.join(configDir, '.credentials.json'))
+    } catch (error) {
+      // A probe failure here (e.g. login-shell env resolution throwing on a
+      // broken rc file) is NOT "not signed in" — log it so a genuinely
+      // signed-in user's stuck "not signed in" card is diagnosable instead of
+      // silently swallowed.
+      logger.warn('Failed to probe Claude login state; reporting not signed in', error as Error)
+      return false
+    }
   }
 
   protected async onStop(): Promise<void> {
-    for (const [configPath, timer] of this.openCodeCleanupTimers) {
-      clearTimeout(timer)
-      logger.info(`Cleared cleanup timer for: ${configPath}`)
-    }
-    this.openCodeCleanupTimers.clear()
-    this.openCodeConfigBackups.clear()
-    this.versionCache.clear()
     this.terminalsCache = null
-    this.customTerminalPaths.clear()
   }
 
   /**
@@ -124,360 +116,12 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  public async getBunPath() {
-    const dir = application.getPath('cherry.bin')
-    const bunName = await getBinaryName('bun')
-    const bunPath = path.join(dir, bunName)
-    return bunPath
+  private getToolInstallSpec(cliTool: CodeCli): { name: string; tool: string } {
+    return getCodeCliInstallSpec(cliTool)
   }
 
-  public async getPackageName(cliTool: string) {
-    switch (cliTool) {
-      case codeCLI.claudeCode:
-        return '@anthropic-ai/claude-code'
-      case codeCLI.geminiCli:
-        return '@google/gemini-cli'
-      case codeCLI.openaiCodex:
-        return '@openai/codex'
-      case codeCLI.qwenCode:
-        return '@qwen-code/qwen-code'
-      case codeCLI.qoderCli:
-        return '@qodercn-ai/qoderclicn'
-      case codeCLI.githubCopilotCli:
-        return '@github/copilot'
-      case codeCLI.kimiCli:
-        return '@moonshot-ai/kimi-code'
-      case codeCLI.openCode:
-        return 'opencode-ai'
-      default:
-        throw new Error(`Unsupported CLI tool: ${cliTool}`)
-    }
-  }
-
-  public async getCliExecutableName(cliTool: string) {
-    switch (cliTool) {
-      case codeCLI.claudeCode:
-        return 'claude'
-      case codeCLI.geminiCli:
-        return 'gemini'
-      case codeCLI.openaiCodex:
-        return 'codex'
-      case codeCLI.qwenCode:
-        return 'qwen'
-      case codeCLI.qoderCli:
-        return 'qoderclicn'
-      case codeCLI.githubCopilotCli:
-        return 'copilot'
-      case codeCLI.kimiCli:
-        return 'kimi'
-      case codeCLI.openCode:
-        return 'opencode'
-      default:
-        throw new Error(`Unsupported CLI tool: ${cliTool}`)
-    }
-  }
-
-  /**
-   * Get the command to execute claude-code.
-   *
-   * Since @anthropic-ai/claude-code ships a native binary (bin/claude.exe) instead of
-   * a JavaScript file, it cannot be executed via Bun. The official cli-wrapper.cjs is
-   * a JS launcher that locates and spawns the correct platform-specific binary.
-   * We use Bun to run cli-wrapper.cjs, which works on all platforms.
-   */
-  private async getClaudeCodeCommand(bunPath: string): Promise<string> {
-    const globalInstallDir = application.getPath('feature.cli.install_global')
-    const cliWrapperPath = path.join(
-      globalInstallDir,
-      'node_modules',
-      '@anthropic-ai',
-      'claude-code',
-      'cli-wrapper.cjs'
-    )
-
-    if (fs.existsSync(cliWrapperPath)) {
-      logger.debug(`Using cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
-      return `"${bunPath}" "${cliWrapperPath}"`
-    }
-
-    // Fallback: try to execute the binary directly (works if postinstall ran correctly)
-    const binDir = application.getPath('cherry.bin')
-    const executableName = await this.getCliExecutableName(codeCLI.claudeCode)
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-    logger.warn(`cli-wrapper.cjs not found at ${cliWrapperPath}, falling back to direct execution: ${executablePath}`)
-    return `"${executablePath}"`
-  }
-
-  /**
-   * Prefer OpenCode's package-local executable on Windows.
-   *
-   * Bun global bins can fail with "Bun failed to remap this bin" after updates,
-   * while opencode-ai's postinstall places the real executable under the package.
-   */
-  private async getOpenCodeCommand(): Promise<string> {
-    const globalInstallDir = application.getPath('feature.cli.install_global')
-    const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
-
-    if (fs.existsSync(openCodeExecutablePath)) {
-      logger.debug(`Using package-local executable for opencode: ${openCodeExecutablePath}`)
-      return `"${openCodeExecutablePath}"`
-    }
-
-    // Fallback: try to execute the Bun global bin directly.
-    const binDir = application.getPath('cherry.bin')
-    const executableName = await this.getCliExecutableName(codeCLI.openCode)
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-    logger.warn(
-      `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
-    )
-    return `"${executablePath}"`
-  }
-
-  /**
-   * Generate opencode.json config file for OpenCode CLI
-   * Merge approach:
-   * 1. Parse existing config (if any) with JSONC support
-   * 2. Merge CherryStudio provider into provider object
-   * 3. Preserve other fields like $schema, model, etc.
-   */
-  private async generateOpenCodeConfig(
-    directory: string,
-    model: { id: string; name: string },
-    baseUrl: string,
-    isReasoning: boolean,
-    supportsReasoningEffort: boolean,
-    budgetTokens: number | undefined,
-    providerType: string,
-    providerName: string,
-    endpointType: string
-  ): Promise<string> {
-    const configPath = path.join(directory, 'opencode.json')
-
-    // Determine npm package based on endpoint type (model-level) then provider type (fallback)
-    let npmPackage = '@ai-sdk/openai-compatible'
-    if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
-      npmPackage = '@ai-sdk/anthropic'
-    } else if (endpointType === 'openai-response' || (!endpointType && providerType === 'openai-response')) {
-      npmPackage = '@ai-sdk/openai'
-    }
-
-    // Build model config - NO limit field (cannot determine output capacity)
-    const modelConfig: Record<string, any> = {
-      name: model.name
-    }
-
-    // Add reasoning config based on endpoint type and provider type
-    if (isReasoning) {
-      modelConfig.reasoning = true
-      if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
-        // Anthropic style: thinking with budgetTokens
-        modelConfig.options = {
-          thinking: {
-            budgetTokens: budgetTokens ?? 10000, // Use passed budget or fallback to default
-            type: 'enabled'
-          }
-        }
-      } else if (supportsReasoningEffort) {
-        // OpenAI style: only add reasoningEffort if model supports it
-        modelConfig.options = {
-          reasoningEffort: 'medium'
-        }
-      }
-      // else: model is a reasoning model but doesn't support reasoningEffort - don't add options
-    }
-
-    // Dynamic provider key to avoid race conditions between different providers
-    const dynamicProviderKey = `Cherry-${providerName}`
-    const dynamicProviderName = `Cherry-${providerName}`
-
-    // Parse existing config (if any) with JSONC support
-    let existingConfig: Record<string, any> | null = null
-    let backupContent: string | null = null
-    if (fs.existsSync(configPath)) {
-      const rawContent = fs.readFileSync(configPath, 'utf8')
-      // Parse and clean backup to only preserve non-Cherry content
-      const existingConfigForBackup = parseJSONC(rawContent)
-      if (existingConfigForBackup && typeof existingConfigForBackup === 'object') {
-        // Remove any existing Cherry-* providers from backup
-        if (existingConfigForBackup.provider && typeof existingConfigForBackup.provider === 'object') {
-          const providers = existingConfigForBackup.provider as Record<string, any>
-          const cherryKeys = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
-          for (const key of cherryKeys) {
-            delete providers[key]
-          }
-          // If provider object becomes empty, remove it
-          if (Object.keys(providers).length === 0) {
-            delete existingConfigForBackup.provider
-          }
-          // Check if config is empty after cleaning
-          const functionalKeys = getFunctionalKeys(existingConfigForBackup)
-          if (functionalKeys.length > 0) {
-            backupContent = JSON.stringify(existingConfigForBackup, null, 2)
-          } else {
-            backupContent = null // Backup was all Cherry content, nothing to preserve
-          }
-        } else {
-          backupContent = rawContent
-        }
-      } else {
-        backupContent = rawContent
-      }
-      existingConfig = JSON.parse(JSON.stringify(existingConfigForBackup))
-      logger.info('Parsed existing opencode.json config')
-    }
-    this.openCodeConfigBackups.set(configPath, backupContent)
-
-    // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
-    const cherryProviderConfig = {
-      npm: npmPackage,
-      name: dynamicProviderName,
-      options: { apiKey: `{env:${envVarKey}}`, baseURL: baseUrl },
-      models: { [model.id]: modelConfig }
-    }
-
-    // Merge into existing config or create new one
-    let finalConfig: Record<string, any>
-    if (existingConfig && typeof existingConfig === 'object') {
-      // Deep merge: preserve existing fields, add Cherry provider
-      finalConfig = { ...existingConfig }
-      if (!finalConfig.provider || typeof finalConfig.provider !== 'object') {
-        finalConfig.provider = {}
-      }
-      // Merge Cherry provider into existing providers
-      finalConfig.provider = {
-        ...finalConfig.provider,
-        [dynamicProviderKey]: cherryProviderConfig
-      }
-    } else {
-      // No existing config, create fresh one
-      finalConfig = {
-        $schema: 'https://opencode.ai/config.json',
-        provider: {
-          [dynamicProviderKey]: cherryProviderConfig
-        }
-      }
-    }
-
-    fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
-    logger.info(`Wrote opencode.json at: ${configPath} (merged: ${existingConfig !== null})`)
-
-    return configPath
-  }
-
-  /**
-   * Schedule cleanup of opencode.json config file after 60 seconds (debounce mode)
-   * Precise cleanup approach:
-   * - Parse current config
-   * - Remove only providers starting with "Cherry-"
-   * - Keep all other providers and fields
-   * - If provider object becomes empty, remove it
-   */
-  private scheduleOpenCodeConfigCleanup(configPath: string): void {
-    // Cancel any existing timer for this directory (debounce)
-    const existingTimer = this.openCodeCleanupTimers.get(configPath)
-    if (existingTimer) {
-      clearTimeout(existingTimer)
-      logger.info(`Cancelled previous cleanup timer for: ${configPath}`)
-    }
-
-    // Schedule new cleanup
-    const timer = setTimeout(
-      () => {
-        this.openCodeCleanupTimers.delete(configPath)
-
-        try {
-          // Check if file still exists
-          if (!fs.existsSync(configPath)) {
-            logger.info(`opencode.json already deleted: ${configPath}`)
-            this.openCodeConfigBackups.delete(configPath)
-            return
-          }
-
-          // Get backup content
-          const backupContent = this.openCodeConfigBackups.get(configPath) ?? null
-
-          // Parse current config
-          const currentContent = fs.readFileSync(configPath, 'utf8')
-          const currentConfig = parseJSONC(currentContent)
-
-          if (!currentConfig || typeof currentConfig !== 'object') {
-            // Invalid config, fall back to backup or deletion
-            if (backupContent !== null) {
-              fs.writeFileSync(configPath, backupContent, 'utf8')
-              logger.info(`Restored original opencode.json (invalid current config): ${configPath}`)
-            } else {
-              fs.unlinkSync(configPath)
-              logger.info(`Deleted opencode.json (invalid config, no backup): ${configPath}`)
-            }
-            this.openCodeConfigBackups.delete(configPath)
-            return
-          }
-
-          // Remove Cherry-* providers from current config
-          if (currentConfig.provider && typeof currentConfig.provider === 'object') {
-            const providers = currentConfig.provider as Record<string, any>
-            const keysToDelete = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
-
-            if (keysToDelete.length > 0) {
-              for (const key of keysToDelete) {
-                delete providers[key]
-              }
-
-              // If provider object becomes empty, remove it
-              if (Object.keys(providers).length === 0) {
-                delete currentConfig.provider
-              }
-
-              // Check if config is now "empty" (only contains non-functional fields like $schema)
-              const remainingKeys = getFunctionalKeys(currentConfig)
-              if (remainingKeys.length === 0) {
-                // Config is essentially empty after cleanup
-                // Check if backup also has no functional content
-                let backupHasFunctionalContent = false
-                if (backupContent !== null) {
-                  try {
-                    const backupConfig = parseJSONC(backupContent)
-                    if (backupConfig && typeof backupConfig === 'object') {
-                      const backupKeys = getFunctionalKeys(backupConfig)
-                      backupHasFunctionalContent = backupKeys.length > 0
-                    }
-                  } catch {
-                    // Parse failed, treat as no functional content
-                  }
-                }
-
-                if (backupHasFunctionalContent && backupContent !== null) {
-                  // Restore original content (it had functional content)
-                  fs.writeFileSync(configPath, backupContent, 'utf8')
-                  logger.info(`Restored original opencode.json (config empty after cleanup): ${configPath}`)
-                } else {
-                  // No backup or backup had no functional content, delete the file
-                  fs.unlinkSync(configPath)
-                  logger.info(`Deleted opencode.json (config empty after cleanup): ${configPath}`)
-                }
-              } else {
-                // Write back the cleaned config
-                fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
-                logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
-              }
-            } else {
-              logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
-            }
-          } else {
-            logger.info(`No provider object in opencode.json: ${configPath}`)
-          }
-
-          // Clean up backup
-          this.openCodeConfigBackups.delete(configPath)
-        } catch (error) {
-          logger.warn(`Failed to cleanup opencode.json: ${error}`)
-        }
-      },
-      5 * 60 * 1000
-    ) // 5 minutes timeout
-
-    this.openCodeCleanupTimers.set(configPath, timer)
+  public async getCliExecutableName(cliTool: CodeCli) {
+    return getCodeCliPackageSpec(cliTool).executable
   }
 
   /**
@@ -508,16 +152,16 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Check Windows terminal availability (simplified - user configured paths)
+   * Check Windows terminal availability.
    */
   private async checkWindowsTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
       switch (terminal.id) {
-        case terminalApps.cmd:
+        case TerminalApp.CMD:
           // CMD is always available on Windows
           return terminal
 
-        case terminalApps.powershell:
+        case TerminalApp.POWERSHELL:
           // Check for PowerShell in PATH
           try {
             await execAsync('powershell -Command "Get-Host"', {
@@ -533,7 +177,7 @@ export class CodeCliService extends BaseService {
             }
           }
 
-        case terminalApps.windowsTerminal:
+        case TerminalApp.WINDOWS_TERMINAL:
           // Check for Windows Terminal via where command (doesn't launch the terminal)
           try {
             await execAsync('where wt', { timeout: 3000 })
@@ -542,7 +186,7 @@ export class CodeCliService extends BaseService {
             return null
           }
 
-        case terminalApps.wsl:
+        case TerminalApp.WSL:
           // Check for WSL
           try {
             await execAsync('wsl --status', { timeout: 3000 })
@@ -552,8 +196,7 @@ export class CodeCliService extends BaseService {
           }
 
         default:
-          // For other terminals (Alacritty, WezTerm), check if user has configured custom path
-          return await this.checkCustomTerminalPath(terminal)
+          return await this.checkPathTerminalAvailability(terminal)
       }
     } catch (error) {
       logger.debug(`Windows terminal ${terminal.id} not available:`, error as Error)
@@ -561,56 +204,14 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  /**
-   * Check if user has configured custom path for terminal
-   */
-  private async checkCustomTerminalPath(terminal: TerminalConfig): Promise<TerminalConfig | null> {
-    // Check if user has configured custom path
-    const customPath = this.customTerminalPaths.get(terminal.id)
-    if (customPath && fs.existsSync(customPath)) {
-      try {
-        await execAsync(`"${customPath}" --version`, { timeout: 3000 })
-        return { ...terminal, customPath }
-      } catch {
-        return null
-      }
-    }
-
-    // Fallback to PATH check
+  private async checkPathTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
-      const command = terminal.id === terminalApps.alacritty ? 'alacritty' : 'wezterm'
+      const command = terminal.id === TerminalApp.ALACRITTY ? 'alacritty' : 'wezterm'
       await execAsync(`${command} --version`, { timeout: 3000 })
       return terminal
     } catch {
       return null
     }
-  }
-
-  /**
-   * Set custom path for a terminal (called from settings UI)
-   */
-  public setCustomTerminalPath(terminalId: string, path: string): void {
-    logger.info(`Setting custom path for terminal ${terminalId}: ${path}`)
-    this.customTerminalPaths.set(terminalId, path)
-    // Clear terminals cache to force refresh
-    this.terminalsCache = null
-  }
-
-  /**
-   * Get custom path for a terminal
-   */
-  public getCustomTerminalPath(terminalId: string): string | undefined {
-    return this.customTerminalPaths.get(terminalId)
-  }
-
-  /**
-   * Remove custom path for a terminal
-   */
-  public removeCustomTerminalPath(terminalId: string): void {
-    logger.info(`Removing custom path for terminal ${terminalId}`)
-    this.customTerminalPaths.delete(terminalId)
-    // Clear terminals cache to force refresh
-    this.terminalsCache = null
   }
 
   /**
@@ -676,19 +277,14 @@ export class CodeCliService extends BaseService {
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
     const terminalCommands = isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
-    const defaultTerminal = isWin ? terminalApps.cmd : terminalApps.systemDefault
+    const defaultTerminal = isWin ? TerminalApp.CMD : TerminalApp.SYSTEM_DEFAULT
 
     if (terminalId) {
-      let requestedTerminal = terminalCommands.find(
+      const requestedTerminal = terminalCommands.find(
         (t) => t.id === terminalId && availableTerminals.some((at) => at.id === t.id)
       )
 
       if (requestedTerminal) {
-        // Apply custom path if configured
-        const customPath = this.customTerminalPaths.get(terminalId)
-        if (customPath && isWin) {
-          requestedTerminal = this.applyCustomPath(requestedTerminal, customPath)
-        }
         return requestedTerminal
       } else {
         logger.warn(`Requested terminal ${terminalId} not available, falling back to system default`)
@@ -714,156 +310,6 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Apply custom path to terminal configuration
-   */
-  private applyCustomPath(terminal: TerminalConfigWithCommand, customPath: string): TerminalConfigWithCommand {
-    return {
-      ...terminal,
-      customPath,
-      command: (directory: string, fullCommand: string) => {
-        const originalCommand = terminal.command(directory, fullCommand)
-        return {
-          ...originalCommand,
-          command: customPath // Replace command with custom path
-        }
-      }
-    }
-  }
-
-  private async isPackageInstalled(cliTool: string): Promise<boolean> {
-    const executableName = await this.getCliExecutableName(cliTool)
-    const binDir = application.getPath('cherry.bin')
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-
-    // Ensure bin directory exists
-    if (!fs.existsSync(binDir)) {
-      fs.mkdirSync(binDir, { recursive: true })
-    }
-
-    return fs.existsSync(executablePath)
-  }
-
-  /**
-   * Get version information for a CLI tool
-   */
-  public async getVersionInfo(cliTool: string): Promise<VersionInfo> {
-    logger.info(`Starting version check for ${cliTool}`)
-    const packageName = await this.getPackageName(cliTool)
-    const isInstalled = await this.isPackageInstalled(cliTool)
-
-    let installedVersion: string | null = null
-    let latestVersion: string | null = null
-
-    // Get installed version if package is installed
-    if (isInstalled) {
-      logger.info(`${cliTool} is installed, getting current version`)
-      try {
-        let versionCommand: string
-
-        // claude-code ships a native binary that cannot be executed via Bun.
-        // Use cli-wrapper.cjs (via Bun) to run --version reliably on all platforms.
-        if (cliTool === codeCLI.claudeCode) {
-          const bunPath = await this.getBunPath()
-          versionCommand = await this.getClaudeCodeCommand(bunPath)
-        } else if (cliTool === codeCLI.openCode) {
-          versionCommand = await this.getOpenCodeCommand()
-        } else {
-          const executableName = await this.getCliExecutableName(cliTool)
-          const binDir = application.getPath('cherry.bin')
-          const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-          versionCommand = `"${executablePath}"`
-        }
-
-        const { stdout } = await execAsync(`${versionCommand} --version`, {
-          timeout: 10000
-        })
-        // Extract version number from output (format may vary by tool)
-        const versionMatch = stdout.trim().match(/\d+\.\d+\.\d+/)
-        installedVersion = versionMatch ? versionMatch[0] : stdout.trim().split(' ')[0]
-        logger.info(`${cliTool} current installed version: ${installedVersion}`)
-      } catch (error) {
-        logger.warn(`Failed to get installed version for ${cliTool}:`, error as Error)
-      }
-    } else {
-      logger.info(`${cliTool} is not installed`)
-    }
-
-    // Get latest version from npm (with cache)
-    const cacheKey = `${packageName}-latest`
-    const cached = this.versionCache.get(cacheKey)
-    const now = Date.now()
-
-    if (cached && now - cached.timestamp < this.CACHE_DURATION) {
-      logger.info(`Using cached latest version for ${packageName}: ${cached.version}`)
-      latestVersion = cached.version
-    } else {
-      logger.info(`Fetching latest version for ${packageName} from npm`)
-      try {
-        // Get registry URL
-        const registryUrl = await this.getNpmRegistryUrl()
-
-        // Fetch package info directly from npm registry API
-        const packageUrl = `${registryUrl}/${packageName}/latest`
-        const response = await fetch(packageUrl, {
-          signal: AbortSignal.timeout(15000)
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch package info: ${response.statusText}`)
-        }
-
-        const packageInfo = await response.json()
-        latestVersion = packageInfo.version
-        logger.info(`${packageName} latest version: ${latestVersion}`)
-
-        // Cache the result
-        this.versionCache.set(cacheKey, {
-          version: latestVersion!,
-          timestamp: now
-        })
-        logger.debug(`Cached latest version for ${packageName}`)
-      } catch (error) {
-        logger.warn(`Failed to get latest version for ${packageName}:`, error as Error)
-        // If we have a cached version, use it even if expired
-        if (cached) {
-          logger.info(`Using expired cached version for ${packageName}: ${cached.version}`)
-          latestVersion = cached.version
-        }
-      }
-    }
-
-    const needsUpdate = !!(latestVersion && isInstalled && (!installedVersion || installedVersion !== latestVersion))
-    logger.info(
-      `Version check result for ${cliTool}: installed=${installedVersion}, latest=${latestVersion}, needsUpdate=${needsUpdate}`
-    )
-
-    return {
-      installed: installedVersion,
-      latest: latestVersion,
-      needsUpdate
-    }
-  }
-
-  /**
-   * Get npm registry URL based on user location
-   */
-  private async getNpmRegistryUrl(): Promise<string> {
-    try {
-      const inChina = await isUserInChina()
-      if (inChina) {
-        logger.info('User in China, using Taobao npm mirror')
-        return 'https://registry.npmmirror.com'
-      } else {
-        logger.info('User not in China, using default npm mirror')
-        return 'https://registry.npmjs.org'
-      }
-    } catch (error) {
-      logger.warn('Failed to detect user location, using default npm mirror')
-      return 'https://registry.npmjs.org'
-    }
-  }
-
-  /**
    * Get available terminals for the current platform
    */
   public async getAvailableTerminalsForPlatform(): Promise<TerminalConfig[]> {
@@ -874,121 +320,83 @@ export class CodeCliService extends BaseService {
     return []
   }
 
-  /**
-   * Update a CLI tool to the latest version
-   */
-  public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
-    logger.info(`Starting update process for ${cliTool}`)
-    try {
-      const packageName = await this.getPackageName(cliTool)
-      const bunPath = await this.getBunPath()
-      const bunInstallPath = application.getPath('cherry.home')
-      const registryUrl = await this.getNpmRegistryUrl()
-
-      // Get logs directory for update output redirection
-      const logsDir = loggerService.getLogsDir()
-      const updateLogPath = path.join(logsDir, 'cli-tools-update.log').replace(/\\/g, '/')
-
-      const installEnvPrefix = isWin
-        ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-        : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
-
-      // Use > to truncate log file on each update
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
-      logger.info(`Executing update command: ${updateCommand}`)
-
-      await execAsync(updateCommand, { timeout: 60000 })
-      logger.info(`Successfully executed update command for ${cliTool}`)
-
-      // Clear version cache for this package
-      const cacheKey = `${packageName}-latest`
-      this.versionCache.delete(cacheKey)
-      logger.debug(`Cleared version cache for ${packageName}`)
-
-      const successMessage = `Successfully updated ${cliTool} to the latest version`
-      logger.info(successMessage)
-      return {
-        success: true,
-        message: successMessage
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const failureMessage = `Failed to update ${cliTool}: ${errorMessage}`
-      logger.error(failureMessage, error as Error)
-      return {
-        success: false,
-        message: failureMessage
-      }
-    }
+  /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
+  public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+    return writeCliConfigFiles(cliTool, files)
   }
 
-  async run(
-    _: Electron.IpcMainInvokeEvent,
-    cliTool: string,
-    _model: string,
-    directory: string,
-    env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
-  ): Promise<CodeToolsRunResult> {
+  async run(input: CodeCliRunInput): Promise<OperationResult> {
+    const { cliTool, directory } = input
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
+    const env: Record<string, string> = { ...getBinaryExecutionEnv() }
     logger.debug(`Environment variables:`, Object.keys(env))
-    logger.debug(`Options:`, options)
+    logger.debug(`Launch mode: ${input.mode}`)
+    if (cliTool === CodeCli.OPENCLAW) {
+      const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
 
-    // Validate directory exists before proceeding
+    const normal = input.mode === 'normal' ? input : null
+    const isLoginFlow = input.mode === 'login-flow'
+    const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
+    // "Own login" run: the CLI uses its own stored account login, so no Cherry
+    // provider/model is injected (the renderer already cleared any prior config).
+    // Gated to login-capable tools so a genuinely missing provider still errors.
+    const isOwnLoginRun = input.mode === 'own-login' && LOGIN_CAPABLE_CLI_TOOLS.has(cliTool)
+    // The IPC schema already enforces non-empty ids on the normal arm; these
+    // guards keep the friendly messages for direct (test/service) callers.
+    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && !normal?.providerId.trim()) {
+      const message = `Provider ID is required for ${cliTool}`
+      logger.error(message)
+      return { success: false, message }
+    }
+    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && !normal?.model.trim()) {
+      const message = `Model is required for ${cliTool}`
+      logger.error(message)
+      return { success: false, message }
+    }
+
     if (!directory || !fs.existsSync(directory)) {
       const errorMessage = `Directory does not exist: ${directory}`
       logger.error(errorMessage)
       return {
         success: false,
-        message: errorMessage,
-        command: ''
+        message: errorMessage
       }
     }
 
-    const packageName = await this.getPackageName(cliTool)
-    const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
-    const binDir = application.getPath('cherry.bin')
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    const spec = this.getToolInstallSpec(cliTool)
 
-    logger.debug(`Package name: ${packageName}`)
-    logger.debug(`Bun path: ${bunPath}`)
     logger.debug(`Executable name: ${executableName}`)
-    logger.debug(`Executable path: ${executablePath}`)
+    logger.debug(`Tool install spec: ${spec.tool}`)
 
     // Check if package is already installed
-    const isInstalled = await this.isPackageInstalled(cliTool)
+    let isInstalled = await isBinaryExists(executableName)
 
-    // Check for updates and auto-update if requested
-    let updateMessage = ''
-    let installedVersion: string | null = null
-
-    // Get installed version if package is installed (needed for qwen-code auth-type check)
-    if (isInstalled) {
+    // Install via BinaryManager if not present
+    if (!isInstalled) {
+      logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        const versionInfo = await this.getVersionInfo(cliTool)
-        installedVersion = versionInfo.installed
-
-        // Handle auto-update if enabled
-        if (options.autoUpdateToLatest) {
-          logger.info(`Auto update to latest enabled for ${cliTool}`)
-          if (versionInfo.needsUpdate) {
-            logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
-            logger.info(`Auto-updating ${cliTool} to latest version`)
-            updateMessage = ` && echo "Updating ${escapeBatchText(cliTool)} from ${escapeBatchText(versionInfo.installed || '')} to ${escapeBatchText(versionInfo.latest || '')}..."`
-            const updateResult = await this.updatePackage(cliTool)
-            if (updateResult.success) {
-              logger.info(`Update completed successfully for ${cliTool}`)
-              updateMessage += ` && echo "Update completed successfully"`
-            } else {
-              logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-              updateMessage += ` && echo "Update failed: ${escapeBatchText(updateResult.message)}"`
-            }
-          }
-        }
+        await application.get('BinaryManager').installTool(spec)
+        isInstalled = true
+        logger.info(`${cliTool} installed successfully`)
       } catch (error) {
-        logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to install ${cliTool}:`, error as Error)
+        return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
+    }
+
+    // Re-verify the binary is on disk before spawning. getBinaryPath() below
+    // silently falls back to the bare name when the file is missing, so without
+    // this guard we'd launch a phantom (or a same-named binary on PATH) and
+    // still report success.
+    if (!(await isBinaryExists(executableName))) {
+      const message = `${cliTool} is not available after install`
+      logger.error(message)
+      return { success: false, message }
     }
 
     // Select different terminal based on operating system
@@ -1036,120 +444,32 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    let baseCommand: string
+    const executablePath = await getBinaryPath(executableName)
+    let baseCommand = `"${executablePath}"`
 
-    // claude-code ships a native binary that cannot be executed via Bun.
-    // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
-    if (cliTool === codeCLI.claudeCode) {
-      baseCommand = await this.getClaudeCodeCommand(bunPath)
-    } else if (cliTool === codeCLI.openCode) {
-      baseCommand = await this.getOpenCodeCommand()
-    } else if (cliTool === codeCLI.qoderCli) {
-      // Qoder's ESM bundle fails under Bun; run the bin shim directly so its
-      // `#!/usr/bin/env node` shebang launches it with Node.
-      baseCommand = `"${executablePath}"`
-    } else if (isWin) {
-      baseCommand = `"${executablePath}"`
-    } else {
-      baseCommand = `"${bunPath}" "${executablePath}"`
+    // OpenCode reads its provider AND default model from the opencode.json written by the
+    // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
+    // carries no model argument; we only disable its own auto-update.
+    if (cliTool === CodeCli.OPEN_CODE) {
+      env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 
-    if (cliTool === codeCLI.qwenCode) {
-      // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
-      const coerced = semver.coerce(installedVersion)
-      const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
-      if (needsAuthType) {
-        baseCommand = `${baseCommand} --auth-type openai`
-        logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
-      } else {
-        logger.info(`qwen-code version ${installedVersion || 'unknown'} < 0.12.3, not using --auth-type`)
-      }
+    // gemini-cli only loads ~/.gemini/.env (where GEMINI_API_KEY lives) when it
+    // considers the launch directory "trusted"; a fresh directory otherwise falls
+    // through to an interactive "Enter Gemini API Key" prompt even though
+    // selectedType is already configured. This env var is gemini-cli's own
+    // documented bypass, scoped to this one launched session only.
+    if (cliTool === CodeCli.GEMINI_CLI) {
+      env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
     }
 
-    // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeCLI.openaiCodex && env.CHERRY_CODEX_PROVIDER_ID) {
-      const providerId = env.CHERRY_CODEX_PROVIDER_ID
-      const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
-      const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
-      const model = _model
-      // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
-      const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
-      const configParams = [
-        `--config model_provider="${cherryProviderKey}"`,
-        `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
-        `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${cherryProviderKey}.env_key="CHERRY_CODEX_API_KEY"`,
-        `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
-        `--config model="${model}"`
-      ]
-      baseCommand = `${baseCommand} ${configParams.join(' ')}`
-    }
-
-    // Special handling for OpenCode: generate config file and add --model flag
-    if (cliTool === codeCLI.openCode) {
-      const baseUrl = env.OPENCODE_BASE_URL
-      const modelId = _model
-      const modelName = env.OPENCODE_MODEL_NAME || modelId
-      const isReasoning = env.OPENCODE_MODEL_IS_REASONING === 'true'
-      const supportsReasoningEffort = env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT === 'true'
-      const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
-      const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
-      const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
-      const endpointType = env.OPENCODE_MODEL_ENDPOINT_TYPE || ''
-
-      const configPath = await this.generateOpenCodeConfig(
-        directory,
-        { id: modelId, name: modelName },
-        baseUrl,
-        isReasoning,
-        supportsReasoningEffort,
-        budgetTokens,
-        providerType,
-        providerName,
-        endpointType
-      )
-      this.scheduleOpenCodeConfigCleanup(configPath)
-
-      // Add --model flag with dynamic provider prefix to avoid race conditions
-      baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
-    }
-
-    const bunInstallPath = application.getPath('cherry.home')
-
-    if (isInstalled) {
-      // If already installed, run executable directly (with optional update message)
-      if (updateMessage) {
-        // updateMessage already has escaped dynamic content, && connectors are intentional
-        baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
-      }
-    } else {
-      // If not installed, install first then run
-      const registryUrl = await this.getNpmRegistryUrl()
-      const installEnvPrefix =
-        platform === 'win32'
-          ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-          : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
-
-      // Windows: Redirect bun output to log file to prevent cmd.exe from
-      // misinterpreting multiline output as separate commands
-      // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
-      let installCommand: string
-      if (platform === 'win32') {
-        const logsDir = loggerService.getLogsDir()
-        // Use forward slashes for cmd.exe compatibility
-        const installLogPath = path.join(logsDir, 'cli-tools-install.log').replace(/\\/g, '/')
-
-        // Ensure logs directory exists
-        if (!fs.existsSync(logsDir)) {
-          fs.mkdirSync(logsDir, { recursive: true })
-        }
-
-        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} >> "${installLogPath}" 2>&1`
-      } else {
-        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
-      }
-
-      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
+    // The Claude Code settings panel lands its terminal on the login flow rather
+    // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
+    // this command is assembled into a shell string (and a Windows .bat), and
+    // a renderer-supplied string would
+    // be a shell-injection surface. A plain launch from the CLI page is unaffected.
+    if (isLoginFlow) {
+      baseCommand = `${baseCommand} /login`
     }
 
     switch (platform) {
@@ -1159,10 +479,12 @@ export class CodeCliService extends BaseService {
 
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        // Combine directory change with the main command to ensure they execute in the same shell session
-        const fullCommand = `cd "${directory.replace(/"/g, '\\"')}" && clear && ${command}`
+        // Combine directory change with the main command to ensure they execute in the same shell session.
+        // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
+        // (double-quoting it only blocks `"`, leaving command substitution live).
+        const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
 
-        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
         const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
@@ -1176,7 +498,7 @@ export class CodeCliService extends BaseService {
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
-        const tempDir = path.join(os.tmpdir(), 'cherrystudio')
+        const tempDir = application.getPath('feature.cli.temp')
         const timestamp = Date.now()
         const batFileName = `launch_${cliTool}_${timestamp}.bat`
         const batFilePath = path.join(tempDir, batFileName)
@@ -1245,7 +567,7 @@ export class CodeCliService extends BaseService {
         }
 
         // Use selected terminal configuration
-        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
         // Get command and args from terminal configuration
@@ -1253,14 +575,8 @@ export class CodeCliService extends BaseService {
         const fullCommand = batFilePath
         const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
 
-        // Override if it's a custom terminal with a custom path
-        if (terminalConfig.customPath) {
-          terminalCommand = terminalConfig.customPath
-          terminalArgs = args
-        } else {
-          terminalCommand = cmd
-          terminalArgs = args
-        }
+        terminalCommand = cmd
+        terminalArgs = args
 
         // Add to cleanup set
         CodeCliService.pendingBatCleanups.add(batFilePath)
@@ -1315,6 +631,9 @@ export class CodeCliService extends BaseService {
             // Check if terminal exists
             const checkResult = spawn('which', [terminal], { stdio: 'pipe' })
             await new Promise((resolve) => {
+              // A failed `which` spawn emits 'error'; without a listener that is
+              // an uncaught exception in the main process. Treat it as not found.
+              checkResult.on('error', () => resolve(-1))
               checkResult.on('close', (code) => {
                 if (code === 0) {
                   foundTerminal = terminal
@@ -1340,7 +659,7 @@ export class CodeCliService extends BaseService {
         } else {
           // Default to xterm
           terminalCommand = 'xterm'
-          terminalArgs = ['-e', `cd "${directory}" && clear && ${command} && bash`]
+          terminalArgs = ['-e', `cd ${posixQuote(directory)} && clear && ${command} && bash`]
         }
         break
       }
@@ -1358,30 +677,33 @@ export class CodeCliService extends BaseService {
       logger.debug(`Working directory: ${directory}`)
       logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
 
-      spawn(terminalCommand, terminalArgs, {
+      const child = spawn(terminalCommand, terminalArgs, {
         detached: true,
         stdio: 'ignore',
         cwd: directory,
         env: processEnv,
         shell: isWin
       })
+      // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
+      // missing); without a listener that becomes an uncaught exception after
+      // run() already reported success. Wait for the spawn/error race so launch
+      // failures surface as a failed result instead.
+      await new Promise<void>((resolve, reject) => {
+        child.once('spawn', resolve)
+        child.once('error', reject)
+      })
+      child.on('error', (error) => logger.error('Terminal process error after launch', error))
 
-      const successMessage = `Launched ${cliTool} in new terminal window`
-      logger.info(successMessage)
+      logger.info(`Launched ${cliTool} in new terminal window`)
 
-      return {
-        success: true,
-        message: successMessage,
-        command: `${terminalCommand} ${terminalArgs.join(' ')}`
-      }
+      return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`
       logger.error(failureMessage, error as Error)
       return {
         success: false,
-        message: failureMessage,
-        command: `${terminalCommand} ${terminalArgs.join(' ')}`
+        message: failureMessage
       }
     }
   }

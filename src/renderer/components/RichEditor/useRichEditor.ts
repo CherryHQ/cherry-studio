@@ -2,7 +2,7 @@ import 'katex/dist/katex.min.css'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import type { Editor } from '@tiptap/core'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
@@ -551,14 +551,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     [editor, onShowTableActionMenu]
   )
-
-  useEffect(() => {
-    return () => {
-      if (editor && !editor.isDestroyed) {
-        editor.destroy()
-      }
-    }
-  }, [editor])
 
   const formattingState = useEditorState({
     editor,

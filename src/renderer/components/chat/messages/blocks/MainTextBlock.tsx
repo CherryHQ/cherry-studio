@@ -1,8 +1,9 @@
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
-import type { ChatInputTokenKind } from '@renderer/components/chat/tokens'
-import { ComposerToken } from '@renderer/components/chat/tokens'
+import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
+import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type { Citation, Model } from '@renderer/types'
+import type { Citation } from '@renderer/types/message'
+import type { Model } from '@renderer/types/model'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
@@ -28,6 +29,8 @@ interface Props {
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
+  userContentExpanded?: boolean
+  onUserContentExpandedChange?: (expanded: boolean) => void
 }
 
 const composerTokenIcon: Partial<
@@ -39,7 +42,13 @@ const composerTokenIcon: Partial<
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
 
-const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>(['file', 'knowledge', 'quote', 'skill'])
+const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
+  'file',
+  'folder',
+  'knowledge',
+  'quote',
+  'skill'
+])
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
@@ -141,7 +150,7 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
   return { markdown, tokens }
 }
 
-function buildUserMessagePreview(content: string) {
+export function buildUserMessagePreview(content: string) {
   let effectiveLineCount = 0
   const lineRegex = /([^\r\n]*)(\r\n|\r|\n|$)/g
 
@@ -227,19 +236,32 @@ const MainTextBlock: React.FC<Props> = ({
   citationReferences,
   role,
   mentions = [],
-  composer
+  composer,
+  userContentExpanded,
+  onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
   const userMessagePreview = useMemo(() => buildUserMessagePreview(content), [content])
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
-  const [isUserContentExpanded, setIsUserContentExpanded] = useState(false)
+  const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
+  const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
+  const setUserContentExpanded = useCallback(
+    (expanded: boolean | ((current: boolean) => boolean)) => {
+      const nextExpanded = typeof expanded === 'function' ? expanded(isUserContentExpanded) : expanded
+      if (userContentExpanded === undefined) {
+        setInternalUserContentExpanded(nextExpanded)
+      }
+      onUserContentExpandedChange?.(nextExpanded)
+    },
+    [isUserContentExpanded, onUserContentExpandedChange, userContentExpanded]
+  )
 
   useEffect(() => {
     if (!isUserContentCollapsible) {
-      setIsUserContentExpanded(false)
+      setUserContentExpanded(false)
     }
-  }, [isUserContentCollapsible])
+  }, [isUserContentCollapsible, setUserContentExpanded])
 
   const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
 
@@ -304,7 +326,7 @@ const MainTextBlock: React.FC<Props> = ({
         <CollapsibleUserMessageContent
           isCollapsible={isUserContentCollapsible}
           isExpanded={isUserContentExpanded}
-          onToggle={() => setIsUserContentExpanded((expanded) => !expanded)}>
+          onToggle={() => setUserContentExpanded((expanded) => !expanded)}>
           {composerMarkdownContent ? (
             <ChatMarkdown
               block={{ ...block, content: composerMarkdownContent.markdown }}

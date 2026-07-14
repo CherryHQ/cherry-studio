@@ -1,7 +1,5 @@
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { generateVideoRequest } from '../generateVideo'
 
 // Adapt FileEntry → FileMetadata is exercised elsewhere; here we only need the id to flow through.
 vi.mock('../../../paintings/utils/fileEntryAdapter', () => ({
@@ -22,18 +20,37 @@ interface VideoPayload {
   providerOptions?: Record<string, Record<string, unknown>>
 }
 
-const generateVideo = vi.fn(async (_payload: VideoPayload, _requestId: string) => ({
-  files: [{ id: 'out-1', name: 'out-1.mp4' }]
+const { ipcRequestMock } = vi.hoisted(() => ({
+  ipcRequestMock: vi.fn(async (route: string, _input: unknown): Promise<unknown> => {
+    if (route === 'ai.generate_video') return { files: [{ id: 'out-1', name: 'out-1.mp4' }] }
+    return undefined
+  })
 }))
-const abortVideo = vi.fn()
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
+import { generateVideoRequest } from '../generateVideo'
+
 const binaryImage = vi.fn(async () => ({ data: new Uint8Array([1, 2, 3]), mime: 'image/png' }))
 
+/** Calls to the `ai.generate_video` route: `[{ requestId, payload }]`. */
+function generateCalls(): Array<{ requestId: string; payload: VideoPayload }> {
+  return ipcRequestMock.mock.calls
+    .filter(([route]) => route === 'ai.generate_video')
+    .map(([, input]) => input as { requestId: string; payload: VideoPayload })
+}
+
+/** Calls to the `ai.abort_video` route: `[{ requestId }]`. */
+function abortCalls(): Array<{ requestId: string }> {
+  return ipcRequestMock.mock.calls
+    .filter(([route]) => route === 'ai.abort_video')
+    .map(([, input]) => input as { requestId: string })
+}
+
 beforeEach(() => {
-  generateVideo.mockClear()
-  abortVideo.mockClear()
+  ipcRequestMock.mockClear()
   binaryImage.mockClear()
   vi.stubGlobal('window', {
-    api: { ai: { generateVideo, abortVideo }, file: { binaryImage } }
+    api: { file: { binaryImage } }
   })
 })
 
@@ -56,8 +73,9 @@ describe('generateVideoRequest', () => {
       signal: new AbortController().signal
     })
 
-    expect(generateVideo).toHaveBeenCalledTimes(1)
-    const [payload, requestId] = generateVideo.mock.calls[0]
+    const calls = generateCalls()
+    expect(calls).toHaveLength(1)
+    const { requestId, payload } = calls[0]
     expect(typeof requestId).toBe('string')
     expect(payload).toMatchObject({
       uniqueModelId: 'dmxapi::seedance',
@@ -80,7 +98,7 @@ describe('generateVideoRequest', () => {
       signal: new AbortController().signal
     })
 
-    const [payload] = generateVideo.mock.calls[0]
+    const { payload } = generateCalls()[0]
     expect(payload.duration).toBe(5) // "5" → 5
     expect(payload.fps).toBe(24)
     expect(payload).not.toHaveProperty('seed') // "" dropped
@@ -102,18 +120,18 @@ describe('generateVideoRequest', () => {
 
     expect(binaryImage).toHaveBeenCalledWith('first')
     expect(binaryImage).toHaveBeenCalledWith('last')
-    const [payload] = generateVideo.mock.calls[0]
+    const { payload } = generateCalls()[0]
     expect(payload.firstFrame).toMatch(/^data:image\/png;base64,/)
     expect(payload.lastFrame).toMatch(/^data:image\/png;base64,/)
     expect(result).toEqual([{ id: 'out-1', name: 'out-1.mp4' }])
   })
 
-  it('forwards an abort to window.api.ai.abortVideo with the same requestId', async () => {
+  it('forwards an abort to the ai.abort_video route with the same requestId', async () => {
     const controller = new AbortController()
-    let resolveGen: (v: { files: never[] }) => void = () => {}
-    generateVideo.mockImplementationOnce(
+    let resolveGen: (v: unknown) => void = () => {}
+    ipcRequestMock.mockImplementationOnce(
       () =>
-        new Promise((resolve) => {
+        new Promise<unknown>((resolve) => {
           resolveGen = resolve
         })
     )
@@ -127,9 +145,10 @@ describe('generateVideoRequest', () => {
     })
 
     controller.abort()
-    expect(abortVideo).toHaveBeenCalledTimes(1)
-    const requestId = generateVideo.mock.calls[0][1]
-    expect(abortVideo).toHaveBeenCalledWith(requestId)
+    const aborts = abortCalls()
+    expect(aborts).toHaveLength(1)
+    const { requestId } = generateCalls()[0]
+    expect(aborts[0]).toEqual({ requestId })
 
     resolveGen({ files: [] })
     // the post-await aborted check throws AbortError

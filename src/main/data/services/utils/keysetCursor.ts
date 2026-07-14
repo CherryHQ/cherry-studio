@@ -2,7 +2,7 @@
  * Shared keyset (cursor) pagination codec + ordering builder.
  *
  * List endpoints that page by a `(sortKey, id)` tuple all need the same two
- * things: a `<key>:<id>` wire-format codec, and a keyset WHERE clause paired
+ * things: a `<url-encoded-key>:<id>` wire-format codec, and a keyset WHERE clause paired
  * with its matching ORDER BY (`keysetOrdering`). Both were hand-rolled per
  * service and drifted — the tie-break direction varied, and (worse) the WHERE
  * predicate and the ORDER BY were declared separately and could fall out of
@@ -24,13 +24,13 @@
  */
 
 import { loggerService } from '@logger'
-import { and, type AnyColumn, asc, desc, eq, gt, lt, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, lt, or, type SQL, type SQLWrapper } from 'drizzle-orm'
 
 const logger = loggerService.withContext('keysetCursor')
 
 /**
- * Parse a `<key>:<id>` cursor, splitting on the FIRST `:` so ids may contain
- * `:`. Pure and side-effect-free. Returns `null` for any unparseable input:
+ * Parse a `<url-encoded-key>:<id>` cursor, splitting on the FIRST `:` so ids may contain
+ * `:` and user-controlled string keys may contain `:` after decoding. Pure and side-effect-free. Returns `null` for any unparseable input:
  * empty/absent `raw`, no separator, empty key, empty id, or a `parseKey` that
  * rejects the key segment.
  *
@@ -47,12 +47,18 @@ export function parseCursor<K extends string | number>(
   const keyStr = raw.slice(0, sep)
   const id = raw.slice(sep + 1)
   if (!keyStr || !id) return null
-  const key = parseKey(keyStr)
+  let decodedKey: string
+  try {
+    decodedKey = decodeURIComponent(keyStr)
+  } catch {
+    return null
+  }
+  const key = parseKey(decodedKey)
   return key === null ? null : { key, id }
 }
 
-/** Encode a `(key, id)` boundary into the `<key>:<id>` wire format. */
-export const encodeCursor = (key: string | number, id: string): string => `${key}:${id}`
+/** Encode a `(key, id)` boundary into the `<url-encoded-key>:<id>` wire format. */
+export const encodeCursor = (key: string | number, id: string): string => `${encodeURIComponent(String(key))}:${id}`
 
 /**
  * `parseKey` for numeric sort columns (e.g. `createdAt`). Rejects an empty
@@ -103,14 +109,14 @@ export function decodeListCursor<K extends string | number>(
  * predicate with one direction and the ORDER BY with another.
  */
 export function keysetOrdering(
-  keyCol: AnyColumn,
-  idCol: AnyColumn,
+  keyCol: SQLWrapper,
+  idCol: SQLWrapper,
   dir: { major: 'asc' | 'desc'; tie: 'asc' | 'desc' }
 ): {
   where: (cursor: { key: string | number; id: string }) => SQL
   orderBy: SQL[]
 } {
-  const after = (col: AnyColumn, d: 'asc' | 'desc', value: string | number) =>
+  const after = (col: SQLWrapper, d: 'asc' | 'desc', value: string | number) =>
     d === 'asc' ? gt(col, value) : lt(col, value)
   const direction = (d: 'asc' | 'desc') => (d === 'asc' ? asc : desc)
   return {

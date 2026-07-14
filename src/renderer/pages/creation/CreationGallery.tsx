@@ -1,12 +1,12 @@
 import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import FileManager from '@renderer/services/FileManager'
 import type { CreationKind } from '@shared/data/types/creation'
 import { Film, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC, UIEventHandler } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getPaintingFileUrl } from '../paintings/utils/paintingFileUrl'
 import { creationClasses } from './creationPrimitives'
 import type { CreationGalleryEntry } from './useCreationHistory'
 
@@ -34,7 +34,7 @@ const CreationGalleryItem: FC<{
 }> = ({ creation, selected, loading, onDelete, onSelect, selectLabel, deleteLabel }) => {
   const itemKind = creation.kind
   const previewFile = creation.files?.[0]
-  const previewUrl = previewFile ? FileManager.getFileUrl(previewFile) : undefined
+  const previewUrl = previewFile ? getPaintingFileUrl(previewFile) : undefined
 
   return (
     <div className={cn(creationClasses.historyItem, selected && creationClasses.historyItemActive)}>

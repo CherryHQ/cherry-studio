@@ -1,8 +1,9 @@
 import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { McpServer } from '@renderer/types'
-import { getMcpConfigSampleFromReadme } from '@renderer/utils'
+import { toast } from '@renderer/services/toast'
+import { getMcpConfigSampleFromReadme } from '@renderer/utils/mcp'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { Check, Plus } from 'lucide-react'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
@@ -39,7 +40,7 @@ const NpxSearch: FC = () => {
     const searchScope = scopeOverride || npmScope
 
     if (!searchScope.trim()) {
-      window.toast.warning(t('settings.mcp.npx_list.scope_required'))
+      toast.warning(t('settings.mcp.npx_list.scope_required'))
       return
     }
 
@@ -75,15 +76,15 @@ const NpxSearch: FC = () => {
       setSearchResults(formattedResults)
 
       if (formattedResults.length === 0) {
-        window.toast.info(t('settings.mcp.npx_list.no_packages'))
+        toast.info(t('settings.mcp.npx_list.no_packages'))
       }
     } catch (error: unknown) {
       setSearchResults([])
       _searchResults = []
       if (error instanceof Error) {
-        window.toast.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
+        toast.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
       } else {
-        window.toast.error(t('settings.mcp.npx_list.search_error'))
+        toast.error(t('settings.mcp.npx_list.search_error'))
       }
     } finally {
       setSearchLoading(false)
@@ -169,9 +170,9 @@ const NpxSearch: FC = () => {
 
                         try {
                           await addMcpServer(newServer)
-                          window.toast.success(t('settings.mcp.addSuccess'))
+                          toast.success(t('settings.mcp.addSuccess'))
                         } catch {
-                          window.toast.error(t('settings.mcp.addError'))
+                          toast.error(t('settings.mcp.addError'))
                         }
                       }}
                       disabled={isInstalled}>

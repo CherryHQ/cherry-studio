@@ -14,7 +14,7 @@ import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
@@ -102,22 +102,27 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
 }
 
 function basenameWithoutExt(p: string): string {
-  const base = p.split(/[\\/]/).pop() ?? p
+  const base = basenameForExtProjection(p)
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(0, dot) : base
 }
 
 function extWithoutDot(p: string): string | null {
-  const base = p.split(/[\\/]/).pop() ?? p
+  const base = basenameForExtProjection(p)
   const dot = base.lastIndexOf('.')
-  if (dot <= 0 || dot === base.length - 1) return null
+  if (dot <= 0) return null
   return base.slice(dot + 1).toLowerCase()
+}
+
+function basenameForExtProjection(p: string): string {
+  const base = p.split(/[\\/]/).pop() ?? p
+  return base.replace(/[\s.]+$/, '')
 }
 
 function urlTail(url: string): string {
   try {
     const u = new URL(url)
-    const last = u.pathname.split('/').pop() ?? ''
+    const last = basenameForExtProjection(u.pathname)
     const dot = last.lastIndexOf('.')
     return dot > 0 ? last.slice(0, dot) : last || u.hostname
   } catch {
@@ -144,13 +149,12 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
     throw err
   }
   try {
-    return await deps.fileEntryService.create({
+    return deps.fileEntryService.create({
       id,
       origin: 'internal',
       name: source.name,
       ext: source.ext,
-      size: stats.size,
-      externalPath: null
+      size: stats.size
     })
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })
@@ -166,7 +170,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
  */
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
   const canonical = canonicalizeExternalPath(params.externalPath)
-  const existing = await deps.fileEntryService.findByExternalPath(canonical)
+  const existing = deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return existing
   // Every downstream derivation must consume the canonical path, not the
   // raw `params.externalPath`. On macOS APFS the raw input can arrive in
@@ -203,7 +207,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // subsequent INSERT would fail at the same boundary with a more
   // diagnosable stack, so wrapping in try/catch here only hides the real
   // error one stack frame earlier.
-  const peers = await deps.fileEntryService.findCaseInsensitivePeers(canonical)
+  const peers = deps.fileEntryService.findCaseInsensitivePeers(canonical)
   if (peers.length > 0) {
     const reusable = await resolveCaseCollisionPeer(canonical as FilePath, peers)
     if (reusable) {
@@ -236,11 +240,10 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // must `rename` after `ensureExternalEntry` returns.
   const name = defaultNameFromPath(canonical)
   const ext = extWithoutDot(canonical)
-  const inserted = await deps.fileEntryService.create({
+  const inserted = deps.fileEntryService.create({
     origin: 'external',
     name,
     ext,
-    size: null,
     externalPath: canonical
   })
   // Reverse-index hook: subsequent watcher / opportunistic ops events for
@@ -253,9 +256,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
 }
 
 function defaultNameFromPath(p: string): string {
-  const base = p.split(/[\\/]/).pop() ?? p
-  const dot = base.lastIndexOf('.')
-  return dot > 0 ? base.slice(0, dot) : base
+  return basenameWithoutExt(p)
 }
 
 /**

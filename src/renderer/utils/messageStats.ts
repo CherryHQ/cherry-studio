@@ -1,18 +1,38 @@
-/**
- * Stats projection: `MessageStats` (DB / shared schema, camelCase) →
- * Renderer `Usage` / `Metrics` (OpenAI snake_case) consumed by
- * `MessageTokens` and friends.
- *
- * Kept as pure functions so both the V1 block-based renderer data source
- * (`getTopicMessages` in `useTopic.ts`) and V2 message-list exports
- * share a single projection path —
- * no inline re-implementation drift when the `MessageStats` schema
- * redesign (see TODO in `packages/shared/data/types/message.ts`) finally
- * lands.
- */
-
-import type { Metrics, Usage } from '@renderer/types'
+import type { Metrics, Usage } from '@renderer/types/message'
 import type { MessageStats } from '@shared/data/types/message'
+
+export interface CacheTokenStats {
+  noCacheTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalInputTokens: number
+  hitRate: number
+  savedInputTokens: number
+}
+
+function buildCacheTokenStats(
+  noCacheTokens: number,
+  cacheReadTokens: number,
+  cacheWriteTokens: number
+): CacheTokenStats | undefined {
+  if (cacheReadTokens === 0 && cacheWriteTokens === 0) return undefined
+
+  const totalInputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+
+  return {
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalInputTokens,
+    hitRate: cacheReadTokens / totalInputTokens,
+    // Anthropic cache reads are discounted rather than free; this is token-volume saved from re-sending.
+    savedInputTokens: cacheReadTokens
+  }
+}
+
+export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
+  return buildCacheTokenStats(stats.noCacheTokens ?? 0, stats.cacheReadTokens ?? 0, stats.cacheWriteTokens ?? 0)
+}
 
 /**
  * Project `MessageStats` onto the OpenAI-shaped `Usage` the renderer
@@ -27,6 +47,9 @@ export function statsToUsage(stats: MessageStats): Usage {
     completion_tokens: stats.completionTokens ?? 0,
     total_tokens: stats.totalTokens ?? 0,
     ...(stats.thoughtsTokens !== undefined && { thoughts_tokens: stats.thoughtsTokens }),
+    ...(stats.noCacheTokens !== undefined && { no_cache_tokens: stats.noCacheTokens }),
+    ...(stats.cacheReadTokens !== undefined && { cache_read_tokens: stats.cacheReadTokens }),
+    ...(stats.cacheWriteTokens !== undefined && { cache_write_tokens: stats.cacheWriteTokens }),
     ...(stats.cost !== undefined && { cost: stats.cost })
   }
 }

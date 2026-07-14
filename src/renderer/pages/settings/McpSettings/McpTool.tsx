@@ -1,8 +1,9 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/Icons'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
-import type { McpServer, McpTool } from '@renderer/types'
+import type { McpTool } from '@renderer/types/tool'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { Zap } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
@@ -184,8 +185,10 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
             {tool.description && (
-              <Tooltip content={tool.description}>
-                <p className="m-0 line-clamp-1 text-[13px] text-foreground-secondary leading-5">{tool.description}</p>
+              <Tooltip content={tool.description} fullWidthTrigger>
+                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-foreground-secondary leading-5">
+                  {tool.description}
+                </p>
               </Tooltip>
             )}
           </ColFlex>

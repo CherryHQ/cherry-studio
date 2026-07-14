@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { FileEntrySchema } from '@shared/data/types/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerWarnMock } = vi.hoisted(() => ({
@@ -25,7 +25,7 @@ vi.mock('node:fs', async () => {
 })
 
 import { FileMigrator } from '../FileMigrator'
-import { getAllMigrators } from '../index'
+import { getAllMigrators } from '../migratorRegistry'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -63,19 +63,19 @@ const FIXTURE_WINDOWS_ROW: FileMetadata = {
 }
 
 function createMockContext(rows: FileMetadata[], overrides: Record<string, unknown> = {}) {
-  const insertValues = vi.fn().mockResolvedValue(undefined)
+  const insertValues = vi.fn().mockReturnValue({ run: vi.fn() })
   const insertFn = vi.fn().mockReturnValue({ values: insertValues })
 
-  const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
-    await cb({ insert: insertFn })
+  const txFn = vi.fn().mockImplementation((cb: (tx: unknown) => void) => {
+    cb({ insert: insertFn })
   })
 
   const selectFn = vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
-      get: vi.fn().mockResolvedValue({ count: 0 }),
+      get: vi.fn().mockReturnValue({ count: 0 }),
       where: vi.fn().mockReturnValue({
-        get: vi.fn().mockResolvedValue(null),
-        all: vi.fn().mockResolvedValue([])
+        get: vi.fn().mockReturnValue(null),
+        all: vi.fn().mockReturnValue([])
       })
     })
   })
@@ -276,6 +276,21 @@ describe('FileMigrator ext normalization', () => {
     const inserted = insertValues.mock.calls[0][0]
     const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
     expect(firstRow.ext).toBeNull()
+  })
+
+  it.each([
+    ['trailing space', '.exe '],
+    ['trailing dot', '.exe.']
+  ])('normalizes OS-ignored %s in ext to the effective extension', async (_label, ext) => {
+    const row = makeInternalRow({ ext })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.ext).toBe('exe')
   })
 
   it('ext containing path separator is rejected as malformed', async () => {
@@ -479,7 +494,9 @@ describe('FileMigrator batched insert', () => {
   it('returns error result when transaction throws', async () => {
     const row = makeInternalRow()
     const { ctx } = createMockContext([row])
-    ;(ctx.db as any).transaction = vi.fn().mockRejectedValue(new Error('insert failed'))
+    ;(ctx.db as any).transaction = vi.fn().mockImplementation(() => {
+      throw new Error('insert failed')
+    })
 
     const m = new FileMigrator()
     await m.prepare(ctx as never)
@@ -512,7 +529,7 @@ describe('FileMigrator validate physical file sampling', () => {
     // DB says 1 entry
     ;(ctx.db as any).select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
-        get: vi.fn().mockResolvedValue({ count: 1 })
+        get: vi.fn().mockReturnValue({ count: 1 })
       })
     })
 
@@ -538,7 +555,7 @@ describe('FileMigrator validate physical file sampling', () => {
     // DB says 1 entry
     ;(ctx.db as any).select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
-        get: vi.fn().mockResolvedValue({ count: 1 })
+        get: vi.fn().mockReturnValue({ count: 1 })
       })
     })
 

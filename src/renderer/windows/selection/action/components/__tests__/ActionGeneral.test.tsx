@@ -15,6 +15,13 @@ const state = vi.hoisted(() => ({
 
 import ActionGeneral from '../ActionGeneral'
 
+const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
+
+vi.mock('../ActionResultContent', () => {
+  resultContentChunk.evaluated()
+  return { default: () => null }
+})
+
 vi.mock('@ai-sdk/react', () => ({
   useChat: ({ id }: { id: string }) => {
     state.useChatIds.push(id)
@@ -56,9 +63,15 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessagePlatformActions', ()
   useMessagePlatformActions: () => ({})
 }))
 
-vi.mock('@renderer/components/chat/messages', () => ({
-  MessageContentProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  MessageContent: () => <div data-testid="message-content" />,
+vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
+  MessageContentProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+}))
+
+vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
+  default: () => <div data-testid="message-content" />
+}))
+
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 
@@ -70,7 +83,7 @@ vi.mock('../WindowFooter', () => ({
   default: () => <div data-testid="window-footer" />
 }))
 
-vi.mock('@renderer/transport/IpcChatTransport', () => ({
+vi.mock('@renderer/services/aiTransport', () => ({
   ipcChatTransport: {}
 }))
 
@@ -98,6 +111,20 @@ describe('ActionGeneral', () => {
     state.stopChat.mockClear()
     state.temporaryTopicOptions = []
     state.useChatIds = []
+  })
+
+  // MUST run first in this file: if a future test ever renders a result, the
+  // lazy module would load through React.lazy and permanently mark
+  // `resultContentChunk.evaluated` (module caches defeat mockClear). Running
+  // before any result has ever rendered is what makes this assertion prove
+  // the mount preload specifically.
+  it('preloads the result-content chunk on mount, before any result arrives', async () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    // liveAssistants stays empty in this setup, so nothing result-related is
+    // rendered — the chunk import must still fire so its download overlaps the
+    // model's network latency instead of waiting for the first message.
+    await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
   })
 
   it('leases a no-assistant temporary topic and sends for default model actions', async () => {

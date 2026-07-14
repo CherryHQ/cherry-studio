@@ -4,13 +4,14 @@
  * moves out of the in-memory map and the persistent provider takes over.
  */
 
+import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamRequest } from '../../types/requests'
+import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
@@ -55,7 +56,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
-    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic.assistantId)
+    const { assistantId, defaultModelId } = resolveAssistantModelId(topic.assistantId)
 
     let resolveWith: UniqueModelId[] | undefined
     if (req.mentionedModelIds?.length) {
@@ -67,25 +68,25 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       }
       resolveWith = [req.mentionedModelIds[0]]
     }
-    const models = await resolveModels(resolveWith, defaultModelId)
+    const models = resolveModels(resolveWith, defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
-    const modelSnapshot = {
-      id: model.apiModelId ?? rawModelId,
-      name: model.name,
-      provider: providerId
-    }
+    const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }
+    // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
+    const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
+    const messageSnapshot = assistant
+      ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
+      : undefined
 
-    // Append user first so `history` (listMessages) includes it. Service generates the id.
-    await temporaryChatService.appendMessage(req.topicId, {
+    // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
+    temporaryChatService.appendMessage(req.topicId, {
       role: 'user',
       data: { parts: req.userMessageParts },
       status: 'success',
-      modelId: model.id,
-      modelSnapshot
+      modelId: model.id
     })
 
-    const prior = await temporaryChatService.listMessages(req.topicId)
+    const prior = temporaryChatService.listMessages(req.topicId)
     const history: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
       role: toContentRole(m.role),
@@ -97,7 +98,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, modelSnapshot }),
+        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, messageSnapshot }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })

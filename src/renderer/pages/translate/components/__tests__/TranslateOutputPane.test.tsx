@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import TranslateOutputPane from '../TranslateOutputPane'
@@ -11,11 +11,16 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
+    <div ref={ref} data-testid="translate-output-scrollbar" {...props}>
+      {children}
+    </div>
+  ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -26,6 +31,7 @@ const baseProps = () => ({
   translating: false,
   copied: false,
   onCopy: vi.fn(),
+  onExportToNotes: vi.fn(),
   onScroll: vi.fn()
 })
 
@@ -40,6 +46,15 @@ describe('TranslateOutputPane', () => {
     expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
   })
 
+  it('renders translated content inside the shared Scrollbar', () => {
+    const props = baseProps()
+    props.translatedContent = 'partial output'
+
+    render(<TranslateOutputPane {...props} />)
+
+    expect(screen.getByTestId('translate-output-scrollbar')).toHaveTextContent('partial output')
+  })
+
   it('shows the processing indicator while waiting for output', () => {
     const props = baseProps()
     props.translating = true
@@ -47,5 +62,20 @@ describe('TranslateOutputPane', () => {
     render(<TranslateOutputPane {...props} />)
 
     expect(screen.getByText('translate.processing')).toBeInTheDocument()
+  })
+
+  it('shows an export-to-notes button in the bottom-right footer and calls it for translated content', () => {
+    const props = baseProps()
+    props.translatedContent = 'translated output'
+
+    render(<TranslateOutputPane {...props} />)
+
+    const buttons = screen.getAllByRole('button')
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['common.copy', 'notes.save'])
+    expect(screen.getByRole('button', { name: 'notes.save' })).toHaveClass('ml-auto')
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    expect(props.onExportToNotes).toHaveBeenCalledTimes(1)
   })
 })

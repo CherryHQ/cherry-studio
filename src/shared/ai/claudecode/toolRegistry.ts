@@ -36,7 +36,7 @@ export interface ClaudeToolDescriptorDef {
   /** Other tools this one requires — if any is disabled, this tool is disabled too (transitively). */
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
-  mcpServer?: 'cherry-tools' | 'claw' | 'agent-memory' | 'skills'
+  mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
 }
 
 /**
@@ -280,35 +280,61 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Searches your knowledge bases',
     mcpServer: 'cherry-tools'
   },
+  // Lists the bases, or outlines one base's structure when given a baseId. No separate toggle, but it
+  // follows the visible "Knowledge Search" toggle (dependsOn kb_search): disabling search also revokes
+  // browsing, so the user-facing toggle honestly covers all knowledge-base read access.
   CherryKbList: {
     name: 'mcp__cherry-tools__kb_list',
     category: 'context',
     exposure: 'internal',
-    description: 'Lists your knowledge bases',
+    description: 'Lists your knowledge bases, or outlines one base’s structure',
+    dependsOn: ['mcp__cherry-tools__kb_search'],
     mcpServer: 'cherry-tools'
   },
-  // claw (agent autonomy / channels). notify/config need a connected channel to do anything.
-  ClawCron: {
-    name: 'mcp__claw__cron',
+  // Deep-read tool (infrastructure the agent reaches for after a search) — internal, no separate
+  // toggle. It returns whole documents (more than kb_search's chunks), so it follows the visible
+  // "Knowledge Search" toggle (dependsOn kb_search): disabling search also revokes document reads.
+  CherryKbRead: {
+    name: 'mcp__cherry-tools__kb_read',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Reads a knowledge base document, or greps within it',
+    dependsOn: ['mcp__cherry-tools__kb_search'],
+    mcpServer: 'cherry-tools'
+  },
+  // The one mutating KB tool (add/delete/refresh sources) — exposed as its own toggle so the user
+  // can see and disable write access; it still requires per-call approval at runtime.
+  CherryKbManage: {
+    name: 'mcp__cherry-tools__kb_manage',
+    category: 'context',
+    exposure: 'user',
+    description: 'Adds, deletes, or refreshes knowledge base documents',
+    mcpServer: 'cherry-tools'
+  },
+  // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
+  CherryCron: {
+    name: 'mcp__cherry-tools__cron',
     category: 'orchestration',
     exposure: 'user',
     description: 'Manages the in-app scheduler',
-    mcpServer: 'claw'
+    mcpServer: 'cherry-tools'
   },
-  // notify/config are condition-gated (agent has a connected channel) — see toolConditions.ts.
-  ClawNotify: {
-    name: 'mcp__claw__notify',
+  // notify is user-exposed and NOT channel-gated: it self-degrades at call time (reports "no connected
+  // channels") when the agent has none — see cherryAutonomyTools.ts sendNotification. Do not re-add a
+  // channel enable-predicate, or an agent can't notify in the same run it uses config to add its first channel.
+  CherryNotify: {
+    name: 'mcp__cherry-tools__notify',
     category: 'orchestration',
-    exposure: 'internal',
+    exposure: 'user',
     description: 'Sends a notification through a connected channel',
-    mcpServer: 'claw'
+    mcpServer: 'cherry-tools'
   },
-  ClawConfig: {
-    name: 'mcp__claw__config',
+  CherryConfig: {
+    name: 'mcp__cherry-tools__config',
     category: 'orchestration',
-    exposure: 'internal',
+    exposure: 'user',
     description: 'Inspects and manages this agent configuration and channels',
-    mcpServer: 'claw'
+    mcpServer: 'cherry-tools'
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
@@ -373,8 +399,11 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__web_search': 'Web Search',
   'mcp__cherry-tools__web_fetch': 'Web Fetch',
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
+  'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',
-  mcp__claw__cron: 'Scheduler'
+  'mcp__cherry-tools__cron': 'Scheduler',
+  'mcp__cherry-tools__notify': 'Notify',
+  'mcp__cherry-tools__config': 'Configuration'
 }
 
 /**

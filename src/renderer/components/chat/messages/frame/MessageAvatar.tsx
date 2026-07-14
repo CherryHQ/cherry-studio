@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { isEmoji } from '@renderer/utils'
+import { isEmoji } from '@renderer/utils/naming'
 import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'
 
 export const MESSAGE_AVATAR_SIZE = 30

@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
@@ -73,7 +73,7 @@ vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
   default: mocks.HorizontalScrollContainer
 }))
 
-vi.mock('@renderer/utils', () => {
+vi.mock('@renderer/utils/style', () => {
   const flattenClassNames = (value: unknown): string[] => {
     if (!value) return []
     if (typeof value === 'string') return [value]
@@ -88,10 +88,13 @@ vi.mock('@renderer/utils', () => {
 
   return {
     classNames: (...values: unknown[]) => flattenClassNames(values).join(' '),
-    cn: (...values: unknown[]) => flattenClassNames(values).join(' '),
-    isEmoji: () => false
+    cn: (...values: unknown[]) => flattenClassNames(values).join(' ')
   }
 })
+
+vi.mock('@renderer/utils/naming', () => ({
+  isEmoji: () => false
+}))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
@@ -125,10 +128,6 @@ vi.mock('@renderer/services/EventService', () => ({
     NEW_CONTEXT: 'new-context'
   },
   EventEmitter: mocks.EventEmitter
-}))
-
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageModelId: () => 'model-id'
 }))
 
 vi.mock('@renderer/services/TokenService', () => ({
@@ -469,6 +468,26 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
+  })
+
+  it('does not update message UI state from capture mode renders', async () => {
+    const updateMessageUiState = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      regenerateMessage: vi.fn(),
+      updateMessageUiState
+    })
+    const topic = { id: 'topic-1' } as Topic
+    const firstMessage = createMessage('msg-1', 0, 'fold')
+    const secondMessage = createMessage('msg-2', 1, 'fold')
+
+    const { rerender } = render(<MessageGroup captureMode messages={[firstMessage]} topic={topic} />)
+    rerender(<MessageGroup captureMode messages={[firstMessage, secondMessage]} topic={topic} />)
+
+    await waitFor(() => {
+      expect(updateMessageUiState).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps user message footer actions hidden by default without a divider', () => {

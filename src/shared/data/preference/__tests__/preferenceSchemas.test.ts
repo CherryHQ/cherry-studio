@@ -15,16 +15,41 @@ describe('DefaultPreferences', () => {
     expect('feature.file_processing.default.image_to_text' in DefaultPreferences.default).toBe(false)
   })
 
-  it('requires users to choose URL fetch web search provider by default', () => {
-    const fetchUrlsDefault: PreferenceSchemas['default']['chat.web_search.default_fetch_urls_provider'] = null
+  it('defaults the URL fetch web search provider to jina', () => {
+    const fetchUrlsDefault: PreferenceSchemas['default']['chat.web_search.default_fetch_urls_provider'] = 'jina'
 
-    expect(fetchUrlsDefault).toBeNull()
-    expect(DefaultPreferences.default['chat.web_search.default_fetch_urls_provider']).toBeNull()
+    expect(DefaultPreferences.default['chat.web_search.default_fetch_urls_provider']).toBe(fetchUrlsDefault)
   })
 
-  it('groups agent sessions by agent for new users', () => {
+  it('defaults the keyword search web search provider to exa-mcp', () => {
+    const searchKeywordsDefault: PreferenceSchemas['default']['chat.web_search.default_search_keywords_provider'] =
+      'exa-mcp'
+
+    expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
+  })
+
+  it('groups conversations and agent sessions by the assistant and agent defaults for new users', () => {
+    const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
     const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
 
+    expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
+  })
+
+  it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
+    const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+      { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
+      { id: 'translate', type: 'app' },
+      { id: 'paintings', type: 'app' },
+      { id: 'knowledge', type: 'app' }
+    ]
+
+    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+  })
+
+  it('does not keep legacy classic/modern layout preferences', () => {
+    expect('topic.layout' in DefaultPreferences.default).toBe(false)
+    expect('agent.layout' in DefaultPreferences.default).toBe(false)
   })
 })

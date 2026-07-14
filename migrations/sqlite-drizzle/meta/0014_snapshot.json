@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9ec05dca-e23c-4399-9604-2d27fafcd719",
+  "id": "5d72d904-e1ca-4832-a085-bbf3ee2a3a08",
   "prevId": "4ed05ba4-42c4-473c-8bd9-512726c2cffd",
   "tables": {
     "agent": {
@@ -1220,78 +1220,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "creation": {
-      "name": "creation",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider_id": {
-          "name": "provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prompt": {
-          "name": "prompt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "creation_order_key_idx": {
-          "name": "creation_order_key_idx",
-          "columns": ["order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "file_entry": {
       "name": "file_entry",
       "columns": {
@@ -1952,6 +1880,22 @@
           "notNull": true,
           "autoincrement": false
         },
+        "chunk_strategy": {
+          "name": "chunk_strategy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'structured'"
+        },
+        "chunk_separator": {
+          "name": "chunk_separator",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'\\n\\n'"
+        },
         "threshold": {
           "name": "threshold",
           "type": "real",
@@ -2031,6 +1975,10 @@
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
           "value": "\"knowledge_base\".\"search_mode\" IN ('vector', 'bm25', 'hybrid')"
+        },
+        "knowledge_base_chunk_strategy_check": {
+          "name": "knowledge_base_chunk_strategy_check",
+          "value": "\"knowledge_base\".\"chunk_strategy\" IN ('structured', 'delimiter')"
         },
         "knowledge_base_status_check": {
           "name": "knowledge_base_status_check",
@@ -2810,6 +2758,71 @@
           "value": "\"note\".\"is_starred\" = 1 OR \"note\".\"is_expanded\" = 1"
         }
       }
+    },
+    "painting": {
+      "name": "painting",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "painting_order_key_idx": {
+          "name": "painting_order_key_idx",
+          "columns": ["order_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "pin": {
       "name": "pin",

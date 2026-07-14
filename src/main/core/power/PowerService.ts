@@ -47,7 +47,7 @@ type ShutdownHandler = () => void | Promise<void>
  *
  * WhenReady phase: the app is already ready, so `powerSaveBlocker` / `BrowserWindow`
  * are usable directly (no `app.whenReady()` gymnastics). The preference gate is
- * self-read here, mirroring TrayService/ThemeService/ProxyManager.
+ * self-read here, mirroring TrayService/ThemeService/ProxyService.
  */
 @Injectable('PowerService')
 @ServicePhase(Phase.WhenReady)

@@ -1,0 +1,97 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { toast } from '@renderer/services/toast'
+import { filterSupportedFiles } from '@renderer/utils/file'
+import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
+import { Paperclip } from 'lucide-react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+interface Props {
+  launcher: ToolLauncherApi
+  couldAddImageFile: boolean
+  extensions: string[]
+  files: ComposerAttachment[]
+  setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
+  disabled?: boolean
+}
+
+const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, setFiles, disabled }: Props) => {
+  const { t } = useTranslation()
+  const [selecting, setSelecting] = useState<boolean>(false)
+
+  const openFileSelectDialog = useCallback(
+    async (restoreFocus?: () => void) => {
+      if (selecting) {
+        return
+      }
+      // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
+      const useAllFiles = extensions.length > 20
+
+      setSelecting(true)
+      const _files = await window.api.file.select({
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          {
+            name: 'Files',
+            extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
+          }
+        ]
+      })
+      setSelecting(false)
+      window.requestAnimationFrame(() => restoreFocus?.())
+
+      if (_files) {
+        if (!useAllFiles) {
+          setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(_files)])
+          return
+        }
+        const supportedFiles = await filterSupportedFiles(_files, extensions)
+        if (supportedFiles.length > 0) {
+          setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(supportedFiles)])
+        }
+
+        if (supportedFiles.length !== _files.length) {
+          toast.info(
+            t('chat.input.file_not_supported_count', {
+              count: _files.length - supportedFiles.length
+            })
+          )
+        }
+      }
+    },
+    [extensions, selecting, setFiles, t]
+  )
+
+  useEffect(() => {
+    const isDocumentOnly = !couldAddImageFile
+    const disposeLauncher = launcher.registerLaunchers([
+      {
+        id: 'attachment',
+        kind: 'dialog',
+        sources: ['popover'],
+        order: 10,
+        label: t('chat.input.upload.attachment'),
+        description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.upload.attachment', ['upload attachment']),
+        tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
+        icon: <Paperclip />,
+        suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
+        disabled,
+        action: ({ inputAdapter }) => {
+          void openFileSelectDialog(inputAdapter?.focus)
+        }
+      }
+    ])
+
+    return () => {
+      disposeLauncher()
+    }
+  }, [couldAddImageFile, disabled, launcher, openFileSelectDialog, t])
+}
+
+export const AttachmentToolRuntime: FC<Props> = (props) => {
+  useAttachmentToolController(props)
+  return null
+}

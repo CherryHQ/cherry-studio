@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type React from 'react'
 import type { ReactNode } from 'react'
@@ -20,18 +20,22 @@ vi.mock('../MessageMenuBarToolbar', () => ({
   )
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: unknown[]) => values.filter(Boolean).join(' ')
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: vi.fn(),
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn()
 }))
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
@@ -39,10 +43,6 @@ vi.mock('@renderer/utils/message/partsHelpers', () => ({
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
   hasTranslationParts: () => false
-}))
-
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageTitle: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({

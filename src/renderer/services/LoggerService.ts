@@ -200,7 +200,7 @@ export class LoggerService {
         data = data.slice(0, -1)
       }
 
-      // In renderer process, use window.api.logToMain to send log to main process
+      // In renderer process, forward the log to main via the App_LogToMain channel
       if (!IS_WORKER) {
         void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data)
       } else {

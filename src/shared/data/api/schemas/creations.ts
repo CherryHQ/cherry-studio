@@ -2,7 +2,7 @@ import type { Creation } from '@shared/data/types/creation'
 import { CreationFilesSchema, CreationKindSchema } from '@shared/data/types/creation'
 import * as z from 'zod'
 
-import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 export const CREATIONS_DEFAULT_LIMIT = 20

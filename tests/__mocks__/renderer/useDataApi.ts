@@ -5,8 +5,8 @@ import type {
   QueryParamsForPath,
   ResponseForPath,
   TemplateApiPaths
-} from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/apiTypes'
+} from '@shared/data/api/paths'
+import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/types'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 
@@ -42,6 +42,14 @@ type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELE
  * Create mock data based on API path
  */
 function createMockDataForPath(path: string): any {
+  if (path === '/files/entries/stats') {
+    return {
+      activeTotal: 0,
+      trashTotal: 0,
+      extCounts: []
+    }
+  }
+
   if (path.includes('/topics')) {
     if (path.endsWith('/topics')) {
       return {

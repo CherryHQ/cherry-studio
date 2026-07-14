@@ -1,5 +1,5 @@
 import type * as CherryUi from '@cherrystudio/ui'
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,14 +27,19 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   usePartsMap: () => mockPartsMap()
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
   useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+}))
+
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: mockThemeState.theme })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -95,8 +100,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 // Mock LoadingIcon
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: () => <span data-testid="loading-icon" />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <span data-testid="loading-icon" />
 }))
 
 describe('AgentToolRenderer', () => {
@@ -165,6 +170,7 @@ describe('AgentToolRenderer', () => {
   beforeEach(() => {
     mockPartsMap.mockReturnValue(null) // no parts context: no pending approval
     mockMessageListActions.mockReturnValue({})
+    mockThemeState.theme = 'light'
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | Record<string, string | number>) => {
         // Handle plural keys with count option
@@ -428,7 +434,7 @@ describe('AgentToolRenderer', () => {
       ).toBe(false)
     })
 
-    it('renders Write target paths as non-interactive intermediate output', () => {
+    it('renders the Write target path as a clickable link once the write completes', () => {
       const openArtifactFile = vi.fn()
       mockMessageListActions.mockReturnValue({ openArtifactFile })
       const toolResponse = createToolResponse({
@@ -436,6 +442,23 @@ describe('AgentToolRenderer', () => {
         status: 'done',
         arguments: { file_path: '/tmp/game.html', content: '<html></html>' },
         response: 'File written'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      const link = screen.getByRole('link', { name: 'game.html' })
+      expect(link).toBeInTheDocument()
+      fireEvent.click(link)
+      expect(openArtifactFile).toHaveBeenCalledWith('/tmp/game.html')
+    })
+
+    it('keeps the Write target path non-interactive while the file is still being written', () => {
+      const openArtifactFile = vi.fn()
+      mockMessageListActions.mockReturnValue({ openArtifactFile })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'streaming',
+        partialArguments: '{"file_path": "/tmp/game.html", "content": "<html>'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
@@ -459,6 +482,24 @@ describe('AgentToolRenderer', () => {
 
       expect(screen.getByText('plane.html')).toBeInTheDocument()
       expect(screen.getAllByTestId('tooltip-content').some((element) => element.textContent === errorText)).toBe(true)
+    })
+
+    it('keeps the Write target path non-interactive when the write failed', () => {
+      const openArtifactFile = vi.fn()
+      mockMessageListActions.mockReturnValue({ openArtifactFile })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'error',
+        arguments: { file_path: '/plane.html', content: '<html></html>' },
+        response: { isError: true, content: [{ type: 'text', text: 'EROFS: read-only file system' }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('plane.html')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'plane.html' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('plane.html'))
+      expect(openArtifactFile).not.toHaveBeenCalled()
     })
   })
 
@@ -696,7 +737,7 @@ describe('AgentToolRenderer', () => {
       expect(disclosure).toHaveClass('border-none')
       expect(disclosure).toHaveClass('bg-transparent')
       expect(disclosure).not.toHaveClass('rounded-[7px]')
-      expect(screen.getByTestId('wrench-icon')).toBeInTheDocument()
+      expect(screen.queryByTestId('wrench-icon')).toBeNull()
 
       const title = screen.getByText('tool_search · ns=mcp:tavily')
       expect(title).toHaveClass('font-normal')
@@ -764,12 +805,21 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
+      const toolHeader = screen.getByText('View').closest('[role="button"]')!
+      expect(toolHeader).toHaveClass('w-fit')
+      expect(toolHeader).not.toHaveClass('w-full')
+
+      fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
       expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
+      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
+        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
+      )
+      expect(terminal?.className).toContain('bg-[#f5f5f5]')
+      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
-      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
+      fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()

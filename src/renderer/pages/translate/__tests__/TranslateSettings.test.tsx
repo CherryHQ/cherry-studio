@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -27,7 +28,7 @@ vi.mock('@renderer/hooks/translate', () => ({
   useTranslateLanguages: () => translateLanguageMutationsMock
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -208,14 +209,6 @@ describe('TranslateSettings', () => {
       }
       return [MockUsePreferenceUtils.getPreferenceValue(key as any), fallbackSetter]
     })
-
-    ;(window as any).toast = {
-      error: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn(),
-      success: vi.fn()
-    }
   })
 
   afterEach(() => {
@@ -227,7 +220,7 @@ describe('TranslateSettings', () => {
 
     fireEvent.click(screen.getByTestId('language-picker-en-us'))
 
-    expect((window as any).toast.warning).toHaveBeenCalledWith('translate.language.same')
+    expect(toast.warning).toHaveBeenCalledWith('translate.language.same')
     expect(setBidirectionalPair).not.toHaveBeenCalled()
   })
 
@@ -262,14 +255,6 @@ describe('TranslateSettingsPanelContent', () => {
       }
       return [MockUsePreferenceUtils.getPreferenceValue(key as any), vi.fn().mockResolvedValue(undefined)]
     })
-
-    ;(window as any).toast = {
-      error: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn(),
-      success: vi.fn()
-    }
   })
 
   afterEach(() => {

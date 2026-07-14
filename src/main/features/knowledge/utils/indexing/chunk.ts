@@ -37,7 +37,12 @@ export function chunkKnowledgeDocuments(
   base: KnowledgeBase,
   documents: VectorStoreDocument[]
 ): ChunkedKnowledgeContent {
-  const options = { chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }
+  const options = {
+    chunkSize: base.chunkSize,
+    chunkOverlap: base.chunkOverlap,
+    separator: base.chunkSeparator,
+    strategy: base.chunkStrategy
+  }
   const parts: string[] = []
   const chunks: KnowledgeContentChunk[] = []
   let baseOffset = 0

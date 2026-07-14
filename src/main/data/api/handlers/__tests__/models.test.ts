@@ -1,6 +1,12 @@
 import type { CreateModelInput } from '@data/services/ModelService'
-import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import { BulkUpdateModelsSchema, CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
+import {
+  BulkUpdateModelsSchema,
+  CreateModelsSchema,
+  DeleteModelsQuerySchema,
+  MODELS_BATCH_MAX_ITEMS,
+  MODELS_DELETE_MAX_IDS
+} from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
@@ -10,6 +16,7 @@ const {
   getByKeyMock,
   updateMock,
   deleteMock,
+  bulkDeleteMock,
   createMock,
   bulkUpdateMock,
   lookupModelMock,
@@ -21,6 +28,7 @@ const {
   getByKeyMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  bulkDeleteMock: vi.fn(),
   createMock: vi.fn(),
   bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn(),
@@ -35,6 +43,7 @@ vi.mock('@data/services/ModelService', () => ({
     getByKey: getByKeyMock,
     update: updateMock,
     delete: deleteMock,
+    bulkDelete: bulkDeleteMock,
     create: createMock,
     bulkUpdate: bulkUpdateMock
   }
@@ -86,11 +95,35 @@ describe('Model handler validation', () => {
 
     expect(() => BulkUpdateModelsSchema.parse(items)).not.toThrow()
   })
+
+  it('accepts delete query ids larger than the create batch limit', () => {
+    const ids = Array.from({ length: MODELS_BATCH_MAX_ITEMS + 63 }, (_, index) => `cherryin::model-${index}`)
+
+    expect(DeleteModelsQuerySchema.parse({ ids }).ids).toHaveLength(ids.length)
+  })
+
+  it('preserves commas inside delete query ids when passed as an array', () => {
+    const ids = ['cherryin::model,with-comma', 'cherryin::model-2']
+
+    expect(DeleteModelsQuerySchema.parse({ ids }).ids).toEqual(ids)
+  })
+
+  it('treats a string delete query id as one id without comma splitting', () => {
+    const id = 'cherryin::model,with-comma'
+
+    expect(DeleteModelsQuerySchema.parse({ ids: id }).ids).toEqual([id])
+  })
+
+  it('rejects delete query ids over the configured limit', () => {
+    const ids = Array.from({ length: MODELS_DELETE_MAX_IDS + 1 }, (_, index) => `cherryin::model-${index}`)
+
+    expect(() => DeleteModelsQuerySchema.parse({ ids })).toThrow()
+  })
 })
 
 describe('/models', () => {
   it('delegates GET to modelService.list with an empty query when none is provided', async () => {
-    listMock.mockResolvedValueOnce([{ id: 'openai::gpt-4' }])
+    listMock.mockReturnValueOnce([{ id: 'openai::gpt-4' }])
 
     const result = await modelHandlers['/models'].GET({} as never)
 
@@ -99,7 +132,7 @@ describe('/models', () => {
   })
 
   it('forwards a provided GET query to modelService.list', async () => {
-    listMock.mockResolvedValueOnce([])
+    listMock.mockReturnValueOnce([])
 
     await modelHandlers['/models'].GET({ query: { providerId: 'openai' } } as never)
 
@@ -113,8 +146,8 @@ describe('/models', () => {
       defaultChatEndpoint: 'openai-chat-completions' as const,
       reasoningFormatTypes: {}
     }
-    lookupModelMock.mockResolvedValue(registryData)
-    createMock.mockResolvedValue([{ id: 'openai::gpt-4o' }])
+    lookupModelMock.mockReturnValue(registryData)
+    createMock.mockReturnValue([{ id: 'openai::gpt-4o' }])
 
     await modelHandlers['/models'].POST({
       body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
@@ -131,8 +164,10 @@ describe('/models', () => {
 
   it('falls back to custom model creation when registry lookup returns NOT_FOUND', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    lookupModelMock.mockRejectedValue(DataApiErrorFactory.notFound('Registry model', 'custom-model'))
-    createMock.mockResolvedValue([{ id: 'openai::custom-model' }])
+    lookupModelMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Registry model', 'custom-model')
+    })
+    createMock.mockReturnValue([{ id: 'openai::custom-model' }])
 
     await modelHandlers['/models'].POST({
       body: [{ providerId: 'openai', modelId: 'custom-model' }]
@@ -153,7 +188,9 @@ describe('/models', () => {
   it('rethrows non-NOT_FOUND registry lookup errors instead of creating custom models', async () => {
     const error = new Error('registry down')
     const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
-    lookupModelMock.mockRejectedValue(error)
+    lookupModelMock.mockImplementation(() => {
+      throw error
+    })
 
     await expect(
       modelHandlers['/models'].POST({
@@ -173,8 +210,8 @@ describe('/models', () => {
     const registryData2 = { presetModel: { id: 'gpt-5', name: 'GPT-5' }, registryOverride: null }
     const created = [{ id: 'openai::gpt-4o' }, { id: 'openai::gpt-5' }]
 
-    lookupModelMock.mockResolvedValueOnce(registryData1).mockResolvedValueOnce(registryData2)
-    createMock.mockResolvedValue(created)
+    lookupModelMock.mockReturnValueOnce(registryData1).mockReturnValueOnce(registryData2)
+    createMock.mockReturnValue(created)
 
     const result = await modelHandlers['/models'].POST({
       body: [
@@ -200,10 +237,10 @@ describe('/models', () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
 
-    lookupModelMock
-      .mockResolvedValueOnce(registryData)
-      .mockRejectedValueOnce(DataApiErrorFactory.notFound('Model', 'my-model'))
-    createMock.mockResolvedValue([])
+    lookupModelMock.mockReturnValueOnce(registryData).mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Model', 'my-model')
+    })
+    createMock.mockReturnValue([])
 
     await modelHandlers['/models'].POST({
       body: [
@@ -232,8 +269,10 @@ describe('/models', () => {
     const serviceError = DataApiErrorFactory.conflict('Model', 'openai/gpt-4o')
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
 
-    lookupModelMock.mockResolvedValueOnce(registryData)
-    createMock.mockRejectedValueOnce(serviceError)
+    lookupModelMock.mockReturnValueOnce(registryData)
+    createMock.mockImplementationOnce(() => {
+      throw serviceError
+    })
 
     await expect(
       modelHandlers['/models'].POST({
@@ -244,7 +283,7 @@ describe('/models', () => {
 
   it('delegates bulk PATCH to modelService.bulkUpdate', async () => {
     const updated = [{ id: 'cherryin::model-1', isEnabled: false }]
-    bulkUpdateMock.mockResolvedValueOnce(updated)
+    bulkUpdateMock.mockReturnValueOnce(updated)
 
     const result = await modelHandlers['/models'].PATCH({
       body: [{ uniqueModelId: 'cherryin::model-1', patch: { isEnabled: false } }]
@@ -255,12 +294,57 @@ describe('/models', () => {
     ])
     expect(result).toBe(updated)
   })
+  it('delegates DELETE to modelService.bulkDelete', async () => {
+    const result = await modelHandlers['/models'].DELETE({
+      query: { ids: ['openai::gpt-4o', 'anthropic::claude-3-opus'] }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'anthropic', modelId: 'claude-3-opus' }
+    ])
+    expect(result).toBeUndefined()
+  })
+
+  it('accepts a single DELETE query id and delegates to modelService.bulkDelete', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: 'openai::gpt-4o' }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'gpt-4o' }])
+  })
+
+  it('accepts DELETE query id arrays without splitting commas inside model ids', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: ['openai::model,with-comma'] }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'model,with-comma' }])
+  })
+
+  it('accepts a string DELETE query id without splitting commas inside the model id', async () => {
+    await modelHandlers['/models'].DELETE({
+      query: { ids: 'openai::model,with-comma' }
+    } as never)
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith([{ providerId: 'openai', modelId: 'model,with-comma' }])
+  })
+
+  it('rejects malformed unique model ids before calling the service', async () => {
+    await expect(
+      modelHandlers['/models'].DELETE({
+        query: { ids: 'not-a-unique-id' }
+      } as never)
+    ).rejects.toThrow('Must be a valid UniqueModelId')
+
+    expect(bulkDeleteMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('/models/:uniqueModelId*', () => {
   it('splits a slash-containing uniqueModelId at the first :: and forwards GET', async () => {
     const model = { id: 'fireworks::accounts/fireworks/models/deepseek-v3p2' }
-    getByKeyMock.mockResolvedValueOnce(model)
+    getByKeyMock.mockReturnValueOnce(model)
 
     const result = await modelHandlers['/models/:uniqueModelId*'].GET({
       params: { uniqueModelId: 'fireworks::accounts/fireworks/models/deepseek-v3p2' }
@@ -272,7 +356,7 @@ describe('/models/:uniqueModelId*', () => {
 
   it('splits a slash-containing uniqueModelId at the first :: and forwards PATCH with body', async () => {
     const updated = { id: 'qwen::qwen/qwen3-vl', isEnabled: false }
-    updateMock.mockResolvedValueOnce(updated)
+    updateMock.mockReturnValueOnce(updated)
 
     const result = await modelHandlers['/models/:uniqueModelId*'].PATCH({
       params: { uniqueModelId: 'qwen::qwen/qwen3-vl' },
@@ -283,7 +367,7 @@ describe('/models/:uniqueModelId*', () => {
     expect(result).toBe(updated)
   })
   it('splits a slash-containing uniqueModelId at the first :: and forwards DELETE', async () => {
-    deleteMock.mockResolvedValueOnce(undefined)
+    deleteMock.mockReturnValueOnce(undefined)
 
     const result = await modelHandlers['/models/:uniqueModelId*'].DELETE({
       params: { uniqueModelId: 'fireworks::accounts/fireworks/models/deepseek-v3p2' }
@@ -295,7 +379,7 @@ describe('/models/:uniqueModelId*', () => {
 
   it('splits on the FIRST :: when the modelId itself contains ::', async () => {
     const model = { id: 'openai::ns::model' }
-    getByKeyMock.mockResolvedValueOnce(model)
+    getByKeyMock.mockReturnValueOnce(model)
 
     await modelHandlers['/models/:uniqueModelId*'].GET({
       params: { uniqueModelId: 'openai::ns::model' }
@@ -308,7 +392,7 @@ describe('/models/:uniqueModelId*', () => {
     ['empty modelId', 'openai::', 'openai', ''],
     ['empty providerId', '::gpt-4', '', 'gpt-4']
   ])('passes %s through to the service (contract pinned)', async (_label, uniqueModelId, providerId, modelId) => {
-    getByKeyMock.mockResolvedValueOnce(null)
+    getByKeyMock.mockReturnValueOnce(null)
 
     await modelHandlers['/models/:uniqueModelId*'].GET({
       params: { uniqueModelId }
@@ -327,7 +411,9 @@ describe('/models/:uniqueModelId*', () => {
 
   it('propagates service errors without wrapping them', async () => {
     const serviceError = DataApiErrorFactory.notFound('Model', 'openai/missing')
-    getByKeyMock.mockRejectedValueOnce(serviceError)
+    getByKeyMock.mockImplementationOnce(() => {
+      throw serviceError
+    })
 
     await expect(
       modelHandlers['/models/:uniqueModelId*'].GET({ params: { uniqueModelId: 'openai::missing' } } as never)
@@ -337,7 +423,7 @@ describe('/models/:uniqueModelId*', () => {
 
 describe('/providers/:providerId/models:resolve', () => {
   it('resolves a single ids query string through ProviderRegistryService', async () => {
-    resolveModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+    resolveModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
 
     const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
       params: { providerId: 'openai' },
@@ -349,7 +435,7 @@ describe('/providers/:providerId/models:resolve', () => {
   })
 
   it('resolves repeated ids arrays without a request body', async () => {
-    resolveModelsMock.mockResolvedValueOnce([])
+    resolveModelsMock.mockReturnValueOnce([])
 
     await modelHandlers['/providers/:providerId/models:resolve'].GET({
       params: { providerId: 'openai' },
@@ -360,7 +446,7 @@ describe('/providers/:providerId/models:resolve', () => {
   })
 
   it('lists active registry provider models when ids are omitted', async () => {
-    listProviderRegistryModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+    listProviderRegistryModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
 
     const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
       params: { providerId: 'openai' },
@@ -373,7 +459,7 @@ describe('/providers/:providerId/models:resolve', () => {
   })
 
   it('lists active registry provider models when query is omitted', async () => {
-    listProviderRegistryModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+    listProviderRegistryModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
 
     const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
       params: { providerId: 'openai' }
@@ -406,7 +492,7 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
       batch: { min: 1, max: 4, default: 1 },
       supports: { seed: true }
     }
-    getImageGenerationSupportMock.mockResolvedValueOnce(block)
+    getImageGenerationSupportMock.mockReturnValueOnce(block)
 
     const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
       params: { providerId: 'silicon', modelId: 'Kwai-Kolors/Kolors' }
@@ -417,7 +503,7 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
   })
 
   it('returns null when the registry has no metadata for the pair', async () => {
-    getImageGenerationSupportMock.mockResolvedValueOnce(null)
+    getImageGenerationSupportMock.mockReturnValueOnce(null)
 
     const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
       params: { providerId: 'silicon', modelId: 'unknown-model' }

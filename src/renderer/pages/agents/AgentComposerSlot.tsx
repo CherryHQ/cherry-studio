@@ -1,6 +1,6 @@
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
-import AgentComposer from '@renderer/components/chat/composer/variants/AgentComposer'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
+import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -14,7 +14,12 @@ interface AgentComposerSlotProps {
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
-  onNewSessionDraft?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
+  workspaceId?: string | null
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  workspaceChanging?: boolean
+  showWorkspaceSelector?: boolean
+  canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
 
@@ -27,7 +32,12 @@ export default function AgentComposerSlot({
   stop,
   isStreaming,
   sendDisabled,
-  onNewSessionDraft,
+  onCreateEmptySession,
+  workspaceId,
+  onWorkspaceChange,
+  workspaceChanging,
+  showWorkspaceSelector,
+  canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
   const fallback =
@@ -40,7 +50,12 @@ export default function AgentComposerSlot({
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
-        onNewSessionDraft={onNewSessionDraft}
+        onCreateEmptySession={onCreateEmptySession}
+        workspaceId={workspaceId}
+        onWorkspaceChange={onWorkspaceChange}
+        workspaceChanging={workspaceChanging}
+        showWorkspaceSelector={showWorkspaceSelector}
+        canChangeModel={canChangeModel}
       />
     ) : undefined
 

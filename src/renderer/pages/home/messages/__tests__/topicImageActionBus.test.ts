@@ -1,5 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -32,6 +32,15 @@ describe('topicImageActionBus', () => {
     const request = requestTopicImageAction('export', topic)
 
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)
+    expect(consumePendingTopicImageActions('topic-a')).toEqual([
+      expect.objectContaining({ id: request.id, topic, type: 'export', promise: expect.any(Promise) })
+    ])
+  })
+
+  it('can buffer topic image requests without broadcasting the event', () => {
+    const request = requestTopicImageAction('export', topic, { emit: false })
+
+    expect(EventEmitter.emit).not.toHaveBeenCalled()
     expect(consumePendingTopicImageActions('topic-a')).toEqual([
       expect.objectContaining({ id: request.id, topic, type: 'export', promise: expect.any(Promise) })
     ])

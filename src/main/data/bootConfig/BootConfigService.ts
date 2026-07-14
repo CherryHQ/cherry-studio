@@ -20,7 +20,7 @@ import type { BootConfigLoadError } from './types'
 const logger = loggerService.withContext('BootConfigService')
 
 /** Debounce delay for saving config (ms) */
-const SAVE_DEBOUNCE_MS = 500
+const SAVE_DEBOUNCE_MS = 350
 
 /** Payload for boot config change notifications */
 interface BootConfigChangePayload<K extends BootConfigKey = BootConfigKey> {
@@ -40,6 +40,8 @@ export class BootConfigService {
   private config: BootConfigSchema
   private readonly filePath: string
   private saveTimer: ReturnType<typeof setTimeout> | null = null
+  /** True when in-memory config has changes not yet persisted to disk. */
+  private dirty = false
   private listeners = new Map<BootConfigKey, Set<BootConfigChangeListener>>()
   private loadError: BootConfigLoadError | null = null
 
@@ -73,6 +75,7 @@ export class BootConfigService {
   public set<K extends BootConfigKey>(key: K, value: BootConfigSchema[K]): void {
     const previousValue = this.config[key]
     this.config[key] = value
+    this.dirty = true
     this.scheduleSave()
     this.notifyListeners(key, value, previousValue)
   }
@@ -141,13 +144,46 @@ export class BootConfigService {
   }
 
   /**
-   * Cancel debounce timer and save immediately.
+   * Persist pending changes to disk immediately, **propagating failures**.
+   *
+   * Cancels the debounced auto-save and writes synchronously. THROWS if the
+   * write (atomic temp-file `writeFileSync` + `renameSync`, or the all-defaults
+   * `unlinkSync`) fails, so callers that need a hard durability guarantee — the
+   * v1→v2 migrator, or an IPC handler that must not report success before the
+   * change is on disk — can observe and react to the failure.
+   *
+   * No-op when there are no unsaved changes. On failure the dirty flag is
+   * retained so a later {@link persist}/{@link flush} can retry.
+   *
+   * Use {@link flush} instead when a failed write is tolerable (best-effort).
    */
-  public flush(): void {
+  public persist(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
-      this.saveSync()
+    }
+    if (!this.dirty) return
+    this.writeToDisk()
+    this.dirty = false
+  }
+
+  /**
+   * Persist pending changes to disk immediately, **best-effort**.
+   *
+   * A convenience wrapper around {@link persist} for callers that want pending
+   * writes committed but do not care whether the write actually succeeded — e.g.
+   * shutdown, or preboot paths where a thrown error would crash startup. NEVER
+   * throws: any failure is logged and swallowed, and the dirty flag is retained
+   * so a later {@link persist}/{@link flush} can retry.
+   *
+   * Callers that must KNOW whether the data reached disk must use
+   * {@link persist} instead.
+   */
+  public flush(): void {
+    try {
+      this.persist()
+    } catch (error) {
+      logger.error(`Failed to flush boot config to ${this.filePath}`, error as Error)
     }
   }
 
@@ -222,46 +258,62 @@ export class BootConfigService {
       clearTimeout(this.saveTimer)
     }
     this.saveTimer = setTimeout(() => {
-      this.saveSync()
       this.saveTimer = null
+      // Auto-save is best-effort: it runs from a timer callback, so a failure
+      // must not throw (that would be an unhandled exception). Log and keep the
+      // dirty flag so a later persist()/flush() can retry.
+      try {
+        this.persist()
+      } catch (error) {
+        logger.error(`Failed to auto-save boot config to ${this.filePath}`, error as Error)
+      }
     }, SAVE_DEBOUNCE_MS)
   }
 
   /**
-   * Synchronously save config to file (atomic write via temp file + rename).
-   * Only writes keys that differ from defaults. Deletes file if all values are defaults.
+   * Synchronously write config to file (atomic write via temp file + rename).
+   * Only writes keys that differ from defaults. Deletes file if all values are
+   * defaults. THROWS on any fs failure — the error strategy is owned by the
+   * callers: {@link persist} propagates, {@link flush} and the debounced
+   * auto-save swallow and log.
    */
-  private saveSync(): void {
-    try {
-      const diff: Record<string, unknown> = {}
-      for (const key of Object.keys(this.config) as BootConfigKey[]) {
-        if (this.config[key] !== DefaultBootConfig[key]) {
-          diff[key] = this.config[key]
-        }
+  private writeToDisk(): void {
+    const diff: Record<string, unknown> = {}
+    for (const key of Object.keys(this.config) as BootConfigKey[]) {
+      if (this.config[key] !== DefaultBootConfig[key]) {
+        diff[key] = this.config[key]
       }
-
-      if (Object.keys(diff).length === 0) {
-        if (fs.existsSync(this.filePath)) {
-          fs.unlinkSync(this.filePath)
-          logger.debug('Boot config file removed (all values are defaults)')
-        }
-        return
-      }
-
-      const dir = path.dirname(this.filePath)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-
-      const content = JSON.stringify(diff, null, 2)
-      const tempPath = `${this.filePath}.tmp`
-
-      fs.writeFileSync(tempPath, content, 'utf-8')
-      fs.renameSync(tempPath, this.filePath)
-      logger.debug(`Boot config saved to ${this.filePath}`)
-    } catch (error) {
-      logger.error(`Failed to save boot config to ${this.filePath}`, error as Error)
     }
+
+    if (Object.keys(diff).length === 0) {
+      // Delete the file so an all-defaults state leaves no stale non-default
+      // config behind. Attempt the unlink directly rather than gating on
+      // existsSync(): existsSync() folds ENOENT AND stat/permission errors into
+      // `false`, which would mask a real-but-unreadable file and let this
+      // "succeed" while stale config stays on disk. Tolerate only ENOENT
+      // (already gone = the desired state); propagate everything else.
+      try {
+        fs.unlinkSync(this.filePath)
+        logger.debug('Boot config file removed (all values are defaults)')
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error
+        }
+      }
+      return
+    }
+
+    const dir = path.dirname(this.filePath)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+
+    const content = JSON.stringify(diff, null, 2)
+    const tempPath = `${this.filePath}.tmp`
+
+    fs.writeFileSync(tempPath, content, 'utf-8')
+    fs.renameSync(tempPath, this.filePath)
+    logger.debug(`Boot config saved to ${this.filePath}`)
   }
 
   /**

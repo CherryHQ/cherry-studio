@@ -1,15 +1,16 @@
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent/AskUserQuestionOptimisticContext'
+import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
-import { TopicType } from '@renderer/types'
+import { useSession } from '@renderer/hooks/agent/useSession'
+import { ipcApi } from '@renderer/ipc'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
@@ -23,7 +24,6 @@ type Props = {
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
-  modelFallback?: ModelSnapshot
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
   hasOlder?: boolean
@@ -43,7 +43,6 @@ const AgentSessionMessages = ({
   activeAgent,
   partsByMessageId,
   optimisticAskUserQuestionInputsByToolCallId = {},
-  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -86,7 +85,6 @@ const AgentSessionMessages = ({
         }
       : undefined,
     assistantId: agentId,
-    modelFallback,
     isLoading,
     hasOlder,
     loadOlder,
@@ -100,11 +98,11 @@ const AgentSessionMessages = ({
   })
 
   useEffect(() => {
-    void window.api.ai.prewarmAgentSession({ sessionId }).catch((error) => {
+    void ipcApi.request('ai.prewarm_agent_session', { sessionId }).catch((error) => {
       logger.warn('Failed to prewarm agent session', error as Error)
     })
     return () => {
-      void window.api.ai.closeAgentSessionWarm({ sessionId }).catch((error) => {
+      void ipcApi.request('ai.close_agent_session_warm', { sessionId }).catch((error) => {
         logger.warn('Failed to close agent session warm query', error as Error)
       })
     }

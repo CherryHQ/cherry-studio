@@ -1,6 +1,6 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +18,15 @@ const mocks = vi.hoisted(() => ({
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   toastWarning: vi.fn()
+}))
+
+// respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -43,7 +52,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
 }))
 
-vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', () => ({
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => []
 }))
 
@@ -146,13 +155,7 @@ describe('useAgentChatRuntimeState', () => {
 
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: {
-        ai: {
-          toolApproval: {
-            respond: mocks.respondToolApproval
-          }
-        }
-      }
+      value: {}
     })
     Object.defineProperty(window, 'toast', {
       configurable: true,
@@ -162,47 +165,24 @@ describe('useAgentChatRuntimeState', () => {
     })
   })
 
-  it('refreshes persisted agent messages and drops stale overlay when an execution terminates', async () => {
+  it('does not wire per-overlay finish refresh for agent sessions', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
     )
 
-    const options = mocks.useExecutionOverlay.mock.calls[0]?.[3] as
-      | {
-          onFinish?: (
-            executionId: string,
-            event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
-          ) => void | Promise<void>
-        }
-      | undefined
-    expect(options?.onFinish).toEqual(expect.any(Function))
-
-    await act(async () => {
-      await options?.onFinish?.('provider::model', {
-        message: {
-          ...assistantMessage,
-          parts: [{ type: 'text', text: 'partial response' }]
-        } as CherryUIMessage,
-        isAbort: true,
-        isError: false
-      })
-    })
-
-    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1))
-    expect(mocks.disposeOverlay).toHaveBeenCalledWith('assistant-1')
-    expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.disposeOverlay.mock.invocationCallOrder[0])
+    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    expect(mocks.refresh).not.toHaveBeenCalled()
+    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -241,7 +221,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -255,7 +234,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -276,7 +254,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })

@@ -1,17 +1,41 @@
-import { act, renderHook } from '@testing-library/react'
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useProviderModelPullReconcile } from '../useProviderModelPullReconcile'
 
-const fetchPreviewMock = vi.fn()
-const resetPreviewMock = vi.fn()
-const confirmApplyMock = vi.fn()
+const { reconcileTriggerMock } = vi.hoisted(() => ({
+  reconcileTriggerMock: vi.fn()
+}))
+const createModelsMock = vi.fn()
+const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
-const updateProviderMock = vi.fn()
+const fetchProviderCatalogModelsMock = vi.fn()
+const fetchResolvedProviderModelsMock = vi.fn()
+const resolveCreateModelEndpointTypesMock = vi.fn()
+const toCreateModelDtoMock = vi.fn((providerId, model, endpointTypes) => ({
+  providerId,
+  modelId: model.apiModelId,
+  name: model.name,
+  group: model.group,
+  endpointTypes
+}))
+const enableProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
 
 vi.mock('@renderer/hooks/useModel', () => ({
+  useModelMutations: () => ({
+    createModels: createModelsMock,
+    deleteModels: deleteModelsMock,
+    isCreating: false,
+    isDeleting: false,
+    isBulkDeleting: false
+  }),
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
@@ -19,24 +43,16 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/hooks/useProviderPullReconcile', () => ({
-  useProviderPullReconcile: () => ({
-    preview: null,
-    isPreviewLoading: false,
-    fetchPreview: fetchPreviewMock,
-    reset: resetPreviewMock
-  })
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/modelSync', () => ({
+  fetchProviderCatalogModels: (providerId: string) => fetchProviderCatalogModelsMock(providerId),
+  fetchResolvedProviderModels: (providerId: string) => fetchResolvedProviderModelsMock(providerId),
+  resolveCreateModelEndpointTypes: (...args: any[]) => resolveCreateModelEndpointTypesMock(...args),
+  toCreateModelDto: (providerId: string, model: any, endpointTypes: any) =>
+    toCreateModelDtoMock(providerId, model, endpointTypes)
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/providerEnablement', () => ({
   enableProviderWhenModelsAvailable: (...args: any[]) => enableProviderWhenModelsAvailableMock(...args)
-}))
-
-vi.mock('../usePullReconcileSubmit', () => ({
-  usePullReconcileSubmit: () => ({
-    confirmApply: confirmApplyMock,
-    applyBusy: false
-  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -46,71 +62,399 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+const localModel = {
+  id: 'openai::local-model',
+  providerId: 'openai',
+  apiModelId: 'local-model',
+  presetModelId: 'local-model',
+  name: 'Local Model',
+  group: 'OpenAI'
+}
+
+const catalogModel = {
+  id: 'openai::catalog-model',
+  providerId: 'openai',
+  apiModelId: 'catalog-model',
+  name: 'Catalog Model',
+  group: 'OpenAI'
+}
+
+const fetchedModel = {
+  id: 'openai::fetched-model',
+  providerId: 'openai',
+  apiModelId: 'fetched-model',
+  name: 'Fetched Model',
+  group: 'OpenAI'
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 describe('useProviderModelPullReconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    enableProviderWhenModelsAvailableMock.mockResolvedValue(false)
-    useModelsMock.mockReturnValue({ models: [{ id: 'cherryin::model-1' }] })
+    MockUseDataApiUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/providers/:providerId/models:reconcile', reconcileTriggerMock)
+    createModelsMock.mockResolvedValue([])
+    deleteModelsMock.mockResolvedValue(undefined)
+    reconcileTriggerMock.mockResolvedValue([])
+    enableProviderWhenModelsAvailableMock.mockResolvedValue(undefined)
+    fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
+    fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
+    resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
+    useModelsMock.mockReturnValue({ models: [localModel] })
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', isEnabled: false },
-      updateProvider: updateProviderMock
+      provider: { id: 'openai', isEnabled: false },
+      enableProvider: enableProviderMock
     })
-    window.toast = {
-      success: vi.fn(),
-      error: vi.fn()
-    } as unknown as typeof window.toast
   })
 
-  it('enables the provider when the pull is up to date and local models exist', async () => {
-    fetchPreviewMock.mockResolvedValueOnce({ added: [], missing: [] })
-    useModelsMock.mockReturnValue({ models: [{ id: 'cherryin::model-1' }, { id: 'cherryin::model-2' }] })
-    const { result } = renderHook(() => useProviderModelPullReconcile('cherryin'))
+  it('opens the drawer and loads catalog, fetched, and local models', async () => {
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
-    await act(async () => {
-      await result.current.openPullReconcile()
+    act(() => {
+      result.current.openPullReconcile()
     })
 
-    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
-      { id: 'cherryin', isEnabled: false },
-      updateProviderMock,
-      2,
-      'pull_reconcile_up_to_date'
-    )
-    expect(resetPreviewMock).toHaveBeenCalled()
-    expect(result.current.pullReconcileDrawerOpen).toBe(false)
-    expect(window.toast.success).toHaveBeenCalled()
-  })
-
-  it('passes a zero count when up to date with no local models (helper no-ops)', async () => {
-    fetchPreviewMock.mockResolvedValueOnce({ added: [], missing: [] })
-    useModelsMock.mockReturnValue({ models: [] })
-    const { result } = renderHook(() => useProviderModelPullReconcile('cherryin'))
-
-    await act(async () => {
-      await result.current.openPullReconcile()
-    })
-
-    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
-      { id: 'cherryin', isEnabled: false },
-      updateProviderMock,
-      0,
-      'pull_reconcile_up_to_date'
-    )
-  })
-
-  it('opens the reconcile drawer without enabling during preview when there is a diff', async () => {
-    fetchPreviewMock.mockResolvedValueOnce({
-      added: [{ id: 'cherryin::model-1' }],
-      missing: []
-    })
-    const { result } = renderHook(() => useProviderModelPullReconcile('cherryin'))
-
-    await act(async () => {
-      await result.current.openPullReconcile()
-    })
-
-    expect(enableProviderWhenModelsAvailableMock).not.toHaveBeenCalled()
-    expect(resetPreviewMock).not.toHaveBeenCalled()
     expect(result.current.pullReconcileDrawerOpen).toBe(true)
+    await waitFor(() => {
+      expect(result.current.allModels).toEqual([fetchedModel, catalogModel, localModel])
+    })
+    expect(result.current.staleModelCount).toBe(1)
+    expect(result.current.staleModelIds).toEqual(['openai::local-model'])
+    expect(fetchProviderCatalogModelsMock).toHaveBeenCalledWith('openai')
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+  })
+
+  it('prefers fetched model data when catalog and upstream model ids overlap', async () => {
+    const catalogOverlap = {
+      ...catalogModel,
+      id: 'openai::overlap-model',
+      apiModelId: 'overlap-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    }
+    const fetchedOverlap = {
+      ...fetchedModel,
+      id: 'openai::overlap-model',
+      apiModelId: 'overlap-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    }
+    fetchProviderCatalogModelsMock.mockResolvedValueOnce([catalogOverlap])
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce([fetchedOverlap])
+    resolveCreateModelEndpointTypesMock.mockReturnValueOnce([ENDPOINT_TYPE.OPENAI_RESPONSES])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.allModels).toEqual([fetchedOverlap, localModel])
+    })
+
+    await act(async () => {
+      await result.current.addModels(result.current.allModels as any)
+    })
+
+    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedOverlap)
+    expect(toCreateModelDtoMock).toHaveBeenCalledWith('openai', fetchedOverlap, [ENDPOINT_TYPE.OPENAI_RESPONSES])
+  })
+
+  it('does not mark custom local models as stale when they are missing remotely', async () => {
+    useModelsMock.mockReturnValue({
+      models: [
+        {
+          ...localModel,
+          id: 'openai::custom-local-model',
+          apiModelId: 'custom-local-model',
+          presetModelId: null
+        }
+      ]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(0)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(reconcileTriggerMock).not.toHaveBeenCalled()
+  })
+
+  it('marks local models from the remote list as removable even without a preset model id', async () => {
+    useModelsMock.mockReturnValue({
+      models: [
+        {
+          ...fetchedModel,
+          presetModelId: null
+        }
+      ]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.removableModelIds).toEqual(['openai::fetched-model'])
+    })
+  })
+
+  it('excludes chat, quick-assistant, and translate default models from removable models', async () => {
+    const regularModel = {
+      ...localModel,
+      id: 'openai::regular-model',
+      apiModelId: 'regular-model',
+      presetModelId: 'regular-model'
+    }
+    useModelsMock.mockReturnValue({
+      models: [
+        localModel,
+        { ...fetchedModel, presetModelId: 'fetched-model' },
+        { ...catalogModel, presetModelId: 'catalog-model' },
+        regularModel
+      ]
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.default_model_id': localModel.id,
+      'feature.quick_assistant.model_id': fetchedModel.id,
+      'feature.translate.model_id': catalogModel.id
+    })
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.removableModelIds).toEqual([regularModel.id])
+    })
+  })
+
+  it('adds only models that are not already local and enables the provider when models exist', async () => {
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels([localModel as any, fetchedModel as any])
+    })
+
+    expect(createModelsMock).toHaveBeenCalledWith([
+      {
+        providerId: 'openai',
+        modelId: 'fetched-model',
+        name: 'Fetched Model',
+        group: 'OpenAI',
+        endpointTypes: undefined
+      }
+    ])
+    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedModel)
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
+      { id: 'openai', isEnabled: false },
+      enableProviderMock,
+      2,
+      'model_manage_add'
+    )
+  })
+
+  it('shows an operation failure toast when adding models fails', async () => {
+    createModelsMock.mockRejectedValueOnce(new Error('create failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels([fetchedModel as any])
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('warns that models were added when provider enablement fails', async () => {
+    enableProviderWhenModelsAvailableMock.mockRejectedValueOnce(new Error('enable failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels([fetchedModel as any])
+    })
+
+    expect(createModelsMock).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.add_success_enable_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('removes unique local model ids', async () => {
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.removeModels(['openai::local-model', 'openai::local-model'])
+    })
+
+    expect(deleteModelsMock).toHaveBeenCalledWith(['openai::local-model'])
+  })
+
+  it('skips default models and removes the remaining models', async () => {
+    const defaultModelError = DataApiErrorFactory.invalidOperation(
+      'delete model openai/default-model',
+      'model is in use as the default model'
+    )
+    deleteModelsMock.mockRejectedValueOnce(defaultModelError).mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.removeModels(['openai::local-model', 'openai::default-model'])
+    })
+
+    expect(deleteModelsMock).toHaveBeenNthCalledWith(1, ['openai::local-model', 'openai::default-model'])
+    expect(deleteModelsMock).toHaveBeenNthCalledWith(2, ['openai::local-model'])
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
+  })
+
+  it('shows an operation failure toast when removing models fails for a non-default error', async () => {
+    deleteModelsMock.mockRejectedValueOnce(new Error('delete failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.removeModels(['openai::local-model'])
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('cleans stale models through reconcile', async () => {
+    reconcileTriggerMock.mockResolvedValueOnce([catalogModel, fetchedModel])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(1)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'openai' },
+      body: {
+        toAdd: [],
+        toRemove: ['openai::local-model']
+      }
+    })
+    expect(toast.success).toHaveBeenCalledWith('settings.models.manage.clean_stale_success')
+  })
+
+  it('warns when cleaning stale models skips models still in use', async () => {
+    reconcileTriggerMock.mockResolvedValueOnce([catalogModel, fetchedModel, localModel])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(1)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
+  })
+
+  it('shows an operation failure toast when cleaning stale models fails', async () => {
+    reconcileTriggerMock.mockRejectedValueOnce(new Error('reconcile failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(1)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('keeps load failures in drawer state instead of showing a toast', async () => {
+    fetchProviderCatalogModelsMock.mockRejectedValueOnce(new Error('catalog failed'))
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('boom'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
+    })
+    expect(result.current.allModels).toEqual([localModel])
+    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+  })
+
+  it('keeps catalog models visible when upstream model loading fails', async () => {
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('upstream unsupported'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.allModels).toEqual([catalogModel, localModel])
+    })
+    expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
+    expect(result.current.staleModelCount).toBe(0)
+  })
+
+  it('ignores stale model load results when a newer load finishes first', async () => {
+    const oldCatalog = { ...catalogModel, id: 'openai::old-catalog', apiModelId: 'old-catalog', name: 'Old Catalog' }
+    const oldFetched = { ...fetchedModel, id: 'openai::old-fetched', apiModelId: 'old-fetched', name: 'Old Fetched' }
+    const newCatalog = { ...catalogModel, id: 'openai::new-catalog', apiModelId: 'new-catalog', name: 'New Catalog' }
+    const newFetched = { ...fetchedModel, id: 'openai::new-fetched', apiModelId: 'new-fetched', name: 'New Fetched' }
+    const oldCatalogLoad = deferred<any[]>()
+    const oldFetchedLoad = deferred<any[]>()
+
+    fetchProviderCatalogModelsMock.mockReturnValueOnce(oldCatalogLoad.promise).mockResolvedValueOnce([newCatalog])
+    fetchResolvedProviderModelsMock.mockReturnValueOnce(oldFetchedLoad.promise).mockResolvedValueOnce([newFetched])
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      void result.current.reloadModels()
+      await result.current.reloadModels()
+    })
+
+    expect(result.current.allModels).toEqual([newFetched, newCatalog, localModel])
+
+    await act(async () => {
+      oldCatalogLoad.resolve([oldCatalog])
+      oldFetchedLoad.resolve([oldFetched])
+      await oldCatalogLoad.promise
+      await oldFetchedLoad.promise
+    })
+
+    expect(result.current.allModels).toEqual([newFetched, newCatalog, localModel])
   })
 })

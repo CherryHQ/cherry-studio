@@ -14,15 +14,17 @@ interface MockStageProps {
   composer: ReactNode
   homeWelcomeText?: string
   composerElevated?: boolean
+  mainVisible?: boolean
 }
 
-vi.mock('../../composer/ConversationComposerStage', () => ({
-  default: ({ placement, main, composer, homeWelcomeText, composerElevated }: MockStageProps) => (
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
+  default: ({ placement, main, composer, homeWelcomeText, composerElevated, mainVisible }: MockStageProps) => (
     <div
       data-testid="conversation-stage"
       data-placement={placement}
       data-welcome={homeWelcomeText}
-      data-composer-elevated={String(Boolean(composerElevated))}>
+      data-composer-elevated={String(Boolean(composerElevated))}
+      data-main-visible={String(Boolean(mainVisible))}>
       <div data-testid="stage-main">{main}</div>
       <div data-testid="stage-composer">{composer}</div>
     </div>
@@ -59,5 +61,14 @@ describe('ConversationStageCenter', () => {
     render(<ConversationStageCenter placement="docked" main={<div />} composer={<div />} />)
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
+  })
+
+  it('hides the main message area when an optional right pane shell is maximized', () => {
+    optionalShellState.value = { maximized: true }
+
+    render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
+
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
+    expect(screen.getByTestId('stage-main')).toHaveTextContent('messages')
   })
 })

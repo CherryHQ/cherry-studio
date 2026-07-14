@@ -9,19 +9,20 @@
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   BulkUpdateModelsSchema,
   CreateModelsSchema,
+  DeleteModelsQuerySchema,
   ListModelsQuerySchema,
   type ModelSchemas,
   ReconcileProviderModelsSchema,
   ResolveProviderModelsQuerySchema,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
+import type { HandlersFor } from '@shared/data/api/types'
+import { SuccessStatus } from '@shared/data/api/types'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
@@ -51,7 +52,7 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
       try {
         return {
           dto,
-          registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+          registryData: providerRegistryService.lookupModel(dto.providerId, dto.modelId)
         }
       } catch (error) {
         if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
@@ -86,7 +87,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models': {
     GET: async ({ query }) => {
       const parsed = ListModelsQuerySchema.parse(query ?? {})
-      return await modelService.list(parsed)
+      return modelService.list(parsed)
     },
 
     POST: async ({ body }) => {
@@ -95,7 +96,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // collection-oriented create path with consistent transaction semantics.
       const parsed = CreateModelsSchema.parse(body)
       const items = await enrichCreateItems(parsed)
-      return await modelService.create(items)
+      return modelService.create(items)
     },
 
     PATCH: async ({ body }) => {
@@ -107,25 +108,32 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
         ...parseOrValidationError(item.uniqueModelId),
         patch: item.patch
       }))
-      return await modelService.bulkUpdate(items)
+      return modelService.bulkUpdate(items)
+    },
+
+    DELETE: async ({ query }) => {
+      const parsed = DeleteModelsQuerySchema.parse(query)
+      const items = parsed.ids.map((uniqueModelId) => parseOrValidationError(uniqueModelId))
+      modelService.bulkDelete(items)
+      return undefined
     }
   },
 
   '/models/:uniqueModelId*': {
     GET: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      return await modelService.getByKey(providerId, modelId)
+      return modelService.getByKey(providerId, modelId)
     },
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       const parsed = UpdateModelSchema.parse(body)
-      return await modelService.update(providerId, modelId, parsed)
+      return modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      await modelService.delete(providerId, modelId)
+      modelService.delete(providerId, modelId)
       return undefined
     }
   },
@@ -153,7 +161,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       }
 
       const items = await enrichCreateItems(parsed.toAdd)
-      const models = await modelService.reconcileForProvider(params.providerId, {
+      const models = modelService.reconcileForProvider(params.providerId, {
         toAdd: items,
         toRemove: parsed.toRemove
       })
@@ -167,22 +175,22 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     GET: async ({ params, query }) => {
       const parsed = ResolveProviderModelsQuerySchema.parse(query ?? {})
       if (parsed.ids === undefined) {
-        return await providerRegistryService.listProviderRegistryModels({ providerId: params.providerId })
+        return providerRegistryService.listProviderRegistryModels({ providerId: params.providerId })
       }
       const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
-      return await providerRegistryService.resolveModels(params.providerId, ids)
+      return providerRegistryService.resolveModels(params.providerId, ids)
     }
   },
 
   '/providers/:providerId/models/:modelId*/image-generation-support': {
     GET: async ({ params }) => {
-      return await providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
+      return providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
     }
   },
 
   '/providers/:providerId/models/:modelId*/video-generation-support': {
     GET: async ({ params }) => {
-      return await providerRegistryService.getVideoGenerationSupport(params.providerId, params.modelId)
+      return providerRegistryService.getVideoGenerationSupport(params.providerId, params.modelId)
     }
   }
 }

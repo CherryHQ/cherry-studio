@@ -1,29 +1,26 @@
-import { loggerService } from '@logger'
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
-} from '@renderer/components/chat/messages/tools/agent/types'
+} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { GetAgentResponse } from '@renderer/types'
+import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-
-const logger = loggerService.withContext('useAgentChatRuntimeState')
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -104,7 +101,6 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  fallbackSnapshot?: ModelSnapshot
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -115,7 +111,6 @@ export interface AgentChatRuntimeState {
 
 interface UseAgentChatRuntimeStateParams {
   session: AgentSessionEntity
-  activeAgent: GetAgentResponse | undefined
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
@@ -123,7 +118,6 @@ interface UseAgentChatRuntimeStateParams {
 
 export function useAgentChatRuntimeState({
   session,
-  activeAgent,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
@@ -181,14 +175,6 @@ export function useAgentChatRuntimeState({
     [chat, deleteSessionMessage]
   )
 
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!isUniqueModelId(modelString)) return undefined
-    const { providerId, modelId } = parseUniqueModelId(modelString)
-    if (!providerId || !modelId) return undefined
-    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
-  }, [activeAgent?.model, activeAgent?.modelName])
-
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
     for (const message of uiMessages) {
@@ -197,34 +183,14 @@ export function useAgentChatRuntimeState({
     return next
   }, [uiMessages])
 
-  const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
   const {
     overlay,
     liveAssistants,
-    disposeOverlay,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages, {
-    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
-  })
+  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
-
-  const handleExecutionFinish = useCallback(
-    (_executionId: string, { message }: ExecutionFinishEvent) => {
-      void (async () => {
-        try {
-          await refresh()
-        } catch (error) {
-          logger.warn('Failed to refresh agent messages after execution finish', { sessionId, error })
-        } finally {
-          if (message.id) disposeOverlay(message.id)
-        }
-      })()
-    },
-    [disposeOverlay, refresh, sessionId]
-  )
-  finishRef.current = handleExecutionFinish
 
   // Deterministic overlay→DB handoff: the overlay's `onFinish` is suppressed when
   // the execution leaves `activeExecutions` at terminal, so a torn-down turn's
@@ -292,9 +258,9 @@ export function useAgentChatRuntimeState({
         }))
       }
 
-      let result: Awaited<ReturnType<typeof window.api.ai.toolApproval.respond>>
+      let result: AiToolApprovalRespondResponse
       try {
-        result = await window.api.ai.toolApproval.respond({
+        result = await ipcApi.request('ai.respond_tool_approval', {
           approvalId,
           approved,
           reason,
@@ -336,7 +302,6 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    fallbackSnapshot,
     isPending,
     stop: chat.stop,
     sendMessage,

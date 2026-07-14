@@ -15,7 +15,6 @@ vi.mock('@application', async () => {
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { rename } = await import('../rename')
 const { createInternal, ensureExternal } = await import('../create')
 
@@ -52,8 +51,7 @@ describe('internal/entry/rename', () => {
         onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
         clear: vi.fn()
       },
-      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
     }
   })
 
@@ -78,6 +76,21 @@ describe('internal/entry/rename', () => {
     expect(buf.length).toBe(1)
   })
 
+  it('treats unchanged internal names as a no-op (no DB write)', async () => {
+    const created = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'same',
+      ext: 'txt'
+    })
+    const updateSpy = vi.spyOn(deps.fileEntryService, 'update')
+
+    const renamed = await rename(deps, created.id, 'same')
+
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(renamed.updatedAt).toBe(created.updatedAt)
+  })
+
   it('renames external file on disk and updates DB externalPath + name', async () => {
     const original = path.join(tmp, 'before.txt')
     await writeFile(original, 'hello')
@@ -97,7 +110,7 @@ describe('internal/entry/rename', () => {
     await writeFile(collision, 'B')
     const entry = await ensureExternal(deps, { externalPath: original as FilePath })
     await expect(rename(deps, entry.id, 'b')).rejects.toThrow()
-    const stored = await fileEntryService.getById(entry.id)
+    const stored = fileEntryService.getById(entry.id)
     expect(stored.name).toBe('a')
     if (stored.origin !== 'external') throw new Error('expected external entry')
     expect(stored.externalPath).toBe(original)
@@ -128,7 +141,7 @@ describe('internal/entry/rename', () => {
     // under test always reaches `fsMove` before it ever calls fs.rename, so
     // asserting on `move` is the appropriate granularity for "did the rename
     // path actually execute".
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     const moveSpy = vi.spyOn(fsModule, 'move')
 
     // Re-rename to the NFD form — same logical name, different codepoints.
@@ -153,7 +166,7 @@ describe('internal/entry/rename', () => {
 
     // Force the "target exists" path: pretend the lowercased path exists,
     // and resolves to the same inode as the original.
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     vi.spyOn(fsModule, 'exists').mockResolvedValue(true)
     vi.spyOn(fsModule, 'isSameFile').mockResolvedValue(true)
 
@@ -173,7 +186,7 @@ describe('internal/entry/rename', () => {
 
     await expect(rename(deps, entry.id, 'dst-collide')).rejects.toThrow(/already exists/)
     // No DB or FS state change
-    const stored = await fileEntryService.getById(entry.id)
+    const stored = fileEntryService.getById(entry.id)
     if (stored.origin !== 'external') throw new Error('expected external entry')
     expect(stored.externalPath).toBe(original)
     expect(await readFile(original, 'utf-8')).toBe('S')
@@ -218,7 +231,9 @@ describe('internal/entry/rename', () => {
     const entry = await ensureExternal(deps, { externalPath: original as FilePath })
 
     const dbErr = new Error('UNIQUE constraint failed: file_entry.externalPath')
-    const spy = vi.spyOn(deps.fileEntryService, 'setExternalPathAndName').mockRejectedValueOnce(dbErr)
+    const spy = vi.spyOn(deps.fileEntryService, 'setExternalPathAndName').mockImplementationOnce(() => {
+      throw dbErr
+    })
 
     await expect(rename(deps, entry.id, 'rollback-new')).rejects.toBe(dbErr)
     spy.mockRestore()
@@ -232,7 +247,7 @@ describe('internal/entry/rename', () => {
     expect(await readFile(original, 'utf-8')).toBe('payload')
 
     // DB row was not mutated — externalPath still points at the original.
-    const dbRow = await fileEntryService.findById(entry.id)
+    const dbRow = fileEntryService.findById(entry.id)
     if (dbRow?.origin !== 'external') throw new Error('expected external entry')
     expect(dbRow.externalPath).toBe(original)
     expect(dbRow.name).toBe(entry.name)
@@ -254,7 +269,7 @@ describe('internal/entry/rename', () => {
     expect(existsSync(original)).toBe(true)
     expect(existsSync(path.join(path.dirname(tmp), 'evil.txt'))).toBe(false)
     // DB row untouched.
-    const dbRow = await fileEntryService.findById(entry.id)
+    const dbRow = fileEntryService.findById(entry.id)
     if (dbRow?.origin !== 'external') throw new Error('expected external entry')
     expect(dbRow.externalPath).toBe(original)
     expect(dbRow.name).toBe(entry.name)
@@ -270,7 +285,7 @@ describe('internal/entry/rename', () => {
     const { existsSync } = await import('node:fs')
     expect(existsSync(original)).toBe(true)
     expect(existsSync(path.join(tmp, 'sub/path.txt'))).toBe(false)
-    const dbRow = await fileEntryService.findById(entry.id)
+    const dbRow = fileEntryService.findById(entry.id)
     if (dbRow?.origin !== 'external') throw new Error('expected external entry')
     expect(dbRow.externalPath).toBe(original)
     expect(dbRow.name).toBe(entry.name)
@@ -292,7 +307,7 @@ describe('internal/entry/rename', () => {
 
     // DB row name unchanged — proves the early-bail short-circuited the
     // service update before the SQL commit.
-    const refetched = await fileEntryService.findById(created.id)
+    const refetched = fileEntryService.findById(created.id)
     expect(refetched?.name).toBe('safe')
   })
 })

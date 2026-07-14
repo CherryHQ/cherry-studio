@@ -1,16 +1,17 @@
 import { Button, Input } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import db from '@renderer/databases'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { McpServer } from '@renderer/types'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContentColumn } from '..'
 import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 
@@ -25,30 +26,16 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   const { addMcpServer } = useMcpServers()
   const [isFetching, setIsFetching] = useState(false)
   const [token, setToken] = useState<string>('')
-  const [availableServers, setAvailableServers] = useState<McpServer[]>([])
+  // Fetched marketplace servers are re-fetchable network data, so they live in
+  // persist cache (one fixed key, keyed internally by provider).
+  const [allServers, setAllServers] = usePersistCache('feature.mcp.provider_available_servers')
+  const availableServers = useMemo(() => allServers[provider.key] ?? [], [allServers, provider.key])
   const [searchText, setSearchText] = useState('')
   const { t } = useTranslation()
 
   useEffect(() => {
     setToken(provider.getToken() || '')
   }, [provider])
-
-  // Load available servers from database when provider changes
-  useEffect(() => {
-    const loadServersFromDb = async () => {
-      try {
-        const dbKey = `mcp:provider:${provider.key}:servers`
-        const setting = await db.settings.get(dbKey)
-        const savedServers = setting?.value || []
-        setAvailableServers(savedServers)
-      } catch (error) {
-        logger.error('Failed to load servers from database', error as Error)
-        setAvailableServers([])
-      }
-    }
-
-    void loadServersFromDb()
-  }, [provider.key])
 
   // Sort servers: servers with logo first, then by name
   const sortedServers = useMemo(() => {
@@ -87,7 +74,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
   const handleFetch = useCallback(async () => {
     if (!token.trim()) {
-      window.toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
+      toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
       return
     }
 
@@ -98,24 +85,21 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       const result = await provider.syncServers(token)
 
       if (result.success) {
-        const servers = result.allServers
-        setAvailableServers(servers)
-
-        // Save to database
-        const dbKey = `mcp:provider:${provider.key}:servers`
-        await db.settings.put({ id: dbKey, value: servers })
-
-        window.toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
+        // Functional updater: merge against the latest stored value, not a
+        // render-time snapshot, so a concurrent write to another provider's
+        // entry is never clobbered.
+        setAllServers((prev) => ({ ...prev, [provider.key]: result.allServers }))
+        toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
-        window.toast.error(result.message)
+        toast.error(result.message)
       }
     } catch (error: any) {
       logger.error('Failed to fetch MCP servers', error)
-      window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
     } finally {
       setIsFetching(false)
     }
-  }, [provider, t, token])
+  }, [provider, setAllServers, t, token])
 
   const isFetchDisabled = !token
   return (
@@ -137,13 +121,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                 </Button>
               )}
             </div>
-            <ProviderDescription>{t(provider.descriptionKey)}</ProviderDescription>
           </div>
         </div>
         <Button
           onClick={handleFetch}
           disabled={isFetching || isFetchDisabled}
-          className="h-8 shrink-0 rounded-lg px-3 text-xs shadow-none">
+          size="sm"
+          className="h-7 shrink-0 rounded-lg px-2 text-xs shadow-none">
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
@@ -210,9 +194,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                         if (!isAlreadyAdded) {
                           try {
                             await addMcpServer(toCreateMcpServerDto(server))
-                            window.toast.success(t('settings.mcp.addSuccess'))
+                            toast.success(t('settings.mcp.addSuccess'))
                           } catch {
-                            window.toast.error(t('settings.mcp.addError'))
+                            toast.error(t('settings.mcp.addError'))
                           }
                         }
                       }}>
@@ -234,15 +218,14 @@ const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-2', className)} {...props} />
+  <div
+    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    {...props}
+  />
 )
 
 const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-semibold text-base leading-6', className)} {...props} />
-)
-
-const ProviderDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-0.5 text-muted-foreground text-xs leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate font-semibold text-[15px] leading-5', className)} {...props} />
 )
 
 const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

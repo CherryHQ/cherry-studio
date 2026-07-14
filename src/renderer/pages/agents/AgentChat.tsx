@@ -1,24 +1,25 @@
-import {
-  type ChatPanePosition,
-  ConversationCenterState,
-  ConversationShell,
-  EmptyState
-} from '@renderer/components/chat'
+import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
-import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import type { AgentSessionSource } from '@renderer/hooks/agents/useSession'
 import {
-  type ConversationHistoryAdapter,
-  useConversationTurnController
-} from '@renderer/hooks/useConversationTurnController'
-import { useSettings } from '@renderer/hooks/useSettings'
-import type { Citation, GetAgentResponse } from '@renderer/types'
-import { cn } from '@renderer/utils'
+  type ResourcePaneConfig,
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps
+} from '@renderer/components/chat/panes/Shell'
+import { EmptyState } from '@renderer/components/chat/primitives'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
+import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
+import { useCache } from '@renderer/data/hooks/useCache'
+import { useAgent } from '@renderer/hooks/agent/useAgent'
+import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
@@ -27,33 +28,22 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
-import AgentChatNavbar from './components/AgentChatNavbar'
+import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
-import type { DraftAgentSession, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'
-import {
-  type AgentSendOptions,
-  type AgentTurnInput,
-  getAgentTurnParts,
-  useAgentChatRuntimeState
-} from './useAgentChatRuntimeState'
+import type { CreateAgentSessionDefaults } from './types'
+import { useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 function getNewSessionWorkspaceDefaults(
   session: AgentSessionEntity
-): Pick<DraftAgentSessionDefaults, 'workspaceId' | 'workspaceMode'> {
+): Pick<CreateAgentSessionDefaults, 'workspaceId' | 'workspaceMode'> {
   if (session.workspace?.type === 'system') {
     return { workspaceMode: 'system' }
   }
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
-}
-
-function getDraftConversationKey(draft: DraftAgentSession): string {
-  return draft.workspaceSource.type === 'user'
-    ? `agent-draft:${draft.agentId}:workspace:${draft.workspaceSource.workspaceId}`
-    : `agent-draft:${draft.agentId}:system`
 }
 
 interface AgentChatProps {
@@ -71,17 +61,20 @@ interface AgentChatProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
-  draftConversation?: DraftAgentSession | null
-  missingAgentDraft?: boolean
-  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
-  onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
-  onEnsurePersistentSession?: EnsurePersistentSession
-  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
-  onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  missingAgentSelection?: boolean
+  onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
+  onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
+  onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
   onVisibleWorkspaceChange?: (workspaceId: string) => void
-  replacingDraftAgent?: boolean
-  replacingDraftWorkspace?: boolean
+  selectingMissingAgent?: boolean
+  replacingSessionWorkspace?: boolean
+  resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
+  resourcePaneRevealRequest?: ResourceListRevealRequest
+  sessionPaneOpen?: boolean
+  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChat = ({
@@ -99,59 +92,38 @@ const AgentChat = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
-  draftConversation,
-  missingAgentDraft = false,
-  onStartDraftSession,
-  onMissingAgentDraftAgentChange,
-  onEnsurePersistentSession,
-  onDraftAgentChange,
-  onDraftWorkspaceChange,
+  onPaneAutoCollapseChange,
+  missingAgentSelection = false,
+  onCreateEmptySession,
+  onMissingAgentSelectionAgentChange,
+  onSessionWorkspaceChange,
   onVisibleAgentChange,
   onVisibleWorkspaceChange,
-  replacingDraftAgent,
-  replacingDraftWorkspace
+  selectingMissingAgent,
+  replacingSessionWorkspace,
+  resourcePane,
+  resourcePaneCount,
+  resourcePaneRevealRequest,
+  sessionPaneOpen,
+  onSessionPaneOpenChange
 }: AgentChatProps) => {
   const { t } = useTranslation()
-  const { messageStyle } = useSettings()
+  const [messageStyle] = usePreference('chat.message.style')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
-  const [reservedSessionSeed, setReservedSessionSeed] = useState<{
-    sessionId: string
-    messages: CherryUIMessage[]
-  } | null>(null)
-  const [draftHandoffSessionId, setDraftHandoffSessionId] = useState<string | null>(null)
-  const draftSeedSessionIdRef = useRef<string | null>(null)
-  const lastDraftConversationIdRef = useRef<string | null>(null)
 
-  const draftAgentConversation = draftConversation ?? null
   const hasLockedSession = lockedSession !== undefined
-  const activeSessionIsDraftHandoff =
-    !!draftAgentConversation && !!draftHandoffSessionId && activeSession?.id === draftHandoffSessionId
-  const shouldPreferDraftConversation = !!draftAgentConversation && !hasLockedSession && !activeSessionIsDraftHandoff
-  const sessionSnapshot = shouldPreferDraftConversation
-    ? null
-    : hasLockedSession
-      ? (lockedSession ?? null)
-      : (activeSession ?? null)
-  const visibleAgentId = sessionSnapshot?.agentId ?? draftAgentConversation?.agentId ?? null
-  const visibleWorkspaceId =
-    sessionSnapshot?.workspaceId ??
-    (draftAgentConversation?.workspaceSource.type === 'user'
-      ? draftAgentConversation.workspaceSource.workspaceId
-      : null)
-  const visibleWorkspace = sessionSnapshot?.workspace ?? draftAgentConversation?.workspace ?? null
+  const sessionSnapshot = hasLockedSession ? (lockedSession ?? null) : (activeSession ?? null)
+  const visibleAgentId = sessionSnapshot?.agentId ?? null
+  const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
+  const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
-  const draftConversationKey = draftAgentConversation ? getDraftConversationKey(draftAgentConversation) : null
-
-  useEffect(() => {
-    const conversationId = draftConversationKey
-    if (conversationId && conversationId !== lastDraftConversationIdRef.current) {
-      draftSeedSessionIdRef.current = null
-      setReservedSessionSeed(null)
-      setDraftHandoffSessionId(null)
-    }
-    if (conversationId) lastDraftConversationIdRef.current = conversationId
-  }, [draftConversationKey])
+  const resourcePaneTopRightTool = resourcePane ? (
+    <>
+      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
+      <AgentRightPane.Shortcuts />
+    </>
+  ) : undefined
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -159,47 +131,6 @@ const AgentChat = ({
   useEffect(() => {
     if (visibleWorkspaceId && visibleWorkspace?.type !== 'system') onVisibleWorkspaceChange?.(visibleWorkspaceId)
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
-
-  const draftHistoryAdapter = useMemo<ConversationHistoryAdapter>(
-    () => ({
-      seedReservedMessages: (messages) => {
-        const sessionId = draftSeedSessionIdRef.current
-        if (!sessionId) return
-        setReservedSessionSeed({ sessionId, messages })
-      },
-      refresh: () => undefined,
-      rollback: () => {
-        draftSeedSessionIdRef.current = null
-        setReservedSessionSeed(null)
-        setDraftHandoffSessionId(null)
-      }
-    }),
-    []
-  )
-
-  const draftTurnController = useConversationTurnController<AgentTurnInput, { topicId: string; sessionId: string }>({
-    scopeKey: draftConversationKey ?? activeSession?.id ?? 'none',
-    historyAdapter: draftHistoryAdapter,
-    ensureConversation: async ({ text }) => {
-      if (!draftAgentConversation || !onEnsurePersistentSession) return null
-      const persisted = await onEnsurePersistentSession(text)
-      if (!persisted) return null
-      draftSeedSessionIdRef.current = persisted.sessionId
-      setDraftHandoffSessionId(persisted.sessionId)
-      return { topicId: persisted.topicId, sessionId: persisted.sessionId }
-    },
-    buildStreamRequest: (input, conversation) => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input)
-    })
-  })
-  const sendDraftMessage = useCallback(
-    async (message?: { text: string }, options?: AgentSendOptions) => {
-      await draftTurnController.send({ text: message?.text ?? '', options })
-    },
-    [draftTurnController]
-  )
 
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
     setCitationPanelCitations(citations)
@@ -211,16 +142,27 @@ const AgentChat = ({
   if (isInitializing) {
     return (
       <AgentRightPane
-        workspacePath={draftAgentConversation?.workspace?.path}
+        filesEnabled={false}
+        statusEnabled={false}
+        workspaceId={visibleWorkspaceId ?? undefined}
+        workspacePath={visibleWorkspace?.path}
         messages={EMPTY_MESSAGES}
-        partsByMessageId={EMPTY_PARTS}>
+        partsByMessageId={EMPTY_PARTS}
+        defaultOpen={sessionPaneOpen}
+        onOpenChange={onSessionPaneOpenChange}
+        resourcePane={resourcePane}
+        revealRequest={resourcePaneRevealRequest}>
         <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+          topRightTool={resourcePaneTopRightTool}
+          showTopRightToolWhenPaneOpen
           center={<ConversationCenterState state="loading" />}
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
         />
       </AgentRightPane>
@@ -236,101 +178,27 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
         />
       )
     }
-    if (draftAgentConversation) {
-      if (draftTurnController.layout !== 'draft') {
-        return (
-          <ConversationShell
-            className={messageStyle}
-            pane={pane}
-            paneOpen={paneOpen}
-            panePosition={panePosition}
-            onPaneCollapse={onPaneCollapse}
-            topBar={
-              <AgentChatNavbar
-                activeAgent={activeAgent ?? null}
-                showSidebarControls={showResourceListControls}
-                sidebarOpen={sidebarOpen}
-                onSidebarToggle={onSidebarToggle}
-              />
-            }
-            center={<ConversationCenterState state="loading" />}
-          />
-        )
-      }
-
-      const draftSessionKey = getDraftConversationKey(draftAgentConversation)
-      const draftWorkspaceId =
-        draftAgentConversation.workspaceSource.type === 'user'
-          ? draftAgentConversation.workspaceSource.workspaceId
-          : null
+    if (missingAgentSelection) {
       const composer = !isMultiSelectMode ? (
-        <AgentHomeComposer
-          agentId={draftAgentConversation.agentId}
-          sessionId={draftSessionKey}
-          sessionOverride={{
-            workspace: draftAgentConversation.workspace ?? null,
-            workspaceId: draftWorkspaceId
-          }}
-          sendMessage={sendDraftMessage}
-          stop={async () => undefined}
-          isStreaming={false}
-          onAgentChange={onDraftAgentChange}
-          agentChanging={replacingDraftAgent}
-          workspaceId={draftWorkspaceId}
-          onWorkspaceChange={onDraftWorkspaceChange}
-          workspaceChanging={replacingDraftWorkspace}
-          showWorkspaceSelector
-          onNewSessionDraft={() =>
-            onStartDraftSession?.({
-              agentId: draftAgentConversation.agentId,
-              workspace: draftAgentConversation.workspaceSource
-            })
-          }
+        <MissingAgentHomeComposer
+          onAgentChange={onMissingAgentSelectionAgentChange}
+          agentChanging={selectingMissingAgent}
         />
       ) : undefined
 
-      return (
+      const shell = (
         <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
-          topBar={
-            <AgentChatNavbar
-              activeAgent={activeAgent ?? null}
-              showSidebarControls={showResourceListControls}
-              sidebarOpen={sidebarOpen}
-              onSidebarToggle={onSidebarToggle}
-            />
-          }
-          center={
-            <ConversationStageCenter
-              placement="home"
-              main={null}
-              composer={composer}
-              homeWelcomeText={t('agent.home.welcome_title')}
-            />
-          }
-        />
-      )
-    }
-    if (missingAgentDraft) {
-      const composer = !isMultiSelectMode ? (
-        <MissingAgentHomeComposer onAgentChange={onMissingAgentDraftAgentChange} agentChanging={replacingDraftAgent} />
-      ) : undefined
-
-      return (
-        <ConversationShell
-          className={messageStyle}
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topBar={
             <AgentChatNavbar
               activeAgent={null}
@@ -339,15 +207,26 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
-          center={
-            <ConversationStageCenter
-              placement="home"
-              main={null}
-              composer={composer}
-              homeWelcomeText={t('agent.home.welcome_title')}
-            />
-          }
+          topRightTool={resourcePaneTopRightTool}
+          showTopRightToolWhenPaneOpen
+          center={<ConversationStageCenter placement="docked" main={null} composer={composer} />}
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
+          rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />
+      )
+      if (!resourcePane) return shell
+      return (
+        <AgentRightPane
+          filesEnabled={false}
+          statusEnabled={false}
+          messages={EMPTY_MESSAGES}
+          partsByMessageId={EMPTY_PARTS}
+          defaultOpen={sessionPaneOpen}
+          onOpenChange={onSessionPaneOpenChange}
+          resourcePane={resourcePane}
+          revealRequest={resourcePaneRevealRequest}>
+          {shell}
+        </AgentRightPane>
       )
     }
     return (
@@ -357,32 +236,19 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         center={<ConversationCenterState state="empty" />}
       />
     )
   }
 
-  const sessionAgentId = sessionSnapshot.agentId ?? draftAgentConversation?.agentId ?? null
+  const sessionAgentId = sessionSnapshot.agentId ?? null
   const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
-  const reservedMessages =
-    reservedSessionSeed?.sessionId === sessionSnapshot.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
-  const isDraftTurnInProgress = draftTurnController.phase !== 'draft' && draftTurnController.phase !== 'ready'
-  const isPendingDraftSession =
-    !!activeSession &&
-    activeSession.id === sessionSnapshot.id &&
-    (draftHandoffSessionId === sessionSnapshot.id || isDraftTurnInProgress)
   const shouldFetchSessionHistoryOnMount =
     activeSessionSource === 'query' ||
     activeSessionSource === 'pending' ||
     (!!activeSession && activeSessionSource === 'none')
-  const isWaitingForReservedMessages =
-    isPendingDraftSession && reservedMessages.length === 0 && draftTurnController.phase !== 'ready'
-  const isDraftHandoff = isWaitingForReservedMessages
-  const sessionMessagesEnabled =
-    !!activeSession && activeSession.id === sessionSnapshot.id && !isWaitingForReservedMessages
-  const sessionHistoryFetchOnMount = isPendingDraftSession
-    ? draftTurnController.phase === 'ready'
-    : shouldFetchSessionHistoryOnMount
+  const sessionMessagesEnabled = !!activeSession && activeSession.id === sessionSnapshot.id
   return (
     <AgentChatSessionFrame
       className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
@@ -398,18 +264,24 @@ const AgentChat = ({
       activeAgent={activeAgent}
       isMultiSelectMode={isMultiSelectMode}
       sessionMessagesEnabled={sessionMessagesEnabled}
-      sessionHistoryFetchOnMount={sessionHistoryFetchOnMount}
-      dockedSendDisabled={isDraftHandoff}
-      dockedStreaming={isDraftHandoff}
-      reservedMessages={reservedMessages}
+      sessionHistoryFetchOnMount={shouldFetchSessionHistoryOnMount}
       onOpenCitationsPanel={handleOpenCitationsPanel}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
-      onNewSessionDraft={
-        sessionAgentId && onStartDraftSession
+      onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+      resourcePane={resourcePane}
+      resourcePaneCount={resourcePaneCount}
+      resourcePaneRevealRequest={resourcePaneRevealRequest}
+      sessionPaneOpen={sessionPaneOpen}
+      onSessionPaneOpenChange={onSessionPaneOpenChange}
+      showWorkspaceSelector={Boolean(onSessionWorkspaceChange)}
+      onWorkspaceChange={onSessionWorkspaceChange}
+      workspaceChanging={replacingSessionWorkspace}
+      onCreateEmptySession={
+        sessionAgentId && onCreateEmptySession
           ? () =>
-              onStartDraftSession({
+              onCreateEmptySession({
                 agentId: sessionAgentId,
                 ...getNewSessionWorkspaceDefaults(sessionSnapshot)
               })
@@ -444,14 +316,20 @@ interface AgentChatSessionFrameProps {
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
-  dockedSendDisabled?: boolean
-  dockedStreaming?: boolean
-  reservedMessages?: CherryUIMessage[]
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
-  onNewSessionDraft?: () => void | Promise<void>
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  onCreateEmptySession?: () => void | Promise<unknown>
+  showWorkspaceSelector?: boolean
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  workspaceChanging?: boolean
+  resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
+  resourcePaneRevealRequest?: ResourceListRevealRequest
+  sessionPaneOpen?: boolean
+  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChatSessionFrame = ({
@@ -470,24 +348,32 @@ const AgentChatSessionFrame = ({
   isMultiSelectMode,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
-  dockedSendDisabled = false,
-  dockedStreaming = false,
-  reservedMessages = EMPTY_MESSAGES,
   onOpenCitationsPanel,
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
-  onNewSessionDraft
+  onPaneAutoCollapseChange,
+  onCreateEmptySession,
+  showWorkspaceSelector = false,
+  onWorkspaceChange,
+  workspaceChanging,
+  resourcePane,
+  resourcePaneCount,
+  resourcePaneRevealRequest,
+  sessionPaneOpen,
+  onSessionPaneOpenChange
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
-    activeAgent,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount,
-    reservedMessages
+    reservedMessages: EMPTY_MESSAGES
   })
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  const isEmptyConversation =
+    !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
+  const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -535,9 +421,13 @@ const AgentChatSessionFrame = ({
       sessionId={runtime.sessionId}
       sendMessage={runtime.sendMessage}
       stop={runtime.stop}
-      isStreaming={dockedStreaming || runtime.isPending}
-      sendDisabled={dockedSendDisabled}
-      onNewSessionDraft={onNewSessionDraft}
+      isStreaming={runtime.isPending}
+      sendDisabled={false}
+      onCreateEmptySession={onCreateEmptySession}
+      workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
+      onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
+      workspaceChanging={workspaceChanging}
+      showWorkspaceSelector={showWorkspaceSelector}
       composerContext={runtime.composerContext}
     />
   )
@@ -551,7 +441,6 @@ const AgentChatSessionFrame = ({
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-      modelFallback={runtime.fallbackSnapshot}
       isLoading={runtime.isLoading}
       hasOlder={runtime.hasOlder}
       loadOlder={runtime.loadOlder}
@@ -563,6 +452,7 @@ const AgentChatSessionFrame = ({
 
   return (
     <AgentRightPane
+      workspaceId={session.workspaceId}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
       partsByMessageId={runtime.partsByMessageId}
@@ -572,13 +462,17 @@ const AgentChatSessionFrame = ({
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-      modelFallback={runtime.fallbackSnapshot}>
+      defaultOpen={sessionPaneOpen}
+      onOpenChange={onSessionPaneOpenChange}
+      resourcePane={resourcePane}
+      revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
         className={className}
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         topBar={
           <AgentChatNavbar
             className="min-w-0"
@@ -590,11 +484,11 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
-            <AgentRightPane.InfoCard />
-            <AgentRightPane.FilesToggle />
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
+            <AgentRightPane.Shortcuts />
           </>
         }
-        topRightToolReserve="double"
+        showTopRightToolWhenPaneOpen
         center={
           <ConversationStageCenter
             placement="docked"

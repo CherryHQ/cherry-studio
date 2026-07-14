@@ -38,8 +38,8 @@ export interface PaintingFilter {
  *
  * The `files` field is **not persisted on the row** — the v2 schema removed
  * the JSON files column. Output / input file ids travel separately via
- * `LegacyPaintingFileRefs` so the migrator can emit `file_ref` rows once the
- * creation and its referenced `file_entry` rows are both in place.
+ * `LegacyPaintingFileRefs` so the migrator can emit `creation_file_ref` rows once
+ * the creation and its referenced `file_entry` rows are both in place.
  */
 export interface NormalizedPaintingRow extends Omit<InsertCreationRow, 'orderKey' | 'kind'> {
   id: string
@@ -50,8 +50,8 @@ export interface NormalizedPaintingRow extends Omit<InsertCreationRow, 'orderKey
 
 /**
  * Source `file_entry.id`s extracted from a legacy painting record. Translated
- * 1:1 into `file_ref` rows with `sourceType='painting'`,
- * `sourceId=painting.id`, `role='output'|'input'`.
+ * 1:1 into `creation_file_ref` rows with `sourceId=creation.id`,
+ * `role='output'|'input'`.
  */
 export interface LegacyPaintingFileRefs {
   output: string[]

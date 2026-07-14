@@ -2,8 +2,9 @@ import { Tabs, TabsList, TabsTrigger, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { useCreations } from '@renderer/hooks/useCreations'
-import type { FileMetadata } from '@renderer/types'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import { toast } from '@renderer/services/toast'
+import type { FileMetadata } from '@renderer/types/file'
+import type { FileEntry } from '@shared/data/types/file'
 import type { VideoGenerationMode } from '@shared/data/types/model'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,7 +49,7 @@ interface VideoCreationModeProps {
  * Video creation mode. Drives everything off
  * `useVideoGenerationSupport`: mode tabs + media pickers + scalar fields come
  * from the registry's `videoGeneration` block, and generation goes through
- * `generateVideoRequest` → `window.api.ai.generateVideo` (job system).
+ * `generateVideoRequest` → the `ai.generate_video` IpcApi route (job system).
  *
  * Lean by design: generation is awaited in-place (no cross-page spinner
  * rehydration like the image page's cache mirror), and reference-image / video
@@ -207,7 +208,7 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         logger.error('video generation failed', error as Error)
-        window.toast.error(t('paintings.video.generate_failed'))
+        toast.error(t('paintings.video.generate_failed'))
       }
     } finally {
       setGenerating(false)

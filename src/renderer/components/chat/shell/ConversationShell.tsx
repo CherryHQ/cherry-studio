@@ -1,8 +1,8 @@
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TITLE_BAR_HEIGHT_CLASS, TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { isMac } from '@renderer/config/constant'
-import { cn } from '@renderer/utils'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 import type { CSSProperties, ReactNode, Ref } from 'react'
 
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
@@ -18,7 +18,7 @@ export interface ConversationShellProps {
   panePosition?: ChatPanePosition
   topBar?: ReactNode
   topRightTool?: ReactNode
-  topRightToolReserve?: 'single' | 'double'
+  showTopRightToolWhenPaneOpen?: boolean
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
@@ -30,6 +30,7 @@ export interface ConversationShellProps {
   centerRef?: Ref<HTMLDivElement>
   centerClassName?: string
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
 }
 
 export default function ConversationShell({
@@ -40,7 +41,7 @@ export default function ConversationShell({
   panePosition,
   topBar,
   topRightTool,
-  topRightToolReserve = 'single',
+  showTopRightToolWhenPaneOpen = false,
   center,
   sidePanel,
   centerOverlay,
@@ -50,7 +51,8 @@ export default function ConversationShell({
   centerId,
   centerRef,
   centerClassName,
-  onPaneCollapse
+  onPaneCollapse,
+  onPaneAutoCollapseChange
 }: ConversationShellProps) {
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
@@ -64,7 +66,9 @@ export default function ConversationShell({
         isWindow={isWindow}
         leftPaneOpen={leftPaneOpen}
         leading={chrome?.titleLeading}
-        topRightToolReserve={topRightToolReserve}>
+        trailing={chrome?.titleTrailing}
+        topRightTool={topRightTool}
+        showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
         {topBar}
       </ConversationShellTopBar>
     ) : (
@@ -94,13 +98,9 @@ export default function ConversationShell({
             centerRef={centerRef}
             centerClassName={centerClassName}
             onPaneCollapse={onPaneCollapse}
+            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           />
         </QuickPanelProvider>
-        {(topRightTool || isWindow) && (
-          <ConversationShellTopRightTool isWindow={isWindow} trailing={chrome?.titleTrailing}>
-            {topRightTool}
-          </ConversationShellTopRightTool>
-        )}
         {rightPane}
       </div>
     </ChatMaximizedOverlayInsetProvider>
@@ -111,15 +111,29 @@ type TopBarProps = {
   isWindow: boolean
   leftPaneOpen: boolean
   leading?: ReactNode
-  topRightToolReserve: 'single' | 'double'
+  trailing?: ReactNode
+  topRightTool?: ReactNode
+  showTopRightToolWhenPaneOpen: boolean
   children?: ReactNode
 }
 
-const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightToolReserve, children }: TopBarProps) => {
+const ConversationShellTopBar = ({
+  isWindow,
+  leftPaneOpen,
+  leading,
+  trailing,
+  topRightTool,
+  showTopRightToolWhenPaneOpen,
+  children
+}: TopBarProps) => {
   const shellState = useOptionalShellState()
   const maximized = shellState?.maximized ?? false
+  const open = shellState?.open ?? false
   const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
   const shouldReserveTrafficLightInset = isWindow && isMac && !leftPaneOpen
+  const shouldShowTopRightTool =
+    !maximized && (!open || showTopRightToolWhenPaneOpen) && Boolean(trailing || topRightTool)
+  const shouldReserveRightInset = !maximized && ((!open && isWindow) || shouldShowTopRightTool)
   return (
     <div
       data-conversation-shell-topbar
@@ -132,35 +146,31 @@ const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightTool
           TITLE_BAR_HEIGHT_CLASS,
           '[-webkit-app-region:drag]',
           shouldReserveTrafficLightInset ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
-        ],
-        // Reserve room for the floating right group: wider in window mode (pin + back + tool).
-        !maximized && (isWindow ? 'pr-28' : topRightToolReserve === 'double' ? 'pr-[76px]' : 'pr-11')
+        ]
       )}>
       {leading}
-      {children}
-    </div>
-  )
-}
-
-type TopRightToolProps = { isWindow: boolean; trailing?: ReactNode; children?: ReactNode }
-
-const ConversationShellTopRightTool = ({ isWindow, trailing, children }: TopRightToolProps) => {
-  const shellState = useOptionalShellState()
-  // When the pane is open or maximized, the navbar cluster (sub-window chrome + page tool)
-  // moves into Shell.TabList's extraTrailing slot — see TopicRightPane / AgentRightPane.
-  // Rendering both at once would let pin/back/toggle visually overlap the pane's own header.
-  if (shellState?.open || shellState?.maximized) return null
-  return (
-    <div
-      data-navbar-right-occupant
-      className={cn(
-        'absolute top-0 right-2 z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]',
-        // Window mode: shorter bar (lines up with the traffic lights) + injected controls
-        // (pin / back-to-main) to the left of the page's own tool.
-        isWindow ? TITLE_BAR_HEIGHT_CLASS : 'h-(--navbar-height)'
-      )}>
-      {trailing}
-      {children}
+      <div data-conversation-shell-topbar-content className="min-w-0 flex-1">
+        {children}
+      </div>
+      {shouldShowTopRightTool && (
+        <div
+          data-conversation-shell-topbar-right
+          data-navbar-right-occupant
+          className={cn(
+            'z-20 flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]',
+            isWindow ? TITLE_BAR_HEIGHT_CLASS : 'h-(--navbar-height)'
+          )}>
+          {trailing}
+          {topRightTool}
+        </div>
+      )}
+      {shouldReserveRightInset && (
+        <div
+          data-conversation-shell-right-spacer
+          aria-hidden="true"
+          className={cn('shrink-0', isWindow ? 'w-[calc(0.5rem+var(--window-controls-width,0px))]' : 'w-2')}
+        />
+      )}
     </div>
   )
 }

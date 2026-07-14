@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
-import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
@@ -14,9 +14,14 @@ import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 
-async function resolveActiveServerById(serverId: string): Promise<McpServer | undefined> {
+function resolveActiveServerById(serverId: string): McpServer | undefined {
   // Direct point lookup instead of listing every active server on each tool call.
-  const server = await mcpServerService.getById(serverId).catch(() => undefined)
+  let server: McpServer | undefined
+  try {
+    server = mcpServerService.getById(serverId)
+  } catch {
+    server = undefined
+  }
   return server?.isActive ? server : undefined
 }
 
@@ -28,7 +33,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
-      const server = await resolveActiveServerById(mcpTool.serverId)
+      const server = resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
@@ -110,7 +115,7 @@ export async function syncMcpToolsToRegistry(
   reg: ToolRegistry = registry,
   opts: SyncMcpToolsToRegistryOptions = {}
 ): Promise<void> {
-  const { items: activeServers } = await mcpServerService.list({ isActive: true })
+  const { items: activeServers } = mcpServerService.list({ isActive: true })
 
   const targetServers = opts.selectedToolIds
     ? filterServersByToolIds(activeServers, opts.selectedToolIds)
@@ -125,7 +130,7 @@ export async function syncMcpToolsToRegistry(
   const refreshedNamespaces = new Set<string>()
   for (const server of targetServers) {
     try {
-      const enabledTools = await application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
       for (const mcpTool of enabledTools) {
         reg.register(toEntry(mcpTool, server))
         freshNames.add(mcpTool.id)

@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,7 +44,7 @@ vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (key: string) => key
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: (key: string) => key
   }
@@ -61,13 +62,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   modelGenerating: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    defaultPaintingProvider: 'zhipu'
-  })
-}))
-
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: {
       id: 'home',
@@ -76,16 +71,11 @@ vi.mock('@renderer/hooks/useTabs', () => ({
     },
     openTab: vi.fn(),
     updateTab: vi.fn()
-  })
+  }),
+  useOptionalTabsContext: () => null
 }))
 
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'app-logo.png',
-  UserAvatar: 'user-avatar.png',
-  isLocalAi: false
-}))
-
-vi.mock('../../Popups/UserPopup', () => ({
+vi.mock('../../UserPopup', () => ({
   default: {
     show: vi.fn()
   }
@@ -102,7 +92,10 @@ describe('Sidebar language refresh', () => {
     languageState.language = 'en-US'
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', ['assistants'])
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/mini-apps', [])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'assistants' }])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)
   })
 

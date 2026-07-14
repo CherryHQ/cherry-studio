@@ -16,15 +16,12 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { Topic } from '@renderer/types'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import { DataApiError, ErrorCode } from '@shared/data/api'
-import type {
-  BranchMessagesResponse,
-  CherryUIMessage,
-  Message as DbMessage,
-  ModelSnapshot
-} from '@shared/data/types/message'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo } from 'react'
@@ -40,7 +37,9 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
     if (message.role !== 'assistant') continue
     if (message.metadata?.parentId !== userMessageId) continue
 
-    const modelId = resolveUniqueModelId(message.metadata?.modelId, message.metadata?.modelSnapshot)
+    const snapshot = message.metadata?.messageSnapshot
+    const model = snapshot?.model
+    const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
     if (modelId) modelIds.add(modelId)
   }
 
@@ -183,7 +182,7 @@ export function useChatWriteActions(params: Params): Result {
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId; modelSnapshot?: ModelSnapshot }) => {
+    async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
@@ -252,7 +251,7 @@ export function useChatWriteActions(params: Params): Result {
       // outer ChatContent hasn't re-rendered with the refreshed SWR
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
@@ -283,7 +282,7 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId,
@@ -309,7 +308,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
-          window.toast.warning('Message is still syncing — try again in a moment')
+          toast.warning('Message is still syncing — try again in a moment')
           return
         }
         throw err
@@ -331,7 +330,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
-          window.toast.warning('Message is still syncing — try again in a moment')
+          toast.warning('Message is still syncing — try again in a moment')
           return
         }
         throw err

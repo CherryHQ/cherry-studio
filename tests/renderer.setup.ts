@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 
 import { createRequire } from 'node:module'
-import { styleSheetSerializer } from 'jest-styled-components/serializer'
-import { expect, vi } from 'vitest'
+import { beforeAll, beforeEach, expect, vi } from 'vitest'
+
+import { resetPopupMocks } from './__mocks__/renderer/popup'
+import { resetToastMocks } from './__mocks__/renderer/toast'
 
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
@@ -10,7 +12,20 @@ if (!bufferModule.SlowBuffer) {
   bufferModule.SlowBuffer = bufferModule.Buffer
 }
 
-expect.addSnapshotSerializer(styleSheetSerializer)
+// i18n now initializes lazily via initI18n() instead of a module-level side effect,
+// so seed it once per test file for components that render real translations.
+// The whole body is guarded: files that vi.mock('@renderer/i18n/resolver') make the dynamic
+// import invoke their mock factory (which may throw), and files that
+// vi.mock('react-i18next') without initReactI18next make initI18n() reject. Neither
+// needs real initialization, so swallow both the import error and the init rejection.
+beforeAll(async () => {
+  try {
+    const mod = await import('@renderer/i18n/resolver')
+    await mod.initI18n?.()
+  } catch {
+    // Intentionally ignored — mocked-i18n test files don't need real init.
+  }
+})
 
 // Mock LoggerService globally for renderer tests
 vi.mock('@logger', async () => {
@@ -93,6 +108,26 @@ vi.mock('@data/hooks/useCache', async () => {
   return MockUseCache
 })
 
+// Mock the toast notification surface globally for renderer tests
+vi.mock('@renderer/services/toast', async () => {
+  const { MockToast } = await import('./__mocks__/renderer/toast')
+  return MockToast
+})
+
+// Mock the popup (dialog) surface globally for renderer tests. Infra unit tests that
+// need the real store opt out with vi.mock('@renderer/services/popup', importOriginal).
+vi.mock('@renderer/services/popup', async () => {
+  const { MockPopup } = await import('./__mocks__/renderer/popup')
+  return MockPopup
+})
+
+// Reset the toast/popup spies (and restore the confirm-family default) before each
+// test so suites don't need to manage that shared mock state themselves.
+beforeEach(() => {
+  resetToastMocks()
+  resetPopupMocks()
+})
+
 // Mock uuid globally for renderer tests
 let uuidCounter = 0
 vi.mock('uuid', () => ({
@@ -144,6 +179,18 @@ vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
+  },
+  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
+  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
+  application: {
+    relaunch: vi.fn().mockResolvedValue(undefined)
+  },
+  // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
+  // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
+  // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
+  ipcApi: {
+    request: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(() => () => {})
   }
 })
 
@@ -178,6 +225,16 @@ vi.mock('@cherrystudio/ui', () => {
           React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
         )
       ),
+    Sortable: ({ items, itemKey, renderItem, className }) => {
+      const getKey = typeof itemKey === 'function' ? itemKey : (item) => item[itemKey]
+      return React.createElement(
+        'div',
+        { className },
+        items.map((item) =>
+          React.createElement('div', { key: getKey(item) }, renderItem(item, { dragging: false, overlay: false }))
+        )
+      )
+    },
     NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
@@ -416,18 +473,21 @@ vi.mock('@cherrystudio/ui', () => {
         ),
         React.createElement('button', { 'aria-label': labels.close, onClick: onClose, type: 'button' }, labels.close)
       ),
-    ImagePreviewTrigger: ({ alt, item, ...props }) =>
+    ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
-    Dialog: ({ children, open, ...props }) =>
+    Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, ...props }) =>
+    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
+    DialogDescription: ({ children, ...props }) =>
+      React.createElement('p', { ...props, 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Form: ({ children }) => React.createElement(React.Fragment, null, children),
     Label: ({ children, ...props }) => React.createElement('label', props, children),
     FieldError: ({ children, errors, ...props }) => {
       const errorMessage = children ?? errors?.find((error) => error?.message)?.message
@@ -479,6 +539,9 @@ vi.mock('@cherrystudio/ui', () => {
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+    Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
+    DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
     Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>
       React.createElement('input', {

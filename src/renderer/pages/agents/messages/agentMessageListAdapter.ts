@@ -16,19 +16,29 @@ import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tool
 import type {
   MessageGroupRuntime,
   MessageListActions,
+  MessageListItem,
   MessageListMeta,
   MessageListProviderValue,
   MessageListRuntime,
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
-import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
+import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { Topic } from '@renderer/types/topic'
+import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
+import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+import {
+  consumePendingAgentSessionImageActions,
+  rejectPendingAgentSessionImageActions,
+  settleAgentSessionImageActionRequest
+} from './agentSessionImageActionBus'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -55,7 +65,6 @@ interface AgentMessageListParams {
     avatar?: string
   }
   assistantId?: string
-  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -64,6 +73,7 @@ interface AgentMessageListParams {
   openArtifactFile?: MessageListActions['openArtifactFile']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
+  imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
 }
@@ -87,7 +97,6 @@ export function useAgentMessageListProviderValue({
   partsByMessageId,
   assistantProfile,
   assistantId,
-  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -96,10 +105,22 @@ export function useAgentMessageListProviderValue({
   openArtifactFile,
   deleteMessage,
   respondToolApproval,
+  imageActionConsumer,
   messageNavigation,
   workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
+  const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const messageItemCacheRef = useRef(
+    new WeakMap<
+      CherryUIMessage,
+      {
+        assistantId?: string
+        item: MessageListItem
+        topicId: string
+      }
+    >()
+  )
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -109,17 +130,26 @@ export function useAgentMessageListProviderValue({
       }),
     [messages, partsByMessageId]
   )
-  const messageItems = useMemo(
-    () =>
-      visibleMessages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: assistantId ?? topic.assistantId,
-          topicId: topic.id,
-          modelFallback
-        })
-      ),
-    [assistantId, visibleMessages, modelFallback, topic.assistantId, topic.id]
-  )
+  const messageItems = useMemo(() => {
+    const resolvedAssistantId = assistantId ?? topic.assistantId
+    return visibleMessages.map((message) => {
+      const cached = messageItemCacheRef.current.get(message)
+      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+        return cached.item
+      }
+
+      const item = toMessageListItem(message, {
+        assistantId: resolvedAssistantId,
+        topicId: topic.id
+      })
+      messageItemCacheRef.current.set(message, {
+        assistantId: resolvedAssistantId,
+        item,
+        topicId: topic.id
+      })
+      return item
+    })
+  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
@@ -129,6 +159,7 @@ export function useAgentMessageListProviderValue({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
@@ -152,8 +183,22 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const isDirectory = useCallback(
+    (path: string) => {
+      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+    },
+    [workspacePath]
+  )
+
+  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
+    const open = leafCapabilities.openInExternalApp
+    if (!open) return undefined
+
+    return (app, path) => open(app, resolveWorkspaceFilePath(workspacePath, path))
+  }, [leafCapabilities.openInExternalApp, workspacePath])
+
   const abortTool = useCallback((toolId: string) => {
-    return window.api.mcp.abortTool(toolId)
+    return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
   }, [])
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
@@ -161,8 +206,25 @@ export function useAgentMessageListProviderValue({
     [navigate]
   )
 
+  useEffect(() => {
+    if (imageActionConsumer !== 'capture') return
+
+    return () => rejectPendingAgentSessionImageActions(sessionId, new Error('Agent session image export was cancelled'))
+  }, [imageActionConsumer, sessionId])
+
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      if (imageActionConsumer === 'capture') {
+        return bindCaptureMessageImageRuntime({
+          cancelMessage: 'Agent session image export was cancelled',
+          consumePendingActions: consumePendingAgentSessionImageActions,
+          rejectPendingActions: rejectPendingAgentSessionImageActions,
+          runtime,
+          settleActionRequest: settleAgentSessionImageActionRequest,
+          targetId: sessionId
+        })
+      }
+
       agentMessageListRuntimes.set(topic.id, runtime)
 
       return () => {
@@ -171,22 +233,32 @@ export function useAgentMessageListProviderValue({
         }
       }
     },
-    [topic.id]
+    [imageActionConsumer, sessionId, topic.id]
   )
 
-  const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
+  const bindMessageRuntime = useCallback(
+    (messageId: string, runtime: MessageRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+      const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
 
-  const bindMessageGroupRuntime = useCallback((messageIds: string[], runtime: MessageGroupRuntime) => {
-    const unsubscribes = messageIds.map((messageId) =>
-      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
-    )
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+  const bindMessageGroupRuntime = useCallback(
+    (messageIds: string[], runtime: MessageGroupRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
+
+      const unsubscribes = messageIds.map((messageId) =>
+        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+      )
+
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
   const locateMessage = useCallback(
     (messageId: string, highlight?: boolean) => {
@@ -244,10 +316,12 @@ export function useAgentMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       openPath,
+      openInExternalApp,
       openArtifactFile,
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
+      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -265,6 +339,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
@@ -273,6 +348,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openAgentToolFlow,
+      openInExternalApp,
       openPath,
       respondToolApproval,
       selectionController.actions,
@@ -285,9 +361,10 @@ export function useAgentMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
-      assistantProfile
+      assistantProfile,
+      imageExportFileName: topic.name
     }),
-    [assistantProfile, headerCapabilities.userProfile]
+    [assistantProfile, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

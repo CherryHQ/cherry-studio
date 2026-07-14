@@ -1,25 +1,49 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FetchUtils from '../fetch'
+
+const parserMocks = vi.hoisted(() => {
+  const turndown = vi.fn(() => '# Test content')
+  const parse = vi.fn(() => ({
+    title: 'Test Article',
+    content: '<p>Test content</p>',
+    textContent: 'Test content'
+  }))
+
+  return {
+    readabilityModuleLoad: vi.fn(),
+    readabilityConstructor: vi.fn(() => ({
+      parse
+    })),
+    turndownModuleLoad: vi.fn(),
+    turndownConstructor: vi.fn(() => ({
+      turndown
+    })),
+    turndown,
+    parse
+  }
+})
+
 // Mock 外部依赖
-vi.mock('turndown', () => ({
-  default: vi.fn(() => ({
-    turndown: vi.fn(() => '# Test content')
-  }))
-}))
-vi.mock('@mozilla/readability', () => ({
-  Readability: vi.fn(() => ({
-    parse: vi.fn(() => ({
-      title: 'Test Article',
-      content: '<p>Test content</p>',
-      textContent: 'Test content'
-    }))
-  }))
-}))
-vi.mock('@reduxjs/toolkit', () => ({
+vi.mock('turndown', () => {
+  parserMocks.turndownModuleLoad()
+  return {
+    default: parserMocks.turndownConstructor
+  }
+})
+vi.mock('@mozilla/readability', () => {
+  parserMocks.readabilityModuleLoad()
+  return {
+    Readability: parserMocks.readabilityConstructor
+  }
+})
+vi.mock('nanoid', () => ({
   nanoid: vi.fn(() => 'test-id')
 }))
 
-import { fetchRedirectUrl, fetchWebContent, fetchWebContents } from '../fetch'
+let fetchRedirectUrl: typeof FetchUtils.fetchRedirectUrl
+let fetchWebContent: typeof FetchUtils.fetchWebContent
+let fetchWebContents: typeof FetchUtils.fetchWebContents
 
 // 设置基础 mocks
 global.DOMParser = vi.fn().mockImplementation(() => ({
@@ -27,11 +51,7 @@ global.DOMParser = vi.fn().mockImplementation(() => ({
 })) as any
 
 global.window = {
-  api: {
-    searchService: {
-      openUrlInSearchWindow: vi.fn()
-    }
-  }
+  api: {}
 } as any
 
 // 辅助函数
@@ -44,7 +64,9 @@ const createMockResponse = (overrides = {}) =>
   }) as unknown as Response
 
 describe('fetch', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules()
+
     // Mock fetch 和 AbortSignal
     global.fetch = vi.fn()
     global.AbortSignal = {
@@ -54,6 +76,37 @@ describe('fetch', () => {
 
     // 清理 mock 调用历史
     vi.clearAllMocks()
+
+    const fetchModule = await import('../fetch')
+    fetchRedirectUrl = fetchModule.fetchRedirectUrl
+    fetchWebContent = fetchModule.fetchWebContent
+    fetchWebContents = fetchModule.fetchWebContents
+  })
+
+  describe('lightweight helpers', () => {
+    it('should not load article parser modules when resolving redirects', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        url: 'https://redirected.com/final'
+      } as any)
+
+      const result = await fetchRedirectUrl('https://example.com')
+
+      expect(result).toBe('https://redirected.com/final')
+      expect(parserMocks.readabilityModuleLoad).not.toHaveBeenCalled()
+      expect(parserMocks.turndownModuleLoad).not.toHaveBeenCalled()
+      expect(parserMocks.turndownConstructor).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('parser initialization', () => {
+    it('should initialize TurndownService once for concurrent markdown fetches', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse()).mockResolvedValueOnce(createMockResponse())
+
+      await fetchWebContents(['https://example1.com', 'https://example2.com'])
+
+      expect(parserMocks.turndownModuleLoad).toHaveBeenCalledTimes(1)
+      expect(parserMocks.turndownConstructor).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('fetchWebContent', () => {
@@ -68,17 +121,6 @@ describe('fetch', () => {
         content: '# Test content'
       })
       expect(global.fetch).toHaveBeenCalledWith('https://example.com', expect.any(Object))
-    })
-
-    it('should use browser mode when specified', async () => {
-      vi.mocked(window.api.searchService.openUrlInSearchWindow).mockResolvedValueOnce(
-        '<html><body>Browser content</body></html>'
-      )
-
-      const result = await fetchWebContent('https://example.com', 'markdown', true)
-
-      expect(result.content).toBe('# Test content')
-      expect(window.api.searchService.openUrlInSearchWindow).toHaveBeenCalled()
     })
 
     it('should handle errors gracefully', async () => {
@@ -115,6 +157,15 @@ describe('fetch', () => {
       expect(result.content).toBe(expectedContent)
       expect(result.title).toBe('Test Article')
       expect(result.url).toBe('https://example.com')
+
+      if (format === 'markdown') {
+        expect(parserMocks.turndownConstructor).toHaveBeenCalledTimes(1)
+        expect(parserMocks.turndown).toHaveBeenCalledWith('<p>Test content</p>')
+      } else {
+        expect(parserMocks.turndownModuleLoad).not.toHaveBeenCalled()
+        expect(parserMocks.turndownConstructor).not.toHaveBeenCalled()
+        expect(parserMocks.turndown).not.toHaveBeenCalled()
+      }
     })
 
     it('should handle timeout signal in AbortSignal.any', async () => {
@@ -142,7 +193,7 @@ describe('fetch', () => {
 
       vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
 
-      await fetchWebContent('https://example.com', 'markdown', false, {
+      await fetchWebContent('https://example.com', 'markdown', {
         signal: userController.signal
       })
 

@@ -1,3 +1,5 @@
-export { ActionButtons } from './ActionButtons'
+export { CloseMigrationDialog } from './CloseMigrationDialog'
+export { Confetti } from './Confetti'
+export { MigrationWindowControls } from './MigrationWindowControls'
 export { MigratorProgressList } from './MigratorProgress'
-export { StageIndicator } from './StageIndicator'
+export { SkipMigrationDialog } from './SkipMigrationDialog'

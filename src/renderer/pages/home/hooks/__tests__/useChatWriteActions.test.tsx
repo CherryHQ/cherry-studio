@@ -1,4 +1,3 @@
-import type { Topic } from '@renderer/types'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +8,8 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
+
+import type { Topic } from '@renderer/types/topic'
 
 import { useChatWriteActions } from '../useChatWriteActions'
 
@@ -82,5 +83,60 @@ describe('useChatWriteActions — first-turn delete', () => {
     await actions.deleteMessageGroup('vroot')
     expect(cache.clearTopicMessagesTrigger).toHaveBeenCalledWith({ params: { topicId: 't1' } })
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
+})
+
+describe('useChatWriteActions — edit message', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('optimistically patches branch messages and persists edited parts', async () => {
+    const editedParts = [{ type: 'text', text: 'edited' }]
+    const { actions, cache } = renderActions('vroot', [uiMsg('m1', 'user', 'vroot')])
+
+    await actions.editMessage('m1', editedParts as any)
+
+    expect(cache.seedOptimisticBranch).toHaveBeenCalledOnce()
+    expect(cache.patchMessageTrigger).toHaveBeenCalledWith({
+      params: { id: 'm1' },
+      body: { data: { parts: editedParts } }
+    })
+    expect(cache.rollbackBranch).not.toHaveBeenCalled()
+
+    const updateBranch = vi.mocked(cache.seedOptimisticBranch).mock.calls[0][0] as (items: any[]) => any[]
+    expect(
+      updateBranch([
+        {
+          message: { id: 'm1', data: { parts: [{ type: 'text', text: 'old' }], role: 'user' } },
+          siblingsGroup: [{ id: 'm2', data: { parts: [{ type: 'text', text: 'sibling' }] } }]
+        },
+        {
+          message: { id: 'm3', data: { parts: [{ type: 'text', text: 'other' }] } }
+        }
+      ])
+    ).toEqual([
+      {
+        message: { id: 'm1', data: { parts: editedParts, role: 'user' } },
+        siblingsGroup: [{ id: 'm2', data: { parts: [{ type: 'text', text: 'sibling' }] } }]
+      },
+      {
+        message: { id: 'm3', data: { parts: [{ type: 'text', text: 'other' }] } }
+      }
+    ])
+  })
+
+  it('rolls back the optimistic branch when persisting edited parts fails', async () => {
+    const editedParts = [{ type: 'text', text: 'edited' }]
+    const error = new Error('patch failed')
+    const { actions, cache } = renderActions('vroot', [uiMsg('m1', 'user', 'vroot')])
+    vi.mocked(cache.patchMessageTrigger).mockRejectedValueOnce(error)
+
+    await expect(actions.editMessage('m1', editedParts as any)).rejects.toBe(error)
+
+    expect(cache.seedOptimisticBranch).toHaveBeenCalledOnce()
+    expect(cache.patchMessageTrigger).toHaveBeenCalledWith({
+      params: { id: 'm1' },
+      body: { data: { parts: editedParts } }
+    })
+    expect(cache.rollbackBranch).toHaveBeenCalledOnce()
   })
 })

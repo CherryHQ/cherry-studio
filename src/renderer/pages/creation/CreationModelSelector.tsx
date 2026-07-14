@@ -1,14 +1,13 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { CreationKind } from '@shared/data/types/creation'
 import { createUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { isGenerateImageModel, isGenerateVideoModel } from '@shared/utils/model'
-import { first } from 'lodash'
+import { first } from 'es-toolkit/compat'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -58,12 +57,13 @@ const CreationModelSelector: FC<CreationModelSelectorProps> = ({ className, prov
 
   const selectedName = selectedModel?.name ?? modelId
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
-  const selectedIcon = useMemo(() => {
+  const selectedIconRef = useMemo(() => {
     if (!providerId) return undefined
     const identifier = selectedModel?.apiModelId ?? modelId
     if (!identifier) return undefined
-    return resolveIcon(identifier, providerId) ?? resolveIcon(selectedModel?.name ?? '', providerId)
+    return resolveIconRef(identifier, providerId) ?? resolveIconRef(selectedModel?.name ?? '', providerId)
   }, [providerId, modelId, selectedModel])
+  const selectedIcon = useIcon(selectedIconRef)
 
   return (
     <div>

@@ -6,18 +6,18 @@ import {
   getKnowledgeRagConfigFormState,
   parseOptionalInteger,
   parseRequiredInteger
-} from '..'
+} from '../validate'
 
 const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {}): KnowledgeRagConfigFormValues => ({
   fileProcessorId: null,
   chunkSize: '512',
   chunkOverlap: '64',
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: null,
   documentCount: 6,
-  threshold: 0.1,
-  searchMode: 'vector',
-  hybridAlpha: null,
+  threshold: 0,
   ...overrides
 })
 
@@ -46,7 +46,9 @@ describe('getKnowledgeRagChunkValidationErrors', () => {
     expect(
       getKnowledgeRagChunkValidationErrors({
         chunkSize: '512',
-        chunkOverlap: '64'
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n'
       })
     ).toEqual({})
   })
@@ -55,7 +57,9 @@ describe('getKnowledgeRagChunkValidationErrors', () => {
     expect(
       getKnowledgeRagChunkValidationErrors({
         chunkSize: '0',
-        chunkOverlap: '64'
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n'
       })
     ).toEqual({
       chunkSize: 'chunkSizeInvalid'
@@ -66,11 +70,37 @@ describe('getKnowledgeRagChunkValidationErrors', () => {
     expect(
       getKnowledgeRagChunkValidationErrors({
         chunkSize: '256',
-        chunkOverlap: '256'
+        chunkOverlap: '256',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n'
       })
     ).toEqual({
       chunkOverlap: 'chunkOverlapMustBeSmaller'
     })
+  })
+
+  it('requires a separator when smart chunking is off', () => {
+    expect(
+      getKnowledgeRagChunkValidationErrors({
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'delimiter',
+        chunkSeparator: ''
+      })
+    ).toEqual({
+      chunkSeparator: 'chunkSeparatorRequired'
+    })
+  })
+
+  it('accepts a delimiter strategy when a separator is provided', () => {
+    expect(
+      getKnowledgeRagChunkValidationErrors({
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '\\n\\n'
+      })
+    ).toEqual({})
   })
 })
 

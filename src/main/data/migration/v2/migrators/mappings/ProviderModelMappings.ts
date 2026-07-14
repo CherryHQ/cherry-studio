@@ -4,6 +4,7 @@
 
 import {
   ENDPOINT_TYPE,
+  endpointImpliedCapability,
   type EndpointType,
   inferAdapterFamily,
   MODEL_CAPABILITY,
@@ -12,7 +13,7 @@ import {
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
-import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/v2/legacyTypes'
+import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type {
   ApiFeatures,
@@ -117,9 +118,7 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'qiniu',
   'dmxapi',
   'burncloud',
-  'tokenflux',
   '302ai',
-  'cephalon',
   'lanyun',
   'ph8',
   'openrouter',
@@ -170,7 +169,8 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'mimo',
   'gitee-ai',
   'minimax-global',
-  'zai'
+  'zai',
+  'opencode'
 ])
 
 const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
@@ -458,6 +458,7 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
@@ -471,10 +472,10 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.capabilities),
+    capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
     inputModalities: null,
     outputModalities: null,
-    endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
+    endpointTypes,
     contextWindow: null,
     maxOutputTokens: null,
     supportsStreaming: legacy.supported_text_delta ?? true,
@@ -487,19 +488,36 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
   }
 }
 
-function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
-  if (!capabilities || capabilities.length === 0) {
-    return []
+function mapCapabilities(
+  capabilities?: LegacyModel['capabilities'],
+  endpointTypes?: EndpointType[] | null
+): ModelCapability[] {
+  // Capabilities the user explicitly turned off in v1 — respected over any
+  // duplicate "enabled" entry and never re-added by an endpoint.
+  const disabled = new Set<ModelCapability>()
+  for (const capability of capabilities ?? []) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result !== undefined && capability.isUserSelected === false) {
+      disabled.add(result)
+    }
   }
 
   const mapped: ModelCapability[] = []
-  for (const capability of capabilities) {
+  for (const capability of capabilities ?? []) {
     const result = CAPABILITY_MAP[capability.type]
-    if (result !== undefined) {
-      mapped.push(result)
-    } else if (capability.type !== 'text') {
-      logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+    if (result === undefined) {
+      if (capability.type !== 'text') {
+        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+      }
+      continue
     }
+    if (disabled.has(result)) continue
+    mapped.push(result)
+  }
+
+  const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+  if (impliedCapability && !disabled.has(impliedCapability)) {
+    mapped.push(impliedCapability)
   }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : []
@@ -517,7 +535,7 @@ function mapEndpointTypes(
   const mapped: EndpointType[] = []
   for (const type of sourceTypes) {
     if (!type) continue
-    const result = ENDPOINT_MAP[type]
+    const result = ENDPOINT_MAP[type.trim().toLowerCase()]
     if (result !== undefined) {
       mapped.push(result)
     } else {

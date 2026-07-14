@@ -1,19 +1,27 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
+import type {
+  SessionActionContext,
+  SessionExportMenuOptions
+} from '@renderer/components/chat/actions/sessionItemActions'
+import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
+import {
+  ResourceList,
+  useResourceListActions,
+  useResourceListRowState
+} from '@renderer/components/chat/resourceList/base'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import type { SessionActionContext } from './sessionItemActions'
-import { useSessionMenuActions } from './useSessionMenuActions'
 
 const DELETE_CONFIRMATION_TIMEOUT = 2000
 
@@ -24,11 +32,32 @@ interface SessionItemProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
-  onSelectItem?: () => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: (id: string) => void | Promise<unknown>
+  panePosition?: TopicTabPosition
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
   session: AgentSessionEntity
+  sessionMenuActions: SessionItemMenuActions
+}
+
+export interface SessionItemMenuActions {
+  exportMenuOptions: SessionExportMenuOptions
+  onAutoRename: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyImage: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyMarkdown: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyPlainText: (session: AgentSessionEntity) => void | Promise<void>
+  onExportImage: (session: AgentSessionEntity) => void | Promise<void>
+  onExportJoplin: (session: AgentSessionEntity) => void | Promise<void>
+  onExportMarkdown: (session: AgentSessionEntity) => void | Promise<void>
+  onExportMarkdownReason: (session: AgentSessionEntity) => void | Promise<void>
+  onExportNotion: (session: AgentSessionEntity) => void | Promise<void>
+  onExportObsidian: (session: AgentSessionEntity) => void | Promise<void>
+  onExportSiyuan: (session: AgentSessionEntity) => void | Promise<void>
+  onExportWord: (session: AgentSessionEntity) => void | Promise<void>
+  onExportYuque: (session: AgentSessionEntity) => void | Promise<void>
+  onSaveToKnowledge: (session: AgentSessionEntity) => void | Promise<void>
+  onSaveToNotes: (session: AgentSessionEntity) => void | Promise<void>
 }
 
 const SessionItem = ({
@@ -38,13 +67,17 @@ const SessionItem = ({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPress,
-  onSelectItem,
+  onSetPanePosition,
+  panePosition,
   onTogglePin,
   pinned = false,
   reserveLeadingIconSlot = true,
-  session
+  session,
+  sessionMenuActions
 }: SessionItemProps) => {
   const { t } = useTranslation()
+  const shellState = useOptionalShellState()
+  const shellActions = useOptionalShellActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
@@ -53,7 +86,7 @@ const SessionItem = ({
   const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
-  const sessionName = session.name ?? session.id
+  const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
@@ -96,13 +129,32 @@ const SessionItem = ({
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
+      exportMenuOptions: sessionMenuActions.exportMenuOptions,
       isActiveInCurrentTab: active,
+      isRenaming,
+      onAutoRename: () => sessionMenuActions.onAutoRename(session),
+      onCopyImage: () => sessionMenuActions.onCopyImage(session),
+      onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
+      onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onExportImage: () => sessionMenuActions.onExportImage(session),
+      onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
+      onExportMarkdown: () => sessionMenuActions.onExportMarkdown(session),
+      onExportMarkdownReason: () => sessionMenuActions.onExportMarkdownReason(session),
+      onExportNotion: () => sessionMenuActions.onExportNotion(session),
+      onExportObsidian: () => sessionMenuActions.onExportObsidian(session),
+      onExportSiyuan: () => sessionMenuActions.onExportSiyuan(session),
+      onExportWord: () => sessionMenuActions.onExportWord(session),
+      onExportYuque: () => sessionMenuActions.onExportYuque(session),
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
+      onSaveToKnowledge: () => sessionMenuActions.onSaveToKnowledge(session),
+      onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
+      onSetPanePosition,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
+      panePosition,
       pinned,
-      sessionName: session.name ?? '',
+      sessionName,
       startEdit: startMenuEdit,
       t
     }),
@@ -112,17 +164,22 @@ const SessionItem = ({
       handleOpenInNewWindow,
       handleTogglePin,
       active,
+      isRenaming,
       onOpenInNewTab,
       onOpenInNewWindow,
+      onSetPanePosition,
       onTogglePin,
+      panePosition,
       pinned,
-      session.name,
+      session,
+      sessionMenuActions,
+      sessionName,
       startMenuEdit,
       t
     ]
   )
 
-  const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)
+  const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
 
   const clearDeleteConfirmationTimeout = useCallback(() => {
     if (deleteConfirmationTimeoutRef.current === null) return
@@ -162,10 +219,10 @@ const SessionItem = ({
         handleOpenInNewTab()
         return
       }
+      if (shellState?.maximized) shellActions?.minimize()
       onPress(session.id)
-      onSelectItem?.()
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, session.id, shellActions, shellState?.maximized]
   )
 
   const handleAuxClick = useCallback(
@@ -264,7 +321,7 @@ const SessionItem = ({
 
   return (
     <>
-      <ResourceListActionContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={session} getActions={getMenuActions} onAction={handleMenuAction}>
         {row}
       </ResourceListActionContextMenu>
       <EditNameDialog

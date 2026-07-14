@@ -1,6 +1,7 @@
 import type * as CherryUI from '@cherrystudio/ui'
-import type { Citation, Model } from '@renderer/types'
-import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { Citation } from '@renderer/types/message'
+import type { Model } from '@renderer/types/model'
+import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Fragment, type ReactNode } from 'react'
@@ -454,7 +455,8 @@ describe('MainTextBlock', () => {
       expect(token).toBeInTheDocument()
       expect(token).toHaveClass(
         'h-6',
-        'max-w-52',
+        'max-w-[calc(100%_-_0.25rem)]',
+        'my-0.5',
         'items-center',
         'rounded-md',
         'border',
@@ -464,11 +466,11 @@ describe('MainTextBlock', () => {
         'leading-[inherit]'
       )
       expect(token).not.toHaveClass('text-primary')
-      expect(token?.querySelector('[data-file-token-icon="fallback"]')).toHaveClass(
+      expect(token?.querySelector('[data-file-token-icon="code"]')).toHaveClass(
         'size-4.5',
         'rounded-[5px]',
-        'bg-accent',
-        'text-muted-foreground'
+        'bg-[var(--color-indigo-100)]',
+        'text-[var(--color-indigo-700)]'
       )
     })
 
@@ -496,7 +498,7 @@ describe('MainTextBlock', () => {
 
       const chip = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
       const label = chip?.querySelector('span.truncate')
-      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
+      expect(chip).toHaveClass('max-w-[calc(100%_-_0.25rem)]', 'overflow-hidden')
       expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
     })
 
@@ -524,7 +526,7 @@ describe('MainTextBlock', () => {
 
       const chip = getRenderedMarkdown()!.querySelector('[data-composer-token-kind="file"]')
       const label = chip?.querySelector('span.truncate')
-      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
+      expect(chip).toHaveClass('max-w-[calc(100%_-_0.25rem)]', 'overflow-hidden')
       expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
     })
 
@@ -618,10 +620,10 @@ describe('MainTextBlock', () => {
       expect(markdown).not.toHaveTextContent('src/chat.ts')
       const token = markdown.querySelector('[data-composer-token-kind="file"]')
       expect(token).toHaveClass('h-6', 'rounded-md', 'border', 'border-border', 'bg-background')
-      expect(token?.querySelector('[data-file-token-icon="fallback"]')).toBeInTheDocument()
+      expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
     })
 
-    it('should render document file composer tokens with the same document icon style as the composer', () => {
+    it('should render pdf file composer tokens with the same pdf icon style as the composer', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Read test.pdf now',
@@ -649,10 +651,10 @@ describe('MainTextBlock', () => {
       })
 
       const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveAttribute('data-file-token-variant', 'document')
-      expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass(
-        'bg-[var(--color-error-bg)]',
-        'text-destructive'
+      expect(token).toHaveAttribute('data-file-token-variant', 'pdf')
+      expect(token?.querySelector('[data-file-token-icon="pdf"]')).toHaveClass(
+        'bg-[var(--color-red-100)]',
+        'text-[var(--color-red-700)]'
       )
     })
 

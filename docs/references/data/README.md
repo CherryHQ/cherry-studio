@@ -19,7 +19,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 
 ### Reference Guides (Coding Standards)
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
-- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewithwritetx) — required for concurrent write paths to avoid libsql #288 SQLITE_BUSY
+- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewithwritetx) — the conventional wrapper for multi-statement / read-then-write atomicity (a direct `db.transaction()` is equivalent; single autocommit writes need neither), running as one synchronous `BEGIN IMMEDIATE` transaction on the one better-sqlite3 connection
 - [Database Construction](./database-construction.md) - Boot build order, drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5/`fts_rowid`, additive-vs-rebuild
 - [API Types](./api-types.md) - API type system, schemas, error handling
 - [Cache Schema Guide](./cache-schema-guide.md) - Adding new cache keys (fixed and template)
@@ -92,7 +92,7 @@ Use BootConfigService when:
 - Accessed through PreferenceService (`BootConfig.*` prefix) after lifecycle starts
 
 ```typescript
-// Early boot (src/main/index.ts) — direct access, only option at this stage
+// Early boot (src/main/main.ts) — direct access, only option at this stage
 import { bootConfigService } from '@main/data/bootConfig'
 if (bootConfigService.get('app.disable_hardware_acceleration')) {
   app.disableHardwareAcceleration()
@@ -117,7 +117,7 @@ Use CacheService when:
 **Three tiers based on persistence needs**:
 - `useCache` (memory): Lost on app restart, per-renderer (no cross-window sync)
 - `useSharedCache` (shared): Cross-window sharing via Main; lost on restart
-- `usePersistCache` (persist): Survives app restart via localStorage (renderer-authoritative; Main only relays IPC sync)
+- `usePersistCache` (persist): Survives app restart. Renderer persists to `localStorage` (renderer-authoritative); Main persists to its own JSON file (main-authoritative, via `getPersist` / `setPersist` / `hasPersist`). The two stores are independent; Main also relays renderer persist sync between windows.
 
 ```typescript
 // Good: Temporary computed results

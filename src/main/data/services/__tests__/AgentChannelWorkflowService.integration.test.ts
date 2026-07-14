@@ -9,7 +9,8 @@
  */
 
 import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,6 +50,17 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       instructions: 'test',
       model: null,
       orderKey: 'a0'
+    })
+  }
+
+  async function insertSchedule(id: string): Promise<void> {
+    await dbh.db.insert(jobScheduleTable).values({
+      id,
+      type: 'agent.task',
+      name: id,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
     })
   }
 
@@ -102,6 +114,63 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.activeChatIds).toEqual(snapshot.activeChatIds)
     expect(after.permissionMode).toBe(snapshot.permissionMode)
     expect(after.createdAt).toBe(snapshot.createdAt)
+  })
+
+  it('clears task subscriptions when agentId is rebound', async () => {
+    await insertAgent('agent-old')
+    await insertAgent('agent-new')
+    await insertSchedule('schedule-clear-1')
+    await insertSchedule('schedule-clear-2')
+    syncChannelMock.mockResolvedValue(undefined)
+
+    const created = await agentChannelWorkflowService.createChannel({
+      type: 'telegram',
+      name: 'Rebound Channel',
+      agentId: 'agent-old',
+      workspace: { type: 'system' },
+      config: TELEGRAM_CONFIG,
+      isActive: true
+    })
+    await dbh.db.insert(agentChannelTaskTable).values([
+      { channelId: created.id, taskId: 'schedule-clear-1' },
+      { channelId: created.id, taskId: 'schedule-clear-2' }
+    ])
+
+    await agentChannelWorkflowService.updateChannel(created.id, { agentId: 'agent-new' })
+
+    const remaining = await dbh.db
+      .select()
+      .from(agentChannelTaskTable)
+      .where(eq(agentChannelTaskTable.channelId, created.id))
+    expect(remaining).toEqual([])
+  })
+
+  it('keeps task subscriptions when agentId is not updated', async () => {
+    await insertAgent('agent-unchanged')
+    await insertSchedule('schedule-keep-1')
+    await insertSchedule('schedule-keep-2')
+    syncChannelMock.mockResolvedValue(undefined)
+
+    const created = await agentChannelWorkflowService.createChannel({
+      type: 'telegram',
+      name: 'Unchanged Channel',
+      agentId: 'agent-unchanged',
+      workspace: { type: 'system' },
+      config: TELEGRAM_CONFIG,
+      isActive: true
+    })
+    await dbh.db.insert(agentChannelTaskTable).values([
+      { channelId: created.id, taskId: 'schedule-keep-1' },
+      { channelId: created.id, taskId: 'schedule-keep-2' }
+    ])
+
+    await agentChannelWorkflowService.updateChannel(created.id, { name: 'Renamed Channel' })
+
+    const remaining = await dbh.db
+      .select({ taskId: agentChannelTaskTable.taskId })
+      .from(agentChannelTaskTable)
+      .where(eq(agentChannelTaskTable.channelId, created.id))
+    expect(remaining.map((row) => row.taskId).sort()).toEqual(['schedule-keep-1', 'schedule-keep-2'])
   })
 
   it('restores nullable fields to NULL (not undefined-skip) when original was NULL', async () => {

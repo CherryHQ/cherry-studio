@@ -37,6 +37,10 @@ describe('keysetCursor codec', () => {
       expect(parseCursor('A0:painting-1', asStringKey)).toEqual({ key: 'A0', id: 'painting-1' })
     })
 
+    it('decodes separator characters in string keys', () => {
+      expect(parseCursor('meeting%3Anotes:file-1', asStringKey)).toEqual({ key: 'meeting:notes', id: 'file-1' })
+    })
+
     it('splits on the first colon so ids may themselves contain colons', () => {
       expect(parseCursor('1:2:3', asNumericKey)).toEqual({ key: 1, id: '2:3' })
     })
@@ -51,6 +55,10 @@ describe('keysetCursor codec', () => {
     it('round-trips through parseCursor', () => {
       expect(parseCursor(encodeCursor(100, 'item-1'), asNumericKey)).toEqual({ key: 100, id: 'item-1' })
       expect(parseCursor(encodeCursor('A0', 'painting-1'), asStringKey)).toEqual({ key: 'A0', id: 'painting-1' })
+      expect(parseCursor(encodeCursor('meeting:notes', 'file-1'), asStringKey)).toEqual({
+        key: 'meeting:notes',
+        id: 'file-1'
+      })
     })
   })
 
@@ -119,8 +127,8 @@ const FIXTURE_ROWS = [
 describe('keysetOrdering — direction coverage against real SQLite', () => {
   const dbh = setupTestDatabase()
 
-  beforeAll(async () => {
-    await dbh.client.execute(
+  beforeAll(() => {
+    dbh.sqlite.exec(
       'CREATE TABLE IF NOT EXISTS fx_keyset_cursor_test (id TEXT PRIMARY KEY, num_key INTEGER NOT NULL, str_key TEXT NOT NULL)'
     )
   })

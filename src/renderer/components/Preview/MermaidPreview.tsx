@@ -1,5 +1,5 @@
-import { nanoid } from '@reduxjs/toolkit'
 import { useMermaid } from '@renderer/hooks/useMermaid'
+import { nanoid } from 'nanoid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'

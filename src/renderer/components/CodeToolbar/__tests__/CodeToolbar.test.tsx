@@ -2,7 +2,7 @@ import type { ActionTool } from '@renderer/components/ActionTools'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CodeToolbar from '../toolbar'
+import CodeToolbar from '../CodeToolbar'
 
 // Test constants
 const MORE_BUTTON_TOOLTIP = 'code_block.more'
@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
-vi.mock('../button', () => ({
+vi.mock('../CodeToolButton', () => ({
   default: mocks.CodeToolButton
 }))
 

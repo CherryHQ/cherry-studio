@@ -1,8 +1,9 @@
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ProviderList from '../ProviderList'
+import { ProviderList } from '../ProviderList'
 
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
@@ -14,6 +15,8 @@ const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
+let providerListScrollerClientHeight = 100
+let providerListMainContentScrollHeight = 120
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -117,6 +120,19 @@ vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
   default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
 }))
 
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed) and assert the delete flow.
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+
+const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
+
 describe('ProviderList', () => {
   const providers = [
     {
@@ -159,6 +175,22 @@ describe('ProviderList', () => {
     deleteProviderMock.mockResolvedValue(undefined)
     providerItemRects = {}
     scrollerRect = { bottom: 100, top: 0 }
+    providerListScrollerClientHeight = 100
+    providerListMainContentScrollHeight = 120
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).dataset.testid === 'provider-list-scrollbar' ? providerListScrollerClientHeight : 0
+      }
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).hasAttribute('data-provider-list-main-content')
+          ? providerListMainContentScrollHeight
+          : 0
+      }
+    })
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
       value: (callback: FrameRequestCallback) => {
@@ -170,12 +202,9 @@ describe('ProviderList', () => {
       configurable: true,
       value: vi.fn()
     })
-    ;(window as any).api = {
-      ...(window as any).api,
-      getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
-    }
-    ;(window as any).modal = { confirm: vi.fn() }
-    ;(window as any).toast = { error: vi.fn(), success: vi.fn() }
+    ipcRequest.mockImplementation((route: string) =>
+      route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
+    )
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -233,7 +262,7 @@ describe('ProviderList', () => {
 
     expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
-    fireEvent.click(screen.getByRole('button', { name: /添加/i }))
+    fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
@@ -286,20 +315,34 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('places add in the header and filter in the search row', () => {
+  it('keeps add buttons inside the provider list scroller', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    const addButton = screen.getByRole('button', { name: /添加/i })
+    const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
+    const [topAddButton, bottomAddButton] = addButtons
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     const searchWrap = screen.getByPlaceholderText('搜索模型平台...').closest('div')
+    const firstProvider = screen.getByTestId('provider-list-item-openai')
+    const lastProvider = screen.getByTestId('provider-list-item-anthropic')
 
-    expect(addButton.compareDocumentPosition(filterButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(addButton).toHaveClass('size-7', 'text-primary')
+    expect(addButtons).toHaveLength(2)
+    expect(topAddButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(topAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
+    expect(bottomAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
+    expect(searchWrap).toHaveClass('h-9')
     expect(searchWrap).toContainElement(filterButton)
-    expect(searchWrap).not.toContainElement(addButton)
     expect(filterButton).toHaveClass('size-[22px]')
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
+  })
+
+  it('hides the bottom add button when provider list content does not overflow', () => {
+    providerListMainContentScrollHeight = 80
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getAllByRole('button', { name: '添加服务商' })).toHaveLength(1)
   })
 
   it('surfaces reorder persistence errors', async () => {
@@ -310,21 +353,37 @@ describe('ProviderList', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'trigger-reorder' })[0])
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
-  it('applies an external filter hint without making the page own list filter state', () => {
+  it('applies the agent filter hint without hiding gateway-routable providers', () => {
     const onSelectProvider = vi.fn()
+    useProvidersMock.mockReturnValue({
+      providers: [
+        ...providers,
+        {
+          id: 'gemini',
+          name: 'Gemini',
+          presetProviderId: 'gemini',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          authType: 'api-key',
+          isEnabled: true
+        }
+      ],
+      createProvider: vi.fn()
+    })
     const { rerender } = render(<ProviderList selectedProviderId="openai" onSelectProvider={onSelectProvider} />)
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
 
     rerender(<ProviderList selectedProviderId="openai" filterModeHint="agent" onSelectProvider={onSelectProvider} />)
 
-    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
@@ -369,22 +428,14 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
 
-    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.title).toBeTruthy()
-    expect(options.okText).toBeTruthy()
-    expect(options.okButtonProps).toEqual({ danger: true })
-    expect(options.centered).toBe(true)
+    expect(confirmActionShow).toHaveBeenCalledTimes(1)
   })
 
   it('delegates provider deletion from the confirmation callback', async () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
-    await options.onOk()
-
-    expect(deleteProviderMock).toHaveBeenCalledWith('openai')
+    await vi.waitFor(() => expect(deleteProviderMock).toHaveBeenCalledWith('openai'))
   })
 })

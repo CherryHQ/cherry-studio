@@ -8,11 +8,11 @@ import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey 
  * the rest of the row is media-agnostic.
  *
  * Output and input files are NOT stored on the row. Each creation has zero or
- * more `file_ref` rows with `sourceType='creation'`, `sourceId=creation.id`,
- * `role='output'|'input'`. CreationService writes those refs on create and
- * derefs via `fileRefService.cleanupBySourceTx` on delete. The frozen-receipt
- * shape avoids carrying mutable draft state (mode, size, duration, seed, …) on
- * the row — the live draft lives in renderer React state and is discarded on exit.
+ * more `creation_file_ref` rows with `sourceId=creation.id`,
+ * `role='output'|'input'`. CreationService writes those refs on create/update;
+ * row deletion cascades refs at the database layer. The frozen-receipt shape
+ * avoids carrying mutable draft state (mode, size, duration, seed, …) on the
+ * row — the live draft lives in renderer React state and is discarded on exit.
  */
 export const creationTable = sqliteTable(
   'creation',

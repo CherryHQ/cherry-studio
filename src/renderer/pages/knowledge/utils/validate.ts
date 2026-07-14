@@ -4,22 +4,24 @@ const knowledgeRagConfigKeys = [
   'fileProcessorId',
   'chunkSize',
   'chunkOverlap',
+  'chunkStrategy',
+  'chunkSeparator',
   'embeddingModelId',
   'rerankModelId',
   'documentCount',
-  'threshold',
-  'searchMode',
-  'hybridAlpha'
+  'threshold'
 ] as const satisfies readonly (keyof KnowledgeRagConfigFormValues)[]
 
 export type KnowledgeRagChunkValidationErrorCode =
   | 'chunkSizeInvalid'
   | 'chunkOverlapInvalid'
   | 'chunkOverlapMustBeSmaller'
+  | 'chunkSeparatorRequired'
 
 export interface KnowledgeRagChunkValidationErrors {
   chunkOverlap?: KnowledgeRagChunkValidationErrorCode
   chunkSize?: KnowledgeRagChunkValidationErrorCode
+  chunkSeparator?: KnowledgeRagChunkValidationErrorCode
 }
 
 export const parseOptionalInteger = (value: string) => {
@@ -42,7 +44,7 @@ export const parseRequiredInteger = (value: string) => {
 }
 
 export const getKnowledgeRagChunkValidationErrors = (
-  values: Pick<KnowledgeRagConfigFormValues, 'chunkOverlap' | 'chunkSize'>
+  values: Pick<KnowledgeRagConfigFormValues, 'chunkOverlap' | 'chunkSize' | 'chunkStrategy' | 'chunkSeparator'>
 ): KnowledgeRagChunkValidationErrors => {
   const chunkSize = parseOptionalInteger(values.chunkSize)
   const chunkOverlap = parseOptionalInteger(values.chunkOverlap)
@@ -58,6 +60,10 @@ export const getKnowledgeRagChunkValidationErrors = (
 
   if (chunkSize != null && chunkSize > 0 && chunkOverlap != null && chunkOverlap >= chunkSize) {
     errors.chunkOverlap = 'chunkOverlapMustBeSmaller'
+  }
+
+  if (values.chunkStrategy === 'delimiter' && values.chunkSeparator === '') {
+    errors.chunkSeparator = 'chunkSeparatorRequired'
   }
 
   return errors

@@ -45,7 +45,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -55,8 +55,8 @@ import type {
   DynamicToolUIPart,
   FileUIPart,
   MessageData,
+  MessageSnapshot,
   MessageStats,
-  ModelSnapshot,
   ReasoningUIPart,
   ReferenceCategory,
   SerializedErrorData,
@@ -64,7 +64,7 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/types/file/common'
+import type { Base64String, FilePath } from '@shared/types/file'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -430,7 +430,7 @@ export interface NewMessage {
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
   modelId: string | null
-  modelSnapshot: ModelSnapshot | null
+  messageSnapshot: MessageSnapshot | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -535,7 +535,9 @@ export async function transformMessage(
   siblingsGroupId: number,
   blocks: OldBlock[],
   correctTopicId: string,
-  deps?: ChatMappingDeps
+  deps?: ChatMappingDeps,
+  /** The topic's assistant (v1 couples topic→assistant); attached to assistant-role rows. */
+  assistantSnapshot?: { id: string; name: string; emoji: string }
 ): Promise<NewMessage> {
   // Transform blocks to AI SDK UIMessage.parts format
   const { parts, citationReferences, searchableText } = await transformBlocksToParts(blocks, deps)
@@ -564,8 +566,12 @@ export async function transformMessage(
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
-    // Snapshot of model at message creation time for historical display
-    modelSnapshot: buildModelSnapshot(oldMessage.model),
+    // Author snapshot (model nested) for historical display. The assistant is attached only to
+    // assistant-role rows; the header shows it first, the model second.
+    messageSnapshot: buildMessageSnapshot(
+      oldMessage.model,
+      oldMessage.role === 'assistant' ? assistantSnapshot : undefined
+    ),
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
@@ -573,18 +579,34 @@ export async function transformMessage(
 }
 
 /**
- * Build a ModelSnapshot from a legacy model object.
- * Returns null if model is missing required fields (id + provider).
+ * Build the author {@link MessageSnapshot} from a legacy v1 message: the producing assistant with
+ * the model nested inside. Returns null unless both the assistant and a valid model are present
+ * (the author owns the model — no author, no snapshot).
  */
-function buildModelSnapshot(model: OldMessage['model']): ModelSnapshot | null {
+function buildMessageSnapshot(
+  model: OldMessage['model'],
+  assistant: { id: string; name: string; emoji: string } | undefined
+): MessageSnapshot | null {
+  if (!assistant) return null
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
   return {
-    id: model.id,
-    name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
-    provider: model.provider,
-    group: typeof model.group === 'string' ? model.group : undefined
+    ...assistant,
+    model: {
+      id: model.id,
+      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+      provider: model.provider,
+      group: typeof model.group === 'string' ? model.group : undefined
+    }
   }
+}
+
+/** Build the assistant identity (v2 id + name/emoji) from a resolved v1 assistant row. */
+export function buildAssistantSnapshot(
+  id: string,
+  assistant: OldAssistant
+): { id: string; name: string; emoji: string } {
+  return { id, name: assistant.name, emoji: assistant.emoji ?? '' }
 }
 
 /**
@@ -959,8 +981,8 @@ async function promoteBase64ToFileEntry(
 
   try {
     // Write physical file first. If we crash before the DB insert lands,
-    // the orphan checker won't sweep this file (no file_entry row means
-    // no DB linkage to look up). Same risk model as the rest of
+    // the file sweep can later reclaim this UUID blob because no file_entry
+    // row exists. Same risk model as the rest of
     // FileMigrator's transform path; acceptable for a migration step.
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, bytes)

@@ -10,13 +10,14 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { cn, validateApiHost } from '@renderer/utils'
+import { toast } from '@renderer/services/toast'
+import { validateApiHost } from '@renderer/utils/api'
+import { cn } from '@renderer/utils/style'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { isEmpty, trim } from 'lodash'
+import { isEmpty, trim } from 'es-toolkit/compat'
 import { Braces, List, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +27,6 @@ import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
-import { applyProviderCustomHeaderSideEffects } from '../utils/providerSettingsSideEffects'
 
 const logger = loggerService.withContext('ProviderCustomHeaderDrawer')
 
@@ -171,7 +171,6 @@ export function findInvalidSecondaryEndpointUrl(
 export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
-  const { defaultHeaders, updateDefaultHeaders } = useCopilot()
   const { syncProviderModels } = useProviderModelSync(providerId)
 
   const topology = getProviderHostTopology(provider)
@@ -179,8 +178,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const endpointTypes = useMemo(() => resolveEndpointTypes(provider, primaryEndpoint), [provider, primaryEndpoint])
 
   const sourceHeaders = useMemo<Record<string, string>>(
-    () => (providerId === 'copilot' ? { ...defaultHeaders } : { ...provider?.settings?.extraHeaders }),
-    [defaultHeaders, provider?.settings?.extraHeaders, providerId]
+    () => ({ ...provider?.settings?.extraHeaders }),
+    [provider?.settings?.extraHeaders]
   )
 
   const [rows, setRows] = useState<HeaderRow[]>([])
@@ -218,7 +217,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const applyJsonToRowsOrToast = useCallback((): boolean => {
     const parsed = parseHeadersJsonDraft(jsonDraft)
     if (!parsed.ok) {
-      window.toast.error(t('settings.provider.copilot.invalid_json'))
+      toast.error(t('settings.provider.copilot.invalid_json'))
       return false
     }
     setRows(headersObjectToRows(parsed.headers))
@@ -245,14 +244,14 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const primaryDraft = trim(endpointDrafts[primaryEndpoint] ?? '')
     const isVertex = provider.authType === 'iam-gcp'
     if (!isVertex && (!primaryDraft || !validateApiHost(primaryDraft))) {
-      window.toast.error(t('settings.provider.api_host_no_valid'))
+      toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
     // Secondary endpoints are optional, but a non-empty one must still be a
     // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
     if (findInvalidSecondaryEndpointUrl(endpointDrafts, primaryEndpoint)) {
-      window.toast.error(t('settings.provider.api_host_no_valid'))
+      toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
@@ -263,19 +262,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     if (headersUiMode === 'json') {
       const parsed = parseHeadersJsonDraft(jsonDraft)
       if (!parsed.ok) {
-        window.toast.error(t('settings.provider.copilot.invalid_json'))
+        toast.error(t('settings.provider.copilot.invalid_json'))
         return
       }
       parsedHeaders = parsed.headers
     } else {
       parsedHeaders = rowsToHeadersObject(rows)
     }
-
-    applyProviderCustomHeaderSideEffects({
-      providerId,
-      headers: parsedHeaders,
-      updateCopilotHeaders: updateDefaultHeaders
-    })
 
     try {
       await updateProvider({
@@ -286,7 +279,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       // Surface the failure and keep the drawer open so the user can retry
       // instead of silently losing their edits.
       logger.error('Failed to save provider request config', error as Error, { providerId })
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
       return
     }
 
@@ -296,7 +289,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       })
     }
 
-    window.toast.success(t('message.save.success.title'))
+    toast.success(t('message.save.success.title'))
     onClose()
   }, [
     endpointDrafts,
@@ -309,7 +302,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     rows,
     syncProviderModels,
     t,
-    updateDefaultHeaders,
     updateProvider
   ])
 

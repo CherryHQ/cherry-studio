@@ -1,6 +1,4 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledMock } = vi.hoisted(() => ({
@@ -10,7 +8,7 @@ const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledM
   traceModeEnabledMock: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: applicationGetMock }
 }))
 
@@ -151,34 +149,10 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(startupMock).not.toHaveBeenCalled()
   })
 
-  function getIpcHandler(channel: string): (...args: any[]) => unknown {
-    const manager = new ClaudeCodeWarmQueryManager()
-    ;(manager as any).onInit()
-    const call = vi.mocked(ipcMain.handle).mock.calls.find(([registered]) => registered === channel)
-    if (!call) throw new Error(`No IPC handler registered for ${channel}`)
-    return call[1] as (...args: any[]) => unknown
-  }
-
-  it('ignores prewarm IPC requests with a missing or non-string sessionId', async () => {
-    const handler = getIpcHandler(IpcChannel.Ai_AgentSession_Prewarm)
-
-    await handler({}, { sessionId: '' })
-    await handler({}, { sessionId: 123 as any })
-    await handler({}, {})
-
-    expect(buildWarmRequestMock).not.toHaveBeenCalled()
-  })
-
-  it('ignores close-warm IPC requests with a missing or non-string sessionId', async () => {
-    const handler = getIpcHandler(IpcChannel.Ai_AgentSession_CloseWarm)
-    const closeSpy = vi.spyOn(ClaudeCodeWarmQueryManager.prototype, 'closeAgentSessionWarm')
-
-    handler({}, { sessionId: '' })
-    handler({}, { sessionId: null as any })
-    handler({}, {})
-
-    expect(closeSpy).not.toHaveBeenCalled()
-  })
+  // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of
+  // `ai.prewarm_agent_session` / `ai.close_agent_session_warm`, not in this service — so it is no
+  // longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing"). The
+  // prewarm/close methods are exercised directly above and below.
 
   it('drops the live MCP server instance when building the warm-query signature', () => {
     const fakeInstance = { connect: vi.fn() }
@@ -187,11 +161,11 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     const withInstance = createClaudeCodeWarmQuerySignature({
       model: 'sonnet',
-      mcpServers: { claw: { type: 'sdk', name: 'claw', instance: fakeInstance } }
+      mcpServers: { cherry: { type: 'sdk', name: 'cherry', instance: fakeInstance } }
     } as any)
     const withoutInstance = createClaudeCodeWarmQuerySignature({
       model: 'sonnet',
-      mcpServers: { claw: { type: 'sdk', name: 'claw' } }
+      mcpServers: { cherry: { type: 'sdk', name: 'cherry' } }
     } as any)
 
     expect(withInstance).toBe(withoutInstance)
@@ -205,6 +179,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
         mcpServers: { srv: { type: 'sdk', name, instance: { connect: vi.fn() } } }
       } as any)
 
-    expect(withInstance('claw')).not.toBe(withInstance('assistant'))
+    expect(withInstance('cherry')).not.toBe(withInstance('assistant'))
   })
 })

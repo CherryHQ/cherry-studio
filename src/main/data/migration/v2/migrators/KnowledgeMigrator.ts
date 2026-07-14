@@ -2,27 +2,26 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { userModelTable } from '@data/db/schemas/userModel'
-import { createClient, type Value as LibsqlValue } from '@libsql/client'
+import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import {
-  needsProcessedArtifactReservation,
-  reserveImportedFileRelativePath
-} from '@main/features/knowledge/utils/storage/pathStorage'
-import { sanitizeFilename } from '@main/utils/file'
-import { copy, ensureDir } from '@main/utils/file/fs'
+import { needsProcessedArtifactReservation, reserveImportedFileRelativePath } from '@main/features/knowledge'
+import { copy, ensureDir } from '@main/utils/file'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
 } from '@shared/data/types/knowledge'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
+import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
-import { sql } from 'drizzle-orm'
+import Database from 'better-sqlite3'
+import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
@@ -162,6 +161,11 @@ export class KnowledgeMigrator extends BaseMigrator {
   // Synthesized directory-child item ids: `file` items whose source stays at data.source on
   // external disk (never copied into the base), so copyKnowledgeFilesForBase must skip them.
   private migratedDirectoryChildItemIds = new Set<string>()
+  // Orphan embedding models (UniqueModelId → minimal user_model row, sans orderKey) whose
+  // provider survived the migration: re-created in `execute` before the bases that reference
+  // them, so those bases keep their vectors instead of failing into a re-index. See the
+  // resurrection branch in `prepare` for the rationale.
+  private resurrectedEmbeddingModels = new Map<UniqueModelId, Omit<InsertUserModelRow, 'orderKey'>>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -178,6 +182,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.fileStorageNameByItemId = new Map<string, string>()
     this.directoryChildLoaderRemap = new Map<string, Map<string, string>>()
     this.migratedDirectoryChildItemIds = new Set<string>()
+    this.resurrectedEmbeddingModels = new Map<UniqueModelId, Omit<InsertUserModelRow, 'orderKey'>>()
   }
 
   private recordWarning(message: string): void {
@@ -231,7 +236,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     return resolvedDbPath
   }
 
-  private toFiniteNumber(value: LibsqlValue): number | null {
+  private toFiniteNumber(value: unknown): number | null {
     if (value === null || value === undefined) {
       return null
     }
@@ -245,7 +250,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     return Number.isFinite(numeric) ? numeric : null
   }
 
-  private parseDimensionsFromBlobLength(blobLengthValue: LibsqlValue, baseId: string): number | null {
+  private parseDimensionsFromBlobLength(blobLengthValue: unknown, baseId: string): number | null {
     const blobLength = this.toFiniteNumber(blobLengthValue)
     if (blobLength === null || !Number.isInteger(blobLength) || blobLength <= 0) {
       return null
@@ -261,10 +266,10 @@ export class KnowledgeMigrator extends BaseMigrator {
     return Number.isInteger(dimensions) && dimensions > 0 ? dimensions : null
   }
 
-  private async resolveDimensionsForBase(
+  private resolveDimensionsForBase(
     base: LegacyKnowledgeBaseWithIdentity,
     knowledgeBaseDir: string
-  ): Promise<{ dimensions: number | null; reason: DimensionResolutionReason }> {
+  ): { dimensions: number | null; reason: DimensionResolutionReason } {
     const dbPath = this.getLegacyKnowledgeDbPath(base.id, knowledgeBaseDir)
     if (!dbPath) {
       return { dimensions: null, reason: 'vector_db_invalid_path' }
@@ -274,7 +279,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       return { dimensions: null, reason: 'vector_db_missing' }
     }
 
-    let client: ReturnType<typeof createClient> | null = null
+    let db: Database.Database | null = null
 
     try {
       const dbStat = fs.statSync(dbPath)
@@ -282,22 +287,24 @@ export class KnowledgeMigrator extends BaseMigrator {
         return { dimensions: null, reason: 'legacy_vector_store_directory' }
       }
 
-      client = createClient({ url: pathToFileURL(dbPath).toString() })
+      db = new Database(dbPath, { readonly: true, fileMustExist: true })
 
-      const countResult = await client.execute(
-        `SELECT count(*) AS total, sum(CASE WHEN vector IS NOT NULL THEN 1 ELSE 0 END) AS with_vector FROM ${LEGACY_VECTOR_TABLE_NAME}`
-      )
-      const totalRows = this.toFiniteNumber(countResult.rows?.[0]?.total) ?? 0
-      const vectorRows = this.toFiniteNumber(countResult.rows?.[0]?.with_vector) ?? 0
+      const countRow = db
+        .prepare(
+          `SELECT count(*) AS total, sum(CASE WHEN vector IS NOT NULL THEN 1 ELSE 0 END) AS with_vector FROM ${LEGACY_VECTOR_TABLE_NAME}`
+        )
+        .get() as { total?: unknown; with_vector?: unknown } | undefined
+      const totalRows = this.toFiniteNumber(countRow?.total) ?? 0
+      const vectorRows = this.toFiniteNumber(countRow?.with_vector) ?? 0
 
       if (totalRows <= 0 || vectorRows <= 0) {
         return { dimensions: null, reason: 'vector_db_empty' }
       }
 
-      const vectorLengthResult = await client.execute(
-        `SELECT length(vector) AS bytes FROM ${LEGACY_VECTOR_TABLE_NAME} WHERE vector IS NOT NULL LIMIT 1`
-      )
-      const dimensions = this.parseDimensionsFromBlobLength(vectorLengthResult.rows?.[0]?.bytes, base.id)
+      const lengthRow = db
+        .prepare(`SELECT length(vector) AS bytes FROM ${LEGACY_VECTOR_TABLE_NAME} WHERE vector IS NOT NULL LIMIT 1`)
+        .get() as { bytes?: unknown } | undefined
+      const dimensions = this.parseDimensionsFromBlobLength(lengthRow?.bytes, base.id)
       if (dimensions !== null) {
         return { dimensions, reason: 'ok' }
       }
@@ -310,9 +317,9 @@ export class KnowledgeMigrator extends BaseMigrator {
       this.recordWarning(warningMessage)
       return { dimensions: null, reason: 'vector_db_error' }
     } finally {
-      if (client) {
+      if (db) {
         try {
-          client.close()
+          db.close()
         } catch (error) {
           const warningMessage = `Failed to close legacy vector DB client for knowledge base ${base.id}: ${
             error instanceof Error ? error.message : String(error)
@@ -325,13 +332,15 @@ export class KnowledgeMigrator extends BaseMigrator {
 
   /**
    * Read the legacy vector DB's `uniqueLoaderId → source` map (via the shared
-   * {@link KnowledgeVectorSourceReader}, so directory expansion and vector migration consume
-   * the exact same load + path resolution) so a `directory` item can be expanded into per-file
-   * children (each file's loader id resolves to its source path). The discriminated `kind`
-   * distinguishes a (recoverable) read failure from a successful read — a thrown read is
-   * `read_error` (so the caller can warn precisely); a missing DB / directory / non-embedjs /
-   * zero rows is a `loaded` read with an empty `sources` map. Both keep the directory tombstone.
-   * Best-effort: failures are caught, never thrown.
+   * {@link KnowledgeVectorSourceReader}'s column-projected `loadBaseLoaderSources`, so directory
+   * expansion and vector migration share the exact same path resolution + loader set without
+   * this map-building pass having to read and float32-decode the whole base's vectors — that
+   * synchronous decode froze the migration UI and risked OOM on large folders) so a `directory`
+   * item can be expanded into per-file children (each file's loader id resolves to its source
+   * path). The discriminated `kind` distinguishes a (recoverable) read failure from a successful
+   * read — a thrown read is `read_error` (so the caller can warn precisely); a missing DB /
+   * directory / non-embedjs / zero rows is a `loaded` read with an empty `sources` map. Both keep
+   * the directory tombstone. Best-effort: failures are caught, never thrown.
    */
   private async loadLoaderSourceMap(
     baseId: string,
@@ -339,7 +348,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   ): Promise<LoaderSourceMapResult> {
     const sources = new Map<string, string>()
     try {
-      const result = await vectorSource.loadBase(baseId)
+      const result = await vectorSource.loadBaseLoaderSources(baseId)
       if (result.status !== 'ok') {
         return { kind: 'loaded', sources }
       }
@@ -539,6 +548,13 @@ export class KnowledgeMigrator extends BaseMigrator {
       const validModelIds = ctx.db?.select
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
+      const validProviderIds = ctx.db?.select
+        ? new Set(
+            (await ctx.db.select({ providerId: userProviderTable.providerId }).from(userProviderTable)).map(
+              (row) => row.providerId
+            )
+          )
+        : null
 
       for (const base of bases) {
         this.sourceCount += 1
@@ -563,10 +579,30 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const embeddingModelId = legacyModelToUniqueId(validBase.model ?? null)
-        const embeddingResolution = resolveModelReference(embeddingModelId, validModelIds)
+        let embeddingResolution = resolveModelReference(embeddingModelId, validModelIds)
+
+        // Targeted resurrection of an orphan embedding model: a `dangling` reference whose provider
+        // still survived the migration means the user removed the model from that provider's list
+        // but kept the provider (and its credentials). Re-create a minimal user_model row and treat
+        // the reference as resolved, so the base keeps its already-embedded vectors instead of
+        // failing into a re-index. A `missing` reference (no model at all) or a vanished provider
+        // stays on the `failed` + restore path below — re-adding a model under a provider that no
+        // longer exists would only turn a clear migration-time failure into a silent runtime one.
+        if (embeddingResolution.kind === 'dangling' && validProviderIds && validModelIds) {
+          const resurrected = this.resurrectOrphanEmbeddingModel(
+            validBase.model,
+            embeddingResolution.modelId,
+            validProviderIds,
+            validModelIds
+          )
+          if (resurrected) {
+            embeddingResolution = { kind: 'resolved', modelId: embeddingResolution.modelId }
+          }
+        }
+
         const resolvedDimensions =
           embeddingResolution.kind === 'resolved'
-            ? await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
+            ? this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
             : { dimensions: resolveLegacyKnowledgeBaseDimensions(validBase), reason: 'legacy_dimensions' as const }
 
         // A resolved embedding model whose per-base legacy vector store is missing/empty/locked
@@ -747,6 +783,84 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
   }
 
+  /**
+   * Queue a minimal `user_model` row for a base's orphan embedding model, but only when its
+   * provider survived the migration (FK to `user_provider` is satisfiable and the credentials
+   * still exist). Returns whether the reference can now be treated as resolved.
+   *
+   * `providerId`/`modelId` are split from the UniqueModelId (`providerId::modelId`) rather than
+   * the legacy `{ provider, id }` fields so a pre-composed legacy id resolves to the same
+   * provider prefix the rest of the migration validated against. The row is intentionally minimal
+   * (capabilities default to `[]`, timestamps/orderKey are filled at insert time); the runtime
+   * embedding call only needs the provider + modelId, and the base's vector dimensions live on
+   * the base row, not here. Dedup is by UniqueModelId so several bases sharing one orphan model
+   * resurrect it once; the id is also added to `validModelIds` so later bases see it as resolved.
+   */
+  private resurrectOrphanEmbeddingModel(
+    legacyModel: LegacyKnowledgeBase['model'],
+    uniqueModelId: UniqueModelId,
+    validProviderIds: ReadonlySet<string>,
+    validModelIds: Set<string>
+  ): boolean {
+    const separatorIndex = uniqueModelId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+    if (separatorIndex <= 0) {
+      return false
+    }
+    const providerId = uniqueModelId.slice(0, separatorIndex)
+    const modelId = uniqueModelId.slice(separatorIndex + UNIQUE_MODEL_ID_SEPARATOR.length)
+    if (!modelId || !validProviderIds.has(providerId)) {
+      return false
+    }
+
+    if (!this.resurrectedEmbeddingModels.has(uniqueModelId)) {
+      const name =
+        typeof legacyModel?.name === 'string' && legacyModel.name.trim() !== '' ? legacyModel.name.trim() : modelId
+      const group =
+        typeof legacyModel?.group === 'string' && legacyModel.group.trim() !== '' ? legacyModel.group.trim() : null
+      this.resurrectedEmbeddingModels.set(uniqueModelId, { id: uniqueModelId, providerId, modelId, name, group })
+      this.recordWarning(
+        `Knowledge base embedding model ${uniqueModelId} was missing from user_model but its provider survived; re-created it so the base keeps its vectors instead of requiring a re-index`
+      )
+    }
+    validModelIds.add(uniqueModelId)
+    return true
+  }
+
+  /**
+   * Insert the orphan embedding models queued during `prepare`, before any base that references
+   * them is written (the base → user_model FK requires the model row to exist first). Grouped by
+   * provider so `insertManyWithOrderKey` does one boundary lookup per provider and appends after
+   * that provider's existing models.
+   */
+  private insertResurrectedEmbeddingModels(ctx: MigrationContext): void {
+    if (this.resurrectedEmbeddingModels.size === 0) {
+      return
+    }
+
+    const rowsByProvider = new Map<string, Array<Omit<InsertUserModelRow, 'orderKey'>>>()
+    for (const row of this.resurrectedEmbeddingModels.values()) {
+      const group = rowsByProvider.get(row.providerId)
+      if (group) {
+        group.push(row)
+      } else {
+        rowsByProvider.set(row.providerId, [row])
+      }
+    }
+
+    ctx.db.transaction((tx) => {
+      for (const [providerId, rows] of rowsByProvider) {
+        insertManyWithOrderKey(tx, userModelTable, rows, {
+          pkColumn: userModelTable.id,
+          scope: eq(userModelTable.providerId, providerId)
+        })
+      }
+    })
+
+    logger.info('KnowledgeMigrator resurrected orphan embedding models', {
+      count: this.resurrectedEmbeddingModels.size
+    })
+  }
+
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     this.skippedPreparedItemIds = new Set<string>()
 
@@ -754,7 +868,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       await this.dropDanglingAssistantKnowledgeBaseRefs(ctx)
       // No bases/items to migrate, but dropDangling may have pruned assistant_knowledge_base —
       // verify the domain is referentially clean (see the main-path note below).
-      await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
+      this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
       logger.info('No knowledge data to migrate')
       return {
         success: true,
@@ -766,6 +880,10 @@ export class KnowledgeMigrator extends BaseMigrator {
     let processed = 0
 
     try {
+      // Re-create orphan embedding models first: each is the target of a base → user_model FK,
+      // so it must exist before any base row that references it is inserted below.
+      this.insertResurrectedEmbeddingModels(ctx)
+
       const baseIdSet = new Set<string>()
       for (const base of this.preparedBases) {
         if (!base.id) {
@@ -812,21 +930,21 @@ export class KnowledgeMigrator extends BaseMigrator {
 
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
-        await ctx.db.transaction(async (tx) => {
-          await tx.insert(knowledgeBaseTable).values(base)
+        ctx.db.transaction((tx) => {
+          tx.insert(knowledgeBaseTable).values(base).run()
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
             const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
-            await tx.insert(knowledgeItemTable).values(batch)
+            tx.insert(knowledgeItemTable).values(batch).run()
             transactionProcessed += batch.length
           }
 
           if (legacyKnowledgeBaseId !== undefined) {
-            await tx
-              .update(assistantKnowledgeBaseTable)
+            tx.update(assistantKnowledgeBaseTable)
               .set({ knowledgeBaseId: base.id })
               .where(sql`${assistantKnowledgeBaseTable.knowledgeBaseId} = ${legacyKnowledgeBaseId}`)
+              .run()
           }
         })
 
@@ -845,7 +963,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       // base id itself — so the junction is empty here and the engine's final verifyForeignKeys()
       // is its real gate. The remap UPDATE above + this assertion only bite when junction rows with
       // legacy ids already exist at this point (a re-run, or the white-box test that seeds them).
-      await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
+      this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
 
       this.flushSkippedWarnings()
       ctx.sharedData.set(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, new Map(this.legacyBaseIdRemap))
@@ -951,8 +1069,8 @@ export class KnowledgeMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const baseResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).get()
-      const itemResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).get()
+      const baseResult = ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).get()
+      const itemResult = ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).get()
 
       const targetBaseCount = baseResult?.count ?? 0
       const targetItemCount = itemResult?.count ?? 0
@@ -978,7 +1096,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         })
       }
 
-      const orphanItems = await ctx.db
+      const orphanItems = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(knowledgeItemTable)
         .where(sql`${knowledgeItemTable.baseId} NOT IN (SELECT id FROM ${knowledgeBaseTable})`)

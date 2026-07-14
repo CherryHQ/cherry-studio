@@ -44,30 +44,45 @@ export const RagSelectField = ({
   )
 }
 
-export const RagNumericField = ({
+/** A single settings row: label (with optional hint) on the left, control on the right. */
+export const RagFieldRow = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) => {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <RagFieldLabel label={label} hint={hint} className="mb-0" />
+      {children}
+    </div>
+  )
+}
+
+/** A {@link RagFieldRow} whose control is a fixed-width text input with an optional trailing unit. */
+export const RagInlineField = ({
   label,
+  hint,
   value,
   suffix,
-  hint,
+  placeholder,
+  inputMode,
   onChange,
-  inputClassName
+  controlClassName
 }: {
-  label?: string
+  label: string
+  hint?: string
   value: string
   suffix?: string
-  hint?: string
+  placeholder?: string
+  inputMode?: 'numeric' | 'text'
   onChange: (value: string) => void
-  inputClassName?: string
+  controlClassName?: string
 }) => {
   return (
-    <div>
-      {label ? <RagFieldLabel label={label} hint={hint} /> : null}
-      <div className="relative">
+    <RagFieldRow label={label} hint={hint}>
+      <div className={cn('relative', controlClassName ?? 'w-44')}>
         <Input
           value={value}
-          inputMode="numeric"
+          placeholder={placeholder}
+          inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
-          className={cn('shadow-none', inputClassName)}
+          className={cn('shadow-none', suffix ? 'pr-14' : undefined)}
         />
         {suffix ? (
           <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-muted text-xs leading-4">
@@ -75,7 +90,7 @@ export const RagNumericField = ({
           </span>
         ) : null}
       </div>
-    </div>
+    </RagFieldRow>
   )
 }
 

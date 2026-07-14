@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import IconButton from '../IconButton'
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 

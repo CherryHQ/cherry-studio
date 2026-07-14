@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 // Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
 // resolved by tsgo on main's program (resolves on feat's). Transitional; reverts
 // to the barrel once main converges with feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, X } from 'lucide-react'
@@ -19,6 +19,7 @@ interface KnowledgeModelSelectProps {
   allowClear?: boolean
   clearAriaLabel?: string
   'aria-label'?: string
+  onSettingsNavigate?: (navigate: () => void) => void
   onChange: (modelId: string | null) => void
 }
 
@@ -35,6 +36,7 @@ export const KnowledgeModelSelect = ({
   allowClear = false,
   clearAriaLabel,
   'aria-label': ariaLabel,
+  onSettingsNavigate,
   onChange
 }: KnowledgeModelSelectProps) => {
   const { models } = useModels({ enabled: true })
@@ -56,6 +58,7 @@ export const KnowledgeModelSelect = ({
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
+        onSettingsNavigate={onSettingsNavigate}
         onSelect={(modelId) => onChange(modelId ?? null)}
         trigger={
           <Button
@@ -67,7 +70,7 @@ export const KnowledgeModelSelect = ({
               'h-8 w-full justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
               'aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
               hasValue ? 'text-foreground' : 'text-muted-foreground',
-              invalid && 'border-destructive aria-expanded:ring-red-600/20'
+              invalid && 'border-destructive aria-expanded:border-destructive aria-expanded:ring-red-600/20'
             )}>
             <span className="min-w-0 truncate text-left">{triggerLabel}</span>
             <ChevronDown className="size-4 shrink-0 opacity-50" />

@@ -3,19 +3,20 @@
  * former PaintingService + VideoService behind one `creation` table with a
  * `kind: 'image' | 'video'` discriminator.
  *
- * Output / input files are stored in `file_ref` (not on the creation row).
- * `create` writes the refs; `get` / `list` hydrate them via a single
- * `IN (...)` query, then group by sourceId + role. `delete` derefs through
- * `fileRefService.cleanupBySourceTx`.
+ * Output / input files are stored in `creation_file_ref` (not on the creation
+ * row). `create` writes the refs; `get` / `list` hydrate them via a single
+ * `IN (...)` query, then group by sourceId + role. `delete` relies on DB-level
+ * cascade from `creation_file_ref.sourceId`.
  */
 
 import { application } from '@application'
 import { type CreationRow, creationTable, type InsertCreationRow } from '@data/db/schemas/creation'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { creationFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   CreateCreationDto,
@@ -25,22 +26,26 @@ import type {
 } from '@shared/data/api/schemas/creations'
 import { CREATIONS_DEFAULT_LIMIT, CREATIONS_MAX_LIMIT } from '@shared/data/api/schemas/creations'
 import type { Creation, CreationFiles, CreationKind } from '@shared/data/types/creation'
-import { creationSourceType } from '@shared/data/types/file/ref'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
-import { fileRefService } from './FileRefService'
+import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:CreationService')
 
-type CreationCursor = string | null
-
 const EMPTY_FILES: CreationFiles = { output: [], input: [] }
 
-/** UpdateCreationDto field → DB column. `files`/`kind` are excluded: files live in `file_ref`; kind is immutable. */
+/**
+ * Mapping from UpdateCreationDto field → DB column for the update path.
+ * Exported for test coverage — ensures no DTO field is silently dropped.
+ *
+ * `files` is intentionally NOT in this map: file membership is owned by
+ * `creation_file_ref`, not the creation row. The update path handles it
+ * separately. `kind` is excluded because it is immutable.
+ */
 export const UPDATE_CREATION_FIELD_MAP: Array<keyof UpdateCreationDto> = ['providerId', 'modelId', 'prompt']
 
 function rowToCreation(row: CreationRow, files: CreationFiles): Creation {
@@ -62,35 +67,23 @@ function normalizeModelId(providerId: string, modelId: string | null | undefined
   return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
 }
 
-function decodeCursor(raw: string | undefined): CreationCursor {
-  if (!raw) return null
-  return raw
-}
-
-function encodeCursor(row: CreationRow): string {
-  return row.orderKey
-}
-
-function cursorPredicate(cursor: CreationCursor): SQL | undefined {
-  if (!cursor) return undefined
-  return gt(creationTable.orderKey, cursor)
-}
-
 /**
- * Batch-load file_ref rows for a set of creation ids and group them by creation
- * id and role. Returns a Map from creation id → { output, input }.
+ * Batch-load creation_file_ref rows for a set of creation ids and group them
+ * by creation id and role. Returns a Map from creation id → { output, input }.
+ * Creations with no refs simply don't appear in the map.
  */
-async function loadFilesForCreations(creationIds: readonly string[]): Promise<Map<string, CreationFiles>> {
+function loadFilesForCreations(creationIds: readonly string[]): Map<string, CreationFiles> {
   if (creationIds.length === 0) return new Map()
   const db = application.get('DbService').getDb()
-  const refs = await db
+  const refs = db
     .select({
-      sourceId: fileRefTable.sourceId,
-      fileEntryId: fileRefTable.fileEntryId,
-      role: fileRefTable.role
+      sourceId: creationFileRefTable.sourceId,
+      fileEntryId: creationFileRefTable.fileEntryId,
+      role: creationFileRefTable.role
     })
-    .from(fileRefTable)
-    .where(and(eq(fileRefTable.sourceType, creationSourceType), inArray(fileRefTable.sourceId, [...creationIds])))
+    .from(creationFileRefTable)
+    .where(inArray(creationFileRefTable.sourceId, [...creationIds]))
+    .all()
 
   const grouped = new Map<string, CreationFiles>()
   for (const ref of refs) {
@@ -106,12 +99,13 @@ async function loadFilesForCreations(creationIds: readonly string[]): Promise<Ma
 }
 
 class CreationService {
-  async list(query: ListCreationsQuery): Promise<CreationListResponse> {
+  list(query: ListCreationsQuery): CreationListResponse {
     const db = application.get('DbService').getDb()
     const conditions: SQL[] = []
     const filterConditions: SQL[] = []
     const limit = Math.min(query.limit ?? CREATIONS_DEFAULT_LIMIT, CREATIONS_MAX_LIMIT)
-    const cursor = decodeCursor(query.cursor)
+    const ordering = keysetOrdering(creationTable.orderKey, creationTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'creation')
 
     if (query.kind) {
       filterConditions.push(eq(creationTable.kind, query.kind))
@@ -122,54 +116,56 @@ class CreationService {
 
     conditions.push(...filterConditions)
 
-    const afterCursor = cursorPredicate(cursor)
-    if (afterCursor) {
-      conditions.push(afterCursor)
+    if (cursor) {
+      conditions.push(ordering.where(cursor))
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-    const [rows, countResult] = await Promise.all([
-      db
-        .select()
-        .from(creationTable)
-        .where(whereClause)
-        .orderBy(asc(creationTable.orderKey))
-        .limit(limit + 1),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(creationTable)
-        .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
-    ])
+    const rows = db
+      .select()
+      .from(creationTable)
+      .where(whereClause)
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+    const countResult = db
+      .select({ count: sql<number>`count(*)` })
+      .from(creationTable)
+      .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
+      .all()
     const pageRows = rows.slice(0, limit)
-    const filesByCreation = await loadFilesForCreations(pageRows.map((r) => r.id))
+    const filesByCreation = loadFilesForCreations(pageRows.map((r) => r.id))
 
     return {
       items: pageRows.map((row) => rowToCreation(row, filesByCreation.get(row.id) ?? EMPTY_FILES)),
       total: countResult[0]?.count ?? 0,
-      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
+      nextCursor:
+        rows.length > limit
+          ? encodeCursor(pageRows[pageRows.length - 1].orderKey, pageRows[pageRows.length - 1].id)
+          : undefined
     }
   }
 
-  async getById(id: string): Promise<Creation> {
+  getById(id: string): Creation {
     const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(creationTable).where(eq(creationTable.id, id)).limit(1)
+    const [row] = db.select().from(creationTable).where(eq(creationTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Creation', id)
     }
 
-    const filesByCreation = await loadFilesForCreations([row.id])
+    const filesByCreation = loadFilesForCreations([row.id])
     return rowToCreation(row, filesByCreation.get(row.id) ?? EMPTY_FILES)
   }
 
-  async create(dto: CreateCreationDto): Promise<Creation> {
-    const db = application.get('DbService').getDb()
+  create(dto: CreateCreationDto): Creation {
+    const dbService = application.get('DbService')
 
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
-          const inserted = await insertWithOrderKey(
+        dbService.withWriteTx((tx) => {
+          const inserted = insertWithOrderKey(
             tx,
             creationTable,
             {
@@ -187,26 +183,35 @@ class CreationService {
 
           const insertedRow = inserted as CreationRow
           const now = Date.now()
-          const refRows = await buildCreationRefRowsFiltered(tx, insertedRow.id, dto.files, now)
+          const refRows = buildCreationRefRowsFiltered(tx, insertedRow.id, dto.files, now)
           if (refRows.length > 0) {
-            await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
+            tx.insert(creationFileRefTable).values(refRows).onConflictDoNothing().run()
           }
           return insertedRow
         }),
       defaultHandlersFor('Creation', dto.id ?? '')
     )
 
-    logger.info('Created creation', { id: row.id, kind: row.kind, providerId: row.providerId })
+    logger.info('Created creation', {
+      id: row.id,
+      kind: row.kind,
+      providerId: row.providerId
+    })
 
-    // Return the requested `dto.files` (not the persisted refs): until the renderer creates
-    // outputs via `createInternalEntry`, some ids may lack `file_entry` rows and be dropped by
-    // the ref filter. Mirrors the former PaintingService behavior.
+    // Return the requested `dto.files`, NOT the persisted refs. During the
+    // v1→v2 transition the renderer attaches outputs through the legacy
+    // FileManager path, so their `file_entry` rows don't exist yet and
+    // `buildCreationRefRowsFiltered` drops every id — re-hydrating here would
+    // hand back empty files for a creation the caller just populated. The
+    // divergence from `list`/`get` (which read `creation_file_ref`) is intentional
+    // and disappears once the renderer cuts over to `createInternalEntry`.
     return rowToCreation(row, dto.files)
   }
 
-  async update(id: string, dto: UpdateCreationDto): Promise<Creation> {
-    const db = application.get('DbService').getDb()
-    const [existing] = await db.select().from(creationTable).where(eq(creationTable.id, id)).limit(1)
+  update(id: string, dto: UpdateCreationDto): Creation {
+    const dbService = application.get('DbService')
+    const db = dbService.getDb()
+    const [existing] = db.select().from(creationTable).where(eq(creationTable.id, id)).limit(1).all()
     if (!existing) {
       throw DataApiErrorFactory.notFound('Creation', id)
     }
@@ -227,16 +232,16 @@ class CreationService {
     const filesDirty = dto.files !== undefined
 
     if (Object.keys(updates).length === 0 && !filesDirty) {
-      const filesByCreation = await loadFilesForCreations([existing.id])
+      const filesByCreation = loadFilesForCreations([existing.id])
       return rowToCreation(existing, filesByCreation.get(existing.id) ?? EMPTY_FILES)
     }
 
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
+        dbService.withWriteTx((tx) => {
           let target = existing
           if (Object.keys(updates).length > 0) {
-            const [updated] = await tx.update(creationTable).set(updates).where(eq(creationTable.id, id)).returning()
+            const [updated] = tx.update(creationTable).set(updates).where(eq(creationTable.id, id)).returning().all()
             if (!updated) {
               throw DataApiErrorFactory.notFound('Creation', id)
             }
@@ -244,11 +249,15 @@ class CreationService {
           }
 
           if (filesDirty) {
-            // Wholesale replacement: `files` is the complete final state.
-            await fileRefService.cleanupBySourceTx(tx, { sourceType: creationSourceType, sourceId: id })
-            const refRows = await buildCreationRefRowsFiltered(tx, id, dto.files, Date.now())
+            // Replace the creation's file refs wholesale: clear existing refs,
+            // then insert the new set. Wholesale replacement matches DTO
+            // semantics — `files` is the complete final state — and avoids
+            // per-id diffing that would also need to honor the UNIQUE
+            // (fileEntryId, sourceId, role) constraint.
+            tx.delete(creationFileRefTable).where(eq(creationFileRefTable.sourceId, id)).run()
+            const refRows = buildCreationRefRowsFiltered(tx, id, dto.files, Date.now())
             if (refRows.length > 0) {
-              await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
+              tx.insert(creationFileRefTable).values(refRows).onConflictDoNothing().run()
             }
           }
           return target
@@ -257,82 +266,101 @@ class CreationService {
     )
 
     logger.info('Updated creation', { id, changes: Object.keys(dto) })
-    const files = filesDirty ? dto.files! : ((await loadFilesForCreations([row.id])).get(row.id) ?? EMPTY_FILES)
+    // On a files write, echo the requested `dto.files` for the same reason as
+    // `create` (transition-era ids aren't in `file_entry` yet, so the persisted
+    // refs would under-report). Otherwise hydrate from the stored refs.
+    const files = filesDirty ? dto.files! : (loadFilesForCreations([row.id]).get(row.id) ?? EMPTY_FILES)
     return rowToCreation(row, files)
   }
 
-  async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await this.getById(id)
-    await withSqliteErrors(
-      () =>
-        db.transaction(async (tx) => {
-          await tx.delete(creationTable).where(eq(creationTable.id, id))
-          await fileRefService.cleanupBySourceTx(tx, { sourceType: creationSourceType, sourceId: id })
-        }),
+  delete(id: string): void {
+    this.getById(id)
+    // creation_file_ref rows are removed by the FK cascade.
+    withSqliteErrors(
+      () => application.get('DbService').getDb().delete(creationTable).where(eq(creationTable.id, id)).run(),
       defaultHandlersFor('Creation', id)
     )
     logger.info('Deleted creation', { id })
   }
 
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const db = application.get('DbService').getDb()
+  reorder(id: string, anchor: OrderRequest): void {
+    const dbService = application.get('DbService')
 
-    await db.transaction(async (tx) => {
-      const [target] = await tx.select().from(creationTable).where(eq(creationTable.id, id)).limit(1)
+    dbService.withWriteTx((tx) => {
+      const [target] = tx.select().from(creationTable).where(eq(creationTable.id, id)).limit(1).all()
       if (!target) {
         throw DataApiErrorFactory.notFound('Creation', id)
       }
 
-      await applyMoves(tx, creationTable, [{ id, anchor }], { pkColumn: creationTable.id })
+      applyMoves(tx, creationTable, [{ id, anchor }], {
+        pkColumn: creationTable.id
+      })
 
-      logger.info('Reordered creations', { count: 1 })
+      logger.info('Reordered creations', {
+        count: 1
+      })
     })
   }
 
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    await db.transaction(async (tx) => {
+    dbService.withWriteTx((tx) => {
       for (const move of moves) {
-        const [target] = await tx.select().from(creationTable).where(eq(creationTable.id, move.id)).limit(1)
+        const [target] = tx.select().from(creationTable).where(eq(creationTable.id, move.id)).limit(1).all()
         if (!target) {
           throw DataApiErrorFactory.notFound('Creation', move.id)
         }
       }
 
-      await applyMoves(tx, creationTable, moves, { pkColumn: creationTable.id })
+      applyMoves(tx, creationTable, moves, {
+        pkColumn: creationTable.id
+      })
 
-      logger.info('Reordered creations', { count: moves.length })
+      logger.info('Reordered creations', {
+        count: moves.length
+      })
     })
   }
 }
 
 /**
- * Build the `file_ref` rows for a creation, **filtered against `file_entry`** so
- * dangling ids don't trip the FK constraint (matches the former PaintingService helper).
+ * Build the `creation_file_ref` rows for a creation, **filtered against `file_entry`**
+ * so dangling ids don't trip the FK constraint.
+ *
+ * During the v1→v2 transition the renderer still writes new creation outputs
+ * through the legacy `FileManager.addFiles` path (Dexie + disk only), so the
+ * v2 `file_entry` row doesn't exist for those ids yet. Pre-filtering keeps
+ * the creation create/update succeeding for v2-migrated creations (whose ids
+ * are already in `file_entry`) while letting v1-side ids drop silently —
+ * matches the same defensive pattern the `PaintingMigrator` uses on backfill.
+ *
+ * The dropped ids are logged so the gap is visible in dev consoles until
+ * the renderer cuts over to `window.api.file.createInternalEntry`. After
+ * that cutover all ids should resolve and the filter becomes a no-op.
  */
-async function buildCreationRefRowsFiltered(
+function buildCreationRefRowsFiltered(
   tx: Pick<DbType, 'select'>,
   creationId: string,
   files: CreationFiles | undefined,
   now: number
-): Promise<Array<typeof fileRefTable.$inferInsert>> {
+): Array<typeof creationFileRefTable.$inferInsert> {
   if (!files) return []
   const requested = new Set<string>()
   for (const id of files.output) requested.add(id)
   for (const id of files.input) requested.add(id)
   if (requested.size === 0) return []
 
-  const existing = await tx
+  const existing = tx
     .select({ id: fileEntryTable.id })
     .from(fileEntryTable)
     .where(inArray(fileEntryTable.id, [...requested]))
+    .all()
   const existingIds = new Set(existing.map((r) => r.id))
 
-  const rows: Array<typeof fileRefTable.$inferInsert> = []
+  const rows: Array<typeof creationFileRefTable.$inferInsert> = []
   let dropped = 0
   for (const fileId of files.output) {
     if (!existingIds.has(fileId)) {
@@ -341,7 +369,6 @@ async function buildCreationRefRowsFiltered(
     }
     rows.push({
       fileEntryId: fileId,
-      sourceType: creationSourceType,
       sourceId: creationId,
       role: 'output',
       createdAt: now,
@@ -355,7 +382,6 @@ async function buildCreationRefRowsFiltered(
     }
     rows.push({
       fileEntryId: fileId,
-      sourceType: creationSourceType,
       sourceId: creationId,
       role: 'input',
       createdAt: now,

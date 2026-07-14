@@ -3,9 +3,9 @@ import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import type { URLString } from '@shared/types/file/common'
+import type { UrlString } from '@shared/types/file'
 
 import { providerToAiSdkConfig } from '../../config'
 import { createAbortError } from '../transportUtils'
@@ -164,7 +164,7 @@ async function persistVideoArtifacts(artifacts: VideoArtifact[], signal: AbortSi
     if (signal.aborted) throw createAbortError('Video generation aborted')
     try {
       if ('url' in artifact) {
-        files.push(await fileManager.createInternalEntry({ source: 'url', url: artifact.url as URLString }))
+        files.push(await fileManager.createInternalEntry({ source: 'url', url: artifact.url as UrlString }))
       } else {
         const ext = (artifact.mediaType?.split('/')[1] || 'mp4').replace(/[^a-z0-9]/gi, '') || 'mp4'
         files.push(await fileManager.createInternalEntry({ source: 'bytes', data: artifact.bytes, name: 'video', ext }))

@@ -1,8 +1,9 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
-import type { ProviderType } from '@renderer/types'
-import { validateApiHost } from '@renderer/utils'
+import { toast } from '@renderer/services/toast'
+import type { ProviderType } from '@renderer/types/provider'
+import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
@@ -73,7 +74,7 @@ export function useProviderDeepLinkImport(
         const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
         if (updatedProvider.apiHost && !validateApiHost(updatedProvider.apiHost)) {
           logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
-          window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+          toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
           void navigate({ to: '/settings/provider' })
           return
         }
@@ -109,10 +110,10 @@ export function useProviderDeepLinkImport(
 
         onSelectProvider(providerId)
         void navigate({ to: '/settings/provider', search: { id: providerId } })
-        window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
+        toast.success(t('settings.models.provider_key_added', { provider: displayName }))
       } catch (error) {
         logger.error('Failed to import provider deep link data', error as Error)
-        window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
       }
     }
@@ -121,7 +122,7 @@ export function useProviderDeepLinkImport(
       const parsed = JSON.parse(searchAddProviderData) as ImportedProviderSearchData
 
       if (!parsed.id || !parsed.apiKey || !parsed.baseUrl) {
-        window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
         return
       }
@@ -129,7 +130,7 @@ export function useProviderDeepLinkImport(
       void importProvider(parsed)
     } catch (error) {
       logger.error('Failed to parse provider deep link import data', error as Error)
-      window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+      toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       void navigate({ to: '/settings/provider' })
     }
   }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, searchAddProviderData, t, updateProviderById])

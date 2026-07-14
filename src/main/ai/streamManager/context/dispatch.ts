@@ -7,7 +7,7 @@
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 
-import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode/settingsBuilder'
+import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
@@ -40,7 +40,17 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
 }
 
-export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
+export type MainDispatchRequest = (
+  | AiStreamOpenRequest
+  | MainContinueConversationRequest
+  | MainSteerContinuationRequest
+) & {
+  /**
+   * Main-only dispatch flag: the run has no interactive responder (channel message, scheduled
+   * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
+   */
+  headless?: boolean
+}
 
 const logger = loggerService.withContext('chatContextDispatch')
 

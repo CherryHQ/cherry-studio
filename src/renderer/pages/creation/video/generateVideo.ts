@@ -1,12 +1,13 @@
-import type { FileMetadata } from '@renderer/types'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import { ipcApi } from '@renderer/ipc'
+import type { FileMetadata } from '@renderer/types/file'
+import type { FileEntry } from '@shared/data/types/file'
 
 import { fileEntryToMetadata } from '../../paintings/utils/fileEntryAdapter'
 
 /**
  * Renderer → main bridge for video generation. Mirrors `generatePainting`: partitions the
  * canonical form params into the AI SDK top-level video fields vs the vendor bag, encodes media
- * inputs to data URLs, calls `window.api.ai.generateVideo`, and adapts the persisted result
+ * inputs to data URLs, calls the `ai.generate_video` IpcApi route, and adapts the persisted result
  * FileEntries to FileMetadata for display.
  */
 
@@ -57,11 +58,12 @@ export async function generateVideoRequest(input: GenerateVideoInput): Promise<F
   const lastFrame = input.lastFrame ? await encodeMedia(input.lastFrame) : undefined
 
   const requestId = crypto.randomUUID()
-  const onAbort = () => window.api.ai.abortVideo(requestId)
+  const onAbort = () => void ipcApi.request('ai.abort_video', { requestId })
   input.signal.addEventListener('abort', onAbort, { once: true })
   try {
-    const result = await window.api.ai.generateVideo(
-      {
+    const result = await ipcApi.request('ai.generate_video', {
+      requestId,
+      payload: {
         uniqueModelId: `${input.providerId}::${input.modelId}`,
         prompt: input.prompt,
         ...(firstFrame && { firstFrame }),
@@ -73,9 +75,8 @@ export async function generateVideoRequest(input: GenerateVideoInput): Promise<F
         ...(seed !== undefined && { seed }),
         ...(typeof top.negativePrompt === 'string' && top.negativePrompt && { negativePrompt: top.negativePrompt }),
         ...(Object.keys(bag).length > 0 && { providerOptions: { [input.providerId]: bag } })
-      },
-      requestId
-    )
+      }
+    })
     if (input.signal.aborted) throw new DOMException('Video generation aborted', 'AbortError')
     return Promise.all(result.files.map(fileEntryToMetadata))
   } finally {

@@ -163,7 +163,7 @@ src/main/ai/
 ├── AiService.ts                  ← lifecycle owner, IPC entry (generate / translate / approval)
 ├── runtime/                      ← execution backends: runtime/aiSdk (Agent + params), runtime/claudeCode
 ├── agentSession/                 ← agent-session topic host
-├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, cherryclaw
+├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, prompt, heartbeat
 ├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
 ├── streamManager/                ← AiStreamManager, listeners, persistence (registers the stream IPC)
 ├── provider/                     ← provider config, endpoint resolution, custom providers
@@ -175,7 +175,7 @@ src/main/ai/
 ├── types/                        ← AppProviderId, merged types, request types
 └── utils/                        ← reasoning / model parameters / options / websearch
 
-src/renderer/transport/           ← IpcChatTransport, dispatch coordinator
+src/renderer/services/aiTransport/ ← IpcChatTransport, dispatch coordinator
 src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)

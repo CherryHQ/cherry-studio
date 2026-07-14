@@ -107,8 +107,8 @@ describe('BootConfigService', () => {
       // Save should not happen immediately
       expect(mockFs.writeFileSync).not.toHaveBeenCalled()
 
-      // Advance past debounce (500 ms)
-      vi.advanceTimersByTime(500)
+      // Advance past debounce (350 ms)
+      vi.advanceTimersByTime(350)
 
       expect(mockFs.writeFileSync).toHaveBeenCalledWith(TEMP_PATH, expect.any(String), 'utf-8')
       expect(mockRenameSync).toHaveBeenCalledWith(TEMP_PATH, CONFIG_PATH)
@@ -143,6 +143,156 @@ describe('BootConfigService', () => {
 
       // No pending save, so no file write should occur
       expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+    })
+  })
+
+  // ---------- persist (strict save) ----------
+
+  describe('persist', () => {
+    it('throws when writeFileSync fails', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+
+      mockFs.writeFileSync.mockImplementationOnce(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+
+      expect(() => service.persist()).toThrow('ENOSPC')
+    })
+
+    it('throws when renameSync fails', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+
+      mockRenameSync.mockImplementationOnce(() => {
+        throw new Error('EXDEV: cross-device link not permitted')
+      })
+
+      expect(() => service.persist()).toThrow('EXDEV')
+    })
+
+    it('throws when unlink fails with a non-ENOENT error, even if existsSync reports the file absent', async () => {
+      // existsSync stays false throughout: it must NOT gate the delete (existsSync
+      // folds stat/permission errors into `false`, which would mask a real file and
+      // let persist() falsely succeed while stale config stays on disk).
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+      service.persist()
+
+      // Resetting the value to default triggers the delete path.
+      mockFs.unlinkSync.mockImplementationOnce(() => {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      })
+      service.set('app.disable_hardware_acceleration', false)
+
+      expect(() => service.persist()).toThrow('EACCES')
+    })
+
+    it('treats an ENOENT unlink (file already gone) as success', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+      service.persist()
+
+      mockFs.unlinkSync.mockImplementationOnce(() => {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      })
+      service.set('app.disable_hardware_acceleration', false)
+
+      // ENOENT means the desired state (no file) already holds → not an error.
+      expect(() => service.persist()).not.toThrow()
+      expect(mockFs.unlinkSync).toHaveBeenCalledTimes(1)
+    })
+
+    it('retains dirty after a non-ENOENT unlink failure so a later persist retries', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+      service.persist()
+
+      mockFs.unlinkSync.mockImplementationOnce(() => {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      })
+      service.set('app.disable_hardware_acceleration', false)
+
+      expect(() => service.persist()).toThrow('EACCES')
+
+      // dirty retained → retry deletes successfully.
+      service.persist()
+      expect(mockFs.unlinkSync).toHaveBeenCalledTimes(2)
+    })
+
+    it('is a no-op when nothing is dirty', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+
+      expect(() => service.persist()).not.toThrow()
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+    })
+
+    it('cancels the pending debounce timer so no duplicate save fires', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+      service.persist()
+
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(1000)
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // ---------- dirty state and retry ----------
+
+  describe('dirty state and retry', () => {
+    it('retains dirty after a failed flush so a later flush retries and writes', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+
+      // First attempt fails; flush swallows the error but must keep the state dirty.
+      mockFs.writeFileSync.mockImplementationOnce(() => {
+        throw new Error('ENOSPC')
+      })
+      service.flush()
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
+      expect(mockRenameSync).not.toHaveBeenCalled()
+
+      // Second flush retries and, with fs healthy again, persists successfully.
+      service.flush()
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(2)
+      expect(mockRenameSync).toHaveBeenCalledTimes(1)
+    })
+
+    it('retains dirty after a failed background save so a later flush retries', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+
+      // The debounced auto-save fires and fails — it must not throw out of the
+      // timer callback, and the state must stay dirty for a later retry.
+      mockFs.writeFileSync.mockImplementationOnce(() => {
+        throw new Error('ENOSPC')
+      })
+      expect(() => vi.advanceTimersByTime(350)).not.toThrow()
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
+
+      service.flush()
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(2)
+      expect(mockRenameSync).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -263,7 +413,7 @@ describe('BootConfigService', () => {
     })
 
     it('creates parent directory if it does not exist', async () => {
-      // First call in loadSync (file doesn't exist), subsequent calls in saveSync
+      // First call in loadSync (file doesn't exist), subsequent calls in writeToDisk
       mockFs.existsSync.mockReturnValue(false)
 
       const service = await createService()
@@ -275,14 +425,16 @@ describe('BootConfigService', () => {
 
     it('does not throw when save fails', async () => {
       mockFs.existsSync.mockReturnValue(false)
-      mockFs.writeFileSync.mockImplementation(() => {
+      mockFs.writeFileSync.mockImplementationOnce(() => {
         throw new Error('ENOSPC')
       })
 
       const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
 
-      // Should not throw
+      // flush is best-effort: it swallows the write failure instead of throwing.
       expect(() => service.flush()).not.toThrow()
+      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -404,7 +556,7 @@ describe('BootConfigService', () => {
       service.set('app.disable_hardware_acceleration', false)
       service.set('app.disable_hardware_acceleration', true)
 
-      vi.advanceTimersByTime(500)
+      vi.advanceTimersByTime(350)
 
       expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
 

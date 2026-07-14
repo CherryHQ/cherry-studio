@@ -1,4 +1,4 @@
-import type { ApiClient, Model } from '@types'
+import type { ApiClient, Model } from '@renderer/types/model'
 
 import type { FileMetadata } from './file'
 
@@ -92,7 +92,6 @@ export interface KnowledgeBase {
   documentCount?: number
   chunkSize?: number
   chunkOverlap?: number
-  threshold?: number
   rerankModel?: Model
   // topN?: number
   // preprocessing?: boolean

@@ -1,9 +1,8 @@
-import { cn } from '@renderer/utils'
-import { ChevronDown } from 'lucide-react'
+import { cn } from '@renderer/utils/style'
 import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
 
+import { StreamingContext } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { StreamingContext } from './GenericTools'
 
 export function AgentToolDisclosureLabel({
   label,
@@ -77,22 +76,12 @@ export function AgentToolDisclosure({
           aria-expanded={canExpand ? isExpanded : undefined}
           aria-controls={canExpand ? contentId : undefined}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
+            'flex w-fit items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
             item.classNames?.header
           )}
           onClick={isInteractive ? openOrToggle : undefined}
           onKeyDown={handleHeaderKeyDown}>
           {item.label}
-          {canExpand && (
-            <ChevronDown
-              aria-hidden="true"
-              size={16}
-              className={cn(
-                'ml-auto shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
-                isExpanded && 'rotate-180'
-              )}
-            />
-          )}
         </div>
         {canExpand && (
           <div

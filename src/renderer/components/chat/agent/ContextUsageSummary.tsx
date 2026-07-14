@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import { useTranslation } from 'react-i18next'
 

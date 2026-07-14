@@ -1,13 +1,19 @@
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
-const mockEmbedMany = vi.fn()
+const mockSettingsNavigate = vi.fn()
+// embedMany (via useEmbeddingDimensions) goes through ipcApi.request('ai.embed_many', …) now.
+const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -23,18 +29,25 @@ vi.mock('../KnowledgeModelSelect', () => ({
     value,
     placeholder,
     onChange,
+    onSettingsNavigate,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
     onChange: (modelId: string | null) => void
+    onSettingsNavigate?: (navigate: () => void) => void
     'aria-label'?: string
   }) => (
-    <input
-      aria-label={ariaLabel ?? placeholder}
-      value={value ?? ''}
-      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
-    />
+    <>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+      <button type="button" onClick={() => onSettingsNavigate?.(mockSettingsNavigate)}>
+        open model settings
+      </button>
+    </>
   )
 }))
 
@@ -44,13 +57,31 @@ vi.mock('@cherrystudio/ui', async () => {
 
   return {
     Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
-      <button {...props}>{loading ? 'loading' : children}</button>
+      <button type="button" {...props}>
+        {loading ? 'loading' : children}
+      </button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
-      <div role="dialog" data-size={size} {...props}>
-        {children}
-      </div>
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      size,
+      ...props
+    }: {
+      children: ReactNode
+      closeOnOverlayClick?: boolean
+      size?: string
+      [key: string]: unknown
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" data-size={size} {...props}>
+          {children}
+        </div>
+      )
+    },
+    DialogDescription: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <p {...props}>{children}</p>
     ),
     DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
@@ -104,6 +135,8 @@ vi.mock('react-i18next', () => ({
           'common.name': '名称',
           'common.cancel': '取消',
           'knowledge.embedding_model': '嵌入模型',
+          'knowledge.error.missing_embedding_model':
+            '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.dimensions': '嵌入维度',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
@@ -120,16 +153,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-Object.assign(window, {
-  api: {
-    ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api,
-    ai: {
-      ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api?.ai,
-      embedMany: mockEmbedMany
-    }
-  }
-})
-
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: 'source-base',
   name: 'Legacy KB',
@@ -140,12 +163,11 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: undefined,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   documentCount: undefined,
   status: 'failed',
   error: 'missing_embedding_model',
-  searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -161,12 +183,6 @@ describe('RestoreKnowledgeBaseDialog', () => {
       providers: [{ id: 'openai', isEnabled: true }]
     })
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
-    Object.assign(window, {
-      toast: {
-        error: vi.fn(),
-        warning: vi.fn()
-      }
-    })
   })
 
   it('renders the localized backup name and submits restoreBase with the selected embedding model', async () => {
@@ -215,7 +231,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
     expect(onOpenChange).toHaveBeenCalledWith(false)
     // Nothing was skipped, so the user is not warned.
-    expect(window.toast.warning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('warns the user when restore skipped items whose source is gone', async () => {
@@ -245,8 +261,8 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
     // The skipped count is surfaced via a warning toast (not silently dropped); the base still restores.
-    expect(window.toast.warning).toHaveBeenCalledTimes(1)
-    expect(window.toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
   })
 
@@ -395,5 +411,71 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(restoreBase).not.toHaveBeenCalled()
+  })
+
+  it('unmounts the restore dialog before navigating to model settings', () => {
+    let pendingNavigation: FrameRequestCallback | undefined
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      pendingNavigation = callback
+      return 1
+    })
+    const restoreBase = vi.fn().mockResolvedValue({ base: createKnowledgeBase(), skippedMissingSourceCount: 0 })
+
+    const Host = () => {
+      const [open, setOpen] = useState(true)
+      return open ? (
+        <RestoreKnowledgeBaseDialog
+          open
+          base={createKnowledgeBase()}
+          isRestoring={false}
+          restoreBase={restoreBase}
+          onOpenChange={setOpen}
+          onRestored={vi.fn()}
+        />
+      ) : null
+    }
+
+    render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: 'open model settings' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockSettingsNavigate).not.toHaveBeenCalled()
+
+    act(() => pendingNavigation?.(0))
+
+    expect(mockSettingsNavigate).toHaveBeenCalledTimes(1)
+    requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('explains why the base failed so the user knows what they are rebuilding', () => {
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
+        isRestoring={false}
+        restoreBase={vi.fn()}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
+  })
+
+  it('omits the failure reason for a healthy base', () => {
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'completed', error: null })}
+        isRestoring={false}
+        restoreBase={vi.fn()}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
+    ).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,6 @@
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { Provider } from '@shared/data/types/provider'
 import { GripVertical, MoreVertical } from 'lucide-react'
 import type { ReactNode } from 'react'

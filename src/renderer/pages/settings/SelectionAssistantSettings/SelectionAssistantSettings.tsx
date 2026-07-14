@@ -1,19 +1,6 @@
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
-import { ipcApi } from '@renderer/ipc'
-import { cn } from '@renderer/utils/style'
-import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Link } from '@tanstack/react-router'
-import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
+import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import {
   SettingDescription,
   SettingDivider,
@@ -22,7 +9,20 @@ import {
   SettingRowTitle,
   SettingsContentColumn,
   SettingTitle
-} from '..'
+} from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
+import { isLinux, isMac, isWin } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
+import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import { Link } from '@tanstack/react-router'
+import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
 import SelectionActionsList from './components/SelectionActionsList'
 import SelectionFilterListModal from './components/SelectionFilterListModal'
@@ -58,7 +58,7 @@ const SelectionAssistantSettings: FC = () => {
   // force disable selection assistant on non-windows systems
   useEffect(() => {
     const checkMacProcessTrust = async () => {
-      const isTrusted = await window.api.mac.isProcessTrusted()
+      const isTrusted = await ipcApi.request('system.mac.is_process_trusted')
       if (!isTrusted) {
         void setSelectionEnabled(false)
       }
@@ -82,7 +82,7 @@ const SelectionAssistantSettings: FC = () => {
     if (!isSupportedOS) return
 
     if (isMac && checked) {
-      const isTrusted = await window.api.mac.isProcessTrusted()
+      const isTrusted = await ipcApi.request('system.mac.is_process_trusted')
       if (!isTrusted) {
         setIsMacTrustModalOpen(true)
         return
@@ -101,7 +101,9 @@ const SelectionAssistantSettings: FC = () => {
             <button
               type="button"
               className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
-              onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
+              onClick={() =>
+                ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
+              }>
               {'FAQ & ' + t('settings.about.feedback.button')}
             </button>
           </div>
@@ -121,7 +123,13 @@ const SelectionAssistantSettings: FC = () => {
 
         {!selectionEnabled && (
           <DemoContainer>
-            <SelectionToolbar demo />
+            <SelectionToolbarView
+              actionItems={actionItems?.filter((item) => item.enabled)}
+              isCompact={isCompact}
+              handleAction={() => {}}
+              copyIconStatus="normal"
+              copyIconAnimation="none"
+            />
           </DemoContainer>
         )}
 

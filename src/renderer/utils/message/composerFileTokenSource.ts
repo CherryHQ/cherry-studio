@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import { v4 as uuidv4 } from 'uuid'
 
 const FILE_COMPOSER_TOKEN_ID_PREFIX = 'file:'

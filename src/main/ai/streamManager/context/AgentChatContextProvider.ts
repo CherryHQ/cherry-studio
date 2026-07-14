@@ -4,10 +4,11 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { application } from '@main/core/application'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -16,7 +17,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
-import { runtimeDriverRegistry } from '../../runtime'
+import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
@@ -30,7 +31,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       status: row.status,
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
-      modelSnapshot: row.modelSnapshot ?? undefined,
+      messageSnapshot: row.messageSnapshot ?? undefined,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
@@ -51,13 +52,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const sessionId = extractAgentSessionId(req.topicId)
 
-    const session = await agentSessionService.getById(sessionId)
+    const session = agentSessionService.getById(sessionId)
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
     }
 
     const agentId = session.agentId
-    const agent = await agentService.getAgent(agentId)
+    const agent = agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
@@ -69,7 +70,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    // The agent owns the model it ran — snapshot the agent (with the model nested) so the
+    // header shows the agent first, even after the agent is deleted.
+    const messageSnapshot = {
+      id: agent.id,
+      name: agent.name,
+      // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
+      // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
+      emoji: agent.configuration?.avatar?.trim() || '🤖',
+      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    }
 
     const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? []
@@ -83,7 +93,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       status: 'success',
       searchableText: '',
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,
@@ -98,7 +108,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
-      const savedUserMessage = await agentSessionMessageService.saveMessage({
+      const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId,
         message: {
           id: userMessageId,
@@ -107,8 +117,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
           data: { parts: userMessageParts }
         }
       })
+      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
+      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
+      application
+        .get('AgentSessionRuntimeService')
+        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true, messageSnapshot })
 
       return {
         topicId: req.topicId,
@@ -124,7 +138,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     // Container trace: one trace tree per session. The turn's `ai.turn` span is a
     // child under it; Claude Code child spans join via the connection's TRACEPARENT.
-    const traceId = await agentSessionService.ensureTraceId(sessionId)
+    const traceId = agentSessionService.ensureTraceId(sessionId)
     const turnTrace = startAiChildTurnSpan(
       'ai.turn',
       {
@@ -142,7 +156,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     )
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    const savedMessages = await agentSessionMessageService.saveMessages({
+    const savedMessages = agentSessionMessageService.saveMessages({
       sessionId,
       messages: [
         {
@@ -157,10 +171,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
           status: 'pending',
           data: { parts: [] },
           modelId: uniqueModelId,
-          modelSnapshot
+          messageSnapshot
         }
       ]
     })
+    // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
+    topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {
@@ -179,7 +195,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       assistantMessageId,
       userMessage,
-      traceId
+      headless: req.headless === true,
+      traceId,
+      messageSnapshot
     })
 
     return {
@@ -199,7 +217,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
             messageId: assistantMessageId,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
-          rootSpan: turnTrace.rootSpan
+          rootSpan: turnTrace.rootSpan,
+          abortController: runtime.abortController
         }
       ],
       userMessageId,

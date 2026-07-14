@@ -76,7 +76,7 @@ function SettingsLayout() {
 打开新 Tab 或切换到已有 Tab，使用 `useTabs` hook：
 
 ```typescript
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
   const { openTab, closeTab } = useTabs()
@@ -169,14 +169,24 @@ AppShell
 - 使用 React 19 `<Activity>` 组件控制可见性
 - Tab 切换时组件不卸载，状态完全保持（KeepAlive）
 
+## 错误处理
+
+| 层级 | 机制 | 作用范围 |
+|---|---|---|
+| 路由 render 错误 | 每 tab router 的 `defaultErrorComponent: RouteErrorFallback`（`TabRouter.tsx`） | 圈禁在抛错 tab 内；带主题的错误卡片，可重试/重载 |
+| Provider render 错误 | 各窗口 App 最外层 `<ErrorBoundary fallbackComponent={WindowFatalFallback}>` | 整窗回退到 context-free 致命错误页，不再白屏 |
+
+- 单个路由可用自己的 `errorComponent` 路由选项覆盖默认
+- 若无 `defaultErrorComponent`，TanStack 以透传 fragment 包裹 match：路由 render 错误会冒泡到窗口级边界，炸掉整窗
+
 ## 文件结构
 
 ```text
 src/renderer/
 ├── routes/                    # 路由页面（TanStack Router 文件路由）
 │   ├── __root.tsx            # 根路由（渲染 Outlet）
-│   ├── index.tsx             # / 首页
 │   ├── settings.tsx          # /settings
+│   ├── settings.index.tsx    # /settings/ 索引路由（平铺点记法——禁止裸 index.tsx）
 │   └── README.md             # 本文档
 ├── components/layout/
 │   ├── AppShell.tsx          # 主布局（Sidebar + TabBar + Content）

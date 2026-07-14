@@ -1,15 +1,9 @@
-/**
- * Tool-renderer dispatcher. Lives outside `MessageTool.tsx` so
- * `MessageMetaTool` can recurse into it for `tool_invoke`'s inner call
- * without setting up a circular module import.
- */
-
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentExecutionTimeline } from './agent'
-import { AgentToolsType, isAskUserQuestionToolName } from './agent/types'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
+import { AgentToolsType, isAskUserQuestionToolName } from './shared/agentToolTypes'
 import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 
 const builtinToolsPrefix = 'builtin_'

@@ -9,7 +9,7 @@ import {
   RequiredMark,
   Tooltip
 } from '@cherrystudio/ui'
-import type { McpPrompt } from '@renderer/types'
+import type { McpPrompt } from '@shared/types/mcp'
 import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'
