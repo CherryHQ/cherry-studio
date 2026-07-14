@@ -103,14 +103,6 @@ export function matchesPreset(provider: Provider, presetId: string): boolean {
   return provider.id === presetId || provider.presetProviderId === presetId
 }
 
-export const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
-
-export function isNoApiKeyProvider(provider: Pick<Provider, 'id' | 'presetProviderId'> | undefined): boolean {
-  return provider
-    ? NO_API_KEY_PROVIDERS.has(provider.id) || NO_API_KEY_PROVIDERS.has(provider.presetProviderId ?? '')
-    : false
-}
-
 /**
  * Canonical preset providers are seeded built-ins whose runtime ID equals the
  * linked preset ID. Preset-derived user providers remain user-manageable.

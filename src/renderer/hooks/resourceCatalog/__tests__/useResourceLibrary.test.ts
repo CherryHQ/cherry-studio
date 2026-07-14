@@ -40,6 +40,12 @@ vi.mock('@renderer/hooks/useTags', () => ({
   useTagList: mocks.useTagList
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => (key === 'agent.builtin.cherry_assistant.description' ? 'Advisor 诊断 helper' : key)
+  })
+}))
+
 function listResult(data: unknown[]) {
   return {
     data,
@@ -123,6 +129,50 @@ describe('useResourceLibrary', () => {
     expect(result.current.allResources).toMatchObject([{ id: 'agent-1', type: 'agent', model: 'Claude Sonnet 4.5' }])
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
     expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
+  })
+
+  it('forwards trimmed agent search to the server and retains the builtin display fallback', () => {
+    mocks.useAgentList.mockReturnValue(
+      listResult([
+        {
+          id: 'agent-1',
+          name: 'Cherry Assistant',
+          description: '',
+          configuration: { builtin_role: 'assistant' },
+          model: null,
+          modelName: null,
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const { result } = renderResourceLibrary({ resourceType: 'agent', search: '诊断' })
+
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: '诊断' })
+    expect(result.current.resources.map((resource) => resource.id)).toEqual(['agent-1'])
+  })
+
+  it('does not apply a second client-only agent search filter', () => {
+    mocks.useAgentList.mockReturnValue(
+      listResult([
+        {
+          id: 'agent-1',
+          name: 'Cherry Assistant',
+          description: '',
+          configuration: { builtin_role: 'assistant' },
+          model: null,
+          modelName: null,
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const { result } = renderResourceLibrary({ resourceType: 'agent', search: 'nonexistent' })
+
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: 'nonexistent' })
+    expect(result.current.resources.map((resource) => resource.id)).toEqual(['agent-1'])
   })
 
   it('omits the agent card model when the backend cannot resolve a modelName', () => {

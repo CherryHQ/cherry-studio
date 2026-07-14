@@ -94,18 +94,30 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
 
+  // Client-addressing mistakes are 400s, not 500s. Notably gemini-cli's internal
+  // utility calls (chat compression, classification) hardcode bare `gemini-*-flash-lite`
+  // model names that can never carry the gateway's providerId prefix — those requests
+  // fail here by design (gemini-cli swallows them silently) and must not read as
+  // gateway server errors in the logs.
+  const asClientError = (error: unknown): Error & { status: number } => {
+    const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
+    err.status = 400
+    return err
+  }
+
   // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
   // override or the request body, then map it to the internal model id.
   const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
   if (!modelString || typeof modelString !== 'string') {
-    throw new Error('Request is missing a "model" field')
+    throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const {
-    providerId,
-    apiModelId: modelId,
-    uniqueModelId,
-    provider: resolvedProvider
-  } = resolveGatewayModelAddress(modelString)
+  let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
+  try {
+    resolvedAddress = resolveGatewayModelAddress(modelString)
+  } catch (error) {
+    throw asClientError(error)
+  }
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
 

@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cherry Studio 內建使用顧問。診斷問題、引導操作、收錄 FAQ、提交 Bug/需求、搜尋和建立 Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "工作區路徑無法存取：{{path}}",
