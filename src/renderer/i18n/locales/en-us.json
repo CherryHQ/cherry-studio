@@ -1467,6 +1467,7 @@
       },
       "toolbar": {
         "customize": "Customize toolbar",
+        "drag_handle": "Drag to reorder",
         "restore_default": "Restore default"
       },
       "tools": {

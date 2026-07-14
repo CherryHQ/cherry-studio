@@ -1467,6 +1467,7 @@
       },
       "toolbar": {
         "customize": "自訂工具列",
+        "drag_handle": "拖曳以重新排序",
         "restore_default": "還原預設"
       },
       "tools": {

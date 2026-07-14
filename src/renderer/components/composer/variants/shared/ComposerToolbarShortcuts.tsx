@@ -198,23 +198,32 @@ export const ComposerToolbarShortcuts = ({
           onReorder={(nextRows) => onPinnedIdsChange(nextRows.map((row) => row.id))}
           direction="vertical"
           gap={2}
-          renderItem={(row, _index, { dragging }) => {
+          // The drag activator lives on the grip handle (below), not the whole row,
+          // so the row stays non-interactive and the Switch keeps its own control boundary.
+          dragHandle
+          itemStyle={{ cursor: 'default' }}
+          renderItem={(row, _index, { dragging, dragHandleProps }) => {
             const candidate = row.candidate
             if (!candidate) return null
+            const label = typeof candidate.label === 'string' ? candidate.label : undefined
             return (
               <div className={CUSTOMIZE_ROW_CLASS}>
-                <span
-                  aria-hidden
+                <button
+                  type="button"
+                  ref={dragHandleProps?.ref}
+                  {...dragHandleProps?.attributes}
+                  {...dragHandleProps?.listeners}
                   data-dragging={dragging ? 'true' : 'false'}
-                  className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+                  aria-label={t('chat.input.toolbar.drag_handle')}
+                  className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 data-[dragging=true]:opacity-100">
                   <GripVertical className="size-4" />
-                </span>
+                </button>
                 <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
                 <span className="min-w-0 flex-1 truncate text-sm">{candidate.label}</span>
                 <Switch
                   size="xs"
                   checked
-                  aria-label={typeof candidate.label === 'string' ? candidate.label : undefined}
+                  aria-label={label}
                   onCheckedChange={() => onPinnedIdsChange(pinnedIds.filter((id) => id !== row.id))}
                 />
               </div>

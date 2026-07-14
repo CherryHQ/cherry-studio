@@ -31,6 +31,11 @@
       "submit": "Enviar",
       "title": "Perguntas do Agente"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "channels": {
       "add": "Adicionar",
       "bindAgent": "Bind Agente",
@@ -1462,6 +1467,7 @@
       },
       "toolbar": {
         "customize": "[to be translated]:Customize toolbar",
+        "drag_handle": "[to be translated]:Drag to reorder",
         "restore_default": "[to be translated]:Restore default"
       },
       "tools": {

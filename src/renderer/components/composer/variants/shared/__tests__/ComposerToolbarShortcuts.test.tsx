@@ -37,11 +37,18 @@ vi.mock('@cherrystudio/ui', () => {
     ReorderableList: (props: any) => {
       mocks.reorderableProps = props
       const rows = props.visibleItems ?? props.items
+      const dragHandleProps = props.dragHandle
+        ? { ref: () => {}, attributes: { role: 'button', tabIndex: 0 }, listeners: {} }
+        : undefined
       return React.createElement(
         React.Fragment,
         null,
         rows.map((item: any, index: number) =>
-          React.createElement('div', { key: props.getId(item) }, props.renderItem(item, index, { dragging: false }))
+          React.createElement(
+            'div',
+            { key: props.getId(item) },
+            props.renderItem(item, index, { dragging: false, dragHandleProps })
+          )
         )
       )
     },
@@ -193,6 +200,18 @@ describe('ComposerToolbarShortcuts', () => {
 
     fireEvent.click(unpinnedSwitch)
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith(['thinking', 'ghost', 'web-search', 'knowledge-base'])
+  })
+
+  it('renders a dedicated, labelled drag handle button per pinned row', () => {
+    renderShortcuts({ customizeOpen: true })
+
+    // dragHandle mode is on so the row itself is not the activator.
+    expect(mocks.reorderableProps.dragHandle).toBe(true)
+    // One handle per resolved pinned row (thinking + web-search; ghost is unresolved).
+    const handles = screen.getAllByRole('button', { name: 'chat.input.toolbar.drag_handle' })
+    expect(handles).toHaveLength(2)
+    // The grip is a real, non-hidden control (not an aria-hidden span).
+    handles.forEach((handle) => expect(handle).not.toHaveAttribute('aria-hidden'))
   })
 
   it('persists reorder results including unresolved pinned ids', () => {

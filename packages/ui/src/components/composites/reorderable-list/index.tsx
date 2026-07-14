@@ -1,15 +1,22 @@
 import { type CSSProperties, type ReactNode, useCallback, useMemo } from 'react'
 
 import { Sortable } from '../sortable'
+import type { SortableDragHandleProps } from '../sortable/types'
 import { reorderVisibleSubset } from './reorder-visible-subset'
 
 type ReorderableItemId = string | number
+
+export type { SortableDragHandleProps }
 
 export interface ReorderableListProps<T> {
   items: T[]
   visibleItems?: T[]
   getId: (item: T) => ReorderableItemId
-  renderItem: (item: T, index: number, state: { dragging: boolean }) => ReactNode
+  renderItem: (
+    item: T,
+    index: number,
+    state: { dragging: boolean; dragHandleProps?: SortableDragHandleProps }
+  ) => ReactNode
   onReorder: (nextItems: T[]) => void | Promise<void>
   layout?: 'list' | 'grid'
   direction?: 'vertical' | 'horizontal'
@@ -20,6 +27,8 @@ export interface ReorderableListProps<T> {
   gap?: number | string
   useDragOverlay?: boolean
   showGhost?: boolean
+  /** Route the drag activator to a handle (via renderItem's `dragHandleProps`). */
+  dragHandle?: boolean
   restrictions?: {
     windowEdges?: boolean
     scrollableAncestor?: boolean
@@ -43,6 +52,7 @@ export function ReorderableList<T>({
   gap,
   useDragOverlay = true,
   showGhost = true,
+  dragHandle = false,
   restrictions,
   onDragStateChange,
   onReorderError
@@ -112,6 +122,7 @@ export function ReorderableList<T>({
       restrictions={restrictions}
       useDragOverlay={useDragOverlay}
       showGhost={showGhost}
+      dragHandle={dragHandle}
     />
   )
 }
