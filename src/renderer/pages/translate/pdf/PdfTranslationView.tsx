@@ -10,9 +10,9 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgress, PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
-import { useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,13 +33,25 @@ export interface PdfTranslationHandle {
   cancel: () => void
 }
 
+export type BabelDocAvailability = 'checking' | 'available' | 'missing'
+
+export interface PdfTextFallback {
+  content: ReactNode
+  ocrRequired: boolean
+}
+
 interface PdfTranslationViewProps {
   file: PdfTranslationFile
   modelId?: UniqueModelId
   sourceLangCode: TranslateSourceLanguage
+  babelDocAvailability: BabelDocAvailability
+  babelDocInstalling: boolean
+  textFallback?: PdfTextFallback
   onClose: () => void
   onHandleChange: (handle: PdfTranslationHandle | null) => void
   onStatusChange: (status: PdfTranslationStatus) => void
+  onInstallBabelDoc: () => void
+  onBabelDocUnavailable: () => void
 }
 
 interface PdfTranslationOutput {
@@ -71,12 +83,16 @@ const PdfTranslationView = ({
   file,
   modelId,
   sourceLangCode,
+  babelDocAvailability,
+  babelDocInstalling,
+  textFallback,
   onClose,
   onHandleChange,
-  onStatusChange
+  onStatusChange,
+  onInstallBabelDoc,
+  onBabelDocUnavailable
 }: PdfTranslationViewProps) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const [phase, setPhase] = useState<PdfTranslationPhase>('idle')
   const [output, setOutput] = useState<PdfTranslationOutput | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -133,12 +149,15 @@ const PdfTranslationView = ({
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
+          if (normalized instanceof IpcError && normalized.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED) {
+            onBabelDocUnavailable()
+          }
           setError(normalized)
           setProgress(null)
           setPhase('error')
         })
     },
-    [file.path, modelId, sourceLangCode, t]
+    [file.path, modelId, onBabelDocUnavailable, sourceLangCode, t]
   )
 
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
@@ -211,11 +230,8 @@ const PdfTranslationView = ({
         : null
   const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
   const ocrRequired = error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED
-  const errorDescription = dependencyMissing
-    ? t('translate.pdf.error.dependency_missing')
-    : ocrRequired
-      ? t('translate.pdf.error.ocr_required')
-      : error?.message
+  const errorDescription = ocrRequired ? t('translate.pdf.error.ocr_required') : error?.message
+  const showBabelDocPrompt = babelDocAvailability === 'missing' || dependencyMissing
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -245,7 +261,9 @@ const PdfTranslationView = ({
         <PdfPane
           header={
             <>
-              <span className="shrink-0 text-foreground-muted text-xs">{t('translate.pdf.pane.translated')}</span>
+              <span className="shrink-0 text-foreground-muted text-xs">
+                {textFallback ? t('translate.pdf.pane.translated_text') : t('translate.pdf.pane.translated')}
+              </span>
               {statusLabel && <span className="truncate text-foreground-muted text-xs">{statusLabel}</span>}
               <span className="flex-1" />
               {output && (
@@ -279,14 +297,34 @@ const PdfTranslationView = ({
                 <LoadingState label={statusLabel ?? undefined} />
               )}
             </div>
-          ) : error ? (
+          ) : textFallback?.ocrRequired ? (
             <EmptyState
               icon={AlertCircle}
               title={t('translate.pdf.error.title')}
-              description={errorDescription}
-              actionLabel={dependencyMissing ? t('translate.pdf.action.open_dependencies') : undefined}
-              onAction={dependencyMissing ? () => navigate({ to: '/settings/dependencies' }) : undefined}
+              description={t('translate.pdf.error.ocr_required')}
             />
+          ) : textFallback ? (
+            textFallback.content
+          ) : babelDocAvailability === 'checking' ? (
+            <div className="flex h-full items-center justify-center">
+              <LoadingState label={t('translate.pdf.dependency.checking')} />
+            </div>
+          ) : showBabelDocPrompt ? (
+            babelDocInstalling ? (
+              <div className="flex h-full items-center justify-center">
+                <LoadingState label={t('translate.pdf.dependency.installing')} />
+              </div>
+            ) : (
+              <EmptyState
+                icon={Languages}
+                title={t('translate.pdf.dependency.title')}
+                description={t('translate.pdf.dependency.description')}
+                actionLabel={t('translate.pdf.action.install_babeldoc')}
+                onAction={onInstallBabelDoc}
+              />
+            )
+          ) : error ? (
+            <EmptyState icon={AlertCircle} title={t('translate.pdf.error.title')} description={errorDescription} />
           ) : (
             <EmptyState
               icon={Languages}

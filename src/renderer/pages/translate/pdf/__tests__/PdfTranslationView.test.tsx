@@ -8,7 +8,6 @@ import PdfTranslationView, { type PdfTranslationHandle } from '../PdfTranslation
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
-  navigate: vi.fn(),
   progressHandler: null as null | ((payload: PdfTranslationProgress & { jobId: string }) => void),
   stageHandler: null as null | ((payload: { jobId: string; stage: 'preparing' | 'translating' }) => void),
   uuid: vi.fn(() => 'b289bad7-a813-4cf7-91c0-2a9dc82235b2')
@@ -23,7 +22,6 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 vi.mock('@renderer/utils/uuid', () => ({ uuid: mocks.uuid }))
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel', () => ({
   default: ({ filePath }: { filePath: string }) => <div data-testid="pdf-preview" data-file-path={filePath} />
 }))
@@ -50,11 +48,15 @@ describe('PdfTranslationView', () => {
         file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
         onClose={vi.fn()}
         onHandleChange={(next) => {
           handle = next
         }}
         onStatusChange={onStatusChange}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
       />
     )
 
@@ -97,11 +99,15 @@ describe('PdfTranslationView', () => {
         file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
         onClose={vi.fn()}
         onHandleChange={(next) => {
           handle = next
         }}
         onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
       />
     )
     await waitFor(() => expect(handle).not.toBeNull())
@@ -145,11 +151,15 @@ describe('PdfTranslationView', () => {
         file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
         onClose={vi.fn()}
         onHandleChange={(next) => {
           handle = next
         }}
         onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
       />
     )
     await waitFor(() => expect(handle).not.toBeNull())
@@ -169,7 +179,7 @@ describe('PdfTranslationView', () => {
     )
   })
 
-  it('links to Environment Dependencies when BabelDOC is not installed', async () => {
+  it('offers inline installation when the PDF runtime reports that BabelDOC is unavailable', async () => {
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'translate.pdf.start') {
         return Promise.reject(
@@ -179,26 +189,33 @@ describe('PdfTranslationView', () => {
       return Promise.resolve(undefined)
     })
     let handle: PdfTranslationHandle | null = null
+    const onInstallBabelDoc = vi.fn()
+    const onBabelDocUnavailable = vi.fn()
 
     render(
       <PdfTranslationView
         file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
         onClose={vi.fn()}
         onHandleChange={(next) => {
           handle = next
         }}
         onStatusChange={vi.fn()}
+        onInstallBabelDoc={onInstallBabelDoc}
+        onBabelDocUnavailable={onBabelDocUnavailable}
       />
     )
     await waitFor(() => expect(handle).not.toBeNull())
     act(() => handle!.start('zh-cn'))
 
-    expect(await screen.findByText('translate.pdf.error.dependency_missing')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.open_dependencies' }))
+    expect(await screen.findByText('translate.pdf.dependency.title')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/dependencies' })
+    expect(onBabelDocUnavailable).toHaveBeenCalledOnce()
+    expect(onInstallBabelDoc).toHaveBeenCalledOnce()
   })
 
   it('explains when an image-only PDF requires OCR', async () => {
@@ -215,16 +232,86 @@ describe('PdfTranslationView', () => {
         file={{ name: 'scan.pdf', path: '/tmp/scan.pdf' }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
         onClose={vi.fn()}
         onHandleChange={(next) => {
           handle = next
         }}
         onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
       />
     )
     await waitFor(() => expect(handle).not.toBeNull())
     act(() => handle!.start('zh-cn'))
 
     expect(await screen.findByText('translate.pdf.error.ocr_required')).toBeInTheDocument()
+  })
+
+  it('shows the BabelDOC install prompt before translation when the dependency is missing', () => {
+    const onInstallBabelDoc = vi.fn()
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="missing"
+        babelDocInstalling={false}
+        onClose={vi.fn()}
+        onHandleChange={vi.fn()}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={onInstallBabelDoc}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('translate.pdf.dependency.title')).toBeInTheDocument()
+    expect(screen.getByText('translate.pdf.dependency.description')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
+    expect(onInstallBabelDoc).toHaveBeenCalledOnce()
+  })
+
+  it('shows installation progress while BabelDOC is being installed', () => {
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="missing"
+        babelDocInstalling
+        onClose={vi.fn()}
+        onHandleChange={vi.fn()}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('translate.pdf.dependency.installing')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.pdf.action.install_babeldoc' })).not.toBeInTheDocument()
+  })
+
+  it('renders streamed text fallback content under a text translation header', () => {
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="missing"
+        babelDocInstalling={false}
+        textFallback={{ content: <div>streamed translation</div>, ocrRequired: false }}
+        onClose={vi.fn()}
+        onHandleChange={vi.fn()}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('translate.pdf.pane.translated_text')).toBeInTheDocument()
+    expect(screen.getByText('streamed translation')).toBeInTheDocument()
+    expect(screen.queryByText('translate.pdf.dependency.title')).not.toBeInTheDocument()
   })
 })
