@@ -121,7 +121,8 @@ const useThinkingToolController = ({
         low: t('assistants.settings.reasoning_effort.low'),
         medium: t('assistants.settings.reasoning_effort.medium'),
         auto: t('assistants.settings.reasoning_effort.auto'),
-        xhigh: t('assistants.settings.reasoning_effort.xhigh')
+        xhigh: t('assistants.settings.reasoning_effort.xhigh'),
+        max: t('assistants.settings.reasoning_effort.max')
       }) as const satisfies Record<ThinkingOption, string>,
     [t]
   )
@@ -241,6 +242,7 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
         IconComponent = MdiLightbulbOn90
         break
       case 'xhigh':
+      case 'max':
         IconComponent = MdiLightbulbOn
         break
       case 'auto':

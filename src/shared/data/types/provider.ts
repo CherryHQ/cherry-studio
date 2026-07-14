@@ -12,7 +12,7 @@
  */
 
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, objectValues, REASONING_FORMAT_TYPES } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -217,17 +217,10 @@ export const ProviderSettingsSchema = z.object({
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 
-export const REASONING_FORMAT_TYPES = [
-  'openai-chat',
-  'openai-responses',
-  'anthropic',
-  'gemini',
-  'openrouter',
-  'enable-thinking',
-  'thinking-type',
-  'dashscope',
-  'self-hosted'
-] as const
+// Derived from ProviderReasoningFormatSchema's discriminators — the registry
+// union is the single source of the format-type list; this zod enum is the
+// shared-layer validator for the same values (DB endpointConfigs, IPC).
+export { REASONING_FORMAT_TYPES }
 
 export const ReasoningFormatTypeSchema = z.enum(REASONING_FORMAT_TYPES)
 export type ReasoningFormatType = z.infer<typeof ReasoningFormatTypeSchema>

@@ -42,11 +42,46 @@ export const ThinkingTokenLimitsSchema = z
 /** Reasoning effort levels shared across providers */
 export const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
+/**
+ * Per-model reasoning control declaration — the SOURCE from which the legacy
+ * pair (`supportedEfforts` / `thinkingTokenLimits`) is DERIVED at generation
+ * time (`deriveLegacyReasoningFields`). Kinds align 1:1 with models.dev
+ * `reasoning_options` so upstream ingestion is lossless.
+ */
+export const ReasoningControlSchema = z.discriminatedUnion('kind', [
+  z.object({
+    /** Discrete effort knob. `values` is the model's NATIVE vocabulary, in UI
+     *  display order — exactly what the target API accepts verbatim
+     *  (`'none'` present ⇔ the model can be told not to think). */
+    kind: z.literal('effort'),
+    values: z.array(ReasoningEffortSchema).min(1),
+    default: ReasoningEffortSchema.optional()
+  }),
+  z.object({
+    /** Numeric thinking-token budget knob. */
+    kind: z.literal('budget'),
+    min: z.number().nonnegative(),
+    max: z.number().positive(),
+    default: z.number().nonnegative().optional()
+  }),
+  z.object({
+    /** On/off only — no effort levels, no budget. */
+    kind: z.literal('toggle'),
+    default: z.boolean().optional()
+  })
+])
+export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
+
 // Common reasoning fields shared across all reasoning type variants
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {
+  /** Source of truth for the model's reasoning knobs (at most one per kind).
+   *  The legacy fields below are DERIVED from it when present. */
+  controls: z.array(ReasoningControlSchema).optional(),
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional()
+  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  /** What the API does when no reasoning param is sent. */
+  defaultEffort: ReasoningEffortSchema.optional()
 }
 
 /**
@@ -56,9 +91,24 @@ export const CommonReasoningFieldsSchema = {
  * HOW to invoke reasoning is defined by the provider's reasoning format
  * (see provider.ts ProviderReasoningFormatSchema).
  */
-export const ReasoningSupportSchema = z.object({
-  ...CommonReasoningFieldsSchema
-})
+export const ReasoningSupportSchema = z
+  .object({
+    ...CommonReasoningFieldsSchema
+  })
+  .superRefine((r, ctx) => {
+    const kinds = (r.controls ?? []).map((c) => c.kind)
+    if (new Set(kinds).size !== kinds.length) {
+      ctx.addIssue({ code: 'custom', message: 'at most one reasoning control per kind' })
+    }
+    for (const c of r.controls ?? []) {
+      if (c.kind === 'effort' && c.default != null && !c.values.includes(c.default)) {
+        ctx.addIssue({ code: 'custom', message: 'effort default must be a member of values' })
+      }
+      if (c.kind === 'budget' && (c.min > c.max || (c.default != null && (c.default < c.min || c.default > c.max)))) {
+        ctx.addIssue({ code: 'custom', message: 'budget range must satisfy min <= default <= max' })
+      }
+    }
+  })
 
 /**
  * Image-generation support describes what controls a model accepts, in a

@@ -155,10 +155,29 @@ export const REASONING_EFFORT = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
+  /** OpenAI GPT-5.x native top tier. */
+  XHIGH: 'xhigh',
+  /** Anthropic 4.6+ / DeepSeek V4 native top tier. */
   MAX: 'max',
   AUTO: 'auto'
 } as const
 export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT]
+
+/**
+ * Intensity ladder for nearest-match fallback when a persisted effort is not
+ * in a model's vocabulary (model switch / vocabulary shrink). `auto` is
+ * deliberately last — it is a mode, not an intensity.
+ */
+export const REASONING_EFFORT_ORDER: readonly ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'auto'
+]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider-specific reasoning effort enums

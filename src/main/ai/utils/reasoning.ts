@@ -468,6 +468,7 @@ export function getReasoningEffort(
         adjustedReasoningEffort = 'low'
         break
       case 'xhigh':
+      case 'max':
         adjustedReasoningEffort = 'high'
         break
       case 'auto':
@@ -733,7 +734,9 @@ export function getAnthropicReasoningParams(
         low: 'low',
         medium: 'medium',
         high: 'high',
-        xhigh: 'xhigh'
+        xhigh: 'xhigh',
+        // 4.7's native top tier is 'xhigh'; a stray 'max' (not in its vocabulary) maps onto it
+        max: 'xhigh'
       } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
       const effort = effort47Map[reasoningEffort]
       const thinking = { type: 'adaptive', display: 'summarized' } as const
@@ -756,7 +759,8 @@ export function getAnthropicReasoningParams(
         low: 'low',
         medium: 'medium',
         high: 'high',
-        xhigh: 'max'
+        xhigh: 'max',
+        max: 'max'
       } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
       const effort = effortMap[reasoningEffort]
       return effort ? { thinking: { type: 'adaptive' }, effort } : { thinking: { type: 'adaptive' } }
@@ -823,6 +827,7 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
       return 'medium'
     case 'high':
     case 'xhigh':
+    case 'max':
       return 'high'
     default:
       // Enforce all possible values are handled
@@ -1015,7 +1020,8 @@ export function getBedrockReasoningParams(
       low: 'low',
       medium: 'medium',
       high: 'high',
-      xhigh: 'max'
+      xhigh: 'max',
+      max: 'max'
     } as const satisfies Record<
       Exclude<ReasoningEffortOption, 'none' | 'default'>,
       NonNullable<BedrockProviderOptions['reasoningConfig']>['maxReasoningEffort']

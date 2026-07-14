@@ -163,8 +163,28 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
         })
       })
       .optional()
+  }),
+  z.object({
+    /** Provider ignores/rejects reasoning params — never inject any (groq). */
+    type: z.literal('none')
+  }),
+  z.object({
+    /** Cerebras dialect: off = `disable_reasoning: true`, on = send nothing. */
+    type: z.literal('disable-reasoning'),
+    params: z
+      .object({
+        disableReasoning: z.boolean()
+      })
+      .optional()
   })
 ])
+
+/** The discriminator values of {@link ProviderReasoningFormatSchema} — the ONE
+ *  source of the format-type list (shared re-derives its zod enum from this). */
+export type ReasoningFormatType = z.infer<typeof ProviderReasoningFormatSchema>['type']
+export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
+  (option) => option.shape.type.value
+) as [ReasoningFormatType, ...ReasoningFormatType[]]
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Config

@@ -2639,7 +2639,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 2.25
         },
         "cacheWrite": {
           "currency": "USD",
@@ -5167,13 +5167,17 @@
       "apiModelId": "deepseek/deepseek-v3.1",
       "modelId": "deepseek-v3-1",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.21
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.7
+          "perMillionTokens": 0.79
         }
       },
       "providerId": "gateway"
@@ -12730,11 +12734,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.21
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.79
+          "perMillionTokens": 0.95
         }
       },
       "providerId": "openrouter"
@@ -12832,15 +12836,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0154
+          "perMillionTokens": 0.018
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.077
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.154
+          "perMillionTokens": 0.18
         }
       },
       "providerId": "openrouter"
@@ -13648,15 +13652,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.078
+          "perMillionTokens": 0.18
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.42
+          "perMillionTokens": 0.93
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 3
         }
       },
       "providerId": "openrouter"
@@ -15051,15 +15055,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.149
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.72
+          "perMillionTokens": 0.719
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.5
+          "perMillionTokens": 3.49
         }
       },
       "providerId": "openrouter"
@@ -15186,6 +15190,7 @@
     {
       "apiModelId": "liquid/lfm-2.5-1.2b-thinking:free",
       "modelId": "lfm-2-5-1-2b",
+      "name": "LFM2.5-1.2B-Thinking (free)",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -15201,6 +15206,7 @@
     {
       "apiModelId": "liquid/lfm-2.5-1.2b-instruct:free",
       "modelId": "lfm-2-5-1-2b-instruct",
+      "name": "LFM2.5-1.2B-Instruct (free)",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -20587,5 +20593,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2a41dbda229c02f7"
+  "version": "1970f2d97fd7ce99"
 }

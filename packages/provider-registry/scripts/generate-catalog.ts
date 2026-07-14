@@ -20,6 +20,7 @@ import { CREATORS } from '../src/creators'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import { stripHostReprefix } from '../src/utils/normalize'
+import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { canonOf, prefixHit } from './canonicalize'
 import {
   type CherryMeta,
@@ -210,6 +211,15 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       const existing = models.get(id) ?? { id, ownedBy: creator.id, metadata: {} }
       models.set(id, { ...existing, ...lm, id, ownedBy: creator.id, metadata: existing.metadata ?? {} })
     }
+  }
+  // Reasoning normalization — `controls` is the source of truth: whenever a
+  // model declares it (upstream ingest or creator hand-list), the legacy pair
+  // (supportedEfforts / thinkingTokenLimits) + defaultEffort are re-derived so
+  // the shipped JSON can never drift (locked by the catalog invariant test).
+  for (const m of models.values()) {
+    const controls = m.reasoning?.controls
+    if (!controls?.length) continue
+    m.reasoning = { controls, ...deriveLegacyReasoningFields(controls) }
   }
   // Tag embedding/rerank — models.dev mislabels these as text. `rerank` in the id wins; else `embed` in
   // the id, or the owning creator's declared `kind` (bge/voyage/jina/… whose ids don't say so). Embedders output `vector`.

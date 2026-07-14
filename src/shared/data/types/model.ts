@@ -32,7 +32,9 @@ import {
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
-  REASONING_EFFORT
+  REASONING_EFFORT,
+  REASONING_FORMAT_TYPES,
+  ReasoningControlSchema
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
@@ -86,8 +88,13 @@ const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
 /** Common reasoning fields shared across all reasoning type variants */
 const CommonReasoningFieldsSchema = {
+  /** Source declaration of the model's reasoning knobs (effort/budget/toggle);
+   *  `supportedEfforts` / `thinkingTokenLimits` are derived from it when present. */
+  controls: z.array(ReasoningControlSchema).optional(),
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
   supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  /** What the API does when no reasoning param is sent. */
+  defaultEffort: ReasoningEffortSchema.optional(),
   interleaved: z.boolean().optional()
 }
 
@@ -221,19 +228,15 @@ export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 
 /** DB form: supportedEfforts is optional */
 export const ReasoningConfigSchema = z.object({
-  /** Reasoning type: must match a known reasoning variant */
-  type: z.string().regex(/^[a-z][a-z0-9-]*$/, {
-    message: 'Reasoning type must be lowercase alphanumeric with hyphens'
-  }),
+  /** Reasoning format type — a ProviderReasoningFormatSchema discriminator.
+   *  `''` = rows resolved while the provider declared no format. */
+  type: z.enum(REASONING_FORMAT_TYPES).or(z.literal('')),
   ...CommonReasoningFieldsSchema
 })
 export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
 
-/** Runtime form: extends DB form — supportedEfforts required, adds defaultEffort */
-export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supportedEfforts: true }).extend({
-  /** Default effort level */
-  defaultEffort: z.enum(objectValues(REASONING_EFFORT)).optional()
-})
+/** Runtime form: the DB form with supportedEfforts required */
+export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supportedEfforts: true })
 
 export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 

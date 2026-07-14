@@ -15,7 +15,7 @@ import * as z from 'zod'
 import type { ModelConfig } from '../src/schemas/model'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
-const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'max', 'auto'])
+const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
 export const CAP_ORDER = [
   'function-call',
   'reasoning',
@@ -104,21 +104,29 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
   if (out.includes('audio')) caps.add('audio-generation')
   if (out.includes('video')) caps.add('video-generation')
 
+  // Lossless controls declaration (the source of truth); the legacy pair
+  // (supportedEfforts / thinkingTokenLimits) is re-derived from it by the
+  // buildModels normalization pass via deriveLegacyReasoningFields.
   const reasoning: NonNullable<CherryMeta['reasoning']> = {}
+  const controls: NonNullable<NonNullable<CherryMeta['reasoning']>['controls']> = []
   for (const op of m.reasoning && m.reasoning_options ? m.reasoning_options : []) {
-    if (op.type === 'effort' && op.values)
-      reasoning.supportedEfforts = op.values.filter((v): v is Effort => VALID_EFFORTS.has(v))
-    else if (
+    if (op.type === 'effort' && op.values) {
+      const values = op.values.filter((v): v is Effort => VALID_EFFORTS.has(v))
+      if (values.length) controls.push({ kind: 'effort', values })
+    } else if (
       op.type === 'budget_tokens' &&
       op.min != null &&
       op.max != null &&
       op.min >= 0 &&
       op.max > 0 &&
       op.min <= op.max
-    )
-      reasoning.thinkingTokenLimits = { min: op.min, max: op.max }
-    else if (op.type === 'toggle') reasoning.supportedEfforts = ['none', 'auto']
+    ) {
+      controls.push({ kind: 'budget', min: op.min, max: op.max })
+    } else if (op.type === 'toggle') {
+      controls.push({ kind: 'toggle' })
+    }
   }
+  if (controls.length) reasoning.controls = controls
   const pricing =
     m.cost?.input != null && m.cost?.output != null
       ? dropUndef({
@@ -203,12 +211,47 @@ export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
   if (b.pricing) out.pricing = { ...b.pricing, ...a.pricing }
   if (b.reasoning) {
     out.reasoning = { ...a.reasoning, ...b.reasoning }
+    const controls = mergeReasoningControls(a.reasoning?.controls, b.reasoning.controls)
+    if (controls.length) out.reasoning.controls = controls
     const ef = [...new Set([...(a.reasoning?.supportedEfforts ?? []), ...(b.reasoning.supportedEfforts ?? [])])]
     if (ef.length) out.reasoning.supportedEfforts = ef
   }
   if (b.openWeights) out.openWeights = true
   if (b.family && !a.family) out.family = b.family
   if (b.name && !a.name) out.name = b.name
+  return out
+}
+
+type Controls = NonNullable<NonNullable<CherryMeta['reasoning']>['controls']>
+
+/**
+ * Union reasoning controls per kind across sources (same spirit as the
+ * capability union): effort values union (a's order first), budget range
+ * widens, toggle survives if either side declares it.
+ */
+function mergeReasoningControls(a: Controls | undefined, b: Controls | undefined): Controls {
+  const pick = <K extends Controls[number]['kind']>(list: Controls | undefined, kind: K) =>
+    list?.find((c): c is Extract<Controls[number], { kind: K }> => c.kind === kind)
+  const out: Controls = []
+  const [ea, eb] = [pick(a, 'effort'), pick(b, 'effort')]
+  if (ea || eb) {
+    out.push({
+      kind: 'effort',
+      values: [...new Set([...(ea?.values ?? []), ...(eb?.values ?? [])])],
+      ...((ea?.default ?? eb?.default) != null ? { default: ea?.default ?? eb?.default } : {})
+    })
+  }
+  const [ba, bb] = [pick(a, 'budget'), pick(b, 'budget')]
+  if (ba || bb) {
+    out.push({
+      kind: 'budget',
+      min: Math.min(ba?.min ?? Infinity, bb?.min ?? Infinity),
+      max: Math.max(ba?.max ?? 0, bb?.max ?? 0),
+      ...((ba?.default ?? bb?.default) != null ? { default: ba?.default ?? bb?.default } : {})
+    })
+  }
+  const toggle = pick(a, 'toggle') ?? pick(b, 'toggle')
+  if (toggle) out.push(toggle)
   return out
 }
 

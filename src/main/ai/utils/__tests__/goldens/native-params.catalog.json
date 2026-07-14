@@ -1,5 +1,5 @@
 {
-  "rows": 952,
+  "rows": 951,
   "groups": 21,
   "behaviors": [
     {
@@ -849,7 +849,6 @@
         "openrouter::kimi-k2-6",
         "openrouter::kimi-k2-7-code",
         "openrouter::kimi-latest",
-        "openrouter::lfm-2-5-1-2b",
         "openrouter::llama-3-3-nemotron-super-49b-v1-5",
         "openrouter::mercury-2",
         "openrouter::mimo-v2-5",

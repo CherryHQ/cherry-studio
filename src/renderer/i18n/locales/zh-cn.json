@@ -1213,6 +1213,8 @@
         "label": "思维链长度",
         "low": "浮想",
         "low_description": "低强度推理",
+        "max": "极致",
+        "max_description": "最高强度推理",
         "medium": "斟酌",
         "medium_description": "中强度推理",
         "minimal": "微念",
@@ -1955,6 +1957,7 @@
         "default": "默认",
         "high": "高",
         "low": "低",
+        "max": "极致",
         "medium": "中",
         "minimal": "最小",
         "xhigh": "超高"

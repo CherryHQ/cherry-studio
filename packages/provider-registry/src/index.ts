@@ -14,7 +14,8 @@ export {
   MODEL_CAPABILITY,
   objectValues,
   OPENAI_REASONING_EFFORT,
-  REASONING_EFFORT
+  REASONING_EFFORT,
+  REASONING_EFFORT_ORDER
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
@@ -52,20 +53,26 @@ export type {
   ModelConfig as ProtoModelConfig,
   ModelPricing as ProtoModelPricing,
   ReasoningSupport as ProtoReasoningSupport,
+  ReasoningControl,
   ReasoningSupport,
   SupportSpec
 } from './schemas/model'
+export { ReasoningControlSchema } from './schemas/model'
 export type {
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
   ProviderReasoningFormat,
+  ReasoningFormatType,
   RegistryEndpointConfig
 } from './schemas/provider'
+export { REASONING_FORMAT_TYPES } from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride
 } from './schemas/provider-models'
+export type { DerivedReasoningFields } from './utils/reasoningControls'
+export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
 export { normalizeModelId } from './utils/normalize'

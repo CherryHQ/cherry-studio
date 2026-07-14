@@ -1,6 +1,6 @@
 {
-  "rows": 952,
-  "groups": 44,
+  "rows": 951,
+  "groups": 46,
   "behaviors": [
     {
       "behavior": {
@@ -385,7 +385,7 @@
     {
       "behavior": {
         "minimal": {
-          "reasoningEffort": "none"
+          "reasoningEffort": "low"
         },
         "low": {
           "reasoningEffort": "low"
@@ -397,97 +397,47 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "none"
+          "reasoningEffort": "low"
         },
         "auto": {
-          "reasoningEffort": "auto"
+          "reasoningEffort": "low"
         }
       },
       "members": [
         "302ai::claude-opus-4-5",
-        "anthropic::claude-opus-4-5",
-        "aws-bedrock::claude-opus-4-5",
-        "claude-code::claude-opus-4-5",
-        "copilot::claude-opus-4-5",
-        "gateway::claude-opus-4-5",
-        "vertexai::claude-opus-4-5"
-      ]
-    },
-    {
-      "behavior": {
-        "minimal": {
-          "reasoningEffort": "low"
-        },
-        "low": {
-          "reasoningEffort": "low"
-        },
-        "medium": {
-          "reasoningEffort": "medium"
-        },
-        "high": {
-          "reasoningEffort": "high"
-        },
-        "xhigh": {
-          "reasoningEffort": "low"
-        },
-        "auto": {
-          "reasoningEffort": "low"
-        }
-      },
-      "members": [
         "302ai::claude-opus-4-6",
-        "302ai::claude-opus-4-7",
         "302ai::claude-sonnet-4-6",
-        "302ai::grok-4-20-multi-agent-beta",
-        "anthropic::claude-fable-5",
+        "anthropic::claude-opus-4-5",
         "anthropic::claude-opus-4-6",
         "anthropic::claude-opus-4-6-v1",
-        "anthropic::claude-opus-4-7",
-        "anthropic::claude-opus-4-8",
         "anthropic::claude-sonnet-4-6",
-        "anthropic::claude-sonnet-5",
-        "aws-bedrock::claude-fable-5",
+        "aws-bedrock::claude-opus-4-5",
         "aws-bedrock::claude-opus-4-6",
-        "aws-bedrock::claude-opus-4-7",
-        "aws-bedrock::claude-opus-4-8",
         "aws-bedrock::claude-sonnet-4-6",
         "aws-bedrock::gpt-oss-120b",
         "aws-bedrock::gpt-oss-20b",
         "aws-bedrock::gpt-oss-safeguard-20b",
         "aws-bedrock::nova-2-lite",
         "cerebras::gpt-oss-120b",
-        "claude-code::claude-fable-5",
+        "claude-code::claude-opus-4-5",
         "claude-code::claude-opus-4-6",
-        "claude-code::claude-opus-4-7",
-        "claude-code::claude-opus-4-8",
         "claude-code::claude-sonnet-4-6",
-        "copilot::claude-fable-5",
+        "copilot::claude-opus-4-5",
         "copilot::claude-opus-4-6",
-        "copilot::claude-opus-4-7",
-        "copilot::claude-opus-4-8",
         "copilot::claude-sonnet-4-6",
-        "copilot::claude-sonnet-5",
         "copilot::gemini-3-1-pro-preview",
-        "copilot::gpt-5-2-codex",
         "fireworks::gpt-oss-120b",
         "fireworks::gpt-oss-20b",
-        "gateway::claude-fable-5",
+        "gateway::claude-opus-4-5",
         "gateway::claude-opus-4-6",
-        "gateway::claude-opus-4-7",
-        "gateway::claude-opus-4-8",
         "gateway::claude-sonnet-4-6",
-        "gateway::claude-sonnet-5",
         "gateway::gemini-3-1-pro-preview",
         "gateway::gpt-5-1-codex",
-        "gateway::gpt-5-1-codex-max",
         "gateway::gpt-5-1-codex-mini",
-        "gateway::gpt-5-2-codex",
         "gateway::gpt-5-codex",
         "gateway::gpt-oss-120b",
         "gateway::gpt-oss-20b",
         "gateway::gpt-oss-safeguard-20b",
-        "gateway::grok-4-20-multi-agent",
-        "gateway::grok-4-20-multi-agent-beta",
         "gateway::grok-4-5",
         "gateway::interfaze-beta",
         "gateway::mercury-2",
@@ -505,8 +455,6 @@
         "github::o3-mini",
         "github::o4-mini",
         "grok-cli::grok-4-5",
-        "grok::grok-4-20-multi-agent",
-        "grok::grok-4-20-multi-agent-beta",
         "grok::grok-4-5",
         "huggingface::gpt-oss-120b",
         "huggingface::gpt-oss-20b",
@@ -516,10 +464,7 @@
         "nvidia::gpt-oss-20b",
         "nvidia::step-3-5-flash",
         "openai::gpt-5-1-codex",
-        "openai::gpt-5-1-codex-max",
         "openai::gpt-5-1-codex-mini",
-        "openai::gpt-5-2-codex",
-        "openai::gpt-5-3-codex",
         "openai::gpt-5-codex",
         "openai::gpt-oss-120b",
         "openai::gpt-oss-120b-maas",
@@ -533,15 +478,70 @@
         "openai::o3-pro",
         "openai::o4-mini",
         "stepfun::step-3-5-flash",
+        "vertexai::claude-opus-4-5",
         "vertexai::claude-opus-4-6",
-        "vertexai::claude-opus-4-7",
-        "vertexai::claude-opus-4-8",
         "vertexai::claude-sonnet-4-6",
-        "vertexai::claude-sonnet-5",
         "vertexai::gemini-3-1-pro-preview",
         "vertexai::gemini-3-1-pro-preview-customtools",
         "vertexai::gpt-oss-120b-maas",
         "vertexai::gpt-oss-20b-maas"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "low"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "auto": {
+          "reasoningEffort": "low"
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-7",
+        "302ai::grok-4-20-multi-agent-beta",
+        "anthropic::claude-fable-5",
+        "anthropic::claude-opus-4-7",
+        "anthropic::claude-opus-4-8",
+        "anthropic::claude-sonnet-5",
+        "aws-bedrock::claude-fable-5",
+        "aws-bedrock::claude-opus-4-7",
+        "aws-bedrock::claude-opus-4-8",
+        "claude-code::claude-fable-5",
+        "claude-code::claude-opus-4-7",
+        "claude-code::claude-opus-4-8",
+        "copilot::claude-fable-5",
+        "copilot::claude-opus-4-7",
+        "copilot::claude-opus-4-8",
+        "copilot::claude-sonnet-5",
+        "copilot::gpt-5-2-codex",
+        "gateway::claude-fable-5",
+        "gateway::claude-opus-4-7",
+        "gateway::claude-opus-4-8",
+        "gateway::claude-sonnet-5",
+        "gateway::gpt-5-1-codex-max",
+        "gateway::gpt-5-2-codex",
+        "gateway::grok-4-20-multi-agent",
+        "gateway::grok-4-20-multi-agent-beta",
+        "grok::grok-4-20-multi-agent",
+        "grok::grok-4-20-multi-agent-beta",
+        "openai::gpt-5-1-codex-max",
+        "openai::gpt-5-2-codex",
+        "openai::gpt-5-3-codex",
+        "vertexai::claude-opus-4-7",
+        "vertexai::claude-opus-4-8",
+        "vertexai::claude-sonnet-5"
       ]
     },
     {
@@ -780,7 +780,6 @@
         "gateway::gpt-5",
         "gateway::gpt-5-mini",
         "gateway::gpt-5-nano",
-        "gateway::gpt-realtime-2-1",
         "gateway::seed-1-8",
         "gemini::gemini-3-1-flash-lite",
         "gemini::gemini-3-1-flash-lite-preview",
@@ -790,7 +789,6 @@
         "openai::gpt-5",
         "openai::gpt-5-mini",
         "openai::gpt-5-nano",
-        "openai::gpt-realtime-2-1",
         "perplexity::sonar-deep-research",
         "perplexity::sonar-reasoning-pro",
         "vertexai::gemini-3-1-flash-lite",
@@ -852,34 +850,7 @@
       },
       "members": [
         "302ai::gpt-5-1",
-        "302ai::gpt-5-2",
-        "302ai::gpt-5-4",
-        "302ai::gpt-5-4-mini",
-        "302ai::gpt-5-4-nano",
-        "copilot::gpt-5-2",
-        "copilot::gpt-5-4",
-        "copilot::gpt-5-4-mini",
-        "copilot::gpt-5-4-nano",
-        "copilot::gpt-5-5",
-        "copilot::gpt-5-6-luna",
-        "copilot::gpt-5-6-sol",
-        "copilot::gpt-5-6-terra",
-        "gateway::gpt-5-1",
-        "gateway::gpt-5-2",
-        "gateway::gpt-5-4",
-        "gateway::gpt-5-4-mini",
-        "gateway::gpt-5-4-nano",
-        "gateway::gpt-5-5",
-        "gateway::gpt-5-6-luna",
-        "gateway::gpt-5-6-sol",
-        "gateway::gpt-5-6-terra",
-        "openai-codex::gpt-5-3-codex-spark",
-        "openai-codex::gpt-5-4",
-        "openai-codex::gpt-5-4-mini",
-        "openai-codex::gpt-5-5",
-        "openai-codex::gpt-5-6-luna",
-        "openai-codex::gpt-5-6-sol",
-        "openai-codex::gpt-5-6-terra"
+        "gateway::gpt-5-1"
       ]
     },
     {
@@ -913,6 +884,60 @@
     },
     {
       "behavior": {
+        "none": {
+          "reasoningEffort": "none"
+        },
+        "minimal": {
+          "reasoningEffort": "none"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
+        "302ai::gpt-5-2",
+        "302ai::gpt-5-4",
+        "302ai::gpt-5-4-mini",
+        "302ai::gpt-5-4-nano",
+        "copilot::gpt-5-2",
+        "copilot::gpt-5-4",
+        "copilot::gpt-5-4-mini",
+        "copilot::gpt-5-4-nano",
+        "copilot::gpt-5-5",
+        "copilot::gpt-5-6-luna",
+        "copilot::gpt-5-6-sol",
+        "copilot::gpt-5-6-terra",
+        "gateway::gpt-5-2",
+        "gateway::gpt-5-4",
+        "gateway::gpt-5-4-mini",
+        "gateway::gpt-5-4-nano",
+        "gateway::gpt-5-5",
+        "gateway::gpt-5-6-luna",
+        "gateway::gpt-5-6-sol",
+        "gateway::gpt-5-6-terra",
+        "openai-codex::gpt-5-3-codex-spark",
+        "openai-codex::gpt-5-4",
+        "openai-codex::gpt-5-4-mini",
+        "openai-codex::gpt-5-5",
+        "openai-codex::gpt-5-6-luna",
+        "openai-codex::gpt-5-6-sol",
+        "openai-codex::gpt-5-6-terra"
+      ]
+    },
+    {
+      "behavior": {
         "minimal": {
           "reasoningEffort": "medium"
         },
@@ -926,7 +951,7 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "medium"
+          "reasoningEffort": "xhigh"
         },
         "auto": {
           "reasoningEffort": "medium"
@@ -965,11 +990,8 @@
       },
       "members": [
         "302ai::gpt-5-pro",
-        "fireworks::glm-5-2-fast",
-        "gateway::glm-5-2-fast",
         "gateway::gpt-5-pro",
-        "openai::gpt-5-pro",
-        "zhipu::glm-5-2-fast"
+        "openai::gpt-5-pro"
       ]
     },
     {
@@ -1186,7 +1208,7 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "low"
+          "reasoningEffort": "xhigh"
         },
         "auto": {
           "reasoningEffort": "low"
@@ -1371,19 +1393,22 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "high"
+          "reasoningEffort": "xhigh"
         },
         "auto": {
-          "reasoningEffort": "auto"
+          "reasoningEffort": "high"
         }
       },
       "members": [
         "fireworks::glm-5-2",
+        "fireworks::glm-5-2-fast",
         "gateway::glm-5-2",
+        "gateway::glm-5-2-fast",
         "huggingface::glm-5-2",
         "nvidia::glm-5-2",
         "tokenhub::glm-5-2",
-        "zhipu::glm-5-2"
+        "zhipu::glm-5-2",
+        "zhipu::glm-5-2-fast"
       ]
     },
     {
@@ -1401,19 +1426,46 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "none"
+          "reasoningEffort": "xhigh"
         },
         "auto": {
-          "reasoningEffort": "auto"
+          "reasoningEffort": "none"
         }
       },
       "members": [
         "fireworks::kimi-k2-6",
         "gateway::kimi-k2-6",
+        "gateway::muse-spark-1-1",
         "huggingface::kimi-k2-6",
         "moonshot::kimi-k2-6",
         "nvidia::kimi-k2-6",
         "tokenhub::kimi-k2-6"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "minimal"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "auto": {
+          "reasoningEffort": "minimal"
+        }
+      },
+      "members": [
+        "gateway::gpt-realtime-2-1",
+        "openai::gpt-realtime-2-1"
       ]
     },
     {
@@ -1441,17 +1493,7 @@
         "gateway::grok-4-3",
         "grok-cli::grok-4-3",
         "grok::grok-4-3",
-        "openai::gpt-5-1",
-        "openai::gpt-5-2",
-        "openai::gpt-5-3-codex-spark",
-        "openai::gpt-5-4",
-        "openai::gpt-5-4-mini",
-        "openai::gpt-5-4-nano",
-        "openai::gpt-5-5",
-        "openai::gpt-5-6",
-        "openai::gpt-5-6-luna",
-        "openai::gpt-5-6-sol",
-        "openai::gpt-5-6-terra"
+        "openai::gpt-5-1"
       ]
     },
     {
@@ -1488,31 +1530,6 @@
         "mistral::mistral-small-4-119b",
         "mistral::mistral-small-latest",
         "nvidia::mistral-small-4-119b"
-      ]
-    },
-    {
-      "behavior": {
-        "minimal": {
-          "reasoningEffort": "minimal"
-        },
-        "low": {
-          "reasoningEffort": "low"
-        },
-        "medium": {
-          "reasoningEffort": "medium"
-        },
-        "high": {
-          "reasoningEffort": "high"
-        },
-        "xhigh": {
-          "reasoningEffort": "none"
-        },
-        "auto": {
-          "reasoningEffort": "none"
-        }
-      },
-      "members": [
-        "gateway::muse-spark-1-1"
       ]
     },
     {
@@ -1564,7 +1581,7 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "low"
+          "reasoningEffort": "xhigh"
         },
         "auto": {
           "reasoningEffort": "low"
@@ -1601,10 +1618,10 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
-          "reasoningEffort": "none"
+          "reasoningEffort": "minimal"
         },
         "auto": {
-          "reasoningEffort": "auto"
+          "reasoningEffort": "minimal"
         }
       },
       "members": [
@@ -1749,6 +1766,40 @@
       "members": [
         "nvidia::qwen3-5-122b-a10b",
         "nvidia::qwen3-5-397b-a17b"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "none"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
+        "openai::gpt-5-2",
+        "openai::gpt-5-3-codex-spark",
+        "openai::gpt-5-4",
+        "openai::gpt-5-4-mini",
+        "openai::gpt-5-4-nano",
+        "openai::gpt-5-5",
+        "openai::gpt-5-6",
+        "openai::gpt-5-6-luna",
+        "openai::gpt-5-6-sol",
+        "openai::gpt-5-6-terra"
       ]
     },
     {
@@ -1981,7 +2032,6 @@
         "openrouter::kimi-k2",
         "openrouter::kimi-k2-7-code",
         "openrouter::kimi-latest",
-        "openrouter::lfm-2-5-1-2b",
         "openrouter::llama-3-3-nemotron-super-49b-v1-5",
         "openrouter::minimax-m1",
         "openrouter::minimax-m2",

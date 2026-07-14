@@ -1,22 +1,15 @@
-import type OpenAI from '@cherrystudio/openai'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-/** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
- * It's basically based on OpenAI's reasoning effort, but we have adapted it for other models.
- *
- * Possible options:
- * - 'none': Disable reasoning for the model. (inherit from OpenAI)
- *            It's also used as "off" when the reasoning behavior of the model only could be set to "on" and "off".
- * - 'minimal': Enable minimal reasoning effort for the model. (inherit from OpenAI, only for few models, such as GPT-5.)
- * - 'low': Enable low reasoning effort for the model. (inherit from OpenAI)
- * - 'medium': Enable medium reasoning effort for the model. (inherit from OpenAI)
- * - 'high': Enable high reasoning effort for the model. (inherit from OpenAI)
- * - 'xhigh': Enable extra high reasoning effort for the model. (inherit from OpenAI)
- * - 'auto': Automatically determine the reasoning effort based on the model's capabilities.
- *            For some providers, it's same with 'default'.
- *            It's also used as "on" when the reasoning behavior of the model only could be set to "on" and "off".
- * - 'default': Depend on default behavior. It means we would not set any reasoning related settings when calling API.
+/** Selectable reasoning-effort values — a model's registry vocabulary
+ * (`REASONING_EFFORT`) plus the `'default'` sentinel. Semantics:
+ * - 'none': Disable reasoning; also "off" for on/off-only (toggle) models.
+ * - 'minimal'…'high': Effort ladder (OpenAI vocabulary).
+ * - 'xhigh': OpenAI GPT-5.x native top tier.
+ * - 'max': Anthropic 4.6+ / DeepSeek V4 native top tier.
+ * - 'auto': Model decides; also "on" for toggle-only models.
+ * - 'default': Send no reasoning-related params at all.
  */
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
+export type { ReasoningEffortOption }
 
 export type EffortRatio = Record<ReasoningEffortOption, number>
 
@@ -29,5 +22,6 @@ export const EFFORT_RATIO: EffortRatio = {
   medium: 0.5,
   high: 0.8,
   xhigh: 0.9,
+  max: 1,
   auto: 2
 }
