@@ -479,6 +479,58 @@ describe('TopicService', () => {
       const result = topicService.listByCursor({ sortBy: 'updatedAt' })
       expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't2', 't1'])
     })
+
+    it('searchScope=name matches topic name only; name-or-owner also matches the live assistant name', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-live',
+          name: 'Research Assistant',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-dead',
+          name: 'Research Ghost',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          deletedAt: 999
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 't-named', name: 'Research notes', orderKey: 'a0', createdAt: 1, updatedAt: 300 },
+        {
+          id: 't-live-owner',
+          name: 'Weekly sync',
+          assistantId: 'asst-live',
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 200
+        },
+        {
+          id: 't-dead-owner',
+          name: 'Weekly sync',
+          assistantId: 'asst-dead',
+          orderKey: 'a2',
+          createdAt: 3,
+          updatedAt: 100
+        }
+      ])
+
+      // name scope: only the topic whose NAME contains 'Research'.
+      expect(topicService.listByCursor({ sortBy: 'updatedAt', q: 'Research' }).items.map((t) => t.id)).toEqual([
+        't-named'
+      ])
+      // name-or-owner: topic name OR the LIVE assistant name — a soft-deleted owner's name never matches.
+      expect(
+        topicService
+          .listByCursor({ sortBy: 'updatedAt', q: 'Research', searchScope: 'name-or-owner' })
+          .items.map((t) => t.id)
+      ).toEqual(['t-named', 't-live-owner'])
+    })
   })
 
   describe('stats', () => {

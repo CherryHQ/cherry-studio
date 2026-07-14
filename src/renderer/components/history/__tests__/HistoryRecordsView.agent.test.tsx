@@ -483,13 +483,13 @@ describe('HistoryRecordsView agent mode', () => {
       pageSize: 50,
       pinned: true,
       q: '',
-      searchScope: 'full'
+      searchScope: 'name-or-owner'
     })
     expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, {
       pageSize: 50,
       pinned: false,
       q: '',
-      searchScope: 'full',
+      searchScope: 'name-or-owner',
       sortBy: 'createdAt'
     })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()

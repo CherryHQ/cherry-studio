@@ -49,13 +49,13 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const pinnedSessionsSource = useSessions(ownerScope, {
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
-    searchScope: 'full',
+    searchScope: 'name-or-owner',
     pinned: true
   })
   const unpinnedSessionsSource = useSessions(ownerScope, {
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
-    searchScope: 'full',
+    searchScope: 'name-or-owner',
     sortBy: historySortBy,
     pinned: false
   })

@@ -56,7 +56,7 @@ type UseSessionsOptions = {
   sortBy?: AgentSessionSortBy
   /** Literal substring search term (server-side, escaped LIKE). */
   q?: string
-  /** 'name' (default) or 'full' (name OR description OR owning agent name). */
+  /** 'name' (default) or 'name-or-owner' (session name OR live owning agent name). */
   searchScope?: AgentSessionSearchScope
   /** true selects the independent pin-owned stream; false filters the flat stream. */
   pinned?: boolean

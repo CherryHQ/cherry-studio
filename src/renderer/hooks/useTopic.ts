@@ -34,6 +34,7 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   TopicListItem,
+  TopicSearchScope,
   TopicSortBy,
   TopicStatsQuery,
   UpdateTopicDto
@@ -228,6 +229,7 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  */
 export function useTopics(opts?: {
   q?: string
+  searchScope?: TopicSearchScope
   sortBy?: TopicSortBy
   assistantId?: string
   pinned?: boolean
@@ -235,16 +237,24 @@ export function useTopics(opts?: {
   enabled?: boolean
 }) {
   const q = opts?.q?.trim()
+  const searchScope = opts?.searchScope
   const isPinnedStream = opts?.pinned === true
   const sortBy = isPinnedStream ? undefined : opts?.sortBy
   const query = useMemo(() => {
-    const built: { q?: string; sortBy?: TopicSortBy; assistantId?: string; pinned?: boolean } = {}
+    const built: {
+      q?: string
+      searchScope?: TopicSearchScope
+      sortBy?: TopicSortBy
+      assistantId?: string
+      pinned?: boolean
+    } = {}
     if (q) built.q = q
+    if (q && searchScope) built.searchScope = searchScope
     if (sortBy) built.sortBy = sortBy
     if (opts?.assistantId) built.assistantId = opts.assistantId
     if (opts?.pinned !== undefined) built.pinned = opts.pinned
     return Object.keys(built).length > 0 ? built : undefined
-  }, [opts?.assistantId, opts?.pinned, q, sortBy])
+  }, [opts?.assistantId, opts?.pinned, q, searchScope, sortBy])
   const pageSize = opts?.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
   const continuityKey = useMemo(
     () =>
@@ -252,9 +262,10 @@ export function useTopics(opts?: {
         assistantId: opts?.assistantId,
         mode: isPinnedStream ? 'pinned' : 'flat',
         pinned: opts?.pinned,
-        q
+        q,
+        searchScope
       }),
-    [isPinnedStream, opts?.assistantId, opts?.pinned, q]
+    [isPinnedStream, opts?.assistantId, opts?.pinned, q, searchScope]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     continuityKey,

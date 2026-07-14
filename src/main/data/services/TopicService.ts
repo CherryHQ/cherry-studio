@@ -21,6 +21,7 @@ import type {
   ListTopicsQuery,
   MoveTopicDto,
   TopicListItem,
+  TopicSearchScope,
   TopicSortBy,
   TopicStats,
   TopicStatsQuery,
@@ -29,7 +30,7 @@ import type {
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -107,6 +108,21 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
   return sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
 }
 
+/**
+ * Scoped search predicate for the list/stats paths. `name` matches the topic
+ * name only; `name-or-owner` ORs in the owning assistant's name — callers must
+ * LEFT JOIN the assistant table on live assistants only.
+ */
+function buildScopedSearchPredicate(q: string | undefined, scope: TopicSearchScope): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (scope === 'name') return nameMatch
+  const assistantNameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, assistantNameMatch)
+}
+
 function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): void {
   const [assistant] = tx
     .select({ id: assistantTable.id })
@@ -123,9 +139,14 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
  * covers both NULL owners and topics whose assistant is soft-deleted. `pinned`
  * is NOT built here — it needs the pin subquery and only applies to lists.
  */
-function buildRecordFilters(query: { q?: string; assistantId?: string; ids?: string[] }): SQL[] {
+function buildRecordFilters(query: {
+  q?: string
+  searchScope?: TopicSearchScope
+  assistantId?: string
+  ids?: string[]
+}): SQL[] {
   const filters: SQL[] = [isNull(topicTable.deletedAt)]
-  const search = buildSearchPredicate(query.q)
+  const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
   if (search) filters.push(search)
   if (query.assistantId === 'unlinked') {
     filters.push(isNull(assistantTable.id))

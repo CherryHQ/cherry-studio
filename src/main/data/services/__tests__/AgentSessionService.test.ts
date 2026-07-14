@@ -286,19 +286,17 @@ describe('AgentSessionService', () => {
       ])
     })
 
-    it('searchScope=name matches session name only; full also matches description and agent name', async () => {
+    it('searchScope=name matches session name only; name-or-owner also matches the live agent name, never description', async () => {
       await seedFlat()
-      // 'first' appears only in s1's description.
+      // 'first' appears only in s1's description — descriptions are never searched under either scope.
       expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', q: 'first' }).items).toEqual([])
       expect(
-        agentSessionService
-          .listByCursor({ sortBy: 'updatedAt', q: 'first', searchScope: 'full' })
-          .items.map((s) => s.id)
-      ).toEqual(['s1'])
-      // 'Session Test Agent' matches via the owning agent's name — only linked sessions.
+        agentSessionService.listByCursor({ sortBy: 'updatedAt', q: 'first', searchScope: 'name-or-owner' }).items
+      ).toEqual([])
+      // 'Test Agent' matches via the owning agent's name — only linked sessions.
       expect(
         agentSessionService
-          .listByCursor({ sortBy: 'updatedAt', q: 'Test Agent', searchScope: 'full' })
+          .listByCursor({ sortBy: 'updatedAt', q: 'Test Agent', searchScope: 'name-or-owner' })
           .items.map((s) => s.id)
       ).toEqual(['s2', 's1'])
     })

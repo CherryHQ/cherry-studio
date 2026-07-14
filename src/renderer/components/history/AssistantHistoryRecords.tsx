@@ -78,12 +78,14 @@ const AssistantHistoryRecords = ({
   const historySortBy = 'createdAt' as const
   const pinnedTopicsSource = useTopics({
     q: debouncedSearch,
+    searchScope: 'name-or-owner',
     assistantId: ownerScope,
     pinned: true
   })
   const unpinnedTopicsSource = useTopics({
     sortBy: historySortBy,
     q: debouncedSearch,
+    searchScope: 'name-or-owner',
     assistantId: ownerScope,
     pinned: false
   })

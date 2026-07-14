@@ -334,20 +334,20 @@ describe('useSessions', () => {
       useSessions('unlinked', {
         pinned: false,
         q: 'needle',
-        searchScope: 'full',
+        searchScope: 'name-or-owner',
         sortBy: 'updatedAt'
       })
     )
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
-      continuityKey: '{"agentId":"unlinked","mode":"flat","pinned":false,"q":"needle","searchScope":"full"}',
+      continuityKey: '{"agentId":"unlinked","mode":"flat","pinned":false,"q":"needle","searchScope":"name-or-owner"}',
       enabled: undefined,
       limit: 20,
       query: {
         agentId: 'unlinked',
         pinned: false,
         q: 'needle',
-        searchScope: 'full',
+        searchScope: 'name-or-owner',
         sortBy: 'updatedAt'
       },
       resetOnLocalWrite: '/agent-sessions',

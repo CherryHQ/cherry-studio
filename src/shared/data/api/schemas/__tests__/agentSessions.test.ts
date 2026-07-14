@@ -28,7 +28,7 @@ describe('ListAgentSessionsQuerySchema', () => {
 
   it.each([
     { q: 'x' },
-    { searchScope: 'full' },
+    { searchScope: 'name-or-owner' },
     { ids: ['s1'] },
     { agentId: 'unlinked' },
     { workspaceId: WORKSPACE_ID },
@@ -52,8 +52,8 @@ describe('ListAgentSessionsQuerySchema', () => {
 
   it('accepts the pin-owned stream without sortBy and rejects pinOrderKey', () => {
     expect(
-      ListAgentSessionsQuerySchema.parse({ pinned: true, q: 'x', searchScope: 'full', workspaceId: 'system' })
-    ).toEqual({ pinned: true, q: 'x', searchScope: 'full', workspaceId: 'system' })
+      ListAgentSessionsQuerySchema.parse({ pinned: true, q: 'x', searchScope: 'name-or-owner', workspaceId: 'system' })
+    ).toEqual({ pinned: true, q: 'x', searchScope: 'name-or-owner', workspaceId: 'system' })
     expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', pinned: true })).toEqual({
       sortBy: 'updatedAt',
       pinned: true

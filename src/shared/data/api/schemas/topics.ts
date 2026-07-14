@@ -67,6 +67,14 @@ export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
 export const TopicSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
 export type TopicSortBy = z.infer<typeof TopicSortBySchema>
 
+/**
+ * Search scope for `q` on `GET /topics`: `name` matches the topic name only
+ * (resource-list behavior); `name-or-owner` additionally matches the owning
+ * (live) assistant's name (Assistant History behavior).
+ */
+export const TopicSearchScopeSchema = z.enum(['name', 'name-or-owner'])
+export type TopicSearchScope = z.infer<typeof TopicSearchScopeSchema>
+
 /** Topic lists expose only pin identity; pin order remains an internal cursor key. */
 export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
 
@@ -88,8 +96,10 @@ export const ListTopicsQuerySchema = z.strictObject({
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
-  /** Substring filter on topic name (case-insensitive LIKE). */
+  /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
   q: z.string().optional(),
+  /** Search scope for `q`; defaults to `name` in the service. */
+  searchScope: TopicSearchScopeSchema.optional(),
   /** Sort profile for the ordinary stream; defaults to `createdAt`. Ignored when `pinned=true`. */
   sortBy: TopicSortBySchema.optional(),
   /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */

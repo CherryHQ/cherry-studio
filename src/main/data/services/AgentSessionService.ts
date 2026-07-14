@@ -17,6 +17,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
   AgentSessionListItem,
+  AgentSessionSearchScope,
   AgentSessionSortBy,
   AgentSessionStats,
   AgentSessionStatsQuery,
@@ -73,19 +74,19 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 /**
- * Search predicate for the flat list/stats paths. `name` matches the
- * session name only; `full` ORs in the description and the owning agent's
- * name (queries using `full` must LEFT JOIN the agent table).
+ * Search predicate for the flat list/stats paths. `name` matches the session
+ * name only; `name-or-owner` ORs in the owning agent's name (queries using
+ * `name-or-owner` must LEFT JOIN the agent table on live agents only). Session
+ * descriptions are never searched.
  */
-function buildScopedSearchPredicate(q: string | undefined, scope: 'name' | 'full'): SQL | undefined {
+function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSearchScope): SQL | undefined {
   const trimmed = q?.trim()
   if (!trimmed) return undefined
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
   if (scope === 'name') return nameMatch
-  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
   const agentNameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-  return or(nameMatch, descriptionMatch, agentNameMatch)
+  return or(nameMatch, agentNameMatch)
 }
 
 /**
@@ -95,7 +96,7 @@ function buildScopedSearchPredicate(q: string | undefined, scope: 'name' | 'full
  */
 function buildSessionRecordFilters(query: {
   q?: string
-  searchScope?: 'name' | 'full'
+  searchScope?: AgentSessionSearchScope
   agentId?: string
   ids?: string[]
   workspaceId?: string
@@ -311,8 +312,11 @@ export class AgentSessionService {
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
       .$dynamic()
-    if (query.searchScope === 'full') {
-      builder = builder.leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+    if (query.searchScope === 'name-or-owner') {
+      builder = builder.leftJoin(
+        agentsTable,
+        and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt))
+      )
     }
     const rows = builder
       .where(and(...filters))
@@ -335,7 +339,7 @@ export class AgentSessionService {
    * `TopicService.listFlatByCursor`: `createdAt` → immutable creation order,
    * `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey` →
    * manual order (`ASC, id ASC`), with the shared `(sortValue, id)` cursor.
-   * `searchScope: 'full'` LEFT JOINs the agent table for agent-name matches.
+   * `searchScope: 'name-or-owner'` LEFT JOINs the live agent table for agent-name matches.
    */
   private listFlatByCursor(
     query: ListAgentSessionsQuery,
@@ -373,8 +377,11 @@ export class AgentSessionService {
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
       .$dynamic()
-    if (query.searchScope === 'full') {
-      builder = builder.leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+    if (query.searchScope === 'name-or-owner') {
+      builder = builder.leftJoin(
+        agentsTable,
+        and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt))
+      )
     }
     const rows = builder
       .where(and(...filters))

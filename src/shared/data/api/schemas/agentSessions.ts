@@ -162,11 +162,12 @@ export const AgentSessionSortBySchema = z.enum(['createdAt', 'updatedAt', 'order
 export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 
 /**
- * Search scope: `name` is a literal substring over the session
- * name (resource-list behavior); `full` additionally ORs the session
- * description and the owning agent's name (Agent History behavior).
+ * Search scope: `name` is a literal substring over the session name
+ * (resource-list behavior); `name-or-owner` additionally ORs the owning
+ * (live) agent's name (Agent History behavior). Session descriptions are
+ * never searched.
  */
-export const AgentSessionSearchScopeSchema = z.enum(['name', 'full'])
+export const AgentSessionSearchScopeSchema = z.enum(['name', 'name-or-owner'])
 export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
 
 /**

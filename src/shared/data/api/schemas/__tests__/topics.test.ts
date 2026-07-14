@@ -76,6 +76,14 @@ describe('ListTopicsQuerySchema', () => {
     expect(() => ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', assistantId: 'not-a-uuid' })).toThrow()
   })
 
+  it('accepts searchScope name/name-or-owner and rejects an unknown scope', () => {
+    expect(ListTopicsQuerySchema.parse({ q: 'x', searchScope: 'name' })).toMatchObject({ searchScope: 'name' })
+    expect(ListTopicsQuerySchema.parse({ q: 'x', searchScope: 'name-or-owner' })).toMatchObject({
+      searchScope: 'name-or-owner'
+    })
+    expect(() => ListTopicsQuerySchema.parse({ q: 'x', searchScope: 'full' })).toThrow()
+  })
+
   it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
     expect(() => ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', [key]: 1 })).toThrow(/unrecognized/i)
     expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
