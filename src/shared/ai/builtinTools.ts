@@ -465,24 +465,47 @@ export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
 export const GENERATE_IMAGE_TOOL_NAME = 'generate_image'
 
+const GENERATE_IMAGE_PROMPT_FIELD = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4000)
+  .describe(
+    'Vivid, self-contained description of the image to generate. Include subject, style, ' +
+      'composition, and mood; MUST NOT use pronouns or references to earlier messages — ' +
+      'expand the request into a standalone prompt.'
+  )
+const GENERATE_IMAGE_SIZE_REGEX = /^\d+x\d+$/
+const GENERATE_IMAGE_SIZE_ERROR = 'Size must be "WIDTHxHEIGHT" in pixels, e.g. "1024x1024"'
+
+// MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
+// omit `size` / `n`, so they are `.optional()`. `z.toJSONSchema` legitimately drops them from
+// `required`, which the non-strict MCP schema accepts.
 export const generateImageInputSchema = z.object({
-  prompt: z
-    .string()
-    .trim()
-    .min(1)
-    .max(4000)
-    .describe(
-      'Vivid, self-contained description of the image to generate. Include subject, style, ' +
-        'composition, and mood; MUST NOT use pronouns or references to earlier messages — ' +
-        'expand the request into a standalone prompt.'
-    ),
+  prompt: GENERATE_IMAGE_PROMPT_FIELD,
   size: z
     .string()
     .trim()
-    .regex(/^\d+x\d+$/, 'Size must be "WIDTHxHEIGHT" in pixels, e.g. "1024x1024"')
+    .regex(GENERATE_IMAGE_SIZE_REGEX, GENERATE_IMAGE_SIZE_ERROR)
     .optional()
     .describe('Output dimensions as "WIDTHxHEIGHT" in pixels (e.g. "1024x1024"). Omit to use the model default.'),
   n: z.number().int().min(1).max(4).optional().describe('How many images to generate (1-4, default 1).')
+})
+
+// AI-SDK path (PaintingTool) runs with `strict: true`. A strict OpenAI-compatible provider rejects an
+// object whose optional fields serialize away from `required` (same failure as kb_list / kb_manage),
+// killing the tool call before generation. Express the same optionality with `.nullable()` so `size`
+// and `n` stay in `required` with a null option; the core (`generateImageFromPrompt`) treats null
+// like undefined (`!= null`).
+export const generateImageStrictInputSchema = z.object({
+  prompt: GENERATE_IMAGE_PROMPT_FIELD,
+  size: z
+    .string()
+    .trim()
+    .regex(GENERATE_IMAGE_SIZE_REGEX, GENERATE_IMAGE_SIZE_ERROR)
+    .nullable()
+    .describe('Output dimensions as "WIDTHxHEIGHT" in pixels (e.g. "1024x1024"). Pass null to use the model default.'),
+  n: z.number().int().min(1).max(4).nullable().describe('How many images to generate (1-4). Pass null for 1.')
 })
 
 export const generateImageOutputItemSchema = z.object({

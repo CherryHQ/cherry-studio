@@ -18,7 +18,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
-import type { GenerateImageInput, GenerateImageOutput } from '@shared/ai/builtinTools'
+import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -71,8 +71,15 @@ export function paintingModelOutput(output: PaintingResult): { type: 'text'; val
   return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
 }
 
+/** generate_image input shape shared by both callers: MCP omits size/n, AI-SDK strict passes null. */
+type GenerateImagePromptInput = {
+  prompt: string
+  size?: string | null
+  n?: number | null
+}
+
 export async function generateImageFromPrompt(
-  input: GenerateImageInput,
+  input: GenerateImagePromptInput,
   signal?: AbortSignal
 ): Promise<PaintingResult> {
   const uniqueModelId = application.get('PreferenceService').get('feature.paintings.model_id') as UniqueModelId | null
@@ -84,8 +91,8 @@ export async function generateImageFromPrompt(
       uniqueModelId,
       prompt: input.prompt,
       paramValues: {
-        ...(input.n !== undefined ? { numImages: input.n } : {}),
-        ...(input.size !== undefined ? { size: input.size } : {})
+        ...(input.n != null ? { numImages: input.n } : {}),
+        ...(input.size != null ? { size: input.size } : {})
       },
       requestOptions: signal ? { signal } : undefined
     })

@@ -9,7 +9,11 @@
  */
 
 import { application } from '@application'
-import { GENERATE_IMAGE_TOOL_NAME, generateImageInputSchema, generateImageOutputSchema } from '@shared/ai/builtinTools'
+import {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageOutputSchema,
+  generateImageStrictInputSchema
+} from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -28,7 +32,9 @@ const generateImageResultSchema = z.union([generateImageOutputSchema, paintingEr
 
 const generateImageTool = tool({
   description: GENERATE_IMAGE_DESCRIPTION,
-  inputSchema: generateImageInputSchema,
+  // `strict: true` needs every field in `required`; the strict schema makes `size` / `n` nullable
+  // (not optional) so a strict OpenAI-compatible provider doesn't reject the whole tool schema.
+  inputSchema: generateImageStrictInputSchema,
   outputSchema: generateImageResultSchema,
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
