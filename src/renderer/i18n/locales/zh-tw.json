@@ -6033,7 +6033,6 @@
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
-      "install": "安裝",
       "installError": "工具安裝失敗",
       "installErrorHint": "安裝命令執行失敗。複製下方日誌以便排查或尋求協助。",
       "installSettings": {

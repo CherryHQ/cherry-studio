@@ -6033,7 +6033,6 @@
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
       "duplicateName": "已存在相同名称的工具",
       "fieldVersion": "版本（可选，默认为最新）",
-      "install": "安装",
       "installError": "工具安装失败",
       "installErrorHint": "安装命令执行失败。复制下方日志以便排查或寻求帮助。",
       "installSettings": {

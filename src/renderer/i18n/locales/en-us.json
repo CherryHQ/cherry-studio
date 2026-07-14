@@ -6033,7 +6033,6 @@
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Install",
       "installError": "Failed to install tool",
       "installErrorHint": "The install command failed. Copy the log below to troubleshoot or share it for help.",
       "installSettings": {

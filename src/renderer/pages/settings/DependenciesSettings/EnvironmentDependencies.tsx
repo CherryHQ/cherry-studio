@@ -610,9 +610,7 @@ const BinaryToolPresetCard: FC<{
               ? t('settings.dependencies.installing')
               : failedInstall
                 ? t('common.retry')
-                : isBundled
-                  ? t('settings.dependencies.install')
-                  : t('settings.mcp.install')}
+                : t('settings.mcp.install')}
           </Button>
           {installing && <BinaryInstallingHint />}
         </div>
