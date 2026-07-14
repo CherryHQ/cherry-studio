@@ -5,7 +5,6 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { CSSProperties, ReactNode, Ref } from 'react'
 
-import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
 import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
@@ -76,37 +75,35 @@ export default function ConversationShell({
       topBar
     )
   return (
-    <ChatMaximizedOverlayInsetProvider>
-      <div
-        id={id}
-        className={cn(
-          'relative flex flex-1 overflow-hidden bg-background',
-          isWindow ? 'h-screen' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
-          className
-        )}>
-        <QuickPanelProvider>
-          <ConversationTopBarPortalProvider>
-            <ChatAppShell
-              pane={pane}
-              paneOpen={paneOpen}
-              panePosition={panePosition}
-              topBar={resolvedTopBar}
-              centerContent={center}
-              sidePanel={sidePanel}
-              centerOverlay={centerOverlay}
-              centerTopOverlay={centerTopOverlay}
-              overlay={overlay}
-              centerId={centerId}
-              centerRef={centerRef}
-              centerClassName={centerClassName}
-              onPaneCollapse={onPaneCollapse}
-              onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-            />
-          </ConversationTopBarPortalProvider>
-        </QuickPanelProvider>
-        {rightPane}
-      </div>
-    </ChatMaximizedOverlayInsetProvider>
+    <div
+      id={id}
+      className={cn(
+        'relative flex flex-1 overflow-hidden bg-background',
+        isWindow ? 'h-screen' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
+        className
+      )}>
+      <QuickPanelProvider>
+        <ConversationTopBarPortalProvider>
+          <ChatAppShell
+            pane={pane}
+            paneOpen={paneOpen}
+            panePosition={panePosition}
+            topBar={resolvedTopBar}
+            centerContent={center}
+            sidePanel={sidePanel}
+            centerOverlay={centerOverlay}
+            centerTopOverlay={centerTopOverlay}
+            overlay={overlay}
+            centerId={centerId}
+            centerRef={centerRef}
+            centerClassName={centerClassName}
+            onPaneCollapse={onPaneCollapse}
+            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+          />
+        </ConversationTopBarPortalProvider>
+      </QuickPanelProvider>
+      {rightPane}
+    </div>
   )
 }
 

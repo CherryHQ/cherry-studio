@@ -138,11 +138,6 @@ vi.mock('react-i18next', () => ({
 
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 
-import {
-  ChatMaximizedOverlayInsetProvider,
-  useChatMaximizedOverlayBottomInset,
-  useSetChatMaximizedOverlayBottomInset
-} from '../../../layout/ChatViewportInsetContext'
 import { Shell, useShellActions, useShellState } from '../Shell'
 
 function CloseShellButton() {
@@ -181,22 +176,6 @@ function ToggleMaximizedButton() {
       toggle maximized
     </button>
   )
-}
-
-function SetMaximizedOverlayBottomInset({ value }: { value: number }) {
-  const setBottomInset = useSetChatMaximizedOverlayBottomInset()
-
-  useEffect(() => {
-    setBottomInset(value)
-  }, [setBottomInset, value])
-
-  return null
-}
-
-function MaximizedOverlayBottomInsetSnapshot() {
-  const bottomInset = useChatMaximizedOverlayBottomInset()
-
-  return <div data-testid="maximized-overlay-bottom-inset">{String(bottomInset)}</div>
 }
 
 function ShellStateSnapshot() {
@@ -748,51 +727,24 @@ describe('Shell.TabList', () => {
 })
 
 describe('Shell.MaximizedOverlay', () => {
-  it('reserves the measured composer bottom inset while maximized', async () => {
+  it('keeps maximized content full-height instead of reserving composer space', async () => {
     const { container } = render(
-      <ChatMaximizedOverlayInsetProvider>
-        <Shell defaultTab="files">
-          <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
-          <ToggleMaximizedButton />
-          <SetMaximizedOverlayBottomInset value={128} />
-          <Shell.MaximizedOverlay>
-            <div>maximized content</div>
-          </Shell.MaximizedOverlay>
-        </Shell>
-      </ChatMaximizedOverlayInsetProvider>
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <ToggleMaximizedButton />
+        <Shell.MaximizedOverlay>
+          <div>maximized content</div>
+        </Shell.MaximizedOverlay>
+      </Shell>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
     fireEvent.click(screen.getByRole('button', { name: 'toggle maximized' }))
 
     await waitFor(() => {
-      expect(container.querySelector('[data-shell-maximized-overlay-content]')).toHaveStyle({
-        height: 'max(0px, calc(100% - 128px))'
-      })
+      const content = container.querySelector<HTMLElement>('[data-shell-maximized-overlay-content]')
+      expect(content).toHaveClass('h-full')
+      expect(content?.style.height).toBe('')
     })
-  })
-
-  it('does not rerender setter-only consumers when the measured bottom inset changes', async () => {
-    let setterOnlyRenderCount = 0
-
-    function SetterOnlyProbe() {
-      useSetChatMaximizedOverlayBottomInset()
-      setterOnlyRenderCount += 1
-
-      return null
-    }
-
-    render(
-      <ChatMaximizedOverlayInsetProvider>
-        <SetterOnlyProbe />
-        <SetMaximizedOverlayBottomInset value={128} />
-        <MaximizedOverlayBottomInsetSnapshot />
-      </ChatMaximizedOverlayInsetProvider>
-    )
-
-    await waitFor(() => {
-      expect(screen.getByTestId('maximized-overlay-bottom-inset')).toHaveTextContent('128')
-    })
-    expect(setterOnlyRenderCount).toBe(1)
   })
 })

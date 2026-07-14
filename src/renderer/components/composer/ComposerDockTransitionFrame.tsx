@@ -1,7 +1,6 @@
 import {
   ChatBottomOverlayInsetProvider,
-  type ChatBottomOverlayInsets,
-  useSetChatMaximizedOverlayBottomInset
+  type ChatBottomOverlayInsets
 } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import {
   getComposerDockMotionAttributes,
@@ -13,7 +12,6 @@ import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
-const COMPOSER_OVERLAY_GAP_PX = 16
 
 export type ComposerDockPlacement = 'home' | 'docked'
 
@@ -51,7 +49,6 @@ export default function ComposerDockTransitionFrame({
   const dockMotionTransition = useComposerDockMotionTransition(placement)
   const dockMotionAttributes = getComposerDockMotionAttributes(dockMotionTransition)
   const quickPanel = useOptionalQuickPanel()
-  const setMaximizedOverlayBottomInset = useSetChatMaximizedOverlayBottomInset()
 
   // Home placement asks the quick panel to fill the available height above the input.
   // Pushed explicitly through context (no DOM contract); no-op when there is no provider.
@@ -64,16 +61,12 @@ export default function ComposerDockTransitionFrame({
 
   useLayoutEffect(() => {
     const node = composerRef.current
-    if (!node) {
-      setMaximizedOverlayBottomInset(0)
-      return
-    }
+    if (!node) return
 
     const updateInset = () => {
       if (!isDocked || !hasComposer) {
         setBottomOverlayInsets(null)
         setComposerInlineInsets({ left: 0, right: 0 })
-        setMaximizedOverlayBottomInset(0)
         return
       }
       const insetTarget =
@@ -83,7 +76,6 @@ export default function ComposerDockTransitionFrame({
       if (!insetTarget || !root) {
         setBottomOverlayInsets(null)
         setComposerInlineInsets({ left: 0, right: 0 })
-        setMaximizedOverlayBottomInset(0)
         return
       }
       const insetTargetRect = insetTarget.getBoundingClientRect()
@@ -100,13 +92,10 @@ export default function ComposerDockTransitionFrame({
         left: scrollerRect ? Math.max(0, scrollerRect.left - rootRect.left) : 0,
         right: scrollerRect ? Math.max(0, rootRect.right - scrollerRect.left - scrollerClientWidth) : 0
       })
-      setMaximizedOverlayBottomInset(Math.max(0, rootRect.bottom - composerRect.top + COMPOSER_OVERLAY_GAP_PX))
     }
     updateInset()
 
-    if (typeof ResizeObserver === 'undefined') {
-      return () => setMaximizedOverlayBottomInset(0)
-    }
+    if (typeof ResizeObserver === 'undefined') return
 
     const observer = new ResizeObserver(updateInset)
     if (rootRef.current) observer.observe(rootRef.current)
@@ -117,11 +106,8 @@ export default function ComposerDockTransitionFrame({
     if (insetTarget) observer.observe(insetTarget)
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
     if (scroller) observer.observe(scroller)
-    return () => {
-      observer.disconnect()
-      setMaximizedOverlayBottomInset(0)
-    }
-  }, [hasComposer, isDocked, setMaximizedOverlayBottomInset])
+    return () => observer.disconnect()
+  }, [hasComposer, isDocked])
 
   return (
     <div ref={rootRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
