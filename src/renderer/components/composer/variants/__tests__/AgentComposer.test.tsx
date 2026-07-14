@@ -139,6 +139,14 @@ vi.mock('@data/CacheService', () => ({
   }
 }))
 
+vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
+  default: ({ workdir, menuTrigger }: { workdir: string; menuTrigger?: ReactNode }) => (
+    <div data-testid="workspace-open-button" data-workdir={workdir}>
+      {menuTrigger}
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
@@ -410,19 +418,6 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   )
 }))
 
-// AgentComposer lazy-imports the `dialogs/edit` barrel (not the leaf), so the mock must
-// replace the barrel — otherwise the lazy import loads the real barrel's heavy sibling
-// dialogs, whose async resolution races findByTestId's timeout under full-suite load.
-vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
-    <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
-      <button type="button" onClick={() => onOpenChange(false)}>
-        close edit dialog
-      </button>
-    </div>
-  )
-}))
-
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
@@ -603,7 +598,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
-    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeNull()
+    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
@@ -900,7 +895,6 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         isStreaming={false}
       />
     )
@@ -1053,7 +1047,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         onWorkspaceChange={onWorkspaceChange}
-        showWorkspaceSelector
       />
     )
 
@@ -1074,7 +1067,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         onWorkspaceChange={vi.fn()}
-        showWorkspaceSelector
       />
     )
 
@@ -1921,7 +1913,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
-  it('opens the active session agent edit dialog from the toolbar trigger while keeping the model selector inline', async () => {
+  it('uses the agent selector for an active session and updates the session agent', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1932,39 +1924,20 @@ describe('AgentComposer', () => {
       />
     )
 
-    // Active sessions are bound to their agent: that trigger edits while model switching stays inline.
-    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('select agent 2')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+    expect(screen.getByText('select agent 2')).toBeInTheDocument()
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
 
-    fireEvent.click(screen.getByText('Agent').closest('button')!)
+    fireEvent.click(screen.getByText('select agent 2'))
 
-    const dialog = await screen.findByTestId('resource-edit-dialog-host')
-    expect(dialog).toHaveAttribute('data-kind', 'agent')
-    expect(dialog).toHaveAttribute('data-id', 'agent-1')
-    expect(mocks.updateSession).not.toHaveBeenCalled()
-  })
-
-  it('restores composer focus after closing the active session agent edit dialog', async () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', agentId: 'agent-2' },
+      { showSuccessToast: false }
     )
-
-    fireEvent.click(screen.getByText('Agent').closest('button')!)
-    await screen.findByTestId('resource-edit-dialog-host')
-
-    fireEvent.click(screen.getByText('close edit dialog'))
-
-    expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
   })
 
-  it('hides the active session agent trigger from the toolbar in classic layout', () => {
+  it('keeps the active session agent control visible in classic layout', () => {
     mocks.sessionLayout = 'classic'
 
     render(
@@ -1977,10 +1950,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+    expect(screen.getByText('Agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
-    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
@@ -2081,13 +2053,13 @@ describe('AgentComposer', () => {
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('hides the missing-agent trigger in classic layout', () => {
+  it('keeps the missing-agent trigger visible in classic layout', () => {
     mocks.sessionLayout = 'classic'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 
-    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('chat.alerts.select_agent')
+    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('chat.alerts.select_agent')
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
   })
 
@@ -2101,12 +2073,12 @@ describe('AgentComposer', () => {
     expect(workspaceLabel.closest('button')).toBeDisabled()
   })
 
-  it('hides the workspace placeholder in the missing-agent composer in workdir mode', () => {
+  it('keeps the workspace placeholder visible in the missing-agent composer in workdir mode', () => {
     mocks.sessionLayout = 'workdir'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent(
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
       'agent.session.workspace_selector.placeholder'
     )
   })
@@ -2138,7 +2110,7 @@ describe('AgentComposer', () => {
     expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })
 
-  it('does not render the workspace selector in docked composer mode', () => {
+  it('renders a workspace opener in docked composer mode', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -2149,29 +2121,30 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('workspace-open-button')).toHaveAttribute('data-workdir', '/workspace')
     expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
+    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
   })
 
-  it('hides the workspace selector when sessions are grouped by workspace', () => {
+  it('keeps the workspace selector visible when sessions are grouped by workspace', () => {
     render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         onWorkspaceChange={vi.fn()}
         isStreaming={false}
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
-    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
+    expect(screen.getByText('select workspace 2')).toBeInTheDocument()
   })
 
-  it('renders a read-only workspace control in docked composer mode when requested without a change handler', () => {
+  it('keeps the workspace opener visible in the alternate grouping mode', () => {
     mocks.sessionLayout = 'time'
 
     render(
@@ -2180,13 +2153,13 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         isStreaming={false}
       />
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
     expect(leftControls).toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('workspace-open-button')).toHaveAttribute('data-workdir', '/workspace')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
     expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
   })
@@ -2201,7 +2174,6 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         onWorkspaceChange={onWorkspaceChange}
         isStreaming={false}
       />
@@ -2275,7 +2247,6 @@ describe('AgentComposer', () => {
         }}
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         isStreaming={false}
       />
     )

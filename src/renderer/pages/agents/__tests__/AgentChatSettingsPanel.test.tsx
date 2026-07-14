@@ -251,7 +251,6 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     return (
       <div
         data-testid="agent-composer"
-        data-show-workspace={String(Boolean(props.showWorkspaceSelector))}
         data-can-change-workspace={String(Boolean(props.onWorkspaceChange))}
         data-can-change-model={String(props.canChangeModel !== false)}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
@@ -362,7 +361,6 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange
     })
 
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-show-workspace', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
 
@@ -371,7 +369,7 @@ describe('AgentChat settings panel', () => {
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('keeps the workspace control read-only while the empty session is pending', () => {
+  it('does not allow switching the workspace while the empty session is pending', () => {
     topicStreamStatusMock.isPending = true
 
     renderAgentChat({
@@ -388,7 +386,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 
-  it('keeps the workspace control read-only after messages are present', () => {
+  it('does not allow switching the workspace after messages are present', () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]
     }
@@ -403,7 +401,6 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange: vi.fn()
     })
 
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-show-workspace', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })

@@ -848,6 +848,8 @@ describe('ChatComposer', () => {
   it('updates the topic assistant from the composer toolbar', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
+    expect(screen.getByTestId('assistant-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
+
     fireEvent.click(screen.getByText('select assistant 2'))
 
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', { assistantId: 'assistant-2' })
@@ -855,6 +857,8 @@ describe('ChatComposer', () => {
 
   it('updates the assistant model from the composer toolbar', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -1042,14 +1046,13 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('hides the active assistant trigger from the toolbar in classic layout', () => {
+  it('keeps the active assistant trigger visible in classic layout', () => {
     mocks.topicLayout = 'classic'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    // Old/传统 view has a left assistant rail, so the input toolbar should not duplicate the assistant trigger.
-    expect(screen.queryByTestId('assistant-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('Assistant 1')).not.toBeInTheDocument()
+    expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
+    expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateTopic).not.toHaveBeenCalled()

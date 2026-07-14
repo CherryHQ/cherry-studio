@@ -2,6 +2,10 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import {
+  ConversationTopBarPortal,
+  useConversationTopBarPortalAvailable
+} from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
@@ -47,7 +51,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, Globe, Lightbulb } from 'lucide-react'
+import { Bot, ChevronDown, Globe, Lightbulb } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -134,7 +138,6 @@ interface ChatComposerContextControlsProps {
   shouldAutoSelectCreatedAssistant: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
-  showAssistantTrigger?: boolean
   onDialogCloseAutoFocus?: () => void
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
@@ -160,7 +163,6 @@ const ChatComposerContextControls = ({
   shouldAutoSelectCreatedAssistant,
   side,
   iconOnly = false,
-  showAssistantTrigger = true,
   onDialogCloseAutoFocus,
   onAssistantChange,
   onModelSelect,
@@ -207,24 +209,23 @@ const ChatComposerContextControls = ({
     <Button variant="ghost" size="sm" className={compactTriggerClassName}>
       {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
+      <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
     </Button>
   )
 
   return (
     <>
-      {showAssistantTrigger ? (
-        <AssistantSelector
-          multi={false}
-          value={assistantId}
-          onChange={onAssistantChange}
-          autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
-          side={side}
-          align="start"
-          mountStrategy="lazy-keep"
-          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
-          trigger={assistantTrigger}
-        />
-      ) : null}
+      <AssistantSelector
+        multi={false}
+        value={assistantId}
+        onChange={onAssistantChange}
+        autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
+        side={side}
+        align="start"
+        mountStrategy="lazy-keep"
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+        trigger={assistantTrigger}
+      />
       {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
         <SelectedModelsTrigger
           className={mentionedModelTriggerClassName}
@@ -281,6 +282,11 @@ const ChatComposerContextControls = ({
             <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
               {model ? <ModelAvatar model={model} size={20} /> : null}
               <span className={cn('max-w-52', modelLabelClassName)}>{modelLabel}</span>
+              <ChevronDown
+                size={14}
+                aria-hidden
+                className={cn('text-muted-foreground', iconOnly && model && 'hidden')}
+              />
             </Button>
           }
         />
@@ -290,6 +296,7 @@ const ChatComposerContextControls = ({
 }
 
 type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'> & {
+  topBarPortalAvailable: boolean
   leadingControl?: React.ReactNode
   renderPersistentToolShortcuts?: (args: {
     inputAdapter?: ComposerInputAdapter
@@ -389,6 +396,23 @@ const ChatComposerContextControlsWithAutoFocus = ({
   return <ChatComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
 }
 
+const renderChatComposerContextControls = (
+  props: ChatComposerControlProps,
+  inputAdapter: ComposerInputAdapter,
+  { side, iconOnly }: { side: 'top' | 'bottom'; iconOnly: boolean }
+) => {
+  const controls = (
+    <ChatComposerContextControlsWithAutoFocus
+      {...props}
+      side={props.topBarPortalAvailable ? 'bottom' : side}
+      iconOnly={props.topBarPortalAvailable ? false : iconOnly}
+      inputAdapter={inputAdapter}
+    />
+  )
+
+  return props.topBarPortalAvailable ? <ConversationTopBarPortal>{controls}</ConversationTopBarPortal> : controls
+}
+
 const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter, unifiedPanelControl) => {
     const persistentToolShortcuts = props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
@@ -405,14 +429,7 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
         showToolMenu={false}
         unifiedPanelControl={unifiedPanelControl}
         toolMenuPlacement="beforeContext"
-        renderContextControls={({ side, iconOnly }) => (
-          <ChatComposerContextControlsWithAutoFocus
-            {...props}
-            side={side}
-            iconOnly={iconOnly}
-            inputAdapter={inputAdapter}
-          />
-        )}
+        renderContextControls={(placement) => renderChatComposerContextControls(props, inputAdapter, placement)}
       />
     )
   }
@@ -423,31 +440,31 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
     const persistentToolShortcuts = props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
 
     return (
-      <div className={COMPOSER_TOOLBAR_CLASS}>
-        {props.leadingControl}
-        {persistentToolShortcuts}
-        <ComposerToolMenuControls
-          inputAdapter={inputAdapter}
-          unifiedPanelControl={unifiedPanelControl}
-          showToolMenu={false}
-        />
-      </div>
+      <>
+        {props.topBarPortalAvailable
+          ? renderChatComposerContextControls(props, inputAdapter, { side: 'bottom', iconOnly: false })
+          : null}
+        <div className={COMPOSER_TOOLBAR_CLASS}>
+          {props.leadingControl}
+          {persistentToolShortcuts}
+          <ComposerToolMenuControls
+            inputAdapter={inputAdapter}
+            unifiedPanelControl={unifiedPanelControl}
+            showToolMenu={false}
+          />
+        </div>
+      </>
     )
   },
-  renderBelowControls: (inputAdapter) => (
-    <ComposerBelowControls
-      renderContextControls={({ side, iconOnly }) => (
-        // Draft/home always picks the assistant via the switcher, regardless of view mode.
-        <ChatComposerContextControlsWithAutoFocus
-          {...props}
-          side={side}
-          useMentionedModelSelector
-          iconOnly={iconOnly}
-          inputAdapter={inputAdapter}
+  renderBelowControls: props.topBarPortalAvailable
+    ? undefined
+    : (inputAdapter) => (
+        <ComposerBelowControls
+          renderContextControls={(placement) =>
+            renderChatComposerContextControls({ ...props, useMentionedModelSelector: true }, inputAdapter, placement)
+          }
         />
-      )}
-    />
-  )
+      )
 })
 
 type ChatComposerRootProps = ChatComposerProps & {
@@ -574,9 +591,7 @@ const ChatComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
-  // Assistant grouping uses the classic two-pane conversation layout.
-  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
-  const isClassicTopicLayout = topicDisplayMode === 'assistant'
+  const topBarPortalAvailable = useConversationTopBarPortalAvailable()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -1159,7 +1174,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
-    showAssistantTrigger: !isClassicTopicLayout || !selectedAssistantId,
+    topBarPortalAvailable,
     leadingControl: newTopicControl,
     renderPersistentToolShortcuts,
     onAssistantChange: handleAssistantChange,

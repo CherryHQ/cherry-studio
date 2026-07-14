@@ -18,7 +18,6 @@ interface AgentComposerSlotProps {
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
-  showWorkspaceSelector?: boolean
   canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
@@ -36,7 +35,6 @@ export default function AgentComposerSlot({
   workspaceId,
   onWorkspaceChange,
   workspaceChanging,
-  showWorkspaceSelector,
   canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
@@ -54,7 +52,6 @@ export default function AgentComposerSlot({
         workspaceId={workspaceId}
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}
-        showWorkspaceSelector={showWorkspaceSelector}
         canChangeModel={canChangeModel}
       />
     ) : undefined
