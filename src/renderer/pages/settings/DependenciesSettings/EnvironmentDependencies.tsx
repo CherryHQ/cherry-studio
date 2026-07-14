@@ -341,6 +341,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             className="text-muted-foreground/50 hover:text-foreground"
             onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
+            aria-label={t('settings.dependencies.checkUpdates')}
             title={t('settings.dependencies.checkUpdates')}>
             {checkingUpdates ? (
               <Loader2 className="size-3 motion-safe:animate-spin" />
@@ -353,6 +354,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             size="icon-sm"
             className="text-muted-foreground/50 hover:text-foreground"
             onClick={() => setShowInstallSettings(true)}
+            aria-label={t('settings.dependencies.installSettings.title')}
             title={t('settings.dependencies.installSettings.title')}>
             <Settings2 className="size-3" />
           </Button>

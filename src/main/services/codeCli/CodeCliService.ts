@@ -444,9 +444,10 @@ export class CodeCliService extends BaseService {
             return exportCmd
           })
           .join(' && ')
-        const clearAmbientMise =
-          'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
-        return `${clearAmbientMise} && ${envCommands}`
+        const clearAmbientMise = usesCherryExecutionEnv
+          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
+          : ''
+        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
       }
     }
 

@@ -240,6 +240,37 @@ describe('CodeCliService', () => {
         vi.useRealTimers()
       }
     })
+
+    it('preserves ambient mise settings for a system OpenCode while exporting its own env', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        opencode: {
+          name: 'opencode',
+          availability: { source: 'system', path: '/home/me/.local/share/mise/shims/opencode' }
+        }
+      })
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.OPEN_CODE,
+          model: 'deepseek:deepseek-chat',
+          providerId: 'cherry-gateway',
+          directory: '/tmp/project'
+        })
+
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        const script = (call![1] as string[]).join(' ')
+        expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
+        expect(script).not.toContain('_cherry_mise_key')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
@@ -306,6 +337,22 @@ describe('CodeCliService', () => {
       // Direct launch must not force the gateway-only API version — a user who set
       // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
       expect(script).not.toContain('GOOGLE_GENAI_API_VERSION')
+    })
+
+    it('preserves ambient mise settings for a system Gemini CLI while exporting its own env', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        gemini: { name: 'gemini', availability: { source: 'system', path: '/home/me/.local/share/mise/shims/gemini' } }
+      })
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'gemini-2.5-pro',
+        providerId: 'gemini',
+        directory: '/tmp/project'
+      })
+
+      expect(script).toContain('GEMINI_CLI_TRUST_WORKSPACE=')
+      expect(script).not.toContain('_cherry_mise_key')
     })
   })
 

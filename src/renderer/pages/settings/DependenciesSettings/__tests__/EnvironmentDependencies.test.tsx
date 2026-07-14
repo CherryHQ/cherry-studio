@@ -207,6 +207,12 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
   })
 
+  it('gives the public icon-only dependency actions accessible names', async () => {
+    render(<EnvironmentDependencies />)
+    expect(await screen.findByLabelText('settings.dependencies.checkUpdates')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
+  })
+
   it('offers a Cherry-managed copy for a system preset via install_tool, never claim_tool', async () => {
     setSnapshots({ fd: { name: 'fd', availability: { source: 'system', path: '/usr/local/bin/fd' } } })
     render(<EnvironmentDependencies />)
