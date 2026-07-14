@@ -342,6 +342,9 @@ export class TopicNamingService {
       return title || null
     } catch (error) {
       logger.warn('Failed to generate topic title', error as Error)
+      application
+        .get('IpcApiService')
+        .broadcast('ai.topic_naming_failed', { message: error instanceof Error ? error.message : String(error) })
       return null
     }
   }

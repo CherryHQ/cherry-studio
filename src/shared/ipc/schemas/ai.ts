@@ -195,4 +195,8 @@ export type AiEventSchemas = {
   // window showing it should invalidate its cache.
   'ai.topic_auto_renamed': { topicId: string }
   'ai.agent_session_auto_renamed': { sessionId: string }
+  // Auto-rename failure (broadcast): a background naming job's summarization call failed
+  // (e.g. the naming model returned an auth error). Windows surface it as a toast so the
+  // failure isn't silent.
+  'ai.topic_naming_failed': { message: string }
 }

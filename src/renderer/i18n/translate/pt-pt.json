@@ -31,6 +31,11 @@
       "submit": "Enviar",
       "title": "Perguntas do Agente"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "channels": {
       "add": "Adicionar",
       "bindAgent": "Bind Agente",
@@ -1729,6 +1734,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Limpar mensagens"
       },
@@ -1961,6 +1967,11 @@
       },
       "select_placeholder": "Selecionar…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "Falha ao escrever a configuração da CLI no arquivo do sistema",
     "auto_update_to_latest": "Verificar atualizações e instalar a versão mais recente",
     "bun_required_message": "Executar a ferramenta CLI requer a instalação do ambiente Bun",
@@ -2040,6 +2051,7 @@
     "model_required": "Selecione o modelo",
     "model_selection": "Seleção de Modelo",
     "more": "Mais",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "Nenhum provedor correspondente encontrado",
     "no_model_for_provider": "Nenhum modelo disponível para este provedor",
     "no_providers_description": "Ative um provedor compatível em Configurações → Serviço de Modelo",
@@ -3268,6 +3280,7 @@
       },
       "knowledge": {
         "add": "Adicionar base de conhecimento",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Vincule uma ou mais bases de conhecimento; trechos relevantes serão recuperados durante o chat",
         "doc_count": "{{count}} documentos",
         "empty_desc": "Uma vez vinculado, o assistente pode responder com base no conteúdo do documento",
@@ -3281,6 +3294,7 @@
         "title": "Bases de conhecimento"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Novo Prompt",
         "dblclick_hint": "Duplo clique na pré-visualização para voltar ao modo de edição",
         "desc": "O prompt do sistema é enviado como o contexto inicial do assistente",
@@ -4037,6 +4051,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Fixar este modelo",
       "unpin": "Desafixar modelo"
     },
@@ -5536,75 +5551,6 @@
         "title": "Exportar Configurações do Menu",
         "yuque": "Exportar para Yuque"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Selecionar arquivo de backup"
-        },
-        "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
-        "file": {
-          "button": "Exportar para arquivo",
-          "content": "Exportar dados como arquivo de backup que pode ser importado no celular via arquivo.",
-          "export_failed": "Falha na exportação",
-          "export_success": "Exportação bem-sucedida",
-          "title": "Exportar como arquivo"
-        },
-        "lan": {
-          "button": "Iniciar transferência",
-          "connected": "Conectado",
-          "connection_failed": "Falha na conexão",
-          "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
-          "device_list_title": "Dispositivos de rede local",
-          "discovered_devices": "Dispositivos descobertos",
-          "error": {
-            "file_too_large": "Arquivo muito grande, máximo de 500MB suportado",
-            "init_failed": "Falha na inicialização",
-            "invalid_file_type": "Apenas arquivos ZIP são suportados",
-            "no_file": "Nenhum arquivo selecionado",
-            "no_ip": "Incapaz de obter endereço IP",
-            "not_connected": "Por favor, complete primeiro o handshake",
-            "send_failed": "Falha ao enviar arquivo"
-          },
-          "file_transfer": {
-            "cancelled": "Transferência cancelada",
-            "failed": "Falha na transferência de arquivo: {{message}}",
-            "progress": "Enviando... {{progress}}%",
-            "success": "Arquivo enviado com sucesso"
-          },
-          "handshake": {
-            "button": "Aperto de mão",
-            "failed": "Falha no handshake: {{message}}",
-            "in_progress": "Aperto de mãos...",
-            "success": "Handshake concluído com {{device}}",
-            "test_message_received": "Recebido pong de {{device}}",
-            "test_message_sent": "Enviou payload de teste hello world"
-          },
-          "idle_hint": "Digitalização pausada. Inicie a digitalização para encontrar pares do Cherry Studio na sua rede local.",
-          "ip_addresses": "Endereços IP",
-          "last_seen": "Visto pela última vez às {{time}}",
-          "metadata": "Metadados",
-          "no_connection_warning": "Por favor, abra a Transferência LAN no Cherry Studio mobile",
-          "no_devices": "Ainda não foram encontrados pares de LAN.",
-          "scan_devices": "Escaneie dispositivos",
-          "scanning_hint": "Escaneando sua rede local por pares do Cherry Studio...",
-          "send_file": "Enviar Arquivo",
-          "status": {
-            "completed": "Transferência concluída",
-            "connected": "Conectado",
-            "connecting": "Conectando...",
-            "disconnected": "Desconectado",
-            "error": "Erro de conexão",
-            "initializing": "Inicializando conexão...",
-            "preparing": "Preparando transferência...",
-            "sending": "Transferindo {{progress}}%"
-          },
-          "status_badge_idle": "Ocioso",
-          "status_badge_scanning": "Digitalização",
-          "stop_scan": "Parar digitalização",
-          "title": "transmissão de rede local",
-          "transfer_progress": "Progresso da transferência"
-        },
-        "title": "Exportar para o telemóvel"
-      },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
       "import_settings": {
@@ -6800,6 +6746,7 @@
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
           "label": "Adicionar todos os modelos"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Adicionar todo o grupo",
         "clean_stale_models": "Limpar modelos obsoletos",
         "clean_stale_success": "{{count}} modelo(s) obsoleto(s) limpo(s)",
@@ -7211,6 +7158,7 @@
         "fill_after_create": "Os campos de autenticação podem ser preenchidos após a criação",
         "menu_label": "Adicionar instância"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Suportado por Agente",
         "all": "Todos os Provedores",

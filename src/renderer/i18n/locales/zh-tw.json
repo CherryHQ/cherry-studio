@@ -1734,6 +1734,7 @@
     "thinking_tokens": "約 {{tokens}} tokens",
     "topics": {
       "auto_rename": "自動重新命名對話",
+      "auto_rename_failed": "自動產生對話名稱失敗",
       "clear": {
         "title": "清空訊息"
       },

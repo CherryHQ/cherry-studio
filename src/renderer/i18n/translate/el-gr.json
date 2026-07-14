@@ -31,6 +31,11 @@
       "submit": "Υποβολή",
       "title": "Ερωτήσεις από τον πράκτορα"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "channels": {
       "add": "Προσθήκη",
       "bindAgent": "Δέσμευση Πράκτορα",
@@ -1729,6 +1734,7 @@
     "thinking_tokens": "~{{tokens}} διακριτικά",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Καθαρισμός μηνυμάτων"
       },
@@ -1961,6 +1967,11 @@
       },
       "select_placeholder": "Επιλογή…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "Αποτυχία εγγραφής της διαμόρφωσης CLI στο αρχείο συστήματος",
     "auto_update_to_latest": "Έλεγχος για ενημερώσεις και εγκατάσταση της τελευταίας έκδοσης",
     "bun_required_message": "Για τη λειτουργία του εργαλείου CLI πρέπει να εγκαταστήσετε το περιβάλλον Bun",
@@ -2040,6 +2051,7 @@
     "model_required": "Επιλέξτε μοντέλο",
     "model_selection": "Επιλογή Μοντέλου",
     "more": "Περισσότερα",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "Δεν υπάρχουν συμβατοί πάροχοι",
     "no_model_for_provider": "Δεν υπάρχει διαθέσιμο μοντέλο για αυτόν τον πάροχο",
     "no_providers_description": "Ενεργοποιήστε έναν υποστηριζόμενο πάροχο στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
@@ -3268,6 +3280,7 @@
       },
       "knowledge": {
         "add": "Προσθήκη βάσης γνώσεων",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Σύνδεσε μία ή περισσότερες βάσεις γνώσης· σχετικά αποσπάσματα θα ανακτώνται κατά τη διάρκεια της συνομιλίας",
         "doc_count": "{{count}} έγγραφα",
         "empty_desc": "Μόλις συνδεθεί, ο βοηθός μπορεί να απαντά βάσει του περιεχομένου του εγγράφου",
@@ -3281,6 +3294,7 @@
         "title": "Γνωσιακές βάσεις"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Νέο Κείμενο Προτροπής",
         "dblclick_hint": "Κάντε διπλό κλικ στην προεπισκόπηση για να επιστρέψετε στην επεξεργασία",
         "desc": "Το prompt του συστήματος αποστέλλεται ως το αρχικό πλαίσιο του βοηθού",
@@ -4037,6 +4051,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Καρφίτσωσε αυτό το μοντέλο",
       "unpin": "Ξεκαρφίτσωμα μοντέλου"
     },
@@ -5536,75 +5551,6 @@
         "title": "Εξαγωγή ρυθμίσεων μενού",
         "yuque": "Εξαγωγή στο Yuque"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Επιλέξτε αρχείο αντιγράφων ασφαλείας"
-        },
-        "content": "Εξαγωγή μέρους των δεδομένων, συμπεριλαμβανομένων των ιστορικών συνομιλιών και των ρυθμίσεων. Σημειώστε ότι η διαδικασία δημιουργίας αντιγράφων ασφαλείας ενδέχεται να διαρκέσει κάποιο χρονικό διάστημα, ευχαριστούμε για την υπομονή σας.",
-        "file": {
-          "button": "Εξαγωγή σε αρχείο",
-          "content": "Εξαγωγή δεδομένων ως αρχείο αντιγράφου ασφαλείας που μπορεί να εισαχθεί σε κινητό μέσω αρχείου.",
-          "export_failed": "Η εξαγωγή απέτυχε",
-          "export_success": "Η εξαγωγή ολοκληρώθηκε με επιτυχία",
-          "title": "Εξαγωγή ως αρχείο"
-        },
-        "lan": {
-          "button": "Έναρξη μεταφοράς",
-          "connected": "Συνδεδεμένος",
-          "connection_failed": "Η σύνδεση απέτυχε",
-          "content": "Βεβαιωθείτε ότι ο υπολογιστής και το κινητό βρίσκονται στο ίδιο δίκτυο για να χρησιμοποιήσετε τη μεταφορά LAN. Ανοίξτε την εφαρμογή Cherry Studio και σαρώστε αυτόν τον κωδικό QR.",
-          "device_list_title": "Τοπικές συσκευές δικτύου",
-          "discovered_devices": "Ανακαλυφθείσες συσκευές",
-          "error": {
-            "file_too_large": "Το αρχείο είναι πολύ μεγάλο, υποστηρίζεται μέγιστο μέγεθος 500 MB",
-            "init_failed": "Η αρχικοποίηση απέτυχε",
-            "invalid_file_type": "Μόνο αρχεία ZIP υποστηρίζονται",
-            "no_file": "Κανένα αρχείο δεν επιλέχθηκε",
-            "no_ip": "Αδυναμία λήψης διεύθυνσης IP",
-            "not_connected": "Παρακαλώ ολοκληρώστε πρώτα τη χειραψία",
-            "send_failed": "Αποτυχία αποστολής αρχείου"
-          },
-          "file_transfer": {
-            "cancelled": "Η μεταφορά ακυρώθηκε",
-            "failed": "Η μεταφορά αρχείου απέτυχε: {{message}}",
-            "progress": "Αποστολή... {{progress}}%",
-            "success": "Το αρχείο εστάλη με επιτυχία"
-          },
-          "handshake": {
-            "button": "Χειραψία",
-            "failed": "Η χειραψία απέτυχε: {{message}}",
-            "in_progress": "Χειραψία...",
-            "success": "Η χειραψία ολοκληρώθηκε με τη συσκευή {{device}}",
-            "test_message_received": "Λήφθηκε pong από {{device}}",
-            "test_message_sent": "Στάλθηκε δοκιμαστικό φορτίο hello world"
-          },
-          "idle_hint": "Η σάρωση διακόπηκε. Ξεκινήστε τη σάρωση για να βρείτε ομότιμους του Cherry Studio στο τοπικό σας δίκτυο.",
-          "ip_addresses": "Διευθύνσεις IP",
-          "last_seen": "Τελευταία φορά εθεάθηκε στις {{time}}",
-          "metadata": "Μεταδεδομένα",
-          "no_connection_warning": "Παρακαλώ ανοίξτε τη μεταφορά LAN στο Cherry Studio mobile",
-          "no_devices": "Δεν βρέθηκαν ακόμα συσκευές LAN",
-          "scan_devices": "Σάρωση συσκευών",
-          "scanning_hint": "Σάρωση του τοπικού σας δικτύου για ομότιμους του Cherry Studio...",
-          "send_file": "Αποστολή Αρχείου",
-          "status": {
-            "completed": "Η μεταφορά ολοκληρώθηκε",
-            "connected": "Συνδεδεμένος",
-            "connecting": "Σύνδεση...",
-            "disconnected": "Αποσυνδέθηκε",
-            "error": "Σφάλμα σύνδεσης",
-            "initializing": "Αρχικοποίηση σύνδεσης...",
-            "preparing": "Προετοιμασία μεταφοράς...",
-            "sending": "Μεταφορά {{progress}}%"
-          },
-          "status_badge_idle": "Αδρανής",
-          "status_badge_scanning": "Σάρωση",
-          "stop_scan": "Διακοπή σάρωσης",
-          "title": "Μεταφορά τοπικού δικτύου",
-          "transfer_progress": "Πρόοδος μεταφοράς"
-        },
-        "title": "Εξαγωγή στο κινητό"
-      },
       "hour_interval_one": "{{count}} ώρα",
       "hour_interval_other": "{{count}} ώρες",
       "import_settings": {
@@ -6800,6 +6746,7 @@
           "confirm": "Είστε βέβαιοι ότι θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
           "label": "Προσθήκη όλων των μοντέλων"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
         "clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",
         "clean_stale_success": "Εκκαθαρίστηκαν {{count}} μη έγκυρα μοντέλα",
@@ -7211,6 +7158,7 @@
         "fill_after_create": "Τα πεδία πιστοποίησης μπορούν να συμπληρωθούν μετά τη δημιουργία",
         "menu_label": "Προσθήκη στιγμιότυπου"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Υποστηριζόμενος από πράκτορα",
         "all": "Όλοι οι Πάροχοι",

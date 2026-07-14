@@ -139,6 +139,19 @@ describe('TopicNamingService', () => {
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic_auto_renamed', { topicId: 'topic-1' })
   })
 
+  it('broadcasts a naming-failed toast event when summary generation throws', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai::gpt-4o-mini')
+    mocks.generateText.mockRejectedValue(new Error('Invalid signature'))
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic_naming_failed', { message: 'Invalid signature' })
+  })
+
   it('falls back to the managed CherryAI default when topic naming model preference is empty', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', null)
 

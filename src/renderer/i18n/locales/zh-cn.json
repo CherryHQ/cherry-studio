@@ -1734,6 +1734,7 @@
     "thinking_tokens": "约 {{tokens}} tokens",
     "topics": {
       "auto_rename": "生成对话名",
+      "auto_rename_failed": "自动生成对话名失败",
       "clear": {
         "title": "清空消息"
       },

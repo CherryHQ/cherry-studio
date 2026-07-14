@@ -31,6 +31,11 @@
       "submit": "Отправить",
       "title": "Вопросы от агента"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "channels": {
       "add": "Добавить",
       "bindAgent": "Связать агента",
@@ -1729,6 +1734,7 @@
     "thinking_tokens": "~{{tokens}} токенов",
     "topics": {
       "auto_rename": "Автопереименование",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Очистить сообщения"
       },
@@ -1961,6 +1967,11 @@
       },
       "select_placeholder": "Выбрать…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "Не удалось записать конфигурацию CLI в системный файл",
     "auto_update_to_latest": "Автоматически обновлять до последней версии",
     "bun_required_message": "Запуск CLI-инструментов требует установки среды Bun",
@@ -2040,6 +2051,7 @@
     "model_required": "Пожалуйста, выберите модель",
     "model_selection": "Выбор модели",
     "more": "Больше",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "Нет подходящих провайдеров",
     "no_model_for_provider": "Нет доступных моделей для этого провайдера",
     "no_providers_description": "Включите поддерживаемого провайдера в Настройки → Сервис моделей",
@@ -3268,6 +3280,7 @@
       },
       "knowledge": {
         "add": "Добавить базу знаний",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Подключите одну или несколько баз знаний; релевантные фрагменты будут извлечены во время чата",
         "doc_count": "{{count}} документов",
         "empty_desc": "После подключения ассистент может отвечать на основе содержимого документа",
@@ -3281,6 +3294,7 @@
         "title": "Базы знаний"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Новый запрос",
         "dblclick_hint": "Дважды щёлкните по предпросмотру, чтобы вернуться к редактированию",
         "desc": "Системный промпт отправляется в качестве начального контекста для ассистента",
@@ -4037,6 +4051,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Закрепить эту модель",
       "unpin": "Открепить модель"
     },
@@ -5536,75 +5551,6 @@
         "title": "Настройки меню экспорта",
         "yuque": "Экспорт в Yuque"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Выберите файл резервной копии"
-        },
-        "content": "Экспорт части данных, включая историю чатов и настройки. Обратите внимание, процесс резервного копирования может занять некоторое время, благодарим за ваше терпение.",
-        "file": {
-          "button": "Экспорт в файл",
-          "content": "Экспортируйте данные как резервный файл, который можно импортировать на мобильное устройство через файл.",
-          "export_failed": "Экспорт не удался",
-          "export_success": "Экспорт выполнен успешно",
-          "title": "Экспортировать как файл"
-        },
-        "lan": {
-          "button": "Начать передачу",
-          "connected": "Подключено",
-          "connection_failed": "Соединение не удалось",
-          "content": "Убедитесь, что компьютер и телефон подключены к одной сети, чтобы использовать локальную передачу. Откройте приложение Cherry Studio и отсканируйте этот QR-код.",
-          "device_list_title": "Устройства локальной сети",
-          "discovered_devices": "Обнаруженные устройства",
-          "error": {
-            "file_too_large": "Файл слишком большой, поддерживается максимум 500 МБ.",
-            "init_failed": "Инициализация не удалась",
-            "invalid_file_type": "Поддерживаются только ZIP-файлы",
-            "no_file": "Файл не выбран",
-            "no_ip": "Не удалось получить IP-адрес",
-            "not_connected": "Пожалуйста, сначала завершите рукопожатие",
-            "send_failed": "Не удалось отправить файл"
-          },
-          "file_transfer": {
-            "cancelled": "Перевод отменён",
-            "failed": "Передача файла не удалась: {{message}}",
-            "progress": "Отправка... {{progress}}%",
-            "success": "Файл успешно отправлен"
-          },
-          "handshake": {
-            "button": "Рукопожатие",
-            "failed": "Сбой рукопожатия: {{message}}",
-            "in_progress": "Рукопожатие...",
-            "success": "Рукопожатие завершено с {{device}}",
-            "test_message_received": "Получен понг от {{device}}",
-            "test_message_sent": "Отправлен тестовый полезный груз \"hello world\""
-          },
-          "idle_hint": "Сканирование приостановлено. Начните сканирование, чтобы найти пиры Cherry Studio в вашей локальной сети.",
-          "ip_addresses": "IP-адреса",
-          "last_seen": "В последний раз был(а) в сети в {{time}}",
-          "metadata": "Метаданные",
-          "no_connection_warning": "Пожалуйста, откройте LAN Transfer в мобильном приложении Cherry Studio",
-          "no_devices": "Пока не найдено участников локальной сети",
-          "scan_devices": "Сканировать устройства",
-          "scanning_hint": "Сканирование локальной сети на наличие узлов Cherry Studio...",
-          "send_file": "Отправить файл",
-          "status": {
-            "completed": "Перевод завершён",
-            "connected": "Подключено",
-            "connecting": "Подключение...",
-            "disconnected": "Отключено",
-            "error": "Ошибка подключения",
-            "initializing": "Инициализация соединения...",
-            "preparing": "Подготовка передачи...",
-            "sending": "Передача {{progress}}%"
-          },
-          "status_badge_idle": "Бездействие",
-          "status_badge_scanning": "Сканирование",
-          "stop_scan": "Остановить сканирование",
-          "title": "Передача по локальной сети",
-          "transfer_progress": "Прогресс передачи"
-        },
-        "title": "Экспорт на телефон"
-      },
       "hour_interval_one": "{{count}} час",
       "hour_interval_other": "{{count}} часов",
       "import_settings": {
@@ -6800,6 +6746,7 @@
           "confirm": "Вы уверены, что хотите добавить все модели в список?",
           "label": "Добавить все модели"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Добавить всю группу",
         "clean_stale_models": "Очистить устаревшие модели",
         "clean_stale_success": "Очищено устаревших моделей: {{count}}",
@@ -7211,6 +7158,7 @@
         "fill_after_create": "Поля аутентификации можно заполнить после создания",
         "menu_label": "Добавить экземпляр"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Поддержка агента",
         "all": "Все поставщики",
