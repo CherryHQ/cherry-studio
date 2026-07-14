@@ -163,6 +163,55 @@ describe('PdfTranslationService', () => {
     })
   })
 
+  it('streams validated monotonic progress from the BabelDOC adapter', async () => {
+    let adapterPath = ''
+    mocks.spawn.mockImplementationOnce((_command: string, args: string[], options: { env: Record<string, string> }) => {
+      const child = new EventEmitter() as EventEmitter & {
+        stderr: PassThrough
+        stdout: PassThrough
+        kill: ReturnType<typeof vi.fn>
+      }
+      child.stderr = new PassThrough()
+      child.stdout = new PassThrough()
+      child.kill = vi.fn()
+
+      adapterPath = path.join(options.env.PYTHONPATH, 'sitecustomize.py')
+      expect(fs.existsSync(adapterPath)).toBe(true)
+      const outputDir = args[args.indexOf('--output') + 1]
+      fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.dual.pdf'), '%PDF-dual')
+      queueMicrotask(() => {
+        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Parse PDF","progress":12.4}\n')
+        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__not-json\n')
+        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Translate Paragraphs","progress":55.4}\n')
+        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Parse PDF","progress":40}\n')
+        child.stdout.end()
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    const onProgress = vi.fn()
+    const service = new PdfTranslationService()
+
+    await service.translate(
+      {
+        jobId: 'job-progress',
+        modelId: 'openai::gpt-4.1-internal',
+        sourcePath: SOURCE_PATH,
+        sourceLangCode: 'en-us',
+        targetLangCode: 'zh-cn'
+      },
+      undefined,
+      onProgress
+    )
+
+    expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
+      { stage: 'parsing', progress: 12 },
+      { stage: 'translating', progress: 55 },
+      { stage: 'rendering', progress: 100 }
+    ])
+    expect(fs.existsSync(adapterPath)).toBe(false)
+  })
+
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
     const service = new PdfTranslationService()
 

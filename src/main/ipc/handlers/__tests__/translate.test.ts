@@ -44,10 +44,11 @@ describe('translateHandlers', () => {
     )
   })
 
-  it('starts PDF translation and sends stage updates only to the calling window', async () => {
-    translatePdfMock.mockImplementation(async (_request, onStage) => {
+  it('starts PDF translation and sends progress only to the calling window', async () => {
+    translatePdfMock.mockImplementation(async (_request, onStage, onProgress) => {
       onStage('preparing')
       onStage('translating')
+      onProgress({ stage: 'translating', progress: 42 })
       return { fileName: 'paper.zh-CN.dual.pdf', outputPath: '/tmp/job/paper.zh-CN.dual.pdf' }
     })
     const request = {
@@ -69,6 +70,11 @@ describe('translateHandlers', () => {
     expect(ipcSendMock).toHaveBeenNthCalledWith(2, 'w1', 'translate.pdf.stage', {
       jobId: request.jobId,
       stage: 'translating'
+    })
+    expect(ipcSendMock).toHaveBeenNthCalledWith(3, 'w1', 'translate.pdf.progress', {
+      jobId: request.jobId,
+      stage: 'translating',
+      progress: 42
     })
   })
 

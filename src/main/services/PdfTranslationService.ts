@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { createInterface } from 'node:readline'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
@@ -15,11 +16,45 @@ import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import type { PdfTranslationProgress, PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { Mutex } from 'async-mutex'
 import { stringify as stringifyToml } from 'smol-toml'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('PdfTranslationService')
+const BABELDOC_PROGRESS_PREFIX = '__CHERRY_BABELDOC_PROGRESS__'
+// BabelDOC 0.6.3 exposes structured progress to Python callers but renders only
+// terminal bars in its CLI. This per-run hook preserves those events as NDJSON.
+const BABELDOC_PROGRESS_ADAPTER = `import contextlib
+import json
+import math
+import sys
+
+def _emit_progress(event):
+    if event.get("type") not in ("progress_update", "progress_end"):
+        return
+    stage = event.get("stage")
+    progress = event.get("overall_progress")
+    if not isinstance(stage, str) or not isinstance(progress, (int, float)) or not math.isfinite(progress):
+        return
+    payload = {"stage": stage, "progress": max(0.0, min(100.0, float(progress)))}
+    sys.stdout.write("${BABELDOC_PROGRESS_PREFIX}" + json.dumps(payload, separators=(",", ":")) + "\\n")
+    sys.stdout.flush()
+
+def _create_progress_handler(_translation_config, show_log=False):
+    return contextlib.nullcontext(), _emit_progress
+
+try:
+    import babeldoc.main as _babeldoc_main
+    _babeldoc_main.create_progress_handler = _create_progress_handler
+except Exception as _error:
+    sys.stderr.write("Cherry Studio progress adapter failed: " + str(_error) + "\\n")
+`
+const babeldocProgressSchema = z.strictObject({
+  stage: z.string().min(1),
+  progress: z.number().finite().min(0).max(100)
+})
 const SIDECAR_ENV_KEYS = new Set([
   'ALL_PROXY',
   'COMSPEC',
@@ -61,6 +96,8 @@ export interface PdfTranslationResult {
 interface ActivePdfTranslation {
   cancelled: boolean
   child: ChildProcess | null
+  progress: number
+  progressStage: PdfTranslationProgressStage | null
 }
 
 const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
@@ -97,9 +134,10 @@ export class PdfTranslationService extends BaseService {
 
   public translate(
     request: PdfTranslationRequest,
-    onStage?: (stage: PdfTranslationStage) => void
+    onStage?: (stage: PdfTranslationStage) => void,
+    onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<PdfTranslationResult> {
-    const run = this.runTranslation(request, onStage)
+    const run = this.runTranslation(request, onStage, onProgress)
     this.activeRuns.add(run)
     void run.then(
       () => {
@@ -114,13 +152,14 @@ export class PdfTranslationService extends BaseService {
 
   private async runTranslation(
     request: PdfTranslationRequest,
-    onStage?: (stage: PdfTranslationStage) => void
+    onStage?: (stage: PdfTranslationStage) => void,
+    onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<PdfTranslationResult> {
     if (this.activeJobs.has(request.jobId)) {
       throw new Error(`PDF translation job already exists: ${request.jobId}`)
     }
 
-    const job: ActivePdfTranslation = { cancelled: false, child: null }
+    const job: ActivePdfTranslation = { cancelled: false, child: null, progress: 0, progressStage: null }
     this.activeJobs.set(request.jobId, job)
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     let gatewayLeaseAcquired = false
@@ -153,12 +192,13 @@ export class PdfTranslationService extends BaseService {
       await fs.promises.mkdir(outputDir, { recursive: true })
       onStage?.('translating')
 
-      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey)
+      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
       this.throwIfCancelled(job)
 
       const fileName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}.dual.pdf`
       const outputPath = path.join(outputDir, fileName)
       await fs.promises.access(outputPath, fs.constants.R_OK)
+      this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
       completed = true
       return { outputPath, fileName }
     } finally {
@@ -224,9 +264,15 @@ export class PdfTranslationService extends BaseService {
     outputDir: string,
     gatewayModelId: string,
     baseUrl: string,
-    apiKey: string
+    apiKey: string,
+    onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<void> {
     const configPath = path.join(outputDir, 'babeldoc.toml')
+    const progressAdapterDir = path.join(outputDir, '.progress-adapter')
+    await fs.promises.mkdir(progressAdapterDir, { recursive: true })
+    await fs.promises.writeFile(path.join(progressAdapterDir, 'sitecustomize.py'), BABELDOC_PROGRESS_ADAPTER, {
+      mode: 0o600
+    })
     await fs.promises.writeFile(configPath, stringifyToml({ babeldoc: { 'openai-api-key': apiKey } }), { mode: 0o600 })
     const args = [
       '--config',
@@ -244,22 +290,54 @@ export class PdfTranslationService extends BaseService {
       normalizeLanguageCode(request.sourceLangCode),
       '--lang-out',
       normalizeLanguageCode(request.targetLangCode),
+      '--report-interval',
+      '0.2',
       '--no-mono'
     ]
-    const env = await this.buildSidecarEnv()
+    const env = { ...(await this.buildSidecarEnv()), PYTHONPATH: progressAdapterDir }
 
     try {
       await new Promise<void>((resolve, reject) => {
         const child = crossPlatformSpawn(executable, args, { cwd: outputDir, env })
         job.child = child
         let stderr = ''
+        const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
-        child.stdout?.on('data', (chunk) => logger.debug(String(chunk).trim()))
+        progressLines?.on('line', (line) => {
+          if (!line.startsWith(BABELDOC_PROGRESS_PREFIX)) {
+            logger.debug(line.trim())
+            return
+          }
+          let candidate: unknown
+          try {
+            candidate = JSON.parse(line.slice(BABELDOC_PROGRESS_PREFIX.length))
+          } catch {
+            logger.warn('Ignored malformed BabelDOC progress event')
+            return
+          }
+          const parsed = babeldocProgressSchema.safeParse(candidate)
+          if (!parsed.success) {
+            logger.warn('Ignored invalid BabelDOC progress event')
+            return
+          }
+          this.reportProgress(
+            job,
+            {
+              stage: this.normalizeProgressStage(parsed.data.stage),
+              progress: Math.round(parsed.data.progress)
+            },
+            onProgress
+          )
+        })
         child.stderr?.on('data', (chunk) => {
           stderr = `${stderr}${String(chunk)}`.slice(-8000)
         })
-        child.once('error', reject)
+        child.once('error', (error) => {
+          progressLines?.close()
+          reject(error)
+        })
         child.once('close', (code, signal) => {
+          progressLines?.close()
           job.child = null
           if (job.cancelled) {
             reject(new Error('PDF translation cancelled'))
@@ -271,10 +349,54 @@ export class PdfTranslationService extends BaseService {
         })
       })
     } finally {
-      await fs.promises.rm(configPath, { force: true }).catch((error) => {
-        logger.warn('Failed to remove BabelDOC credential file', { error: String(error) })
-      })
+      await Promise.all([
+        fs.promises.rm(configPath, { force: true }).catch((error) => {
+          logger.warn('Failed to remove BabelDOC credential file', { error: String(error) })
+        }),
+        fs.promises.rm(progressAdapterDir, { force: true, recursive: true }).catch((error) => {
+          logger.warn('Failed to remove BabelDOC progress adapter', { error: String(error) })
+        })
+      ])
     }
+  }
+
+  private normalizeProgressStage(stage: string): PdfTranslationProgressStage {
+    const normalized = stage.toLowerCase()
+    if (normalized.includes('translate')) return 'translating'
+    if (normalized.includes('term')) return 'extracting_terms'
+    if (normalized.includes('typeset')) return 'typesetting'
+    if (normalized.includes('parse pdf') || normalized.includes('intermediate representation')) return 'parsing'
+    if (
+      normalized.includes('detect') ||
+      normalized.includes('layout') ||
+      normalized.includes('paragraph') ||
+      normalized.includes('formula') ||
+      normalized.includes('style') ||
+      normalized.includes('table')
+    ) {
+      return 'analyzing'
+    }
+    if (
+      normalized.includes('font') ||
+      normalized.includes('drawing') ||
+      normalized.includes('save pdf') ||
+      normalized.includes('generate pdf')
+    ) {
+      return 'rendering'
+    }
+    return 'processing'
+  }
+
+  private reportProgress(
+    job: ActivePdfTranslation,
+    progress: PdfTranslationProgress,
+    onProgress?: (progress: PdfTranslationProgress) => void
+  ): void {
+    if (progress.progress < job.progress) return
+    if (job.progressStage === progress.stage && job.progress === progress.progress) return
+    job.progress = progress.progress
+    job.progressStage = progress.stage
+    onProgress?.(progress)
   }
 
   private throwIfCancelled(job: ActivePdfTranslation): void {
