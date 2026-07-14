@@ -1,5 +1,6 @@
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isApiGatewayProviderId } from '@shared/types/codeCli'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
 
 import {
@@ -16,6 +17,15 @@ export interface OpenCodeNpmInfo {
 }
 
 export function resolveGeminiBaseUrl(provider: Provider): string {
+  // The synthetic API-gateway provider serves every dialect off one bare host
+  // (http://host:port) but deliberately declares NO google-generate-content
+  // endpoint: OPEN_CODE_ENDPOINTS lists google first, so adding one would flip
+  // OpenCode+gateway to the google dialect for every model. gemini-cli's
+  // @google/genai SDK appends /v1beta itself, so return the bare host here.
+  if (isApiGatewayProviderId(provider.id)) {
+    const configs = provider.endpointConfigs ?? {}
+    return configs['anthropic-messages']?.baseUrl ?? Object.values(configs)[0]?.baseUrl ?? ''
+  }
   const dedicated = provider.endpointConfigs?.['google-generate-content']?.baseUrl
   if (dedicated) return dedicated
   const chatBaseUrl = provider.defaultChatEndpoint
