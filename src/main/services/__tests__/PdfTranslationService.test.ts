@@ -145,7 +145,6 @@ describe('PdfTranslationService', () => {
         'en-US',
         '--lang-out',
         'zh-CN',
-        '--auto-enable-ocr-workaround',
         '--no-dual'
       ]),
       expect.objectContaining({
@@ -158,6 +157,7 @@ describe('PdfTranslationService', () => {
     )
     const args = mocks.spawn.mock.calls[0][1] as string[]
     expect(args).not.toContain('--no-mono')
+    expect(args).not.toContain('--auto-enable-ocr-workaround')
     expect(mocks.hasPdfTextLayer).toHaveBeenCalledTimes(1)
     const configPath = args[args.indexOf('--config') + 1]
     expect(configPath).toContain('job-1')
@@ -183,6 +183,7 @@ describe('PdfTranslationService', () => {
 
       adapterPath = path.join(options.env.PYTHONPATH, 'sitecustomize.py')
       expect(fs.existsSync(adapterPath)).toBe(true)
+      expect(fs.readFileSync(adapterPath, 'utf8')).toContain('if event_type == "error":')
       const outputDir = args[args.indexOf('--output') + 1]
       fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.mono.pdf'), '%PDF-mono')
       queueMicrotask(() => {
@@ -272,6 +273,38 @@ describe('PdfTranslationService', () => {
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
     expect(mocks.spawn).not.toHaveBeenCalled()
     expect(apiGateway.start).not.toHaveBeenCalled()
+  })
+
+  it('requires OCR when BabelDOC detects a scanned PDF with a text layer', async () => {
+    mocks.spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & {
+        stderr: PassThrough
+        stdout: PassThrough
+        kill: ReturnType<typeof vi.fn>
+      }
+      child.stderr = new PassThrough()
+      child.stdout = new PassThrough()
+      child.kill = vi.fn()
+      queueMicrotask(() => {
+        child.stdout.write('__CHERRY_BABELDOC_ERROR__{"name":"ScannedPDFError","message":"Scanned PDF detected."}\n')
+        child.stdout.end()
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-scanned-pdf',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
+    expect(apiGateway.stop).toHaveBeenCalledTimes(1)
+    expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-pdf'))).toBe(false)
   })
 
   it('terminates the sidecar and cleans partial output when the job is cancelled', async () => {
