@@ -302,10 +302,11 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       },
       // ── agent_session_message ──────────────────────────────────────────────
       // (data IS a jsonSoftReference — NOT exempt.)
+      // The author/model ids are frozen display content, not restore-time entity links.
       {
         table: table('agent_session_message'),
-        column: column('modelSnapshot'),
-        reason: 'no soft refs — holds a frozen snapshot of the model config at send time'
+        column: column('messageSnapshot'),
+        reason: 'no soft refs — holds a frozen producing-author/model snapshot for display after deletion'
       },
       {
         table: table('agent_session_message'),

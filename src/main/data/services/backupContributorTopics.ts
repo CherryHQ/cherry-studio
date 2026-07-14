@@ -129,10 +129,11 @@ export const TOPICS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // message JSON columns that carry NO soft refs (data IS a jsonSoftReference —
     // NOT exempt). Declared so finalize #12 exhaustiveness passes.
     exemptJsonCols: [
+      // The author/model ids are frozen display content, not restore-time entity links.
       {
         table: table('message'),
-        column: column('modelSnapshot'),
-        reason: 'no soft refs — holds a frozen snapshot of the model config at send time'
+        column: column('messageSnapshot'),
+        reason: 'no soft refs — holds a frozen producing-author/model snapshot for display after deletion'
       },
       { table: table('message'), column: column('stats'), reason: 'no soft refs — holds token/usage statistics' }
     ]
