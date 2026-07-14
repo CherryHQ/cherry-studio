@@ -18,11 +18,11 @@ import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
-export function withComposerFilePartMeta<P extends FileUIPart>(
-  part: P,
+export function withComposerFilePartMeta(
+  part: FileUIPart,
   attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
   fileEntryId?: string
-): P {
+): FileUIPart {
   return withCherryMeta(part, {
     ...(fileEntryId ? { fileEntryId } : {}),
     fileTokenSourceId: attachment.fileTokenSourceId,
