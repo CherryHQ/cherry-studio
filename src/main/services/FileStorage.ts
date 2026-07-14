@@ -1021,15 +1021,6 @@ class FileStorage {
     return path.join(this.storageDir, file.id + file.ext)
   }
 
-  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    try {
-      const stat = await fs.promises.stat(filePath)
-      return stat.isDirectory()
-    } catch {
-      return false
-    }
-  }
-
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     const resolvedPath = resolveHomeRelativeFilePath(path)
     if (!fs.existsSync(resolvedPath)) {

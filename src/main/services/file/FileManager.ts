@@ -185,7 +185,6 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
-import { getMetadataByPath } from './utils/metadata'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
@@ -670,16 +669,6 @@ export class FileManager extends BaseService implements IFileManager {
     // Handlers are async so a synchronous `Schema.parse` throw becomes a
     // Promise rejection at the IPC boundary (matching Electron's contract
     // for `ipcMain.handle` listeners).
-    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
-      const handle = FileHandleSchema.parse(params) as FileHandle
-      return dispatchHandle(
-        handle,
-        async () => {
-          throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
-        },
-        getMetadataByPath
-      )
-    })
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';

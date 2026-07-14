@@ -78,8 +78,6 @@ export enum IpcChannel {
   File_BinaryImage = 'file:binaryImage',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
-  File_IsDirectory = 'file:isDirectory',
-  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_ListDirectoryEntries = 'file:listDirectoryEntries',
   File_CheckFileName = 'file:checkFileName',

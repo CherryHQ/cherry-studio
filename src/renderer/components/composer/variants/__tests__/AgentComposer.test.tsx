@@ -22,12 +22,10 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
-  getMetadata: vi.fn(),
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
@@ -484,8 +482,6 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
-    mocks.isDirectory.mockReset()
-    mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
@@ -497,15 +493,24 @@ describe('AgentComposer', () => {
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
-    mocks.getMetadata.mockReset()
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
     mocks.ipcApiRequest.mockReset()
-    mocks.ipcApiRequest.mockImplementation(async (route: string, input: { items: { key: string }[] }) => {
-      if (route !== 'file.batch_get_metadata') return {}
-      return Object.fromEntries(
-        input.items.map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
-      )
-    })
+    mocks.ipcApiRequest.mockImplementation(
+      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
+        if (route === 'file.get_metadata') {
+          // The session workspace-status preflight stays pending so it never flips the composer into a
+          // blocking warning (mirrors the former hanging `isDirectory` default). Send-path physical files
+          // (from buildFileParts) resolve to a real file MIME instead.
+          if (input.kind === 'path' && input.path === mocks.sessionWorkspacePath) {
+            return new Promise(() => undefined)
+          }
+          return { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+        }
+        if (route !== 'file.batch_get_metadata') return {}
+        return Object.fromEntries(
+          (input.items ?? []).map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
+        )
+      }
+    )
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -520,12 +525,10 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory,
         listDirectoryEntries: mocks.listDirectoryEntries,
         createInternalEntry: mocks.createInternalEntry,
-        getPhysicalPath: mocks.getPhysicalPath,
-        getMetadata: mocks.getMetadata
+        getPhysicalPath: mocks.getPhysicalPath
       }
     }
     mocks.updateModel.mockReset()
@@ -2233,7 +2236,7 @@ describe('AgentComposer', () => {
   })
 
   it('does not block sends when workspace status preflight fails', async () => {
-    mocks.isDirectory.mockRejectedValueOnce(new Error('preflight unavailable'))
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('preflight unavailable'))
 
     render(
       <AgentHomeComposer
@@ -2245,7 +2248,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => expect(mocks.isDirectory).toHaveBeenCalledWith('/workspace'))
+    await waitFor(() =>
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: '/workspace' })
+    )
     await act(async () => {
       await Promise.resolve()
     })
@@ -2286,7 +2291,7 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
-    expect(mocks.isDirectory).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 })
 

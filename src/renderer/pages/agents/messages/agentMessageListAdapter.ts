@@ -31,6 +31,8 @@ import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { FilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
@@ -184,8 +186,12 @@ export function useAgentMessageListProviderValue({
   )
 
   const isDirectory = useCallback(
-    (path: string) => {
-      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+    async (path: string) => {
+      const meta = await ipcApi.request(
+        'file.get_metadata',
+        createFilePathHandle(resolveWorkspaceFilePath(workspacePath, path) as FilePath)
+      )
+      return meta?.kind === 'directory'
     },
     [workspacePath]
   )

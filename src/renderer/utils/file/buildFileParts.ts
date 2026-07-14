@@ -12,6 +12,7 @@
  * accessor + Zod.
  */
 
+import { ipcApi } from '@renderer/ipc'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
@@ -29,10 +30,10 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
     attachments.map(async (attachment) => {
       const entry = await window.api.file.createInternalEntry({ source: 'path', path: attachment.path as FilePath })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-      const metadata = await window.api.file.getMetadata(createFilePathHandle(physicalPath))
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
       const basePart: FileUIPart = {
         type: 'file',
-        mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
+        mediaType: metadata?.kind === 'file' ? metadata.mime : 'application/octet-stream',
         url: `file://${physicalPath}`,
         filename: attachment.origin_name || attachment.name
       }

@@ -68,6 +68,7 @@ export const fileRequestSchemas = {
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())
   }),
+  'file.get_metadata': defineRoute({ input: FileHandleSchema, output: PhysicalFileMetadataSchema.nullable() }),
   'file.batch_get_physical_paths': defineRoute({
     input: fileEntryIdsInputSchema,
     output: z.record(z.string(), AbsolutePathSchema.nullable())

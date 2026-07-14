@@ -1,6 +1,9 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
+import { ipcApi } from '@renderer/ipc'
+import type { FilePath } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
+import { createFilePathHandle } from '@shared/utils/file'
 import { CheckCircle2, CircleAlert, FolderOpen, Loader2, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
@@ -188,7 +191,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   /**
    * Drag-and-drop accepts ZIP files and directories. Settings
-   * page uses the same probe (`window.api.file.isDirectory`) since dropped
+   * page uses the same probe (`file.get_metadata`'s `kind`) since dropped
    * directories show up as `File` entries on Electron.
    */
   const handleDroppedEntries = async (files: File[]) => {
@@ -202,8 +205,12 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
         const filePath = window.api.file.getPathForFile(file)
         if (!filePath) continue
 
-        const isDirectory = await window.api.file.isDirectory(filePath)
-        if (isDirectory) {
+        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath as FilePath))
+        // A `null` metadata (path unreadable / vanished — near-nil since dropped
+        // paths resolve) folds into "not a directory": it falls through to the
+        // filename-based zip/invalid classification below, and a genuine read
+        // failure still surfaces downstream when the item is actually imported.
+        if (meta?.kind === 'directory') {
           droppedItems.push(createImportItem('directory', filePath, file.name || getNameFromPath(filePath), index))
           continue
         }

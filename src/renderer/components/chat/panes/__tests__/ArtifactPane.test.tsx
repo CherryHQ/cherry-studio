@@ -180,6 +180,15 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
 }
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    // `useIsTextFile` / `useFileSize` now read live metadata through this route; delegate to the
+    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates.
+    request: (route: string, input: unknown) =>
+      route === 'file.get_metadata' ? mocks.getMetadata(input) : Promise.resolve(undefined)
+  }
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
@@ -521,8 +530,7 @@ describe('ArtifactPane', () => {
           showInFolder: mocks.showInFolder,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
-          listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata
+          listDirectoryEntries: mocks.listDirectoryEntries
         },
         fs: {
           read: mocks.fsRead,

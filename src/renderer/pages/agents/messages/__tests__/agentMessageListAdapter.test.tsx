@@ -51,10 +51,13 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
+const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
   on: vi.fn(() => vi.fn())
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -162,7 +165,15 @@ describe('useAgentMessageListProviderValue', () => {
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
     window.api.file.showInFolder = vi.fn()
-    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
+    ipcApiRequest.mockReset()
+    ipcApiRequest.mockResolvedValue({
+      kind: 'file',
+      type: 'other',
+      size: 0,
+      createdAt: 0,
+      modifiedAt: 0,
+      mime: 'application/octet-stream'
+    })
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
@@ -314,7 +325,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
 
     void value?.actions.isDirectory?.('dist/assets')
-    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/tmp/workspace/dist/assets')
+    expect(ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/tmp/workspace/dist/assets'
+    })
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({

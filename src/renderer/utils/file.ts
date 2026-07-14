@@ -1,3 +1,4 @@
+import { ipcApi } from '@renderer/ipc'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import type { FilePath } from '@shared/types/file'
 import { GB, KB, MB } from '@shared/utils/constants'
@@ -91,8 +92,8 @@ export async function isSupportedFile(filePath: string, supportExts: Set<string>
       return true
     }
 
-    const meta = await window.api.file.getMetadata(createFilePathHandle(filePath as FilePath))
-    if (meta.kind === 'file' && meta.type === 'text') {
+    const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath as FilePath))
+    if (meta?.kind === 'file' && meta.type === 'text') {
       return true
     }
 
