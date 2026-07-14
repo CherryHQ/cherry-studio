@@ -41,10 +41,15 @@ export const UpdateTopicSchema = TopicSchema.pick({
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
-/** Atomic owner change plus placement in the one global topic order. */
+/**
+ * Move a topic to a new owner and (optionally) a new position in the one global
+ * topic order. `order` is optional — omit it to change ownership only (the
+ * existing `orderKey` is preserved). For a `before`/`after` anchor the
+ * referenced topic must already belong to the target `assistantId`.
+ */
 export const MoveTopicSchema = z.strictObject({
   assistantId: z.uuidv4().nullable(),
-  order: OrderRequestSchema
+  order: OrderRequestSchema.optional()
 })
 export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
@@ -219,8 +224,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. Topic order is global across assistants;
- * callers only provide the relative anchor.
+ * via `& OrderEndpoints<'/topics'>`. Topics share one global `orderKey`
+ * sequence — reorder operates across all assistants and a batch may span them.
  */
 export type TopicSchemas = {
   /**

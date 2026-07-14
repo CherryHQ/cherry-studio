@@ -66,6 +66,14 @@ function toTopicListItem(topic: Topic, pinId: string | null): TopicListItem {
   return { ...topic, pinned: pinId !== null, pinId }
 }
 
+/**
+ * Topic manual order is one global `orderKey ASC, id ASC` sequence over all
+ * live topics; `assistantId` controls ownership/grouping only, never the order
+ * scope. Soft-deleted rows are excluded so create/move/reorder anchor against
+ * active rows.
+ */
+const TOPIC_ORDER_SCOPE: SQL = isNull(topicTable.deletedAt)
+
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
   if (sourceIdMap.size === 0) return
   const sourceIds = [...sourceIdMap.keys()]
@@ -237,7 +245,7 @@ export class TopicService {
         {
           pkColumn: topicTable.id,
           position: 'first',
-          scope: isNull(topicTable.deletedAt)
+          scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
       messageService.createRootMessageTx(tx, topicRow.id)
@@ -277,7 +285,7 @@ export class TopicService {
           pkColumn: topicTable.id,
           // Keep duplicated conversations aligned with newly created agent sessions: newest active work appears first.
           position: 'first',
-          scope: isNull(topicTable.deletedAt)
+          scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
 
@@ -353,6 +361,15 @@ export class TopicService {
     return topic
   }
 
+  /**
+   * Move a topic: always updates ownership from `assistantId`; `order` is
+   * optional. With a `before`/`after` anchor the referenced topic must already
+   * belong to the target `assistantId`, and the row is repositioned in the one
+   * global `orderKey` sequence. Without `order` (e.g. a drop into an empty
+   * assistant group or with no concrete neighbor) only ownership changes and the
+   * existing `orderKey` is preserved. Everything runs in one write transaction,
+   * so a validation or ordering failure rolls back both ownership and order.
+   */
   move(id: string, dto: MoveTopicDto): void {
     return withSqliteErrors(
       () =>
@@ -366,20 +383,33 @@ export class TopicService {
           if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
           if (dto.assistantId !== null) {
-            const [assistant] = tx
-              .select({ id: assistantTable.id })
-              .from(assistantTable)
-              .where(and(eq(assistantTable.id, dto.assistantId), isNull(assistantTable.deletedAt)))
+            assertActiveAssistantTx(tx, dto.assistantId)
+          }
+
+          // A concrete anchor must already own the same assistant as the move
+          // target — the global order stays consistent with ownership.
+          if (dto.order && ('before' in dto.order || 'after' in dto.order)) {
+            const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+            const [anchor] = tx
+              .select({ assistantId: topicTable.assistantId })
+              .from(topicTable)
+              .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
               .limit(1)
               .all()
-            if (!assistant) throw DataApiErrorFactory.notFound('Assistant', dto.assistantId)
+            if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
+            if (anchor.assistantId !== dto.assistantId) {
+              const message = 'move: anchor topic must belong to the target assistant'
+              throw DataApiErrorFactory.validation({ order: [message] }, message)
+            }
           }
 
           tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
-          applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
-            pkColumn: topicTable.id,
-            scope: isNull(topicTable.deletedAt)
-          })
+          if (dto.order) {
+            applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+              pkColumn: topicTable.id,
+              scope: TOPIC_ORDER_SCOPE
+            })
+          }
         }),
       {
         ...defaultHandlersFor('Topic', id),
@@ -696,13 +726,25 @@ export class TopicService {
   reorder(id: string, anchor: OrderRequest): void {
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
+      const [target] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+
       applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
-        scope: isNull(topicTable.deletedAt)
+        scope: TOPIC_ORDER_SCOPE
       })
     })
   }
 
+  /**
+   * Batch reorder over the one global topic sequence. A batch may span topics
+   * owned by different assistants (or none) — ownership never scopes the order.
+   */
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
@@ -720,9 +762,10 @@ export class TopicService {
         const missing = ids.find((id) => !found.has(id)) ?? ids[0]
         throw DataApiErrorFactory.notFound('Topic', missing)
       }
+
       applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
-        scope: isNull(topicTable.deletedAt)
+        scope: TOPIC_ORDER_SCOPE
       })
     })
   }

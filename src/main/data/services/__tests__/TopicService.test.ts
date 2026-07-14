@@ -1079,6 +1079,68 @@ describe('TopicService', () => {
       expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
     })
 
+    it('without order updates ownership only and preserves orderKey', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-b',
+        name: 'B',
+        emoji: 'B',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', orderKey: 'a1', createdAt: 1, updatedAt: 1 },
+        { id: 'other', name: 'Other', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
+      ])
+
+      topicService.move('move-a', { assistantId: 'asst-b' })
+
+      const moved = topicService.getById('move-a')
+      expect(moved.assistantId).toBe('asst-b')
+      expect(moved.orderKey).toBe('a1')
+      // The global order is untouched when no anchor is supplied.
+      expect(await getOrderedIds()).toEqual(['other', 'move-a'])
+    })
+
+    it('rejects a before/after anchor that does not belong to the target assistant', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-b',
+          name: 'B',
+          emoji: 'B',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'anchor-a', name: 'AnchorA', assistantId: 'asst-a', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
+      ])
+
+      // Moving into asst-b while anchoring on a topic still owned by asst-a is contradictory.
+      let err: unknown
+      try {
+        topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'anchor-a' } })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      // Ownership and order roll back together.
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
     it("moves a topic to the head with position: 'first'", async () => {
       await seedThree()
       topicService.reorder('t3', { position: 'first' })

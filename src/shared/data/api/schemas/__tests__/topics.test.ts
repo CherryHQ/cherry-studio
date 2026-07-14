@@ -14,6 +14,10 @@ describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
     expect(() => CreateTopicSchema.parse({ [key]: 'value' })).toThrow(/unrecognized/i)
   })
+
+  it('rejects groupId — no longer part of the create contract', () => {
+    expect(() => CreateTopicSchema.parse({ name: 'x', groupId: 'g1' })).toThrow(/unrecognized/i)
+  })
 })
 
 describe('UpdateTopicSchema', () => {
@@ -41,12 +45,14 @@ describe('UpdateTopicSchema', () => {
 })
 
 describe('MoveTopicSchema', () => {
-  it('requires owner and order together', () => {
+  it('requires an owner but allows order to be omitted (ownership-only move)', () => {
     expect(MoveTopicSchema.parse({ assistantId: null, order: { before: 'topic-2' } })).toEqual({
       assistantId: null,
       order: { before: 'topic-2' }
     })
-    expect(() => MoveTopicSchema.parse({ assistantId: null })).toThrow()
+    // order is optional — omitting it changes ownership only and preserves orderKey.
+    expect(MoveTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
+    // assistantId is still required.
     expect(() => MoveTopicSchema.parse({ order: { position: 'first' } })).toThrow()
   })
 
