@@ -66,7 +66,10 @@ export const AssistantSettingsSchema = z.object({
       z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
       z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
     ])
-  )
+  ),
+  /** Per-model reasoning effort preferences.
+   *  Key is the model id (UniqueModelId format), value is the reasoning effort option. */
+  reasoning_effort_by_model: z.record(z.string(), z.string()).default({})
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -84,7 +87,8 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
-  customParameters: []
+  customParameters: [],
+  reasoning_effort_by_model: {}
 }
 
 // ============================================================================

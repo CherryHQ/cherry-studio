@@ -211,7 +211,12 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
-    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort, currentId)
+    const reasoning = reconcileReasoningEffortForModel(
+      next,
+      currentAssistant.settings.reasoning_effort,
+      currentId,
+      currentAssistant.settings.reasoning_effort_by_model
+    )
     const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings)
     const settingsPatch =
       extraSettings || reasoning || webSearch

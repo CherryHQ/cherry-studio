@@ -79,10 +79,16 @@ const useThinkingToolController = ({
         return
       }
 
+      const reasoningEffortByModel = {
+        ...(assistant?.settings.reasoning_effort_by_model || {}),
+        [model.id]: option
+      }
+
       if (!isEnabled) {
         cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
         updateAssistantSettings({
-          reasoning_effort: option
+          reasoning_effort: option,
+          reasoning_effort_by_model: reasoningEffortByModel
         })
         return
       }
@@ -97,18 +103,11 @@ const useThinkingToolController = ({
       }
       cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
       updateAssistantSettings({
-        reasoning_effort: option
+        reasoning_effort: option,
+        reasoning_effort_by_model: reasoningEffortByModel
       })
     },
-    [
-      isControlled,
-      onReasoningEffortChange,
-      updateAssistantSettings,
-      assistantId,
-      assistant?.settings.enableWebSearch,
-      model,
-      t
-    ]
+    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistantId, assistant?.settings, model, t]
   )
 
   const reasoningEffortOptionLabelMap = useMemo(
