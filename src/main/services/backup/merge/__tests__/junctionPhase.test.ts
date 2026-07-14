@@ -114,9 +114,8 @@ const runMerge = (ctx: MergeContext): Promise<unknown> =>
   new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
 
 // SKILLS (agent_global_skill) and AGENTS (agent_workspace) hold natural-key aggregates → the
-// SKIP override is mandatory (FIELD_MERGE is unimplemented). Under SKIP: uuid roots the work
-// already lacks are still INSERTed (sourceMap populated); natural-key roots are force-skipped
-// (targetMap = local canonical when work has the row, absent otherwise).
+// SKIP override is mandatory (FIELD_MERGE is unimplemented). Under SKIP, conflicting roots
+// remain local while missing uuid and natural-key roots are INSERTed and populate identityMap.
 const agentsSkillsCtx = (): MergeContext => ({
   backupDbPath: backupPath,
   domains: ['AGENTS', 'SKILLS'],
@@ -163,9 +162,9 @@ describe('importAllJunctionRows (global junction phase)', () => {
     expect(agentSkillRows()).toEqual([])
   })
 
-  it('cascade-prunes agent_skill when the target skill is unavailable (work lacks it)', async () => {
-    // Work has neither skill nor agent. Under SKIP: agent-1 INSERTed, skill-1 force-skipped but
-    // work has no skill-1 → targetMap empty for skill-1 → junction cannot resolve target.
+  it('imports agent_skill when the target skill is backfilled by explicit SKIP', async () => {
+    // Work has neither skill nor agent. Explicit SKIP INSERTs both missing roots, so the
+    // source and target identity maps resolve the junction endpoints.
     seedBackup((db) => {
       seedAgent(db, 'agent-1')
       seedSkill(db, 'skill-1')
@@ -174,7 +173,7 @@ describe('importAllJunctionRows (global junction phase)', () => {
 
     await runMerge(agentsSkillsCtx())
 
-    expect(agentSkillRows()).toEqual([])
+    expect(agentSkillRows()).toEqual([{ agent_id: 'agent-1', skill_id: 'skill-1' }])
   })
 
   it('is idempotent — re-merging the same backup adds 0 new junction rows', async () => {

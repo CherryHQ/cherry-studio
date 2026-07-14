@@ -158,9 +158,8 @@ export class MergeEngine {
    * Scan work.sqlite (merge base) + backup.sqlite for each aggregate root and produce
    * a decision per backup root. Runs BEFORE the write tx (read-only on both DBs).
    *
-   * MVP: uuid-entity aggregates → identityKey = PK; conflict (work has same PK) → SKIP;
-   * else INSERT. natural-key/slot aggregates would FIELD_MERGE but the MVP scaffold throws
-   * NotImplemented (lite milestone).
+   * MVP: effective SKIP conflicts preserve the local aggregate; missing identities INSERT.
+   * FIELD_MERGE / OVERWRITE / RENAME remain fail-loud NotImplemented strategies.
    */
   private scanAggregates(
     workSqlite: Database.Database,
@@ -168,41 +167,37 @@ export class MergeEngine {
     backupDb: Database.Database,
     ctx: MergeContext
   ): AggregateDecision[] {
-    // Honor an explicit user strategy override. The MVP supports only SKIP conflict
-    // resolution for uuid-entity aggregates; FIELD_MERGE/OVERWRITE/RENAME are unsupported
-    // — fail loud here rather than silently degrading to skip (which would ignore the
-    // user's choice and quietly no-op a RENAME/OVERWRITE request).
-    if (ctx.userStrategy !== undefined && ctx.userStrategy !== 'SKIP') {
-      throw new MergeStrategyNotImplementedError(`userStrategy ${ctx.userStrategy}`)
-    }
     const decisions: AggregateDecision[] = []
     for (const domain of ordered) {
       for (const agg of this.registry.getAggregatesForDomain(domain)) {
         const pkColumns = this.registry.getPrimaryKey(agg.root).columns
-        const naturalKey = (agg.identityClass ?? 'uuid-entity') !== 'uuid-entity'
-        // natural-key needs FIELD_MERGE (not implemented). Default → fail loud. An explicit
-        // SKIP override opts out of FIELD_MERGE → forceSkip every backup row (skip-with-warning
-        // semantics; local rows survive = available). Other overrides already rejected above.
-        if (naturalKey && ctx.userStrategy !== 'SKIP') {
-          throw new MergeStrategyNotImplementedError(`FIELD_MERGE for ${agg.root} (natural-key/slot)`)
+        const identityClass = agg.identityClass ?? 'uuid-entity'
+        const defaultForIdentityClass = identityClass === 'uuid-entity' ? 'SKIP' : 'FIELD_MERGE'
+        const effectiveStrategy = ctx.userStrategy ?? agg.conflictDefault ?? defaultForIdentityClass
+        if (effectiveStrategy !== 'SKIP') {
+          throw new MergeStrategyNotImplementedError(`${effectiveStrategy} for ${agg.root}`)
         }
-        const forceSkip = naturalKey && ctx.userStrategy === 'SKIP'
+        const identityColumns = agg.identityKey ?? pkColumns
         // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on
         // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2. Acceptable
         // for the non-production scaffold (production restore stays fail-closed via BackupService
         // stub; no large archive reaches this engine until Stage 3 wires it in).
         const backupRoots = backupDb.prepare(`SELECT * FROM ${agg.root}`).all() as Record<string, unknown>[]
         for (const backupRow of backupRoots) {
-          // backupRow keys are physical (SELECT *); pkColumns are logical → convert.
+          // backupRow keys are physical (SELECT *); contributor columns are logical → convert.
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
-          const exists = forceSkip || this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)
+          const identity = identityColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
+          const conflicts = this.workHasIdentity(workSqlite, agg, identityColumns, identity)
+          // An explicit natural-key SKIP still forces a conflicting root to remain local, but
+          // locally absent identities continue through INSERT so settings-class data backfills.
+          const forceSkip = identityClass !== 'uuid-entity' && ctx.userStrategy === 'SKIP' && conflicts
           // Honor skippedFileEntryIds — a file_entry root whose blob was not staged MUST be
           // skipped, else the merged DB holds a row + refs pointing at a missing blob.
           const skipped = agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
-          const action = skipped || exists ? 'skip' : 'insert'
+          const action = skipped || forceSkip || conflicts ? 'skip' : 'insert'
           decisions.push({
             aggregate: agg,
-            identity: backupPrimaryKey,
+            identity,
             backupPrimaryKey,
             action
           })
@@ -212,15 +207,15 @@ export class MergeEngine {
     return decisions
   }
 
-  /** True when work.sqlite already has a row with the same PK (uuid-entity identity). */
+  /** True when work.sqlite already has a row with the same aggregate identityKey. */
   private workHasIdentity(
     workSqlite: Database.Database,
     agg: AggregateBoundary,
-    pkColumns: readonly string[],
+    identityColumns: readonly string[],
     values: readonly (string | number)[]
   ): boolean {
-    // pkColumns are logical (camelCase); convert to physical (snake_case) for SQL.
-    const where = pkColumns.map((c) => `${physicalColumn(c)} = ?`).join(' AND ')
+    // Contributor columns are logical (camelCase); convert to physical (snake_case) for SQL.
+    const where = identityColumns.map((c) => `${physicalColumn(c)} = ?`).join(' AND ')
     const row = workSqlite.prepare(`SELECT 1 FROM ${agg.root} WHERE ${where} LIMIT 1`).get(...values)
     return row !== undefined
   }

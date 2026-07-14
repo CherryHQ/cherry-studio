@@ -95,6 +95,24 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     ).run(id, id, externalPath, now, now)
   }
 
+  /** Insert a preference row keyed by the composite [scope, key] primary key. */
+  const insertPreference = (db: Database.Database, scope: string, key: string, value: string): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO preference (scope, key, value, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(scope, key, JSON.stringify(value), now, now)
+  }
+
+  /** Insert a note overlay keyed for merge by the UNIQUE [rootPath, path] identity. */
+  const insertNote = (db: Database.Database, id: string, rootPath: string, path: string, isStarred: boolean): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, rootPath, path, Number(isStarred), Number(!isStarred), now, now)
+  }
+
   /** Insert a chat_message_file_ref row (nested TOPICS member via sourceId→message). */
   const insertChatMessageFileRef = (db: Database.Database, id: string, sourceId: string, fileEntryId: string): void => {
     const now = Date.now()
@@ -187,6 +205,57 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     )
   })
 
+  it('uses the PREFERENCES conflictDefault SKIP to preserve a composite-key conflict and backfill a missing preference', async () => {
+    insertPreference(dbh.sqlite, 'default', 'theme', 'local-theme')
+    seedBackup((db) => {
+      insertPreference(db, 'default', 'theme', 'backup-theme')
+      insertPreference(db, 'default', 'language', 'backup-language')
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      fileEntryRewrites: new Map()
+    })
+
+    const rows = dbh.sqlite.prepare(`SELECT scope, key, value FROM preference ORDER BY key`).all() as {
+      scope: string
+      key: string
+      value: string
+    }[]
+    expect(rows).toEqual([
+      { scope: 'default', key: 'language', value: JSON.stringify('backup-language') },
+      { scope: 'default', key: 'theme', value: JSON.stringify('local-theme') }
+    ])
+  })
+
+  it('uses the note identityKey to preserve a conflict and backfill a missing note overlay', async () => {
+    insertNote(dbh.sqlite, 'note-local', '/notes', 'same.md', true)
+    seedBackup((db) => {
+      insertNote(db, 'note-backup-conflict', '/notes', 'same.md', false)
+      insertNote(db, 'note-backup-missing', '/notes', 'missing.md', true)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      fileEntryRewrites: new Map()
+    })
+
+    const rows = dbh.sqlite.prepare(`SELECT id, root_path, path, is_starred FROM note ORDER BY path`).all() as {
+      id: string
+      root_path: string
+      path: string
+      is_starred: number
+    }[]
+    expect(rows).toEqual([
+      { id: 'note-backup-missing', root_path: '/notes', path: 'missing.md', is_starred: 1 },
+      { id: 'note-local', root_path: '/notes', path: 'same.md', is_starred: 1 }
+    ])
+  })
+
   it('throws MergeConsistencyCheckError when an inserted row dangles a cross-domain FK', async () => {
     // Backup topic + a root message whose model_id points at a user_model that is
     // NOT in the backup and NOT in work (PROVIDERS is outside this merge). The
@@ -274,17 +343,29 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(countRows('chat_message_file_ref')).toBe(before)
   })
 
-  it('honors an explicit SKIP override on a natural-key domain instead of throwing', async () => {
-    // PROVIDERS is natural-key (FIELD_MERGE default). Default → throws NotImplemented (MVP
-    // can't FIELD_MERGE). An explicit SKIP opts out → every backup row skipped (local
-    // survives), no throw. Empty backup is enough — the guard either throws or it doesn't.
-    const result = await runMerge({
-      backupDbPath: backupPath,
-      domains: ['PROVIDERS'],
-      userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map()
+  it('honors an explicit SKIP override by preserving conflicts and backfilling missing natural-key rows', async () => {
+    insertPreference(dbh.sqlite, 'default', 'theme', 'local-theme')
+    seedBackup((db) => {
+      insertPreference(db, 'default', 'theme', 'backup-theme')
+      insertPreference(db, 'default', 'language', 'backup-language')
     })
-    expect(result).toMatchObject({ degradedToSkips: [] })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      userStrategy: 'SKIP',
+      skippedFileEntryIds: new Set<string>(),
+      fileEntryRewrites: new Map()
+    })
+
+    const rows = dbh.sqlite.prepare(`SELECT key, value FROM preference ORDER BY key`).all() as {
+      key: string
+      value: string
+    }[]
+    expect(rows).toEqual([
+      { key: 'language', value: JSON.stringify('backup-language') },
+      { key: 'theme', value: JSON.stringify('local-theme') }
+    ])
   })
 
   it('preserves the app_state key-set across the merge tx (no add/drop)', async () => {
