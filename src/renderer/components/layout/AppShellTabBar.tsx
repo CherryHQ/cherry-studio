@@ -6,7 +6,7 @@ import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Plus, X } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { cloneElement, isValidElement, type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
@@ -127,6 +127,7 @@ const NormalTabButton = ({
   ref,
   ...rest
 }: NormalTabButtonProps) => {
+  const { t } = useTranslation()
   const setRefs = useCallback(
     (el: HTMLButtonElement | null) => {
       tabRef(el)
@@ -148,6 +149,9 @@ const NormalTabButton = ({
       ref={setRefs}
       data-tab-id={tab.id}
       type="button"
+      // Explicit name: the close overlay's aria-label must not leak into the
+      // tab's accessible name via name-from-content.
+      aria-label={tab.title}
       onPointerDown={drag.onPointerDown}
       onClick={onSelect}
       onAuxClick={(e) => {
@@ -174,13 +178,16 @@ const NormalTabButton = ({
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
-      {/* Icon — X overlay replaces it on hover, same position at every tab width */}
-      <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-        <TabIcon tab={tab} size={14} className={cn(canClose && 'group-hover:hidden')} />
+      {/* Icon — X overlay replaces it on hover or keyboard focus, same position at every tab width */}
+      <div className="group/close relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        <TabIcon tab={tab} size={14} className={cn(canClose && 'group-focus-within/close:hidden group-hover:hidden')} />
         {canClose && (
+          // Hidden via opacity (not display) so it stays keyboard-focusable; pointer
+          // events stay off until hover so an invisible X never swallows tab clicks.
           <div
             role="button"
             tabIndex={0}
+            aria-label={t('tab.close')}
             onClick={(e) => {
               e.stopPropagation()
               onClose()
@@ -191,7 +198,7 @@ const NormalTabButton = ({
                 onClose()
               }
             }}
-            className="nodrag absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
+            className="nodrag pointer-events-none absolute inset-0 flex cursor-pointer items-center justify-center rounded-sm opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
             <X size={11} />
           </div>
         )}
@@ -290,6 +297,7 @@ const TabRightClickMenu = ({
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const items = useMemo<CommandContextMenuExtraItem[]>(() => {
     const entries: Array<{ enabled: boolean; item: CommandContextMenuExtraItem }> = [
@@ -339,7 +347,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.close-others',
           label: t('tab.close_others'),
-          icon: <CopyX size={14} />,
           onSelect: onCloseOthers
         }
       },
@@ -349,7 +356,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.close-to-right',
           label: t('tab.close_to_right'),
-          icon: <ArrowRightFromLine size={14} />,
           onSelect: onCloseToRight
         }
       }
@@ -362,8 +368,18 @@ const TabRightClickMenu = ({
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={items} contentClassName="min-w-[130px]">
-      {children}
+    <CommandContextMenu
+      location="webcontents.context"
+      extraItems={items}
+      contentClassName="min-w-[130px]"
+      onOpenChange={setMenuOpen}>
+      {/* data-menu-open drives the tab's menu-open highlight. Unlike Radix's
+          data-state, it is also set when the menu shows as a native OS popup. */}
+      {isValidElement(children)
+        ? cloneElement(children as ReactElement<{ 'data-menu-open'?: boolean }>, {
+            'data-menu-open': menuOpen || undefined
+          })
+        : children}
     </CommandContextMenu>
   )
 }
@@ -392,15 +408,15 @@ export const AppShellTabBar = ({
         ? {
             activeClass:
               'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
-            // data-[state=open] mirrors hover: it keeps the highlight while the
-            // right-click menu is open (ContextMenuTrigger sets data-state on the tab).
+            // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
+            // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[state=open]:bg-black/6 data-[state=open]:text-sidebar-foreground data-[state=open]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[state=open]:bg-white/6 dark:data-[state=open]:text-sidebar-foreground dark:data-[state=open]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
           }
         : {
             activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[state=open]:bg-white data-[state=open]:text-sidebar-foreground dark:data-[state=open]:bg-white/10 dark:data-[state=open]:text-sidebar-foreground'
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground'
           },
     [isMacTransparentWindow]
   )

@@ -332,6 +332,31 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
   })
 
+  it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <CloseTabOnMount tabId="files" />
+      </TabsProvider>
+    )
+
+    // The mocked pinned cache never re-renders, so assert on the persisted write:
+    // the pinned list must drop the tab, or it resurrects on restart.
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+
+    const updater = setPinnedTabsMock.mock.calls.at(-1)?.[0]
+    expect(typeof updater).toBe('function')
+    expect(updater([PINNED_FILES_TAB])).toEqual([])
+  })
+
   it('drops legacy assistant-library pinned tabs when restoring the main tab list', async () => {
     pinnedTabsValue = [LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB]
 

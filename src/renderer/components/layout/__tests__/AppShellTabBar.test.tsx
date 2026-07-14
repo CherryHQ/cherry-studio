@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -83,16 +83,22 @@ vi.mock('react-i18next', () => ({
 
 // Render the command context menu's extra items inline as buttons so each tab's
 // "move to first" action is directly clickable without driving the real menu.
+// The open/close toggles let tests drive onOpenChange the way both the cherry
+// and native menu paths do at runtime.
 vi.mock('@renderer/components/command', () => ({
   CommandContextMenu: ({
     children,
-    extraItems
+    extraItems,
+    onOpenChange
   }: {
     children: ReactNode
     extraItems?: Array<{ type: string; id?: string; label?: string; onSelect?: () => void }>
+    onOpenChange?: (open: boolean) => void
   }) => (
     <div>
       {children}
+      <button type="button" data-testid="menu-set-open" onClick={() => onOpenChange?.(true)} />
+      <button type="button" data-testid="menu-set-closed" onClick={() => onOpenChange?.(false)} />
       {extraItems
         ?.filter((item) => item.type === 'item')
         .map((item) => (
@@ -524,6 +530,92 @@ describe('AppShellTabBar', () => {
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(2)
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
     expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(0)
+  })
+
+  it('closes a pinned tab through its context menu item', () => {
+    const closeTab = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="home"
+        setActiveTab={vi.fn()}
+        closeTab={closeTab}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    // Pinned zone renders before the normal zone, so index 0 is the pinned tab.
+    const closeItems = screen.getAllByTestId('menu-tab.close')
+    fireEvent.click(closeItems[0])
+    expect(closeTab).toHaveBeenCalledWith('p')
+    fireEvent.click(closeItems[1])
+    expect(closeTab).toHaveBeenCalledWith('home')
+  })
+
+  it('closes a tab from the hover close overlay without selecting it', () => {
+    const setActiveTab = vi.fn()
+    const closeTab = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="home"
+        setActiveTab={setActiveTab}
+        closeTab={closeTab}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    const tab = screen.getByRole('button', { name: 'A' })
+    const closeOverlay = within(tab).getByRole('button', { name: 'tab.close' })
+
+    fireEvent.click(closeOverlay)
+    expect(closeTab).toHaveBeenCalledWith('a')
+    expect(setActiveTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps the hover close overlay reachable by keyboard', () => {
+    const closeTab = renderTabBar()
+
+    const tab = screen.getByRole('button', { name: 'A' })
+    const closeOverlay = within(tab).getByRole('button', { name: 'tab.close' })
+
+    // Hidden via opacity, not display — display:none would drop it from the tab order.
+    expect(closeOverlay).toHaveClass('opacity-0')
+    expect(closeOverlay).not.toHaveClass('hidden')
+    expect(closeOverlay).toHaveAttribute('tabindex', '0')
+
+    fireEvent.keyDown(closeOverlay, { key: 'Enter' })
+    expect(closeTab).toHaveBeenCalledWith('a')
+  })
+
+  it('keeps the tab highlighted while its context menu is open', () => {
+    renderTabBar()
+
+    const tab = () => screen.getByRole('button', { name: 'A' })
+    expect(tab()).not.toHaveAttribute('data-menu-open')
+
+    // One toggle pair per tab menu; index 1 belongs to tab "A".
+    fireEvent.click(screen.getAllByTestId('menu-set-open')[1])
+    expect(tab()).toHaveAttribute('data-menu-open', 'true')
+
+    fireEvent.click(screen.getAllByTestId('menu-set-closed')[1])
+    expect(tab()).not.toHaveAttribute('data-menu-open')
   })
 
   it('allows closing normal tabs while more than one normal tab is open', () => {
