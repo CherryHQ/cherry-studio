@@ -31,26 +31,26 @@ const toolNameSchema = z.string().regex(TOOL_NAME_RE)
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 
 /** Durable management intent stored in the BinaryManager-owned Preference manifest. */
-export const binaryManifestEntrySchema: z.ZodType<BinaryManifestEntry> = z.object({
+const binaryManifestEntrySchema: z.ZodType<BinaryManifestEntry> = z.object({
   name: z.string(),
   tool: z.string(),
   requestedVersion: z.string().optional()
 })
 
 /** Install route input: durable intent plus an optional one-shot target. */
-export const binaryInstallRequestSchema: z.ZodType<BinaryInstallRequest> = z.object({
+const binaryInstallRequestSchema: z.ZodType<BinaryInstallRequest> = z.object({
   intent: binaryManifestEntrySchema,
   targetVersion: z.string().optional()
 })
 
-export const binaryAvailabilitySchema: z.ZodType<BinaryAvailability> = z.discriminatedUnion('source', [
+const binaryAvailabilitySchema: z.ZodType<BinaryAvailability> = z.discriminatedUnion('source', [
   z.object({ source: z.literal('mise'), tool: z.string(), path: z.string(), version: z.string().optional() }),
   z.object({ source: z.literal('bundled'), path: z.string(), version: z.string().optional() }),
   z.object({ source: z.literal('system'), path: z.string() }),
   z.object({ source: z.literal('none') })
 ])
 
-export const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [
+const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [
   z.object({ status: z.literal('installing') }),
   z.object({ status: z.literal('removing') }),
   z.object({
@@ -61,7 +61,7 @@ export const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminated
   })
 ])
 
-export const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
+const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
   name: z.string(),
   intent: binaryManifestEntrySchema.optional(),
   availability: binaryAvailabilitySchema,

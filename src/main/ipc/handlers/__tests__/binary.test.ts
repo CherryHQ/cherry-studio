@@ -1,3 +1,5 @@
+import { binaryErrorCodes } from '@shared/ipc/errors/binary'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -21,9 +23,26 @@ beforeEach(() => {
   })
 })
 
-const ctx = { senderId: 'w1' }
+const ctx: { senderId: string | null } = { senderId: 'w1' }
+const unmanagedCtx: { senderId: string | null } = { senderId: null }
 
 describe('binaryHandlers', () => {
+  it('install_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
+    const request = { intent: { name: 'fd', tool: 'github:sharkdp/fd' } }
+    await expect(binaryHandlers['binary.install_tool'](request, unmanagedCtx)).rejects.toMatchObject({
+      code: binaryErrorCodes.BINARY_UNMANAGED_SENDER
+    })
+    await expect(binaryHandlers['binary.install_tool'](request, unmanagedCtx)).rejects.toBeInstanceOf(IpcError)
+    expect(binaryManager.installTool).not.toHaveBeenCalled()
+  })
+
+  it('remove_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
+    await expect(binaryHandlers['binary.remove_tool']('fd', unmanagedCtx)).rejects.toMatchObject({
+      code: binaryErrorCodes.BINARY_UNMANAGED_SENDER
+    })
+    expect(binaryManager.removeTool).not.toHaveBeenCalled()
+  })
+
   it('install_tool forwards the tool spec and returns the install result', async () => {
     binaryManager.installTool.mockResolvedValue({ version: '1.2.3' })
     const request = { intent: { name: 'fd', tool: 'github:sharkdp/fd' } }
