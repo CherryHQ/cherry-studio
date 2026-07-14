@@ -632,6 +632,19 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
+    it('rejects a different name that aliases an owned tool specification', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'circleci', tool: 'aqua:CircleCI-Public/circleci-cli' }]
+
+      await expect(
+        service.installTool({ intent: { name: 'circleci-cli', tool: 'aqua:CircleCI-Public/circleci-cli' } })
+      ).rejects.toThrow('already owned as circleci')
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
     it('installs and returns version', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

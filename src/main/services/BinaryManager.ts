@@ -775,6 +775,10 @@ export class BinaryManager extends BaseService {
         if (existing && (existing.tool !== intent.tool || existing.requestedVersion !== intent.requestedVersion)) {
           throw new Error(`Tool ${intent.name} is already owned with a different specification`)
         }
+        const conflictingOwner = manifest.find((entry) => entry.name !== intent.name && entry.tool === intent.tool)
+        if (conflictingOwner) {
+          throw new Error(`Tool specification ${intent.tool} is already owned as ${conflictingOwner.name}`)
+        }
 
         let persistedIntent = intent
         let version: string
