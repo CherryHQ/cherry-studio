@@ -36,7 +36,14 @@ import { v4 as uuidv4 } from 'uuid'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
-import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import {
+  asNumericKey,
+  asStringKey,
+  buildCursorFamily,
+  decodeFamilyCursor,
+  encodeFamilyCursor,
+  keysetOrdering
+} from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -147,6 +154,25 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
  * covers both NULL owners and topics whose assistant is soft-deleted. `pinned`
  * is NOT built here — it needs the pin subquery and only applies to lists.
  */
+/**
+ * Bind a topic keyset cursor to its query family: resource, pinned/ordinary
+ * stream, sort profile (ordinary only), and the normalized membership filters.
+ * A cursor issued for one family never applies to another sort/filter/scope.
+ */
+function topicCursorFamily(query: ListTopicsQuery, stream: 'pinned' | 'ordinary', sortBy?: TopicSortBy): string {
+  return buildCursorFamily({
+    resource: 'topics',
+    stream,
+    sortBy: stream === 'ordinary' ? sortBy : undefined,
+    q: query.q?.trim() || undefined,
+    searchScope: query.searchScope ?? 'name',
+    assistantId: query.assistantId,
+    // Only the ordinary stream distinguishes exclude-pinned (false) from all-rows (undefined).
+    pinned: stream === 'ordinary' ? query.pinned : undefined,
+    ids: query.ids ? [...query.ids].sort() : undefined
+  })
+}
+
 function buildRecordFilters(query: {
   q?: string
   searchScope?: TopicSearchScope
@@ -561,8 +587,9 @@ export class TopicService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const filters = buildRecordFilters(query)
+    const family = topicCursorFamily(query, 'pinned')
     const { where, orderBy } = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
-    const cursor = decodeListCursor(query.cursor, asStringKey, 'topics-pinned')
+    const cursor = decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-pinned')
     if (cursor) filters.push(where(cursor))
 
     const rows = db
@@ -581,7 +608,7 @@ export class TopicService {
 
     return {
       items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
-      nextCursor: hasMore ? encodeCursor(last.pinOrderKey, last.topic.id) : undefined
+      nextCursor: hasMore ? encodeFamilyCursor(family, last.pinOrderKey, last.topic.id) : undefined
     }
   }
 
@@ -604,14 +631,15 @@ export class TopicService {
       filters.push(notInArray(topicTable.id, pinnedSubquery))
     }
 
+    const family = topicCursorFamily(query, 'ordinary', sortBy)
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'
     const timestampColumn = sortBy === 'createdAt' ? topicTable.createdAt : topicTable.updatedAt
     const { where, orderBy } = isTimestampSort
       ? keysetOrdering(timestampColumn, topicTable.id, { major: 'desc', tie: 'asc' })
       : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
     const cursor = isTimestampSort
-      ? decodeListCursor(query.cursor, asNumericKey, 'topics-flat')
-      : decodeListCursor(query.cursor, asStringKey, 'topics-flat')
+      ? decodeFamilyCursor(query.cursor, family, asNumericKey, 'topics-flat')
+      : decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-flat')
     if (cursor) filters.push(where(cursor))
 
     const rows = db
@@ -628,7 +656,8 @@ export class TopicService {
     const pageRows = rows.slice(0, limit)
     const last = pageRows[pageRows.length - 1]
     const nextCursor = hasMore
-      ? encodeCursor(
+      ? encodeFamilyCursor(
+          family,
           sortBy === 'createdAt'
             ? last.topic.createdAt
             : sortBy === 'updatedAt'

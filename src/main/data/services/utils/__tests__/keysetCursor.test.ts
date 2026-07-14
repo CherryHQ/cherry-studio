@@ -3,7 +3,17 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering, parseCursor } from '../keysetCursor'
+import {
+  asNumericKey,
+  asStringKey,
+  buildCursorFamily,
+  decodeFamilyCursor,
+  decodeListCursor,
+  encodeCursor,
+  encodeFamilyCursor,
+  keysetOrdering,
+  parseCursor
+} from '../keysetCursor'
 
 describe('keysetCursor codec', () => {
   describe('parseCursor', () => {
@@ -169,5 +179,40 @@ describe('keysetOrdering — direction coverage against real SQLite', () => {
       .where(ordering.where({ key: 'A1', id: 'b' }))
       .orderBy(...ordering.orderBy)
     expect(rows.map((r) => r.id)).toEqual(['c', 'd'])
+  })
+
+  describe('cursor family binding', () => {
+    it('round-trips a boundary within the same family', () => {
+      const family = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'createdAt' })
+      const token = encodeFamilyCursor(family, 1720000000000, 'topic-1')
+      expect(decodeFamilyCursor(token, family, asNumericKey, 'test')).toEqual({ key: 1720000000000, id: 'topic-1' })
+    })
+
+    it('returns null (first page) when the family does not match', () => {
+      const created = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'createdAt' })
+      const updated = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'updatedAt' })
+      const token = encodeFamilyCursor(created, 5, 'topic-1')
+      expect(decodeFamilyCursor(token, updated, asNumericKey, 'test')).toBeNull()
+    })
+
+    it('returns null for an absent, malformed, or legacy token', () => {
+      const family = buildCursorFamily({ resource: 'topics', stream: 'pinned' })
+      expect(decodeFamilyCursor(undefined, family, asStringKey, 'test')).toBeNull()
+      expect(decodeFamilyCursor('not a real token', family, asStringKey, 'test')).toBeNull()
+      // A legacy plain `key:id` cursor is not a valid family token → first page.
+      expect(decodeFamilyCursor(encodeCursor('A0', 'topic-1'), family, asStringKey, 'test')).toBeNull()
+    })
+
+    it('buildCursorFamily is independent of key declaration order', () => {
+      const a = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'createdAt', q: 'x' })
+      const b = buildCursorFamily({ q: 'x', sortBy: 'createdAt', stream: 'ordinary', resource: 'topics' })
+      expect(a).toBe(b)
+    })
+
+    it('distinguishes exclude-pinned (false) from all-rows (undefined)', () => {
+      const excludePinned = buildCursorFamily({ resource: 'topics', stream: 'ordinary', pinned: false })
+      const allRows = buildCursorFamily({ resource: 'topics', stream: 'ordinary', pinned: undefined })
+      expect(excludePinned).not.toBe(allRows)
+    })
   })
 })

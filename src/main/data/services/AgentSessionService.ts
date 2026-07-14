@@ -32,7 +32,14 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
-import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import {
+  asNumericKey,
+  asStringKey,
+  buildCursorFamily,
+  decodeFamilyCursor,
+  encodeFamilyCursor,
+  keysetOrdering
+} from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('AgentSessionService')
@@ -98,6 +105,31 @@ function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSe
  * only), so every query using these filters must join `agentsTable` on
  * `sessionsTable.agentId = agentsTable.id AND agentsTable.deletedAt IS NULL`.
  */
+/**
+ * Bind a session keyset cursor to its query family: resource, pinned/ordinary
+ * stream, sort profile (ordinary only), and the normalized membership filters
+ * (search, owner scope, workspace scope, bounded ids). A cursor from one family
+ * never applies to another sort/filter/scope.
+ */
+function sessionCursorFamily(
+  query: ListAgentSessionsQuery,
+  stream: 'pinned' | 'ordinary',
+  sortBy?: AgentSessionSortBy
+): string {
+  return buildCursorFamily({
+    resource: 'agent-sessions',
+    stream,
+    sortBy: stream === 'ordinary' ? sortBy : undefined,
+    q: query.q?.trim() || undefined,
+    searchScope: query.searchScope ?? 'name',
+    agentId: query.agentId,
+    workspaceId: query.workspaceId,
+    // Only the ordinary stream distinguishes exclude-pinned (false) from all-rows (undefined).
+    pinned: stream === 'ordinary' ? query.pinned : undefined,
+    ids: query.ids ? [...query.ids].sort() : undefined
+  })
+}
+
 function buildSessionRecordFilters(query: {
   q?: string
   searchScope?: AgentSessionSearchScope
@@ -303,8 +335,9 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const filters = buildSessionRecordFilters(query)
+    const family = sessionCursorFamily(query, 'pinned')
     const { where, orderBy } = keysetOrdering(pinTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
-    const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-sessions-pinned')
+    const cursor = decodeFamilyCursor(query.cursor, family, asStringKey, 'agent-sessions-pinned')
     if (cursor) filters.push(where(cursor))
 
     // Always LEFT JOIN live agents so owner-scope filters and name-or-owner
@@ -331,7 +364,7 @@ export class AgentSessionService {
 
     return {
       items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), row.pinId)),
-      nextCursor: hasMore ? encodeCursor(last.pinOrderKey, last.session.id) : undefined
+      nextCursor: hasMore ? encodeFamilyCursor(family, last.pinOrderKey, last.session.id) : undefined
     }
   }
 
@@ -359,14 +392,15 @@ export class AgentSessionService {
       filters.push(notInArray(sessionsTable.id, pinnedSubquery))
     }
 
+    const family = sessionCursorFamily(query, 'ordinary', sortBy)
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'
     const timestampColumn = sortBy === 'createdAt' ? sessionsTable.createdAt : sessionsTable.updatedAt
     const { where, orderBy } = isTimestampSort
       ? keysetOrdering(timestampColumn, sessionsTable.id, { major: 'desc', tie: 'asc' })
       : keysetOrdering(sessionsTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
     const cursor = isTimestampSort
-      ? decodeListCursor(query.cursor, asNumericKey, 'agent-sessions-flat')
-      : decodeListCursor(query.cursor, asStringKey, 'agent-sessions-flat')
+      ? decodeFamilyCursor(query.cursor, family, asNumericKey, 'agent-sessions-flat')
+      : decodeFamilyCursor(query.cursor, family, asStringKey, 'agent-sessions-flat')
     if (cursor) filters.push(where(cursor))
 
     const rows = db
@@ -388,7 +422,8 @@ export class AgentSessionService {
     const pageRows = rows.slice(0, limit)
     const last = pageRows[pageRows.length - 1]
     const nextCursor = hasMore
-      ? encodeCursor(
+      ? encodeFamilyCursor(
+          family,
           sortBy === 'createdAt'
             ? last.session.createdAt
             : sortBy === 'updatedAt'

@@ -531,6 +531,23 @@ describe('TopicService', () => {
           .items.map((t) => t.id)
       ).toEqual(['t-named', 't-live-owner'])
     })
+
+    it('rejects a cursor issued for a different sort family and restarts from the first page', async () => {
+      await seedFlat()
+      const createdPage1 = topicService.listByCursor({ sortBy: 'createdAt', limit: 2 })
+      expect(createdPage1.nextCursor).toBeDefined()
+
+      // Applying that createdAt cursor to an updatedAt query is a family mismatch:
+      // the token is ignored and the updatedAt stream restarts from its first page.
+      const updatedFromForeignCursor = topicService.listByCursor({
+        sortBy: 'updatedAt',
+        limit: 2,
+        cursor: createdPage1.nextCursor
+      })
+      const updatedFirstPage = topicService.listByCursor({ sortBy: 'updatedAt', limit: 2 })
+      expect(updatedFromForeignCursor.items.map((t) => t.id)).toEqual(updatedFirstPage.items.map((t) => t.id))
+      expect(updatedFromForeignCursor.items.length).toBe(2)
+    })
   })
 
   describe('stats', () => {
