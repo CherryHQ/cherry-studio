@@ -43,7 +43,17 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
       <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
         <button
           type="button"
-          onClick={() => props.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })}>
+          onClick={() =>
+            props.onSubmit({
+              avatar: '🤖',
+              name: 'New',
+              modelId: 'p::m',
+              description: 'desc',
+              prompt: 'Use the knowledge base',
+              knowledgeBaseIds: ['kb-1'],
+              skillIds: []
+            })
+          }>
           submit-create
         </button>
       </div>
@@ -115,7 +125,14 @@ describe('AssistantConversationPickerDialog', () => {
 
     await waitFor(() =>
       expect(mocks.createAssistant).toHaveBeenCalledWith({
-        body: { name: 'New', emoji: '🤖', modelId: 'p::m', description: 'desc' }
+        body: {
+          name: 'New',
+          emoji: '🤖',
+          modelId: 'p::m',
+          description: 'desc',
+          prompt: 'Use the knowledge base',
+          knowledgeBaseIds: ['kb-1']
+        }
       })
     )
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-new' }))
@@ -132,7 +149,15 @@ describe('AssistantConversationPickerDialog', () => {
 
     // Submit re-throws so the wizard can surface the error; call it directly to capture the rejection.
     await expect(
-      mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })
+      mocks.createDialogProps.onSubmit({
+        avatar: '🤖',
+        name: 'New',
+        modelId: 'p::m',
+        description: 'desc',
+        prompt: '',
+        knowledgeBaseIds: [],
+        skillIds: []
+      })
     ).rejects.toThrow('create failed')
 
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
