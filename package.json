@@ -107,6 +107,7 @@
     "@vectorstores/env": "^0.1.0",
     "@vectorstores/readers": "^0.1.8",
     "better-sqlite3": "12.11.1",
+    "blurhash": "^2.0.5",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
     "grammy": "^1.36.3",

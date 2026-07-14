@@ -114,7 +114,7 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
-                  <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
+                  <Artboard painting={composerPainting} isLoading={generating} />
                 </div>
                 <div className={paintingClasses.promptDock}>
                   <QuickPanelProvider>

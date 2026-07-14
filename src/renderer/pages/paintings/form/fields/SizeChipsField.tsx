@@ -15,9 +15,9 @@ const chipClass = {
   disabled: 'cursor-not-allowed opacity-50'
 }
 
-type Dim = { w: number; h: number }
+export type Dim = { w: number; h: number }
 
-function parseRatio(value: string): Dim | null {
+export function parseRatio(value: string): Dim | null {
   const dims = value.match(/^(\d+)[x×](\d+)$/)
   if (dims) return { w: Number(dims[1]), h: Number(dims[2]) }
 
