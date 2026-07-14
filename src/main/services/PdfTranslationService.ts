@@ -24,16 +24,24 @@ import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('PdfTranslationService')
+const BABELDOC_ERROR_PREFIX = '__CHERRY_BABELDOC_ERROR__'
 const BABELDOC_PROGRESS_PREFIX = '__CHERRY_BABELDOC_PROGRESS__'
-// BabelDOC 0.6.3 exposes structured progress to Python callers but renders only
-// terminal bars in its CLI. This per-run hook preserves those events as NDJSON.
+// BabelDOC 0.6.3 exposes structured events to Python callers but renders only
+// terminal output in its CLI. This per-run hook preserves those events as NDJSON.
 const BABELDOC_PROGRESS_ADAPTER = `import contextlib
 import json
 import math
 import sys
 
 def _emit_progress(event):
-    if event.get("type") not in ("progress_update", "progress_end"):
+    event_type = event.get("type")
+    if event_type == "error":
+        error = event.get("error")
+        payload = {"name": type(error).__name__, "message": str(error)}
+        sys.stdout.write("${BABELDOC_ERROR_PREFIX}" + json.dumps(payload, separators=(",", ":")) + "\\n")
+        sys.stdout.flush()
+        return
+    if event_type not in ("progress_update", "progress_end"):
         return
     stage = event.get("stage")
     progress = event.get("overall_progress")
@@ -52,6 +60,10 @@ try:
 except Exception as _error:
     sys.stderr.write("Cherry Studio progress adapter failed: " + str(_error) + "\\n")
 `
+const babeldocErrorSchema = z.strictObject({
+  name: z.string().min(1),
+  message: z.string().min(1)
+})
 const babeldocProgressSchema = z.strictObject({
   stage: z.string().min(1),
   progress: z.number().finite().min(0).max(100)
@@ -78,6 +90,9 @@ const BABELDOC_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
   'zh-hans': 'zh-CN',
   'zh-hant': 'zh-TW'
 }
+
+const createOcrRequiredError = (): IpcError =>
+  new IpcError(translateErrorCodes.PDF_OCR_REQUIRED, 'OCR translation for scanned PDFs is not supported yet')
 
 export type PdfTranslationStage = 'preparing' | 'translating'
 
@@ -176,10 +191,7 @@ export class PdfTranslationService extends BaseService {
       const hasTextLayer = await hasPdfTextLayer(await fs.promises.readFile(request.sourcePath))
       this.throwIfCancelled(job)
       if (!hasTextLayer) {
-        throw new IpcError(
-          translateErrorCodes.PDF_OCR_REQUIRED,
-          'The PDF contains no extractable text and must be processed with OCR before translation'
-        )
+        throw createOcrRequiredError()
       }
 
       const executable = await this.resolveSidecar()
@@ -302,7 +314,6 @@ export class PdfTranslationService extends BaseService {
       normalizeLanguageCode(request.targetLangCode),
       '--report-interval',
       '0.2',
-      '--auto-enable-ocr-workaround',
       '--no-dual'
     ]
     const env = { ...(await this.buildSidecarEnv()), PYTHONPATH: progressAdapterDir }
@@ -312,9 +323,29 @@ export class PdfTranslationService extends BaseService {
         const child = crossPlatformSpawn(executable, args, { cwd: outputDir, env })
         job.child = child
         let stderr = ''
+        let sidecarError: Error | null = null
         const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
         progressLines?.on('line', (line) => {
+          if (line.startsWith(BABELDOC_ERROR_PREFIX)) {
+            let candidate: unknown
+            try {
+              candidate = JSON.parse(line.slice(BABELDOC_ERROR_PREFIX.length))
+            } catch {
+              logger.warn('Ignored malformed BabelDOC error event')
+              return
+            }
+            const parsed = babeldocErrorSchema.safeParse(candidate)
+            if (!parsed.success) {
+              logger.warn('Ignored invalid BabelDOC error event')
+              return
+            }
+            sidecarError =
+              parsed.data.name === 'ScannedPDFError' || parsed.data.message.includes('Scanned PDF detected')
+                ? createOcrRequiredError()
+                : new Error(parsed.data.message)
+            return
+          }
           if (!line.startsWith(BABELDOC_PROGRESS_PREFIX)) {
             logger.debug(line.trim())
             return
@@ -352,6 +383,8 @@ export class PdfTranslationService extends BaseService {
           job.child = null
           if (job.cancelled) {
             reject(new Error('PDF translation cancelled'))
+          } else if (sidecarError) {
+            reject(sidecarError)
           } else if (code === 0) {
             resolve()
           } else {

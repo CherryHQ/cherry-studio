@@ -8,7 +8,7 @@ date: 2026-07-13
 
 ## What changed
 
-Uploading a PDF on the Translate page now opens a layout-preserving workflow that generates translated-only PDF pages instead of extracting the document into plain text. BabelDOC must be installed manually from Environment Dependencies; the first translation may download its layout model assets, and subsequent progress is streamed as BabelDOC parses, translates, typesets, and renders the document. Scanned PDFs with an existing OCR text layer use BabelDOC's OCR workaround automatically; image-only PDFs must be processed with OCR first.
+Uploading a PDF on the Translate page now opens a layout-preserving workflow that generates translated-only PDF pages instead of extracting the document into plain text. BabelDOC must be installed manually from Environment Dependencies; the first translation may download its layout model assets, and subsequent progress is streamed as BabelDOC parses, translates, typesets, and renders the document. Scanned PDFs are reported as requiring OCR translation, which will be supported in a future release.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ Translated PDFs retain their original page structure and can be previewed beside
 
 ## What the user should do
 
-Install BabelDOC 0.6.3 from Settings > Environment Dependencies, select a configured model supported by the API gateway, then start the translation and allow any initial model downloads to finish. Add an OCR text layer before translating an image-only scanned PDF. Export the generated translated PDF when it is ready.
+Install BabelDOC 0.6.3 from Settings > Environment Dependencies, select a configured model supported by the API gateway, then start the translation and allow any initial model downloads to finish. Use a born-digital PDF for now because scanned PDF translation is planned for a future release. Export the generated translated PDF when it is ready.
 
 ## Notes for release manager
 
