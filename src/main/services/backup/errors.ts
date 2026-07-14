@@ -106,6 +106,73 @@ export class RestoreArchiveAdmissionNotImplementedError extends Error {
 }
 
 /**
+ * Thrown by archive admission (backup-architecture §9 step 0 format gate) when the
+ * archive's `backupFormatVersion` major differs from BACKUP_FORMAT_VERSION. Raised
+ * AFTER extracting ONLY manifest.json and BEFORE bulk-extracting payload, so a large
+ * trusted-but-incompatible archive can't exhaust staging disk. Same-major additive
+ * format extensions stay forward-compatible (unknown entries ignored, not rejected) —
+ * only a major bump is incompatible.
+ */
+export class UnsupportedBackupFormatError extends Error {
+  readonly found: number
+  readonly expected: number
+  constructor(found: number, expected: number) {
+    super(`backup: unsupported archive format version ${found} (expected ${expected})`)
+    this.name = 'UnsupportedBackupFormatError'
+    this.found = found
+    this.expected = expected
+  }
+}
+
+/**
+ * Thrown by archive admission (backup-architecture §9 step 0 schema comparison) when
+ * backup.sqlite's applied migration chain is NOT a strict prefix of the bundled chain
+ * — forked (A B′ C vs A B C), diverged (same length, a hash differs), ahead-of-code,
+ * or a superset. The chain `folderMillis` is authoritative (NOT the manifest's
+ * schemaMigrationId tip): drizzle migrate() is a silent no-op on ahead-of-chain, so a
+ * tip-only check would let a forked DB vouch for itself. Carries producerAppVersion
+ * for diagnostics. The strict-prefix case is handled by migrate-forward instead.
+ */
+export class NewerOrDivergedBackupError extends Error {
+  readonly producerAppVersion: string
+  constructor(
+    producerAppVersion: string,
+    message = 'backup: archive schema chain is forked or ahead of the bundled migrations'
+  ) {
+    super(message)
+    this.name = 'NewerOrDivergedBackupError'
+    this.producerAppVersion = producerAppVersion
+  }
+}
+
+/**
+ * Thrown by archive admission (backup-architecture §9 step 0 integrity check) when
+ * `PRAGMA integrity_check` on the (migrated) backup.sqlite returns anything other than
+ * 'ok'. The backup DB is structurally damaged and MUST NOT feed the merge engine.
+ */
+export class BackupIntegrityError extends Error {
+  constructor(message = 'backup: integrity_check failed on archive database') {
+    super(message)
+    this.name = 'BackupIntegrityError'
+  }
+}
+
+/**
+ * Thrown by archive admission (backup-architecture §9 step 0) for structural archive
+ * corruption that is NOT a schema-version decision: a zip-slip entry (escape attempt),
+ * a missing __drizzle_migrations table (tampered/empty backup DB), an empty applied
+ * chain, a raw drizzle migrate-forward error, or a malformed manifest/zip. Trusted-
+ * backup model — this is "the archive is not a valid .cbu", not "the archive is
+ * malicious" (DoS/DDL-equality hardening is a separate task).
+ */
+export class BackupArchiveCorruptError extends Error {
+  constructor(message = 'backup: archive is corrupt or malformed') {
+    super(message)
+    this.name = 'BackupArchiveCorruptError'
+  }
+}
+
+/**
  * Thrown by the restore file-resource staging step until the (e) track lands (restoreResources
  * two-phase contract + path containment + FileResource journal entries). Staging + sealing MUST
  * run before the 2nd fingerprint — restore stays fail-closed: NO staged journal is written

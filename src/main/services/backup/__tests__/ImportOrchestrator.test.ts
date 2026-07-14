@@ -21,6 +21,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ArchiveContext } from '../admitArchive'
 import {
   BackupCancelledError,
   RestoreFingerprintMismatchError,
@@ -28,6 +29,7 @@ import {
   RestoreQuiesceNotImplementedError
 } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
+import type { BackupManifest } from '../manifest'
 
 // Resolve the production drizzle migrations folder the same way the test DB harness
 // does (relative to this file, not process.cwd()) so applyMigrations finds _journal.json.
@@ -82,9 +84,18 @@ describe('ImportOrchestrator spine', () => {
     restoreStagingRoot: stagingRoot,
     userData: tmpDir,
     journalPath,
-    admitArchive: async () => {},
+    // Archive admission is real (admitArchive.ts); spine tests use a no-op stub returning
+    // a dummy ArchiveContext (importBackup awaits without binding — the return is discarded
+    // until the merge consumer lands in spine-wiring, so the manifest shape is not read here).
+    admitArchive: async (): Promise<ArchiveContext> => ({
+      backupDbPath: join(stagingRoot, 'dummy-backup.sqlite'),
+      manifest: {} as BackupManifest,
+      domains: [],
+      includeFiles: false,
+      resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
+    }),
     quiesceWriters: async () => {},
-    mergeBackupIntoWork: async () => {},
+    mergeBackupIntoWork: async () => ({ degradedToSkips: [] }),
     stageFileResources: async () => [],
     ...overrides
   })
@@ -129,6 +140,7 @@ describe('ImportOrchestrator spine', () => {
           // Simulate a foreign writer touching the live DB mid-staging (after snapshot,
           // before the 2nd fingerprint). user_version lives in the DB header → flips the hash.
           dbh.sqlite.pragma('user_version = 12345')
+          return { degradedToSkips: [] }
         }
       })
     )

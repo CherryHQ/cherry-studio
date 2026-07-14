@@ -40,21 +40,26 @@ import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/ba
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
+import { admitArchive } from './admitArchive'
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { contributorManager } from './contributors'
 import {
+  BackupArchiveCorruptError,
   BackupCancelledError,
+  BackupIntegrityError,
   DiskFullError,
   InsufficientDiskSpaceError,
+  NewerOrDivergedBackupError,
   OutputPathExistsError,
-  RestoreArchiveAdmissionNotImplementedError,
   RestoreMergeNotImplementedError,
   RestoreQuiesceNotImplementedError,
-  RestoreStagingNotImplementedError
+  RestoreStagingNotImplementedError,
+  UnsupportedBackupFormatError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
+import { MergeEngine } from './merge'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -106,6 +111,8 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /** Frozen 14-domain registry — finalized in onInit (DEV gate; undefined in packaged builds). */
+  private registry?: ReturnType<typeof contributorManager.getRegistry>
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
@@ -141,6 +148,7 @@ export class BackupService extends BaseService {
     // throws ContributorFinalizeError → onInit fails → fail-fast aborts bootstrap
     // (the startup-validation contract; see ContributorManager docstring).
     const registry = contributorManager.getRegistry()
+    this.registry = registry
 
     // Read the schema-version fingerprint once (migration journal's last `when`).
     this.schemaMigrationId = this.readSchemaMigrationId()
@@ -272,17 +280,23 @@ export class BackupService extends BaseService {
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
-        // Fail-closed stubs — restore stays unavailable until archive admission, quiesce,
-        // merge, AND file-resource staging all land. Each throws independently so no journal
-        // is written without the full track (not just incidentally fail-closed via merge).
-        admitArchive: async () => {
-          throw new RestoreArchiveAdmissionNotImplementedError()
-        },
+        // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — SKIP/INSERT +
+        // junction + FTS) are wired. quiesce + file-resource staging stay fail-closed stubs —
+        // restore is still unavailable until they land. quiesce throws before merge runs, so
+        // no product archive reaches the engine; staging returns [] (nothing to promote).
+        admitArchive,
         quiesceWriters: async () => {
           throw new RestoreQuiesceNotImplementedError()
         },
-        mergeBackupIntoWork: async () => {
-          throw new RestoreMergeNotImplementedError()
+        mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
+          // Defensive belt: onInit skips contributor finalize in packaged builds, so
+          // this.registry is undefined there. Unreachable in normal flow (quiesce above throws
+          // first), but constructing a half-initialized engine would silently merge with an
+          // empty registry.
+          if (!this.registry) {
+            throw new RestoreMergeNotImplementedError('contributor registry not finalized (packaged build)')
+          }
+          return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
         },
         stageFileResources: async () => {
           throw new RestoreStagingNotImplementedError()
@@ -603,6 +617,15 @@ export class BackupService extends BaseService {
     }
     if (e instanceof DiskFullError) return new IpcError('BACKUP_DISK_FULL', e.message)
     if (e instanceof OutputPathExistsError) return new IpcError('BACKUP_OUTPUT_PATH_EXISTS', e.message)
+    // Archive admission errors (restore-side, backup-architecture §9 step 0).
+    if (e instanceof UnsupportedBackupFormatError) {
+      return new IpcError('BACKUP_UNSUPPORTED_FORMAT', e.message, { found: e.found, expected: e.expected })
+    }
+    if (e instanceof NewerOrDivergedBackupError) {
+      return new IpcError('BACKUP_NEWER_OR_DIVERGED', e.message, { producerAppVersion: e.producerAppVersion })
+    }
+    if (e instanceof BackupIntegrityError) return new IpcError('BACKUP_INTEGRITY_FAILED', e.message)
+    if (e instanceof BackupArchiveCorruptError) return new IpcError('BACKUP_ARCHIVE_CORRUPT', e.message)
     // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
     // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize
     // both to BACKUP_DISK_FULL so the renderer never sees INTERNAL for disk-full.

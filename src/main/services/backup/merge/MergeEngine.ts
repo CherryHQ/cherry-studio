@@ -1,11 +1,13 @@
-// MergeEngine — detached restore import pipeline (plan (b), MVP SKIP-only scaffold).
+// MergeEngine — detached restore import pipeline (plan (b)).
 //
 // Merges backup rows into a detached work.sqlite (VACUUM INTO copy of live) inside one
-// synchronous better-sqlite3 transaction. MVP scope: SKIP (uuid-entity conflict) +
-// INSERT (new aggregate), member cascade, and offline FK/integrity verify. FIELD_MERGE /
-// OVERWRITE / RENAME, the global junction phase, identity propagation, and FTS rebuild
-// are stubbed — they throw NotImplemented (MVP cannot restore any product archive; the
-// production stub in BackupService stays fail-closed until the lite milestone lands).
+// synchronous better-sqlite3 transaction. Stage 4 scope: SKIP (uuid-entity conflict) +
+// INSERT (new aggregate), member cascade, the global junction phase (pure junction tables
+// resolved via the role-aware identityMap), FTS5 rebuild backstop, and offline
+// FK/integrity/FTS/app_state consistency checks. FIELD_MERGE / OVERWRITE / RENAME and
+// identity propagation remain stubbed — they throw NotImplemented (Stage 4 cannot restore
+// any product archive; the production stub in BackupService stays fail-closed until the
+// lite milestone lands).
 //
 // See spec `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
 
@@ -16,6 +18,8 @@ import type { BackupDomain } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
 import Database from 'better-sqlite3'
 
+import { FtsCentralHelper } from './FtsCentralHelper'
+import { deriveJunctionDescriptors } from './junctionDeriver'
 import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
 
 /**
@@ -83,10 +87,7 @@ export class MergeConsistencyCheckError extends Error {
  * inside a synchronous deferred-FK transaction on work.sqlite.
  */
 export class MergeEngine {
-  constructor(
-    private readonly registry: ReadonlyBackupRegistry,
-    private readonly deps: { readonly backupDbPath: string }
-  ) {}
+  constructor(private readonly registry: ReadonlyBackupRegistry) {}
 
   /**
    * Merge backup rows into work.sqlite. The transaction fn is synchronous
@@ -94,12 +95,16 @@ export class MergeEngine {
    * consumed via sync iterators inside the tx.
    */
   async mergeBackupIntoWork(workSqlite: Database.Database, _workDb: DbType, ctx: MergeContext): Promise<MergeResult> {
-    const backupDb = new Database(this.deps.backupDbPath, { readonly: true })
+    const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
       const ordered = this.registry.topoSort(ctx.domains)
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
       const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
       const degradedToSkips: DegradedSkip[] = []
+      // Snapshot app_state keys BEFORE the tx — the merge tx must not add/drop keys. PREFERENCES
+      // may UPDATE values (forward-compat), but the key-set is invariant. app_state is ALWAYS_STRIP
+      // (backup holds none), so any key-set change is a merge bug. undefined when app_state is absent.
+      const appStateSnapshot = this.snapshotAppStateKeys(workSqlite)
 
       // Synchronous deferred-FK transaction — better-sqlite3 requires a sync callback.
       const run = workSqlite.transaction(() => {
@@ -108,10 +113,14 @@ export class MergeEngine {
         // validates consistency before COMMIT.
         workSqlite.pragma('defer_foreign_keys = ON')
         this.importRows(workSqlite, ordered, decisions, ctx, backupDb, identityMap, degradedToSkips)
-        // MVP stubs (lite milestone): junction phase, identity propagation, FTS rebuild.
-        // Each throws NotImplemented if reached with data requiring it; SKIP-only uuid-entity
-        // aggregates do not exercise them.
-        this.runConsistencyCheck(workSqlite)
+        // Global junction phase — import pure junction tables after all root/member writes,
+        // resolving each endpoint via the role-aware identityMap (R8) and cascade-pruning rows
+        // whose source was not imported or whose target is unavailable (§5.2).
+        this.importAllJunctionRows(workSqlite, ctx.domains, backupDb, identityMap)
+        // FTS rebuild backstop — whole-index resync after the bulk import (single-row triggers
+        // can't backstop it; skipped rows / fts_rowid collisions leave stale indexes otherwise).
+        FtsCentralHelper.rebuild(workSqlite)
+        this.runConsistencyCheck(workSqlite, appStateSnapshot)
       })
       run()
 
@@ -214,8 +223,26 @@ export class MergeEngine {
           // uuid-entity equals the backup PK) so the deferred junction phase can resolve
           // cross-domain refs to it. sourceMap stays empty — the backup row was not
           // imported, so it is ineligible as a merge source.
+          //
+          // Guard: only record availability when work ACTUALLY has the row. A force-skipped
+          // natural-key row (userStrategy:'SKIP' on a natural-key aggregate) may have no local
+          // counterpart — marking it available would let the junction phase import a row
+          // pointing at a missing target (dangling FK). uuid-entity SKIP is unaffected: there
+          // scanAggregates only SKIPs when workHasIdentity, so the check is a no-op there.
+          //
+          // MVP limitation (TODO(FIELD_MERGE)): this lookup is PK-only (uuid-entity identity).
+          // A natural-key target the work holds under the SAME identityKey but a DIFFERENT UUID
+          // (the FIELD_MERGE local-wins case) is NOT found here → targetMap stays empty → the
+          // junction row cascade-prunes, silently losing that relationship. Correct identityKey-
+          // based canonicalization (backup PK → local canonical PK) is the FIELD_MERGE milestone's
+          // job (identityKey scan + identity propagation); Stage 4 is a non-production scaffold
+          // (BackupService stays fail-closed), so this limitation does not affect any product
+          // archive.
           const pkStr = String(decision.backupPrimaryKey[0])
-          setIdentityEntry(identityMap.targetMap, decision.aggregate.root, pkStr, pkStr)
+          const pkCols = this.registry.getPrimaryKey(decision.aggregate.root).columns
+          if (this.workHasIdentity(workSqlite, decision.aggregate, pkCols, decision.backupPrimaryKey)) {
+            setIdentityEntry(identityMap.targetMap, decision.aggregate.root, pkStr, pkStr)
+          }
           continue
         }
         case 'insert': {
@@ -321,16 +348,93 @@ export class MergeEngine {
   }
 
   /**
-   * Offline consistency check — whole-graph FK integrity + structure. Runs inside the tx
-   * (defer_foreign_keys pushes FK enforcement here). A non-empty foreign_key_check or a
-   * non-ok integrity_check means work.sqlite is inconsistent and MUST NOT promote.
+   * importAllJunctionRows — global junction phase (B4). Import pure junction tables (those
+   * with 2+ `kind:'junction'` refs, registry-derived — NOT aggregate members, which cascade
+   * with their root). Runs AFTER importRows so the role-aware identityMap (R8) is populated.
    *
-   * TODO(lite): the spec (import-orchestrator.md) lists additional in-tx checks this MVP
-   * omits — FTS integrity-check (`INSERT INTO <fts>(<fts>) VALUES('integrity-check',1)` +
-   * row-count parity), app_state preservation assert, and dangling file_ref detection.
-   * Track via the FtsCentralHelper / after-commit FS verify stages.
+   * For each junction row: resolve source eligibility (sourceMap — imported this restore?)
+   * + target availability (targetMap — imported OR pre-existing local). Either absent →
+   * cascade-prune (§5.2: a junction endpoint missing → drop the row, NOT SET NULL). Both
+   * present → rewrite both FK cols to their canonical work PKs + ON CONFLICT DO NOTHING
+   * (idempotent re-import). Per-row identity propagation is a no-op for uuid-entity (Stage 4
+   * keeps the backup PK); the FIELD_MERGE milestone will rewrite natural-key FKs here.
+   *
+   * Note: chat_message_file_ref / painting_file_ref are NOT imported here — their `sourceId`
+   * ref is `kind:'owning'` (not junction), so `deriveJunctionDescriptors` filters them out;
+   * they cascade as TOPICS/PAINTINGS include-members via importRows. spec L469/484's
+   * skippedFileEntryId guard is therefore unreachable in THIS phase — a future contributor
+   * re-classifying file_ref.sourceId as junction (or adding a 2nd junction ref) would need to
+   * add the skippedFileEntryId check here.
    */
-  private runConsistencyCheck(workSqlite: Database.Database): void {
+  private importAllJunctionRows(
+    workSqlite: Database.Database,
+    selectedDomains: readonly BackupDomain[],
+    backupDb: Database.Database,
+    identityMap: IdentityMap
+  ): void {
+    const descriptors = deriveJunctionDescriptors(this.registry, selectedDomains)
+    for (const desc of descriptors) {
+      const sourcePhys = physicalColumn(desc.sourceEndpoint.fkColumn)
+      const targetPhys = physicalColumn(desc.targetEndpoint.fkColumn)
+      // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on unbounded
+      // junction tables (spec L466) — mirrors the scanAggregates deferral. Acceptable for the
+      // non-production scaffold (no large archive reaches this engine until Stage 3 wires the spine).
+      const rows = backupDb.prepare(`SELECT * FROM ${desc.table}`).all() as Record<string, unknown>[]
+      for (const row of rows) {
+        const sourceBackupId = String(row[sourcePhys])
+        const targetBackupId = String(row[targetPhys])
+        const sourceCanonical = identityMap.sourceMap.get(desc.sourceEndpoint.table)?.get(sourceBackupId)
+        if (sourceCanonical === undefined) continue // source not imported (skip/rename) → prune
+        const targetCanonical = identityMap.targetMap.get(desc.targetEndpoint.table)?.get(targetBackupId)
+        if (targetCanonical === undefined) continue // target unavailable (unselected / no local) → prune
+        this.insertJunctionRow(workSqlite, desc.table, row, sourcePhys, sourceCanonical, targetPhys, targetCanonical)
+      }
+    }
+  }
+
+  /**
+   * Insert a junction row with both FK columns rewritten to their canonical work PKs. Other
+   * columns pass through (schema-drift guard drops columns not on the work table). ON CONFLICT
+   * DO NOTHING = idempotent re-import (spec L470/489 `ON CONFLICT DO NOTHING`) — narrower than
+   * `INSERT OR IGNORE`: it still throws on CHECK/NOT NULL failure, so a real constraint error
+   * rolls the tx back instead of being silently swallowed.
+   */
+  private insertJunctionRow(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    row: Record<string, unknown>,
+    sourcePhys: string,
+    sourceCanonical: string,
+    targetPhys: string,
+    targetCanonical: string
+  ): void {
+    const workColumns = new Set(
+      (workSqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+    )
+    const cols = Object.keys(row).filter((c) => workColumns.has(c))
+    if (cols.length === 0) return
+    const values = cols.map((c) => (c === sourcePhys ? sourceCanonical : c === targetPhys ? targetCanonical : row[c]))
+    const placeholders = cols.map(() => '?').join(', ')
+    workSqlite
+      .prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`)
+      .run(...values)
+  }
+
+  /** Read the app_state key-set (undefined when app_state is absent from work). */
+  private snapshotAppStateKeys(work: Database.Database): Set<string> | undefined {
+    const exists =
+      work.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'app_state'").get() !== undefined
+    if (!exists) return undefined
+    const rows = work.prepare('SELECT key FROM app_state').all() as { key: string }[]
+    return new Set(rows.map((r) => r.key))
+  }
+
+  /**
+   * Offline consistency check — whole-graph FK integrity + structure + FTS index + app_state
+   * key-set. Runs inside the tx (defer_foreign_keys pushes FK enforcement here). Any failure
+   * means work.sqlite is inconsistent and MUST NOT promote.
+   */
+  private runConsistencyCheck(workSqlite: Database.Database, appStateSnapshot: Set<string> | undefined): void {
     const fkViolations = workSqlite.pragma('foreign_key_check') as unknown[]
     if (fkViolations.length > 0) {
       throw new MergeConsistencyCheckError(`foreign_key_check returned ${fkViolations.length} violations`)
@@ -341,6 +445,24 @@ export class MergeEngine {
     const integrity = workSqlite.pragma('integrity_check', { simple: true })
     if (integrity !== 'ok') {
       throw new MergeConsistencyCheckError(`integrity_check: ${JSON.stringify(integrity)}`)
+    }
+    // FTS5 external-content integrity — throws FtsIntegrityCheckError on a stale/orphaned index
+    // (rebuild ran just before this, so a failure here means the rebuild missed an index).
+    FtsCentralHelper.integrityCheck(workSqlite)
+    // app_state key-set preservation — PREFERENCES may UPDATE values (forward-compat), but a
+    // key added/dropped by the merge tx signals corruption (app_state is ALWAYS_STRIP, backup
+    // contributes nothing here). undefined snapshot = app_state absent from work → skip.
+    if (appStateSnapshot !== undefined) {
+      const after = this.snapshotAppStateKeys(workSqlite)
+      if (
+        after === undefined ||
+        after.size !== appStateSnapshot.size ||
+        [...after].some((k) => !appStateSnapshot.has(k))
+      ) {
+        throw new MergeConsistencyCheckError(
+          `app_state key-set changed: ${appStateSnapshot.size} → ${after?.size ?? 'absent'}`
+        )
+      }
     }
   }
 }

@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { MergeContext } from '..'
 import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '..'
+import { FtsCentralHelper } from '../FtsCentralHelper'
 
 describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   // Live test DB = the merge base (work.sqlite). Production migrations + FTS5
@@ -107,9 +108,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c
 
   const runMerge = (ctx: MergeContext): Promise<unknown> =>
-    new MergeEngine(registry, { backupDbPath: backupPath }).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
+    new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
 
-  const topCtx = (): MergeContext => ({ domains: ['TOPICS'], skippedFileEntryIds: new Set<string>() })
+  const topCtx = (): MergeContext => ({ backupDbPath: backupPath, domains: ['TOPICS'], skippedFileEntryIds: new Set<string>() })
 
   it('SKIPs a uuid-entity root that already exists in work (no duplicate, no overwrite)', async () => {
     // Both work and backup hold topic 'tpc-skip' (different names to detect overwrite).
@@ -181,7 +182,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // PROVIDERS aggregates finalize to identityClass 'natural-key'; scanAggregates
     // refuses them until FIELD_MERGE lands. Empty backup is enough — the guard
     // fires before any row read.
-    await expect(runMerge({ domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow(
+    await expect(runMerge({ backupDbPath: backupPath, domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow(
       MergeStrategyNotImplementedError
     )
   })
@@ -209,7 +210,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // degrade to skip (which would ignore the user's choice). The guard fires at
     // scan entry, before any row read.
     await expect(
-      runMerge({ domains: ['TOPICS'], userStrategy: 'OVERWRITE', skippedFileEntryIds: new Set<string>() })
+      runMerge({ backupDbPath: backupPath, domains: ['TOPICS'], userStrategy: 'OVERWRITE', skippedFileEntryIds: new Set<string>() })
     ).rejects.toThrow(MergeStrategyNotImplementedError)
   })
 
@@ -223,6 +224,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
 
     const before = countRows('file_entry')
     const result = await runMerge({
+      backupDbPath: backupPath,
       domains: ['FILE_STORAGE'],
       skippedFileEntryIds: new Set(['fe-skip'])
     })
@@ -242,7 +244,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     insertFileEntry(dbh.sqlite, 'fe-local', '/tmp/dup')
     seedBackup((db) => insertFileEntry(db, 'fe-backup', '/tmp/dup'))
 
-    await expect(runMerge({ domains: ['FILE_STORAGE'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow()
+    await expect(runMerge({ backupDbPath: backupPath, domains: ['FILE_STORAGE'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow()
   })
 
   it('traverses nested include members via their parent member ids (chat_message_file_ref)', async () => {
@@ -279,10 +281,49 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // can't FIELD_MERGE). An explicit SKIP opts out → every backup row skipped (local
     // survives), no throw. Empty backup is enough — the guard either throws or it doesn't.
     const result = await runMerge({
+      backupDbPath: backupPath,
       domains: ['PROVIDERS'],
       userStrategy: 'SKIP',
       skippedFileEntryIds: new Set<string>()
     })
     expect(result).toMatchObject({ degradedToSkips: [] })
+  })
+
+  it('preserves the app_state key-set across the merge tx (no add/drop)', async () => {
+    // app_state is ALWAYS_STRIP (backup holds none); the merge tx must not touch its key-set.
+    // PREFERENCES may UPDATE values (forward-compat), but the key-set is invariant — a
+    // canary key surviving merge proves the engine doesn't write app_state out of contract.
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(`INSERT INTO app_state (key, value, created_at, updated_at) VALUES (?, '{}', ?, ?)`)
+      .run('migration_v2_status', now, now)
+    dbh.sqlite
+      .prepare(`INSERT INTO app_state (key, value, created_at, updated_at) VALUES (?, '{}', ?, ?)`)
+      .run('renderer.theme', now, now)
+    const keysBefore = new Set(
+      (dbh.sqlite.prepare(`SELECT key FROM app_state`).all() as { key: string }[]).map((r) => r.key)
+    )
+
+    seedBackup((db) => insertTopic(db, 'tpc-appstate'))
+    await runMerge(topCtx())
+
+    const keysAfter = new Set(
+      (dbh.sqlite.prepare(`SELECT key FROM app_state`).all() as { key: string }[]).map((r) => r.key)
+    )
+    expect(keysAfter).toEqual(keysBefore)
+  })
+
+  it('rebuilds message_fts in-tx so the FTS index stays consistent with imported content', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-fts')
+      insertMessage(db, 'msg-fts', 'tpc-fts', 'root', null)
+    })
+
+    await runMerge(topCtx())
+
+    // The pipeline ran FtsCentralHelper.rebuild → integrityCheck in-tx (no throw during merge
+    // = the index was consistent at COMMIT). Re-check externally to confirm it still matches
+    // the imported content after the connection re-enters autocommit.
+    expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).not.toThrow()
   })
 })
