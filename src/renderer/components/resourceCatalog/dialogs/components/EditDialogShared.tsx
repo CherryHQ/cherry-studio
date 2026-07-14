@@ -537,16 +537,15 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-4">
+                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-2">
                   {children}
                 </Scrollbar>
-                {/* Live-save surfaces failures here — rendered only when present so it never
-                    reserves space against the fill-height prompt editor. */}
-                {rootError ? (
-                  <p className="shrink-0 px-5 pb-3 text-destructive text-xs" aria-live="polite">
-                    {rootError}
-                  </p>
-                ) : null}
+                {/* Always-present bottom band: insets scrolling lists from the dialog's
+                    rounded-3xl corners so content never clips into them mid-scroll, and
+                    surfaces the save error inline when present. */}
+                <div className="flex min-h-6 shrink-0 items-center px-5 pb-3" aria-live="polite">
+                  {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
+                </div>
               </div>
             </Tabs>
           </form>
