@@ -70,39 +70,35 @@ export type TopicSortBy = z.infer<typeof TopicSortBySchema>
 /** Topic lists expose only pin identity; pin order remains an internal cursor key. */
 export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
 
-const hasRecordFilters = (q: { assistantId?: string; pinned?: boolean; ids?: string[] }) =>
-  q.assistantId !== undefined || q.pinned !== undefined || q.ids !== undefined
-
 /**
  * Query parameters for `GET /topics`.
  *
- * `pinned=true` selects a pin-owned stream ordered by `pin.orderKey ASC`; its
- * order is independent of the topic sort profile. Otherwise, without `sortBy`
- * the response is the legacy composite view (pinned first by `pin.orderKey`,
- * then unpinned by `topic.orderKey ASC`) and only `q` is accepted. With
- * `sortBy` the response is a single flat stream with a `(sortValue, id)`
- * keyset cursor, and the record filters below apply.
+ * Two independent streams that never mix in one response or cursor:
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC`, independent
+ *   of `sortBy` (ignored on this path).
+ * - otherwise → ordinary keyset stream ordered by `sortBy` (defaulting to
+ *   `createdAt`) with a `(sortValue, id)` cursor. `pinned=false` excludes pinned
+ *   rows (the flat view's ordinary band); omitting `pinned` lists every row.
+ *
+ * The record filters below apply on either path. Omitting `sortBy` means
+ * `createdAt`, never a legacy composite pinned-then-ordinary view.
  */
-export const ListTopicsQuerySchema = z
-  .strictObject({
-    /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
-    cursor: z.string().optional(),
-    /** Page size; defaults to 50 in the service. */
-    limit: z.coerce.number().int().positive().max(200).optional(),
-    /** Substring filter on topic name (case-insensitive LIKE). */
-    q: z.string().optional(),
-    /** Sort profile; omitted with pinned=true → pin order, otherwise the legacy composite view. */
-    sortBy: TopicSortBySchema.optional(),
-    /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */
-    assistantId: TopicOwnerScopeSchema.optional(),
-    /** true → pin-owned stream; false → only unpinned topics (requires sortBy). Omitted → both. */
-    pinned: z.boolean().optional(),
-    /** Bounded explicit id filter for locating known topic rows. */
-    ids: z.array(z.string().min(1)).min(1).max(200).optional()
-  })
-  .refine((q) => q.sortBy !== undefined || q.pinned === true || !hasRecordFilters(q), {
-    message: 'record filters (assistantId/pinned/ids) require sortBy unless pinned=true'
-  })
+export const ListTopicsQuerySchema = z.strictObject({
+  /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
+  cursor: z.string().optional(),
+  /** Page size; defaults to 50 in the service. */
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  /** Substring filter on topic name (case-insensitive LIKE). */
+  q: z.string().optional(),
+  /** Sort profile for the ordinary stream; defaults to `createdAt`. Ignored when `pinned=true`. */
+  sortBy: TopicSortBySchema.optional(),
+  /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */
+  assistantId: TopicOwnerScopeSchema.optional(),
+  /** true → pin-owned stream; false → exclude pinned rows. Omitted → all rows. */
+  pinned: z.boolean().optional(),
+  /** Bounded explicit id filter for locating known topic rows. */
+  ids: z.array(z.string().min(1)).min(1).max(200).optional()
+})
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
 /**
@@ -228,11 +224,10 @@ export type TopicSchemas = {
     /**
      * List topics with cursor pagination + optional name search.
      *
-     * The list is a server-composed view: pinned topics first (joining the
-     * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `topic.orderKey ASC, id ASC` (manual/creation
-     * order + id tiebreak). The cursor encodes the section + last boundary so
-     * paging across the boundary is seamless.
+     * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
+     * pages the pin-owned band by `pin.orderKey ASC, id ASC`; otherwise the
+     * ordinary band pages by `sortBy` (default `createdAt`) with a
+     * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
      */
     GET: {
       query?: ListTopicsQuery

@@ -169,57 +169,40 @@ export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 export const AgentSessionSearchScopeSchema = z.enum(['name', 'full'])
 export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
 
-const hasSessionRecordFilters = (q: {
-  q?: string
-  searchScope?: string
-  pinned?: boolean
-  ids?: string[]
-  agentId?: string
-  workspaceId?: string
-}) =>
-  q.q !== undefined ||
-  q.searchScope !== undefined ||
-  q.pinned !== undefined ||
-  q.ids !== undefined ||
-  q.agentId === 'unlinked' ||
-  q.workspaceId !== undefined
-
 /**
  * Query for `GET /agent-sessions`.
  *
- * `pinned=true` selects a pin-owned stream ordered by `pin.orderKey ASC`; its
- * order is independent of the session sort profile. Otherwise, without
- * `sortBy` the response is the legacy composite view (pinned first by
- * `pin.orderKey`, then unpinned by `session.orderKey ASC`) and only a concrete
- * `agentId` filter is accepted. With `sortBy` the response is a single flat
- * stream with a `(sortValue, id)` keyset cursor, and the record filters below
- * apply. Workspace grouping uses the stable workspace id; path remains
- * presentation metadata.
+ * Two independent streams that never mix in one response or cursor:
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC`, independent
+ *   of `sortBy` (ignored on this path).
+ * - otherwise → ordinary keyset stream ordered by `sortBy` (defaulting to
+ *   `createdAt`) with a `(sortValue, id)` cursor. `pinned=false` excludes pinned
+ *   rows (the flat view's ordinary band); omitting `pinned` lists every row.
+ *
+ * The record filters below apply on either path. Omitting `sortBy` means
+ * `createdAt`, never a legacy composite view. Workspace grouping uses the
+ * stable workspace id; path remains presentation metadata.
  */
-export const ListAgentSessionsQuerySchema = z
-  .strictObject({
-    /** Owner scope: concrete agent id, or 'unlinked' (`agentId IS NULL`, flat path only). */
-    agentId: AgentSessionOwnerScopeSchema.optional(),
-    /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
-    cursor: z.string().optional(),
-    /** Page size; defaults to 50 in the service. */
-    limit: z.coerce.number().int().positive().max(200).optional(),
-    /** Sort profile; omitted with pinned=true → pin order, otherwise the legacy composite view. */
-    sortBy: AgentSessionSortBySchema.optional(),
-    /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
-    q: z.string().optional(),
-    /** Search scope for `q`; defaults to `name` in the service. */
-    searchScope: AgentSessionSearchScopeSchema.optional(),
-    /** true → pin-owned stream; false → only unpinned sessions (requires sortBy). Omitted → both. */
-    pinned: z.boolean().optional(),
-    /** Bounded explicit id filter for locating known session rows. */
-    ids: z.array(z.string().min(1)).min(1).max(200).optional(),
-    /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
-    workspaceId: AgentSessionWorkspaceScopeSchema.optional()
-  })
-  .refine((q) => q.sortBy !== undefined || q.pinned === true || !hasSessionRecordFilters(q), {
-    message: 'record filters (q/searchScope/pinned/ids/owner/workspace scope) require sortBy unless pinned=true'
-  })
+export const ListAgentSessionsQuerySchema = z.strictObject({
+  /** Owner scope: concrete agent id, or 'unlinked' (`agentId IS NULL`). */
+  agentId: AgentSessionOwnerScopeSchema.optional(),
+  /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
+  cursor: z.string().optional(),
+  /** Page size; defaults to 50 in the service. */
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  /** Sort profile for the ordinary stream; defaults to `createdAt`. Ignored when `pinned=true`. */
+  sortBy: AgentSessionSortBySchema.optional(),
+  /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
+  q: z.string().optional(),
+  /** Search scope for `q`; defaults to `name` in the service. */
+  searchScope: AgentSessionSearchScopeSchema.optional(),
+  /** true → pin-owned stream; false → exclude pinned rows. Omitted → all rows. */
+  pinned: z.boolean().optional(),
+  /** Bounded explicit id filter for locating known session rows. */
+  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
+  /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
+  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
+})
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 

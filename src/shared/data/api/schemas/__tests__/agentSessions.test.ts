@@ -19,7 +19,7 @@ const WORKSPACE_ID = 'workspace-1'
 describe('ListAgentSessionsQuerySchema', () => {
   const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
 
-  it('accepts the legacy query shape (concrete agentId, cursor, limit — no sortBy)', () => {
+  it('accepts a bare agentId/cursor/limit without sortBy (ordinary stream defaults to createdAt)', () => {
     expect(ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10 })).toEqual({
       agentId: AGENT_ID,
       limit: 10
@@ -33,8 +33,8 @@ describe('ListAgentSessionsQuerySchema', () => {
     { agentId: 'unlinked' },
     { workspaceId: WORKSPACE_ID },
     { workspaceId: 'system' }
-  ])('rejects record filter %j without sortBy', (filter) => {
-    expect(() => ListAgentSessionsQuerySchema.parse(filter)).toThrow(/require sortBy/)
+  ])('accepts record filter %j without sortBy', (filter) => {
+    expect(ListAgentSessionsQuerySchema.parse(filter)).toMatchObject(filter)
     expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
   })
 

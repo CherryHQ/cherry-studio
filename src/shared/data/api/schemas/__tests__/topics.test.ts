@@ -61,12 +61,12 @@ describe('MoveTopicSchema', () => {
 })
 
 describe('ListTopicsQuerySchema', () => {
-  it('accepts the legacy query shape (cursor/limit/q only, no sortBy)', () => {
+  it('accepts cursor/limit/q without sortBy (ordinary stream defaults to createdAt)', () => {
     expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toEqual({ q: 'x', limit: 10 })
   })
 
-  it.each([{ assistantId: 'unlinked' }, { ids: ['t1'] }])('rejects record filter %j without sortBy', (filter) => {
-    expect(() => ListTopicsQuerySchema.parse(filter)).toThrow(/require sortBy/)
+  it.each([{ assistantId: 'unlinked' }, { ids: ['t1'] }])('accepts record filter %j without sortBy', (filter) => {
+    expect(ListTopicsQuerySchema.parse(filter)).toMatchObject(filter)
     expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
   })
 

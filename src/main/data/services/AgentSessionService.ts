@@ -28,17 +28,11 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import {
-  decodePinnedListCursor,
-  encodeEntityCursor,
-  encodeEntitySectionStart,
-  encodePinCursor
-} from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
 
@@ -274,109 +268,24 @@ export class AgentSessionService {
   }
 
   /**
-   * `pinned=true` returns a pin-owned single stream ordered by
-   * `pin.orderKey ASC, session.id ASC`, independent of the session sort
-   * profile. Otherwise this is the two-section page mirroring
-   * `TopicService.listByCursor`: pinned sessions first, then unpinned by
-   * `session.orderKey ASC, id ASC` (manual/creation drag order). A partial pin
-   * page spills into the unpinned section to fill `limit`. Flat
-   * creation/activity views opt into their explicit sort profiles instead.
+   * Two independent list streams — pinned and ordinary rows never mix in one
+   * response or cursor:
+   *
+   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
+   *   session.id ASC`, independent of `sortBy` (ignored on this path).
+   * - otherwise → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
+   *   (`createdAt`/`updatedAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
+   *   `pinned === false` excludes pinned rows (the flat view's ordinary band);
+   *   omitting `pinned` lists every row in the chosen order.
+   *
+   * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
+   * pinned-then-ordinary view. Every paged caller selects one stream.
    */
   listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    if (query.sortBy !== undefined) {
-      return this.listFlatByCursor(query, query.sortBy)
-    }
-    const db = application.get('DbService').getDb()
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
-    const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
-
-    const items: AgentSessionListItem[] = []
-
-    if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey
-        ? or(
-            gt(pinTable.orderKey, cursor.orderKey),
-            and(eq(pinTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-          )
-        : undefined
-      const pinRows = db
-        .select({
-          session: sessionsTable,
-          workspace: agentWorkspaceTable,
-          pinId: pinTable.id,
-          pinOrderKey: pinTable.orderKey
-        })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, pinAfter))
-        .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
-        .limit(limit + 1)
-        .all()
-
-      // Stale pin cursor (anchor unpinned/deleted between requests) → 0 rows for
-      // a non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
-      // the next call advances cleanly instead of restarting the pin section.
-      if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeEntitySectionStart() }
-      }
-
-      const hasMoreInPin = pinRows.length > limit
-      for (const row of pinRows.slice(0, limit)) {
-        items.push(toAgentSessionListItem(rowToSession(row), row.pinId))
-      }
-
-      if (hasMoreInPin) {
-        const last = pinRows[limit - 1]
-        return {
-          items,
-          nextCursor: encodePinCursor(last.pinOrderKey, last.session.id)
-        }
-      }
-
-      if (items.length >= limit) {
-        return { items, nextCursor: encodeEntitySectionStart() }
-      }
-    }
-
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
-    const remaining = limit - items.length
-    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
-
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
-    const sessionRows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
-      .limit(remaining + 1)
-      .all()
-
-    const hasMoreInSession = sessionRows.length > remaining
-    for (const row of sessionRows.slice(0, remaining)) {
-      items.push(toAgentSessionListItem(rowToSession(row), null))
-    }
-
-    let nextCursor: string | undefined
-    if (hasMoreInSession) {
-      const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
-    }
-
-    return { items, nextCursor }
+    return this.listFlatByCursor(query, query.sortBy ?? 'createdAt')
   }
 
   /**

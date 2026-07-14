@@ -216,16 +216,15 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
 /**
  * List topics across all assistants from SQLite via DataApi.
  *
- * Backed by `useInfiniteQuery` cursor pagination. Without `sortBy`, `/topics`
- * returns the legacy server-composed view (pinned topics first via the `pin`
- * table, then unpinned ordered by `topic.orderKey`). `pinned=true` selects the
- * independent pin-owned stream. Otherwise `sortBy` selects a
- * flat stream — `'createdAt'` for immutable creation order, `'updatedAt'` for
- * activity order, or `'orderKey'` for manual order. The `assistantId` owner
- * scope (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
+ * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
+ * `pinned=true` selects the pin-owned stream (pin order). Otherwise `sortBy`
+ * selects the ordinary stream — `'createdAt'` (default) for creation order,
+ * `'updatedAt'` for activity order, or `'orderKey'` for manual order — and
+ * `pinned=false` excludes pinned rows. The `assistantId` owner scope
+ * (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
  * `loadNext()`.
  *
- * `q` triggers server-side LIKE search on `topic.name` in both modes.
+ * `q` triggers server-side LIKE search on `topic.name`.
  */
 export function useTopics(opts?: {
   q?: string
@@ -242,20 +241,20 @@ export function useTopics(opts?: {
     const built: { q?: string; sortBy?: TopicSortBy; assistantId?: string; pinned?: boolean } = {}
     if (q) built.q = q
     if (sortBy) built.sortBy = sortBy
-    if ((sortBy || isPinnedStream) && opts?.assistantId) built.assistantId = opts.assistantId
-    if ((sortBy || isPinnedStream) && opts?.pinned !== undefined) built.pinned = opts.pinned
+    if (opts?.assistantId) built.assistantId = opts.assistantId
+    if (opts?.pinned !== undefined) built.pinned = opts.pinned
     return Object.keys(built).length > 0 ? built : undefined
-  }, [isPinnedStream, opts?.assistantId, opts?.pinned, q, sortBy])
+  }, [opts?.assistantId, opts?.pinned, q, sortBy])
   const pageSize = opts?.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
   const continuityKey = useMemo(
     () =>
       JSON.stringify({
         assistantId: opts?.assistantId,
-        mode: isPinnedStream ? 'pinned' : sortBy ? 'flat' : 'legacy',
+        mode: isPinnedStream ? 'pinned' : 'flat',
         pinned: opts?.pinned,
         q
       }),
-    [isPinnedStream, opts?.assistantId, opts?.pinned, q, sortBy]
+    [isPinnedStream, opts?.assistantId, opts?.pinned, q]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     continuityKey,

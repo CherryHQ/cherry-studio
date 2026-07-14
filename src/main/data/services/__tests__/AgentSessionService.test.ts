@@ -967,14 +967,14 @@ describe('AgentSessionService', () => {
     const third = await createSession('Third')
 
     agentSessionService.reorder(first.id, { position: 'first' })
-    let list = agentSessionService.listByCursor()
+    let list = agentSessionService.listByCursor({ sortBy: 'orderKey' })
     expect(list.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
 
     agentSessionService.reorderBatch([
       { id: second.id, anchor: { before: first.id } },
       { id: third.id, anchor: { position: 'last' } }
     ])
-    list = agentSessionService.listByCursor()
+    list = agentSessionService.listByCursor({ sortBy: 'orderKey' })
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
   })
 
@@ -983,63 +983,13 @@ describe('AgentSessionService', () => {
     const second = await createSession('Second')
     const third = await createSession('Third')
 
-    const page1 = agentSessionService.listByCursor({ limit: 2 })
+    const page1 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 2 })
     expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
     expect(page1.nextCursor).toBeTruthy()
 
-    const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
+    const page2 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
-  })
-
-  it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {
-    // Pinned sessions float to the top ordered by pin.orderKey (user drag),
-    // independent of their own orderKey; unpinned follow session.orderKey ASC.
-    // s1/s2 are created first (largest orderKey → last under orderKey ASC) yet
-    // pinning floats them ahead of the unpinned s3/s4, proving pin precedence.
-    const s1 = await createSession('S1')
-    const s2 = await createSession('S2')
-    const s3 = await createSession('S3')
-    const s4 = await createSession('S4')
-    await dbh.db.insert(pinTable).values([
-      { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-      { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
-    ])
-
-    const result = agentSessionService.listByCursor()
-    // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
-    expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
-    expect(result.items.map(({ pinned, pinId }) => ({ pinned, pinId }))).toEqual([
-      { pinned: true, pinId: 'pin-a' },
-      { pinned: true, pinId: 'pin-b' },
-      { pinned: false, pinId: null },
-      { pinned: false, pinId: null }
-    ])
-    expect(result.nextCursor).toBeUndefined()
-  })
-
-  it('paginates the session pin section then unpinned section via cursor', async () => {
-    const s1 = await createSession('S1')
-    const s2 = await createSession('S2')
-    const s3 = await createSession('S3')
-    await dbh.db.insert(pinTable).values([
-      { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-      { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
-    ])
-
-    // limit=1: page1 = first pinned, page2 = second pinned (spills to entity start),
-    // page3 = the single unpinned session.
-    const page1 = agentSessionService.listByCursor({ limit: 1 })
-    expect(page1.items.map((item) => item.id)).toEqual([s1.id])
-    expect(page1.nextCursor).toBeDefined()
-
-    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
-    expect(page2.items.map((item) => item.id)).toEqual([s2.id])
-    expect(page2.nextCursor).toBeDefined()
-
-    const page3 = agentSessionService.listByCursor({ limit: 1, cursor: page2.nextCursor })
-    expect(page3.items.map((item) => item.id)).toEqual([s3.id])
-    expect(page3.nextCursor).toBeUndefined()
   })
 
   it('does not skip pinned sessions with the same orderKey across pages', async () => {
@@ -1079,8 +1029,8 @@ describe('AgentSessionService', () => {
       }
     ])
 
-    const page1 = agentSessionService.listByCursor({ limit: 1 })
-    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    const page1 = agentSessionService.listByCursor({ pinned: true, limit: 1 })
+    const page2 = agentSessionService.listByCursor({ pinned: true, limit: 1, cursor: page1.nextCursor })
 
     expect(page1.items.map((session) => session.id)).toEqual(['session-pinned-1'])
     expect(page2.items.map((session) => session.id)).toEqual(['session-pinned-2'])

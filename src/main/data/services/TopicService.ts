@@ -29,7 +29,7 @@ import type {
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -37,12 +37,6 @@ import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import {
-  decodePinnedListCursor,
-  encodeEntityCursor,
-  encodeEntitySectionStart,
-  encodePinCursor
-} from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
@@ -486,111 +480,24 @@ export class TopicService {
   }
 
   /**
-   * `pinned=true` → pin-owned single-stream page ordered by
-   * `pin.orderKey ASC, topic.id ASC`, independent of the topic sort profile.
+   * Two independent list streams — pinned and ordinary rows never mix in one
+   * response or cursor:
    *
-   * `sortBy` present → flat single-stream page with a `(sortValue, id)` keyset
-   * cursor and the record filters handled by `listFlatByCursor`.
+   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
+   *   topic.id ASC`, independent of `sortBy` (ignored on this path).
+   * - otherwise → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
+   *   (`createdAt`/`updatedAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
+   *   `pinned === false` excludes pinned rows (the flat view's ordinary band);
+   *   omitting `pinned` lists every row in the chosen order.
    *
-   * `sortBy` absent → legacy two-section page: pinned topics (via `pin` JOIN,
-   * ordered by `pin.orderKey`) then unpinned (ordered by `topic.orderKey ASC,
-   * id ASC` — manual/creation drag order). A partial pin page spills into the
-   * unpinned section to fill `limit`. This mirrors
-   * `AgentSessionService.listByCursor` so both rails share one pagination
-   * contract (pinned-first, then manual order). Flat creation/activity views
-   * opt into their explicit sort profiles instead.
+   * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
+   * pinned-then-ordinary view. Every paged caller selects one stream.
    */
   listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<TopicListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    if (query.sortBy !== undefined) {
-      return this.listFlatByCursor(query, query.sortBy)
-    }
-    const db = application.get('DbService').getDb()
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = decodePinnedListCursor(query.cursor, 'topic')
-    const search = buildSearchPredicate(query.q)
-
-    const items: TopicListItem[] = []
-
-    if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey
-        ? or(
-            gt(pinTable.orderKey, cursor.orderKey),
-            and(eq(pinTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-          )
-        : undefined
-      const pinRows = db
-        .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
-        .from(topicTable)
-        .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
-        .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
-        .limit(limit + 1)
-        .all()
-
-      // Stale pin cursor (anchor row deleted between requests) → 0 rows for a
-      // non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
-      // the next call advances cleanly instead of restarting topics from the top.
-      if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeEntitySectionStart() }
-      }
-
-      const hasMoreInPin = pinRows.length > limit
-      for (const row of pinRows.slice(0, limit)) {
-        items.push(toTopicListItem(rowToTopic(row.topic), row.pinId))
-      }
-
-      if (hasMoreInPin) {
-        const last = pinRows[limit - 1]
-        return {
-          items,
-          nextCursor: encodePinCursor(last.pinOrderKey, last.topic.id)
-        }
-      }
-
-      if (items.length >= limit) {
-        return {
-          items,
-          nextCursor: encodeEntitySectionStart()
-        }
-      }
-    }
-
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
-    const remaining = limit - items.length
-    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
-
-    let topicAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      topicAfter = or(
-        gt(topicTable.orderKey, cursor.orderKey),
-        and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-      )
-    }
-
-    const topicRows = db
-      .select()
-      .from(topicTable)
-      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(asc(topicTable.orderKey), asc(topicTable.id))
-      .limit(remaining + 1)
-      .all()
-
-    const hasMoreInTopic = topicRows.length > remaining
-    for (const row of topicRows.slice(0, remaining)) {
-      items.push(toTopicListItem(rowToTopic(row), null))
-    }
-
-    let nextCursor: string | undefined
-    if (hasMoreInTopic) {
-      const last = topicRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.orderKey, last.id)
-    }
-
-    return { items, nextCursor }
+    return this.listFlatByCursor(query, query.sortBy ?? 'createdAt')
   }
 
   /**

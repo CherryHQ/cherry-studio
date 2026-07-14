@@ -222,25 +222,24 @@ export const useSessions = (
     } = {}
     if (agentId) built.agentId = agentId
     if (effectiveSortBy) built.sortBy = effectiveSortBy
-    const supportsRecordFilters = !!effectiveSortBy || isPinnedStream
-    if (supportsRecordFilters && q) built.q = q
-    if (supportsRecordFilters && q && searchScope) built.searchScope = searchScope
-    if (supportsRecordFilters && pinned !== undefined) built.pinned = pinned
-    if (supportsRecordFilters && workspaceId !== undefined) built.workspaceId = workspaceId
+    if (q) built.q = q
+    if (q && searchScope) built.searchScope = searchScope
+    if (pinned !== undefined) built.pinned = pinned
+    if (workspaceId !== undefined) built.workspaceId = workspaceId
     return Object.keys(built).length > 0 ? built : undefined
-  }, [agentId, effectiveSortBy, isPinnedStream, pinned, q, searchScope, workspaceId])
+  }, [agentId, effectiveSortBy, pinned, q, searchScope, workspaceId])
 
   const continuityKey = useMemo(
     () =>
       JSON.stringify({
         agentId,
-        mode: isPinnedStream ? 'pinned' : effectiveSortBy ? 'flat' : 'legacy',
+        mode: isPinnedStream ? 'pinned' : 'flat',
         pinned,
         q,
         searchScope,
         workspaceId
       }),
-    [agentId, effectiveSortBy, isPinnedStream, pinned, q, searchScope, workspaceId]
+    [agentId, isPinnedStream, pinned, q, searchScope, workspaceId]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     continuityKey,
