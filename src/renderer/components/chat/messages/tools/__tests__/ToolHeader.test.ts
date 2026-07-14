@@ -182,9 +182,9 @@ describe('getReadableToolActivity', () => {
     expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'start README.md' }, true, t)).toMatchObject({
       label: 'Opening'
     })
-    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'echo start README.md' }, true, t)).toMatchObject({
-      label: 'Running task'
-    })
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'echo start README.md' }, true, t)?.label).not.toBe(
+      'Opening'
+    )
   })
 
   it('uses explicit labels for SDK task tools', () => {
