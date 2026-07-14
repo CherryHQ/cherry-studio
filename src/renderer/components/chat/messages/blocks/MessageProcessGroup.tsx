@@ -68,7 +68,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
 
   if (props.phase === 'active') {
     return (
-      <div className="group/live-tool-group mb-2 w-full max-w-full" data-testid="live-tool-group">
+      <div className="group/live-tool-group mb-2 w-full max-w-full pb-2" data-testid="live-tool-group">
         <div
           data-testid="live-tool-group-header"
           className="flex min-h-7 w-full select-none items-center py-0.5 text-left">
@@ -90,7 +90,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   )
 
   return (
-    <div ref={anchorRef} className="group/completed-tool-history mb-2 w-full max-w-full">
+    <div ref={anchorRef} className="group/completed-tool-history mb-2 w-full max-w-full pb-2">
       <Accordion
         type="single"
         collapsible
