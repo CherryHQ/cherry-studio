@@ -4,9 +4,14 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// `t` returns the localized (key) name by default, but the English name for the
+// `lng: 'en-US'` lookup getQuickPanelSearchAliases uses — modelling a non-English locale.
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { lng?: string }) =>
+      options?.lng === 'en-US' && key === 'chat.input.toolbar.customize' ? 'Customize toolbar' : key
+  })
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', async () => {
@@ -58,6 +63,8 @@ describe('useComposerToolbarPinnedTools', () => {
 
     expect(result.current.customizeOpen).toBe(false)
     expect(result.current.customizePanelItem.label).toBe('chat.input.toolbar.customize')
+    // English name stays searchable in a non-English locale.
+    expect(result.current.customizePanelItem.searchAliases).toContain('Customize toolbar')
 
     act(() => {
       result.current.customizePanelItem.action?.({} as never)

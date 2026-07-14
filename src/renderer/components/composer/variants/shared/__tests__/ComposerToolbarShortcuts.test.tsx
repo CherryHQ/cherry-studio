@@ -32,8 +32,8 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
-    PopoverContent: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'popover-content' }, children),
+    PopoverContent: ({ children, onFocusOutside, align, ...props }: any) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
     ReorderableList: (props: any) => {
       mocks.reorderableProps = props
       const rows = props.visibleItems ?? props.items
@@ -80,6 +80,13 @@ const knowledgeLauncher = {
   icon: <span data-testid="icon-kb" />,
   sources: ['popover']
 }
+const attachmentLauncher = {
+  id: 'attachment',
+  kind: 'dialog',
+  label: 'attachment-label',
+  icon: <span data-testid="icon-attachment" />,
+  sources: ['popover']
+}
 
 const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarShortcuts>[0]> = {}) => {
   const props = {
@@ -109,10 +116,23 @@ describe('ComposerToolbarShortcuts', () => {
 
     expect(thinkingButton.compareDocumentPosition(webSearchButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(thinkingButton).toHaveAttribute('data-active', 'true')
+    // group/panel launchers announce a menu popup and are not toggles.
     expect(thinkingButton).toHaveAttribute('aria-haspopup', 'menu')
+    expect(thinkingButton).not.toHaveAttribute('aria-pressed')
+    // command launchers are toggles: aria-pressed, no popup.
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
+    expect(webSearchButton).not.toHaveAttribute('aria-haspopup')
     // Unpinned and unknown ids stay off the bar.
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
+  })
+
+  it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {
+    mocks.launchers = [attachmentLauncher]
+    renderShortcuts({ pinnedIds: ['attachment'] })
+
+    const attachmentButton = screen.getByRole('button', { name: 'attachment-label' })
+    expect(attachmentButton).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(attachmentButton).not.toHaveAttribute('aria-pressed')
   })
 
   it('opens the unified panel for panel-kind launchers and dispatches command-kind launchers', () => {
@@ -181,5 +201,15 @@ describe('ComposerToolbarShortcuts', () => {
 
     mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith(['web-search', 'ghost', 'thinking'])
+  })
+
+  it('names the customize dialog via aria-labelledby referencing the visible title', () => {
+    renderShortcuts({ customizeOpen: true })
+
+    const popover = screen.getByTestId('popover-content')
+    const labelledBy = popover.getAttribute('aria-labelledby')
+    expect(labelledBy).toBeTruthy()
+    const title = document.getElementById(labelledBy!)
+    expect(title).toHaveTextContent('chat.input.toolbar.customize')
   })
 })

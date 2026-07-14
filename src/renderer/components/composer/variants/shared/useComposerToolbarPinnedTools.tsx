@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
@@ -34,6 +35,8 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
       label,
       icon: <Settings2 size={16} />,
       filterText: label,
+      // Index the English name too so it stays searchable in non-English locales.
+      searchAliases: getQuickPanelSearchAliases(t, 'chat.input.toolbar.customize'),
       action: () => setCustomizeOpen(true)
     }
   }, [t])

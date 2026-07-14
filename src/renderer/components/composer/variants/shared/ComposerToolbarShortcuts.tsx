@@ -8,7 +8,7 @@ import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { GripVertical } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
@@ -28,8 +28,13 @@ interface ShortcutCandidate {
   active: boolean
   disabled: boolean
   disabledReason?: ReactNode | string
-  /** Opens a panel/menu (aria-haspopup) rather than toggling a state (aria-pressed). */
-  opensPanel: boolean
+  /**
+   * Popup announced via `aria-haspopup`: `'menu'` opens the unified panel, `'dialog'`
+   * opens a modal (e.g. the attachment picker). Absent for plain toggle commands.
+   */
+  haspopup?: 'menu' | 'dialog'
+  /** True only for genuine on/off toggles (command launchers); drives `aria-pressed`. */
+  toggle: boolean
   select: () => void
 }
 
@@ -77,6 +82,8 @@ export const ComposerToolbarShortcuts = ({
   const candidates = useMemo<ShortcutCandidate[]>(() => {
     void toolLaunchersVersion
     const launcherCandidates = getLaunchers('popover').map((launcher): ShortcutCandidate => {
+      // group/panel launchers open the unified panel; dialog launchers open a modal
+      // (attachment picker); command launchers are plain on/off toggles.
       const opensPanel = launcher.kind === 'group' || launcher.kind === 'panel'
       const label = launcher.label
       return {
@@ -86,7 +93,8 @@ export const ComposerToolbarShortcuts = ({
         active: Boolean(launcher.active),
         disabled: Boolean(launcher.disabled) || (opensPanel && panelUnavailable),
         disabledReason: launcher.disabledReason,
-        opensPanel,
+        haspopup: opensPanel ? 'menu' : launcher.kind === 'dialog' ? 'dialog' : undefined,
+        toggle: launcher.kind === 'command',
         select: opensPanel
           ? () =>
               unifiedPanelControl?.open({
@@ -103,7 +111,8 @@ export const ComposerToolbarShortcuts = ({
         icon: tool.icon,
         active: false,
         disabled: panelUnavailable,
-        opensPanel: true,
+        haspopup: 'menu',
+        toggle: false,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
       })
     )
@@ -133,6 +142,7 @@ export const ComposerToolbarShortcuts = ({
   )
 
   const customizeLabel = t('chat.input.toolbar.customize')
+  const customizeTitleId = useId()
 
   return (
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
@@ -153,8 +163,8 @@ export const ComposerToolbarShortcuts = ({
                     shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
-                  aria-haspopup={shortcut.opensPanel ? 'menu' : undefined}
-                  aria-pressed={shortcut.opensPanel ? undefined : shortcut.active}
+                  aria-haspopup={shortcut.haspopup}
+                  aria-pressed={shortcut.toggle ? shortcut.active : undefined}
                   disabled={shortcut.disabled}
                   data-active={shortcut.active || undefined}
                   onClick={shortcut.select}>
@@ -168,8 +178,14 @@ export const ComposerToolbarShortcuts = ({
       {/* The "+" panel entry restores focus to the editor right after opening; ignore
           focus-outside so that restore doesn't instantly dismiss. Pointer-down outside
           still closes the popover. */}
-      <PopoverContent align="start" className="w-72 p-2" onFocusOutside={(event) => event.preventDefault()}>
-        <div className="px-2 pb-1.5 text-muted-foreground text-xs">{customizeLabel}</div>
+      <PopoverContent
+        align="start"
+        className="w-72 p-2"
+        aria-labelledby={customizeTitleId}
+        onFocusOutside={(event) => event.preventDefault()}>
+        <div id={customizeTitleId} className="px-2 pb-1.5 text-muted-foreground text-xs">
+          {customizeLabel}
+        </div>
         <ReorderableList
           items={pinnedRows}
           visibleItems={visiblePinnedRows}
