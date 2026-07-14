@@ -7904,7 +7904,7 @@
         "title": "检测到 PDF"
       },
       "error": {
-        "ocr_required": "此 PDF 需要 OCR 翻译，将在后续版本支持。",
+        "ocr_required": "暂不支持扫描版 PDF",
         "title": "PDF 翻译失败"
       },
       "export_failed": "导出译文 PDF 失败",

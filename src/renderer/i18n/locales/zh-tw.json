@@ -7904,7 +7904,7 @@
         "title": "偵測到 PDF"
       },
       "error": {
-        "ocr_required": "此 PDF 需要 OCR 翻譯，將於後續版本支援。",
+        "ocr_required": "暫不支援掃描版 PDF",
         "title": "PDF 翻譯失敗"
       },
       "export_failed": "匯出譯文 PDF 失敗",

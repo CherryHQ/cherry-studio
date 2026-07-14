@@ -7904,7 +7904,7 @@
         "title": "PDF detected"
       },
       "error": {
-        "ocr_required": "This PDF requires OCR translation, which will be supported in a future release.",
+        "ocr_required": "Scanned PDFs are not supported yet.",
         "title": "PDF translation failed"
       },
       "export_failed": "Failed to export translated PDF",
