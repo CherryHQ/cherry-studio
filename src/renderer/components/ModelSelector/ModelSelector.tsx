@@ -675,7 +675,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                   className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
                   onClick={(event) => {
                     event.stopPropagation()
-                    handleNavigateToProviderSettings(item.settingsProviderId ?? item.provider!.id)
+                    handleNavigateToProviderSettings(item.provider!.id)
                   }}>
                   <Settings2 className="block size-3" />
                 </Button>

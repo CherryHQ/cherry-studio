@@ -434,7 +434,7 @@ describe('ModelSelector', () => {
 
     const option = screen.getByTestId('model-selector-item-openai::gpt-4')
     const row = option.closest('[data-model-selector-row]')
-    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1.5', 'bg-accent/70')
+    expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1', 'bg-accent/70')
     expect(row).not.toHaveClass('bg-primary/10')
     expect(row?.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-primary')
     expect(screen.getByLabelText('models.action.unpin')).toHaveClass(
@@ -966,8 +966,7 @@ describe('ModelSelector', () => {
             title: 'CherryAI',
             groupKind: 'provider',
             provider: cherryProvider,
-            canNavigateToSettings: false,
-            settingsProviderId: 'cherryai'
+            canNavigateToSettings: false
           },
           cherryItem
         ],

@@ -1,4 +1,13 @@
-import { Input, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip, usePortalContainer } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip,
+  usePortalContainer
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AtSign, Search, X } from 'lucide-react'
 import {
@@ -432,6 +441,7 @@ export function SelectorShell({
             {...restContentProps}
             style={{
               width: toCssSize(width),
+              maxWidth: 'var(--radix-popover-content-available-width)',
               height: toCssSize(contentHeight),
               maxHeight: toCssSize(maxContentHeight),
               ...style
@@ -492,38 +502,41 @@ export function SelectorShell({
                       onKeyDown={search.onKeyDown}
                     />
                     {search.value ? (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label={t('common.clear')}
-                        className="-translate-y-1/2 absolute top-1/2 right-0 flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65"
+                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[18px] rounded-full p-0 text-foreground/45 hover:bg-accent/40 hover:text-foreground/65"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           search.onChange('')
                           internalSearchInputRef.current?.focus()
                         }}>
                         <X size={9} aria-hidden="true" />
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                   {renderMultiSelectAsSearchBadge && multiSelect ? (
                     <Tooltip content={multiSelect.ariaLabel ?? multiSelect.label}>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         disabled={multiSelect.disabled}
                         aria-pressed={multiSelect.checked}
                         aria-label={multiSelect.ariaLabel}
                         title={multiSelect.ariaLabel}
                         data-testid={multiSelect.dataTestId}
                         className={cn(
-                          'inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent p-0 transition-colors',
-                          'disabled:cursor-not-allowed disabled:opacity-50',
+                          'size-6 shrink-0 rounded-md bg-transparent p-0 shadow-none',
                           multiSelect.checked
-                            ? 'border-transparent bg-accent text-foreground'
+                            ? 'bg-accent text-foreground'
                             : 'text-icon hover:bg-accent/60 hover:text-foreground'
                         )}
                         onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
                         <AtSign className="size-3.5" aria-hidden="true" />
-                      </button>
+                      </Button>
                     </Tooltip>
                   ) : null}
                 </div>

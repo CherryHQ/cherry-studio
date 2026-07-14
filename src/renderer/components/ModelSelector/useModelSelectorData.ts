@@ -69,10 +69,6 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
   return [...prioritized, ...remaining]
 }
 
-function getProviderSettingsProviderId(provider: Provider): string {
-  return provider.id
-}
-
 export function useModelSelectorData({
   selectedModelIds = [],
   maxSelectedCount,
@@ -288,8 +284,7 @@ export function useModelSelectorData({
         title: getProviderDisplayName(provider),
         groupKind: 'provider',
         provider,
-        canNavigateToSettings: provider.id !== CHERRYAI_PROVIDER_ID,
-        settingsProviderId: getProviderSettingsProviderId(provider)
+        canNavigateToSettings: provider.id !== CHERRYAI_PROVIDER_ID
       })
 
       items.push(

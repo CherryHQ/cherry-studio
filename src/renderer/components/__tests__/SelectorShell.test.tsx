@@ -1,6 +1,6 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
 import { render, screen, waitFor } from '@testing-library/react'
-import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
@@ -20,6 +20,17 @@ const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoi
 const originalResizeObserver = globalThis.ResizeObserver
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
+    const { variant, size, type = 'button', ...buttonProps } = props
+    void variant
+    void size
+
+    return (
+      <button type={type} {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   Input: ({ ref, ...props }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
     <input ref={ref} {...props} />
   ),
@@ -136,6 +147,18 @@ describe('SelectorShell', () => {
     const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
     expect(content).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
     expect(content?.style.maxHeight).toBe('')
+  })
+
+  it('caps an ideal popover width to the Radix available width', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()} width={450}>
+        <div />
+      </SelectorShell>
+    )
+
+    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
+    expect(content).toHaveStyle({ width: '450px' })
+    expect(content?.style.maxWidth).toBe('var(--radix-popover-content-available-width)')
   })
 
   it('does not set a fixed popover target height by default', () => {

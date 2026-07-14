@@ -150,8 +150,7 @@ describe('useModelSelectorData', () => {
 
     expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
       key: 'provider-cherryai',
-      canNavigateToSettings: false,
-      settingsProviderId: 'cherryai'
+      canNavigateToSettings: false
     })
   })
 
