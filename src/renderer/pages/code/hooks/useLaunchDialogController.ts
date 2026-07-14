@@ -189,6 +189,7 @@ export function useLaunchDialogController({
         cliTool: selectedCliTool,
         model: cliConfigContext.rawModelId,
         providerId: cliConfigContext.providerId,
+        gateway: !!enabledProvider && isApiGatewayProviderId(enabledProvider.id),
         directory,
         terminal: effectiveTerminal
       })
