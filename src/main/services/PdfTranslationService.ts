@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
+import { hasPdfTextLayer } from '@main/utils/pdf'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
@@ -172,6 +173,15 @@ export class PdfTranslationService extends BaseService {
       }
 
       onStage?.('preparing')
+      const hasTextLayer = await hasPdfTextLayer(await fs.promises.readFile(request.sourcePath))
+      this.throwIfCancelled(job)
+      if (!hasTextLayer) {
+        throw new IpcError(
+          translateErrorCodes.PDF_OCR_REQUIRED,
+          'The PDF contains no extractable text and must be processed with OCR before translation'
+        )
+      }
+
       const executable = await this.resolveSidecar()
       this.throwIfCancelled(job)
 
@@ -292,6 +302,7 @@ export class PdfTranslationService extends BaseService {
       normalizeLanguageCode(request.targetLangCode),
       '--report-interval',
       '0.2',
+      '--auto-enable-ocr-workaround',
       '--no-dual'
     ]
     const env = { ...(await this.buildSidecarEnv()), PYTHONPATH: progressAdapterDir }

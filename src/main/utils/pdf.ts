@@ -37,6 +37,17 @@ export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | U
   }
 }
 
+export async function hasPdfTextLayer(data: Uint8Array | ArrayBuffer): Promise<boolean> {
+  const buffer = data instanceof ArrayBuffer ? new Uint8Array(data) : data
+  const parser = await createPdfParser({ data: buffer })
+  try {
+    const result = await parser.getText({ pageJoiner: '' })
+    return result.pages.some((page) => page.text.trim().length > 0)
+  } finally {
+    await parser.destroy()
+  }
+}
+
 async function createPdfParser(options: LoadParameters) {
   // Loads @napi-rs/canvas DOM globals that pdf-parse expects in Electron main.
   const { CanvasFactory } = await import('pdf-parse/worker')

@@ -210,6 +210,12 @@ const PdfTranslationView = ({
         ? t('translate.pdf.status.translating')
         : null
   const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
+  const ocrRequired = error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED
+  const errorDescription = dependencyMissing
+    ? t('translate.pdf.error.dependency_missing')
+    : ocrRequired
+      ? t('translate.pdf.error.ocr_required')
+      : error?.message
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -267,7 +273,7 @@ const PdfTranslationView = ({
             <EmptyState
               icon={AlertCircle}
               title={t('translate.pdf.error.title')}
-              description={dependencyMissing ? t('translate.pdf.error.dependency_missing') : error.message}
+              description={errorDescription}
               actionLabel={dependencyMissing ? t('translate.pdf.action.open_dependencies') : undefined}
               onAction={dependencyMissing ? () => navigate({ to: '/settings/dependencies' }) : undefined}
             />

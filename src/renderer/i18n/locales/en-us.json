@@ -7899,6 +7899,7 @@
       },
       "error": {
         "dependency_missing": "Install BabelDOC 0.6.3 from Environment Dependencies before translating PDFs.",
+        "ocr_required": "This PDF has no extractable text. Add an OCR text layer before translating it.",
         "title": "PDF translation failed"
       },
       "export_failed": "Failed to export translated PDF",

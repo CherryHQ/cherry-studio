@@ -7899,6 +7899,7 @@
       },
       "error": {
         "dependency_missing": "請先在環境依賴中安裝 BabelDOC 0.6.3，再翻譯 PDF。",
+        "ocr_required": "此 PDF 沒有可擷取的文字，請先新增 OCR 文字層再進行翻譯。",
         "title": "PDF 翻譯失敗"
       },
       "export_failed": "匯出譯文 PDF 失敗",
