@@ -38,11 +38,39 @@ export type WebUiMessageSnapshot = {
   readonly content: string
   readonly reasoning?: string
   readonly toolCalls?: readonly WebUiToolCallSnapshot[]
+  readonly agentStatusEvents?: readonly WebUiAgentStatusEvent[]
   readonly attachments?: readonly WebUiMessageAttachmentSnapshot[]
   readonly status: 'pending' | 'success' | 'error' | 'paused'
   readonly processingTimeMs?: number
   readonly createdAt: string
 }
+
+export type WebUiAgentTaskStatus = 'pending' | 'in_progress' | 'completed' | 'error'
+
+export type WebUiAgentTaskEventData = {
+  readonly event: 'started' | 'progress' | 'updated' | 'notification'
+  readonly taskId: string
+  readonly status?: WebUiAgentTaskStatus
+  readonly title?: string
+  readonly activeText?: string
+  readonly description?: string
+  readonly summary?: string
+}
+
+export type WebUiAgentStatusEvent =
+  | {
+      readonly kind: 'tool'
+      readonly id: string
+      readonly name: string
+      readonly state: WebUiToolCallState
+      readonly input?: unknown
+      readonly output?: unknown
+    }
+  | {
+      readonly kind: 'task-event'
+      readonly id: string
+      readonly data: WebUiAgentTaskEventData
+    }
 
 export type WebUiMessageAttachmentSnapshot = {
   readonly name: string
@@ -89,6 +117,7 @@ export type WebUiChunkPayload = {
 export type WebUiStreamChunk = {
   readonly type: string
   readonly id?: string
+  readonly data?: unknown
   readonly delta?: string
   readonly toolCallId?: string
   readonly toolName?: string
@@ -172,6 +201,8 @@ export type WebUiAgentSessionEntity = {
 
 export type WebUiMessagePart = {
   readonly type: string
+  readonly id?: string
+  readonly data?: unknown
   readonly text?: string
   readonly toolCallId?: string
   readonly toolName?: string

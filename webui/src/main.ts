@@ -23,6 +23,7 @@ import type {
   WebUiCursorResponse,
   WebUiHealthResponse,
   WebUiMessageSnapshot,
+  WebUiAgentStatusEvent,
   WebUiSendAttachment,
   WebUiOffsetResponse,
   WebUiMessagePart,
@@ -30,6 +31,14 @@ import type {
   WebUiToolCallSnapshot,
   WebUiToolCallState
 } from './types/api'
+import {
+  buildWebUiAgentStatus,
+  isWebUiAgentTaskEventData,
+  type WebUiAgentArtifact,
+  type WebUiAgentStatus,
+  type WebUiAgentSubagent,
+  type WebUiAgentTask
+} from './utils/agentStatus'
 import { renderMarkdown } from './utils/renderMarkdown'
 
 type WebuiStatus = {
@@ -110,6 +119,27 @@ const textPacks = {
     conversationHistory: 'Conversation history',
     noAgents: 'No configured desktop Agents are available.',
     noContext: 'No context usage available',
+    status: 'Status',
+    tasks: 'Tasks',
+    subagents: 'Sub-agents',
+    artifacts: 'Artifacts',
+    contextUsage: 'Context usage',
+    runtimeDetails: 'WebUI connection',
+    filePreviewPending: 'File preview will be available in a later update.',
+    statusPending: 'Pending',
+    statusRunning: 'In progress',
+    statusCompleted: 'Completed',
+    statusError: 'Error',
+    contextAutocompactBuffer: 'Autocompact buffer',
+    contextCustomAgents: 'Custom agents',
+    contextFreeSpace: 'Free space',
+    contextMcpTools: 'MCP tools',
+    contextMemoryFiles: 'Memory files',
+    contextMessages: 'Messages',
+    contextPlugins: 'Plugins',
+    contextSkills: 'Skills',
+    contextSystemPrompt: 'System prompt',
+    contextSystemTools: 'System tools',
     noSessions: 'No desktop sessions yet',
     reasoning: 'Reasoning',
     processDetails: 'Processing details',
@@ -181,6 +211,27 @@ const textPacks = {
     conversationHistory: '会话记录',
     noAgents: '暂无可用的桌面智能体。',
     noContext: '暂无上下文用量',
+    status: '状态',
+    tasks: '任务',
+    subagents: '子代理',
+    artifacts: '产物',
+    contextUsage: '上下文用量',
+    runtimeDetails: 'WebUI 连接',
+    filePreviewPending: '文件预览将在后续版本中提供。',
+    statusPending: '等待中',
+    statusRunning: '进行中',
+    statusCompleted: '已完成',
+    statusError: '错误',
+    contextAutocompactBuffer: '自动压缩缓冲区',
+    contextCustomAgents: '自定义代理',
+    contextFreeSpace: '可用空间',
+    contextMcpTools: 'MCP 工具',
+    contextMemoryFiles: '记忆文件',
+    contextMessages: '消息',
+    contextPlugins: '插件',
+    contextSkills: '技能',
+    contextSystemPrompt: '系统提示词',
+    contextSystemTools: '系统工具',
     noSessions: '暂无桌面会话',
     reasoning: '思考过程',
     processDetails: '处理过程',
@@ -252,6 +303,27 @@ const textPacks = {
     conversationHistory: '會話記錄',
     noAgents: '尚無可用的桌面智慧體。',
     noContext: '暫無上下文用量',
+    status: '狀態',
+    tasks: '任務',
+    subagents: '子代理',
+    artifacts: '產物',
+    contextUsage: '上下文用量',
+    runtimeDetails: 'WebUI 連線',
+    filePreviewPending: '檔案預覽將在後續版本中提供。',
+    statusPending: '等待中',
+    statusRunning: '進行中',
+    statusCompleted: '已完成',
+    statusError: '錯誤',
+    contextAutocompactBuffer: '自動壓縮緩衝區',
+    contextCustomAgents: '自訂代理',
+    contextFreeSpace: '可用空間',
+    contextMcpTools: 'MCP 工具',
+    contextMemoryFiles: '記憶檔案',
+    contextMessages: '訊息',
+    contextPlugins: '外掛',
+    contextSkills: '技能',
+    contextSystemPrompt: '系統提示詞',
+    contextSystemTools: '系統工具',
     noSessions: '尚無桌面會話',
     reasoning: '思考過程',
     processDetails: '處理過程',
@@ -295,6 +367,19 @@ const textPacks = {
 } as const
 
 type TextKey = keyof (typeof textPacks)[typeof fallbackLanguage]
+
+const contextCategoryTextKeys: Readonly<Record<string, TextKey>> = {
+  'Autocompact buffer': 'contextAutocompactBuffer',
+  'Custom agents': 'contextCustomAgents',
+  'Free space': 'contextFreeSpace',
+  'MCP tools': 'contextMcpTools',
+  'Memory files': 'contextMemoryFiles',
+  Messages: 'contextMessages',
+  Plugins: 'contextPlugins',
+  Skills: 'contextSkills',
+  'System prompt': 'contextSystemPrompt',
+  'System tools': 'contextSystemTools'
+}
 
 const toErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : 'Unable to reach the desktop bridge'
@@ -399,7 +484,7 @@ const renderGithubIcon = () =>
     })
   )
 
-type ActionIconName = 'send' | 'stop' | 'menu' | 'down' | 'resize'
+type ActionIconName = 'send' | 'stop' | 'menu' | 'down' | 'resize' | 'activity' | 'close'
 
 const renderActionIcon = (name: ActionIconName) => {
   const props = {
@@ -418,11 +503,36 @@ const renderActionIcon = (name: ActionIconName) => {
   if (name === 'stop') return h('svg', { ...props, fill: 'currentColor', stroke: 'none' }, h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 1.5 }))
   if (name === 'menu') return h('svg', props, [h('path', { d: 'M4 7h16' }), h('path', { d: 'M4 12h16' }), h('path', { d: 'M4 17h16' })])
   if (name === 'down') return h('svg', props, [h('path', { d: 'm6 9 6 6 6-6' })])
+  if (name === 'activity') return h('svg', props, h('path', { d: 'M3 12h4l2.5-7 5 14 2.5-7h4' }))
+  if (name === 'close') return h('svg', props, [h('path', { d: 'm6 6 12 12' }), h('path', { d: 'm18 6-12 12' })])
   return h('svg', props, [
     h('path', { d: 'M5 19A14 14 0 0 0 19 5' }),
     h('path', { d: 'M9 19A10 10 0 0 0 19 9' }),
     h('path', { d: 'M13 19A6 6 0 0 0 19 13' })
   ])
+}
+
+type AgentStatusIconName = 'pending' | 'in_progress' | 'completed' | 'error' | 'subagent' | 'artifact'
+
+const renderAgentStatusIcon = (name: AgentStatusIconName) => {
+  const props = {
+    width: 15,
+    height: 15,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': 2,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true'
+  }
+
+  if (name === 'completed') return h('svg', props, [h('circle', { cx: 12, cy: 12, r: 9 }), h('path', { d: 'm8 12 2.5 2.5L16 9' })])
+  if (name === 'in_progress') return h('svg', props, [h('path', { d: 'M21 12a9 9 0 1 1-3-6.7' }), h('path', { d: 'M21 3v6h-6' })])
+  if (name === 'error') return h('svg', props, [h('circle', { cx: 12, cy: 12, r: 9 }), h('path', { d: 'M12 8v5' }), h('path', { d: 'M12 16h.01' })])
+  if (name === 'subagent') return h('svg', props, [h('rect', { x: 4, y: 7, width: 16, height: 12, rx: 2 }), h('path', { d: 'M12 3v4' }), h('path', { d: 'M8 12h.01' }), h('path', { d: 'M16 12h.01' }), h('path', { d: 'M9 16h6' })])
+  if (name === 'artifact') return h('svg', props, [h('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }), h('path', { d: 'M14 2v6h6' })])
+  return h('svg', props, h('circle', { cx: 12, cy: 12, r: 8 }))
 }
 
 const toDisplayText = (value: unknown): string | undefined => {
@@ -479,6 +589,44 @@ const toToolCalls = (parts: readonly WebUiMessagePart[]) => {
   return [...tools.values()]
 }
 
+const toAgentStatusEvents = (parts: readonly WebUiMessagePart[]): readonly WebUiAgentStatusEvent[] => {
+  const events: WebUiAgentStatusEvent[] = []
+
+  for (const part of parts) {
+    if (part.type === 'data-agent-task-event' && isWebUiAgentTaskEventData(part.data)) {
+      events.push({
+        kind: 'task-event',
+        id: part.id ?? `${part.data.taskId}:${part.data.event}:${events.length}`,
+        data: part.data
+      })
+      continue
+    }
+    if (!part.type.startsWith('tool-') && part.type !== 'dynamic-tool') continue
+    if (!part.toolCallId) continue
+    events.push({
+      kind: 'tool',
+      id: part.toolCallId,
+      name: toToolName(part.type, part.toolName),
+      state: toToolState(part.state),
+      ...(part.input !== undefined ? { input: part.input } : {}),
+      ...(part.output !== undefined ? { output: part.output } : {})
+    })
+  }
+
+  return events
+}
+
+const upsertAgentStatusEvent = (
+  events: readonly WebUiAgentStatusEvent[],
+  event: WebUiAgentStatusEvent
+): readonly WebUiAgentStatusEvent[] => {
+  const index = events.findIndex((item) => item.kind === event.kind && item.id === event.id)
+  if (index < 0) return [...events, event]
+  const next = [...events]
+  next[index] = event
+  return next
+}
+
 const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessageSnapshot => {
   const parts = message.data.parts ?? []
   const content = parts
@@ -490,6 +638,7 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     .map((part) => part.text as string)
     .join('')
   const toolCalls = toToolCalls(parts)
+  const agentStatusEvents = toAgentStatusEvents(parts)
   const attachments = parts
     .filter((part) => part.type === 'file')
     .map((part) => ({ name: part.filename || 'Attachment', ...(part.mediaType ? { mediaType: part.mediaType } : {}) }))
@@ -505,6 +654,7 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     content: content || message.searchableText || '',
     ...(reasoning ? { reasoning } : {}),
     ...(toolCalls.length ? { toolCalls } : {}),
+    ...(agentStatusEvents.length ? { agentStatusEvents } : {}),
     ...(attachments.length ? { attachments } : {}),
     status: message.status,
     ...(processingTimeMs ? { processingTimeMs } : {}),
@@ -558,6 +708,8 @@ const App = defineComponent({
     const newConversationError = ref('')
     const selectedAgentId = ref('')
     const contextUsage = ref<WebUiContextUsage | null>(null)
+    const statusPreviewOpen = ref(false)
+    const statusPanelOpen = ref(false)
     const slashCommands = ref<readonly WebUiSlashCommand[]>([])
     const modelPickerOpen = ref(false)
     const reasoningPickerOpen = ref(false)
@@ -578,9 +730,12 @@ const App = defineComponent({
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     const pendingChunkRetries = new Map<string, number>()
     let healthTimer: number | undefined
+    let contextUsageTimer: number | undefined
     let syncTimer: number | undefined
     let chunkFrame: number | undefined
     let latestMessageRequest = 0
+    let statusPreviewOpenTimer: number | undefined
+    let statusPreviewCloseTimer: number | undefined
 
     const selectedConversation = computed(() =>
       conversations.value.find((conversation) => conversation.id === selectedConversationId.value)
@@ -608,6 +763,23 @@ const App = defineComponent({
       if (percentage >= 75) return 'warning'
       return 'normal'
     })
+    const contextUsageColor = computed(() => {
+      const percentage = contextUsagePercentage.value
+      if (percentage === undefined) return undefined
+      if (percentage <= 50) {
+        const warningWeight = percentage * 2
+        return `color-mix(in oklch, #22c55e ${100 - warningWeight}%, #f59e0b ${warningWeight}%)`
+      }
+      const errorWeight = (percentage - 50) * 2
+      return `color-mix(in oklch, #f59e0b ${100 - errorWeight}%, #ef4444 ${errorWeight}%)`
+    })
+    const agentStatus = computed(() => buildWebUiAgentStatus(messages.value))
+    const incompleteTaskCount = computed(
+      () => agentStatus.value.tasks.filter((task) => task.status !== 'completed').length
+    )
+    const contextUsageCategories = computed(() =>
+      (contextUsage.value?.categories ?? []).filter((category) => category.tokens > 0).slice(0, 4)
+    )
     const themeToggleLabel = computed(() => (themeMode.value === 'dark' ? text('switchToLight') : text('switchToDark')))
     const reasoningOptions = computed(() => selectedModel.value?.reasoningOptions ?? [])
     const reasoningConfigurable = computed(() => reasoningOptions.value.length > 0)
@@ -692,6 +864,178 @@ const App = defineComponent({
               : undefined
           ])
         : undefined
+
+    const getAgentStatusLabel = (status: WebUiAgentTask['status'] | WebUiAgentSubagent['status']) => {
+      if (status === 'in_progress' || status === 'running') return text('statusRunning')
+      if (status === 'completed' || status === 'done') return text('statusCompleted')
+      if (status === 'error') return text('statusError')
+      return text('statusPending')
+    }
+
+    const getContextCategoryLabel = (name: string) => {
+      const key = contextCategoryTextKeys[name]
+      return key ? text(key) : name
+    }
+
+    const renderContextUsageSummary = (compact = false) => {
+      const percentage = contextUsagePercentage.value
+      const usage = contextUsage.value
+      return h('section', { class: ['agent-status-section', 'context-usage-summary', { 'agent-status-section-compact': compact }] }, [
+        h('h3', text('contextUsage')),
+        usage && percentage !== undefined
+          ? h('div', { class: 'context-usage-content' }, [
+              h('div', { class: 'context-progress-track' },
+                h('span', {
+                  class: ['context-progress-value', `context-progress-value-${contextUsageTone.value}`],
+                  style: { width: `${percentage}%`, background: contextUsageColor.value }
+                })
+              ),
+              h('div', { class: 'context-usage-meta' }, [
+                h('span', `${usage.totalTokens.toLocaleString()} / ${usage.maxTokens.toLocaleString()} (${percentage}%)`),
+                h('span', { title: usage.model }, usage.model)
+              ]),
+              contextUsageCategories.value.length
+                ? h(
+                    'dl',
+                    { class: 'context-category-list' },
+                    contextUsageCategories.value.flatMap((category) => [
+                      h(
+                        'dt',
+                        { key: `${category.name}-name` },
+                        getContextCategoryLabel(category.name)
+                      ),
+                      h('dd', { key: `${category.name}-tokens` }, category.tokens.toLocaleString())
+                    ])
+                  )
+                : undefined
+            ])
+          : h('p', { class: 'agent-status-empty' }, text('noContext'))
+      ])
+    }
+
+    const renderTaskList = (tasks: readonly WebUiAgentTask[], compact = false) =>
+      tasks.length
+        ? h('section', { class: ['agent-status-section', { 'agent-status-section-compact': compact }] }, [
+            h('div', { class: 'agent-status-section-heading' }, [
+              h('h3', text('tasks')),
+              h(
+                'span',
+                { class: 'agent-status-count-badge' },
+                `${agentStatus.value.completedTaskCount}/${agentStatus.value.totalTaskCount}`
+              )
+            ]),
+            h(
+              'ul',
+              { class: 'agent-status-list' },
+              tasks.map((task) =>
+                h('li', { class: ['agent-status-item', `agent-status-item-${task.status}`], key: task.id }, [
+                  h('span', { class: ['agent-status-item-icon', `agent-status-item-icon-${task.status}`] }, renderAgentStatusIcon(task.status)),
+                  h('span', { class: 'agent-status-item-copy' }, [
+                    h(
+                      'span',
+                      { class: ['agent-status-item-title', { 'agent-status-item-title-completed': task.status === 'completed' }] },
+                      task.status === 'in_progress' && task.activeText ? task.activeText : task.title
+                    ),
+                    compact ? undefined : h('span', { class: 'agent-status-item-state' }, getAgentStatusLabel(task.status))
+                  ])
+                ])
+              )
+            )
+          ])
+        : undefined
+
+    const renderSubagentList = (subagents: readonly WebUiAgentSubagent[], compact = false) =>
+      subagents.length
+        ? h('section', { class: ['agent-status-section', { 'agent-status-section-compact': compact }] }, [
+            h('div', { class: 'agent-status-section-heading agent-status-section-heading-icon' }, [
+              renderAgentStatusIcon('subagent'),
+              h('h3', text('subagents'))
+            ]),
+            h(
+              'ul',
+              { class: 'agent-status-list' },
+              subagents.map((subagent) => {
+                const iconName = subagent.status === 'running' ? 'in_progress' : subagent.status === 'done' ? 'completed' : 'error'
+                return h('li', { class: 'agent-status-item', key: subagent.id }, [
+                  h('span', { class: ['agent-status-item-icon', `agent-status-item-icon-${iconName}`] }, renderAgentStatusIcon(iconName)),
+                  h('span', { class: 'agent-status-item-copy' }, [
+                    h('span', { class: 'agent-status-item-title' }, subagent.name),
+                    compact ? undefined : h('span', { class: 'agent-status-item-state' }, getAgentStatusLabel(subagent.status))
+                  ])
+                ])
+              })
+            )
+          ])
+        : undefined
+
+    const renderArtifactList = (artifacts: readonly WebUiAgentArtifact[], compact = false) =>
+      artifacts.length
+        ? h('section', { class: ['agent-status-section', { 'agent-status-section-compact': compact }] }, [
+            h('div', { class: 'agent-status-section-heading agent-status-section-heading-icon' }, [
+              renderAgentStatusIcon('artifact'),
+              h('h3', text('artifacts'))
+            ]),
+            h(
+              'ul',
+              { class: 'agent-status-list agent-artifact-list' },
+              artifacts.map((artifact) =>
+                h('li', { class: 'agent-status-item agent-artifact-item', key: artifact.id, title: text('filePreviewPending') }, [
+                  h('span', { class: 'agent-status-item-icon agent-status-item-icon-artifact' }, renderAgentStatusIcon('artifact')),
+                  h('span', { class: 'agent-status-item-copy' }, [
+                    h('span', { class: 'agent-status-item-title' }, artifact.name),
+                    compact
+                      ? undefined
+                      : h('span', { class: 'agent-status-item-state', title: artifact.path }, artifact.description ?? artifact.path)
+                  ])
+                ])
+              )
+            )
+          ])
+        : undefined
+
+    const renderAgentStatusBody = (status: WebUiAgentStatus, compact = false) => [
+      compact ? undefined : renderTaskList(status.tasks, false),
+      renderContextUsageSummary(compact),
+      compact ? renderTaskList(status.tasks, true) : undefined,
+      renderSubagentList(status.subagents, compact),
+      renderArtifactList(status.artifacts, compact)
+    ]
+
+    const clearStatusPreviewTimers = () => {
+      if (statusPreviewOpenTimer !== undefined) window.clearTimeout(statusPreviewOpenTimer)
+      if (statusPreviewCloseTimer !== undefined) window.clearTimeout(statusPreviewCloseTimer)
+      statusPreviewOpenTimer = undefined
+      statusPreviewCloseTimer = undefined
+    }
+
+    const scheduleStatusPreviewOpen = () => {
+      if (statusPanelOpen.value) return
+      if (statusPreviewCloseTimer !== undefined) window.clearTimeout(statusPreviewCloseTimer)
+      statusPreviewCloseTimer = undefined
+      if (statusPreviewOpen.value || statusPreviewOpenTimer !== undefined) return
+      statusPreviewOpenTimer = window.setTimeout(() => {
+        statusPreviewOpenTimer = undefined
+        statusPreviewOpen.value = true
+        refreshComposerInfo()
+      }, 150)
+    }
+
+    const scheduleStatusPreviewClose = () => {
+      if (statusPreviewOpenTimer !== undefined) window.clearTimeout(statusPreviewOpenTimer)
+      statusPreviewOpenTimer = undefined
+      if (statusPreviewCloseTimer !== undefined) window.clearTimeout(statusPreviewCloseTimer)
+      statusPreviewCloseTimer = window.setTimeout(() => {
+        statusPreviewCloseTimer = undefined
+        statusPreviewOpen.value = false
+      }, 100)
+    }
+
+    const toggleStatusPanel = () => {
+      clearStatusPreviewTimers()
+      statusPreviewOpen.value = false
+      statusPanelOpen.value = !statusPanelOpen.value
+      if (statusPanelOpen.value) refreshComposerInfo()
+    }
 
     const selectLanguage = (nextLanguage: (typeof webUiLanguages)[number]['id']) => {
       language.value = nextLanguage
@@ -899,6 +1243,8 @@ const App = defineComponent({
     }
 
     const selectConversation = (conversationId: string) => {
+      clearStatusPreviewTimers()
+      statusPreviewOpen.value = false
       if (conversationId === selectedConversationId.value) {
         mobileSidebarOpen.value = false
         void loadConversationMessages(conversationId, 'refresh')
@@ -989,9 +1335,24 @@ const App = defineComponent({
         nextMessages[messageIndex] = { ...message, content: `${message.content}${chunk.delta}` }
       } else if (chunk.type === 'reasoning-delta' && chunk.delta) {
         nextMessages[messageIndex] = { ...message, reasoning: `${message.reasoning ?? ''}${chunk.delta}` }
+      } else if (chunk.type === 'data-agent-task-event' && isWebUiAgentTaskEventData(chunk.data)) {
+        const statusEvent: WebUiAgentStatusEvent = {
+          kind: 'task-event',
+          id: chunk.id ?? `${chunk.data.taskId}:${chunk.data.event}`,
+          data: chunk.data
+        }
+        nextMessages[messageIndex] = {
+          ...message,
+          agentStatusEvents: upsertAgentStatusEvent(message.agentStatusEvents ?? [], statusEvent)
+        }
       } else if (chunk.toolCallId) {
         const previousTools = message.toolCalls ?? []
         const previousTool = previousTools.find((tool) => tool.id === chunk.toolCallId)
+        const previousStatusEvents = message.agentStatusEvents ?? []
+        const previousStatusEvent = previousStatusEvents.find(
+          (event): event is Extract<WebUiAgentStatusEvent, { kind: 'tool' }> =>
+            event.kind === 'tool' && event.id === chunk.toolCallId
+        )
         const input = toDisplayText(chunk.input)
         const output = toDisplayText(chunk.output)
         const nextTool: WebUiToolCallSnapshot = {
@@ -1023,7 +1384,25 @@ const App = defineComponent({
         }
         nextMessages[messageIndex] = {
           ...message,
-          toolCalls: [...previousTools.filter((tool) => tool.id !== chunk.toolCallId), nextTool]
+          toolCalls: [...previousTools.filter((tool) => tool.id !== chunk.toolCallId), nextTool],
+          agentStatusEvents: upsertAgentStatusEvent(previousStatusEvents, {
+            kind: 'tool',
+            id: chunk.toolCallId,
+            name: chunk.toolName ?? previousStatusEvent?.name ?? previousTool?.name ?? 'Tool',
+            state: nextTool.state,
+            ...(chunk.type === 'tool-input-delta'
+              ? { input: `${typeof previousStatusEvent?.input === 'string' ? previousStatusEvent.input : ''}${chunk.inputTextDelta ?? ''}` }
+              : chunk.input !== undefined
+                ? { input: chunk.input }
+                : previousStatusEvent?.input !== undefined
+                  ? { input: previousStatusEvent.input }
+                  : {}),
+            ...(chunk.output !== undefined
+              ? { output: chunk.output }
+              : previousStatusEvent?.output !== undefined
+                ? { output: previousStatusEvent.output }
+                : {})
+          })
         }
       } else {
         return true
@@ -1281,8 +1660,25 @@ const App = defineComponent({
       reasoningPickerOpen.value = false
     })
 
+    watch([statusPreviewOpen, statusPanelOpen, activeRunConversationId, selectedConversationId], () => {
+      if (contextUsageTimer !== undefined) window.clearInterval(contextUsageTimer)
+      contextUsageTimer = undefined
+      const conversationId = selectedConversationId.value
+      if (
+        !conversationId ||
+        activeRunConversationId.value !== conversationId ||
+        (!statusPreviewOpen.value && !statusPanelOpen.value)
+      ) {
+        return
+      }
+      refreshComposerInfo(conversationId)
+      contextUsageTimer = window.setInterval(() => refreshComposerInfo(conversationId), 1200)
+    })
+
     onBeforeUnmount(() => {
+      clearStatusPreviewTimers()
       if (healthTimer) window.clearInterval(healthTimer)
+      if (contextUsageTimer) window.clearInterval(contextUsageTimer)
       if (syncTimer) window.clearTimeout(syncTimer)
       if (chunkFrame !== undefined) window.cancelAnimationFrame(chunkFrame)
       pendingChunks.clear()
@@ -1335,7 +1731,7 @@ const App = defineComponent({
             ])
           ])
         :
-      h('main', { class: 'webui-shell' }, [
+      h('main', { class: ['webui-shell', { 'webui-shell-status-open': statusPanelOpen.value }] }, [
         mobileSidebarOpen.value
           ? h('button', {
               class: 'mobile-sidebar-backdrop',
@@ -1480,15 +1876,45 @@ const App = defineComponent({
             ]),
             h('div', { class: 'mobile-chat-actions' }, [
               h(
-                'span',
+                'div',
                 {
-                  class: ['context-orb', `context-orb-${contextUsageTone.value}`],
-                  title: contextUsageLabel.value,
-                  role: 'img',
-                  'aria-label': contextUsageLabel.value,
-                  style: { '--context-usage': `${contextUsagePercentage.value ?? 0}%` }
+                  class: 'agent-status-shortcut-wrap',
+                  onMouseenter: scheduleStatusPreviewOpen,
+                  onMouseleave: scheduleStatusPreviewClose,
+                  onFocusin: scheduleStatusPreviewOpen,
+                  onFocusout: (event: FocusEvent) => {
+                    if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) {
+                      scheduleStatusPreviewClose()
+                    }
+                  }
                 },
-                contextUsagePercentage.value === undefined ? '·' : `${contextUsagePercentage.value}%`
+                [
+                  h(
+                    'button',
+                    {
+                      class: ['agent-status-shortcut', { 'agent-status-shortcut-active': statusPanelOpen.value }],
+                      type: 'button',
+                      disabled: !selectedConversation.value,
+                      title: `${text('status')} · ${contextUsageLabel.value}`,
+                      'aria-label': text('status'),
+                      'aria-expanded': statusPanelOpen.value,
+                      onClick: toggleStatusPanel
+                    },
+                    [
+                      renderActionIcon('activity'),
+                      incompleteTaskCount.value > 0
+                        ? h('span', { class: 'agent-status-shortcut-badge' }, String(incompleteTaskCount.value))
+                        : undefined
+                    ]
+                  ),
+                  statusPreviewOpen.value && !statusPanelOpen.value
+                    ? h(
+                        'section',
+                        { class: 'agent-status-hover-card', role: 'dialog', 'aria-label': text('status') },
+                        renderAgentStatusBody(agentStatus.value, true)
+                      )
+                    : undefined
+                ]
               ),
               h('span', {
                 class: ['mobile-bridge-indicator', `mobile-bridge-indicator-${bridgeState.value}`],
@@ -1805,42 +2231,77 @@ const App = defineComponent({
           ]),
           submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
         ]),
-        h('aside', { class: 'status-panel', 'aria-label': text('bridgeStatus') }, [
-          h('h2', text('bridgeStatus')),
-          h('div', {
-            class: ['bridge-indicator', `bridge-indicator-${bridgeState.value}`],
-            role: 'status',
-            'aria-live': 'polite',
-            title: bridgeDetail.value,
-            'aria-label': bridgeDetail.value
-          }),
-          ...statusItems.value.map((item) =>
-            h('dl', { class: 'status-row', key: item.label }, [
-              h('dt', item.label),
-              h('dd', item.value)
-            ])
-          ),
-          h('div', { class: 'version-block' }, [
-            ...versionItems.value.map((item) =>
-              h('dl', { class: 'status-row version-row', key: item.label }, [
-                h('dt', item.label),
-                h('dd', item.value)
+        statusPanelOpen.value
+          ? h('button', {
+              class: 'agent-status-panel-backdrop',
+              type: 'button',
+              'aria-label': text('close'),
+              onClick: toggleStatusPanel
+            })
+          : undefined,
+        statusPanelOpen.value
+          ? h('aside', { class: 'status-panel agent-status-panel', 'aria-label': text('status') }, [
+              h('header', { class: 'agent-status-panel-header' }, [
+                h('div', { class: 'agent-status-panel-tabs' }, [
+                  h('span', { class: 'agent-status-panel-tab agent-status-panel-tab-active' }, [
+                    renderActionIcon('activity'),
+                    h('span', text('status')),
+                    incompleteTaskCount.value > 0
+                      ? h('span', { class: 'agent-status-panel-tab-badge' }, String(incompleteTaskCount.value))
+                      : undefined
+                  ])
+                ]),
+                h(
+                  'button',
+                  {
+                    class: 'agent-status-panel-close',
+                    type: 'button',
+                    title: text('close'),
+                    'aria-label': text('close'),
+                    onClick: toggleStatusPanel
+                  },
+                  renderActionIcon('close')
+                )
+              ]),
+              h('div', { class: 'agent-status-panel-scroll' }, [
+                ...renderAgentStatusBody(agentStatus.value, false),
+                h('details', { class: 'status-runtime-details' }, [
+                  h('summary', [
+                    h('span', text('runtimeDetails')),
+                    h('span', {
+                      class: ['status-runtime-dot', `status-runtime-dot-${bridgeState.value}`],
+                      title: bridgeDetail.value
+                    })
+                  ]),
+                  h('div', { class: 'status-runtime-body' }, [
+                    ...statusItems.value.map((item) =>
+                      h('dl', { class: 'status-row', key: item.label }, [h('dt', item.label), h('dd', item.value)])
+                    ),
+                    h('div', { class: 'version-block' }, [
+                      ...versionItems.value.map((item) =>
+                        h('dl', { class: 'status-row version-row', key: item.label }, [
+                          h('dt', item.label),
+                          h('dd', item.value)
+                        ])
+                      ),
+                      h(
+                        'a',
+                        {
+                          class: 'status-github-link',
+                          href: projectRepositoryUrl,
+                          target: '_blank',
+                          rel: 'noreferrer',
+                          title: text('githubProject'),
+                          'aria-label': text('githubProject')
+                        },
+                        renderGithubIcon()
+                      )
+                    ])
+                  ])
+                ])
               ])
-            ),
-            h(
-              'a',
-              {
-                class: 'status-github-link',
-                href: projectRepositoryUrl,
-                target: '_blank',
-                rel: 'noreferrer',
-                title: text('githubProject'),
-                'aria-label': text('githubProject')
-              },
-              renderGithubIcon()
-            )
-          ])
-        ]),
+            ])
+          : undefined,
         newConversationOpen.value
           ? h('div', { class: 'modal-backdrop' }, [
               h('section', { class: 'new-conversation-dialog', role: 'dialog', 'aria-modal': 'true' }, [
@@ -1938,10 +2399,14 @@ style.textContent = `
 
   .webui-shell {
     display: grid;
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(220px, 260px);
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+  }
+
+  .webui-shell-status-open {
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 340px);
   }
 
   .auth-shell {
@@ -2336,6 +2801,410 @@ style.textContent = `
   .context-orb-empty {
     color: #94a3b8;
     background: radial-gradient(circle at center, #ffffff 62%, transparent 64%), #e2e8f0;
+  }
+
+  .agent-status-shortcut-wrap {
+    position: relative;
+    z-index: 12;
+    display: grid;
+    place-items: center;
+  }
+
+  .agent-status-shortcut {
+    position: relative;
+    display: grid;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+  }
+
+  .agent-status-shortcut:hover,
+  .agent-status-shortcut:focus-visible,
+  .agent-status-shortcut-active {
+    color: #111827;
+    background: #ffffff;
+    border-color: #dbe1ea;
+    outline: 0;
+  }
+
+  .agent-status-shortcut-badge,
+  .agent-status-panel-tab-badge {
+    display: grid;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    place-items: center;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    background: #e2e8f0;
+    border-radius: 999px;
+  }
+
+  .agent-status-shortcut-badge {
+    position: absolute;
+    top: -4px;
+    right: -5px;
+    box-shadow: 0 0 0 2px #f6f7fb;
+  }
+
+  .agent-status-hover-card {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 320px;
+    max-height: min(70dvh, 560px);
+    padding: 12px;
+    overflow: auto;
+    color: #1f2937;
+    text-align: left;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 10px;
+    box-shadow: 0 18px 44px rgb(15 23 42 / 16%);
+    animation: agent-status-card-in 140ms ease-out;
+  }
+
+  @keyframes agent-status-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .agent-status-panel-backdrop {
+    display: none;
+  }
+
+  .agent-status-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .agent-status-panel-header {
+    display: flex;
+    min-height: 54px;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px 8px 12px;
+    border-bottom: 1px solid var(--webui-divider);
+  }
+
+  .agent-status-panel-tabs {
+    display: flex;
+    min-width: 0;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .agent-status-panel-tab {
+    display: flex;
+    min-width: 0;
+    height: 34px;
+    gap: 7px;
+    align-items: center;
+    padding: 0 10px;
+    color: #64748b;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  .agent-status-panel-tab-active {
+    color: #111827;
+    background: #f1f5f9;
+  }
+
+  .agent-status-panel-close {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .agent-status-panel-close:hover,
+  .agent-status-panel-close:focus-visible {
+    color: #111827;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .agent-status-panel-scroll {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 16px;
+    padding: 14px;
+    overflow-y: auto;
+  }
+
+  .agent-status-section {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+  }
+
+  .agent-status-section:not(.agent-status-section-compact) {
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .agent-status-section-compact + .agent-status-section-compact {
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .agent-status-section h3 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .agent-status-section-heading {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .agent-status-section-heading-icon {
+    justify-content: flex-start;
+    color: #64748b;
+  }
+
+  .agent-status-count-badge {
+    padding: 2px 6px;
+    color: #64748b;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid #dbe1ea;
+    border-radius: 999px;
+  }
+
+  .agent-status-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .agent-status-item {
+    display: flex;
+    min-width: 0;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 7px 8px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+  }
+
+  .agent-status-section-compact .agent-status-item {
+    padding: 2px 0;
+    background: transparent;
+    border: 0;
+  }
+
+  .agent-status-item-icon {
+    display: grid;
+    width: 16px;
+    height: 20px;
+    flex: 0 0 auto;
+    place-items: center;
+    color: #94a3b8;
+  }
+
+  .agent-status-item-icon-in_progress {
+    color: #3b82f6;
+  }
+
+  .agent-status-item-icon-in_progress svg {
+    animation: agent-status-spin 1.1s linear infinite;
+  }
+
+  .agent-status-item-icon-completed {
+    color: #16a34a;
+  }
+
+  .agent-status-item-icon-error {
+    color: #dc2626;
+  }
+
+  .agent-status-item-icon-artifact {
+    color: #64748b;
+  }
+
+  @keyframes agent-status-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .agent-status-item-copy {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 2px;
+  }
+
+  .agent-status-item-title {
+    min-width: 0;
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+
+  .agent-status-item-title-completed {
+    color: #94a3b8;
+    text-decoration: line-through;
+  }
+
+  .agent-status-item-state {
+    overflow: hidden;
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agent-artifact-item {
+    cursor: default;
+  }
+
+  .context-usage-content {
+    display: grid;
+    gap: 8px;
+  }
+
+  .context-progress-track {
+    height: 6px;
+    overflow: hidden;
+    background: #e2e8f0;
+    border-radius: 999px;
+  }
+
+  .context-progress-value {
+    display: block;
+    height: 100%;
+    background: #22c55e;
+    border-radius: inherit;
+    transition: width 180ms ease;
+  }
+
+  .context-progress-value-warning {
+    background: #f59e0b;
+  }
+
+  .context-progress-value-critical {
+    background: #ef4444;
+  }
+
+  .context-usage-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    color: #64748b;
+    font-size: 10px;
+  }
+
+  .context-usage-meta span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .context-category-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 12px;
+    margin: 0;
+    padding-top: 8px;
+    color: #64748b;
+    font-size: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .context-category-list dt {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .context-category-list dd {
+    margin: 0;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .agent-status-empty {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 11px;
+  }
+
+  .status-runtime-details {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--webui-divider);
+  }
+
+  .status-runtime-details > summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    color: #64748b;
+    font-size: 12px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .status-runtime-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .status-runtime-body {
+    padding-top: 10px;
+  }
+
+  .status-runtime-dot {
+    width: 8px;
+    height: 8px;
+    background: #dc2626;
+    border-radius: 999px;
+  }
+
+  .status-runtime-dot-connected {
+    background: #16a34a;
   }
 
   .message {
@@ -3408,6 +4277,46 @@ style.textContent = `
     background: #334155;
   }
 
+  :root[data-webui-theme='dark'] .agent-status-hover-card,
+  :root[data-webui-theme='dark'] .agent-status-item {
+    color: #e5e7eb;
+    background: #273449;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .agent-status-section:not(.agent-status-section-compact),
+  :root[data-webui-theme='dark'] .agent-status-panel-tab-active,
+  :root[data-webui-theme='dark'] .agent-status-shortcut:hover,
+  :root[data-webui-theme='dark'] .agent-status-shortcut:focus-visible,
+  :root[data-webui-theme='dark'] .agent-status-shortcut-active,
+  :root[data-webui-theme='dark'] .agent-status-panel-close:hover,
+  :root[data-webui-theme='dark'] .agent-status-panel-close:focus-visible {
+    color: #f8fafc;
+    background: #334155;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .agent-status-section h3,
+  :root[data-webui-theme='dark'] .agent-status-item-title,
+  :root[data-webui-theme='dark'] .context-category-list dd {
+    color: #e5e7eb;
+  }
+
+  :root[data-webui-theme='dark'] .agent-status-section-compact + .agent-status-section-compact,
+  :root[data-webui-theme='dark'] .context-category-list {
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .context-progress-track {
+    background: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .agent-status-shortcut-badge {
+    color: #e2e8f0;
+    background: #475569;
+    box-shadow: 0 0 0 2px #111827;
+  }
+
   :root[data-webui-theme='light'] {
     --webui-divider: #e5e7eb;
     color: #1f2937;
@@ -3665,8 +4574,39 @@ style.textContent = `
       bottom: 132px;
     }
 
-    .status-panel {
-      display: none;
+    .agent-status-panel-backdrop {
+      position: fixed;
+      z-index: 41;
+      inset: 0;
+      display: block;
+      padding: 0;
+      background: rgb(15 23 42 / 42%);
+      border: 0;
+    }
+
+    .agent-status-panel {
+      position: fixed;
+      z-index: 42;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      display: grid;
+      width: min(360px, calc(100vw - 28px));
+      border-left: 1px solid var(--webui-divider);
+      box-shadow: -16px 0 40px rgb(15 23 42 / 18%);
+      animation: agent-status-panel-in 160ms ease-out;
+    }
+
+    .agent-status-hover-card {
+      position: fixed;
+      top: 58px;
+      right: 12px;
+      width: min(320px, calc(100vw - 24px));
+    }
+
+    @keyframes agent-status-panel-in {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
     }
   }
 
