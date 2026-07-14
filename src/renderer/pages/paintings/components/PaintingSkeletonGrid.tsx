@@ -60,7 +60,7 @@ const REVEAL_DELAY_WITH_IMAGE = HEAL_START + HEAL_FADE_DUR // onRevealReady dela
 
 const LOOP_TIMES = [0, 0.39, 0.5, 0.68, 1] // fast attack into the peak, slower decay through the afterglow
 
-type Grid = { cols: number; rows: number; pitch: number; cell: number }
+type Grid = { cols: number; rows: number; cellW: number; cellH: number }
 
 /** Decode a blurhash to one `rgb(...)` string per grid cell (row-major), or null. */
 function decodeCellColors(blurhash: string | undefined, grid: Grid | null): string[] | null {
@@ -105,7 +105,6 @@ function cellNoise(i: number, salt: number): number {
  * simply becomes invisible once an opaque layer occludes it.
  */
 const Cell: FC<{
-  size: number
   litColor: string | undefined
   reduceMotion: boolean
   phaseDelay: number
@@ -117,7 +116,6 @@ const Cell: FC<{
   sliceDelay?: number
 }> = memo(
   ({
-    size,
     litColor,
     reduceMotion,
     phaseDelay,
@@ -128,7 +126,9 @@ const Cell: FC<{
     sliceBackgroundPosition,
     sliceDelay
   }) => {
-    const baseStyle: CSSProperties = { width: size, height: size, borderRadius: RADIUS }
+    // Fill the grid track: cell dimensions come from the template columns/rows,
+    // which are sized to divide the box evenly (see the measure effect).
+    const baseStyle: CSSProperties = { width: '100%', height: '100%', borderRadius: RADIUS }
 
     if (reduceMotion) {
       return (
@@ -196,7 +196,7 @@ const Cell: FC<{
     )
 
     return (
-      <div style={{ position: 'relative', width: size, height: size }}>
+      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
         {shimmer}
         {tintLayer}
         {sliceLayer}
@@ -220,16 +220,26 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
     if (!el) return
     const measure = () => {
       const { width, height } = el.getBoundingClientRect()
-      if (width <= 0 || height <= 0) return
+      // Inset by a uniform GAP on every side, then divide the rest evenly. Sizing
+      // cells to *fill* (instead of a fixed square `pitch` centred with its
+      // leftover) keeps all four gutters equal: a fixed square cell leaves
+      // `width % pitch` and `height % pitch` remainders that differ per axis, so a
+      // centred grid shows wider gutters on whichever axis rounds down more —
+      // uneven left/right vs top/bottom padding on a non-square artboard.
+      const innerW = width - GAP * 2
+      const innerH = height - GAP * 2
+      if (innerW <= 0 || innerH <= 0) return
       // Grow the pitch on a very large artboard to keep the cell count bounded.
       let pitch = BASE_PITCH
-      while (Math.floor(width / pitch) * Math.floor(height / pitch) > MAX_CELLS) pitch += 2
-      const cols = Math.floor(width / pitch)
-      const rows = Math.floor(height / pitch)
+      while (Math.floor(innerW / pitch) * Math.floor(innerH / pitch) > MAX_CELLS) pitch += 2
+      const cols = Math.max(1, Math.floor(innerW / pitch))
+      const rows = Math.max(1, Math.floor(innerH / pitch))
+      const cellW = (innerW - (cols - 1) * GAP) / cols
+      const cellH = (innerH - (rows - 1) * GAP) / rows
       setGrid((prev) =>
-        prev && prev.cols === cols && prev.rows === rows && prev.pitch === pitch
+        prev && prev.cols === cols && prev.rows === rows && prev.cellW === cellW && prev.cellH === cellH
           ? prev
-          : { cols, rows, pitch, cell: pitch - GAP }
+          : { cols, rows, cellW, cellH }
       )
     }
     measure()
@@ -266,10 +276,13 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
   }, [reduceMotion, onRevealReady, imageUrl])
 
   const gridKey = grid ? `${grid.cols}x${grid.rows}` : null
+  // Per-axis pitch = cell + the trailing gap that follows it.
+  const pitchX = grid ? grid.cellW + GAP : 0
+  const pitchY = grid ? grid.cellH + GAP : 0
   // Act 3's per-cell backgroundPosition crops out of one shared canvas the size
-  // of the whole grid (in pitch units, not the slightly-narrower rendered
-  // width) — see the module doc comment for why that leaves gutters Act 4 heals.
-  const sliceBackgroundSize = grid ? `${grid.cols * grid.pitch}px ${grid.rows * grid.pitch}px` : undefined
+  // of the whole grid (pitch-strided, so it spans the trailing gap past the last
+  // cell) — see the module doc comment for why that leaves gutters Act 4 heals.
+  const sliceBackgroundSize = grid ? `${grid.cols * pitchX}px ${grid.rows * pitchY}px` : undefined
   const showSlices = Boolean(imageUrl && tinted && !reduceMotion)
 
   return (
@@ -282,8 +295,8 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
           key={gridKey}
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${grid.cols}, ${grid.cell}px)`,
-            gridAutoRows: `${grid.cell}px`,
+            gridTemplateColumns: `repeat(${grid.cols}, ${grid.cellW}px)`,
+            gridAutoRows: `${grid.cellH}px`,
             gap: `${GAP}px`
           }}>
           {Array.from({ length: grid.cols * grid.rows }, (_, i) => {
@@ -306,7 +319,6 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
             return (
               <Cell
                 key={i}
-                size={grid.cell}
                 litColor={litColor}
                 reduceMotion={Boolean(reduceMotion)}
                 phaseDelay={phaseDelay}
@@ -314,7 +326,7 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
                 peak={PEAK_MIN + (PEAK_MAX - PEAK_MIN) * cellNoise(i, 1)}
                 sliceUrl={showSlices ? imageUrl : undefined}
                 sliceBackgroundSize={showSlices ? sliceBackgroundSize : undefined}
-                sliceBackgroundPosition={showSlices ? `${-(c * grid.pitch)}px ${-(r * grid.pitch)}px` : undefined}
+                sliceBackgroundPosition={showSlices ? `${-(c * pitchX)}px ${-(r * pitchY)}px` : undefined}
                 sliceDelay={showSlices ? tintDelay + SLICE_CHASE_OFFSET : undefined}
               />
             )

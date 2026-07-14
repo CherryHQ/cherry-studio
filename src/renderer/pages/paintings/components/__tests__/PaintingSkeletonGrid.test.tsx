@@ -132,7 +132,10 @@ describe('PaintingSkeletonGrid', () => {
     const blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
     const cols = 10
     const rows = 10
-    const pitch = 42
+    // The 440px box insets by GAP (5) on each side → a 430px inner square divided
+    // into 10 columns: cell = (430 - 9*5) / 10 = 38.5, so the pitch (cell + gap) is
+    // 43.5 and the shared slice canvas spans cols * pitch = 435px.
+    const pitch = 43.5
 
     it('keeps the loading shimmer mounted and animating underneath the tint layer instead of freezing it', async () => {
       const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" />)
