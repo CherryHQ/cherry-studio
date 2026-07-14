@@ -410,7 +410,7 @@ describe('Shell.Toggle', () => {
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
         <Shell.Tabs>
-          <Shell.TabList>
+          <Shell.TabList canMaximize>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -432,7 +432,7 @@ describe('Shell.Toggle', () => {
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
         <Shell.Tabs>
-          <Shell.TabList>
+          <Shell.TabList canMaximize>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -614,11 +614,32 @@ describe('Shell.Host', () => {
 })
 
 describe('Shell.TabList', () => {
+  it('only offers maximize while the consumer allows it, but keeps minimize available', () => {
+    const renderTabList = (canMaximize: boolean) => (
+      <Shell defaultTab="files">
+        <Shell.Tabs>
+          <Shell.TabList canMaximize={canMaximize}>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+      </Shell>
+    )
+    const { rerender } = render(renderTabList(false))
+
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    rerender(renderTabList(true))
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    rerender(renderTabList(false))
+
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+  })
+
   it('renders tabs alongside the maximize toggle without reserving navbar overlap padding', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Tabs>
-          <Shell.TabList>
+          <Shell.TabList canMaximize>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -654,7 +675,7 @@ describe('Shell.TabList', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Tabs>
-          <Shell.TabList extraTrailing={<button type="button">extra</button>}>
+          <Shell.TabList canMaximize extraTrailing={<button type="button">extra</button>}>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -673,7 +694,7 @@ describe('Shell.TabList', () => {
     render(
       <Shell defaultTab="files" defaultOpen>
         <Shell.Tabs>
-          <Shell.TabList title="Files" showTabs={false}>
+          <Shell.TabList canMaximize title="Files" showTabs={false}>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -702,7 +723,7 @@ describe('Shell.TabList', () => {
       <WindowFrameProvider value={{ mode: 'window' }}>
         <Shell defaultTab="files">
           <Shell.Tabs>
-            <Shell.TabList>
+            <Shell.TabList canMaximize>
               <Shell.Tab value="files">Files</Shell.Tab>
             </Shell.TabList>
           </Shell.Tabs>
@@ -726,7 +747,7 @@ describe('Shell.TabList', () => {
       <WindowFrameProvider value={{ mode: 'window' }}>
         <Shell defaultTab="files" defaultOpen>
           <Shell.Tabs>
-            <Shell.TabList title="Files" showTabs={false}>
+            <Shell.TabList canMaximize title="Files" showTabs={false}>
               <Shell.Tab value="files">Files</Shell.Tab>
             </Shell.TabList>
           </Shell.Tabs>

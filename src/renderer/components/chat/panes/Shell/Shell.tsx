@@ -402,11 +402,13 @@ function ShellTabs({ children }: { children: ReactNode }) {
 // pane can switch this header to title mode and leave the entry cluster in ConversationShell.
 function ShellTabList({
   children,
+  canMaximize = false,
   extraTrailing,
   title,
   showTabs = true
 }: {
   children: ReactNode
+  canMaximize?: boolean
   extraTrailing?: ReactNode
   title?: ReactNode
   showTabs?: boolean
@@ -421,18 +423,19 @@ function ShellTabList({
   // — clear the macOS traffic lights and let the user drag the window from the tab strip,
   // matching ConversationShellTopBar.
   const isWindowTopBar = state.maximized && mode === 'window'
-  const maximizeButton = (
-    <Tooltip content={maximizeLabel} delay={800}>
-      <NavbarIcon
-        tone="conversation"
-        className="[&_svg]:!size-3.5 shrink-0"
-        aria-label={maximizeLabel}
-        aria-pressed={state.maximized}
-        onClick={actions.toggleMaximized}>
-        <MaximizeIcon />
-      </NavbarIcon>
-    </Tooltip>
-  )
+  const maximizeButton =
+    canMaximize || state.maximized ? (
+      <Tooltip content={maximizeLabel} delay={800}>
+        <NavbarIcon
+          tone="conversation"
+          className="[&_svg]:!size-3.5 shrink-0"
+          aria-label={maximizeLabel}
+          aria-pressed={state.maximized}
+          onClick={actions.toggleMaximized}>
+          <MaximizeIcon />
+        </NavbarIcon>
+      </Tooltip>
+    ) : null
   const closeButton = (
     <Tooltip content={closeLabel} delay={800}>
       <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={() => actions.close()}>

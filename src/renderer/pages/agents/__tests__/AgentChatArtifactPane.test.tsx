@@ -686,6 +686,17 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })
 
+  it('only offers maximize for the files pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
   it('keeps the selected artifact file when maximizing and restoring the pane', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
@@ -885,7 +896,7 @@ describe('AgentChat artifact pane', () => {
       setActiveSessionId: vi.fn()
     }
 
-    renderAgentChat({ activeSession: undefined, activeSessionLoading: true })
+    renderAgentChat({ activeSession: undefined, activeSessionLoading: true, sessionPaneOpen: true })
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
@@ -894,6 +905,8 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 
   it('opens selected subagent flows in the right-pane title header', () => {
@@ -905,6 +918,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('cache-usage.md')
     expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
 

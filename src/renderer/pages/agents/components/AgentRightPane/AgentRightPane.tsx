@@ -601,7 +601,11 @@ function AgentRightPaneSurface() {
 
   return (
     <Shell.Tabs>
-      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
+      <Shell.TabList
+        title={activeTitle}
+        showTabs={false}
+        canMaximize={hasFiles && shellState.activeTab === 'files'}
+        extraTrailing={tabListTrailing}>
         <ResourcePaneTab />
         {hasFiles && (
           <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
