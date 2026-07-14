@@ -1193,6 +1193,7 @@ export default function ComposerSurface({
         <FileComposerToken
           token={fileToken}
           selected={selected}
+          imageIconPreview
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
           tooltipActions={

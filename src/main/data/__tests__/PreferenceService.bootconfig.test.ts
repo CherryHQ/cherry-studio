@@ -198,4 +198,56 @@ describe('PreferenceService BootConfig routing', () => {
       expect(result[PREFERENCE_KEY]).toBe(DefaultPreferences.default[PREFERENCE_KEY])
     })
   })
+
+  describe('internal boot config key isolation', () => {
+    const INTERNAL_KEY = 'BootConfig.temp.user_data_relocation'
+    const UNKNOWN_KEY = 'BootConfig.foo.does_not_exist'
+
+    it('get() rejects internal and unknown BootConfig keys without reading them', () => {
+      expect(() => service.get(INTERNAL_KEY)).toThrow(/not accessible/)
+      expect(() => service.get(UNKNOWN_KEY)).toThrow(/not accessible/)
+      expect(mockBootConfigGet).not.toHaveBeenCalled()
+    })
+
+    it('set() rejects an internal key before any write', async () => {
+      await expect(service.set(INTERNAL_KEY, { status: 'pending' })).rejects.toThrow(/not accessible/)
+      expect(mockBootConfigSet).not.toHaveBeenCalled()
+    })
+
+    it('getMultipleRaw() rejects the whole batch if any key is internal', () => {
+      expect(() => service.getMultipleRaw([BOOT_CONFIG_KEY, INTERNAL_KEY])).toThrow(/not accessible/)
+    })
+
+    it('subscribeForWindow() rejects an internal key and registers nothing', () => {
+      expect(() => service.subscribeForWindow(1, [INTERNAL_KEY])).toThrow(/not accessible/)
+      expect(service.getSubscriptions().size).toBe(0)
+    })
+
+    it('setMultiple() rejects a mixed batch before any partial write', async () => {
+      mockBootConfigGet.mockReturnValue(false)
+
+      await expect(
+        service.setMultiple({
+          [BOOT_CONFIG_KEY]: true,
+          [INTERNAL_KEY]: { status: 'pending' }
+        })
+      ).rejects.toThrow(/not accessible/)
+
+      // Neither the BootConfig write nor the DB transaction must have run.
+      expect(mockBootConfigSet).not.toHaveBeenCalled()
+      expect(mockWithWriteTx).not.toHaveBeenCalled()
+    })
+
+    it('getAll() excludes internal keys from the merged result', () => {
+      mockBootConfigGetAll.mockReturnValue({
+        'app.disable_hardware_acceleration': true,
+        'temp.user_data_relocation': { status: 'pending' }
+      })
+
+      const result = service.getAll()
+
+      expect(result[BOOT_CONFIG_KEY]).toBe(true)
+      expect(INTERNAL_KEY in result).toBe(false)
+    })
+  })
 })

@@ -110,7 +110,8 @@
         { "id": "assistants", "type": "app" },
         { "id": "agents", "type": "app" },
         { "id": "translate", "type": "app" },
-        { "id": "mini_app", "type": "app" }
+        { "id": "paintings", "type": "app" },
+        { "id": "knowledge", "type": "app" }
       ],
       "status": "classified",
       "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
@@ -139,7 +140,7 @@
     {
       "targetKey": "topic.tab.display_mode",
       "type": "PreferenceTypes.TopicDisplayMode",
-      "defaultValue": "time",
+      "defaultValue": "assistant",
       "status": "classified",
       "description": "Topic sidebar display grouping mode"
     },
@@ -153,7 +154,7 @@
     {
       "targetKey": "agent.session.display_mode",
       "type": "PreferenceTypes.AgentSessionDisplayMode",
-      "defaultValue": "workdir",
+      "defaultValue": "agent",
       "status": "classified",
       "description": "Agent session sidebar display grouping mode"
     },
