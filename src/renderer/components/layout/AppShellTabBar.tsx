@@ -1,13 +1,12 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { ArrowRightFromLine, ChevronsLeft, CopyX, Pin, PinOff, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, X } from 'lucide-react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
@@ -96,8 +95,6 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
   )
 }
 
-// Threshold below which the right-side X is hidden and icon-overlay X is used instead
-const NARROW_TAB_THRESHOLD = 64
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
 
 function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
@@ -130,22 +127,8 @@ const NormalTabButton = ({
   ref,
   ...rest
 }: NormalTabButtonProps) => {
-  const btnRef = useRef<HTMLButtonElement | null>(null)
-  const [isNarrow, setIsNarrow] = useState(false)
-
-  useEffect(() => {
-    const el = btnRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      setIsNarrow(entry.contentRect.width < NARROW_TAB_THRESHOLD)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   const setRefs = useCallback(
     (el: HTMLButtonElement | null) => {
-      btnRef.current = el
       tabRef(el)
       if (typeof ref === 'function') ref(el)
       else if (ref) ref.current = el
@@ -154,8 +137,6 @@ const NormalTabButton = ({
   )
 
   const canClose = showClose
-  const showRightClose = canClose && !isNarrow
-  const showIconOverlayClose = canClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -189,15 +170,14 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
+        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
-      {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
+      {/* Icon — X overlay replaces it on hover, same position at every tab width */}
       <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-        <TabIcon tab={tab} size={14} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
-        {showIconOverlayClose && (
+        <TabIcon tab={tab} size={14} className={cn(canClose && 'group-hover:hidden')} />
+        {canClose && (
           <div
             role="button"
             tabIndex={0}
@@ -224,28 +204,6 @@ const NormalTabButton = ({
         }}>
         {tab.title}
       </span>
-      {/* Right-side close button — only on wide tabs */}
-      {showRightClose && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.stopPropagation()
-              onClose()
-            }
-          }}
-          className={cn(
-            'nodrag ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
-            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          )}>
-          <X size={10} />
-        </div>
-      )}
     </button>
   )
 }
@@ -341,7 +299,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.move-to-first',
           label: t('tab.move_to_first'),
-          icon: <ChevronsLeft size={14} />,
           onSelect: onMoveToFirst
         }
       },
@@ -351,7 +308,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.pin',
           label: isPinned ? t('tab.unpin') : t('tab.pin'),
-          icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
           onSelect: onTogglePin
         }
       },
@@ -361,7 +317,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.open-in-new-window',
           label: t('tab.open_in_new_window'),
-          icon: <OpenInNewWindowIcon size={14} />,
           onSelect: onDetach
         }
       },
@@ -375,7 +330,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.close',
           label: t('tab.close'),
-          icon: <X size={14} />,
           onSelect: onClose
         }
       },
