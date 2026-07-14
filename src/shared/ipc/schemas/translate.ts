@@ -38,9 +38,26 @@ export const translateRequestSchemas = {
   'translate.pdf.cleanup': defineRoute({ input: pdfJobInputSchema, output: z.void() })
 }
 
+export type PdfTranslationProgressStage =
+  | 'parsing'
+  | 'analyzing'
+  | 'extracting_terms'
+  | 'translating'
+  | 'typesetting'
+  | 'rendering'
+  | 'processing'
+
+export interface PdfTranslationProgress {
+  stage: PdfTranslationProgressStage
+  progress: number
+}
+
 export type TranslateEventSchemas = {
   'translate.pdf.stage': {
     jobId: string
     stage: 'preparing' | 'translating'
+  }
+  'translate.pdf.progress': PdfTranslationProgress & {
+    jobId: string
   }
 }

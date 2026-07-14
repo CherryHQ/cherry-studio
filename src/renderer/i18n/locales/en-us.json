@@ -7906,6 +7906,18 @@
         "source": "Source PDF",
         "translated": "Bilingual PDF"
       },
+      "progress": {
+        "analyzing": "Analyzing document layout",
+        "extracting_terms": "Extracting terminology",
+        "parsing": "Parsing PDF",
+        "percent": "{{progress}}%",
+        "processing": "Processing PDF",
+        "rendering": "Generating bilingual PDF",
+        "status": "{{stage}} {{progress}}%",
+        "translating": "Translating paragraphs",
+        "typesetting": "Typesetting translation",
+        "value": "{{stage}}, {{progress}}%"
+      },
       "ready": {
         "description": "Select a target language and start translation.",
         "title": "Ready to translate"

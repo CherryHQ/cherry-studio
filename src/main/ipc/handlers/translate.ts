@@ -21,9 +21,18 @@ export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> =
   },
   'translate.pdf.start': async (request, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.start requires a managed window')
-    return application.get('PdfTranslationService').translate(request, (stage) => {
-      application.get('IpcApiService').send(senderId, 'translate.pdf.stage', { jobId: request.jobId, stage })
-    })
+    return application.get('PdfTranslationService').translate(
+      request,
+      (stage) => {
+        application.get('IpcApiService').send(senderId, 'translate.pdf.stage', { jobId: request.jobId, stage })
+      },
+      (progress) => {
+        application.get('IpcApiService').send(senderId, 'translate.pdf.progress', {
+          jobId: request.jobId,
+          ...progress
+        })
+      }
+    )
   },
   'translate.pdf.cancel': async ({ jobId }, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.cancel requires a managed window')

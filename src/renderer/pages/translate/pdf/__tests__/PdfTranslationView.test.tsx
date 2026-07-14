@@ -1,5 +1,6 @@
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import type { PdfTranslationProgress } from '@shared/ipc/schemas/translate'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,7 @@ import PdfTranslationView, { type PdfTranslationHandle } from '../PdfTranslation
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   navigate: vi.fn(),
+  progressHandler: null as null | ((payload: PdfTranslationProgress & { jobId: string }) => void),
   stageHandler: null as null | ((payload: { jobId: string; stage: 'preparing' | 'translating' }) => void),
   uuid: vi.fn(() => 'b289bad7-a813-4cf7-91c0-2a9dc82235b2')
 }))
@@ -15,8 +17,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.ipcRequest },
-  useIpcOn: (_event: string, handler: typeof mocks.stageHandler) => {
-    mocks.stageHandler = handler
+  useIpcOn: (event: string, handler: unknown) => {
+    if (event === 'translate.pdf.stage') mocks.stageHandler = handler as typeof mocks.stageHandler
+    if (event === 'translate.pdf.progress') mocks.progressHandler = handler as typeof mocks.progressHandler
   }
 }))
 vi.mock('@renderer/utils/uuid', () => ({ uuid: mocks.uuid }))
@@ -28,6 +31,7 @@ vi.mock('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel', () => ({
 describe('PdfTranslationView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.progressHandler = null
     mocks.stageHandler = null
   })
 
@@ -73,6 +77,55 @@ describe('PdfTranslationView', () => {
     await waitFor(() => expect(screen.getAllByTestId('pdf-preview')).toHaveLength(2))
     expect(screen.getAllByTestId('pdf-preview')[1]).toHaveAttribute('data-file-path', '/tmp/job/paper.zh-CN.dual.pdf')
     expect(onStatusChange).toHaveBeenLastCalledWith({ phase: 'success', running: false })
+  })
+
+  it('shows streamed progress for the active PDF translation job', async () => {
+    let resolveStart!: (result: { fileName: string; outputPath: string }) => void
+    const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
+      resolveStart = resolve
+    })
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') return startPromise
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        onClose={vi.fn()}
+        onHandleChange={(next) => {
+          handle = next
+        }}
+        onStatusChange={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+    await waitFor(() => expect(mocks.progressHandler).not.toBeNull())
+
+    act(() => {
+      mocks.progressHandler?.({ jobId: 'another-job', stage: 'translating', progress: 80 })
+    })
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'translating',
+        progress: 42
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.translating' })).toHaveAttribute(
+      'aria-valuenow',
+      '42'
+    )
+    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '42')
+
+    resolveStart({ fileName: 'paper.zh-CN.dual.pdf', outputPath: '/tmp/job/paper.zh-CN.dual.pdf' })
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
   })
 
   it('cancels an active job on unmount and cleans output that wins the completion race', async () => {

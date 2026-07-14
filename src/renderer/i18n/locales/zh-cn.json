@@ -7906,6 +7906,18 @@
         "source": "原始 PDF",
         "translated": "双语 PDF"
       },
+      "progress": {
+        "analyzing": "正在分析文档版式",
+        "extracting_terms": "正在提取术语",
+        "parsing": "正在解析 PDF",
+        "percent": "{{progress}}%",
+        "processing": "正在处理 PDF",
+        "rendering": "正在生成双语 PDF",
+        "status": "{{stage}} {{progress}}%",
+        "translating": "正在翻译段落",
+        "typesetting": "正在排版译文",
+        "value": "{{stage}}，{{progress}}%"
+      },
       "ready": {
         "description": "选择目标语言并开始翻译。",
         "title": "等待翻译"

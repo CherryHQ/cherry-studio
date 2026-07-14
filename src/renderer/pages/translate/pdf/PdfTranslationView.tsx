@@ -1,4 +1,4 @@
-import { Button, EmptyState, Tooltip } from '@cherrystudio/ui'
+import { Button, CircularProgress, EmptyState, Tooltip } from '@cherrystudio/ui'
 import PdfPreviewPanel from '@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel'
 import { LoadingState } from '@renderer/components/chat/primitives'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -9,7 +9,9 @@ import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/pr
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import type { PdfTranslationProgress, PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
 import { useNavigate } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,6 +48,25 @@ interface PdfTranslationOutput {
   fileName: string
 }
 
+const getProgressLabel = (t: TFunction, stage: PdfTranslationProgressStage): string => {
+  switch (stage) {
+    case 'parsing':
+      return t('translate.pdf.progress.parsing')
+    case 'analyzing':
+      return t('translate.pdf.progress.analyzing')
+    case 'extracting_terms':
+      return t('translate.pdf.progress.extracting_terms')
+    case 'translating':
+      return t('translate.pdf.progress.translating')
+    case 'typesetting':
+      return t('translate.pdf.progress.typesetting')
+    case 'rendering':
+      return t('translate.pdf.progress.rendering')
+    case 'processing':
+      return t('translate.pdf.progress.processing')
+  }
+}
+
 const PdfTranslationView = ({
   file,
   modelId,
@@ -59,6 +80,7 @@ const PdfTranslationView = ({
   const [phase, setPhase] = useState<PdfTranslationPhase>('idle')
   const [output, setOutput] = useState<PdfTranslationOutput | null>(null)
   const [error, setError] = useState<Error | null>(null)
+  const [progress, setProgress] = useState<PdfTranslationProgress | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
   const outputRef = useRef(output)
   outputRef.current = output
@@ -68,6 +90,7 @@ const PdfTranslationView = ({
     if (!jobId) return
     activeJobIdRef.current = null
     setPhase('idle')
+    setProgress(null)
     void ipcApi.request('translate.pdf.cancel', { jobId })
   }, [])
 
@@ -84,6 +107,7 @@ const PdfTranslationView = ({
       const jobId = uuid()
       activeJobIdRef.current = jobId
       setError(null)
+      setProgress(null)
       setPhase('preparing')
 
       void ipcApi
@@ -101,6 +125,7 @@ const PdfTranslationView = ({
           }
           activeJobIdRef.current = null
           setOutput({ jobId, ...result })
+          setProgress(null)
           setPhase('success')
           toast.success(t('translate.pdf.success'))
         })
@@ -109,6 +134,7 @@ const PdfTranslationView = ({
           activeJobIdRef.current = null
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
           setError(normalized)
+          setProgress(null)
           setPhase('error')
         })
     },
@@ -117,6 +143,13 @@ const PdfTranslationView = ({
 
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
     if (activeJobIdRef.current === jobId) setPhase(stage)
+  })
+  useIpcOn('translate.pdf.progress', ({ jobId, stage, progress: nextProgress }) => {
+    if (activeJobIdRef.current !== jobId) return
+    setProgress((current) => {
+      if (current && nextProgress < current.progress) return current
+      return { stage, progress: nextProgress }
+    })
   })
 
   const latestHandleRef = useRef({ cancel, start })
@@ -167,8 +200,11 @@ const PdfTranslationView = ({
     }
   }, [output, t])
 
-  const statusLabel =
-    phase === 'preparing'
+  const progressLabel = progress ? getProgressLabel(t, progress.stage) : null
+  const roundedProgress = progress ? Math.round(progress.progress) : null
+  const statusLabel = progress
+    ? t('translate.pdf.progress.status', { stage: progressLabel, progress: roundedProgress })
+    : phase === 'preparing'
       ? t('translate.pdf.status.preparing')
       : phase === 'translating'
         ? t('translate.pdf.status.translating')
@@ -216,7 +252,16 @@ const PdfTranslationView = ({
             <PdfPreviewPanel filePath={output.outputPath} fileName={output.fileName} refreshKey={0} />
           ) : running ? (
             <div className="flex h-full items-center justify-center">
-              <LoadingState label={statusLabel ?? undefined} />
+              {progress && progressLabel ? (
+                <PdfProgress
+                  progress={progress.progress}
+                  label={progressLabel}
+                  percentLabel={t('translate.pdf.progress.percent', { progress: roundedProgress })}
+                  valueText={t('translate.pdf.progress.value', { stage: progressLabel, progress: roundedProgress })}
+                />
+              ) : (
+                <LoadingState label={statusLabel ?? undefined} />
+              )}
             </div>
           ) : error ? (
             <EmptyState
@@ -235,6 +280,41 @@ const PdfTranslationView = ({
           )}
         </PdfPane>
       </div>
+    </div>
+  )
+}
+
+const PdfProgress = ({
+  progress,
+  label,
+  percentLabel,
+  valueText
+}: {
+  progress: number
+  label: string
+  percentLabel: string
+  valueText: string
+}) => {
+  const roundedProgress = Math.round(progress)
+  return (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <div
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={roundedProgress}
+        aria-valuetext={valueText}>
+        <CircularProgress
+          value={roundedProgress}
+          size={72}
+          strokeWidth={5}
+          showLabel
+          renderLabel={() => percentLabel}
+          labelClassName="font-medium text-foreground text-xs"
+        />
+      </div>
+      <span className="max-w-56 text-muted-foreground text-sm">{label}</span>
     </div>
   )
 }
