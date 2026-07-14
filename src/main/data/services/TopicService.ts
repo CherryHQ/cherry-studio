@@ -157,9 +157,11 @@ function buildRecordFilters(query: {
   const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
   if (search) filters.push(search)
   if (query.assistantId === 'unlinked') {
+    // assistantId IS NULL or the referenced assistant is soft-deleted — the live join fails either way.
     filters.push(isNull(assistantTable.id))
   } else if (query.assistantId !== undefined) {
-    filters.push(eq(topicTable.assistantId, query.assistantId))
+    // Concrete owner scope matches live assistants only.
+    filters.push(eq(assistantTable.id, query.assistantId))
   }
   if (query.ids !== undefined) filters.push(inArray(topicTable.id, query.ids))
   return filters

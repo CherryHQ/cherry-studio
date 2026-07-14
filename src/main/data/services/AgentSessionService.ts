@@ -92,7 +92,11 @@ function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSe
 /**
  * Shared record filters for the flat list and stats paths.
  * `pinned` is NOT built here — it needs the pin subquery and only applies to
- * lists. Sessions are hard-deleted, so there is no deletedAt guard.
+ * lists. Sessions are hard-deleted, so there is no session deletedAt guard.
+ *
+ * Owner-scope filters read the LEFT-JOINed `agentsTable` (joined on live agents
+ * only), so every query using these filters must join `agentsTable` on
+ * `sessionsTable.agentId = agentsTable.id AND agentsTable.deletedAt IS NULL`.
  */
 function buildSessionRecordFilters(query: {
   q?: string
@@ -105,9 +109,11 @@ function buildSessionRecordFilters(query: {
   const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
   if (search) filters.push(search)
   if (query.agentId === 'unlinked') {
-    filters.push(isNull(sessionsTable.agentId))
+    // agentId IS NULL or the referenced agent is soft-deleted — the live agent join fails either way.
+    filters.push(isNull(agentsTable.id))
   } else if (query.agentId !== undefined) {
-    filters.push(eq(sessionsTable.agentId, query.agentId))
+    // Concrete owner scope matches live agents only.
+    filters.push(eq(agentsTable.id, query.agentId))
   }
   if (query.ids !== undefined) filters.push(inArray(sessionsTable.id, query.ids))
   if (query.workspaceId === 'system') {
@@ -301,7 +307,9 @@ export class AgentSessionService {
     const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-sessions-pinned')
     if (cursor) filters.push(where(cursor))
 
-    let builder = db
+    // Always LEFT JOIN live agents so owner-scope filters and name-or-owner
+    // search share one join and non-live owners normalize consistently.
+    const rows = db
       .select({
         session: sessionsTable,
         workspace: agentWorkspaceTable,
@@ -311,14 +319,7 @@ export class AgentSessionService {
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-      .$dynamic()
-    if (query.searchScope === 'name-or-owner') {
-      builder = builder.leftJoin(
-        agentsTable,
-        and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt))
-      )
-    }
-    const rows = builder
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(...filters))
       .orderBy(...orderBy)
       .limit(limit + 1)
@@ -339,7 +340,8 @@ export class AgentSessionService {
    * `TopicService.listFlatByCursor`: `createdAt` → immutable creation order,
    * `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey` →
    * manual order (`ASC, id ASC`), with the shared `(sortValue, id)` cursor.
-   * `searchScope: 'name-or-owner'` LEFT JOINs the live agent table for agent-name matches.
+   * Always LEFT JOINs live agents so owner-scope filters and name-or-owner
+   * search share one join.
    */
   private listFlatByCursor(
     query: ListAgentSessionsQuery,
@@ -367,7 +369,7 @@ export class AgentSessionService {
       : decodeListCursor(query.cursor, asStringKey, 'agent-sessions-flat')
     if (cursor) filters.push(where(cursor))
 
-    let builder = db
+    const rows = db
       .select({
         session: sessionsTable,
         workspace: agentWorkspaceTable,
@@ -376,14 +378,7 @@ export class AgentSessionService {
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-      .$dynamic()
-    if (query.searchScope === 'name-or-owner') {
-      builder = builder.leftJoin(
-        agentsTable,
-        and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt))
-      )
-    }
-    const rows = builder
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(...filters))
       .orderBy(...orderBy)
       .limit(limit + 1)
@@ -418,18 +413,24 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const filters = buildSessionRecordFilters(query)
     const pinJoin = and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id))
+    const agentLiveJoin = and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt))
+    // No-live-agent rows (null agentId or soft-deleted agent) fold into the null unlinked entry.
+    const agentScope = sql<string | null>`CASE
+      WHEN ${agentsTable.id} IS NULL THEN NULL
+      ELSE ${sessionsTable.agentId} END`
 
     const byAgentRows = db
       .select({
-        agentId: sessionsTable.agentId,
+        agentId: agentScope,
         count: count(),
         pinnedCount: count(pinTable.id)
       })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, agentLiveJoin)
       .leftJoin(pinTable, pinJoin)
       .where(and(...filters))
-      .groupBy(sessionsTable.agentId)
+      .groupBy(agentScope)
       .all()
 
     let total = 0
@@ -461,6 +462,7 @@ export class AgentSessionService {
       })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, agentLiveJoin)
       .leftJoin(pinTable, pinJoin)
       .where(and(...filters))
       .groupBy(workspaceScopeExpr)

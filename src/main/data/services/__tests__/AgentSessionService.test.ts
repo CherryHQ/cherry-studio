@@ -274,6 +274,35 @@ describe('AgentSessionService', () => {
       expect(unlinked.items.map((s) => s.id)).toEqual(['s4', 's3'])
     })
 
+    it('treats sessions owned by a soft-deleted agent as unlinked, not the concrete owner', async () => {
+      await seedFlat()
+      const workspace = await createWorkspace('dead-agent')
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-dead',
+        type: 'claude-code',
+        name: 'Dead Agent',
+        instructions: 'x',
+        model: null,
+        orderKey: 'a1',
+        deletedAt: 999
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 's-dead',
+        agentId: 'agent-dead',
+        name: 'Orphaned',
+        workspaceId: workspace.id,
+        orderKey: 'a4',
+        createdAt: 5,
+        updatedAt: 500
+      })
+
+      // Soft-deleted owner → appears under the unlinked scope alongside the null-agent rows.
+      const unlinked = agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'unlinked' })
+      expect(unlinked.items.map((s) => s.id)).toEqual(['s-dead', 's4', 's3'])
+      // ...and is never returned for the concrete (now dead) owner scope.
+      expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'agent-dead' }).items).toEqual([])
+    })
+
     it('filters by pinned=true / pinned=false', async () => {
       await seedFlat()
       expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', pinned: true }).items.map((s) => s.id)).toEqual([
@@ -408,6 +437,37 @@ describe('AgentSessionService', () => {
         { agentId: null, count: 1, pinnedCount: 0 }
       ])
       expect(stats.byWorkspace).toEqual([{ workspaceId: workspace.id, count: 3, pinnedCount: 1 }])
+    })
+
+    it('folds sessions owned by a soft-deleted agent into the null byAgent entry', async () => {
+      await seedStats()
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-dead',
+        type: 'claude-code',
+        name: 'Dead Agent',
+        instructions: 'x',
+        model: null,
+        orderKey: 'a1',
+        deletedAt: 999
+      })
+      const workspace = await createWorkspace('stats-dead')
+      await dbh.db.insert(agentSessionTable).values({
+        id: 's-dead',
+        agentId: 'agent-dead',
+        name: 'Orphaned',
+        workspaceId: workspace.id,
+        orderKey: 'a3',
+        updatedAt: 400
+      })
+
+      const stats = agentSessionService.stats()
+      // seedStats already has one null-agent session (s3); the dead-owner session folds into the same bucket.
+      expect(stats.byAgent.find((entry) => entry.agentId === null)).toEqual({
+        agentId: null,
+        count: 2,
+        pinnedCount: 0
+      })
+      expect(stats.byAgent.some((entry) => entry.agentId === 'agent-dead')).toBe(false)
     })
 
     it('applies owner scope and name search filters', async () => {
