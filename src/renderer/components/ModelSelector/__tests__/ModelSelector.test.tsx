@@ -655,6 +655,21 @@ describe('ModelSelector', () => {
     await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'start' }))
   })
 
+  it('positions the selected model before the next animation frame when opened', () => {
+    mockDeferredAnimationFrames()
+    const selectedModelId = 'openai::gpt-3.5' as UniqueModelId
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: [selectedModelId],
+        visibleSelectedModelIdSet: makeSelectedSet([selectedModelId])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
+  })
+
   it('refetches models, providers, and pinned models when controlled open switches to true', async () => {
     const refetchModels = vi.fn(async () => undefined)
     const refetchProviders = vi.fn(async () => undefined)

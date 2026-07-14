@@ -17,6 +17,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -452,6 +453,21 @@ export function ModelSelector(props: ModelSelectorProps) {
     [setFocusedItemKey]
   )
 
+  const focusItemBeforePaint = useCallback(
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
+      setFocusedItemKey(key)
+      const index = listItemsRef.current.findIndex((item) => item.key === key)
+      if (index < 0) return
+
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current)
+        focusScrollFrameRef.current = null
+      }
+      listRef.current?.scrollToIndex(index, { align })
+    },
+    [setFocusedItemKey]
+  )
+
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
       skipNextFocusScroll.current = true
@@ -634,7 +650,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const currentModelItems = modelItemsRef.current
     if (!open || isLoading || currentModelItems.length === 0) {
       return
@@ -652,9 +668,11 @@ export function ModelSelector(props: ModelSelectorProps) {
           currentModelItems[0]?.key)
 
     if (targetKey) {
-      focusItem(targetKey, 'start')
+      // Position the virtual list before paint so opening does not briefly show
+      // the first rows before jumping to the selected model on the next frame.
+      focusItemBeforePaint(targetKey, 'start')
     }
-  }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
+  }, [deferredSearchText, focusItemBeforePaint, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
