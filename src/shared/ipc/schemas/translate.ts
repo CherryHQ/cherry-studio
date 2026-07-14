@@ -52,10 +52,13 @@ export interface PdfTranslationProgress {
   progress: number
 }
 
+/** Coarse pipeline stage reported via `onStage`, distinct from the fine-grained `PdfTranslationProgressStage`. */
+export type PdfTranslationStage = 'preparing' | 'downloading_assets' | 'translating'
+
 export type TranslateEventSchemas = {
   'translate.pdf.stage': {
     jobId: string
-    stage: 'preparing' | 'downloading_assets' | 'translating'
+    stage: PdfTranslationStage
   }
   'translate.pdf.progress': PdfTranslationProgress & {
     jobId: string

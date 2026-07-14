@@ -16,7 +16,11 @@ import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
-import type { PdfTranslationProgress, PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
+import type {
+  PdfTranslationProgress,
+  PdfTranslationProgressStage,
+  PdfTranslationStage
+} from '@shared/ipc/schemas/translate'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { Mutex } from 'async-mutex'
 import { stringify as stringifyToml } from 'smol-toml'
@@ -71,6 +75,11 @@ const babeldocProgressSchema = z.strictObject({
   stage: z.string().min(1),
   progress: z.number().finite().min(0).max(100)
 })
+// Env vars forwarded from the user shell into the BabelDOC (Python) sidecar. The
+// allowlist deliberately excludes the user's provider API keys (OPENAI_API_KEY, …):
+// BabelDOC's key is injected via babeldoc.toml pointing at the local gateway, so
+// forwarding the real keys would only risk leaking them into the child's logs.
+// Parallels BinaryManager's MISE_PASSTHROUGH_ENV.
 const SIDECAR_ENV_KEYS = new Set([
   'ALL_PROXY',
   'COMSPEC',
@@ -97,9 +106,7 @@ const BABELDOC_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
 const createOcrRequiredError = (): IpcError =>
   new IpcError(translateErrorCodes.PDF_OCR_REQUIRED, 'OCR translation for scanned PDFs is not supported yet')
 
-export type PdfTranslationStage = 'preparing' | 'downloading_assets' | 'translating'
-
-export interface PdfTranslationRequest {
+interface PdfTranslationRequest {
   jobId: string
   sourcePath: string
   sourceLangCode: TranslateSourceLanguage
@@ -107,7 +114,7 @@ export interface PdfTranslationRequest {
   modelId: UniqueModelId
 }
 
-export interface PdfTranslationResult {
+interface PdfTranslationResult {
   outputPath: string
   fileName: string
 }
@@ -247,7 +254,8 @@ export class PdfTranslationService extends BaseService {
   }
 
   private async resolveSidecar(): Promise<string> {
-    const installed = application.get('BinaryManager').getState().tools[BABELDOC_BINARY_TOOL_PRESET.name]
+    const binaryManager = application.get('BinaryManager')
+    const installed = binaryManager.getState().tools[BABELDOC_BINARY_TOOL_PRESET.name]
     if (
       installed?.tool !== BABELDOC_BINARY_TOOL_PRESET.tool ||
       installed.version !== BABELDOC_BINARY_TOOL_PRESET.version
@@ -473,7 +481,8 @@ export class PdfTranslationService extends BaseService {
       if (this.gatewayLeaseCount > 0 || !this.gatewayStartedByService) return
 
       try {
-        await application.get('ApiGatewayService').stop()
+        const gateway = application.get('ApiGatewayService')
+        await gateway.stop()
       } catch (error) {
         logger.warn('Failed to stop temporary API gateway', error as Error)
       } finally {
