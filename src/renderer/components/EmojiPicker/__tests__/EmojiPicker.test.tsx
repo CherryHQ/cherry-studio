@@ -135,7 +135,9 @@ describe('EmojiPicker', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
 
     expect(css).toContain('.cherry-emoji-picker-react .epr-emoji-category-label')
-    expect(css).toContain('font-size: 13px')
+    expect(css).toContain('font-size: 14px')
+    expect(css).toContain('font-weight: var(--font-weight-regular)')
+    expect(css).toContain('line-height: 22px')
     expect(css).toContain('padding-left: calc(var(--epr-horizontal-padding) + var(--epr-emoji-padding))')
     expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn:focus::before')
     expect(css).toContain('--cherry-emoji-category-focus-size: 30px')

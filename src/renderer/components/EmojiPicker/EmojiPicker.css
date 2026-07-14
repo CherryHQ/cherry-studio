@@ -3,8 +3,9 @@
 }
 
 .cherry-emoji-picker-react .epr-emoji-category-label {
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 14px;
+  font-weight: var(--font-weight-regular);
+  line-height: 22px;
   padding-left: calc(var(--epr-horizontal-padding) + var(--epr-emoji-padding));
 }
 
