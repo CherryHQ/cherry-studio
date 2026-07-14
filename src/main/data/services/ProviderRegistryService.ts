@@ -40,6 +40,8 @@ export interface ProviderDisplayMetadata {
   modelListSource?: 'api' | 'registry'
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
+  /** Registry capability: serves requests without any credential (default false). */
+  authOptional?: boolean
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -445,7 +447,8 @@ class ProviderRegistryService {
         description: provider?.description,
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
-        authMethods: provider?.authMethods
+        authMethods: provider?.authMethods,
+        authOptional: provider?.authOptional
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

@@ -518,6 +518,33 @@ describe('copy', () => {
     const out = await readFile(dest)
     expect(out.equals(bytes)).toBe(true)
   })
+
+  it('rejects with an AbortError when the signal is already aborted', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(fsCopy(src as FilePath, dest as FilePath, controller.signal)).rejects.toThrow(/abort/i)
+    // No partial dest committed (rename only on successful finish) and no tmp residue.
+    expect(await exists(dest as FilePath)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('interrupts an in-flight copy when aborted (no tmp residue, dest not committed)', async () => {
+    const src = path.join(tmp, 'big.bin')
+    const dest = path.join(tmp, 'dest.bin')
+    // Large enough that the copy is still streaming when we abort on the same tick.
+    await writeFile(src, Buffer.alloc(16 * 1024 * 1024))
+    const controller = new AbortController()
+    const pending = fsCopy(src as FilePath, dest as FilePath, controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow(/abort/i)
+    expect(await exists(dest as FilePath)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
 })
 
 describe('move', () => {

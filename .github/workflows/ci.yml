@@ -53,8 +53,10 @@ jobs:
   catalog-hand-edit-check:
     # provider-registry data/*.json are GENERATED from src/creators + src/providers. Catch a hand-edit:
     # if the data changed but no source under src/ or scripts/ did, the JSON was edited directly.
+    # The daily auto-update-catalog workflow regenerates data/ with no src change, so exempt its PR only:
+    # the exact bot branch AND a same-repo head, so a fork or an arbitrary branch name can't bypass the guard.
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && !(github.head_ref == 'auto-update-catalog-daily' && github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6

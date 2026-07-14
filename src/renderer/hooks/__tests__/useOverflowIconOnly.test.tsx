@@ -1,23 +1,23 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { useComposerBottomToolbarIconOnly } from '../useComposerBottomToolbarIconOnly'
+import { useOverflowIconOnly } from '../useOverflowIconOnly'
 
 const originalResizeObserver = globalThis.ResizeObserver
 
 function ToolbarProbe() {
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const { iconOnly, containerRef } = useOverflowIconOnly()
 
-  return <div ref={toolbarRef} data-testid="toolbar" data-icon-only={String(iconOnly)} />
+  return <div ref={containerRef} data-testid="toolbar" data-icon-only={String(iconOnly)} />
 }
 
-describe('useComposerBottomToolbarIconOnly', () => {
+describe('useOverflowIconOnly', () => {
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver
     vi.restoreAllMocks()
   })
 
-  it('does not oscillate when compact mode changes the measured toolbar width', async () => {
+  it('does not oscillate when compact mode changes the measured container width', async () => {
     globalThis.ResizeObserver = undefined as unknown as typeof ResizeObserver
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function clientWidth(this: HTMLElement) {
       return this.getAttribute('data-icon-only') === 'true' ? 200 : 100
