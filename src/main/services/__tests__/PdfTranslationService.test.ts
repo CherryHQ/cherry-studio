@@ -104,7 +104,7 @@ describe('PdfTranslationService', () => {
       const outputDir = args[args.indexOf('--output') + 1]
       fs.mkdirSync(outputDir, { recursive: true })
       const targetLanguage = args[args.indexOf('--lang-out') + 1]
-      fs.writeFileSync(path.join(outputDir, `research paper.${targetLanguage}.dual.pdf`), '%PDF-dual')
+      fs.writeFileSync(path.join(outputDir, `research paper.${targetLanguage}.mono.pdf`), '%PDF-mono')
       queueMicrotask(() => child.emit('close', 0, null))
       return child
     })
@@ -114,7 +114,7 @@ describe('PdfTranslationService', () => {
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
   })
 
-  it('uses the manually installed BabelDOC, routes the selected model through Cherry Gateway, and returns the dual PDF', async () => {
+  it('uses the manually installed BabelDOC, routes the selected model through Cherry Gateway, and returns the translated PDF', async () => {
     const service = new PdfTranslationService()
 
     const result = await service.translate({
@@ -142,7 +142,7 @@ describe('PdfTranslationService', () => {
         'en-US',
         '--lang-out',
         'zh-CN',
-        '--no-mono'
+        '--no-dual'
       ]),
       expect.objectContaining({
         cwd: expect.stringContaining('job-1'),
@@ -153,13 +153,14 @@ describe('PdfTranslationService', () => {
       expect.objectContaining({ HOME: expect.stringContaining('runtime') })
     )
     const args = mocks.spawn.mock.calls[0][1] as string[]
+    expect(args).not.toContain('--no-mono')
     const configPath = args[args.indexOf('--config') + 1]
     expect(configPath).toContain('job-1')
     expect(args).not.toContain('cs-sk-test')
     expect(fs.existsSync(configPath)).toBe(false)
     expect(result).toEqual({
-      fileName: 'research paper.zh-CN.dual.pdf',
-      outputPath: expect.stringContaining(path.join('job-1', 'research paper.zh-CN.dual.pdf'))
+      fileName: 'research paper.zh-CN.mono.pdf',
+      outputPath: expect.stringContaining(path.join('job-1', 'research paper.zh-CN.mono.pdf'))
     })
   })
 
@@ -178,7 +179,7 @@ describe('PdfTranslationService', () => {
       adapterPath = path.join(options.env.PYTHONPATH, 'sitecustomize.py')
       expect(fs.existsSync(adapterPath)).toBe(true)
       const outputDir = args[args.indexOf('--output') + 1]
-      fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.dual.pdf'), '%PDF-dual')
+      fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.mono.pdf'), '%PDF-mono')
       queueMicrotask(() => {
         child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Parse PDF","progress":12.4}\n')
         child.stdout.write('__CHERRY_BABELDOC_PROGRESS__not-json\n')
@@ -225,7 +226,7 @@ describe('PdfTranslationService', () => {
 
     const args = mocks.spawn.mock.calls[0][1] as string[]
     expect(args).toEqual(expect.arrayContaining(['--lang-in', 'zh-CN', '--lang-out', 'zh-TW']))
-    expect(result.fileName).toBe('research paper.zh-TW.dual.pdf')
+    expect(result.fileName).toBe('research paper.zh-TW.mono.pdf')
   })
 
   it.each([
@@ -330,7 +331,7 @@ describe('PdfTranslationService', () => {
       child.kill = vi.fn()
       const outputDir = args[args.indexOf('--output') + 1]
       fs.mkdirSync(outputDir, { recursive: true })
-      fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.dual.pdf'), '%PDF-dual')
+      fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.mono.pdf'), '%PDF-mono')
       children.set(path.basename(outputDir), child)
       return child
     })

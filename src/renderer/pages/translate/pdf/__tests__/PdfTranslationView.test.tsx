@@ -35,10 +35,10 @@ describe('PdfTranslationView', () => {
     mocks.stageHandler = null
   })
 
-  it('translates through IpcApi and previews the generated bilingual PDF beside the source', async () => {
+  it('translates through IpcApi and previews the translated PDF beside the source', async () => {
     mocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route === 'translate.pdf.start') {
-        return { fileName: 'paper.zh-CN.dual.pdf', outputPath: '/tmp/job/paper.zh-CN.dual.pdf' }
+        return { fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' }
       }
       return undefined
     })
@@ -75,7 +75,7 @@ describe('PdfTranslationView', () => {
       })
     )
     await waitFor(() => expect(screen.getAllByTestId('pdf-preview')).toHaveLength(2))
-    expect(screen.getAllByTestId('pdf-preview')[1]).toHaveAttribute('data-file-path', '/tmp/job/paper.zh-CN.dual.pdf')
+    expect(screen.getAllByTestId('pdf-preview')[1]).toHaveAttribute('data-file-path', '/tmp/job/paper.zh-CN.mono.pdf')
     expect(onStatusChange).toHaveBeenLastCalledWith({ phase: 'success', running: false })
   })
 
@@ -124,7 +124,7 @@ describe('PdfTranslationView', () => {
     )
     expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '42')
 
-    resolveStart({ fileName: 'paper.zh-CN.dual.pdf', outputPath: '/tmp/job/paper.zh-CN.dual.pdf' })
+    resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
   })
 
@@ -159,7 +159,7 @@ describe('PdfTranslationView', () => {
       jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
     })
 
-    resolveStart({ fileName: 'paper.zh-CN.dual.pdf', outputPath: '/tmp/job/paper.zh-CN.dual.pdf' })
+    resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
     await waitFor(() =>
       expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.cleanup', {
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'

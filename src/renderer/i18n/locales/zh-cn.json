@@ -6089,7 +6089,7 @@
       },
       "title": "环境依赖",
       "tools": {
-        "babeldoc": "保留版式的双语 PDF 翻译引擎。首次翻译时会下载版面模型资源。",
+        "babeldoc": "保留版式的 PDF 翻译引擎。首次翻译时会下载版面模型资源。",
         "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
         "claude": "Anthropic 的终端智能编程工具。",
         "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
@@ -7894,17 +7894,17 @@
     "pdf": {
       "action": {
         "close": "关闭 PDF 翻译",
-        "export": "导出双语 PDF",
+        "export": "导出译文 PDF",
         "open_dependencies": "打开环境依赖"
       },
       "error": {
         "dependency_missing": "请先在环境依赖中安装 BabelDOC 0.6.3，再翻译 PDF。",
         "title": "PDF 翻译失败"
       },
-      "export_failed": "导出双语 PDF 失败",
+      "export_failed": "导出译文 PDF 失败",
       "pane": {
         "source": "原始 PDF",
-        "translated": "双语 PDF"
+        "translated": "译文 PDF"
       },
       "progress": {
         "analyzing": "正在分析文档版式",
@@ -7912,7 +7912,7 @@
         "parsing": "正在解析 PDF",
         "percent": "{{progress}}%",
         "processing": "正在处理 PDF",
-        "rendering": "正在生成双语 PDF",
+        "rendering": "正在生成译文 PDF",
         "status": "{{stage}} {{progress}}%",
         "translating": "正在翻译段落",
         "typesetting": "正在排版译文",
@@ -7926,7 +7926,7 @@
         "preparing": "正在准备 PDF 翻译...",
         "translating": "正在翻译 PDF..."
       },
-      "success": "双语 PDF 已生成"
+      "success": "译文 PDF 已生成"
     },
     "preferred_target": "首选目标",
     "processing": "翻译中...",

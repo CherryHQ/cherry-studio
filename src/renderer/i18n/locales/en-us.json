@@ -6089,7 +6089,7 @@
       },
       "title": "Dependencies",
       "tools": {
-        "babeldoc": "Layout-preserving bilingual PDF translation engine. Layout model assets are downloaded on the first translation.",
+        "babeldoc": "Layout-preserving PDF translation engine. Layout model assets are downloaded on the first translation.",
         "bun": "JavaScript runtime used by MCP services and related toolchains.",
         "claude": "Anthropic's agentic coding tool for the terminal.",
         "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
@@ -7894,17 +7894,17 @@
     "pdf": {
       "action": {
         "close": "Close PDF translation",
-        "export": "Export bilingual PDF",
+        "export": "Export translated PDF",
         "open_dependencies": "Open Environment Dependencies"
       },
       "error": {
         "dependency_missing": "Install BabelDOC 0.6.3 from Environment Dependencies before translating PDFs.",
         "title": "PDF translation failed"
       },
-      "export_failed": "Failed to export bilingual PDF",
+      "export_failed": "Failed to export translated PDF",
       "pane": {
         "source": "Source PDF",
-        "translated": "Bilingual PDF"
+        "translated": "Translated PDF"
       },
       "progress": {
         "analyzing": "Analyzing document layout",
@@ -7912,7 +7912,7 @@
         "parsing": "Parsing PDF",
         "percent": "{{progress}}%",
         "processing": "Processing PDF",
-        "rendering": "Generating bilingual PDF",
+        "rendering": "Generating translated PDF",
         "status": "{{stage}} {{progress}}%",
         "translating": "Translating paragraphs",
         "typesetting": "Typesetting translation",
@@ -7926,7 +7926,7 @@
         "preparing": "Preparing PDF translation...",
         "translating": "Translating PDF..."
       },
-      "success": "Bilingual PDF generated"
+      "success": "Translated PDF generated"
     },
     "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",
