@@ -380,8 +380,13 @@ export const ToolBlockGroup = React.memo(
             </AccordionTrigger>
             <AccordionContent
               data-testid="child-tool-group-content"
-              className="p-0 pt-1 text-inherit"
+              className="p-0 text-inherit"
               contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
+              <div
+                aria-hidden="true"
+                data-testid="child-tool-group-divider"
+                className="my-1.5 h-px w-full bg-border-subtle"
+              />
               {children ?? <ToolBlockGroupContent items={items} />}
             </AccordionContent>
           </AccordionItem>
