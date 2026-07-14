@@ -2537,6 +2537,25 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeProviderUnmounts).toBe(1)
   })
 
+  it('restores composer focus after closing the active session agent edit dialog', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Agent').closest('button')!)
+    await screen.findByTestId('resource-edit-dialog-host')
+
+    fireEvent.click(screen.getByText('close edit dialog'))
+
+    expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the active session agent control visible in classic layout', () => {
     mocks.sessionLayout = 'classic'
 

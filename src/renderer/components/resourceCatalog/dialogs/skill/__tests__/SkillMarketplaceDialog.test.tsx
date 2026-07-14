@@ -178,7 +178,7 @@ beforeEach(() => {
 })
 
 function renderDialog(props: Partial<ComponentProps<typeof SkillMarketplaceDialog>> = {}) {
-  return render(<SkillMarketplaceDialog open onOpenChange={vi.fn()} onInstalled={vi.fn()} {...props} />)
+  return render(<SkillMarketplaceDialog open onOpenChange={vi.fn()} {...props} />)
 }
 
 function typeSearchQuery(query: string) {
@@ -297,11 +297,10 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
   })
 
-  it('installs a marketplace skill, keeps the dialog open, and notifies the parent', async () => {
+  it('installs a marketplace skill and keeps the dialog open', async () => {
     const user = userEvent.setup()
-    const onInstalled = vi.fn()
     const onOpenChange = vi.fn()
-    renderDialog({ onInstalled, onOpenChange })
+    renderDialog({ onOpenChange })
 
     typeSearchQuery('code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
@@ -309,7 +308,6 @@ describe('SkillMarketplaceDialog', () => {
     await waitFor(() => {
       expect(installMock).toHaveBeenCalledWith('skills.sh:vercel/skills/react-skill')
     })
-    expect(onInstalled).toHaveBeenCalledTimes(1)
     expect(onOpenChange).not.toHaveBeenCalled()
     expect(toastSuccess).toHaveBeenCalledWith('settings.skills.installSuccess:Installed Skill')
     expect(await screen.findByText('settings.skills.installed')).toBeInTheDocument()

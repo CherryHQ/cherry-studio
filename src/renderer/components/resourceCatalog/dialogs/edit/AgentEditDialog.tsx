@@ -31,10 +31,10 @@ import {
   type ClaudeToolCategory,
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
+import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { InstalledSkill } from '@shared/types/skill'
-import { Sparkles, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Wrench } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -53,6 +53,7 @@ import {
   TextInputField
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { SkillCatalogPicker } from '../skill'
 
 export type AgentEditDialogProps = EditDialogBaseProps<AgentDetail> & {
   resource: AgentDetail | null
@@ -208,6 +209,7 @@ function AgentEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
+  const initializedResourceIdRef = useRef<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -251,8 +253,39 @@ function AgentEditDialogContent({
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
+  // Cache refresh can replace `resource` before the controlled dialog closes.
+  // Initialize once per open resource id so that refresh cannot flash the initial form.
+  // A same-id refresh instead merges the fresh values into pristine fields (dirty
+  // fields keep the user's edits) so that saving cannot write stale data back over
+  // the refresh; `saveIntent` diffs against the refreshed resource, so merged fields
+  // stay out of the PATCH. `skillIds` is excluded: its baseline comes from the
+  // installed-skills query, not `resource`.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedResourceIdRef.current = null
+      return
+    }
+    if (initializedResourceIdRef.current === resource.id) {
+      if (!form.formState.isSubmitting) {
+        const dirtyModelFields = {
+          modelId: form.getFieldState('modelId').isDirty,
+          planModelId: form.getFieldState('planModelId').isDirty,
+          smallModelId: form.getFieldState('smallModelId').isDirty
+        }
+        form.reset(
+          { ...defaultValues, skillIds: form.getValues('skillIds') },
+          { keepDirtyValues: true, keepErrors: true }
+        )
+        const refreshedModelLabels = modelLabelsForAgent(resource)
+        setModelLabels((currentLabels) => ({
+          modelId: dirtyModelFields.modelId ? currentLabels.modelId : refreshedModelLabels.modelId,
+          planModelId: dirtyModelFields.planModelId ? currentLabels.planModelId : refreshedModelLabels.planModelId,
+          smallModelId: dirtyModelFields.smallModelId ? currentLabels.smallModelId : refreshedModelLabels.smallModelId
+        }))
+      }
+      return
+    }
+    initializedResourceIdRef.current = resource.id
 
     form.reset(defaultValues)
     form.clearErrors()
@@ -647,24 +680,6 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
-  const skillCatalog = useMemo<CatalogItem[]>(
-    () =>
-      skills.map((skill) => ({
-        id: skill.id,
-        name: skill.name,
-        description: skill.description,
-        icon: <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" />
-      })),
-    [skills]
-  )
-  const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
-  const setSkillEnabled = (id: string, enabled: boolean) =>
-    form.setValue(
-      'skillIds',
-      enabled ? Array.from(new Set([...skillIds, id])) : skillIds.filter((skillId) => skillId !== id),
-      { shouldDirty: true }
-    )
-
   return (
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
@@ -693,18 +708,19 @@ function AgentToolsFields({
         />
       ) : null}
       {activeToolTab === 'tools.skills' ? (
-        <CatalogToggleGrid
-          items={skillCatalog}
-          enabledIds={enabledSkillIds}
+        <SkillCatalogPicker
+          mode="edit"
+          skills={skills}
           loading={skillsLoading}
-          disabled={!canManageSkills}
-          onToggle={setSkillEnabled}
+          selectedIds={skillIds}
+          onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
           emptyLabel={
             canManageSkills
               ? t('library.config.agent.section.tools.no_skills_enabled')
               : t('library.config.agent.section.tools.skills_require_save')
           }
           portalContainer={portalContainer}
+          disabled={!canManageSkills}
         />
       ) : null}
     </div>
