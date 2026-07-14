@@ -811,14 +811,14 @@ describe('BinaryManager', () => {
   })
 
   describe('claimTool', () => {
-    // ls --json returns installed versions; which returns a shim path so the
-    // runnable check passes. No use/reshim/uninstall may ever be invoked.
+    // `mise ls --json <spec>` returns the installed entries keyed exactly as mise
+    // reports them (a `core:` runtime is reported under its bare name). The map
+    // is returned verbatim so a test can simulate mise responding under an
+    // unexpected/alias key. `which` returns a shim path so the runnable check
+    // passes. No use/reshim/uninstall may ever be invoked.
     const mockInstalled = (byTool: Record<string, Array<{ version?: string; active?: boolean }>>, shim = true) => {
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') {
-          const tool = args[2]
-          return { stdout: JSON.stringify(tool ? { [tool]: byTool[tool] ?? [] } : byTool), stderr: '' }
-        }
+        if (args[0] === 'ls') return { stdout: JSON.stringify(byTool), stderr: '' }
         if (args[0] === 'which') return { stdout: shim ? '/mock/mise/shims/fd\n' : '', stderr: '' }
         throw new Error(`unexpected mise invocation: ${args.join(' ')}`)
       })
@@ -835,13 +835,9 @@ describe('BinaryManager', () => {
 
       expect(result.version).toBe('10.0.0')
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'fd', tool: 'fd' }])
-      // Ownership-only: never install/switch/reshim/remove.
+      // Ownership-only: only query subcommands (ls/which) run — never a mutation.
       const subs = miseSubcommands()
-      expect(subs).not.toContain('use')
-      expect(subs).not.toContain('reshim')
-      expect(subs).not.toContain('uninstall')
-      expect(subs).not.toContain('unuse')
-      expect(subs).not.toContain('install')
+      expect(subs.every((sub) => sub === 'ls' || sub === 'which')).toBe(true)
     })
 
     it('rejects and does not persist when the exact spec is not installed', async () => {
@@ -857,7 +853,24 @@ describe('BinaryManager', () => {
       expect(miseSubcommands()).not.toContain('use')
     })
 
-    it('rejects and does not persist when a requested version does not match the installed one', async () => {
+    it('rejects and does not persist when mise reports the entry under a different spec key', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      // Exact-spec probe must not accept an alias/other spec: querying npm:foo but
+      // mise answers with npm:bar proves nothing about npm:foo being installed.
+      mockInstalled({ 'npm:bar': [{ version: '1.0.0', active: true }] })
+
+      await expect(service.claimTool({ name: 'foo', tool: 'npm:foo' })).rejects.toThrow(
+        'mise did not report an installed version'
+      )
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      // Only the query probe ran; ownership was never inferred nor mutated.
+      const subs = miseSubcommands()
+      expect(subs).toEqual(['ls'])
+    })
+
+    it('rejects and does not persist when a concrete requested version does not match the installed one', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -867,6 +880,22 @@ describe('BinaryManager', () => {
         'mise did not report an installed version'
       )
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it('rejects a non-concrete requested version before touching mise', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockInstalled({ fd: [{ version: '10.0.0', active: true }] })
+
+      await expect(service.claimTool({ name: 'fd', tool: 'fd', requestedVersion: 'latest' })).rejects.toThrow(
+        'concrete version'
+      )
+      await expect(service.claimTool({ name: 'fd', tool: 'fd', requestedVersion: '11' })).rejects.toThrow(
+        'concrete version'
+      )
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
     })
 
     it('rejects and does not persist when the named executable is not runnable', async () => {
@@ -884,7 +913,8 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      mockInstalled({ 'core:node': [{ version: '22.5.0', active: true }] })
+      // mise reports a core: runtime under its bare name (core:node → node).
+      mockInstalled({ node: [{ version: '22.5.0', active: true }] })
 
       const result = await service.claimTool({ name: 'node', tool: 'core:node' })
 

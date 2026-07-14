@@ -9,8 +9,10 @@ export const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$
 /**
  * Whether a tool spec is a runtime interpreter that mise auto-installs for
  * package backends (BinaryManager's RUNTIME_DEPS: npm → node, pipx → python).
- * Auto-discovered runtime deps are display-only in the inventory. Explicitly
- * managed runtimes remain removable after the UI warns about dependent tools.
+ * An auto-discovered runtime dep is unowned until the user explicitly claims it
+ * ("Manage with Cherry Studio" → claim_tool); the inventory shows that claim
+ * action rather than update/remove. Once owned, a runtime stays removable after
+ * the UI warns about dependent tools.
  */
 export function isRuntimeDependency(toolSpec: string): boolean {
   const spec = toolSpec.startsWith('core:') ? toolSpec.slice('core:'.length) : toolSpec

@@ -685,6 +685,54 @@ export class BinaryManager extends BaseService {
     return entries.length === 0
   }
 
+  /**
+   * Installed entries reported by isolated mise for the *exact* canonical spec.
+   *
+   * Unlike getInstalledVersion (which flattens every key mise returns and is
+   * therefore alias-tolerant for the install path), this reads only the entry
+   * keyed by the queried spec. mise reports a `core:` runtime under its bare
+   * name (`core:node` → `node`) — the only key normalization evidenced in this
+   * repo — so that one prefix is stripped; no other backend alias is accepted.
+   * A result keyed by any other spec yields no entries, so an unexpected or
+   * aliased mise response cannot be mistaken for proof that `tool` is installed.
+   * Query-only: never runs a mise mutation.
+   */
+  private async listExactSpec(tool: string): Promise<Array<{ version?: string; active?: boolean }>> {
+    const { stdout } = await this.runMise(['ls', '--json', tool])
+    const parsed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
+    const expectedKey = tool.startsWith('core:') ? tool.slice('core:'.length) : tool
+    return parsed[expectedKey] ?? []
+  }
+
+  /**
+   * Observed installed version of the *exact* canonical spec, for claim_tool.
+   *
+   * Contract (stricter than install's getInstalledVersion): a supplied
+   * `requested` version must be a concrete semver and must equal the observed
+   * semver exactly — ranges/tags such as `11` or `latest` are rejected rather
+   * than silently ignored. With no `requested`, the active install (or the sole
+   * install) is returned so a runtime claim can pin what `mise which` resolves.
+   */
+  private async getExactInstalledVersionForClaim(tool: string, requested?: string): Promise<string> {
+    if (requested !== undefined && !semverValid(requested)) {
+      throw new Error(`Claiming ${tool} requires a concrete version; "${requested}" is not a concrete semver`)
+    }
+    const entries = await this.listExactSpec(tool)
+    if (requested !== undefined) {
+      const requestedVersion = semverValid(requested)
+      const match = entries.find((entry) => semverValid(entry.version) === requestedVersion)
+      if (!match?.version) {
+        throw new Error(`mise did not report an installed version for ${tool}@${requested}`)
+      }
+      return match.version
+    }
+    const observed = entries.find((entry) => entry.active) ?? (entries.length === 1 ? entries[0] : undefined)
+    if (!observed?.version) {
+      throw new Error(`mise did not report an installed version for ${tool}`)
+    }
+    return observed.version
+  }
+
   private getManifest(): BinaryManifestEntry[] {
     return application.get('PreferenceService').get('feature.binary.tools')
   }
@@ -922,9 +970,10 @@ export class BinaryManager extends BaseService {
       }
 
       // Prove the *exact* spec is installed in Cherry's isolated mise env — never
-      // infer ownership from a PATH/shim name. getInstalledVersion throws when the
-      // spec is absent or (with requestedVersion) the observed version mismatches.
-      const version = await this.getInstalledVersion(intent.tool, intent.requestedVersion)
+      // infer ownership from a PATH/shim name, and never accept an alias/other
+      // spec. A supplied requestedVersion must be a concrete semver matching the
+      // observed version exactly; throws when the spec is absent or mismatched.
+      const version = await this.getExactInstalledVersionForClaim(intent.tool, intent.requestedVersion)
       // And prove the named executable target is actually runnable, not just listed.
       if (!(await this.isManagedBinaryReady(intent.name))) {
         throw new Error(`Tool is not runnable: ${intent.name}`)
