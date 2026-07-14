@@ -38,7 +38,8 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
       }
       return withCherryMeta(basePart, {
         fileEntryId: entry.id,
-        fileTokenSourceId: attachment.fileTokenSourceId
+        fileTokenSourceId: attachment.fileTokenSourceId,
+        ...(attachment.composerFileKind && { composerFileKind: attachment.composerFileKind })
       })
     })
   )

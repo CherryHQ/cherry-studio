@@ -415,6 +415,8 @@ describe('ComposerToken', () => {
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
     expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
+    expect(getFileTokenTrigger(container)).toHaveClass('inline', 'align-baseline')
+    expect(getFileTokenTrigger(container)).not.toHaveClass('inline-flex')
     openFileTokenPopover(container)
     const popoverContent = screen.getByTestId('composer-token-popover-content')
     expect(popoverContent).toHaveClass('rounded-lg', 'border-0', 'bg-transparent')
@@ -426,7 +428,8 @@ describe('ComposerToken', () => {
     expect(imagePreview).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
     expect(imagePreview).toHaveClass('block', 'max-h-64', 'max-w-80', 'object-contain')
     expect(imagePreview).not.toHaveClass('h-full', 'w-full', 'object-cover')
-    expect(imagePreview.parentElement).toHaveClass('inline-flex', 'max-h-64', 'max-w-80', 'overflow-hidden', 'bg-muted')
+    expect(imagePreview.parentElement).toHaveClass('flex', 'max-h-64', 'max-w-80', 'overflow-hidden', 'bg-muted')
+    expect(imagePreview.parentElement).not.toHaveClass('inline-flex')
   })
 
   it('renders input raster images as chips with a thumbnail in the icon slot', () => {
@@ -1329,6 +1332,9 @@ describe('ComposerToken', () => {
     })
 
     await waitFor(() => expect(container.querySelector('[data-composer-token-remove]')).toBeInTheDocument())
+    const nodeView = container.querySelector('[data-composer-token-node]')
+    expect(nodeView).toHaveClass('inline', 'align-baseline')
+    expect(nodeView).not.toHaveClass('inline-flex')
     const removeButton = container.querySelector('[data-composer-token-remove]')
     expect(removeButton).toBeInTheDocument()
     fireEvent.click(removeButton as HTMLButtonElement)

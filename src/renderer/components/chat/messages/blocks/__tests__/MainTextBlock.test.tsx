@@ -1,10 +1,11 @@
 import type * as CherryUI from '@cherrystudio/ui'
+import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { Fragment, type ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MainTextBlock from '../MainTextBlock'
@@ -26,7 +27,9 @@ vi.mock('../../MessageListProvider', () => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryUI>()
+  const React = await import('react')
   const { createPortal } = await import('react-dom')
+  const PopoverContext = React.createContext(false)
   return {
     ...actual,
     Flex: ({ children, className }: { children: ReactNode; className?: string }) => (
@@ -35,19 +38,90 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     NormalTooltip: ({
       children,
       content,
-      contentProps
+      contentProps,
+      delayDuration,
+      open,
+      side,
+      sideOffset,
+      triggerProps
     }: {
       children: ReactNode
       content: ReactNode
       contentProps?: { className?: string }
+      delayDuration?: number
+      open?: boolean
+      side?: string
+      sideOffset?: number
+      triggerProps?: Record<string, unknown>
     }) => (
       <>
-        <span data-content-class-name={contentProps?.className} data-testid="composer-message-token-tooltip">
-          {children}
+        <span
+          data-content-class-name={contentProps?.className}
+          data-delay-duration={delayDuration}
+          data-open={String(Boolean(open))}
+          data-side={side}
+          data-side-offset={sideOffset}
+          data-testid="composer-message-token-tooltip">
+          {React.isValidElement(children)
+            ? // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger props
+              React.cloneElement(children, {
+                ...triggerProps,
+                'data-tooltip-trigger': 'true'
+              } as Record<string, unknown>)
+            : children}
         </span>
         {createPortal(<span data-testid="composer-message-token-tooltip-content">{content}</span>, document.body)}
       </>
-    )
+    ),
+    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
+      <PopoverContext value={Boolean(open)}>
+        <span data-open={String(Boolean(open))} data-testid="composer-message-token-popover">
+          {children}
+        </span>
+      </PopoverContext>
+    ),
+    PopoverTrigger: ({ children }: { children: ReactNode }) =>
+      React.isValidElement(children)
+        ? // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger props
+          React.cloneElement(children, { 'data-popover-trigger': 'true' } as Record<string, unknown>)
+        : children,
+    PopoverContent: ({
+      ref,
+      children,
+      className,
+      align,
+      side,
+      sideOffset,
+      onOpenAutoFocus: _onOpenAutoFocus,
+      onCloseAutoFocus: _onCloseAutoFocus,
+      ...props
+    }: HTMLAttributes<HTMLDivElement> & {
+      ref?: Ref<HTMLDivElement>
+      align?: string
+      side?: string
+      sideOffset?: number
+      onOpenAutoFocus?: (event: Event) => void
+      onCloseAutoFocus?: (event: Event) => void
+    }) => {
+      const open = React.use(PopoverContext)
+      void _onOpenAutoFocus
+      void _onCloseAutoFocus
+      if (!open) return null
+
+      return (
+        <div
+          {...props}
+          ref={ref}
+          className={className}
+          data-align={align}
+          data-side={side}
+          data-side-offset={sideOffset}
+          data-testid="composer-message-token-popover-content">
+          {children}
+        </div>
+      )
+    },
+    Scrollbar: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
   }
 })
 
@@ -137,6 +211,7 @@ describe('MainTextBlock', () => {
     role: 'user' | 'assistant'
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
+    readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   }) => {
     return render(
       <MainTextBlock
@@ -148,6 +223,7 @@ describe('MainTextBlock', () => {
         role={props.role}
         mentions={props.mentions}
         composer={props.composer}
+        readOnlyFilePreviews={props.readOnlyFilePreviews}
       />
     )
   }
@@ -656,6 +732,202 @@ describe('MainTextBlock', () => {
         'bg-[var(--color-red-100)]',
         'text-[var(--color-red-700)]'
       )
+    })
+
+    it.each([false, true])(
+      'should show the linked internal file path and size after send when markdown mode is %s',
+      async (renderAsMarkdown) => {
+        vi.useFakeTimers()
+
+        try {
+          mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
+          renderMainTextBlock({
+            content: 'Read /Users/jd/private/report.pdf now',
+            role: 'user',
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'file:source-report',
+                  kind: 'file',
+                  label: 'report.pdf',
+                  index: 0,
+                  textOffset: 5,
+                  promptText: '/Users/jd/private/report.pdf',
+                  payload: {
+                    type: 'document',
+                    ext: '.pdf',
+                    name: 'report.pdf',
+                    origin_name: 'report.pdf',
+                    size: 2048
+                  }
+                }
+              ]
+            },
+            readOnlyFilePreviews: new Map([
+              [
+                'source-report',
+                {
+                  url: 'file:///internal/message-files/report.pdf',
+                  mediaType: 'application/pdf'
+                }
+              ]
+            ])
+          })
+
+          const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
+          const tooltip = screen.getByTestId('composer-message-token-tooltip')
+          const tooltipContent = screen.getByTestId('composer-message-token-tooltip-content')
+
+          expect(token).not.toHaveAttribute('title')
+          expect(token).toHaveAttribute('data-tooltip-trigger', 'true')
+          expect(token).toHaveAttribute('tabindex', '0')
+          expect(token).toHaveAccessibleName('report.pdf')
+          expect(tooltip).toHaveAttribute('data-delay-duration', '300')
+          expect(tooltip).toHaveAttribute('data-side', 'top')
+          expect(tooltip).toHaveAttribute('data-side-offset', '6')
+          expect(tooltip).toHaveAttribute('data-open', 'false')
+          expect(tooltipContent.querySelector('[data-token-path]')).toHaveTextContent(
+            '/internal/message-files/report.pdf'
+          )
+          expect(tooltipContent.querySelector('[data-token-size]')).toHaveTextContent('2 KB')
+          expect(document.body).not.toHaveTextContent('/Users/jd/private/report.pdf')
+
+          fireEvent.pointerEnter(token, { pointerType: 'mouse' })
+          await act(() => vi.advanceTimersByTime(299))
+          expect(tooltip).toHaveAttribute('data-open', 'false')
+
+          fireEvent.pointerLeave(token, { pointerType: 'mouse' })
+          await act(() => vi.advanceTimersByTime(1))
+          expect(tooltip).toHaveAttribute('data-open', 'false')
+
+          fireEvent.pointerEnter(token, { pointerType: 'mouse' })
+          await act(() => vi.advanceTimersByTime(300))
+          expect(tooltip).toHaveAttribute('data-open', 'true')
+
+          fireEvent.focus(token)
+          expect(token).toHaveFocus()
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
+
+    it('should open a sent image preview from its linked file part with the composer keyboard contract', () => {
+      renderMainTextBlock({
+        content: 'View photo.png now',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file:source-photo',
+              kind: 'file',
+              label: 'photo.png',
+              index: 0,
+              textOffset: 5,
+              promptText: 'photo.png',
+              payload: {
+                type: 'image',
+                ext: '.png',
+                name: 'photo.png',
+                origin_name: 'photo.png',
+                size: 1024
+              }
+            }
+          ]
+        },
+        readOnlyFilePreviews: new Map([
+          ['source-photo', { url: 'file:///internal/message-files/photo.png', mediaType: 'image/png' }]
+        ])
+      })
+
+      const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
+      const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
+      expect(token).not.toHaveAttribute('title')
+      expect(trigger).toHaveAttribute('role', 'button')
+      expect(trigger).toHaveAttribute('tabindex', '0')
+
+      fireEvent.focus(trigger)
+      fireEvent.keyDown(trigger, { key: 'Enter' })
+
+      const popover = screen.getByTestId('composer-message-token-popover-content')
+      expect(popover).toHaveAttribute('data-side', 'top')
+      expect(popover).toHaveAttribute('data-align', 'start')
+      expect(popover).toHaveAttribute('data-side-offset', '8')
+      expect(screen.getByAltText('photo.png')).toHaveAttribute('src', 'file:///internal/message-files/photo.png')
+      expect(popover).not.toHaveTextContent('/internal/message-files/photo.png')
+
+      fireEvent.keyDown(trigger, { key: 'Escape' })
+      expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
+      expect(trigger).toHaveFocus()
+    })
+
+    it('should preview sent pasted text from the linked internal file without persisting its path', async () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      const readText = vi.fn().mockResolvedValue('Persisted pasted text preview')
+      Object.defineProperty(window, 'api', {
+        configurable: true,
+        value: {
+          ...window.api,
+          fs: { ...window.api?.fs, readText }
+        }
+      })
+
+      renderMainTextBlock({
+        content: 'Read pasted text.txt now',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file:source-pasted-text',
+              kind: 'file',
+              label: 'pasted text.txt',
+              index: 0,
+              textOffset: 5,
+              promptText: 'pasted text.txt',
+              payload: {
+                type: 'text',
+                ext: '.txt',
+                name: 'pasted_text.txt',
+                origin_name: 'pasted text.txt',
+                size: 4096
+              }
+            }
+          ]
+        },
+        readOnlyFilePreviews: new Map([
+          [
+            'source-pasted-text',
+            {
+              url: 'file:///internal/message-files/pasted%20text.txt',
+              mediaType: 'text/plain',
+              composerFileKind: 'pasted-text'
+            }
+          ]
+        ])
+      })
+
+      const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
+      const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
+      fireEvent.focus(trigger)
+      fireEvent.keyDown(trigger, { key: ' ' })
+
+      await waitFor(() =>
+        expect(screen.getByTestId('composer-message-token-popover-content')).toHaveTextContent(
+          'Persisted pasted text preview'
+        )
+      )
+      expect(readText).toHaveBeenCalledWith('/internal/message-files/pasted text.txt')
+      expect(screen.getByTestId('composer-message-token-popover-content')).not.toHaveTextContent(
+        '/internal/message-files/pasted text.txt'
+      )
+      expect(token).not.toHaveAttribute('title')
+
+      fireEvent.keyDown(trigger, { key: 'Escape' })
+      expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
+      expect(trigger).toHaveFocus()
     })
 
     it('should keep command and reference composer tokens on the legacy message chip renderer', () => {

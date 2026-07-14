@@ -110,8 +110,10 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined) {
-  if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
+function getFilePreviewUrl(file: ComposerAttachment | undefined, previewUrl?: string) {
+  if (file?.type !== FILE_TYPE.IMAGE) return undefined
+  if (previewUrl) return previewUrl
+  if (!file.path) return undefined
   return toSafeFileUrl(file.path as FilePath, file.ext || null)
 }
 
@@ -129,7 +131,8 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
 
 export function getFileTokenPresentation(
   file: ComposerAttachment | undefined,
-  fallbackLabel: string
+  fallbackLabel: string,
+  previewUrl?: string
 ): FileTokenPresentation {
   const extensionLabel = getFileExtensionLabel(file, fallbackLabel)
   const variant = getFileTokenVariant(file, fallbackLabel)
@@ -143,6 +146,6 @@ export function getFileTokenPresentation(
     containerClassName: fileTokenContainerClassName,
     iconClassName: preset.iconClassName,
     typeLabel: extensionLabel || preset.defaultTypeLabel,
-    previewUrl: variant === 'image' ? getFilePreviewUrl(file) : undefined
+    previewUrl: variant === 'image' ? getFilePreviewUrl(file, previewUrl) : undefined
   }
 }
