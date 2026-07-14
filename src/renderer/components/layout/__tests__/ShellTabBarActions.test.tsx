@@ -23,15 +23,19 @@ vi.mock('@logger', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
-    variant: _variant,
-    size: _size,
     type = 'button',
     ...props
-  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => (
-    <button data-slot="button" type={type} {...props}>
-      {children}
-    </button>
-  ),
+  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => {
+    const { variant, size, ...buttonProps } = props
+    void variant
+    void size
+
+    return (
+      <button data-slot="button" type={type} {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
   Kbd: ({ children }: { children?: React.ReactNode }) => children
 }))
