@@ -8,10 +8,10 @@ import { getFileTypeByExt } from '@shared/utils/file'
 import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('usePaintingComposerInputFiles')
+const logger = loggerService.withContext('useCreationComposerInputFiles')
 
 interface Params {
-  paintingId: string
+  id: string
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
@@ -38,7 +38,7 @@ const withDot = (ext: string | null | undefined): string => {
  *   after the seed has run, so the pre-seed empty list never wipes a painting
  *   that has input files.
  */
-export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
+export function useCreationComposerInputFiles({ id, inputFiles, files, setFiles, onInputFilesChange }: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
   // Input files that failed to resolve to a physical path during SEED: they get no
@@ -55,8 +55,8 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
 
   // SEED — once per painting.
   useEffect(() => {
-    if (seededPaintingIdRef.current === paintingId) return
-    seededPaintingIdRef.current = paintingId
+    if (seededPaintingIdRef.current === id) return
+    seededPaintingIdRef.current = id
     seedCompleteRef.current = false
     unseededEntriesRef.current = []
 
@@ -102,11 +102,11 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     return () => {
       cancelled = true
     }
-  }, [paintingId, setFiles])
+  }, [id, setFiles])
 
   // WRITEBACK — on attachment change, after the seed has run.
   useEffect(() => {
-    if (seededPaintingIdRef.current !== paintingId || !seedCompleteRef.current) return
+    if (seededPaintingIdRef.current !== id || !seedCompleteRef.current) return
     const epoch = ++writebackEpochRef.current
     let cancelled = false
 
@@ -157,5 +157,5 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     return () => {
       cancelled = true
     }
-  }, [files, paintingId])
+  }, [files, id])
 }

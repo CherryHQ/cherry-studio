@@ -13,9 +13,9 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getPaintingFileUrl } from '../../utils/paintingFileUrl'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
-import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 
 const DEFAULT_IMAGE_SCALE = 1
 const MIN_IMAGE_SCALE = 0.25

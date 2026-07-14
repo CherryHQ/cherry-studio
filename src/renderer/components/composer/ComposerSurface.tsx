@@ -154,6 +154,9 @@ export interface ComposerSurfaceProps {
   suggestionSources?: readonly ComposerSuggestionSource[]
   resourceProvider?: ComposerUnifiedPanelResourceProvider
   queueContent?: React.ReactNode
+  /** Rendered inside the inputbar card, above the editor — e.g. the Creation
+   *  page's registry-driven media placeholder slots (first/last frame). */
+  headerContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
   onRootPanelOpen?: () => void
@@ -520,6 +523,7 @@ export default function ComposerSurface({
   suggestionSources = [],
   resourceProvider,
   queueContent,
+  headerContent,
   rootPanelLeadingItems,
   rootPanelAdditionalItems,
   onRootPanelOpen,
@@ -1864,6 +1868,11 @@ export default function ComposerSurface({
         </Button>
       </div>
       {editingModeBadge}
+      {headerContent ? (
+        <div data-composer-header="" className="px-3 pb-1">
+          {headerContent}
+        </div>
+      ) : null}
       <div
         ref={frameRef}
         className="overflow-hidden transition-[height] ease-out"

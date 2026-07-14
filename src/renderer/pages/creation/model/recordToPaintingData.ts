@@ -4,8 +4,8 @@ import type { FileEntry } from '@shared/data/types/file'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 
-import { fileEntryToMetadata } from '../../utils/fileEntryAdapter'
-import type { PaintingData } from '../types/paintingData'
+import type { PaintingData } from '../image/model/types/paintingData'
+import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 
 const logger = loggerService.withContext('paintings/recordToPaintingData')
 

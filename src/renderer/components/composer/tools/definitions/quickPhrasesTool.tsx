@@ -5,7 +5,7 @@ const quickPhrasesTool = defineTool({
   key: 'quick_phrases',
   label: (t) => t('settings.prompts.title'),
 
-  visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'painting'],
+  visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'creation'],
 
   dependencies: {
     actions: ['onTextChange'] as const

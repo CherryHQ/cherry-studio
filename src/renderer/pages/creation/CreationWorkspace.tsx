@@ -1,28 +1,20 @@
-import Scrollbar from '@renderer/components/Scrollbar'
 import type { FC, ReactNode } from 'react'
 
 import { creationClasses } from './creationPrimitives'
 
 interface CreationWorkspaceProps {
-  /**
-   * Left settings panel (model selector on top, scrollable settings below).
-   * The image flow omits both — its model selector + params live in the
-   * composer's bottom toolbar; the video flow still renders the panel.
-   */
-  modelSelector?: ReactNode
-  settings?: ReactNode
   artboard: ReactNode
   promptBar: ReactNode
   historyStrip: ReactNode
 }
 
-const CreationWorkspace: FC<CreationWorkspaceProps> = ({
-  modelSelector,
-  settings,
-  artboard,
-  promptBar,
-  historyStrip
-}) => {
+/**
+ * The Creation page's shared shell: gallery strip (left) | center pane
+ * (artboard over the composer dock). Both modes are composer-centric — the
+ * model selector, params, mode pills and media slots all live inside the
+ * prompt bar, so there is no side panel.
+ */
+const CreationWorkspace: FC<CreationWorkspaceProps> = ({ artboard, promptBar, historyStrip }) => {
   return (
     <div className={creationClasses.page}>
       <div id="content-container" className={creationClasses.content}>
@@ -30,17 +22,6 @@ const CreationWorkspace: FC<CreationWorkspaceProps> = ({
           <div className={creationClasses.frame}>
             <div className={creationClasses.surface}>
               {historyStrip}
-
-              {(modelSelector || settings) && (
-                <div className={creationClasses.panel}>
-                  {modelSelector && <div className={creationClasses.panelModelSelector}>{modelSelector}</div>}
-                  {settings && (
-                    <div className={creationClasses.panelBody}>
-                      <Scrollbar className={creationClasses.panelScroll}>{settings}</Scrollbar>
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className={creationClasses.centerPane}>
                 <div className={creationClasses.centerStage}>{artboard}</div>

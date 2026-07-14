@@ -4,7 +4,7 @@ import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../image/model/mappers/recordToPaintingData', () => ({
+vi.mock('../model/recordToPaintingData', () => ({
   recordsToPaintingDataList: vi.fn(async (records: Creation[]) =>
     records.map((record) => ({
       id: record.id,

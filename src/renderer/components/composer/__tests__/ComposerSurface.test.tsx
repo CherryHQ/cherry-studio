@@ -474,6 +474,16 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
   })
 
+  it('renders headerContent inside the inputbar card, above the editor', () => {
+    const { container } = render(
+      <ComposerSurface {...baseProps} headerContent={<div data-testid="creation-media-slots" />} />
+    )
+
+    const inputbar = container.querySelector('[data-composer-inputbar]')
+    expect(inputbar?.querySelector('[data-composer-header]')).toBeTruthy()
+    expect(screen.getByTestId('creation-media-slots')).toBeInTheDocument()
+  })
+
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
     render(<Harness />)
 

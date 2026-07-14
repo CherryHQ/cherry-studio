@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
@@ -33,9 +34,10 @@ interface VideoMediaInputProps {
 }
 
 /**
- * Single labeled image picker for a video media input (first frame / last
- * frame). Picks one image, adapts it to a FileEntry, and renders a removable
- * thumbnail. Reference-image grids / video uploads are not yet surfaced.
+ * Single labeled image placeholder slot for a video media input (first frame /
+ * last frame), compact enough to sit in the composer's header row. Empty =
+ * dashed picker chip with an inline label; filled = thumbnail with the label in
+ * the tooltip/aria and a hover-reveal remove button.
  */
 const VideoMediaInput: FC<VideoMediaInputProps> = ({ label, value, disabled, onChange }) => {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -72,30 +74,33 @@ const VideoMediaInput: FC<VideoMediaInputProps> = ({ label, value, disabled, onC
   )
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="select-none text-muted-foreground text-xs uppercase tracking-wider">{label}</span>
+    <>
       <input ref={inputRef} type="file" accept="image/*" hidden onChange={onPick} />
       {value ? (
-        <div className="group relative size-20 overflow-hidden rounded-lg border border-border bg-muted/30">
-          {url ? <img src={url} className="size-full object-cover" alt={label} /> : null}
-          <button
-            type="button"
-            onClick={() => onChange(undefined)}
-            aria-label="remove"
-            className="absolute top-0.5 right-0.5 z-10 flex size-4 cursor-pointer items-center justify-center rounded-full bg-background/95 text-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
-            <X className="size-3" />
-          </button>
-        </div>
+        <Tooltip content={label} delay={300}>
+          <div className="group relative size-12 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/30">
+            {url ? <img src={url} className="size-full object-cover" alt={label} /> : null}
+            <button
+              type="button"
+              onClick={() => onChange(undefined)}
+              aria-label={`${label}: remove`}
+              className="absolute top-0.5 right-0.5 z-10 flex size-4 cursor-pointer items-center justify-center rounded-full bg-background/95 text-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
+              <X className="size-3" />
+            </button>
+          </div>
+        </Tooltip>
       ) : (
         <button
           type="button"
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
-          className="flex size-20 items-center justify-center rounded-lg border border-border border-dashed bg-muted/20 text-muted-foreground transition hover:bg-muted/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
-          <ImagePlus className="size-5" />
+          aria-label={label}
+          className="flex h-12 shrink-0 items-center gap-1.5 rounded-lg border border-border border-dashed bg-muted/20 px-2.5 text-muted-foreground transition hover:bg-muted/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+          <ImagePlus className="size-4" />
+          <span className="select-none text-xs">{label}</span>
         </button>
       )}
-    </div>
+    </>
   )
 }
 

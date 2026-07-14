@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { creationClasses } from './creationPrimitives'
-import { getPaintingFileUrl } from './image/utils/paintingFileUrl'
 import type { CreationGalleryEntry } from './useCreationHistory'
+import { getPaintingFileUrl } from './utils/paintingFileUrl'
 
 interface CreationGalleryProps {
   kind?: CreationKind

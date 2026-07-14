@@ -1,6 +1,5 @@
-import { Tabs, TabsList, TabsTrigger, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import SendMessageButton from '@renderer/components/SendMessageButton'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCreations } from '@renderer/hooks/useCreations'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
@@ -10,33 +9,17 @@ import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'reac
 import { useTranslation } from 'react-i18next'
 
 import CreationGallery from '../CreationGallery'
-import CreationModelSelector, {
-  type CreationModelKindSelection,
-  type CreationModelSelection
-} from '../CreationModelSelector'
-import { creationClasses } from '../creationPrimitives'
-import CreationSectionTitle from '../CreationSectionTitle'
+import type { CreationModelKindSelection, CreationModelSelection } from '../CreationModelSelector'
 import CreationWorkspace from '../CreationWorkspace'
-import { PaintingFieldRenderer } from '../image/form/PaintingFieldRenderer'
-import { videoGenerationToFields } from '../image/form/videoGenerationToFields'
+import { videoGenerationToFields } from '../form/videoGenerationToFields'
+import { useVideoGenerationSupport } from '../hooks/useVideoGenerationSupport'
 import type { CreationData } from '../types'
 import { useCreationHistory } from '../useCreationHistory'
+import VideoComposer from './components/VideoComposer'
 import { generateVideoRequest } from './generateVideo'
-import { useVideoGenerationSupport } from './useVideoGenerationSupport'
 import VideoArtboard from './VideoArtboard'
-import VideoMediaInput from './VideoMediaInput'
 
 const logger = loggerService.withContext('creation/VideoCreationMode')
-
-const VIDEO_MODE_LABEL_KEYS: Record<VideoGenerationMode, string> = {
-  t2v: 'paintings.video.mode_options.t2v',
-  i2v: 'paintings.video.mode_options.i2v',
-  keyframe: 'paintings.video.mode_options.keyframe',
-  reference: 'paintings.video.mode_options.reference',
-  extend: 'paintings.video.mode_options.extend',
-  edit: 'paintings.video.mode_options.edit',
-  multishot: 'paintings.video.mode_options.multishot'
-}
 
 interface VideoCreationModeProps {
   initialSelection?: CreationModelSelection
@@ -46,9 +29,11 @@ interface VideoCreationModeProps {
 }
 
 /**
- * Video creation mode. Drives everything off
- * `useVideoGenerationSupport`: mode tabs + media pickers + scalar fields come
- * from the registry's `videoGeneration` block, and generation goes through
+ * Video creation mode. Page structure is identical to the image mode —
+ * gallery strip | artboard | bottom composer. Everything model-specific is
+ * registry-driven through `useVideoGenerationSupport` and rendered by the
+ * composer (mode pills in the toolbar, first/last-frame placeholder slots in
+ * the header, scalar params in the popover); generation goes through
  * `generateVideoRequest` → the `ai.generate_video` IpcApi route (job system).
  *
  * Lean by design: generation is awaited in-place (no cross-page spinner
@@ -74,13 +59,12 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
   const [lastFrame, setLastFrame] = useState<FileEntry | undefined>(undefined)
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [currentId, setCurrentId] = useState<string | undefined>(undefined)
+  const [draftEpoch, setDraftEpoch] = useState(0)
   const [generating, setGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   const support = useVideoGenerationSupport(providerId, modelId)
   const modes = useMemo(() => Object.keys(support?.modes ?? {}) as VideoGenerationMode[], [support])
-  const fields = useMemo(() => videoGenerationToFields(support, { mode }), [support, mode])
-  const mediaInputs = support?.modes?.[mode]?.mediaInputs
 
   // Keep `mode` valid for the selected model; default to its first declared mode.
   useEffect(() => {
@@ -132,6 +116,8 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
     setLastFrame(undefined)
     setFiles([])
     setCurrentId(undefined)
+    // Remount the composer so its seeded text resets to the fresh draft.
+    setDraftEpoch((epoch) => epoch + 1)
   }, [])
 
   const onSelectCreation = useCallback((item: CreationData) => {
@@ -174,8 +160,6 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
   const onCancel = useCallback(() => {
     abortRef.current?.abort()
   }, [])
-
-  const canGenerate = Boolean(providerId && modelId && (prompt.trim() || firstFrame) && !generating)
 
   const onGenerate = useCallback(async () => {
     if (!providerId || !modelId || generating) return
@@ -220,77 +204,30 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
 
   return (
     <CreationWorkspace
-      modelSelector={
-        <CreationModelSelector
-          className={creationClasses.panelModelSelectorTrigger}
-          providerId={providerId}
-          modelId={modelId}
-          onSelect={onSelectCreationModel}
-        />
-      }
-      settings={
-        <>
-          {modes.length > 1 && (
-            <Tabs value={mode} onValueChange={(value) => setMode(value as VideoGenerationMode)}>
-              <TabsList className={creationClasses.promptModeTabsList}>
-                {modes.map((m) => (
-                  <TabsTrigger key={m} value={m} className={creationClasses.promptModeTabsTrigger}>
-                    {t(VIDEO_MODE_LABEL_KEYS[m], m)}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-
-          {(mediaInputs?.firstFrame || mediaInputs?.lastFrame) && (
-            <div className="flex flex-wrap gap-3">
-              {mediaInputs?.firstFrame && (
-                <VideoMediaInput
-                  label={t('paintings.video.first_frame')}
-                  value={firstFrame}
-                  disabled={generating}
-                  onChange={setFirstFrame}
-                />
-              )}
-              {mediaInputs?.lastFrame && (
-                <VideoMediaInput
-                  label={t('paintings.video.last_frame')}
-                  value={lastFrame}
-                  disabled={generating}
-                  onChange={setLastFrame}
-                />
-              )}
-            </div>
-          )}
-
-          {fields.map((item) => (
-            <div key={item.key} className="flex flex-col gap-1.5">
-              {item.title && <CreationSectionTitle>{t(item.title)}</CreationSectionTitle>}
-              <PaintingFieldRenderer
-                item={item}
-                painting={params}
-                onChange={onParamsChange}
-                onGenerateRandomSeed={(key) => onParamsChange({ [key]: String(Math.floor(Math.random() * 1_000_000)) })}
-              />
-            </div>
-          ))}
-        </>
-      }
       artboard={<VideoArtboard files={files} isLoading={generating} onCancel={onCancel} />}
       promptBar={
-        <div className="flex w-full min-w-0 shrink-0 flex-col rounded-[1.25rem] border border-border bg-background">
-          <Textarea.Input
-            disabled={generating}
-            value={prompt}
-            spellCheck={false}
-            className="min-h-19 flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none placeholder:text-muted-foreground/55 focus-visible:ring-0"
-            placeholder={t('paintings.prompt_placeholder')}
-            onValueChange={setPrompt}
+        <QuickPanelProvider>
+          <VideoComposer
+            composerKey={currentId ?? `draft-${draftEpoch}`}
+            providerId={providerId}
+            modelId={modelId}
+            prompt={prompt}
+            generating={generating}
+            support={support}
+            mode={mode}
+            onModeChange={setMode}
+            params={params}
+            onParamsChange={onParamsChange}
+            firstFrame={firstFrame}
+            lastFrame={lastFrame}
+            onFirstFrameChange={setFirstFrame}
+            onLastFrameChange={setLastFrame}
+            onPromptChange={setPrompt}
+            onGenerate={onGenerate}
+            onCancel={onCancel}
+            onModelSelect={onSelectCreationModel}
           />
-          <div className="flex min-h-11 items-center justify-end px-3.5 pt-2 pb-3">
-            <SendMessageButton sendMessage={onGenerate} disabled={!canGenerate} />
-          </div>
-        </div>
+        </QuickPanelProvider>
       }
       historyStrip={
         <CreationGallery

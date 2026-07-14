@@ -5,7 +5,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
+import { useCreationComposerInputFiles } from '../useCreationComposerInputFiles'
 
 const makeEntry = (id: string, ext = 'png'): FileEntry =>
   ({ id, name: `${id}.${ext}`, ext, size: 100, origin: 'internal' }) as unknown as FileEntry
@@ -20,7 +20,7 @@ const makeAttachment = (sourceId: string, path: string): ComposerAttachment => (
   type: 'image' as ComposerAttachment['type']
 })
 
-describe('usePaintingComposerInputFiles', () => {
+describe('useCreationComposerInputFiles', () => {
   beforeEach(() => {
     const getPhysicalPath = vi.fn(async (params: { id: string }) => `/p/${params.id}.png`)
     const createInternalEntry = vi.fn(async (params: { path: string }) =>
@@ -37,8 +37,8 @@ describe('usePaintingComposerInputFiles', () => {
     const onInputFilesChange = vi.fn()
 
     renderHook(() =>
-      usePaintingComposerInputFiles({
-        paintingId: 'p1',
+      useCreationComposerInputFiles({
+        id: 'p1',
         inputFiles: [makeEntry('fe-1')],
         files: [],
         setFiles,
@@ -58,7 +58,7 @@ describe('usePaintingComposerInputFiles', () => {
     const onInputFilesChange = vi.fn()
 
     renderHook(() =>
-      usePaintingComposerInputFiles({ paintingId: 'p2', inputFiles: [], files: [], setFiles, onInputFilesChange })
+      useCreationComposerInputFiles({ id: 'p2', inputFiles: [], files: [], setFiles, onInputFilesChange })
     )
 
     expect(setFiles).toHaveBeenCalledWith([])
@@ -70,10 +70,10 @@ describe('usePaintingComposerInputFiles', () => {
     const onInputFilesChange = vi.fn()
 
     const { rerender } = renderHook(
-      (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
+      (props: Parameters<typeof useCreationComposerInputFiles>[0]) => useCreationComposerInputFiles(props),
       {
         initialProps: {
-          paintingId: 'p3',
+          id: 'p3',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -83,7 +83,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      paintingId: 'p3',
+      id: 'p3',
       inputFiles: [],
       files: [makeAttachment('src-new', '/tmp/new.png')],
       setFiles,
@@ -99,10 +99,10 @@ describe('usePaintingComposerInputFiles', () => {
 
   // Stateful harness mirroring the provider: SEED's `setFiles` re-renders and re-fires
   // WRITEBACK, the round-trip a no-op `setFiles` would mask.
-  const renderStatefulHarness = (paintingId: string, inputFiles: FileEntry[], onInputFilesChange: () => void) =>
+  const renderStatefulHarness = (id: string, inputFiles: FileEntry[], onInputFilesChange: () => void) =>
     renderHook(() => {
       const [files, setFiles] = useState<ComposerAttachment[]>([])
-      usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange })
+      useCreationComposerInputFiles({ id, inputFiles, files, setFiles, onInputFilesChange })
       return files
     })
 
@@ -147,10 +147,10 @@ describe('usePaintingComposerInputFiles', () => {
     const onInputFilesChange = vi.fn()
 
     const { rerender } = renderHook(
-      (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
+      (props: Parameters<typeof useCreationComposerInputFiles>[0]) => useCreationComposerInputFiles(props),
       {
         initialProps: {
-          paintingId: 'p-wb-fail',
+          id: 'p-wb-fail',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -160,7 +160,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      paintingId: 'p-wb-fail',
+      id: 'p-wb-fail',
       inputFiles: [],
       files: [makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')],
       setFiles,

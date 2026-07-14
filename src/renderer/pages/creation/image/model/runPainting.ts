@@ -4,8 +4,8 @@ import { createPaintingGenerateError, normalizePaintingGenerateError } from '@sh
 import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import type { SerializedError } from '@shared/types/error'
 
+import { fileEntryToMetadata } from '../../utils/fileEntryAdapter'
 import { downloadImages } from '../utils/downloadImages'
-import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 
 const logger = loggerService.withContext('paintings/generation')
 

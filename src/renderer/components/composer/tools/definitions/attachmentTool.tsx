@@ -1,5 +1,6 @@
 import { AttachmentToolRuntime } from '@renderer/components/composer/tools/components/AttachmentButton'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
+import { isGenerateVideoModel } from '@shared/utils/model'
 
 import { composerFileTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 
@@ -7,7 +8,13 @@ const attachmentTool = defineTool({
   key: 'attachment',
   label: (t) => t('chat.input.upload.image_or_document'),
 
-  visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'painting'],
+  visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'creation'],
+
+  // The Creation page's video mode uses registry-driven media SLOTS (first/last
+  // frame placeholders in the composer header), not the flat attachment list —
+  // roles matter there. Hide the "+" attachment entry for video models; image
+  // models keep the pipeline (edit-input images).
+  condition: ({ scope, model }) => scope !== 'creation' || !isGenerateVideoModel(model),
 
   dependencies: {
     state: ['files', 'couldAddImageFile', 'extensions'] as const,

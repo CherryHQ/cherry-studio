@@ -99,9 +99,9 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
 
-vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
+vi.mock('../../../hooks/useCreationComposerInputFiles', () => ({ useCreationComposerInputFiles: vi.fn() }))
 
-vi.mock('../../hooks/useImageGenerationSupport', () => ({
+vi.mock('../../../hooks/useImageGenerationSupport', () => ({
   useImageGenerationSupport: mockUseImageGenerationSupport
 }))
 
@@ -109,7 +109,7 @@ vi.mock('../../../CreationModelSelector', () => ({
   default: () => <div data-testid="painting-model-selector" />
 }))
 
-vi.mock('../PaintingSettings', () => ({
+vi.mock('../../../components/CreationParamsForm', () => ({
   default: () => <div data-testid="painting-settings" />
 }))
 

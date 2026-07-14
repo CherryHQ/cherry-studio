@@ -158,8 +158,8 @@ registryOverride.imageGeneration  ??  presetModel.imageGeneration  ??  null   //
 
 ## Read half — registry + catalog → form
 
-1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`.../hooks/useImageGenerationSupport.ts`](../../../src/renderer/pages/creation/image/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (DataApi → the same `ProviderRegistryService` main hosts; SWR-cached).
-2. **Map** — `imageGenerationToFields(support, { mode })` ([`.../form/imageGenerationToFields.ts`](../../../src/renderer/pages/creation/image/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type` — no per-vendor branches:
+1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`.../hooks/useImageGenerationSupport.ts`](../../../src/renderer/pages/creation/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (DataApi → the same `ProviderRegistryService` main hosts; SWR-cached).
+2. **Map** — `imageGenerationToFields(support, { mode })` ([`.../form/imageGenerationToFields.ts`](../../../src/renderer/pages/creation/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type` — no per-vendor branches:
 
    | `SupportSpec.type` | widget |
    | --- | --- |
@@ -278,8 +278,8 @@ descriptor is a pure derivation, not a param.
 | Registry schema (`supports` / `vendorTransport`) | `packages/provider-registry/src/schemas/model.ts` |
 | Base / override model data | `packages/provider-registry/data/{models,provider-models}.json` |
 | Resolver (override ?? base) | `src/main/data/services/ProviderRegistryService.ts` |
-| Support fetch hook | `src/renderer/pages/creation/image/hooks/useImageGenerationSupport.ts` |
-| Registry → form fields + `KEY_LABELS` | `src/renderer/pages/creation/image/form/imageGenerationToFields.ts` |
+| Support fetch hook | `src/renderer/pages/creation/hooks/useImageGenerationSupport.ts` |
+| Registry → form fields + `KEY_LABELS` | `src/renderer/pages/creation/form/imageGenerationToFields.ts` |
 | Default population on switch | `src/renderer/pages/creation/image/utils/computeModelFieldReset.ts` |
 | Validate + build the IPC `paramValues` bag | `src/renderer/pages/creation/image/model/canonicalGenerate.ts` |
 | Transport routing hint (→ backend, see §5) | `src/renderer/pages/creation/image/model/paintingPipeline.ts` |

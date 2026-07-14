@@ -70,6 +70,30 @@ describe('composer tool visibility', () => {
     )
   })
 
+  it("gates the attachment tool by model kind in the 'creation' scope (video uses media slots, not flat attachments)", () => {
+    const imageModel = {
+      id: 'gpt-image-1',
+      providerId: 'openai',
+      name: 'GPT Image',
+      capabilities: ['image-generation']
+    } as any
+    const videoModel = {
+      id: 'veo-3.1-generate',
+      providerId: 'google',
+      name: 'Veo 3.1',
+      capabilities: ['video-generation']
+    } as any
+
+    const imageTools = getToolsForScope('creation', { model: imageModel }).map((tool) => tool.key)
+    const videoTools = getToolsForScope('creation', { model: videoModel }).map((tool) => tool.key)
+
+    expect(imageTools).toContain('attachment')
+    expect(videoTools).not.toContain('attachment')
+    // Quick phrases stay available to both modes of the Creation page.
+    expect(imageTools).toContain('quick_phrases')
+    expect(videoTools).toContain('quick_phrases')
+  })
+
   it('shows MCP status in chat and agent session scopes only', () => {
     const model = {
       id: 'text-only',

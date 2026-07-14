@@ -13,7 +13,7 @@ import type { ComposerToolContextValue } from './ComposerToolProvider'
 
 export { TopicType }
 
-export type ComposerToolScope = TopicType | 'quick-assistant' | 'painting'
+export type ComposerToolScope = TopicType | 'quick-assistant' | 'creation'
 
 export interface ComposerToolScopeConfig {
   enableQuickPanel?: boolean

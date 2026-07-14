@@ -3,7 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import i18next from 'i18next'
 
-import { fileEntryToMetadata } from './fileEntryAdapter'
+import { fileEntryToMetadata } from '../../utils/fileEntryAdapter'
 
 const logger = loggerService.withContext('paintings/downloadImages')
 
