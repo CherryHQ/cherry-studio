@@ -1907,7 +1907,8 @@
         "permissions_deny": "Deny (comma-separated)",
         "permissions_hint": "Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
         "role_column": "Role",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "Disable Response Storage",

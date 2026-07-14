@@ -1907,7 +1907,8 @@
         "permissions_deny": "拒絕（逗號分隔）",
         "permissions_hint": "預授權或拒絕工具模式。支援萬用字元，如 Read(secrets-*/config.json)。",
         "role_column": "角色",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "禁用回應儲存",
