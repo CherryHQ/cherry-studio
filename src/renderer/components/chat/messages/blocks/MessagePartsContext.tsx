@@ -7,6 +7,7 @@
 
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
 
 // ============================================================================
@@ -32,8 +33,41 @@ export function useRefresh(): () => void {
  */
 export const PartsContext = createContext<Record<string, CherryMessagePart[]> | null>(null)
 
-/** Wrap subtree to provide raw parts data for rendering components. */
-export const PartsProvider = PartsContext.Provider
+type PartsMap = Record<string, CherryMessagePart[]> | null
+const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+interface MessagePartsScopeValue {
+  messageId: string
+  parts: CherryMessagePart[]
+}
+
+const MessagePartsScopeContext = createContext<MessagePartsScopeValue | null>(null)
+
+/**
+ * Provide the complete parts map. A nested message scope takes precedence for
+ * useMessageParts; resetting it here prevents an outer message scope leaking
+ * into an intentionally isolated nested provider.
+ */
+export function PartsProvider({ value, children }: { value: PartsMap; children: ReactNode }) {
+  return (
+    <PartsContext value={value}>
+      <MessagePartsScopeContext value={null}>{children}</MessagePartsScopeContext>
+    </PartsContext>
+  )
+}
+
+/** Provide one message's parts without subscribing its subtree to the complete map. */
+export function MessagePartsScopeProvider({
+  messageId,
+  parts,
+  children
+}: {
+  messageId: string
+  parts: CherryMessagePart[]
+  children: ReactNode
+}) {
+  const value = useMemo(() => ({ messageId, parts }), [messageId, parts])
+  return <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+}
 
 /** Read the parts map from context (null when no provider is present). */
 export function usePartsMap() {
@@ -119,11 +153,13 @@ export function useOptionalTranslationOverlaySetter(): TranslationOverlaySetter 
  * Returns empty array if no parts provider exists or no parts are present.
  */
 export function useMessageParts(messageId: string): CherryMessagePart[] {
+  const scope = use(MessagePartsScopeContext)
+  if (scope?.messageId === messageId) return scope.parts
+
+  // React's `use` API may be called conditionally. Scoped message consumers
+  // therefore avoid subscribing to the complete map.
   const partsMap = use(PartsContext)
-  return useMemo(() => {
-    if (!partsMap) return []
-    return partsMap[messageId] ?? []
-  }, [partsMap, messageId])
+  return partsMap?.[messageId] ?? EMPTY_MESSAGE_PARTS
 }
 
 /**

@@ -1,6 +1,10 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { findScrollParent, useIsScrollRuntimeManaged } from './ScrollOwnershipContext'
+
+interface ScrollAnchorOptions {
+  settleAfterMs?: number
+}
 
 /**
  * Preserves the user's visual scroll position when an element's height changes
@@ -22,10 +26,25 @@ import { findScrollParent, useIsScrollRuntimeManaged } from './ScrollOwnershipCo
  */
 export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
   const anchorRef = useRef<T>(null)
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMountedRef = useRef(true)
   const isRuntimeManaged = useIsScrollRuntimeManaged()
 
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (settleTimerRef.current !== null) clearTimeout(settleTimerRef.current)
+    }
+  }, [])
+
   const withScrollAnchor = useCallback(
-    (update: () => void) => {
+    (update: () => void, options?: ScrollAnchorOptions) => {
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = null
+      }
+
       const anchor = anchorRef.current
       if (!anchor) {
         update()
@@ -56,9 +75,21 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       // After React commits the state change, restore scroll position
       // Use requestAnimationFrame to run after the paint
       requestAnimationFrame(() => {
+        if (!isMountedRef.current) return
+
         const rectAfter = anchor.getBoundingClientRect()
         const drift = rectAfter.top - rectBefore.top
-        scrollContainer.scrollTop = scrollBefore + drift
+        const restoredScrollTop = scrollBefore + drift
+        scrollContainer.scrollTop = restoredScrollTop
+
+        if (!options?.settleAfterMs) return
+        settleTimerRef.current = setTimeout(() => {
+          settleTimerRef.current = null
+          if (!isMountedRef.current || scrollContainer.scrollTop !== restoredScrollTop) return
+
+          const finalDrift = anchor.getBoundingClientRect().top - rectBefore.top
+          if (finalDrift !== 0) scrollContainer.scrollTop += finalDrift
+        }, options.settleAfterMs)
       })
     },
     [isRuntimeManaged]

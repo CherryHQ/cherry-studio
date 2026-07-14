@@ -140,7 +140,7 @@ describe('useModelSelectorData', () => {
     expect(result.current.modelItems).toHaveLength(3)
   })
 
-  it('routes the CherryAI provider group settings action to CherryIN settings', () => {
+  it('hides the provider group settings action for CherryAI', () => {
     wireDeps({
       providers: [makeProvider('cherryai')],
       models: [makeModel('qwen', 'cherryai')]
@@ -150,8 +150,7 @@ describe('useModelSelectorData', () => {
 
     expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
       key: 'provider-cherryai',
-      canNavigateToSettings: true,
-      settingsProviderId: 'cherryin'
+      canNavigateToSettings: false
     })
   })
 

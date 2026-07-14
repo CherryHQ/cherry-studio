@@ -40,7 +40,7 @@
   "devDependencies": {
     "tsdown": "^0.20.3",
     "typescript": "^5.8.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.7"
   },
   "sideEffects": false,
   "engines": {
