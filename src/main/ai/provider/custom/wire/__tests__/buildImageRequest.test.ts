@@ -218,3 +218,14 @@ describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google
     expect(engine('dmxapi', { negativePrompt: 'x', numImages: 1 })).toEqual({ dmxapi: { negative_prompt: 'x' } })
   })
 })
+
+describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; size/seed are native, not profile fields)', () => {
+  it('maps numInferenceSteps to steps and omits everything else', () => {
+    const paramValues = { numInferenceSteps: 9, seed: 42, negativePrompt: 'no blur', quality: 'hd' }
+    expect(engine('ollama', paramValues)).toEqual({ ollama: { steps: 9 } })
+  })
+
+  it('returns {} when numInferenceSteps is unset', () => {
+    expect(engine('ollama', {})).toEqual({})
+  })
+})

@@ -5,6 +5,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('AgentCreateDialog')
@@ -25,20 +26,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAgent({
-          body: {
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions'
-            }
-          }
+          body: buildCreateAgentDto(values)
         })
         onOpenChange(false)
         await onCreated(created.id)

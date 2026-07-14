@@ -535,7 +535,6 @@ vi.mock('@cherrystudio/ui', () => {
         label,
         children
       ),
-    submenuItemClassName: '',
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
@@ -800,17 +799,14 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
-    // Supports both the legacy (isSelected/onValueChange) and Radix (checked/onCheckedChange)
-    // Switch APIs. Rendered as a checkbox input, so query it with role "checkbox".
-    Switch: ({ isSelected, checked, onValueChange, onCheckedChange, ...props }) =>
+    Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
         type: 'checkbox',
-        checked: checked ?? isSelected,
-        onChange: (e) => {
-          onValueChange?.(e.target.checked)
-          onCheckedChange?.(e.target.checked)
-        },
+        role: 'switch',
+        checked,
+        defaultChecked,
+        onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
     // Popover primitives — Radix-style trigger / content split

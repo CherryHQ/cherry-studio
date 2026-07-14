@@ -72,11 +72,15 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
+  Bot: () => <span data-testid="bot-icon" />,
+  FileText: () => <span data-testid="file-text-icon" />,
+  MessageCircle: () => <span data-testid="message-circle-icon" />,
   Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
   Search: () => <span data-testid="search-icon" />,
   Trash2: () => <span data-testid="trash-icon" />,
-  X: () => <span data-testid="x-icon" />
+  X: () => <span data-testid="x-icon" />,
+  Zap: () => <span data-testid="zap-icon" />
 }))
 
 vi.mock('react-i18next', () => ({
