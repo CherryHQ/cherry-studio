@@ -1,14 +1,12 @@
+import { buildParamsSchema } from '@cherrystudio/provider-registry'
 import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import type { CanonicalParamKey } from '@shared/data/types/model'
-import type { GenerateImageParams } from '@shared/types/image'
+import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
-
-type AiSdkParams = Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
 
 /** Encode raw image bytes as a `data:` URL for the main-process image IPC. */
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
@@ -20,56 +18,12 @@ function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   return `data:${mime || 'image/png'};base64,${btoa(binary)}`
 }
 
-/**
- * Painting-state keys (registry-canonical) that map to a different AI SDK
- * canonical param name. The only divergence today: `size → imageSize` (UI
- * canonical vs AI SDK canonical) and `numImages → batchSize`. Everything
- * else matches name-for-name.
- */
-const POSITIONAL_RENAME: Partial<Record<CanonicalParamKey, string>> = {
-  size: 'imageSize',
-  numImages: 'batchSize'
-}
-
-/**
- * AI SDK canonical fields recognized by `generatePainting` / the AI SDK
- * image-model. Anything outside this set, after `POSITIONAL_RENAME`, flows
- * through `providerOptions[providerId]` (the vendor bag) — the AI SDK
- * image-model adapter for that vendor reads it.
- *
- * Adding a new AI SDK canonical field: append it here. Renderer / registry
- * agree on the canonical name; the vendor adapter takes care of any
- * wire-format quirks (snake_case rename, enum string format, etc.).
- */
-const AI_SDK_NATIVE_KEYS = new Set([
-  'imageSize',
-  'batchSize',
-  'negativePrompt',
-  'aspectRatio',
-  'seed',
-  'numInferenceSteps',
-  'guidanceScale',
-  'promptEnhancement',
-  'personGeneration',
-  'quality',
-  'background',
-  'moderation',
-  'style',
-  'inputImages'
-])
-
 export interface CanonicalGenerateOptions<T extends PaintingData> {
   /**
    * Throw a vendor-specific validation error before the generate call
    * fires. Use for cross-field rules that can't fit a single resolver.
    */
   preValidate?: (painting: T) => void
-  /**
-   * Constants always written into `aiSdkParams`, overriding any
-   * `painting.params` read for the same key. Use for vendor-wide flags
-   * not surfaced as a painting param.
-   */
-  constants?: Partial<AiSdkParams>
   /**
    * Whether `painting.prompt` must be non-empty. Default `true`. Pass
    * `false` (or a predicate returning `false`) for models that accept
@@ -78,24 +32,27 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
    * per-model rule when the standard check is skipped.
    */
   requirePrompt?: boolean | ((painting: T) => boolean)
+  /**
+   * Registry image-generation support for this model — composes with the
+   * central param catalog to validate/coerce `painting.params` (seed
+   * string→number, blank→undefined, enum/range bounds) at submit. Threaded in
+   * by `paintingPipeline`, which already prefetches it.
+   */
+  support?: ImageGenerationSupport
+  /** Resolved mode for the `support` lookup. Default `'generate'`. */
+  mode?: ImageGenerationMode
 }
 
 /**
- * Generic painting generate path. Reads `painting.params` (keyed by
- * canonical names from the registry's `imageGeneration.modes[mode]
- * .supports`), partitions each entry into `aiSdkParams` vs
- * `providerOptions[providerId]` via `AI_SDK_NATIVE_KEYS` + `POSITIONAL_
- * RENAME`, and hands the result to the shared `generatePainting`
- * skeleton.
+ * Generic painting generate path. Validates/coerces `painting.params` (keyed by
+ * canonical names from the registry's `imageGeneration.modes[mode].supports`)
+ * via the central catalog (`buildParamsSchema`), then ships the whole canonical
+ * bag as `paramValues` to the shared `generatePainting` skeleton. main owns the
+ * native-vs-vendor partition (`splitParamValues`) and the per-vendor wire
+ * mapping — the renderer stays vendor-agnostic.
  *
- * Vendor wire transforms (snake_case, `ASPECT_X_Y → X:Y`, base64
- * encoding, etc.) live in `aiCore/provider/custom/{aihubmixImageModel,
- * {ppio,dmxapi}/<vendor>Transport.ts`. This function ships canonical names
- * only. The pre-`AI_SDK_PARAM_KEYS` constant + per-vendor `fieldMap` /
- * `keyMap` aliases are gone — `params` keys ARE canonical.
- *
- * Empty / undefined / empty-string `params` entries are omitted from the
- * wire; the server applies its own default. No client-side defaults.
+ * Empty / undefined / empty-string entries are dropped here (and again in main)
+ * so the server applies its own default; no client-side defaults.
  */
 export async function canonicalGenerate<T extends PaintingData>(
   input: GenerateInput<T>,
@@ -116,69 +73,58 @@ export async function canonicalGenerate<T extends PaintingData>(
     typeof options.requirePrompt === 'function' ? options.requirePrompt(painting) : (options.requirePrompt ?? true)
   if (promptRequired && !prompt) throw createPaintingGenerateError('PROMPT_REQUIRED')
 
-  const params = painting.params ?? {}
-  const aiSdkParams: Record<string, unknown> = {}
-  const providerBag: Record<string, unknown> = {}
+  // 1. Validate / coerce raw form params through the central catalog. Soft-fail:
+  //    a bad / legacy value must never break submit, so fall back to raw params.
+  const rawParams = painting.params ?? {}
+  const validated = buildParamsSchema(options.support, options.mode).safeParse(rawParams)
+  const source: Record<string, unknown> = validated.success ? validated.data : rawParams
 
-  // UI-only companions of the `customSize` widget: it stores the typed
-  // width/height under these keys and sets its paired enum (`size`) to
-  // 'custom'. They're composed into the wire size below, never sent raw.
-  const CUSTOM_SIZE_KEYS = new Set(['customSize_width', 'customSize_height'])
-
-  function place(paramKey: string, value: unknown): void {
-    if (value === undefined || value === '' || value === null) return
-    const aiKey = (POSITIONAL_RENAME as Record<string, string>)[paramKey] ?? paramKey
-    if (AI_SDK_NATIVE_KEYS.has(aiKey)) {
-      aiSdkParams[aiKey] = value
-    } else {
-      providerBag[paramKey] = value
-    }
+  // 2. Build the canonical `paramValues` bag: drop blanks (mirrors main's
+  //    `splitParamValues` guard — the byte-identical-wire invariant) and the
+  //    UI-only `customSize_width`/`customSize_height` companions.
+  const paramValues: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(source)) {
+    if (key === 'customSize_width' || key === 'customSize_height') continue
+    if (value === undefined || value === '' || value === null) continue
+    paramValues[key] = value
   }
 
-  // 1. Raw painting state — every params entry partitions into one slot.
-  for (const [paramKey, value] of Object.entries(params)) {
-    if (CUSTOM_SIZE_KEYS.has(paramKey)) continue
-    place(paramKey, value)
-  }
-
-  // 2. Custom size: the customSize widget pairs `size: 'custom'` with
-  //    `customSize_width`/`customSize_height` (zhipu CogView's free WxH
-  //    range). Compose them into the AI SDK `imageSize`; drop the sentinel
-  //    when width/height are incomplete so the server applies its default.
-  if (aiSdkParams.imageSize === 'custom') {
-    const width = params.customSize_width
-    const height = params.customSize_height
+  // 3. Custom size: the customSize widget pairs `size: 'custom'` with
+  //    `customSize_width`/`customSize_height` (zhipu CogView's free WxH range).
+  //    Compose them into `size`; drop the sentinel when the pair is incomplete
+  //    so the server applies its default.
+  if (paramValues.size === 'custom') {
+    const width = source.customSize_width
+    const height = source.customSize_height
     if (typeof width === 'number' && typeof height === 'number') {
-      aiSdkParams.imageSize = `${width}x${height}`
+      paramValues.size = `${width}x${height}`
     } else {
-      delete aiSdkParams.imageSize
+      delete paramValues.size
     }
   }
 
-  // 3. Constants are always-on aiSdkParams overrides.
-  Object.assign(aiSdkParams, options.constants ?? {})
-
-  // 4. Pre-fetch attached image bytes when the user attached files via the
-  // prompt-box surface. The AI SDK image-model adapter for the vendor
-  // picks the right endpoint (gpt-image-1's `/v1/images/edits`, Ideogram
-  // V_3's FormData branch, etc.) when `inputImages` is non-empty.
+  // 4. Pre-fetch attached image bytes (encoded as `data:` URLs for the IPC),
+  //    carried separately from `paramValues` — they're encoded files, not form
+  //    params. The vendor image-model adapter picks the right edit endpoint.
   const inputFiles = painting.inputFiles ?? []
-  if (inputFiles.length > 0) {
-    aiSdkParams.inputImages = await Promise.all(
-      inputFiles.map(async (entry) => {
-        const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
-        const { data, mime } = await window.api.file.binaryImage(onDiskName)
-        return bytesToDataUrl(new Uint8Array(data), mime)
-      })
-    )
-  }
+  const inputImages =
+    inputFiles.length > 0
+      ? await Promise.all(
+          inputFiles.map(async (entry) => {
+            const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
+            const { data, mime } = await window.api.file.binaryImage(onDiskName)
+            return bytesToDataUrl(new Uint8Array(data), mime)
+          })
+        )
+      : undefined
 
   return generatePainting({
     provider,
     signal: abortController.signal,
     modelId,
     prompt,
-    aiSdkParams: aiSdkParams as AiSdkParams,
-    ...(Object.keys(providerBag).length > 0 && { providerBag })
+    ...(options.mode && { mode: options.mode }),
+    paramValues,
+    ...(inputImages && { inputImages })
   })
 }

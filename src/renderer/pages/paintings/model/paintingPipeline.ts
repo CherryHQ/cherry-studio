@@ -2,7 +2,7 @@ import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { uuid } from '@renderer/utils/uuid'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { canonicalGenerate } from './canonicalGenerate'
@@ -24,55 +24,42 @@ export function createDefaultPainting(providerId: string): PaintingData {
 /**
  * Generic painting generate dispatch — the same flow for every provider:
  *
- *   1. Look up the model's `imageGeneration` block via DataApi.
- *   2. If the model declares per-mode `vendorTransport` (PPIO async
- *      endpoints, future custom-transport vendors), inject the descriptor
- *      into `painting.params.modelDescriptor` so the AI SDK image-model
- *      can read it from `providerOptions[providerId]`.
- *   3. Hand off to `canonicalGenerate` (with the mode's `requirePrompt`
- *      flag when the registry declares one).
+ *   1. Look up the model's `imageGeneration` block (support + effective mode +
+ *      `requirePrompt`) via DataApi.
+ *   2. Hand off to `canonicalGenerate`, which validates/coerces `painting.params`
+ *      against that support + the central catalog. Backend routing data
+ *      (`modelDescriptor` — per-model transport endpoint/isSync) is derived in
+ *      main from the registry, not here; see `AiService.generateImage`.
  *
  * Vendor wire-format quirks live in the aiCore image-model adapters
  * (`aihubmix/aihubmixImageModel.ts`, `{ppio,dmxapi,ovms,modelscope}/<vendor>Transport.ts`),
- * not here. This function only does the registry → bag injection.
+ * not here.
  */
 export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {
   const modelId = input.painting.model
   const canonicalMode = tabToImageGenerationMode(input.painting.mode)
   let requirePrompt: boolean | undefined
-  // Local params copy threaded to canonicalGenerate — never reassign
-  // `input.painting.params`, or the synthetic `modelDescriptor` leaks into
-  // the live in-memory draft and re-emits on regenerate.
-  let paramsForGenerate = input.painting.params
+  // Threaded into canonicalGenerate so it can validate/coerce params against
+  // the model's registry support + central catalog (already prefetched here).
+  let support: ImageGenerationSupport | undefined
+  let effectiveMode: ImageGenerationMode | undefined
 
   if (modelId) {
     try {
-      const support = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
-        params: { providerId: input.provider.id, modelId }
-      })
+      support =
+        (await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
+          params: { providerId: input.provider.id, modelId }
+        })) ?? undefined
       const modes = support?.modes
-      const effectiveMode: ImageGenerationMode | undefined =
+      effectiveMode =
         canonicalMode && modes?.[canonicalMode]
           ? canonicalMode
           : modes
             ? (Object.keys(modes)[0] as ImageGenerationMode)
             : undefined
-      const modeDef = effectiveMode && modes ? modes[effectiveMode] : undefined
-      const transport = modeDef?.vendorTransport
-      requirePrompt = modeDef?.requirePrompt
-      if (transport?.endpoint) {
-        paramsForGenerate = {
-          ...input.painting.params,
-          modelDescriptor: {
-            id: modelId,
-            endpoint: transport.endpoint,
-            isSync: transport.isSync,
-            mode: effectiveMode
-          }
-        }
-      }
+      requirePrompt = effectiveMode && modes ? modes[effectiveMode]?.requirePrompt : undefined
     } catch (error) {
-      logger.warn('Failed to prefetch vendorTransport', {
+      logger.warn('Failed to prefetch image-generation support', {
         providerId: input.provider.id,
         modelId,
         mode: canonicalMode,
@@ -82,11 +69,9 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   }
 
   const options = {
-    ...(requirePrompt !== undefined && { requirePrompt })
+    ...(requirePrompt !== undefined && { requirePrompt }),
+    ...(support !== undefined && { support }),
+    ...(effectiveMode !== undefined && { mode: effectiveMode })
   }
-  const generateInput: GenerateInput =
-    paramsForGenerate === input.painting.params
-      ? input
-      : { ...input, painting: { ...input.painting, params: paramsForGenerate } }
-  return canonicalGenerate(generateInput, Object.keys(options).length > 0 ? options : undefined)
+  return canonicalGenerate(input, Object.keys(options).length > 0 ? options : undefined)
 }
