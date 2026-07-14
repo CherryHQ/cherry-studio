@@ -47,7 +47,6 @@ import {
   buildWorkspaceSearchTree,
   getWorkspaceCodeLanguage,
   getWorkspaceFilePreviewKind,
-  getWorkspaceParentPath,
   getWorkspacePathBasename,
   resolveWorkspaceRelativeArtifactPath,
   type WebUiWorkspaceTreeNode
