@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { CommandTooltip } from '@renderer/components/command'
 import { NavbarHeader } from '@renderer/components/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -22,7 +23,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
   return (
     <NavbarHeader className="home-navbar relative" style={{ height: 'var(--navbar-height)' }}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
-        <div data-navbar-left-occupant className="flex shrink-0 items-center">
+        <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center overflow-hidden">
           {showSidebarControls &&
             (showSidebar ? (
               <ConversationSidebarToggleButton
@@ -54,6 +55,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
                 </CommandTooltip>
               </>
             ))}
+          <ConversationTopBarPortalHost />
         </div>
       </div>
     </NavbarHeader>
