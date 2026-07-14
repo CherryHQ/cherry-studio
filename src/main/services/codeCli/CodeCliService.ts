@@ -20,7 +20,7 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
@@ -34,7 +34,15 @@ import {
 } from './terminals'
 
 const execAsync = promisify(require('child_process').exec)
+const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
+const MACOS_APPLICATION_LOOKUP_SCRIPT = [
+  'ObjC.import("AppKit")',
+  'function run(argv) {',
+  '  const url = $.NSWorkspace.sharedWorkspace.URLForApplicationWithBundleIdentifier(argv[0])',
+  '  return url ? ObjC.unwrap(url.path) : ""',
+  '}'
+].join('\n')
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
@@ -120,16 +128,21 @@ export class CodeCliService extends BaseService {
    * Check if a single terminal is available
    */
   private async checkTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    if (isMac && terminal.bundleId) {
+      if (terminal.id === TerminalApp.SYSTEM_DEFAULT) {
+        return terminal
+      }
+
+      const { stdout } = await execFileAsync(
+        '/usr/bin/osascript',
+        ['-l', 'JavaScript', '-e', MACOS_APPLICATION_LOOKUP_SCRIPT, terminal.bundleId],
+        { timeout: 3000 }
+      )
+      return stdout.trim() ? terminal : null
+    }
+
     try {
-      if (isMac && terminal.bundleId) {
-        // macOS: Check if application is installed via bundle ID with timeout
-        const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, {
-          timeout: 3000
-        })
-        if (stdout.trim()) {
-          return terminal
-        }
-      } else if (isWin) {
+      if (isWin) {
         // Windows: Check terminal availability
         return await this.checkWindowsTerminalAvailability(terminal)
       } else {
@@ -236,11 +249,13 @@ export class CodeCliService extends BaseService {
       )
 
       const availableTerminals: TerminalConfig[] = []
+      let hasProbeFailure = false
       results.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value) {
           availableTerminals.push(result.value as TerminalConfig)
         } else if (result.status === 'rejected') {
-          logger.debug(`Terminal check failed for ${MACOS_TERMINALS[index].id}:`, result.reason)
+          hasProbeFailure = true
+          logger.debug(`Terminal check failed for ${terminalList[index].id}:`, result.reason)
         }
       })
 
@@ -249,7 +264,11 @@ export class CodeCliService extends BaseService {
         `Terminal availability check completed in ${endTime - startTime}ms, found ${availableTerminals.length} terminals`
       )
 
-      // Cache the results
+      if (hasProbeFailure) {
+        logger.warn('Terminal availability check was incomplete; preserving the previous cache if available')
+        return this.terminalsCache?.terminals ?? availableTerminals
+      }
+
       this.terminalsCache = {
         terminals: availableTerminals,
         timestamp: now

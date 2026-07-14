@@ -9,7 +9,6 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
-import { isNoApiKeyProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,7 +39,9 @@ export function useProviderConnectionCheck(providerId: string) {
 
   const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
-  const requiresApiKey = !isNoApiKeyProvider(provider)
+  // Keyless local servers (registry `authOptional`) can be connection-checked
+  // without a key; the flag rides the merged Provider, so duplicates inherit it.
+  const requiresApiKey = !provider?.authOptional
 
   // AbortController + runId pair guards against stale callbacks landing on the
   // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight

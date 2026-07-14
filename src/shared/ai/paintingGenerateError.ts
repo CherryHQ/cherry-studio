@@ -8,7 +8,6 @@
  */
 
 export type PaintingGenerateErrorCode =
-  | 'NO_API_KEY'
   | 'PROVIDER_DISABLED'
   | 'PROMPT_REQUIRED'
   | 'TEXT_DESC_REQUIRED'
