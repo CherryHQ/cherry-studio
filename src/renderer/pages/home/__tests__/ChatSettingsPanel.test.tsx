@@ -126,11 +126,6 @@ vi.mock('../components/TopicRightPane', () => {
         branch shortcuts
       </button>
     ),
-    Toggle: ({ disabled }: { disabled?: boolean }) => (
-      <button type="button" disabled={disabled}>
-        branch toggle
-      </button>
-    ),
     Host: ({
       onLocateMessage,
       onCancelBranchDraft,
@@ -258,7 +253,7 @@ describe('Chat panels', () => {
 
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'branch shortcuts' })).toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'topic-1')
     expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'topic-1')
 
@@ -276,7 +271,7 @@ describe('Chat panels', () => {
     render(<Chat activeTopic={emptyTopic} />)
 
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'branch shortcuts' })).not.toBeDisabled()
     expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'empty-topic')
     expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'empty-topic')
   })

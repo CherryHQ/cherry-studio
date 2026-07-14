@@ -1,3 +1,4 @@
+import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   inferEmbeddingFromModelId,
@@ -10,6 +11,7 @@ import {
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
+  isGatewayRoutableModel,
   isGenerateImageModel,
   isNonChatModel,
   isReasoningModel,
@@ -65,6 +67,7 @@ describe('shared model capability helpers', () => {
   it('keeps embedding, rerank, and image generation as explicit capability checks', () => {
     expect(isEmbeddingModel(createModel([MODEL_CAPABILITY.EMBEDDING]))).toBe(true)
     expect(isRerankModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(true)
+    expect(isNonChatModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(true)
     expect(isGenerateImageModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(true)
   })
 
@@ -95,6 +98,41 @@ describe('shared model capability helpers', () => {
     it('classifies dedicated speech-to-text / text-to-speech only by explicit capability', () => {
       expect(isSpeechToTextModel(createModel([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(true)
       expect(isTextToSpeechModel(createModel([MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(true)
+    })
+  })
+
+  describe('isGatewayRoutableModel', () => {
+    it('keeps an ordinary chat model', () => {
+      expect(isGatewayRoutableModel(createModel())).toBe(true)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.REASONING]))).toBe(true)
+    })
+
+    it('excludes every non-chat class, including audio/video generation and transcription', () => {
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(false)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(false)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.VIDEO_GENERATION]))).toBe(false)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(false)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(false)
+    })
+
+    it('excludes the CherryAI managed default model', () => {
+      const managedDefault: Model = {
+        ...createModel(),
+        id: `${CHERRYAI_PROVIDER_ID}::qwen`,
+        providerId: CHERRYAI_PROVIDER_ID,
+        apiModelId: CHERRYAI_DEFAULT_MODEL_ID
+      }
+      expect(isGatewayRoutableModel(managedDefault)).toBe(false)
+    })
+
+    it('excludes models of a provider id containing ":" (the gateway address cannot round-trip it)', () => {
+      const colonProvider: Model = {
+        ...createModel(),
+        id: 'corp:west::gpt-4o',
+        providerId: 'corp:west'
+      }
+      expect(isGatewayRoutableModel(colonProvider)).toBe(false)
     })
   })
 

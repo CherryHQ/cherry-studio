@@ -307,7 +307,6 @@
     "cross-env": "^10.1.0",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",
-    "dexie-react-hooks": "^1.1.7",
     "diff": "^8.0.3",
     "docx": "^9.0.2",
     "docx-preview": "0.3.7",

@@ -191,6 +191,28 @@ export default defineCreator({
           }
         }
       }
+    },
+    // ── Rerankers (Qwen3-Reranker; models.dev carries no rerank entry, so hand-list) ──
+    {
+      id: 'qwen3-reranker-0-6b',
+      name: 'Qwen3 Reranker 0.6B',
+      family: 'qwen',
+      capabilities: ['rerank'],
+      contextWindow: 32768
+    },
+    {
+      id: 'qwen3-reranker-4b',
+      name: 'Qwen3 Reranker 4B',
+      family: 'qwen',
+      capabilities: ['rerank'],
+      contextWindow: 32768
+    },
+    {
+      id: 'qwen3-reranker-8b',
+      name: 'Qwen3 Reranker 8B',
+      family: 'qwen',
+      capabilities: ['rerank'],
+      contextWindow: 32768
     }
   ]
 })

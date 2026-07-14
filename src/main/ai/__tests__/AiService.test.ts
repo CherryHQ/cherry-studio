@@ -12,6 +12,7 @@ const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
+const mockGetImageGenerationSupport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
@@ -56,8 +57,9 @@ vi.mock('@main/data/services/ModelService', () => ({
   }
 }))
 
-vi.mock('@main/data/services/ProviderRegistryService', () => ({
+vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
+    getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
     listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
   }
 }))
@@ -65,7 +67,6 @@ vi.mock('@main/data/services/ProviderRegistryService', () => ({
 vi.mock('../provider/listModels', () => ({
   listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
 }))
-
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
@@ -200,14 +201,19 @@ describe('AiService', () => {
     const result = await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
-      n: 2,
-      size: '1024x1024',
-      negativePrompt: 'blurry',
-      seed: 7,
-      quality: 'high',
-      numInferenceSteps: 30,
-      guidanceScale: 4.5,
-      promptEnhancement: true,
+      // Canonical paramValues bag (`numImages`, not `n`); main re-derives the
+      // wire shape. Only n/size/seed/aspectRatio are AI SDK native options; the
+      // knobs (negativePrompt/quality/…) ride in `providerOptions[id]` (wire-named).
+      paramValues: {
+        numImages: 2,
+        size: '1024x1024',
+        negativePrompt: 'blurry',
+        seed: 7,
+        quality: 'high',
+        numInferenceSteps: 30,
+        guidanceScale: 4.5,
+        promptEnhancement: true
+      },
       requestOptions: { signal: new AbortController().signal }
     })
 
@@ -219,12 +225,17 @@ describe('AiService', () => {
         prompt: 'draw a cat',
         n: 2,
         size: '1024x1024',
-        negativePrompt: 'blurry',
         seed: 7,
-        quality: 'high',
-        numInferenceSteps: 30,
-        guidanceScale: 4.5,
-        promptEnhancement: true
+        providerOptions: {
+          'test-provider': {
+            negative_prompt: 'blurry',
+            seed: 7,
+            quality: 'high',
+            num_inference_steps: 30,
+            guidance_scale: 4.5,
+            prompt_enhancement: true
+          }
+        }
       })
     )
 
@@ -250,7 +261,7 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
-  it("omits SDK size when size is the 'auto' sentinel", async () => {
+  it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: {
@@ -268,11 +279,56 @@ describe('AiService', () => {
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
-      size: 'auto'
+      paramValues: { size: 'auto' }
+    })
+    expect(mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
+
+    // No size at all → omitted too (the provider/server applies its own default),
+    // rather than the old forced 1024x1024.
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      paramValues: {}
+    })
+    expect(mockGenerateImage.mock.calls[1]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
+  })
+
+  it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'silicon::Kwai-Kolors/Kolors',
+      prompt: 'a fox',
+      // numImages is native (→ imageParams.n); the rest form the silicon vendor body.
+      paramValues: {
+        numImages: 2,
+        seed: 42,
+        negativePrompt: 'low quality',
+        numInferenceSteps: 25,
+        guidanceScale: 4.5,
+        cfg: 7.5
+      }
     })
 
-    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
-    expect(callOptions).not.toHaveProperty('size')
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      'silicon',
+      {},
+      expect.objectContaining({
+        n: 2,
+        // Byte-identical to the old buildImageProviderOptions diffusion bag.
+        providerOptions: {
+          silicon: { negative_prompt: 'low quality', seed: 42, num_inference_steps: 25, guidance_scale: 4.5, cfg: 7.5 }
+        }
+      })
+    )
   })
 })
 
@@ -830,6 +886,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const result = await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
       prompt: 'a cat',
+      paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],
       requestOptions: { signal: new AbortController().signal }
     })
@@ -840,6 +897,99 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     )
     expect(result).toEqual({ files: outputFiles })
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+
+  it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
+    // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT
+    // AI SDK native options — they must reach the transport in `providerParams`
+    // (the canonical camelCase vendorBag), not get dropped into `structured`.
+    // The boundary tests hand-build providerParams, so only this split→transport
+    // assertion catches a mis-classified native binding.
+    const service = createService()
+    stubResolution(service)
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      paramValues: {
+        numImages: 1,
+        size: '1024x1024',
+        seed: 9,
+        negativePrompt: 'blurry',
+        numInferenceSteps: 30,
+        guidanceScale: 4.5,
+        promptExtend: true
+      },
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        n: 1,
+        size: '1024x1024',
+        seed: 9,
+        // native n/size/seed travel as payload fields; the knobs ride the bag
+        providerParams: { negativePrompt: 'blurry', numInferenceSteps: 30, guidanceScale: 4.5, promptExtend: true }
+      })
+    )
+  })
+
+  it('derives modelDescriptor { id, endpoint, isSync, mode } from the registry vendorTransport (non-default mode)', async () => {
+    // Async PPIO/DashScope jobs resume against the endpoint / response-family carried
+    // in the payload; guard that a non-default mode routes through ITS OWN
+    // vendorTransport and the derived descriptor reaches the enqueued job. Without
+    // this, a restart-resume (or an edit-mode job) would hit the wrong endpoint.
+    const service = createService()
+    stubResolution(service)
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: { vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions', isSync: false } }
+      }
+    })
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      mode: 'edit',
+      paramValues: {},
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    // The descriptor is derived from the registry (main-hosted), keyed by the
+    // resolved mode — NOT laundered through paramValues.
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image')
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        modelDescriptor: {
+          id: 'qwen-image',
+          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+          isSync: false,
+          mode: 'edit'
+        }
+      })
+    )
   })
 
   it('maps a failed job snapshot to a thrown error', async () => {
@@ -861,9 +1011,9 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       return undefined
     })
 
-    await expect(service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat' })).rejects.toThrow(
-      'vendor exploded'
-    )
+    await expect(
+      service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', paramValues: {} })
+    ).rejects.toThrow('vendor exploded')
   })
 
   it('cancels the job and throws AbortError when the request is aborted', async () => {
@@ -892,6 +1042,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'a cat',
+        paramValues: {},
         requestOptions: { signal: controller.signal }
       })
     ).rejects.toThrow(/abort/i)
@@ -922,6 +1073,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'edit',
+        paramValues: {},
         inputImages: ['data:image/png;base64,AAAA']
       })
     ).rejects.toThrow('enqueue boom')
@@ -947,17 +1099,37 @@ describe('AiService.listModels', () => {
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
-  it('pulls the model list over the API for an api-sourced provider', async () => {
+  it('pulls the model list over the API for an api-sourced provider, returning it as-is when the registry adds nothing', async () => {
     const service = createService()
     const provider = { id: 'openai', modelListSource: 'api' }
-    const apiModels = [{ id: 'openai::gpt-4o-mini' }]
+    const apiModels = [{ id: 'openai::gpt-4o-mini', apiModelId: 'gpt-4o-mini' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([])
 
     const result = await service.listModels({ providerId: 'openai' })
 
     expect(result).toBe(apiModels)
     expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
-    expect(mockListProviderRegistryModels).not.toHaveBeenCalled()
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'openai' })
+  })
+
+  it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {
+    const service = createService()
+    const provider = { id: 'ppio', modelListSource: 'api' }
+    // Live /models returns the chat model with a flat id.
+    const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([
+      // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
+      { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
+      // Vendor-exclusive image model the API never lists → must be appended.
+      { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
+    ])
+
+    const result = await service.listModels({ providerId: 'ppio' })
+
+    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
   })
 })
