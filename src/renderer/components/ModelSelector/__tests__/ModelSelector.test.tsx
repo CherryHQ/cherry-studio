@@ -256,7 +256,7 @@ const PROVIDER: Provider = {
   isEnabled: true
 } as Provider
 
-const MODEL_SELECTOR_CONTENT_HEIGHT = 392
+const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 
 function makeModel(modelId: UniqueModelId, name: string): Model {
   return {
