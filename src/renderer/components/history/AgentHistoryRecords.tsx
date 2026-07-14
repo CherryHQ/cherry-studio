@@ -32,6 +32,7 @@ import {
   toServerOwnerScope
 } from './historyRecordsHelpers'
 import { useHistoryRecordsController, useHistoryRecordsFilters } from './useHistoryRecordsController'
+import { usePinnedBandPagination } from './usePinnedBandPagination'
 
 const SEARCH_DEBOUNCE_MS = 300
 const HISTORY_PAGE_SIZE = 50
@@ -59,35 +60,14 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
   const historySortBy = 'updatedAt' as const
 
-  const {
-    sessions: pinnedSourceSessions,
-    pages: pinnedSessionPages,
-    error: pinnedSessionsError,
-    hasMore: hasMorePinnedSessions,
-    isLoading: isPinnedSessionsLoading,
-    isLoadingMore: isPinnedSessionsLoadingMore,
-    loadMore: loadMorePinnedSessions,
-    reload: reloadPinnedSessions
-  } = useSessions(ownerScope, {
+  const pinnedSessionsSource = useSessions(ownerScope, {
     enabled: !usesRuntimeStatusIds,
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
     searchScope: 'full',
     pinned: true
   })
-  const {
-    sessions: unpinnedSourceSessions,
-    pages: unpinnedSessionPages,
-    deleteSession,
-    deleteSessions,
-    error: unpinnedSessionsError,
-    hasMore: hasMoreUnpinnedSessions,
-    isLoading: isUnpinnedSessionsLoading,
-    isLoadingMore: isUnpinnedSessionsLoadingMore,
-    loadMore: loadMoreUnpinnedSessions,
-    reload: reloadUnpinnedSessions,
-    togglePin
-  } = useSessions(ownerScope, {
+  const unpinnedSessionsSource = useSessions(ownerScope, {
     enabled: !usesRuntimeStatusIds,
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
@@ -95,6 +75,36 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     sortBy: historySortBy,
     pinned: false
   })
+  const { pages: pinnedSessionPages } = pinnedSessionsSource
+  const { pages: unpinnedSessionPages, deleteSession, deleteSessions, togglePin } = unpinnedSessionsSource
+  const {
+    items: baseSessions,
+    error: bandSessionsError,
+    isLoading: isBandSessionsLoading,
+    isLoadingMore: isBandSessionsLoadingMore,
+    hasNext: hasMoreBandSessions,
+    loadNext: loadMoreBandSessions,
+    reload: reloadBandSessions
+  } = usePinnedBandPagination(
+    {
+      items: pinnedSessionsSource.sessions,
+      error: pinnedSessionsSource.error,
+      hasNext: pinnedSessionsSource.hasMore,
+      isLoading: pinnedSessionsSource.isLoading,
+      isLoadingMore: pinnedSessionsSource.isLoadingMore,
+      loadNext: pinnedSessionsSource.loadMore,
+      reload: pinnedSessionsSource.reload
+    },
+    {
+      items: unpinnedSessionsSource.sessions,
+      error: unpinnedSessionsSource.error,
+      hasNext: unpinnedSessionsSource.hasMore,
+      isLoading: unpinnedSessionsSource.isLoading,
+      isLoadingMore: unpinnedSessionsSource.isLoadingMore,
+      loadNext: unpinnedSessionsSource.loadMore,
+      reload: unpinnedSessionsSource.reload
+    }
+  )
   const {
     sessions: runtimeSessions,
     error: runtimeSessionsError,
@@ -110,19 +120,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const { stats: sessionStats } = useAgentSessionStats()
   const { updateSession } = useUpdateSession()
 
-  const pinnedSessions = useMemo(
-    () => pinnedSourceSessions.filter((session) => session.pinned === true),
-    [pinnedSourceSessions]
-  )
-  const unpinnedSessions = useMemo(
-    () => unpinnedSourceSessions.filter((session) => session.pinned !== true),
-    [unpinnedSourceSessions]
-  )
-  const isPinnedBandComplete = !isPinnedSessionsLoading && !pinnedSessionsError && !hasMorePinnedSessions
-  const baseSessions = useMemo(
-    () => [...pinnedSessions, ...(isPinnedBandComplete ? unpinnedSessions : [])],
-    [isPinnedBandComplete, pinnedSessions, unpinnedSessions]
-  )
   const orderedRuntimeSessions = useMemo(
     () => [
       ...runtimeSessions.filter((session) => session.pinned === true),
@@ -135,37 +132,17 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     if (filters.selectedStatus !== 'completed') return queried
     return queried.filter((session) => !activeIds.has(session.id) && !failedIds.has(session.id))
   }, [activeIds, baseSessions, failedIds, filters.selectedStatus, orderedRuntimeSessions, usesRuntimeStatusIds])
-  const sessionError = usesRuntimeStatusIds
-    ? runtimeSessionsError
-    : (pinnedSessionsError ?? (isPinnedBandComplete ? unpinnedSessionsError : undefined))
-  const isSessionsLoading = usesRuntimeStatusIds
-    ? isRuntimeSessionsLoading
-    : isPinnedSessionsLoading || (isPinnedBandComplete && isUnpinnedSessionsLoading)
-  const isSessionsLoadingMore =
-    !usesRuntimeStatusIds && (isPinnedSessionsLoadingMore || (isPinnedBandComplete && isUnpinnedSessionsLoadingMore))
+  const sessionError = usesRuntimeStatusIds ? runtimeSessionsError : bandSessionsError
+  const isSessionsLoading = usesRuntimeStatusIds ? isRuntimeSessionsLoading : isBandSessionsLoading
+  const isSessionsLoadingMore = !usesRuntimeStatusIds && isBandSessionsLoadingMore
   const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   const isSessionPinned = useCallback((sessionId: string) => sessionById.get(sessionId)?.pinned === true, [sessionById])
   const sessionItems = useMemo<SessionListItem[]>(() => [...sessions], [sessions])
-  const hasMoreSessions =
-    !usesRuntimeStatusIds && (hasMorePinnedSessions || (isPinnedBandComplete && hasMoreUnpinnedSessions))
+  const hasMoreSessions = !usesRuntimeStatusIds && hasMoreBandSessions
   const loadMoreSessions = useCallback(() => {
     if (usesRuntimeStatusIds || isSessionsLoading || isSessionsLoadingMore || sessionError) return
-    if (hasMorePinnedSessions) {
-      loadMorePinnedSessions()
-    } else if (isPinnedBandComplete && hasMoreUnpinnedSessions) {
-      loadMoreUnpinnedSessions()
-    }
-  }, [
-    hasMorePinnedSessions,
-    hasMoreUnpinnedSessions,
-    isPinnedBandComplete,
-    isSessionsLoading,
-    isSessionsLoadingMore,
-    loadMorePinnedSessions,
-    loadMoreUnpinnedSessions,
-    sessionError,
-    usesRuntimeStatusIds
-  ])
+    loadMoreBandSessions()
+  }, [isSessionsLoading, isSessionsLoadingMore, loadMoreBandSessions, sessionError, usesRuntimeStatusIds])
 
   const [completedTargetCount, setCompletedTargetCount] = useState(HISTORY_PAGE_SIZE)
   const completedOverfetchAttemptRef = useRef<string | null>(null)
@@ -441,8 +418,8 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       void refetchRuntimeSessions()
       return
     }
-    void Promise.all([reloadPinnedSessions(), reloadUnpinnedSessions()])
-  }, [refetchRuntimeSessions, reloadPinnedSessions, reloadUnpinnedSessions, usesRuntimeStatusIds])
+    void reloadBandSessions()
+  }, [refetchRuntimeSessions, reloadBandSessions, usesRuntimeStatusIds])
 
   return (
     <HistoryRecordsContent

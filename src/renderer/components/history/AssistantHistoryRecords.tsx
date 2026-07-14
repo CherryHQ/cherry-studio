@@ -46,6 +46,7 @@ import {
 } from './historyRecordsHelpers'
 import type { HistoryBulkMoveTarget } from './historyRecordsTypes'
 import { useHistoryRecordsController, useHistoryRecordsFilters } from './useHistoryRecordsController'
+import { usePinnedBandPagination } from './usePinnedBandPagination'
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -76,33 +77,44 @@ const AssistantHistoryRecords = ({
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
   const historySortBy = 'updatedAt' as const
-  const {
-    topics: pinnedSourceTopics,
-    error: pinnedTopicsError,
-    hasNext: hasNextPinnedTopics,
-    isLoading: isPinnedTopicsLoading,
-    isRefreshing: isPinnedTopicsRefreshing,
-    loadNext: loadNextPinnedTopics,
-    refetch: refetchPinnedTopics
-  } = useTopics({
+  const pinnedTopicsSource = useTopics({
     q: debouncedSearch,
     assistantId: ownerScope,
     pinned: true
   })
-  const {
-    topics: unpinnedSourceTopics,
-    error: unpinnedTopicsError,
-    hasNext: hasNextUnpinnedTopics,
-    isLoading: isUnpinnedTopicsLoading,
-    isRefreshing: isUnpinnedTopicsRefreshing,
-    loadNext: loadNextUnpinnedTopics,
-    refetch: refetchUnpinnedTopics
-  } = useTopics({
+  const unpinnedTopicsSource = useTopics({
     sortBy: historySortBy,
     q: debouncedSearch,
     assistantId: ownerScope,
     pinned: false
   })
+  const {
+    items: bandTopics,
+    error: topicsError,
+    isLoading: isTopicsLoading,
+    isLoadingMore: isBandLoadingMore,
+    loadNext: loadNextTopics,
+    reload: reloadTopics
+  } = usePinnedBandPagination(
+    {
+      items: pinnedTopicsSource.topics,
+      error: pinnedTopicsSource.error,
+      hasNext: pinnedTopicsSource.hasNext,
+      isLoading: pinnedTopicsSource.isLoading,
+      isLoadingMore: pinnedTopicsSource.isRefreshing,
+      loadNext: pinnedTopicsSource.loadNext,
+      reload: pinnedTopicsSource.refetch
+    },
+    {
+      items: unpinnedTopicsSource.topics,
+      error: unpinnedTopicsSource.error,
+      hasNext: unpinnedTopicsSource.hasNext,
+      isLoading: unpinnedTopicsSource.isLoading,
+      isLoadingMore: unpinnedTopicsSource.isRefreshing,
+      loadNext: unpinnedTopicsSource.loadNext,
+      reload: unpinnedTopicsSource.refetch
+    }
+  )
   const { stats: topicStats } = useTopicStats()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
@@ -130,26 +142,15 @@ const AssistantHistoryRecords = ({
   )
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
 
-  const pinnedTopics = useMemo(() => pinnedSourceTopics.filter((topic) => topic.pinned === true), [pinnedSourceTopics])
-  const unpinnedTopics = useMemo(
-    () => unpinnedSourceTopics.filter((topic) => topic.pinned !== true),
-    [unpinnedSourceTopics]
-  )
-  // Do not expose the unpinned band until every earlier pin page is known.
-  // Both requests still start together, so the common no-pin path is not serialized.
-  const isPinnedBandComplete = !isPinnedTopicsLoading && !pinnedTopicsError && !hasNextPinnedTopics
   const topics = useMemo<HistoryTopicItem[]>(
     () =>
-      [...pinnedTopics, ...(isPinnedBandComplete ? unpinnedTopics : [])].map((topic) => ({
+      bandTopics.map((topic) => ({
         ...topic,
         assistantId: topic.assistantId
       })),
-    [isPinnedBandComplete, pinnedTopics, unpinnedTopics]
+    [bandTopics]
   )
-  const topicsError = pinnedTopicsError ?? (isPinnedBandComplete ? unpinnedTopicsError : undefined)
-  const isTopicsLoading = isPinnedTopicsLoading || (isPinnedBandComplete && isUnpinnedTopicsLoading)
-  const isTopicsLoadingMore =
-    topics.length > 0 && (isPinnedTopicsRefreshing || (isPinnedBandComplete && isUnpinnedTopicsRefreshing))
+  const isTopicsLoadingMore = topics.length > 0 && isBandLoadingMore
   const topicById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics])
   const isTopicPinned = useCallback((topicId: string) => topicById.get(topicId)?.pinned === true, [topicById])
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
@@ -525,24 +526,11 @@ const AssistantHistoryRecords = ({
 
   const handleEndReached = useCallback(() => {
     if (isTopicsLoading || isTopicsLoadingMore || topicsError) return
-    if (hasNextPinnedTopics) {
-      loadNextPinnedTopics()
-    } else if (isPinnedBandComplete && hasNextUnpinnedTopics) {
-      loadNextUnpinnedTopics()
-    }
-  }, [
-    hasNextPinnedTopics,
-    hasNextUnpinnedTopics,
-    isPinnedBandComplete,
-    isTopicsLoading,
-    isTopicsLoadingMore,
-    loadNextPinnedTopics,
-    loadNextUnpinnedTopics,
-    topicsError
-  ])
+    loadNextTopics()
+  }, [isTopicsLoading, isTopicsLoadingMore, loadNextTopics, topicsError])
   const handleRetry = useCallback(() => {
-    void Promise.all([refetchPinnedTopics(), refetchUnpinnedTopics()])
-  }, [refetchPinnedTopics, refetchUnpinnedTopics])
+    void reloadTopics()
+  }, [reloadTopics])
 
   return (
     <HistoryRecordsContent
