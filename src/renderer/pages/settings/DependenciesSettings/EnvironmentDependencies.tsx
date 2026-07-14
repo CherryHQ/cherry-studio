@@ -596,7 +596,7 @@ const BinaryToolPresetCard: FC<{
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {(source === 'none' || isSystem || (failedInstall && !owned)) && !failedRemove && (
+      {(source === 'none' || (failedInstall && !owned)) && !failedRemove && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -610,11 +610,9 @@ const BinaryToolPresetCard: FC<{
               ? t('settings.dependencies.installing')
               : failedInstall
                 ? t('common.retry')
-                : isSystem
-                  ? t('settings.dependencies.installManagedCopy')
-                  : isBundled
-                    ? t('settings.dependencies.install')
-                    : t('settings.mcp.install')}
+                : isBundled
+                  ? t('settings.dependencies.install')
+                  : t('settings.mcp.install')}
           </Button>
           {installing && <BinaryInstallingHint />}
         </div>

@@ -209,15 +209,17 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
   })
 
-  it('offers a Cherry-managed copy for a system preset via install_tool', async () => {
+  it('keeps a system preset display-only, never shadowing it with a managed copy', async () => {
     setSnapshots({ fd: { name: 'fd', availability: { source: 'system', path: '/usr/local/bin/fd' } } })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
     expect(card).toHaveTextContent('settings.dependencies.source.system')
     expect(card.querySelector('[title="/usr/local/bin/fd"]')).toBeInTheDocument()
-    // A system binary is not owned; the action installs a Cherry copy alongside it.
-    fireEvent.click(within(card).getByText('settings.dependencies.installManagedCopy'))
-    expect(ipcMocks.installTool).toHaveBeenCalledWith({ intent: { name: 'fd', tool: 'fd' } })
+    // Cherry uses the system binary in place — no install action, no remove.
+    expect(within(card).queryByText('settings.dependencies.installManagedCopy')).not.toBeInTheDocument()
+    expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+    expect(ipcMocks.installTool).not.toHaveBeenCalled()
   })
 
   it('keeps an unowned mise preset display-only without an install retry', async () => {

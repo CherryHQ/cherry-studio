@@ -56,9 +56,6 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const retryUnownedInstall = failedInstall && !status.owned
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
-  // Present on the system PATH but unowned → offer to install a Cherry-managed
-  // copy alongside it; the system binary is never touched.
-  const canInstallManagedCopy = status.source === 'system' && !status.owned
 
   return (
     <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
@@ -139,19 +136,6 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               ) : (
                 <Trash2 className="size-3.5" />
               )}
-            </Button>
-          )}
-
-          {canInstallManagedCopy && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onInstall}
-              disabled={busy}
-              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
-              <Download size={12} />
-              {t('settings.dependencies.installManagedCopy')}
             </Button>
           )}
 

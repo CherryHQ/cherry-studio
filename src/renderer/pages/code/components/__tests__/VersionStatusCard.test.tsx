@@ -27,8 +27,7 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.install' })).toBeInTheDocument()
   })
 
-  it('offers a Cherry-managed copy for a system PATH tool via install, never a claim', () => {
-    const onInstall = vi.fn()
+  it('keeps a system PATH tool read-only, exposing only launch', () => {
     render(
       <VersionStatusCard
         toolId="claude-code"
@@ -40,7 +39,7 @@ describe('VersionStatusCard', () => {
           systemPath: '/usr/local/bin/claude',
           canUpgrade: false
         }}
-        onInstall={onInstall}
+        onInstall={vi.fn()}
         onRemove={vi.fn()}
         onLaunch={vi.fn()}
         canLaunch
@@ -48,10 +47,9 @@ describe('VersionStatusCard', () => {
     )
 
     expect(screen.getByText('settings.dependencies.source.system')).toHaveAttribute('title', '/usr/local/bin/claude')
-    // A system binary is not owned; the action installs a Cherry copy alongside it.
+    // Cherry uses the system binary in place — never a remove, never a shadow copy.
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'settings.dependencies.installManagedCopy' }))
-    expect(onInstall).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
   })
 

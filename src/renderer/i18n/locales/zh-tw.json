@@ -6036,7 +6036,6 @@
       "install": "安裝",
       "installError": "工具安裝失敗",
       "installErrorHint": "安裝命令執行失敗。複製下方日誌以便排查或尋求協助。",
-      "installManagedCopy": "安裝 Cherry 管理的副本",
       "installSettings": {
         "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
