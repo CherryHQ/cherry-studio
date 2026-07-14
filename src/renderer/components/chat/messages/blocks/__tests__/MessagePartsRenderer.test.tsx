@@ -12,6 +12,8 @@ const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | u
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockUsePlaceholderElapsedMs = vi.hoisted(() => vi.fn(() => 1000))
+const mockToolBlockGroupRender = vi.hoisted(() => vi.fn())
+const mockMessageToolsRender = vi.hoisted(() => vi.fn())
 
 type MainTextBlockModule = {
   buildUserMessagePreview: (content: string) => { content: string; isTruncated: boolean }
@@ -124,9 +126,10 @@ vi.mock('../../tools/MessageTools', () => {
   return {
     __esModule: true,
     canRenderMessageTool: canRender,
-    default: ({ toolResponse }: any) =>
-      canRender(toolResponse) &&
-      !(toolResponse?.tool?.name === 'AskUserQuestion' && toolResponse?.status === 'pending') ? (
+    default: ({ toolResponse }: any) => {
+      mockMessageToolsRender(toolResponse)
+      return canRender(toolResponse) &&
+        !(toolResponse?.tool?.name === 'AskUserQuestion' && toolResponse?.status === 'pending') ? (
         <div
           data-testid="mock-message-tools"
           data-status={toolResponse?.status}
@@ -135,6 +138,7 @@ vi.mock('../../tools/MessageTools', () => {
           data-server-name={toolResponse?.tool?.serverName ?? ''}
         />
       ) : null
+    }
   }
 })
 
@@ -216,6 +220,7 @@ vi.mock('../../frame/MessageAttachments', () => ({
 vi.mock('../ToolBlockGroup', () => ({
   __esModule: true,
   ToolBlockGroup: ({ children, isLiveProgress, items }: any) => {
+    mockToolBlockGroupRender(items)
     const [isExpanded, setIsExpanded] = React.useState(false)
     return (
       <div data-testid="child-tool-group" data-live-progress={String(isLiveProgress === true)}>
@@ -405,6 +410,8 @@ describe('MessagePartsRenderer', () => {
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockUsePlaceholderElapsedMs.mockClear()
+    mockToolBlockGroupRender.mockClear()
+    mockMessageToolsRender.mockClear()
   })
 
   describe('leaf rendering', () => {
@@ -940,6 +947,33 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
       expandCollapsedLiveToolGroups()
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
+    })
+
+    it('does not rerender settled process history while only the final text tail streams', () => {
+      activateTurn('streaming')
+      const pendingMessage = msg({ status: 'pending' })
+      const settledTool = toolPart('read') as unknown as CherryMessagePart
+      const { rerender } = renderParts(
+        [settledTool, { type: 'text', text: 'answer 1', state: 'streaming' }] as unknown as CherryMessagePart[],
+        pendingMessage
+      )
+
+      expandCollapsedChildToolGroups()
+      const groupRenderCount = mockToolBlockGroupRender.mock.calls.length
+      const toolRenderCount = mockMessageToolsRender.mock.calls.length
+
+      for (const text of ['answer 2', 'answer 3', 'answer 4']) {
+        rerender(
+          renderPartsTree(
+            [settledTool, { type: 'text', text, state: 'streaming' }] as unknown as CherryMessagePart[],
+            pendingMessage
+          )
+        )
+      }
+
+      expect(screen.getByText('answer 4')).toBeInTheDocument()
+      expect(mockToolBlockGroupRender).toHaveBeenCalledTimes(groupRenderCount)
+      expect(mockMessageToolsRender).toHaveBeenCalledTimes(toolRenderCount)
     })
 
     it('updates the active process elapsed time once per second', () => {

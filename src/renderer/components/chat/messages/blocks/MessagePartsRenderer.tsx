@@ -926,6 +926,62 @@ const MessageContentEntryView = React.memo(
     areGroupedEntriesEqual(previous.entry, next.entry)
 )
 
+const ActiveMessageProcess = React.memo(
+  function ActiveMessageProcess({
+    entries,
+    hasResultContent,
+    isStreamLive,
+    isTranslationOverlayActive,
+    message,
+    renderOptions
+  }: {
+    entries: readonly PartEntry[]
+    hasResultContent: boolean
+    isStreamLive: boolean
+    isTranslationOverlayActive: boolean
+    message: MessageListItem
+    renderOptions: RenderGroupedEntryOptions
+  }) {
+    const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
+    const renderHistory = React.useCallback(
+      (isExpanded: boolean) => {
+        if (!isExpanded) return null
+
+        return renderNestedHistory(
+          entries,
+          message,
+          isTranslationOverlayActive,
+          {
+            ...renderOptions,
+            enableAnimation: false,
+            settleStreamingReasoning: !isStreamLive,
+            toolDisplay: 'disclosure'
+          },
+          hasResultContent ? 'settled' : 'last'
+        )
+      },
+      [entries, hasResultContent, isStreamLive, isTranslationOverlayActive, message, renderOptions]
+    )
+
+    return (
+      <MessageProcessGroup phase="active" message={message} toolItems={toolItems}>
+        {renderHistory}
+      </MessageProcessGroup>
+    )
+  },
+  (previous, next) =>
+    previous.hasResultContent === next.hasResultContent &&
+    previous.isStreamLive === next.isStreamLive &&
+    previous.isTranslationOverlayActive === next.isTranslationOverlayActive &&
+    previous.message.id === next.message.id &&
+    previous.message.role === next.message.role &&
+    previous.message.createdAt === next.message.createdAt &&
+    previous.message.modelId === next.message.modelId &&
+    previous.message.model === next.message.model &&
+    previous.renderOptions === next.renderOptions &&
+    arePartEntriesEqual(previous.entries, next.entries)
+)
+
 /**
  * Stable shell shared by active and terminal projections. The projections stay
  * separate, but a final text leaf keeps the same keyed component across the
@@ -985,23 +1041,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   )
 
   if (isActive) {
-    const renderLiveHistory = (isExpanded: boolean) => {
-      if (!isExpanded) return null
-
-      return renderNestedHistory(
-        liveHistoryEntries,
-        message,
-        isTranslationOverlayActive,
-        {
-          ...renderOptions,
-          enableAnimation: false,
-          settleStreamingReasoning: !isStreamLive,
-          toolDisplay: 'disclosure'
-        },
-        liveResultItems.length === 0 ? 'last' : 'settled'
-      )
-    }
-
     const resultContent = liveResultItems.map((item) => {
       if (item.kind === 'process') return null
 
@@ -1022,12 +1061,14 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
     return (
       <>
-        <MessageProcessGroup
-          phase="active"
+        <ActiveMessageProcess
+          entries={liveHistoryEntries}
+          hasResultContent={liveResultItems.length > 0}
+          isStreamLive={isStreamLive}
+          isTranslationOverlayActive={isTranslationOverlayActive}
           message={message}
-          toolItems={buildToolRenderItems(liveHistoryEntries, message.id)}>
-          {renderLiveHistory}
-        </MessageProcessGroup>
+          renderOptions={renderOptions}
+        />
         {resultContent}
       </>
     )

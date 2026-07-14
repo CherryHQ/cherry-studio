@@ -26,7 +26,7 @@ import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTool
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
-import { usePartsMap } from './MessagePartsContext'
+import { PartsContext, PartsProvider, usePartsMap } from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
 import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -598,6 +598,14 @@ interface ToolBlockGroupProps {
   items: ToolRenderItem[]
 }
 
+const ToolGroupPartsBoundary = React.memo(
+  ({ allItemsCompleted, children }: { allItemsCompleted: boolean; children: React.ReactNode }) => {
+    const partsMap = allItemsCompleted ? null : React.use(PartsContext)
+    return <PartsProvider value={partsMap}>{children}</PartsProvider>
+  }
+)
+ToolGroupPartsBoundary.displayName = 'ToolGroupPartsBoundary'
+
 /** A nested, independently collapsible group of adjacent tool calls. */
 export const ToolBlockGroup = React.memo(
   ({ children, isLiveProgress: isLiveProgressProp, isThinking = false, items }: ToolBlockGroupProps) => {
@@ -605,10 +613,11 @@ export const ToolBlockGroup = React.memo(
     const [isExpanded, setIsExpanded] = React.useState(false)
     const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
     const requestFollowRecovery = useRequestScrollFollowRecovery(anchorRef)
+    const allItemsCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const isLiveProgress =
       isLiveProgressProp ?? items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
 
-    return (
+    const disclosure = (
       <div ref={anchorRef} className="group/child-tool-group w-full max-w-full" data-testid="child-tool-group">
         <Accordion
           type="single"
@@ -645,6 +654,8 @@ export const ToolBlockGroup = React.memo(
         </Accordion>
       </div>
     )
+
+    return <ToolGroupPartsBoundary allItemsCompleted={allItemsCompleted}>{disclosure}</ToolGroupPartsBoundary>
   }
 )
 ToolBlockGroup.displayName = 'ToolBlockGroup'

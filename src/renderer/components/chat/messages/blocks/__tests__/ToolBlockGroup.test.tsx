@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
+import { PartsProvider, usePartsMap } from '../MessagePartsContext'
 import { ScrollOwnershipProvider } from '../ScrollOwnershipContext'
 import { ToolBlockGroup, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
@@ -251,6 +252,32 @@ describe('ToolBlockGroup', () => {
     fireEvent.click(trigger)
     expect(requestFollowRecovery).toHaveBeenCalledOnce()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('shields completed tool content from unrelated parts-map updates', () => {
+    const renderConsumer = vi.fn()
+    const PartsConsumer = () => {
+      usePartsMap()
+      renderConsumer()
+      return <div>Completed tool content</div>
+    }
+    const content = <PartsConsumer />
+    const { rerender } = render(
+      <PartsProvider value={{ message: [] }}>
+        <ToolBlockGroup items={[readDoneItem]}>{content}</ToolBlockGroup>
+      </PartsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project checks' }))
+    expect(renderConsumer).toHaveBeenCalledOnce()
+
+    rerender(
+      <PartsProvider value={{ message: [] }}>
+        <ToolBlockGroup items={[readDoneItem]}>{content}</ToolBlockGroup>
+      </PartsProvider>
+    )
+
+    expect(renderConsumer).toHaveBeenCalledOnce()
   })
 
   it('shows a beat loader while the current task continues after its latest tool completes', () => {
