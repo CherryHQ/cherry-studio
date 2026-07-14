@@ -144,6 +144,7 @@ export const CANONICAL_VIDEO_PARAM_KEY = {
   MODE: 'mode',
   MOVEMENT_AMPLITUDE: 'movementAmplitude',
   NEGATIVE_PROMPT: 'negativePrompt',
+  PERSON_GENERATION: 'personGeneration',
   PROMPT_EXTEND: 'promptExtend',
   PROMPT_OPTIMIZER: 'promptOptimizer',
   RESOLUTION: 'resolution',

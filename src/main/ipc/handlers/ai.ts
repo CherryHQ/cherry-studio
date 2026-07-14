@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { AiVideoRequest } from '@main/ai/AiService'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
@@ -61,9 +60,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').abortImage(requestId)
   },
   'ai.generate_video': ({ requestId, payload }) =>
-    exposeAiError('ai.generate_video', () =>
-      application.get('AiService').runVideoRequest(requestId, payload as AiVideoRequest)
-    ),
+    exposeAiError('ai.generate_video', () => application.get('AiService').runVideoRequest(requestId, payload)),
   'ai.abort_video': async ({ requestId }) => {
     application.get('AiService').abortVideo(requestId)
   },

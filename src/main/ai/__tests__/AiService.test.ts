@@ -281,11 +281,13 @@ describe('AiService', () => {
     const result = await service.generateVideo({
       uniqueModelId: 'google::veo-3.1-generate',
       prompt: 'a cat on a treadmill',
-      duration: 5,
-      aspectRatio: '16:9',
-      resolution: '1280x720',
-      seed: 7,
-      negativePrompt: 'blurry',
+      paramValues: {
+        duration: 5,
+        aspectRatio: '16:9',
+        resolution: '1280x720',
+        seed: 7,
+        negativePrompt: 'blurry'
+      },
       requestOptions: { signal: new AbortController().signal }
     })
 
@@ -323,6 +325,7 @@ describe('AiService', () => {
       uniqueModelId: 'google::veo-3.1-generate',
       prompt: 'make it move',
       firstFrame: 'data:image/png;base64,frame',
+      paramValues: {},
       requestOptions: { signal: new AbortController().signal }
     })
 

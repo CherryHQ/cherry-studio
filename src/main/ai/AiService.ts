@@ -5,10 +5,9 @@ import {
   generateVideo as aiCoreGenerateVideo,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
-import type { ParamValues } from '@cherrystudio/provider-registry'
+import type { ParamValues, VideoParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -61,9 +60,8 @@ import type {
   AppProviderSettingsMap,
   ListModelsRequest
 } from './types'
-import { normalizeAspectRatio } from './utils/aiSdkNativeBindings'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
-import { buildVideoProviderOptions } from './utils/videoOptions'
+import { buildVideoProviderOptions, splitVideoParamValues } from './utils/videoOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -151,10 +149,12 @@ export interface AiImageResult {
 /**
  * Video generation request.
  *
- * The AI SDK standardizes only `prompt` + a single start-frame `image` and the scalar
- * fields below. Omni-modal extras (end frame, reference images, input video/audio, camera
- * controls) have no standard field and are added alongside their first vendor transport;
- * until then this carries only what the native (`@ai-sdk/google` Veo) path consumes.
+ * The AI SDK standardizes only `prompt` + a single start-frame `image` and the native
+ * scalar params (`duration`/`aspectRatio`/`resolution`/`fps`/`seed`) — those and every
+ * vendor knob travel in the canonical `paramValues` bag; main partitions it
+ * (`splitVideoParamValues`) into the native call options vs the vendor body. Omni-modal
+ * extras (end frame, reference images, input video/audio) have no standard field and
+ * ride as explicit media inputs consumed by the aggregator transports.
  */
 export interface AiVideoRequest extends AiBaseRequest {
   prompt?: string
@@ -168,18 +168,13 @@ export interface AiVideoRequest extends AiBaseRequest {
   inputVideo?: string
   /** Input audio for lip-sync / audio-driven generation (aggregator transports only). */
   inputAudio?: string
-  n?: number
-  /** Video length in seconds. */
-  duration?: number
-  aspectRatio?: string
-  /** `${width}x${height}` (e.g. '1280x720'). */
-  resolution?: string
-  fps?: number
-  seed?: number
-  negativePrompt?: string
-  personGeneration?: PersonGeneration
-  /** Vendor-specific video params keyed by provider id; mapped to AI SDK provider options in main. */
-  providerOptions?: Record<string, Record<string, unknown>>
+  /**
+   * Canonical video param bag — already a strict, coerced `VideoParamValues` (the
+   * `ai.generate_video` IPC validated it via the catalog `videoParamsSchema`).
+   * main derives the native call options + the vendor bag from it via
+   * `splitVideoParamValues`.
+   */
+  paramValues: VideoParamValues
 }
 
 /** Video generation result — persisted file entries (main writes the bytes). */
@@ -774,20 +769,13 @@ export class AiService extends BaseService {
       ? { image: request.firstFrame, ...(request.prompt ? { text: request.prompt } : {}) }
       : (request.prompt ?? '')
 
-    // The long-tail vendor params are not standardized by the AI SDK; they ride in
-    // providerOptions[<providerId>]. For native providers the scalar params (duration /
-    // aspectRatio / …) are top-level (built below) and the emitter only adds the long
-    // tail; for aggregator transports there are no top-level params, so the emitter maps
-    // ALL of them into the vendor bag the transport sends.
-    const videoProviderOptions = buildVideoProviderOptions(sdkConfig.providerId, {
-      negativePrompt: request.negativePrompt,
-      personGeneration: request.personGeneration,
-      aspectRatio: request.aspectRatio,
-      resolution: request.resolution,
-      duration: request.duration,
-      seed: request.seed,
-      providerOptions: request.providerOptions
-    })
+    // Partition the IPC-validated canonical bag once: `native` are the AI SDK
+    // `generateVideo` top-level call options (aspectRatio normalized here); the
+    // vendor long tail rides `providerOptions[<providerId>]` via the per-vendor
+    // emitters. Aggregator transports have no top-level params, so their emitter
+    // maps the native scalars into the vendor bag the transport sends.
+    const split = splitVideoParamValues(request.paramValues)
+    const videoProviderOptions = buildVideoProviderOptions(sdkConfig.providerId, split)
 
     // Aggregator submit/poll vendors (DMXAPI HappyHorse/Vidu/Hailuo, …) run the long
     // poll loop on the job system so it survives a restart; native providers (Veo / Grok
@@ -796,17 +784,18 @@ export class AiService extends BaseService {
       return await this.generateVideoViaJob(request, videoProviderOptions[sdkConfig.providerId] ?? {}, signal)
     }
 
-    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
+    const { duration, aspectRatio, resolution, fps, seed } = split.native
 
     const videoParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
-      ...(request.n !== undefined ? { n: request.n } : {}),
-      ...(request.duration !== undefined ? { duration: request.duration } : {}),
+      ...(duration !== undefined ? { duration } : {}),
+      // Registry resolutions may be vendor spellings ('720p') the SDK template
+      // type doesn't cover but providers accept — same pass-through as before.
       ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
-      ...(request.resolution ? { resolution: request.resolution as `${number}x${number}` } : {}),
-      ...(request.fps !== undefined ? { fps: request.fps } : {}),
-      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      ...(resolution ? { resolution: resolution as `${number}x${number}` } : {}),
+      ...(fps !== undefined ? { fps } : {}),
+      ...(seed !== undefined ? { seed } : {}),
       ...(Object.keys(videoProviderOptions).length > 0 ? { providerOptions: videoProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {})
     }

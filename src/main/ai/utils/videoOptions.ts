@@ -1,35 +1,68 @@
+import type { VideoParamValues } from '@cherrystudio/provider-registry'
+import type { CanonicalVideoParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
+import { normalizeAspectRatio } from './aiSdkNativeBindings'
+
 /**
- * Structural subset of the video params that {@link buildVideoProviderOptions} reads.
+ * Video counterpart of `splitParamValues` (imageOptions.ts): partition the
+ * IPC-validated canonical `paramValues` bag into
  *
- * The AI SDK standardizes only `prompt` + a single start-frame `image` plus the scalar
- * top-level fields (`aspectRatio`/`resolution`/`duration`/`fps`/`seed`/`n`). Everything
- * else a video model accepts — `negativePrompt`, `personGeneration`, reference images,
- * camera/motion controls, etc. — has no standard field and must ride in
- * `providerOptions[<providerId>]`. This mapper turns the canonical long-tail params into
- * each vendor's real field names (mirroring `buildImageProviderOptions`).
+ * - `native` — the AI SDK `generateVideo` top-level call options
+ *   (`duration` / `aspectRatio` / `resolution` / `fps` / `seed`), with
+ *   `aspectRatio` normalized once (`ASPECT_X_Y → X:Y`), and
+ * - `vendor` — everything else, handed to the {@link buildVideoProviderOptions}
+ *   emitters. Emitters that need a native scalar in the vendor body (the
+ *   aggregator transports have no top-level params) read it from `native`.
+ *
+ * Blank (`''`), `null`/`undefined`, and `'auto'` values are dropped here —
+ * `'auto'` is the form's "let the provider decide" sentinel — so the server
+ * applies its own default; no client-side defaults.
  */
-export interface VideoOptionParams {
-  negativePrompt?: string
-  personGeneration?: string
-  /** Canonical scalar params. Native providers send these top-level (emitter ignores them);
-   *  aggregator transports have no top-level params, so their emitter maps them into the bag. */
+
+/** The AI SDK `generateVideo` native scalar params. */
+export interface NativeVideoParams {
+  duration?: number
   aspectRatio?: string
   resolution?: string
-  duration?: number
+  fps?: number
   seed?: number
-  /** Vendor-specific bag keyed by provider id, forwarded verbatim (JSON-only). */
-  providerOptions?: Record<string, Record<string, unknown>>
+}
+
+const NATIVE_VIDEO_KEYS = new Set<CanonicalVideoParamKey>(['duration', 'aspectRatio', 'resolution', 'fps', 'seed'])
+
+export interface SplitVideoParams {
+  readonly native: NativeVideoParams
+  /** Non-native canonical keys (negativePrompt, cameraFixed, cfg, …), cleaned. */
+  readonly vendor: VideoParamValues
+}
+
+function isOmitted(value: unknown): boolean {
+  return value === undefined || value === null || value === '' || value === 'auto'
+}
+
+export function splitVideoParamValues(paramValues: VideoParamValues): SplitVideoParams {
+  const native: Record<string, unknown> = {}
+  const vendor: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(paramValues)) {
+    if (isOmitted(value)) continue
+    if (NATIVE_VIDEO_KEYS.has(key as CanonicalVideoParamKey)) {
+      const mapped = key === 'aspectRatio' ? normalizeAspectRatio(typeof value === 'string' ? value : undefined) : value
+      if (!isOmitted(mapped)) native[key] = mapped
+    } else {
+      vendor[key] = value
+    }
+  }
+  return { native: native as NativeVideoParams, vendor: vendor as VideoParamValues }
 }
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>
 
-/** Drop `undefined` / empty-string / `'auto'` entries (`'auto'` is the form "let the provider decide" sentinel). */
+/** Drop omitted entries (mirror of the split's cleaning, for emitter-built maps). */
 function compact(entries: Record<string, JSONValue | undefined>): Record<string, JSONValue> {
   const out: Record<string, JSONValue> = {}
   for (const [k, v] of Object.entries(entries)) {
-    if (v !== undefined && v !== '' && v !== 'auto') out[k] = v
+    if (!isOmitted(v)) out[k] = v as JSONValue
   }
   return out
 }
@@ -40,15 +73,14 @@ function under(key: string, fields: Record<string, JSONValue>): ProviderOptions 
 }
 
 /**
- * Forward registry-declared vendor-bag fields the structured params don't cover. The bag
- * may carry non-JSON callbacks that ride the plugin chain (e.g. polling `onProgress`);
- * skip anything not JSON-serializable rather than leaking it into the request body.
+ * The vendor long tail minus the keys an emitter maps explicitly. Keys stay
+ * canonical (camelCase) — vendors with their own spelling rename in their
+ * emitter (ppio) or transport (`dmxapi.buildSubmitBody`).
  */
-function jsonBagFields(bag: Record<string, unknown> | undefined): Record<string, JSONValue> {
-  if (!bag) return {}
+function longTail(vendor: VideoParamValues, ...mapped: CanonicalVideoParamKey[]): Record<string, JSONValue> {
   const out: Record<string, JSONValue> = {}
-  for (const [k, v] of Object.entries(bag)) {
-    if (typeof v === 'function' || typeof v === 'symbol' || v === undefined) continue
+  for (const [k, v] of Object.entries(vendor)) {
+    if (v === undefined || mapped.includes(k as CanonicalVideoParamKey)) continue
     out[k] = v as JSONValue
   }
   return out
@@ -56,19 +88,20 @@ function jsonBagFields(bag: Record<string, unknown> | undefined): Record<string,
 
 // ── Per-provider emitters ──────────────────────────────────────────────────
 
-type Emitter = (rawProviderId: string, p: VideoOptionParams) => ProviderOptions
+type Emitter = (rawProviderId: string, p: SplitVideoParams) => ProviderOptions
 
 /**
  * Google Veo (`@ai-sdk/google.video()`): `GoogleVideoModelOptions` carries `negativePrompt`
  * and `personGeneration` (lowercase enum: `allow_adult`). The registry/UI stores
  * `personGeneration` uppercase (matching `@google/genai`'s enum), so normalize here.
+ * Native scalars ride top-level on the SDK call, not here.
  */
 const google: Emitter = (_id, p) =>
   under('google', {
-    ...jsonBagFields(p.providerOptions?.google),
+    ...longTail(p.vendor, 'negativePrompt', 'personGeneration'),
     ...compact({
-      negativePrompt: p.negativePrompt,
-      personGeneration: typeof p.personGeneration === 'string' ? p.personGeneration.toLowerCase() : undefined
+      negativePrompt: p.vendor.negativePrompt,
+      personGeneration: p.vendor.personGeneration?.toLowerCase()
     })
   })
 
@@ -76,47 +109,57 @@ const google: Emitter = (_id, p) =>
  * DMXAPI aggregator: video runs on the job system, so the scalar params go into the vendor bag
  * the transport forwards. Emits CANONICAL names (`aspectRatio`); the per-family `buildSubmitBody`
  * renames them to each vendor's wire field (HappyHorse `ratio` under `parameters`, Vidu
- * `aspect_ratio` flat). The registry vendor bag (`providerOptions.dmxapi`) supplies the rest.
+ * `aspect_ratio` flat). `negativePrompt` has no DMXAPI wire field, so it is excluded.
  */
 const dmxapi: Emitter = (_id, p) =>
   under('dmxapi', {
-    ...jsonBagFields(p.providerOptions?.dmxapi),
-    ...compact({ resolution: p.resolution, aspectRatio: p.aspectRatio, duration: p.duration, seed: p.seed })
+    ...longTail(p.vendor, 'negativePrompt'),
+    ...compact({
+      resolution: p.native.resolution,
+      aspectRatio: p.native.aspectRatio,
+      duration: p.native.duration,
+      seed: p.native.seed
+    })
   })
 
 /**
  * PPIO unified API: flat per-model body. Maps to PPIO's snake_case fields; `duration` is a
- * STRING enum on PPIO. The registry vendor bag (`providerOptions.ppio`) supplies model-specific
- * knobs (prompt_extend, camera_fixed, add_audio, guidance_scale, …).
+ * STRING enum on PPIO. Model-specific knobs (camera_fixed, prompt_extend, …) are the canonical
+ * long tail renamed to PPIO's spelling.
  */
 const ppio: Emitter = (_id, p) =>
   under('ppio', {
-    ...jsonBagFields(p.providerOptions?.ppio),
+    ...longTail(p.vendor, 'negativePrompt', 'cameraFixed', 'promptExtend'),
     ...compact({
-      resolution: p.resolution,
-      aspect_ratio: p.aspectRatio,
-      duration: p.duration != null ? String(p.duration) : undefined,
-      seed: p.seed,
-      negative_prompt: p.negativePrompt
+      resolution: p.native.resolution,
+      aspect_ratio: p.native.aspectRatio,
+      duration: p.native.duration != null ? String(p.native.duration) : undefined,
+      seed: p.native.seed,
+      negative_prompt: p.vendor.negativePrompt,
+      camera_fixed: p.vendor.cameraFixed,
+      prompt_extend: p.vendor.promptExtend
     })
   })
 
 /**
  * AiHubMix (OpenAI-Sora-compatible): `seconds` (string) + `size`. Per-model-family knobs
- * (Kling `mode`/`aspect_ratio`, Seedance `extra_body`, …) ride in `providerOptions.aihubmix`.
+ * (Kling `mode`/`aspect_ratio`, Seedance `extra_body`, …) ride the canonical long tail.
  */
 const aihubmix: Emitter = (_id, p) =>
   under('aihubmix', {
-    ...jsonBagFields(p.providerOptions?.aihubmix),
-    ...compact({ seconds: p.duration != null ? String(p.duration) : undefined, size: p.resolution })
+    ...longTail(p.vendor, 'negativePrompt'),
+    ...compact({
+      seconds: p.native.duration != null ? String(p.native.duration) : undefined,
+      size: p.native.resolution
+    })
   })
 
 /**
- * Fallback for any other provider id: forward the registry vendor bag, then overlay the
+ * Fallback for any other provider id: forward the canonical long tail, then overlay the
  * one canonical field most async video APIs accept (`negative_prompt`, snake_case).
  */
 const fallback: Emitter = (id, p) =>
-  under(id, { ...jsonBagFields(p.providerOptions?.[id]), ...compact({ negative_prompt: p.negativePrompt }) })
+  under(id, { ...longTail(p.vendor, 'negativePrompt'), ...compact({ negative_prompt: p.vendor.negativePrompt }) })
 
 /** Provider id → emitter. Unlisted ids fall through to {@link fallback}. */
 const EMITTERS: Record<string, Emitter> = {
@@ -129,10 +172,11 @@ const EMITTERS: Record<string, Emitter> = {
 
 /**
  * Build AI SDK `providerOptions` for video generation, dispatching over the resolved AI SDK
- * provider id — the mirror of {@link buildImageProviderOptions}. `experimental_generateVideo`
- * passes `providerOptions[<providerId>]` through to the provider as body params.
+ * provider id — the mirror of the image path's `buildVendorProviderOptions`.
+ * `experimental_generateVideo` passes `providerOptions[<providerId>]` through to the provider
+ * as body params.
  */
-export function buildVideoProviderOptions(rawProviderId: string, params: VideoOptionParams): ProviderOptions {
+export function buildVideoProviderOptions(rawProviderId: string, params: SplitVideoParams): ProviderOptions {
   const emitter = EMITTERS[rawProviderId] ?? fallback
   return emitter(rawProviderId, params)
 }

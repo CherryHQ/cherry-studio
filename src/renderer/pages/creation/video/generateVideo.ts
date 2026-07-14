@@ -1,18 +1,20 @@
+import { buildVideoParamsSchema } from '@cherrystudio/provider-registry'
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
+import type { VideoGenerationMode, VideoGenerationSupport } from '@shared/data/types/model'
 
 import { fileEntryToMetadata } from '../../paintings/utils/fileEntryAdapter'
 
 /**
- * Renderer → main bridge for video generation. Mirrors `generatePainting`: partitions the
- * canonical form params into the AI SDK top-level video fields vs the vendor bag, encodes media
- * inputs to data URLs, calls the `ai.generate_video` IpcApi route, and adapts the persisted result
- * FileEntries to FileMetadata for display.
+ * Renderer → main bridge for video generation. Mirrors `canonicalGenerate` →
+ * `generatePainting`: validates / coerces the raw form params through the central
+ * video catalog (`buildVideoParamsSchema`), ships the whole canonical bag as
+ * `paramValues` to the `ai.generate_video` IpcApi route, encodes media inputs to
+ * data URLs, and adapts the persisted result FileEntries to FileMetadata for
+ * display. main owns the native-vs-vendor partition (`splitVideoParamValues`)
+ * and the per-vendor wire mapping — the renderer stays vendor-agnostic.
  */
-
-/** Canonical video params the AI SDK / AiService accepts as top-level request fields. */
-const TOP_LEVEL_KEYS = new Set(['duration', 'aspectRatio', 'resolution', 'fps', 'seed', 'negativePrompt'])
 
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   let binary = ''
@@ -25,12 +27,6 @@ async function encodeMedia(entry: FileEntry): Promise<string> {
   return bytesToDataUrl(new Uint8Array(data), mime)
 }
 
-function asNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value.trim())
-  return undefined
-}
-
 export interface GenerateVideoInput {
   providerId: string
   modelId: string
@@ -39,21 +35,29 @@ export interface GenerateVideoInput {
   lastFrame?: FileEntry
   /** Canonical video params from the settings form (resolution/aspectRatio/duration/seed/cfg/…). */
   params: Record<string, unknown>
+  /** The model's registry `videoGeneration` block — per-model option/range constraints. */
+  support?: VideoGenerationSupport
+  /** The active generation mode (which supports block validates). */
+  mode?: VideoGenerationMode
   signal: AbortSignal
 }
 
 export async function generateVideoRequest(input: GenerateVideoInput): Promise<FileMetadata[]> {
-  const top: Record<string, unknown> = {}
-  const bag: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(input.params ?? {})) {
-    if (value === undefined || value === '' || value === 'auto') continue
-    if (TOP_LEVEL_KEYS.has(key)) top[key] = value
-    else bag[key] = value
+  // Validate / coerce raw form params through the central catalog. Soft-fail: a
+  // bad / stale value must never break submit, so fall back to raw params — the
+  // strict IPC boundary schema (`videoParamsSchema`) is the hard gate.
+  const rawParams = input.params ?? {}
+  const validated = buildVideoParamsSchema(input.support, input.mode).safeParse(rawParams)
+  const source: Record<string, unknown> = validated.success ? validated.data : rawParams
+
+  // Build the canonical `paramValues` bag: drop blanks (mirrors main's
+  // `splitVideoParamValues` guard) so the server applies its own defaults.
+  const paramValues: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || value === '' || value === null) continue
+    paramValues[key] = value
   }
 
-  const duration = asNumber(top.duration)
-  const fps = asNumber(top.fps)
-  const seed = asNumber(top.seed)
   const firstFrame = input.firstFrame ? await encodeMedia(input.firstFrame) : undefined
   const lastFrame = input.lastFrame ? await encodeMedia(input.lastFrame) : undefined
 
@@ -68,13 +72,7 @@ export async function generateVideoRequest(input: GenerateVideoInput): Promise<F
         prompt: input.prompt,
         ...(firstFrame && { firstFrame }),
         ...(lastFrame && { lastFrame }),
-        ...(duration !== undefined && { duration }),
-        ...(typeof top.aspectRatio === 'string' && { aspectRatio: top.aspectRatio }),
-        ...(typeof top.resolution === 'string' && { resolution: top.resolution }),
-        ...(fps !== undefined && { fps }),
-        ...(seed !== undefined && { seed }),
-        ...(typeof top.negativePrompt === 'string' && top.negativePrompt && { negativePrompt: top.negativePrompt }),
-        ...(Object.keys(bag).length > 0 && { providerOptions: { [input.providerId]: bag } })
+        paramValues
       }
     })
     if (input.signal.aborted) throw new DOMException('Video generation aborted', 'AbortError')

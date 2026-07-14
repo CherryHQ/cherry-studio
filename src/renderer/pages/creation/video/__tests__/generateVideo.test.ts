@@ -1,24 +1,11 @@
 import type { FileEntry } from '@shared/data/types/file'
+import type { VideoGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Adapt FileEntry → FileMetadata is exercised elsewhere; here we only need the id to flow through.
 vi.mock('../../../paintings/utils/fileEntryAdapter', () => ({
   fileEntryToMetadata: vi.fn(async (entry: FileEntry) => ({ id: entry.id, name: entry.name }))
 }))
-
-interface VideoPayload {
-  uniqueModelId?: string
-  prompt?: string
-  firstFrame?: string
-  lastFrame?: string
-  duration?: number
-  aspectRatio?: string
-  resolution?: string
-  fps?: number
-  seed?: number
-  negativePrompt?: string
-  providerOptions?: Record<string, Record<string, unknown>>
-}
 
 const { ipcRequestMock } = vi.hoisted(() => ({
   ipcRequestMock: vi.fn(async (route: string, _input: unknown): Promise<unknown> => {
@@ -29,6 +16,14 @@ const { ipcRequestMock } = vi.hoisted(() => ({
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
 
 import { generateVideoRequest } from '../generateVideo'
+
+interface VideoPayload {
+  uniqueModelId?: string
+  prompt?: string
+  firstFrame?: string
+  lastFrame?: string
+  paramValues: Record<string, unknown>
+}
 
 const binaryImage = vi.fn(async () => ({ data: new Uint8Array([1, 2, 3]), mime: 'image/png' }))
 
@@ -57,7 +52,7 @@ beforeEach(() => {
 const frame = (id: string): FileEntry => ({ id, name: id }) as unknown as FileEntry
 
 describe('generateVideoRequest', () => {
-  it('partitions canonical params: top-level fields stay flat, the rest go under providerOptions[providerId]', async () => {
+  it('ships the whole canonical bag as paramValues (no renderer-side partition)', async () => {
     await generateVideoRequest({
       providerId: 'dmxapi',
       modelId: 'seedance',
@@ -66,7 +61,6 @@ describe('generateVideoRequest', () => {
         resolution: '720p',
         aspectRatio: '16:9',
         negativePrompt: 'blurry',
-        // vendor-specific → provider bag
         cameraFixed: true,
         watermark: false
       },
@@ -77,34 +71,49 @@ describe('generateVideoRequest', () => {
     expect(calls).toHaveLength(1)
     const { requestId, payload } = calls[0]
     expect(typeof requestId).toBe('string')
-    expect(payload).toMatchObject({
+    expect(payload).toEqual({
       uniqueModelId: 'dmxapi::seedance',
       prompt: 'a cat',
-      resolution: '720p',
-      aspectRatio: '16:9',
-      negativePrompt: 'blurry',
-      providerOptions: { dmxapi: { cameraFixed: true, watermark: false } }
+      paramValues: {
+        resolution: '720p',
+        aspectRatio: '16:9',
+        negativePrompt: 'blurry',
+        cameraFixed: true,
+        watermark: false
+      }
     })
-    // top-level keys must NOT leak into the provider bag
-    expect(payload.providerOptions?.dmxapi).not.toHaveProperty('resolution')
   })
 
-  it('drops empty / undefined / "auto" values and coerces numeric strings', async () => {
+  it('coerces via the catalog and enforces per-model constraints when support is given', async () => {
+    const support = {
+      modes: {
+        t2v: {
+          supports: {
+            duration: { type: 'enum', options: ['5', '10'] },
+            seed: { type: 'text' },
+            cfg: { type: 'range', min: 1, max: 10 }
+          }
+        }
+      }
+    } as unknown as VideoGenerationSupport
+
     await generateVideoRequest({
       providerId: 'ppio',
       modelId: 'kling',
       prompt: 'x',
-      params: { duration: '5', fps: 24, seed: '', resolution: 'auto', negativePrompt: undefined },
+      params: { duration: '5', seed: '42', cfg: 99, resolution: 'auto', negativePrompt: undefined },
+      support,
+      mode: 't2v',
       signal: new AbortController().signal
     })
 
     const { payload } = generateCalls()[0]
-    expect(payload.duration).toBe(5) // "5" → 5
-    expect(payload.fps).toBe(24)
-    expect(payload).not.toHaveProperty('seed') // "" dropped
-    expect(payload).not.toHaveProperty('resolution') // "auto" dropped
-    expect(payload).not.toHaveProperty('negativePrompt') // undefined dropped
-    expect(payload).not.toHaveProperty('providerOptions') // nothing vendor-specific
+    expect(payload.paramValues.duration).toBe(5) // "5" → 5 via the catalog
+    expect(payload.paramValues.seed).toBe(42)
+    expect(payload.paramValues).not.toHaveProperty('cfg') // out of range → dropped, submit survives
+    // 'auto'/undefined blanks are dropped from the bag; 'auto' resolution rides
+    // through the schema but main's split also guards it — the bag simply omits blanks.
+    expect(payload.paramValues).not.toHaveProperty('negativePrompt')
   })
 
   it('encodes first/last frame to data URLs and returns adapted output files', async () => {

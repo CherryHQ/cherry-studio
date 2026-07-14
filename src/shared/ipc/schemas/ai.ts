@@ -1,4 +1,4 @@
-import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { imageParamsSchema, videoParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -80,18 +80,16 @@ const aiVideoPayloadSchema = z.strictObject({
   lastFrame: z.string().optional(),
   /** Reference/subject images for consistency (aggregator transports only). */
   referenceImages: z.array(z.string()).optional(),
-  n: z.number().optional(),
-  /** Video length in seconds. */
-  duration: z.number().optional(),
-  aspectRatio: z.string().optional(),
-  /** `${width}x${height}` (e.g. '1280x720'). */
-  resolution: z.string().optional(),
-  fps: z.number().optional(),
-  seed: z.number().optional(),
-  negativePrompt: z.string().optional(),
-  personGeneration: z.string().optional(),
-  /** Vendor-specific video params keyed by provider id; mapped to AI SDK provider options in main. */
-  providerOptions: z.record(z.string(), z.record(z.string(), z.unknown())).optional()
+  /**
+   * The canonical video param bag, validated + coerced at the IPC boundary by
+   * the catalog value schema (mirror of the image payload's `paramValues`) —
+   * the router's `safeParse` yields a typed `VideoParamValues` (non-catalog
+   * keys stripped). Per-model option/range constraints already ran in the
+   * renderer's `buildVideoParamsSchema`; this is the value-type gate. main
+   * partitions it into the AI SDK's native video params vs the vendor bag
+   * (`splitVideoParamValues`).
+   */
+  paramValues: videoParamsSchema
 })
 
 export const aiRequestSchemas = {

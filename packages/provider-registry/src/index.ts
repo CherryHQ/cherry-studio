@@ -28,7 +28,10 @@ export {
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema, VideoGenerationSupportSchema } from './schemas/model'
+export type { VideoParamCatalogEntry, VideoParamValue, VideoParamValues } from './schemas/videoParamCatalog'
+export { VIDEO_PARAM_CATALOG, VIDEO_PARAM_CATALOG_KEYS, videoParamsSchema } from './schemas/videoParamCatalog'
 export { buildParamsSchema } from './utils/buildParamsSchema'
+export { buildVideoParamsSchema } from './utils/buildVideoParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)
 export type {

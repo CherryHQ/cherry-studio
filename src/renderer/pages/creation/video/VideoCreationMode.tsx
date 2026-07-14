@@ -190,6 +190,8 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
         firstFrame,
         lastFrame,
         params,
+        support,
+        mode,
         signal: controller.signal
       })
       setFiles(out)
@@ -214,7 +216,7 @@ const VideoCreationMode: FC<VideoCreationModeProps> = ({
       setGenerating(false)
       abortRef.current = null
     }
-  }, [providerId, modelId, prompt, firstFrame, lastFrame, params, generating, createCreation, t])
+  }, [providerId, modelId, prompt, firstFrame, lastFrame, params, support, mode, generating, createCreation, t])
 
   return (
     <CreationWorkspace

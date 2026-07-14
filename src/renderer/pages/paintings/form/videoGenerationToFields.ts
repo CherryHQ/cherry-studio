@@ -27,6 +27,7 @@ const KEY_LABELS: Record<CanonicalVideoParamKey, { title: string; tooltip?: stri
   fps: { title: 'paintings.video.fps' },
   seed: { title: 'paintings.seed', tooltip: 'paintings.seed_tip' },
   negativePrompt: { title: 'paintings.negative_prompt', tooltip: 'paintings.negative_prompt_tip' },
+  personGeneration: { title: 'paintings.person_generation', tooltip: 'paintings.person_generation_tip' },
   cfg: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
   watermark: { title: 'paintings.watermark' },
   generateAudio: { title: 'paintings.video.generate_audio', tooltip: 'paintings.video.generate_audio_tip' },
