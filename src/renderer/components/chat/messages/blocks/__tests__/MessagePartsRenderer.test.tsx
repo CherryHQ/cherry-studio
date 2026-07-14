@@ -214,10 +214,10 @@ vi.mock('../../frame/MessageAttachments', () => ({
 
 vi.mock('../ToolBlockGroup', () => ({
   __esModule: true,
-  ToolBlockGroup: ({ children, items }: any) => {
+  ToolBlockGroup: ({ children, isLiveProgress, items }: any) => {
     const [isExpanded, setIsExpanded] = React.useState(false)
     return (
-      <div data-testid="child-tool-group">
+      <div data-testid="child-tool-group" data-live-progress={String(isLiveProgress === true)}>
         <button
           type="button"
           data-testid="child-tool-group-trigger"
@@ -938,6 +938,20 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
       expandCollapsedLiveToolGroups()
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
+    })
+
+    it('settles the last tool group once normal text starts rendering after it', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          toolPart('read', 'output-available'),
+          { type: 'text', text: 'Writing the answer', state: 'streaming' }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' })
+      )
+
+      expect(screen.getByTestId('child-tool-group')).toHaveAttribute('data-live-progress', 'false')
+      expect(screen.getByText('Writing the answer')).toBeInTheDocument()
     })
 
     it('shows a tool header for standalone interactive tools during the reply', () => {

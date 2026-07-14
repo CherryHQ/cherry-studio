@@ -805,11 +805,11 @@ function renderNestedHistory(
   message: MessageListItem,
   isTranslationOverlayActive: boolean,
   options: RenderGroupedEntryOptions,
-  markLastProcessLive = false
+  liveProcessMode?: 'last' | 'settled'
 ): React.ReactNode {
   const nestedItems = groupNestedHistoryEntries(entries)
   let lastProcessIndex = -1
-  if (markLastProcessLive) {
+  if (liveProcessMode === 'last') {
     for (let index = nestedItems.length - 1; index >= 0; index--) {
       if (nestedItems[index].kind === 'process') {
         lastProcessIndex = index
@@ -849,6 +849,8 @@ function renderNestedHistory(
     }
 
     const isCurrentProcess = itemIndex === lastProcessIndex
+    const isLiveProgress =
+      liveProcessMode === 'settled' ? false : liveProcessMode === 'last' ? isCurrentProcess : undefined
     const lastProcessEntry = item.entries.at(-1)
     const isThinking =
       isCurrentProcess &&
@@ -857,7 +859,7 @@ function renderNestedHistory(
 
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
-        <ToolBlockGroup items={toolItems} isLiveProgress={isCurrentProcess ? true : undefined} isThinking={isThinking}>
+        <ToolBlockGroup items={toolItems} isLiveProgress={isLiveProgress} isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
             {groupPartEntries(item.entries).map((entry) =>
               renderGroupedEntry(entry, message, false, isTranslationOverlayActive, {
@@ -995,7 +997,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           settleStreamingReasoning: !isStreamLive,
           toolDisplay: 'disclosure'
         },
-        true
+        liveResultItems.length === 0 ? 'last' : 'settled'
       )
     }
 
