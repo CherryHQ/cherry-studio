@@ -17,7 +17,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type MouseEventHandler,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -275,73 +274,6 @@ function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?
         </span>
       )}
     </span>
-  )
-}
-
-function ReadOnlyComposerTokenTooltip({
-  children,
-  content,
-  ariaLabel
-}: {
-  children: ReactNode
-  content: ReactNode
-  ariaLabel: string
-}) {
-  const [open, setOpen] = useState(false)
-  const pointerEnterTimerRef = useRef<number | null>(null)
-  const pointerInsideRef = useRef(false)
-
-  const clearPointerEnterTimer = useCallback(() => {
-    if (pointerEnterTimerRef.current === null) return
-    window.clearTimeout(pointerEnterTimerRef.current)
-    pointerEnterTimerRef.current = null
-  }, [])
-
-  const handlePointerEnter = useCallback(
-    (event: ReactPointerEvent<HTMLElement>) => {
-      if (event.pointerType === 'touch' || open || pointerEnterTimerRef.current !== null) return
-      pointerInsideRef.current = true
-
-      pointerEnterTimerRef.current = window.setTimeout(() => {
-        pointerEnterTimerRef.current = null
-        if (pointerInsideRef.current) setOpen(true)
-      }, TOKEN_TOOLTIP_DELAY_MS)
-    },
-    [open]
-  )
-
-  const handlePointerLeave = useCallback(() => {
-    pointerInsideRef.current = false
-    clearPointerEnterTimer()
-  }, [clearPointerEnterTimer])
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      clearPointerEnterTimer()
-      setOpen(nextOpen)
-    },
-    [clearPointerEnterTimer]
-  )
-
-  useEffect(() => clearPointerEnterTimer, [clearPointerEnterTimer])
-
-  return (
-    <NormalTooltip
-      open={open}
-      onOpenChange={handleOpenChange}
-      content={content}
-      side="top"
-      sideOffset={6}
-      delayDuration={TOKEN_TOOLTIP_DELAY_MS}
-      triggerProps={{
-        tabIndex: 0,
-        'aria-label': ariaLabel,
-        onPointerEnter: handlePointerEnter,
-        onPointerLeave: handlePointerLeave,
-        onPointerCancel: handlePointerLeave
-      }}>
-      {children}
-    </NormalTooltip>
   )
 }
 
@@ -720,16 +652,13 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
     const tooltipContent = <TokenPathTooltipContent path={pathTooltipPath} sizeLabel={sizeLabel} />
 
-    if (props.readOnly) {
-      return (
-        <ReadOnlyComposerTokenTooltip content={tooltipContent} ariaLabel={accessibleTitle}>
-          {chipElement}
-        </ReadOnlyComposerTokenTooltip>
-      )
-    }
-
     return (
-      <NormalTooltip content={tooltipContent} side="top" sideOffset={6} delayDuration={TOKEN_TOOLTIP_DELAY_MS}>
+      <NormalTooltip
+        content={tooltipContent}
+        side="top"
+        sideOffset={6}
+        delayDuration={TOKEN_TOOLTIP_DELAY_MS}
+        triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': accessibleTitle } : undefined}>
         {chipElement}
       </NormalTooltip>
     )
@@ -740,11 +669,14 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     const detail = [presentation.typeLabel, sizeLabel].filter(Boolean).join(' · ')
 
     return (
-      <ReadOnlyComposerTokenTooltip
+      <NormalTooltip
         content={<TokenPathTooltipContent path={label} sizeLabel={detail} />}
-        ariaLabel={accessibleTitle}>
+        side="top"
+        sideOffset={6}
+        delayDuration={TOKEN_TOOLTIP_DELAY_MS}
+        triggerProps={{ tabIndex: 0, 'aria-label': accessibleTitle }}>
         {chipElement}
-      </ReadOnlyComposerTokenTooltip>
+      </NormalTooltip>
     )
   }
 

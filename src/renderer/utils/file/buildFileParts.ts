@@ -18,6 +18,18 @@ import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+export function withComposerFilePartMeta<P extends FileUIPart>(
+  part: P,
+  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
+  fileEntryId?: string
+): P {
+  return withCherryMeta(part, {
+    ...(fileEntryId ? { fileEntryId } : {}),
+    fileTokenSourceId: attachment.fileTokenSourceId,
+    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {})
+  })
+}
+
 /**
  * For each `ComposerAttachment` (with an absolute `path`), create a v2 internal
  * FileEntry (Cherry copies the bytes into its own storage) and return a
@@ -36,11 +48,7 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
         url: `file://${physicalPath}`,
         filename: attachment.origin_name || attachment.name
       }
-      return withCherryMeta(basePart, {
-        fileEntryId: entry.id,
-        fileTokenSourceId: attachment.fileTokenSourceId,
-        ...(attachment.composerFileKind && { composerFileKind: attachment.composerFileKind })
-      })
+      return withComposerFilePartMeta(basePart, attachment, entry.id)
     })
   )
 }

@@ -4,7 +4,7 @@ import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -736,80 +736,61 @@ describe('MainTextBlock', () => {
 
     it.each([false, true])(
       'should show the linked internal file path and size after send when markdown mode is %s',
-      async (renderAsMarkdown) => {
-        vi.useFakeTimers()
-
-        try {
-          mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
-          renderMainTextBlock({
-            content: 'Read /Users/jd/private/report.pdf now',
-            role: 'user',
-            composer: {
-              version: 1,
-              tokens: [
-                {
-                  id: 'file:source-report',
-                  kind: 'file',
-                  label: 'report.pdf',
-                  index: 0,
-                  textOffset: 5,
-                  promptText: '/Users/jd/private/report.pdf',
-                  payload: {
-                    type: 'document',
-                    ext: '.pdf',
-                    name: 'report.pdf',
-                    origin_name: 'report.pdf',
-                    size: 2048
-                  }
+      (renderAsMarkdown) => {
+        mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
+        renderMainTextBlock({
+          content: 'Read /Users/jd/private/report.pdf now',
+          role: 'user',
+          composer: {
+            version: 1,
+            tokens: [
+              {
+                id: 'file:source-report',
+                kind: 'file',
+                label: 'report.pdf',
+                index: 0,
+                textOffset: 5,
+                promptText: '/Users/jd/private/report.pdf',
+                payload: {
+                  type: 'document',
+                  ext: '.pdf',
+                  name: 'report.pdf',
+                  origin_name: 'report.pdf',
+                  size: 2048
                 }
-              ]
-            },
-            readOnlyFilePreviews: new Map([
-              [
-                'source-report',
-                {
-                  url: 'file:///internal/message-files/report.pdf',
-                  mediaType: 'application/pdf'
-                }
-              ]
-            ])
-          })
+              }
+            ]
+          },
+          readOnlyFilePreviews: new Map([
+            [
+              'source-report',
+              {
+                url: 'file:///internal/message-files/report.pdf',
+                mediaType: 'application/pdf'
+              }
+            ]
+          ])
+        })
 
-          const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
-          const tooltip = screen.getByTestId('composer-message-token-tooltip')
-          const tooltipContent = screen.getByTestId('composer-message-token-tooltip-content')
+        const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
+        const tooltip = screen.getByTestId('composer-message-token-tooltip')
+        const tooltipContent = screen.getByTestId('composer-message-token-tooltip-content')
 
-          expect(token).not.toHaveAttribute('title')
-          expect(token).toHaveAttribute('data-tooltip-trigger', 'true')
-          expect(token).toHaveAttribute('tabindex', '0')
-          expect(token).toHaveAccessibleName('report.pdf')
-          expect(tooltip).toHaveAttribute('data-delay-duration', '300')
-          expect(tooltip).toHaveAttribute('data-side', 'top')
-          expect(tooltip).toHaveAttribute('data-side-offset', '6')
-          expect(tooltip).toHaveAttribute('data-open', 'false')
-          expect(tooltipContent.querySelector('[data-token-path]')).toHaveTextContent(
-            '/internal/message-files/report.pdf'
-          )
-          expect(tooltipContent.querySelector('[data-token-size]')).toHaveTextContent('2 KB')
-          expect(document.body).not.toHaveTextContent('/Users/jd/private/report.pdf')
+        expect(token).not.toHaveAttribute('title')
+        expect(token).toHaveAttribute('data-tooltip-trigger', 'true')
+        expect(token).toHaveAttribute('tabindex', '0')
+        expect(token).toHaveAccessibleName('report.pdf')
+        expect(tooltip).toHaveAttribute('data-delay-duration', '300')
+        expect(tooltip).toHaveAttribute('data-side', 'top')
+        expect(tooltip).toHaveAttribute('data-side-offset', '6')
+        expect(tooltipContent.querySelector('[data-token-path]')).toHaveTextContent(
+          '/internal/message-files/report.pdf'
+        )
+        expect(tooltipContent.querySelector('[data-token-size]')).toHaveTextContent('2 KB')
+        expect(document.body).not.toHaveTextContent('/Users/jd/private/report.pdf')
 
-          fireEvent.pointerEnter(token, { pointerType: 'mouse' })
-          await act(() => vi.advanceTimersByTime(299))
-          expect(tooltip).toHaveAttribute('data-open', 'false')
-
-          fireEvent.pointerLeave(token, { pointerType: 'mouse' })
-          await act(() => vi.advanceTimersByTime(1))
-          expect(tooltip).toHaveAttribute('data-open', 'false')
-
-          fireEvent.pointerEnter(token, { pointerType: 'mouse' })
-          await act(() => vi.advanceTimersByTime(300))
-          expect(tooltip).toHaveAttribute('data-open', 'true')
-
-          fireEvent.focus(token)
-          expect(token).toHaveFocus()
-        } finally {
-          vi.useRealTimers()
-        }
+        fireEvent.focus(token)
+        expect(token).toHaveFocus()
       }
     )
 
@@ -861,6 +842,43 @@ describe('MainTextBlock', () => {
       fireEvent.keyDown(trigger, { key: 'Escape' })
       expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
       expect(trigger).toHaveFocus()
+    })
+
+    it('should apply the shared dangerous-file safety rule to a linked sent image preview', () => {
+      renderMainTextBlock({
+        content: 'View icon.svg now',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file:source-icon',
+              kind: 'file',
+              label: 'icon.svg',
+              index: 0,
+              textOffset: 5,
+              promptText: 'icon.svg',
+              payload: {
+                type: 'image',
+                ext: '.svg',
+                name: 'icon.svg',
+                origin_name: 'icon.svg',
+                size: 1024
+              }
+            }
+          ]
+        },
+        readOnlyFilePreviews: new Map([
+          ['source-icon', { url: 'file:///internal/message-files/icon.svg', mediaType: 'image/svg+xml' }]
+        ])
+      })
+
+      const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
+      const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
+      fireEvent.focus(trigger)
+      fireEvent.keyDown(trigger, { key: 'Enter' })
+
+      expect(screen.getByAltText('icon.svg')).toHaveAttribute('src', 'file:///internal/message-files')
     })
 
     it('should preview sent pasted text from the linked internal file without persisting its path', async () => {

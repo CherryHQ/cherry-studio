@@ -1,7 +1,7 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FilePath } from '@shared/types/file'
-import { toSafeFileUrl } from '@shared/utils/file'
+import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 
@@ -110,11 +110,20 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined, previewUrl?: string) {
+function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, previewUrl?: string) {
   if (file?.type !== FILE_TYPE.IMAGE) return undefined
-  if (previewUrl) return previewUrl
+  const extension = getNormalizedFileExtension(file, fallbackLabel)
+
+  if (previewUrl) {
+    try {
+      const url = new URL(previewUrl)
+      return url.protocol === 'file:' ? toSafeFileUrl(fileUrlToPath(url) as FilePath, extension || null) : previewUrl
+    } catch {
+      return undefined
+    }
+  }
   if (!file.path) return undefined
-  return toSafeFileUrl(file.path as FilePath, file.ext || null)
+  return toSafeFileUrl(file.path as FilePath, extension || null)
 }
 
 function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {
@@ -146,6 +155,6 @@ export function getFileTokenPresentation(
     containerClassName: fileTokenContainerClassName,
     iconClassName: preset.iconClassName,
     typeLabel: extensionLabel || preset.defaultTypeLabel,
-    previewUrl: variant === 'image' ? getFilePreviewUrl(file, previewUrl) : undefined
+    previewUrl: variant === 'image' ? getFilePreviewUrl(file, fallbackLabel, previewUrl) : undefined
   }
 }
