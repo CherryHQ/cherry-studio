@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -128,6 +128,41 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
     // No custom tools → empty-state hint.
     expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
+  })
+
+  it('lets the user install the pinned BabelDOC dependency', async () => {
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('BabelDOC')).closest<HTMLElement>('[role="listitem"]')
+    expect(card).not.toBeNull()
+    fireEvent.click(within(card!).getByRole('button', { name: 'settings.mcp.install' }))
+
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        name: 'babeldoc',
+        tool: 'pipx:babeldoc',
+        version: '0.6.3'
+      })
+    )
+  })
+
+  it('only updates BabelDOC to its pinned version after a user action', async () => {
+    ipcMocks.getState.mockResolvedValue({
+      tools: { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.2' } }
+    })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('BabelDOC')).closest<HTMLElement>('[role="listitem"]')
+    expect(card).not.toBeNull()
+    fireEvent.click(within(card!).getByTitle('settings.dependencies.update'))
+
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        name: 'babeldoc',
+        tool: 'pipx:babeldoc',
+        version: '0.6.3'
+      })
+    )
   })
 
   it('renders a persisted custom tool instead of the empty state', async () => {

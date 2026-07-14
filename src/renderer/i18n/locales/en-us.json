@@ -6089,6 +6089,7 @@
       },
       "title": "Dependencies",
       "tools": {
+        "babeldoc": "Layout-preserving bilingual PDF translation engine. Layout model assets are downloaded on the first translation.",
         "bun": "JavaScript runtime used by MCP services and related toolchains.",
         "claude": "Anthropic's agentic coding tool for the terminal.",
         "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
@@ -7893,9 +7894,11 @@
     "pdf": {
       "action": {
         "close": "Close PDF translation",
-        "export": "Export bilingual PDF"
+        "export": "Export bilingual PDF",
+        "open_dependencies": "Open Environment Dependencies"
       },
       "error": {
+        "dependency_missing": "Install BabelDOC 0.6.3 from Environment Dependencies before translating PDFs.",
         "title": "PDF translation failed"
       },
       "export_failed": "Failed to export bilingual PDF",
@@ -7908,7 +7911,7 @@
         "title": "Ready to translate"
       },
       "status": {
-        "installing": "Installing PDF translation engine...",
+        "preparing": "Preparing PDF translation...",
         "translating": "Translating PDF..."
       },
       "success": "Bilingual PDF generated"

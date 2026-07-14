@@ -46,7 +46,7 @@ describe('translateHandlers', () => {
 
   it('starts PDF translation and sends stage updates only to the calling window', async () => {
     translatePdfMock.mockImplementation(async (_request, onStage) => {
-      onStage('installing')
+      onStage('preparing')
       onStage('translating')
       return { fileName: 'paper.zh-CN.dual.pdf', outputPath: '/tmp/job/paper.zh-CN.dual.pdf' }
     })
@@ -64,7 +64,7 @@ describe('translateHandlers', () => {
     })
     expect(ipcSendMock).toHaveBeenNthCalledWith(1, 'w1', 'translate.pdf.stage', {
       jobId: request.jobId,
-      stage: 'installing'
+      stage: 'preparing'
     })
     expect(ipcSendMock).toHaveBeenNthCalledWith(2, 'w1', 'translate.pdf.stage', {
       jobId: request.jobId,

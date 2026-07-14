@@ -264,16 +264,18 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const installedVersion = installed?.version ?? bundledVersion ?? undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
+          const canUpdate = !tool.version || installedVersion !== tool.version
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={source}
               installedVersion={installedVersion}
-              latestVersion={hasUpdate ? latestVersion : undefined}
+              latestVersion={!tool.version && hasUpdate ? latestVersion : undefined}
+              canUpdate={canUpdate}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
-              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+              onUpdate={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onOpenPath={() => openToolDir(tool.name)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
@@ -345,12 +347,24 @@ const BinaryToolPresetCard: FC<{
   source: ToolSource
   installedVersion?: string
   latestVersion?: string
+  canUpdate: boolean
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({
+  tool,
+  source,
+  installedVersion,
+  latestVersion,
+  canUpdate,
+  installing,
+  onInstall,
+  onUpdate,
+  onOpenPath,
+  onRemove
+}) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
   const present = source !== 'none'
@@ -402,19 +416,21 @@ const BinaryToolPresetCard: FC<{
 
         {source === 'managed' && (
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground/40 hover:text-foreground"
-              onClick={onUpdate}
-              disabled={installing}
-              title={t('settings.dependencies.update')}>
-              {installing ? (
-                <Loader2 className="size-3.5 motion-safe:animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-            </Button>
+            {canUpdate && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-foreground/40 hover:text-foreground"
+                onClick={onUpdate}
+                disabled={installing}
+                title={t('settings.dependencies.update')}>
+                {installing ? (
+                  <Loader2 className="size-3.5 motion-safe:animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-sm"

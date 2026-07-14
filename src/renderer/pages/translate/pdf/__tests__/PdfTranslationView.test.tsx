@@ -1,11 +1,14 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PdfTranslationView, { type PdfTranslationHandle } from '../PdfTranslationView'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
-  stageHandler: null as null | ((payload: { jobId: string; stage: 'installing' | 'translating' }) => void),
+  navigate: vi.fn(),
+  stageHandler: null as null | ((payload: { jobId: string; stage: 'preparing' | 'translating' }) => void),
   uuid: vi.fn(() => 'b289bad7-a813-4cf7-91c0-2a9dc82235b2')
 }))
 
@@ -17,6 +20,7 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 vi.mock('@renderer/utils/uuid', () => ({ uuid: mocks.uuid }))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel', () => ({
   default: ({ filePath }: { filePath: string }) => <div data-testid="pdf-preview" data-file-path={filePath} />
 }))
@@ -108,5 +112,37 @@ describe('PdfTranslationView', () => {
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
       })
     )
+  })
+
+  it('links to Environment Dependencies when BabelDOC is not installed', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') {
+        return Promise.reject(
+          new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC 0.6.3 is not installed')
+        )
+      }
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        onClose={vi.fn()}
+        onHandleChange={(next) => {
+          handle = next
+        }}
+        onStatusChange={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+
+    expect(await screen.findByText('translate.pdf.error.dependency_missing')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.open_dependencies' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
 })

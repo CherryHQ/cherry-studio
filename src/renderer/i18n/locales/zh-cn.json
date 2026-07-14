@@ -6089,6 +6089,7 @@
       },
       "title": "环境依赖",
       "tools": {
+        "babeldoc": "保留版式的双语 PDF 翻译引擎。首次翻译时会下载版面模型资源。",
         "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
         "claude": "Anthropic 的终端智能编程工具。",
         "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
@@ -7893,9 +7894,11 @@
     "pdf": {
       "action": {
         "close": "关闭 PDF 翻译",
-        "export": "导出双语 PDF"
+        "export": "导出双语 PDF",
+        "open_dependencies": "打开环境依赖"
       },
       "error": {
+        "dependency_missing": "请先在环境依赖中安装 BabelDOC 0.6.3，再翻译 PDF。",
         "title": "PDF 翻译失败"
       },
       "export_failed": "导出双语 PDF 失败",
@@ -7908,7 +7911,7 @@
         "title": "等待翻译"
       },
       "status": {
-        "installing": "正在安装 PDF 翻译引擎...",
+        "preparing": "正在准备 PDF 翻译...",
         "translating": "正在翻译 PDF..."
       },
       "success": "双语 PDF 已生成"

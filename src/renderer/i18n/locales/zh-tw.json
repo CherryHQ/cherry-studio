@@ -6089,6 +6089,7 @@
       },
       "title": "環境依賴",
       "tools": {
+        "babeldoc": "保留版式的雙語 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
         "claude": "Anthropic 的終端智慧編程工具。",
         "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
@@ -7893,9 +7894,11 @@
     "pdf": {
       "action": {
         "close": "關閉 PDF 翻譯",
-        "export": "匯出雙語 PDF"
+        "export": "匯出雙語 PDF",
+        "open_dependencies": "開啟環境依賴"
       },
       "error": {
+        "dependency_missing": "請先在環境依賴中安裝 BabelDOC 0.6.3，再翻譯 PDF。",
         "title": "PDF 翻譯失敗"
       },
       "export_failed": "匯出雙語 PDF 失敗",
@@ -7908,7 +7911,7 @@
         "title": "等待翻譯"
       },
       "status": {
-        "installing": "正在安裝 PDF 翻譯引擎...",
+        "preparing": "正在準備 PDF 翻譯...",
         "translating": "正在翻譯 PDF..."
       },
       "success": "雙語 PDF 已產生"

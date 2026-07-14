@@ -7,6 +7,9 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { uuid } from '@renderer/utils/uuid'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +19,7 @@ export interface PdfTranslationFile {
   path: string
 }
 
-type PdfTranslationPhase = 'idle' | 'installing' | 'translating' | 'success' | 'error'
+type PdfTranslationPhase = 'idle' | 'preparing' | 'translating' | 'success' | 'error'
 
 export interface PdfTranslationStatus {
   phase: PdfTranslationPhase
@@ -52,6 +55,7 @@ const PdfTranslationView = ({
   onStatusChange
 }: PdfTranslationViewProps) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [phase, setPhase] = useState<PdfTranslationPhase>('idle')
   const [output, setOutput] = useState<PdfTranslationOutput | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -80,7 +84,7 @@ const PdfTranslationView = ({
       const jobId = uuid()
       activeJobIdRef.current = jobId
       setError(null)
-      setPhase('installing')
+      setPhase('preparing')
 
       void ipcApi
         .request('translate.pdf.start', {
@@ -126,7 +130,7 @@ const PdfTranslationView = ({
     return () => onHandleChange(null)
   }, [onHandleChange])
 
-  const running = phase === 'installing' || phase === 'translating'
+  const running = phase === 'preparing' || phase === 'translating'
   useEffect(() => onStatusChange({ phase, running }), [onStatusChange, phase, running])
 
   useEffect(
@@ -164,11 +168,12 @@ const PdfTranslationView = ({
   }, [output, t])
 
   const statusLabel =
-    phase === 'installing'
-      ? t('translate.pdf.status.installing')
+    phase === 'preparing'
+      ? t('translate.pdf.status.preparing')
       : phase === 'translating'
         ? t('translate.pdf.status.translating')
         : null
+  const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -214,7 +219,13 @@ const PdfTranslationView = ({
               <LoadingState label={statusLabel ?? undefined} />
             </div>
           ) : error ? (
-            <EmptyState icon={AlertCircle} title={t('translate.pdf.error.title')} description={error.message} />
+            <EmptyState
+              icon={AlertCircle}
+              title={t('translate.pdf.error.title')}
+              description={dependencyMissing ? t('translate.pdf.error.dependency_missing') : error.message}
+              actionLabel={dependencyMissing ? t('translate.pdf.action.open_dependencies') : undefined}
+              onAction={dependencyMissing ? () => navigate({ to: '/settings/dependencies' }) : undefined}
+            />
           ) : (
             <EmptyState
               icon={Languages}

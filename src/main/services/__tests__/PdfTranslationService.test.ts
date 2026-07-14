@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
+import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -46,7 +47,7 @@ const TEST_ROOT = path.join(os.tmpdir(), 'cherry-pdf-translation-service-test')
 const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf')
 const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc')
 
-const binaryManager = { reconcile: vi.fn() }
+const binaryManager = { getState: vi.fn() }
 const apiGateway = {
   ensureValidApiKey: vi.fn(),
   getCurrentConfig: vi.fn(),
@@ -81,7 +82,9 @@ describe('PdfTranslationService', () => {
       isEnabled: true,
       name: 'GPT-4.1'
     })
-    binaryManager.reconcile.mockResolvedValue({ failed: [], installed: ['babeldoc'], skipped: [] })
+    binaryManager.getState.mockReturnValue({
+      tools: { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.3' } }
+    })
     apiGateway.isRunning.mockReturnValue(false)
     apiGateway.start.mockResolvedValue(undefined)
     apiGateway.stop.mockResolvedValue(undefined)
@@ -111,7 +114,7 @@ describe('PdfTranslationService', () => {
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
   })
 
-  it('installs safe BabelDOC, routes the selected model through Cherry Gateway, and returns the dual PDF', async () => {
+  it('uses the manually installed BabelDOC, routes the selected model through Cherry Gateway, and returns the dual PDF', async () => {
     const service = new PdfTranslationService()
 
     const result = await service.translate({
@@ -122,13 +125,7 @@ describe('PdfTranslationService', () => {
       targetLangCode: 'zh-cn'
     })
 
-    expect(binaryManager.reconcile).toHaveBeenCalledWith([
-      {
-        name: 'babeldoc',
-        tool: 'pipx:babeldoc',
-        version: '0.6.3'
-      }
-    ])
+    expect(binaryManager.getState).toHaveBeenCalledTimes(1)
     expect(apiGateway.start).toHaveBeenCalledTimes(1)
     expect(apiGateway.stop).toHaveBeenCalledTimes(1)
     expect(mocks.spawn).toHaveBeenCalledWith(
@@ -182,23 +179,24 @@ describe('PdfTranslationService', () => {
     expect(result.fileName).toBe('research paper.zh-TW.dual.pdf')
   })
 
-  it('does not run an unpinned BabelDOC executable when reconciliation fails', async () => {
-    binaryManager.reconcile.mockResolvedValueOnce({
-      failed: [{ name: 'babeldoc', error: 'version unavailable' }],
-      installed: [],
-      skipped: []
-    })
+  it.each([
+    ['missing', {}],
+    ['outdated', { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.2' } }]
+  ])('requires the pinned BabelDOC version to be installed manually when it is %s', async (_case, tools) => {
+    binaryManager.getState.mockReturnValueOnce({ tools })
     const service = new PdfTranslationService()
 
-    await expect(
-      service.translate({
-        jobId: 'job-reconcile-failed',
-        modelId: 'openai::gpt-4.1-internal',
-        sourcePath: SOURCE_PATH,
-        sourceLangCode: 'en-us',
-        targetLangCode: 'zh-cn'
-      })
-    ).rejects.toThrow('Failed to install BabelDOC: version unavailable')
+    const translation = service.translate({
+      jobId: 'job-reconcile-failed',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toMatchObject({
+      code: translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
+    })
 
     expect(mocks.getBinaryPath).not.toHaveBeenCalled()
     expect(mocks.spawn).not.toHaveBeenCalled()
