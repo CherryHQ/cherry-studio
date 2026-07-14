@@ -14,7 +14,6 @@ export interface CodeCliPageViewProps {
   emptyMessage: string
   launchDialogProps: ComponentProps<typeof LaunchDialog>
   removeDialogProps: ComponentProps<typeof ConfirmDialog>
-  claimDialogProps: ComponentProps<typeof ConfirmDialog>
   configPanelKey?: string
   configPanelProps?: ComponentProps<typeof ConfigEditPanel>
   ownLoginConfigPanelProps?: ComponentProps<typeof OwnLoginConfigPanel>
@@ -26,7 +25,6 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
   emptyMessage,
   launchDialogProps,
   removeDialogProps,
-  claimDialogProps,
   configPanelKey,
   configPanelProps,
   ownLoginConfigPanelProps
@@ -49,7 +47,6 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
 
       <LaunchDialog {...launchDialogProps} />
       <ConfirmDialog {...removeDialogProps} />
-      <ConfirmDialog {...claimDialogProps} />
       {configPanelProps && (
         <Fragment key={configPanelKey}>
           <ConfigEditPanel {...configPanelProps} />

@@ -150,7 +150,6 @@ export class BinaryManager extends BaseService {
   private readonly activeMutations = new Map<
     string,
     | { action: 'install'; request: BinaryInstallRequest; promise: Promise<{ version: string }> }
-    | { action: 'claim'; promise: Promise<{ version: string }> }
     | {
         action: 'remove'
         promise: Promise<void>
@@ -685,52 +684,6 @@ export class BinaryManager extends BaseService {
     return entries.length === 0
   }
 
-  /**
-   * Installed entries reported by isolated mise for the *exact* canonical spec.
-   *
-   * `mise ls --json <spec>` filters to the queried spec and returns a bare
-   * array of that spec's installs — unlike the no-arg `mise ls --json`, which
-   * returns an object keyed by spec. The array is already scoped to `tool`, so
-   * an alias/other spec cannot masquerade as installed, and an absent spec
-   * yields `[]`. The `Array.isArray` guard keeps an unexpected object response
-   * from being mistaken for proof that `tool` is installed. Query-only: never
-   * runs a mise mutation.
-   */
-  private async listExactSpec(tool: string): Promise<Array<{ version?: string; active?: boolean }>> {
-    const { stdout } = await this.runMise(['ls', '--json', tool])
-    const parsed = JSON.parse(stdout) as Array<{ version?: string; active?: boolean }>
-    return Array.isArray(parsed) ? parsed : []
-  }
-
-  /**
-   * Observed installed version of the *exact* canonical spec, for claim_tool.
-   *
-   * Contract (stricter than install's getInstalledVersion): a supplied
-   * `requested` version must be a concrete semver and must equal the observed
-   * semver exactly — ranges/tags such as `11` or `latest` are rejected rather
-   * than silently ignored. With no `requested`, the active install (or the sole
-   * install) is returned so a runtime claim can pin what `mise which` resolves.
-   */
-  private async getExactInstalledVersionForClaim(tool: string, requested?: string): Promise<string> {
-    if (requested !== undefined && !semverValid(requested)) {
-      throw new Error(`Claiming ${tool} requires a concrete version; "${requested}" is not a concrete semver`)
-    }
-    const entries = await this.listExactSpec(tool)
-    if (requested !== undefined) {
-      const requestedVersion = semverValid(requested)
-      const match = entries.find((entry) => semverValid(entry.version) === requestedVersion)
-      if (!match?.version) {
-        throw new Error(`mise did not report an installed version for ${tool}@${requested}`)
-      }
-      return match.version
-    }
-    const observed = entries.find((entry) => entry.active) ?? (entries.length === 1 ? entries[0] : undefined)
-    if (!observed?.version) {
-      throw new Error(`mise did not report an installed version for ${tool}`)
-    }
-    return observed.version
-  }
-
   private getManifest(): BinaryManifestEntry[] {
     return application.get('PreferenceService').get('feature.binary.tools')
   }
@@ -766,8 +719,8 @@ export class BinaryManager extends BaseService {
 
   /**
    * Validate a durable manifest intent's identity and canonical/runtime spec.
-   * Shared by install and claim, both of which persist an intent under the same
-   * name/spec invariants; only the one-shot install target is install-specific.
+   * The intent persisted under these name/spec invariants; only the one-shot
+   * install target is install-specific.
    */
   private validateIntentSpec(intent: BinaryManifestEntry) {
     validateBinaryManifestEntry(intent)
@@ -829,9 +782,7 @@ export class BinaryManager extends BaseService {
         new Error(
           active.action === 'remove'
             ? `Tool ${intent.name} is already removing`
-            : active.action === 'claim'
-              ? `Tool ${intent.name} is currently being claimed`
-              : `Tool ${intent.name} is already installing with a different specification`
+            : `Tool ${intent.name} is already installing with a different specification`
         )
       )
     }
@@ -909,83 +860,6 @@ export class BinaryManager extends BaseService {
       })
       throw err
     }
-  }
-
-  /**
-   * Take durable ownership of a tool that is *already* installed in Cherry's
-   * isolated mise environment, without touching mise state. This is an
-   * ownership-only mutation: it never runs `mise use/install/uninstall`,
-   * reshims, downloads, or changes a version. It exists so a user can opt an
-   * already-managed-by-mise tool into Cherry's update/remove lifecycle.
-   *
-   * Ownership is never inferred from availability — the caller supplies the
-   * canonical intent, and this proves the exact spec is installed via mise
-   * before persisting. A `senderId: null` caller is refused at the IPC handler,
-   * as with install/remove.
-   */
-  claimTool(intent: BinaryManifestEntry): Promise<{ version: string }> {
-    try {
-      this.validateIntentSpec(intent)
-    } catch (err) {
-      return Promise.reject(err)
-    }
-    const active = this.activeMutations.get(intent.name)
-    if (active) {
-      return Promise.reject(
-        new Error(
-          active.action === 'remove'
-            ? `Tool ${intent.name} is already removing`
-            : active.action === 'claim'
-              ? `Tool ${intent.name} is already being claimed`
-              : `Tool ${intent.name} is already installing`
-        )
-      )
-    }
-    if (!this.miseBin) {
-      return Promise.reject(new Error('Binary backend not available'))
-    }
-
-    const promise = this.claimToolImpl(intent)
-    this.activeMutations.set(intent.name, { action: 'claim', promise })
-    void promise
-      .finally(() => {
-        if (this.activeMutations.get(intent.name)?.promise === promise) this.activeMutations.delete(intent.name)
-      })
-      .catch(() => undefined)
-    return promise
-  }
-
-  private async claimToolImpl(intent: BinaryManifestEntry): Promise<{ version: string }> {
-    return this.mutationMutex.runExclusive(async () => {
-      const manifest = this.getManifest()
-      const existing = manifest.find((entry) => entry.name === intent.name)
-      if (existing && (existing.tool !== intent.tool || existing.requestedVersion !== intent.requestedVersion)) {
-        throw new Error(`Tool ${intent.name} is already owned with a different specification`)
-      }
-      const conflictingOwner = manifest.find((entry) => entry.name !== intent.name && entry.tool === intent.tool)
-      if (conflictingOwner) {
-        throw new Error(`Tool specification ${intent.tool} is already owned as ${conflictingOwner.name}`)
-      }
-
-      // Prove the *exact* spec is installed in Cherry's isolated mise env — never
-      // infer ownership from a PATH/shim name, and never accept an alias/other
-      // spec. A supplied requestedVersion must be a concrete semver matching the
-      // observed version exactly; throws when the spec is absent or mismatched.
-      const version = await this.getExactInstalledVersionForClaim(intent.tool, intent.requestedVersion)
-      // And prove the named executable target is actually runnable, not just listed.
-      if (!(await this.isManagedBinaryReady(intent.name))) {
-        throw new Error(`Tool is not runnable: ${intent.name}`)
-      }
-
-      // A node/python runtime claim without an explicit version pins the observed
-      // one, mirroring install's runtime-claim path so ownership is unambiguous.
-      const persistedIntent =
-        isRuntimeDependency(intent.tool) && !intent.requestedVersion ? { ...intent, requestedVersion: version } : intent
-      // A manifest write failure leaves the tool runnable-but-unowned (no catch):
-      // ownership only exists once the preference is durably persisted.
-      await this.upsertManifest(persistedIntent)
-      return { version }
-    })
   }
 
   private async loadRegistry(): Promise<Array<{ name: string; tool: string }>> {
@@ -1088,13 +962,7 @@ export class BinaryManager extends BaseService {
     const active = this.activeMutations.get(toolName)
     if (active) {
       if (active.action === 'remove') return active.promise
-      return Promise.reject(
-        new Error(
-          active.action === 'claim'
-            ? `Tool ${toolName} is already being claimed`
-            : `Tool ${toolName} is already installing`
-        )
-      )
+      return Promise.reject(new Error(`Tool ${toolName} is already installing`))
     }
 
     // As with installs, expose removal before waiting for a mutation of another

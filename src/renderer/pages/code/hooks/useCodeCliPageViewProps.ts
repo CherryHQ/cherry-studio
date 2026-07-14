@@ -20,7 +20,6 @@ import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { useApiGatewayProvider } from './useApiGatewayProvider'
 import { useBinaryActions } from './useBinaryActions'
-import { useClaimCliToolDialog } from './useClaimCliToolDialog'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
@@ -64,7 +63,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     selectedTerminal
   } = useCodeCli()
 
-  const { install, upgrade, remove, claim, installingTools, upgradingTools } = useBinaryActions()
+  const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers } = useProviders()
   const apiGatewayBundle = useApiGatewayProvider()
   const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool, gatewayModelsById } =
@@ -214,7 +213,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     [remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
-  const claimDialog = useClaimCliToolDialog({ toolName, claim })
 
   return {
     sidebarProps: {
@@ -254,10 +252,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           onInstall: () => void install(selectedCliTool, versionStatus.intent),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest, versionStatus.intent),
           onRemove: versionStatus.owned ? () => removeDialog.requestRemove(selectedCliTool) : undefined,
-          onManage:
-            versionStatus.source === 'mise' && !versionStatus.owned
-              ? () => claimDialog.requestClaim(selectedCliTool)
-              : undefined,
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),
@@ -269,7 +263,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     emptyMessage: t('code.select_tool_to_start'),
     launchDialogProps: launchDialog.launchDialogProps,
     removeDialogProps: removeDialog.removeDialogProps,
-    claimDialogProps: claimDialog.claimDialogProps,
     configPanelKey: configPanel.configPanelKey,
     configPanelProps: configPanel.configPanelProps,
     ownLoginConfigPanelProps: configPanel.ownLoginConfigPanelProps

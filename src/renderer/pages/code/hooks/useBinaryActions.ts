@@ -99,30 +99,10 @@ export function useBinaryActions() {
     [t]
   )
 
-  // Ownership-only claim: bring an already-mise-installed CLI under Cherry
-  // management without reinstalling it. The version card refreshes through the
-  // main-process availability_changed broadcast, so no local state is tracked.
-  const claim = useCallback(
-    async (toolId: CodeCli): Promise<boolean> => {
-      try {
-        const cliPreset = CODE_CLI_TOOL_PRESET_MAP[toolId]
-        await ipcApi.request('binary.claim_tool', { name: cliPreset.executable, tool: cliPreset.miseTool })
-        toast.success(t('code.claim_success'))
-        return true
-      } catch (error) {
-        logger.error('Failed to claim:', error as Error)
-        toast.error(t('code.claim_failed'))
-        return false
-      }
-    },
-    [t]
-  )
-
   return {
     install,
     upgrade,
     remove,
-    claim,
     installingTools,
     upgradingTools
   }

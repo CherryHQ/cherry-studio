@@ -8,7 +8,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * the deep validation of the install spec. Input is already shape-parsed by the
  * route schema; the source-trust gate (validateSender) runs before dispatch.
  *
- * `install_tool` / `claim_tool` / `remove_tool` mutate the durable ownership
+ * `install_tool` / `remove_tool` mutate the durable ownership
  * manifest (install_tool can additionally execute arbitrary package postinstall
  * code), so they refuse a `senderId: null` caller — one that passed validateSender
  * but is not a WindowManager-managed window. `validateSender` and `senderId` are
@@ -30,10 +30,6 @@ export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
   'binary.install_tool': async (tool, { senderId }) => {
     requireManagedSender(senderId, 'binary.install_tool')
     return application.get('BinaryManager').installTool(tool)
-  },
-  'binary.claim_tool': async (intent, { senderId }) => {
-    requireManagedSender(senderId, 'binary.claim_tool')
-    return application.get('BinaryManager').claimTool(intent)
   },
   'binary.remove_tool': async (name, { senderId }) => {
     requireManagedSender(senderId, 'binary.remove_tool')

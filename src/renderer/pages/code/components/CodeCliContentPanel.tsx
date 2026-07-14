@@ -39,7 +39,6 @@ interface CodeCliContentPanelProps {
   onInstall: () => void
   onUpgrade: () => void
   onRemove?: () => void
-  onManage?: () => void
   onLaunch: () => void
   onStop: () => void
   onOpenDashboard: () => void
@@ -78,7 +77,6 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   onInstall,
   onUpgrade,
   onRemove,
-  onManage,
   onLaunch,
   onStop,
   onOpenDashboard,
@@ -101,7 +99,6 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             onInstall={onInstall}
             onUpgrade={onUpgrade}
             onRemove={onRemove}
-            onManage={onManage}
             onLaunch={onLaunch}
             onStop={onStop}
             onOpenDashboard={onOpenDashboard}

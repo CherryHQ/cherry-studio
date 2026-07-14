@@ -15,7 +15,6 @@ const ipcMocks = vi.hoisted(() => ({
   snapshots: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
-  claimTool: vi.fn(),
   removeTool: vi.fn(),
   searchRegistry: vi.fn()
 }))
@@ -47,8 +46,6 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.snapshots(input)
         case 'binary.install_tool':
           return ipcMocks.installTool(input)
-        case 'binary.claim_tool':
-          return ipcMocks.claimTool(input)
         case 'binary.remove_tool':
           return ipcMocks.removeTool(input)
         case 'local_model.get_status':
@@ -151,7 +148,6 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.snapshots.mockImplementation(async () => snapshotRecords.value)
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
-    ipcMocks.claimTool.mockResolvedValue({ version: '1.0.0' })
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.searchRegistry.mockResolvedValue([])
     setInstallSettingsMock.mockResolvedValue(undefined)
@@ -213,57 +209,39 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
   })
 
-  it('offers a Cherry-managed copy for a system preset via install_tool, never claim_tool', async () => {
+  it('offers a Cherry-managed copy for a system preset via install_tool', async () => {
     setSnapshots({ fd: { name: 'fd', availability: { source: 'system', path: '/usr/local/bin/fd' } } })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
     expect(card).toHaveTextContent('settings.dependencies.source.system')
     expect(card.querySelector('[title="/usr/local/bin/fd"]')).toBeInTheDocument()
     // A system binary is not owned; the action installs a Cherry copy alongside it.
-    expect(within(card).queryByText('settings.dependencies.claimAction')).not.toBeInTheDocument()
     fireEvent.click(within(card).getByText('settings.dependencies.installManagedCopy'))
     expect(ipcMocks.installTool).toHaveBeenCalledWith({ intent: { name: 'fd', tool: 'fd' } })
-    expect(ipcMocks.claimTool).not.toHaveBeenCalled()
   })
 
-  it('claims an unowned mise preset with its canonical intent after confirmation', async () => {
+  it('keeps an unowned mise preset display-only without an install retry', async () => {
     setSnapshots({
       gh: { name: 'gh', availability: { source: 'mise', tool: 'gh', path: '/mise/gh', version: '2.0.0' } }
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
-    // No install_tool retry offered — a mise-installed tool only needs an ownership claim.
+    // A mise-installed but unowned tool is shown read-only — no install retry, no remove.
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
-    fireEvent.click(within(card).getByText('settings.dependencies.claimAction'))
-    const dialog = screen.getByRole('alertdialog')
-    expect(dialog).toHaveTextContent('settings.dependencies.claimConfirmMessage')
-    fireEvent.click(within(dialog).getByTestId('confirm-dialog-confirm'))
-    await waitFor(() => expect(ipcMocks.claimTool).toHaveBeenCalledWith({ name: 'gh', tool: 'gh' }))
-    expect(ipcMocks.installTool).not.toHaveBeenCalled()
-  })
-
-  it('claims an unowned discovered mise runtime with its canonical spec', async () => {
-    setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1', false) })
-    render(<EnvironmentDependencies />)
-    const card = (await screen.findAllByText('node'))[0].closest('[role="listitem"]') as HTMLElement
-    fireEvent.click(within(card).getByText('settings.dependencies.claimAction'))
-    fireEvent.click(within(screen.getByRole('alertdialog')).getByTestId('confirm-dialog-confirm'))
-    await waitFor(() => expect(ipcMocks.claimTool).toHaveBeenCalledWith({ name: 'node', tool: 'core:node' }))
-  })
-
-  it('keeps a bundled preset read-only with neither claim nor remove', async () => {
-    setSnapshots({ uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' } } })
-    render(<EnvironmentDependencies />)
-    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).queryByText('settings.dependencies.claimAction')).not.toBeInTheDocument()
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('replaces the claim action with a remove control once the tool is owned', async () => {
+  it('keeps a bundled preset read-only without a remove control', async () => {
+    setSnapshots({ uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' } } })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+  })
+
+  it('shows a remove control for an owned tool', async () => {
     setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0', true) })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).queryByText('settings.dependencies.claimAction')).not.toBeInTheDocument()
     expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
   })
 

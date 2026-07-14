@@ -14,7 +14,6 @@ interface VersionStatusCardProps {
   onInstall?: () => void
   onUpgrade?: () => void
   onRemove?: () => void
-  onManage?: () => void
   onLaunch?: () => void
   onStop?: () => void
   onOpenDashboard?: () => void
@@ -36,7 +35,6 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   onInstall,
   onUpgrade,
   onRemove,
-  onManage,
   onLaunch,
   onStop,
   onOpenDashboard,
@@ -58,10 +56,8 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const retryUnownedInstall = failedInstall && !status.owned
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
-  // Installed via mise but unowned → offer an explicit ownership claim (no
-  // reinstall). Present on the system PATH but unowned → offer to install a
-  // Cherry-managed copy alongside it; the system binary is never touched.
-  const canClaim = status.source === 'mise' && !status.owned && !failedInstall
+  // Present on the system PATH but unowned → offer to install a Cherry-managed
+  // copy alongside it; the system binary is never touched.
   const canInstallManagedCopy = status.source === 'system' && !status.owned
 
   return (
@@ -143,18 +139,6 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               ) : (
                 <Trash2 className="size-3.5" />
               )}
-            </Button>
-          )}
-
-          {canClaim && onManage && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onManage}
-              disabled={busy}
-              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
-              {t('settings.dependencies.claimAction')}
             </Button>
           )}
 
