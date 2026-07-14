@@ -74,6 +74,9 @@ importers:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.60.0
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -360,9 +363,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.27.1
         version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4)
-      '@mozilla/readability':
-        specifier: ^0.6.0
-        version: 0.6.0
       '@notionhq/client':
         specifier: ^2.2.15
         version: 2.3.0(encoding@0.1.13)

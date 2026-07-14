@@ -54,7 +54,8 @@ describe('CitationPreviewService', () => {
     expect(requestInit).toEqual({
       headers: { 'User-Agent': USER_AGENT },
       timeoutMs: 8000,
-      maxBytes: MAX_RESPONSE_BYTES
+      maxBytes: MAX_RESPONSE_BYTES,
+      maxRedirects: 5
     })
   })
 
@@ -98,6 +99,21 @@ describe('CitationPreviewService', () => {
     await expect(fetchPreview('https://example.com/article.xhtml')).resolves.toBe(
       'XHTML headline The citation preview is extracted from XHTML content'
     )
+  })
+
+  it('keeps the main event loop responsive while parsing a large HTML response', async () => {
+    const paragraph = '<p>The citation preview contains readable article text for the worker regression.</p>'
+    const html = `<!doctype html><html><body><article>${paragraph.repeat(10_000)}</article></body></html>`
+    fetchRemoteTextMock.mockResolvedValue(html)
+    let settled = false
+
+    const previewPromise = fetchPreview('https://example.com/large-article').finally(() => {
+      settled = true
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(settled).toBe(false)
+    await expect(previewPromise).resolves.toContain('The citation preview contains readable article text')
   })
 
   it('rejects private and invalid URLs before calling the remote fetch helper', async () => {
