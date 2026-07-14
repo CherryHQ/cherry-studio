@@ -120,9 +120,8 @@ const AgentChat = ({
   const { agent: activeAgent } = useAgent(visibleAgentId)
   const resourcePaneTopRightTool = resourcePane ? (
     <>
-      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
       <AgentRightPane.Shortcuts />
-      <AgentRightPane.FilesToggle />
     </>
   ) : undefined
 
@@ -161,6 +160,7 @@ const AgentChat = ({
           onPaneCollapse={onPaneCollapse}
           onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topRightTool={resourcePaneTopRightTool}
+          showTopRightToolWhenPaneOpen
           center={<ConversationCenterState state="loading" />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
@@ -208,6 +208,7 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
+          showTopRightToolWhenPaneOpen
           center={<ConversationStageCenter placement="docked" main={null} composer={composer} />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
@@ -274,7 +275,6 @@ const AgentChat = ({
       resourcePaneRevealRequest={resourcePaneRevealRequest}
       sessionPaneOpen={sessionPaneOpen}
       onSessionPaneOpenChange={onSessionPaneOpenChange}
-      showWorkspaceSelector={Boolean(onSessionWorkspaceChange)}
       onWorkspaceChange={onSessionWorkspaceChange}
       workspaceChanging={replacingSessionWorkspace}
       onCreateEmptySession={
@@ -321,7 +321,6 @@ interface AgentChatSessionFrameProps {
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onCreateEmptySession?: () => void | Promise<unknown>
-  showWorkspaceSelector?: boolean
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
   resourcePane?: ResourcePaneConfig | null
@@ -353,7 +352,6 @@ const AgentChatSessionFrame = ({
   onPaneCollapse,
   onPaneAutoCollapseChange,
   onCreateEmptySession,
-  showWorkspaceSelector = false,
   onWorkspaceChange,
   workspaceChanging,
   resourcePane,
@@ -364,7 +362,6 @@ const AgentChatSessionFrame = ({
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
-    activeAgent,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -424,10 +421,10 @@ const AgentChatSessionFrame = ({
       isStreaming={runtime.isPending}
       sendDisabled={false}
       onCreateEmptySession={onCreateEmptySession}
+      canChangeAgent={isEmptyConversation}
       workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}
-      showWorkspaceSelector={showWorkspaceSelector}
       composerContext={runtime.composerContext}
     />
   )
@@ -441,7 +438,6 @@ const AgentChatSessionFrame = ({
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-      modelFallback={runtime.fallbackSnapshot}
       isLoading={runtime.isLoading}
       hasOlder={runtime.hasOlder}
       loadOlder={runtime.loadOlder}
@@ -463,7 +459,6 @@ const AgentChatSessionFrame = ({
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-      modelFallback={runtime.fallbackSnapshot}
       defaultOpen={sessionPaneOpen}
       onOpenChange={onSessionPaneOpenChange}
       resourcePane={resourcePane}
@@ -486,11 +481,11 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
-            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
             <AgentRightPane.Shortcuts />
-            <AgentRightPane.FilesToggle />
           </>
         }
+        showTopRightToolWhenPaneOpen
         center={
           <ConversationStageCenter
             placement="docked"

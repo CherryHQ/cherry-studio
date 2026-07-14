@@ -94,8 +94,8 @@ function buildSignal(options: FetchRemoteTextOptions): AbortSignal {
  * DNS address. Redirects are rejected and response bodies are bounded.
  */
 export async function fetchRemoteText(url: string, options: FetchRemoteTextOptions = {}): Promise<string> {
-  const target = await resolveRemoteFetchUrl(url)
   const signal = buildSignal(options)
+  const target = await resolveRemoteFetchUrl(url, { signal })
   const requestOptions = getRequestOptions(target, options, signal)
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
   const maxBytes = options.maxBytes ?? DEFAULT_REMOTE_FETCH_MAX_BYTES
@@ -109,7 +109,7 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
       }
 
       settled = true
-      reject(error)
+      reject(signal.aborted && signal.reason instanceof Error ? signal.reason : error)
     }
 
     const clientRequest = request(requestOptions, (response) => {

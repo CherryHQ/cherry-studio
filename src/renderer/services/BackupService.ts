@@ -113,21 +113,6 @@ export async function backup(skipBackupFile: boolean) {
   }
 }
 
-export async function backupToLanTransfer() {
-  // Let user select save location first
-  const savePath = await window.api.file.selectFolder()
-
-  if (!savePath) {
-    return
-  }
-
-  // Create backup directly in the selected location
-  const backupData = await getBackupData()
-  await window.api.backup.createLanTransferBackup(backupData, savePath)
-
-  toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
-}
-
 export async function restore() {
   // notificationService is imported as a module-level singleton
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
@@ -947,6 +932,9 @@ export function stopAutoSync(type?: BackupType) {
   }
 }
 
+// Data producer for the export-to-phone file flow, consumed by main's
+// LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
+// the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
 export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),

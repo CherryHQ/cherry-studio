@@ -114,7 +114,11 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  private createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+  /**
+   * Transactional create for seed-time composition. DbService is not marked ready
+   * while seeders run, so create() would fail through DbService.withWriteTx().
+   */
+  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string

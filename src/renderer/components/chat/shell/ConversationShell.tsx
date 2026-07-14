@@ -8,6 +8,7 @@ import type { CSSProperties, ReactNode, Ref } from 'react'
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
 import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
+import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
 export interface ConversationShellProps {
@@ -18,6 +19,7 @@ export interface ConversationShellProps {
   panePosition?: ChatPanePosition
   topBar?: ReactNode
   topRightTool?: ReactNode
+  showTopRightToolWhenPaneOpen?: boolean
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
@@ -40,6 +42,7 @@ export default function ConversationShell({
   panePosition,
   topBar,
   topRightTool,
+  showTopRightToolWhenPaneOpen = false,
   center,
   sidePanel,
   centerOverlay,
@@ -65,7 +68,8 @@ export default function ConversationShell({
         leftPaneOpen={leftPaneOpen}
         leading={chrome?.titleLeading}
         trailing={chrome?.titleTrailing}
-        topRightTool={topRightTool}>
+        topRightTool={topRightTool}
+        showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
         {topBar}
       </ConversationShellTopBar>
     ) : (
@@ -81,22 +85,24 @@ export default function ConversationShell({
           className
         )}>
         <QuickPanelProvider>
-          <ChatAppShell
-            pane={pane}
-            paneOpen={paneOpen}
-            panePosition={panePosition}
-            topBar={resolvedTopBar}
-            centerContent={center}
-            sidePanel={sidePanel}
-            centerOverlay={centerOverlay}
-            centerTopOverlay={centerTopOverlay}
-            overlay={overlay}
-            centerId={centerId}
-            centerRef={centerRef}
-            centerClassName={centerClassName}
-            onPaneCollapse={onPaneCollapse}
-            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-          />
+          <ConversationTopBarPortalProvider>
+            <ChatAppShell
+              pane={pane}
+              paneOpen={paneOpen}
+              panePosition={panePosition}
+              topBar={resolvedTopBar}
+              centerContent={center}
+              sidePanel={sidePanel}
+              centerOverlay={centerOverlay}
+              centerTopOverlay={centerTopOverlay}
+              overlay={overlay}
+              centerId={centerId}
+              centerRef={centerRef}
+              centerClassName={centerClassName}
+              onPaneCollapse={onPaneCollapse}
+              onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+            />
+          </ConversationTopBarPortalProvider>
         </QuickPanelProvider>
         {rightPane}
       </div>
@@ -110,6 +116,7 @@ type TopBarProps = {
   leading?: ReactNode
   trailing?: ReactNode
   topRightTool?: ReactNode
+  showTopRightToolWhenPaneOpen: boolean
   children?: ReactNode
 }
 
@@ -119,6 +126,7 @@ const ConversationShellTopBar = ({
   leading,
   trailing,
   topRightTool,
+  showTopRightToolWhenPaneOpen,
   children
 }: TopBarProps) => {
   const shellState = useOptionalShellState()
@@ -126,8 +134,9 @@ const ConversationShellTopBar = ({
   const open = shellState?.open ?? false
   const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
   const shouldReserveTrafficLightInset = isWindow && isMac && !leftPaneOpen
-  const shouldShowTopRightTool = !open && !maximized && Boolean(trailing || topRightTool)
-  const shouldReserveRightInset = !open && !maximized && (isWindow || shouldShowTopRightTool)
+  const shouldShowTopRightTool =
+    !maximized && (!open || showTopRightToolWhenPaneOpen) && Boolean(trailing || topRightTool)
+  const shouldReserveRightInset = !maximized && ((!open && isWindow) || shouldShowTopRightTool)
   return (
     <div
       data-conversation-shell-topbar

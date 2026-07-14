@@ -779,6 +779,91 @@ describe('main web search API providers', () => {
     })
   })
 
+  it('keeps successful Searxng content fetches when one result reports an abort-like failure without caller cancellation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'First result',
+            url: 'https://searx.example/first'
+          },
+          {
+            title: 'Second result',
+            url: 'https://searx.example/second'
+          }
+        ]
+      })
+    )
+    const abortLikeError = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+    fetchRemoteTextMock
+      .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+      .mockRejectedValueOnce(abortLikeError)
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Resolved Page Title',
+        content: 'Resolved content from the target page.',
+        url: 'https://searx.example/first',
+        sourceInput: 'hello'
+      }
+    ])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('Some Searxng content fetches failed', {
+      query: 'hello',
+      failedCount: 1,
+      totalCount: 2
+    })
+  })
+
+  it('throws Searxng content abort errors when the caller has cancelled the search', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'First result',
+            url: 'https://searx.example/first'
+          },
+          {
+            title: 'Second result',
+            url: 'https://searx.example/second'
+          }
+        ]
+      })
+    )
+    const controller = new AbortController()
+    const abortError = Object.assign(new Error('Search cancelled'), { name: 'AbortError' })
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html')).mockRejectedValueOnce(abortError)
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    controller.abort(abortError)
+
+    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toThrow(
+      'Search cancelled'
+    )
+  })
+
   it('throws when every Searxng content fetch fails', async () => {
     fetchMock.mockResolvedValueOnce(
       createJsonResponse({

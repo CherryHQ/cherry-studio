@@ -2,10 +2,11 @@ import { Shell } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import type * as ConstantConfig from '@renderer/utils/platform'
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ConversationShell from '../ConversationShell'
+import { ConversationTopBarPortal, ConversationTopBarPortalHost } from '../ConversationTopBarPortal'
 
 const shellProps = vi.hoisted(() => ({
   current: null as {
@@ -18,6 +19,25 @@ const shellProps = vi.hoisted(() => ({
 
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: { children: ReactNode }) => <div data-testid="quick-panel">{children}</div>
+}))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal()),
+  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  HorizontalScrollContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Tooltip: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => {
@@ -67,6 +87,22 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
     expect(document.getElementById('conversation')).toHaveClass('message-style')
+  })
+
+  it('renders conversation controls into the top bar host', () => {
+    const { container } = render(
+      <ConversationShell
+        topBar={<ConversationTopBarPortalHost />}
+        center={
+          <ConversationTopBarPortal>
+            <button type="button">assistant selector</button>
+          </ConversationTopBarPortal>
+        }
+      />
+    )
+
+    const host = container.querySelector<HTMLElement>('[data-conversation-topbar-controls]')
+    expect(host).toContainElement(screen.getByRole('button', { name: 'assistant selector' }))
   })
 
   it('keeps the window-mode navbar wrapper at the title-bar height', () => {
@@ -166,16 +202,27 @@ describe('ConversationShell', () => {
     expect(rightSpacer).toHaveClass('w-[calc(0.5rem+var(--window-controls-width,0px))]')
   })
 
-  it('opens the right-pane tab from a shortcut and hides the navbar cluster', () => {
+  it('keeps the top-right tool visible while the docked right pane is open when requested', () => {
     const { container } = render(
       <Shell defaultTab="resources">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
           topRightTool={
-            <Shell.TabShortcut tab="resources" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
+            <Shell.TabShortcut
+              tab="resources"
+              label="对话"
+              icon={<span data-testid="resource-shortcut-icon" />}
+              openBehavior="toggle-active"
+            />
           }
+          showTopRightToolWhenPaneOpen
           center={<div />}
         />
+        <Shell.Tabs>
+          <Shell.TabList title="对话" showTabs={false}>
+            <Shell.Tab value="resources">对话</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
       </Shell>
     )
 
@@ -184,9 +231,13 @@ describe('ConversationShell', () => {
     expect(topBarWrapper).toContainElement(topRightTool)
     expect(topBarWrapper).not.toHaveClass('pr-11')
 
-    fireEvent.click(screen.getByRole('button', { name: '对话' }))
+    fireEvent.click(container.querySelector('[data-shell-tab-shortcut="resources"]') as HTMLElement)
 
-    expect(screen.queryByRole('button', { name: '对话' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '对话' })).toBeInTheDocument()
+    expect(container.querySelector('[data-conversation-shell-topbar-right]')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /最大化|common\.maximize/ }))
+
     expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
   })
 

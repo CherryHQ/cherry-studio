@@ -190,6 +190,16 @@ describe('OpenExternalAppButton', () => {
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode')
   })
 
+  it('opens targets from a custom workspace trigger', () => {
+    mocks.externalApps = [vscodeApp, cursorApp]
+
+    render(<OpenExternalAppButton workdir="/tmp/workspace" menuTrigger={<button type="button">Workspace 1</button>} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cursor' }))
+    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://cursor/tmp/workspace')
+  })
+
   it('opens targets from the menu and persists the selected target', async () => {
     mocks.externalApps = [vscodeApp, cursorApp]
 
@@ -224,18 +234,35 @@ describe('OpenExternalAppButton', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
   })
 
-  it('opens the selected file with the default app without changing the editor target', async () => {
+  it('uses the same file-manager split control for files and keeps the default app in its menu', async () => {
     mocks.externalApps = [vscodeApp]
+    mocks.lastUsedTarget = 'file_manager'
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" filePath="report.xlsx" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in Default app' }))
+    const primaryButton = screen.getByRole('button', { name: 'Open in Finder' })
+    expect(primaryButton.parentElement).toHaveClass('h-8', 'border', 'border-border-subtle')
+
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Default app' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
     expect(mocks.windowOpen).not.toHaveBeenCalled()
     expect(mocks.setLastUsedTarget).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'More' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
+    fireEvent.click(primaryButton)
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
+    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
+  })
+
+  it('opens a selected file in the selected editor', () => {
+    mocks.externalApps = [vscodeApp]
+    mocks.lastUsedTarget = 'vscode'
+
+    render(<OpenExternalAppButton workdir="/tmp/workspace" filePath="report.xlsx" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
+
+    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace/report.xlsx')
+    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode')
   })
 })

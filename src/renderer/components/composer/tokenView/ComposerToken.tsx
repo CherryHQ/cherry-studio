@@ -60,6 +60,7 @@ export interface ComposerTokenProps {
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
+  imageIconPreview?: boolean
   tooltipActions?: ReactNode
 }
 
@@ -137,6 +138,28 @@ function InlineTokenIconSlot({
       />
     </span>
   )
+}
+
+function FileTokenImageIcon({ previewUrl, fallbackIcon }: { previewUrl?: string; fallbackIcon: ReactNode }) {
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
+  if (!previewUrl || previewUrl === failedPreviewUrl) return fallbackIcon
+
+  return (
+    <img
+      src={previewUrl}
+      alt=""
+      aria-hidden
+      draggable={false}
+      className="block size-4.5! shrink-0 object-cover"
+      data-file-token-icon-thumbnail=""
+      onError={() => setFailedPreviewUrl(previewUrl)}
+    />
+  )
+}
+
+function isSvgFile(file: ComposerAttachment | undefined, label: string) {
+  const extension = file?.ext || label.match(/\.[^.]+$/)?.[0] || ''
+  return extension.replace(/^\./, '').toLowerCase() === 'svg'
 }
 
 function renderActiveComposerTokenElement({
@@ -519,12 +542,19 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
 }
 
 export function FileComposerToken(props: FileComposerTokenProps) {
-  const { onRemove, removeLabel: removeLabelProp, tooltipActions } = props
+  const { imageIconPreview = false, onRemove, removeLabel: removeLabelProp, tooltipActions } = props
   const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
   const label = file?.origin_name || file?.name || props.token.label
   const presentation = getFileTokenPresentation(file, label)
   const title = props.token.description ?? props.token.promptText ?? label
   const removeLabel = removeLabelProp ?? 'Remove'
+  const tokenIcon = props.token.icon ? (
+    props.token.icon
+  ) : imageIconPreview && presentation.variant === 'image' && !isSvgFile(file, label) ? (
+    <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
+  ) : (
+    presentation.icon
+  )
 
   const chipElement = (
     <span
@@ -541,12 +571,12 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       onMouseDown={props.onMouseDown}>
       <span
         className={cn(
-          'inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 leading-none',
+          'inline-flex size-4.5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border-0 leading-none',
           presentation.iconClassName
         )}
         data-file-token-icon={presentation.variant}>
         <InlineTokenIconSlot
-          icon={props.token.icon ? props.token.icon : presentation.icon}
+          icon={tokenIcon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           removeButtonClassName={cn(

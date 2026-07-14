@@ -13,6 +13,10 @@ export type ResolvedRemoteFetchUrl = {
   readonly address: RemoteFetchAddress
 }
 
+export type ResolveRemoteFetchUrlOptions = {
+  readonly signal?: AbortSignal
+}
+
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
 const BLOCKED_IPV4_RANGES = new Set([
   'broadcast',
@@ -24,7 +28,27 @@ const BLOCKED_IPV4_RANGES = new Set([
   'reserved',
   'unspecified'
 ])
-const BLOCKED_IPV6_RANGES = new Set(['linkLocal', 'loopback', 'multicast', 'uniqueLocal', 'unspecified'])
+const BLOCKED_IPV6_RANGES = new Set([
+  '6to4',
+  'benchmarking',
+  'discard',
+  'linkLocal',
+  'loopback',
+  'multicast',
+  'reserved',
+  'rfc6052',
+  'rfc6145',
+  'teredo',
+  'uniqueLocal',
+  'unspecified'
+])
+const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = [
+  [ipaddr.IPv6.parse('64:ff9b:1::'), 48],
+  [ipaddr.IPv6.parse('100:0:0:1::'), 64],
+  [ipaddr.IPv6.parse('3fff::'), 20],
+  [ipaddr.IPv6.parse('5f00::'), 16]
+]
+const PUBLIC_IPV6_RANGE: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('2000::'), 3]
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -61,7 +85,13 @@ function isBlockedIpHostname(hostname: string): boolean {
     return BLOCKED_IPV4_RANGES.has(address.range())
   }
 
-  return BLOCKED_IPV6_RANGES.has(address.range())
+  const [publicRangeAddress, publicRangeBits] = PUBLIC_IPV6_RANGE
+
+  return (
+    !address.match(publicRangeAddress, publicRangeBits) ||
+    BLOCKED_IPV6_RANGES.has(address.range()) ||
+    BLOCKED_IPV6_CIDR_RANGES.some(([rangeAddress, bits]) => address.match(rangeAddress, bits))
+  )
 }
 
 function isLoopbackHostname(hostname: string): boolean {
@@ -141,19 +171,72 @@ export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): s
   return parsedUrl.toString()
 }
 
+function getAbortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) {
+    return signal.reason
+  }
+
+  return new Error(signal.reason ? String(signal.reason) : 'Operation aborted')
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw getAbortError(signal)
+  }
+}
+
+function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) {
+    return operation
+  }
+
+  const abortSignal = signal
+
+  throwIfAborted(abortSignal)
+
+  return new Promise((resolve, reject) => {
+    function cleanup(): void {
+      abortSignal.removeEventListener('abort', onAbort)
+    }
+
+    function onAbort(): void {
+      cleanup()
+      reject(getAbortError(abortSignal))
+    }
+
+    abortSignal.addEventListener('abort', onAbort, { once: true })
+
+    operation.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error) => {
+        cleanup()
+        reject(error)
+      }
+    )
+  })
+}
+
 /**
  * SSRF guard for direct main-process fetches. Combines literal URL validation
  * with DNS-level rejection for hostnames that resolve to private/local addresses.
  */
-export async function resolveRemoteFetchUrl(rawUrl: string): Promise<ResolvedRemoteFetchUrl> {
+export async function resolveRemoteFetchUrl(
+  rawUrl: string,
+  options: ResolveRemoteFetchUrlOptions = {}
+): Promise<ResolvedRemoteFetchUrl> {
   const safeUrl = sanitizeRemoteUrl(rawUrl)
   const parsedUrl = parseRemoteUrl(safeUrl)
-  const address = await resolveRemoteFetchAddress(parsedUrl)
+  const address = await resolveRemoteFetchAddress(parsedUrl, options.signal)
 
   return { url: safeUrl, address }
 }
 
-async function resolveRemoteFetchAddress(parsedUrl: URL): Promise<RemoteFetchAddress> {
+async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | undefined): Promise<RemoteFetchAddress> {
+  throwIfAborted(signal)
+
   if (isBlockedHostname(parsedUrl.hostname)) {
     throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
   }
@@ -163,7 +246,7 @@ async function resolveRemoteFetchAddress(parsedUrl: URL): Promise<RemoteFetchAdd
     return toRemoteFetchAddress(literalAddress)
   }
 
-  const addresses = await lookup(normalizeHostname(parsedUrl.hostname), { all: true })
+  const addresses = await raceWithAbort(lookup(normalizeHostname(parsedUrl.hostname), { all: true }), signal)
   const blockedAddress = addresses.find((address) => isBlockedIpHostname(address.address))
 
   if (blockedAddress) {

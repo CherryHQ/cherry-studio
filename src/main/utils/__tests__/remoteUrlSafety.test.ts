@@ -73,6 +73,17 @@ describe('sanitizeRemoteUrl', () => {
     ['http://[fc00::1]/file', '[fc00::1]'],
     ['http://[fd00::1]/file', '[fd00::1]'],
     ['http://[fe80::1]/file', '[fe80::1]'],
+    ['http://[100::1]/file', '[100::1]'],
+    ['http://[64:ff9b::7f00:1]/file', '[64:ff9b::7f00:1]'],
+    ['http://[64:ff9b:1::1]/file', '[64:ff9b:1::1]'],
+    ['http://[2001::1]/file', '[2001::1]'],
+    ['http://[2001:2::1]/file', '[2001:2::1]'],
+    ['http://[2001:db8::1]/file', '[2001:db8::1]'],
+    ['http://[2002:7f00:1::]/file', '[2002:7f00:1::]'],
+    ['http://[3fff::1]/file', '[3fff::1]'],
+    ['http://[5f00::1]/file', '[5f00::1]'],
+    ['http://[400::1]/file', '[400::1]'],
+    ['http://[fec0::1]/file', '[fec0::1]'],
     ['http://[::ffff:127.0.0.1]/file', '[::ffff:7f00:1]'],
     ['http://[::ffff:192.168.1.10]/file', '[::ffff:c0a8:10a]']
   ])('rejects localhost and private ip targets: %s', (rawUrl, hostname) => {
@@ -154,6 +165,24 @@ describe('resolveRemoteFetchUrl', () => {
       { address: '93.184.216.34', family: 4 },
       { address: 'fd00::1', family: 6 }
     ])
+
+    await expect(resolveRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS resolved/)
+  })
+
+  it.each([
+    '100::1',
+    '64:ff9b::7f00:1',
+    '64:ff9b:1::1',
+    '2001::1',
+    '2001:2::1',
+    '2001:db8::1',
+    '2002:7f00:1::',
+    '3fff::1',
+    '5f00::1',
+    '400::1',
+    'fec0::1'
+  ])('rejects hostnames that resolve to non-public IPv6 special-purpose addresses: %s', async (address) => {
+    lookupMock.mockResolvedValue([{ address, family: 6 }])
 
     await expect(resolveRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS resolved/)
   })

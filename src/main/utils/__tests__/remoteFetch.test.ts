@@ -86,11 +86,83 @@ describe('fetchRemoteText', () => {
     expect(lookupMock).toHaveBeenCalledTimes(1)
   })
 
+  it('overrides caller-provided host headers with the validated URL host', async () => {
+    mockHttpsResponse({ body: 'hello' })
+
+    await expect(
+      fetchRemoteText('https://example.com/article', {
+        headers: {
+          Host: 'internal.example',
+          'User-Agent': 'Custom Agent'
+        }
+      })
+    ).resolves.toBe('hello')
+
+    const requestOptions = httpsRequestMock.mock.calls[0]?.[0] as RequestOptions
+    expect(requestOptions.headers).toMatchObject({
+      host: 'example.com',
+      'user-agent': 'Custom Agent'
+    })
+  })
+
   it('rejects hostnames that resolve to private addresses before opening a request', async () => {
     lookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
 
     await expect(fetchRemoteText('https://example.com/article')).rejects.toThrow(/DNS resolved/)
 
+    expect(httpRequestMock).not.toHaveBeenCalled()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects promptly when the caller aborts while DNS resolution is pending', async () => {
+    lookupMock.mockReturnValue(new Promise(() => undefined))
+    const controller = new AbortController()
+
+    const result = Promise.race([
+      fetchRemoteText('https://example.com/article', { signal: controller.signal }),
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error('fetchRemoteText remained pending during DNS abort')), 20)
+      })
+    ])
+
+    controller.abort(new Error('dns aborted'))
+
+    await expect(result).rejects.toThrow('dns aborted')
+    expect(httpRequestMock).not.toHaveBeenCalled()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves the abort signal reason when the HTTP request reports a generic abort error', async () => {
+    httpsRequestMock.mockImplementation((options: RequestOptions) => {
+      const request = Object.assign(new EventEmitter(), {
+        end: vi.fn(),
+        destroy: vi.fn()
+      })
+
+      options.signal?.addEventListener('abort', () => {
+        const abortError = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+        request.emit('error', abortError)
+      })
+
+      return request
+    })
+
+    await expect(fetchRemoteText('https://example.com/article', { timeoutMs: 1 })).rejects.toMatchObject({
+      name: 'TimeoutError'
+    })
+  })
+
+  it('rejects promptly when DNS resolution exceeds the fetch timeout', async () => {
+    lookupMock.mockReturnValue(new Promise(() => undefined))
+
+    const result = Promise.race([
+      fetchRemoteText('https://example.com/article', { timeoutMs: 1 }),
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error('fetchRemoteText remained pending while resolving DNS')), 20)
+      })
+    ])
+
+    await expect(result).rejects.toThrow(/timeout|aborted/i)
     expect(httpRequestMock).not.toHaveBeenCalled()
     expect(httpsRequestMock).not.toHaveBeenCalled()
   })
