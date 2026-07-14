@@ -944,7 +944,7 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
-    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
   })
 
   it('does not expose selected models as editor tokens', () => {
@@ -1227,6 +1227,70 @@ describe('ChatComposer', () => {
       })
     )
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('sends an explicitly selected model when an unlinked home topic has no default', async () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+    const onSend = vi.fn()
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [modelB.id]
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('keeps an explicit unlinked-home selection when the runtime default rolls back', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn()
+    const view = render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    mocks.model = modelB
+    view.rerender(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+    mocks.model = model
+    view.rerender(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
+    })
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [modelB.id]
+      })
+    )
+  })
+
+  it('keeps the remaining model in the payload when multi-select is disabled', async () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+    const onSend = vi.fn()
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select model 2'))
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [modelB.id]
+      })
+    )
   })
 
   it('blocks sends for missing-assistant topics until a new assistant is selected', async () => {
@@ -1715,7 +1779,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
