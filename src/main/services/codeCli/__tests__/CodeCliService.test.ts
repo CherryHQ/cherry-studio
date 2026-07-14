@@ -1,3 +1,4 @@
+import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -238,6 +239,73 @@ describe('CodeCliService', () => {
       } finally {
         vi.useRealTimers()
       }
+    })
+  })
+
+  // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
+  // model, so the intended model is passed on the command line at launch — `--model` outranks settings
+  // and is honored verbatim — and in gateway mode it must carry the providerId prefix the gateway
+  // addresses by plus the @cherry sentinel, or the gateway can't route it.
+  describe('run (gemini-cli passes the model via --model)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const launchScript = async (input: CodeCliRunInput) => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run(input)
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        return (call![1] as string[]).join(' ')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('addresses the model as providerId:modelId plus the sentinel suffix in gateway mode', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'agent/deepseek-v4-flash',
+        providerId: '618d8838-1791-44df-8802-34f8444c0935',
+        gateway: true,
+        directory: '/tmp/project'
+      })
+      // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
+      // any name satisfying endsWith("flash") to a default Gemini model.
+      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
+      // The gateway serves only /v1beta, so the launch env forces the SDK's API version — a stale
+      // GOOGLE_GENAI_API_VERSION=v1 in the user's shell would otherwise redirect it to /v1. (The
+      // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
+      expect(script).toContain('export GOOGLE_GENAI_API_VERSION=')
+      expect(script).toContain('v1beta')
+    })
+
+    it('passes the bare model id in direct (non-gateway) mode', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'gemini-2.5-pro',
+        providerId: 'gemini',
+        directory: '/tmp/project'
+      })
+      expect(script).toContain('--model gemini-2.5-pro')
+      expect(script).not.toContain('gemini:gemini-2.5-pro')
+      // Direct launch must not force the gateway-only API version — a user who set
+      // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
+      expect(script).not.toContain('GOOGLE_GENAI_API_VERSION')
     })
   })
 

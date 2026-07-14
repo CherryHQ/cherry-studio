@@ -134,6 +134,71 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  // The run payload's `gateway` flag is derived from the enabled provider: a CLI (here gemini-cli)
+  // launched against the synthetic gateway provider must send gateway: true so the main process
+  // addresses the model as providerId:apiModelId (+ sentinel); a regular provider sends false.
+  it('sends gateway: true when launching against the API gateway provider', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`,
+      providerId: CLI_API_GATEWAY_PROVIDER_ID,
+      rawModelId: 'deepseek:deepseek-chat',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.GEMINI_CLI,
+        toolName: 'Gemini CLI',
+        directory: '/tmp/project',
+        enabledProvider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: '统一网关' } as Provider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat` },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', gateway: true, providerId: CLI_API_GATEWAY_PROVIDER_ID })
+    )
+  })
+
+  it('sends gateway: false for a regular (non-gateway) provider', async () => {
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.CLAUDE_CODE,
+        toolName: 'Claude Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', gateway: false })
+    )
+  })
+
   it('resolves the same fallback for provider-less launches', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
