@@ -1,4 +1,4 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,22 +20,6 @@ vi.mock('../../../blocks/ImageBlock', () => ({
     </div>
   )
 }))
-vi.mock('../../shared/ToolDisclosure', () => ({
-  ToolDisclosure: ({
-    items
-  }: {
-    items: Array<{ key: string; label: React.ReactNode; children?: React.ReactNode }>
-  }) => (
-    <div data-testid="disclosure">
-      {items.map((item) => (
-        <div key={item.key}>
-          {item.label}
-          {item.children}
-        </div>
-      ))}
-    </div>
-  )
-}))
 
 import { MessageGenerateImageToolTitle } from '../MessageGenerateImage'
 
@@ -50,6 +34,24 @@ function toolResponse(overrides: Partial<NormalToolResponse>): NormalToolRespons
   } as NormalToolResponse
 }
 
+function mcpToolResponse(response: unknown): McpToolResponse {
+  return {
+    id: 'tc-agent',
+    tool: {
+      id: 'cherry-tools__generate_image',
+      name: 'generate_image',
+      type: 'mcp',
+      serverId: 'cherry-tools',
+      serverName: 'cherry-tools',
+      inputSchema: { type: 'object', properties: {}, required: [] }
+    },
+    toolCallId: 'tc-agent',
+    arguments: { prompt: 'a cat' },
+    status: 'done',
+    response
+  }
+}
+
 describe('MessageGenerateImageToolTitle', () => {
   beforeEach(() => {
     getPhysicalPath.mockReset().mockResolvedValue('/data/f1.png')
@@ -60,6 +62,51 @@ describe('MessageGenerateImageToolTitle', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
     await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
     expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
+  })
+
+  it('lays multiple generated images out as a grid of separate tiles', async () => {
+    getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={toolResponse({
+          response: [
+            { id: 'f1', name: 'a.png' },
+            { id: 'f2', name: 'b.png' }
+          ]
+        })}
+      />
+    )
+    await waitFor(() => expect(screen.getAllByTestId('image-block')).toHaveLength(2))
+    const tiles = screen.getAllByTestId('image-block').map((el) => el.textContent)
+    expect(tiles).toEqual(['file:///data/f1.png', 'file:///data/f2.png'])
+  })
+
+  it('renders agent MCP image blocks without resolving FileEntry paths', () => {
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={mcpToolResponse({
+          content: [
+            { type: 'text', text: 'Generated image' },
+            { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }
+          ],
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        })}
+      />
+    )
+
+    expect(screen.getByTestId('image-block')).toHaveTextContent('data:image/png;base64,iVBORw0KGgo=')
+    expect(getPhysicalPath).not.toHaveBeenCalled()
+  })
+
+  it('shows the agent MCP text result when no image block was returned', () => {
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={mcpToolResponse({ content: [{ type: 'text', text: 'Image generation failed' }] })}
+      />
+    )
+
+    expect(screen.getByText('Image generation failed')).toBeInTheDocument()
+    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
   })
 
   it('renders the error note when generation returned an error', () => {

@@ -43,10 +43,9 @@ describe('chooseTool', () => {
     expect(chooseTool(resp('web_search', 'provider'))).toBeNull()
   })
 
-  it('routes chat generate_image to its card and the agent wire name to the generic agent card', () => {
-    // The agent wire name renders through the generic agent card (UnknownToolRenderer), which
-    // shows the inline MCP image content — no bespoke card.
+  it('routes chat and agent generate_image responses to the image card', () => {
     expect(testIdOf(chooseTool(resp('generate_image')))).toBe('image-card')
-    expect(testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('generate_image', 'mcp')))).toBe('image-card')
+    expect(testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('image-card')
   })
 })

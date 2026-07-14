@@ -1,12 +1,12 @@
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import Spinner from '@renderer/components/Spinner'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { generateImageOutputSchema } from '@shared/ai/builtinTools'
 import { toSafeFileUrl } from '@shared/utils/file'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../../blocks/ImageBlock'
-import { ToolDisclosure } from '../shared/ToolDisclosure'
 
 /**
  * Resolve `generate_image` output FileEntry ids to renderable `file://` URLs.
@@ -21,7 +21,7 @@ function useGeneratedImageUrls(ids: string[]): string[] {
   useEffect(() => {
     const list = key ? key.split(',') : []
     if (list.length === 0) {
-      setUrls([])
+      setUrls((current) => (current.length === 0 ? current : []))
       return
     }
     let cancelled = false
@@ -39,11 +39,31 @@ const NoteText = ({ children }: { children: React.ReactNode }) => (
   <span className="flex min-w-0 items-center py-0.5 text-[13px] text-foreground-secondary leading-5">{children}</span>
 )
 
-export const MessageGenerateImageToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+export const MessageGenerateImageToolTitle = ({
+  toolResponse
+}: {
+  toolResponse: McpToolResponse | NormalToolResponse
+}) => {
   const { t } = useTranslation()
-  const outputParse = generateImageOutputSchema.safeParse(toolResponse.response)
-  const items = outputParse.success ? outputParse.data : []
-  const urls = useGeneratedImageUrls(items.map((item) => item.id))
+  const { inlineUrls, items, mcpText } = useMemo(() => {
+    const outputParse = generateImageOutputSchema.safeParse(toolResponse.response)
+    const mcpOutputParse = CallToolResultSchema.safeParse(toolResponse.response)
+    return {
+      items: outputParse.success ? outputParse.data : [],
+      inlineUrls: mcpOutputParse.success
+        ? mcpOutputParse.data.content.flatMap((item) =>
+            item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
+          )
+        : [],
+      mcpText: mcpOutputParse.success
+        ? mcpOutputParse.data.content
+            .flatMap((item) => (item.type === 'text' && item.text ? [item.text] : []))
+            .join('\n\n')
+        : ''
+    }
+  }, [toolResponse.response])
+  const resolvedUrls = useGeneratedImageUrls(items.map((item) => item.id))
+  const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
 
   // Still running (pending / streaming / invoking).
   if (toolResponse.status !== 'done' && toolResponse.status !== 'error') {
@@ -51,29 +71,30 @@ export const MessageGenerateImageToolTitle = ({ toolResponse }: { toolResponse: 
   }
 
   // Failure: a returned `{ error }` note, or a thrown error (generic fallback).
-  if (!outputParse.success || items.length === 0) {
+  if (urls.length === 0 && items.length === 0) {
     const response = toolResponse.response
     const errorText =
       response && typeof response === 'object' && typeof (response as { error?: unknown }).error === 'string'
         ? (response as { error: string }).error
-        : t('chat.input.tools.generate_image.failed')
+        : mcpText || t('chat.input.tools.generate_image.failed')
     return <NoteText>{errorText}</NoteText>
   }
 
+  // No card chrome — just a caption and the image(s) laid out like any other image group
+  // (single = bare, multiple = flex-wrap grid; mirrors MessagePartsRenderer).
+  const isSingle = Math.max(items.length, urls.length) === 1
   return (
-    <div className="group/tool my-px first:mt-0 first:pt-0">
-      <ToolDisclosure
-        variant="light"
-        className="message-tools-container border-none"
-        defaultActiveKey={[toolResponse.id]}
-        items={[
-          {
-            key: toolResponse.id,
-            label: <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>,
-            children: <ImageBlock images={urls} isPending={urls.length === 0} isSingle={items.length === 1} />
-          }
-        ]}
-      />
+    <div className="group/tool my-px flex flex-col gap-1 first:mt-0 first:pt-0">
+      <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>
+      {isSingle ? (
+        <ImageBlock images={urls} isPending={urls.length === 0} isSingle />
+      ) : (
+        <div className="flex flex-wrap gap-2.5">
+          {urls.length === 0
+            ? items.map((item) => <ImageBlock key={item.id} images={[]} isPending isSingle={false} />)
+            : urls.map((src, index) => <ImageBlock key={index} images={[src]} isSingle={false} />)}
+        </div>
+      )}
     </div>
   )
 }
