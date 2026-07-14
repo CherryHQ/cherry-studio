@@ -566,7 +566,7 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
         className={cn('w-fit max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl p-0 shadow-xl', contentClassName)}
         onMouseEnter={openPointerPopover}
         onMouseLeave={scheduleClosePopover}
-        onFocus={openPointerPopover}
+        onFocus={clearCloseTimer}
         onBlur={handleContentBlur}
         onOpenAutoFocus={handlePopoverOpenAutoFocus}
         onCloseAutoFocus={handlePopoverCloseAutoFocus}>

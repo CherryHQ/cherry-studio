@@ -29,7 +29,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryUI>()
   const React = await import('react')
   const { createPortal } = await import('react-dom')
-  const PopoverContext = React.createContext(false)
+  const PopoverContext = React.createContext<{
+    open: boolean
+    triggerRef: { current: HTMLElement | null }
+  }>({ open: false, triggerRef: { current: null } })
   return {
     ...actual,
     Flex: ({ children, className }: { children: ReactNode; className?: string }) => (
@@ -73,18 +76,37 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {createPortal(<span data-testid="composer-message-token-tooltip-content">{content}</span>, document.body)}
       </>
     ),
-    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
-      <PopoverContext value={Boolean(open)}>
-        <span data-open={String(Boolean(open))} data-testid="composer-message-token-popover">
-          {children}
-        </span>
-      </PopoverContext>
-    ),
-    PopoverTrigger: ({ children }: { children: ReactNode }) =>
-      React.isValidElement(children)
-        ? // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger props
-          React.cloneElement(children, { 'data-popover-trigger': 'true' } as Record<string, unknown>)
-        : children,
+    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => {
+      const triggerRef = React.useRef<HTMLElement | null>(null)
+
+      return (
+        <PopoverContext value={{ open: Boolean(open), triggerRef }}>
+          <span data-open={String(Boolean(open))} data-testid="composer-message-token-popover">
+            {children}
+          </span>
+        </PopoverContext>
+      )
+    },
+    PopoverTrigger: ({ children }: { children: ReactNode }) => {
+      const { triggerRef } = React.use(PopoverContext)
+      if (!React.isValidElement(children)) return children
+
+      const childRef = (children.props as { ref?: Ref<HTMLElement> }).ref
+      const setTriggerRef = (node: HTMLElement | null) => {
+        triggerRef.current = node
+        if (typeof childRef === 'function') {
+          childRef(node)
+        } else if (childRef) {
+          childRef.current = node
+        }
+      }
+
+      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger props
+      return React.cloneElement(children, {
+        'data-popover-trigger': 'true',
+        ref: setTriggerRef
+      } as Record<string, unknown>)
+    },
     PopoverContent: ({
       ref,
       children,
@@ -92,8 +114,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       align,
       side,
       sideOffset,
-      onOpenAutoFocus: _onOpenAutoFocus,
-      onCloseAutoFocus: _onCloseAutoFocus,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
       ...props
     }: HTMLAttributes<HTMLDivElement> & {
       ref?: Ref<HTMLDivElement>
@@ -103,15 +125,57 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       onOpenAutoFocus?: (event: Event) => void
       onCloseAutoFocus?: (event: Event) => void
     }) => {
-      const open = React.use(PopoverContext)
-      void _onOpenAutoFocus
-      void _onCloseAutoFocus
+      const { open, triggerRef } = React.use(PopoverContext)
+      const contentRef = React.useRef<HTMLDivElement | null>(null)
+      const previousOpenRef = React.useRef(open)
+
+      React.useEffect(() => {
+        if (!open) return
+
+        let defaultPrevented = false
+        onOpenAutoFocus?.({
+          preventDefault: () => {
+            defaultPrevented = true
+          }
+        } as Event)
+
+        if (!defaultPrevented) {
+          contentRef.current?.focus()
+        }
+      }, [onOpenAutoFocus, open])
+
+      React.useEffect(() => {
+        if (previousOpenRef.current && !open) {
+          let defaultPrevented = false
+          onCloseAutoFocus?.({
+            preventDefault: () => {
+              defaultPrevented = true
+            }
+          } as Event)
+
+          if (!defaultPrevented) {
+            triggerRef.current?.focus()
+          }
+        }
+        previousOpenRef.current = open
+      }, [onCloseAutoFocus, open, triggerRef])
+
       if (!open) return null
+
+      const setContentRef = (node: HTMLDivElement | null) => {
+        contentRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      }
 
       return (
         <div
           {...props}
-          ref={ref}
+          ref={setContentRef}
+          tabIndex={-1}
           className={className}
           data-align={align}
           data-side={side}
@@ -836,6 +900,7 @@ describe('MainTextBlock', () => {
       expect(popover).toHaveAttribute('data-side', 'top')
       expect(popover).toHaveAttribute('data-align', 'start')
       expect(popover).toHaveAttribute('data-side-offset', '8')
+      expect(popover).toHaveFocus()
       expect(screen.getByAltText('photo.png')).toHaveAttribute('src', 'file:///internal/message-files/photo.png')
       expect(popover).not.toHaveTextContent('/internal/message-files/photo.png')
 
