@@ -14,7 +14,7 @@ import { startAiChildTurnSpan } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
-import { resolveModels, resolvePersistentSiblingsGroupId } from '../modelResolution'
+import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from '../modelResolution'
 
 // Stub model resolution + tracing so the test drives the REAL DB history path
 // (`createUserMessageWithPlaceholders` → `getPathToNode`) without provider/model
@@ -140,11 +140,15 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       updatedAt: 300
     })
 
+    vi.mocked(resolveAssistantModelId).mockClear()
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       { trigger: 'steer-continuation', topicId: 'topic-1', userMessageId: 'u2' } as MainSteerContinuationRequest,
       { hasLiveStream: false }
     )
+
+    expect(resolveAssistantModelId).not.toHaveBeenCalled()
+    expect(resolveModels).toHaveBeenLastCalledWith([MODEL_ID], MODEL_ID)
 
     // A fresh assistant placeholder is created under u2 — no new user row.
     const children = messageService.getChildrenByParentId('u2')
@@ -185,6 +189,49 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'user', text: 'first question' },
       { role: 'user', text: 'retry from before' }
     ])
+  })
+
+  it('uses an explicit assistant-less model without reading the default preference', async () => {
+    const selectedModelId = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
+    const [providerKey, modelKey] = generateOrderKeySequence(2)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values({
+      id: selectedModelId,
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      presetModelId: 'claude-sonnet-4-5',
+      name: 'Claude Sonnet 4.5',
+      isEnabled: true,
+      isHidden: false,
+      orderKey: modelKey
+    })
+    vi.mocked(resolveAssistantModelId).mockClear()
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      {
+        id: selectedModelId,
+        name: 'Claude Sonnet 4.5',
+        providerId: 'anthropic',
+        apiModelId: 'claude-sonnet-4-5'
+      }
+    ] as ReturnType<typeof resolveModels>)
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u1',
+        mentionedModelIds: [selectedModelId],
+        userMessageParts: [{ type: 'text', text: 'use the selected model' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(resolveAssistantModelId).not.toHaveBeenCalled()
+    expect(resolveModels).toHaveBeenLastCalledWith([selectedModelId], selectedModelId)
+    expect(prepared.models[0].modelId).toBe(selectedModelId)
+    expect(messageService.getById(prepared.userMessageId!).modelId).toBe(selectedModelId)
+    expect(messageService.getChildrenByParentId(prepared.userMessageId!)[0].modelId).toBe(selectedModelId)
   })
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
@@ -417,6 +464,9 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
     const beforeCount = messageService.getPathToNode('a1').length
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: ANCHOR_MODEL_ID, name: 'GPT-4o mini', providerId: 'openai', apiModelId: 'gpt-4o-mini' }
+    ] as ReturnType<typeof resolveModels>)
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -430,12 +480,14 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     )
 
     // Model reuse: the anchor's persisted modelId is what gets resolved, not the topic default.
-    expect(vi.mocked(resolveModels)).toHaveBeenCalledWith([ANCHOR_MODEL_ID], MODEL_ID)
+    expect(resolveAssistantModelId).not.toHaveBeenCalled()
+    expect(resolveModels).toHaveBeenCalledWith([ANCHOR_MODEL_ID], ANCHOR_MODEL_ID)
 
     // Single model, no sibling group, anchored back on the assistant row.
     expect(prepared.isMultiModel).toBe(false)
     expect(prepared.siblingsGroupId).toBeUndefined()
     expect(prepared.models).toHaveLength(1)
+    expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)
     expect(prepared.models[0].request.messageId).toBe('a1')
 
     // No placeholder row was created — the path to the anchor is unchanged.

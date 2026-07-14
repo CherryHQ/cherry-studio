@@ -1,4 +1,4 @@
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -32,5 +32,7 @@ export interface ConfigEditPanelProps {
   providerConfig: CliProviderConfig | null
   isCurrentProvider: boolean
   modelFilter: (model: Model) => boolean
+  /** Present when `provider` is the synthetic Cherry gateway (preview key; writes use a fresh key). */
+  gateway?: CliConfigGatewayContext
   onSubmit: (values: ConfigEditPanelSubmitValues) => Promise<void>
 }
