@@ -267,10 +267,21 @@ function AgentEditDialogContent({
     }
     if (initializedResourceIdRef.current === resource.id) {
       if (!form.formState.isSubmitting) {
+        const dirtyModelFields = {
+          modelId: form.getFieldState('modelId').isDirty,
+          planModelId: form.getFieldState('planModelId').isDirty,
+          smallModelId: form.getFieldState('smallModelId').isDirty
+        }
         form.reset(
           { ...defaultValues, skillIds: form.getValues('skillIds') },
           { keepDirtyValues: true, keepErrors: true }
         )
+        const refreshedModelLabels = modelLabelsForAgent(resource)
+        setModelLabels((currentLabels) => ({
+          modelId: dirtyModelFields.modelId ? currentLabels.modelId : refreshedModelLabels.modelId,
+          planModelId: dirtyModelFields.planModelId ? currentLabels.planModelId : refreshedModelLabels.planModelId,
+          smallModelId: dirtyModelFields.smallModelId ? currentLabels.smallModelId : refreshedModelLabels.smallModelId
+        }))
       }
       return
     }

@@ -223,7 +223,14 @@ function AssistantEditDialogContent({
     }
     if (initializedResourceIdRef.current === resource.id) {
       if (!form.formState.isSubmitting) {
+        const isModelDirty = form.getFieldState('modelId').isDirty
         form.reset(defaultValues, { keepDirtyValues: true, keepErrors: true })
+        if (!isModelDirty) {
+          setModelLabels((currentLabels) => ({
+            ...currentLabels,
+            modelId: modelLabelsForAssistant(resource).modelId
+          }))
+        }
       }
       return
     }

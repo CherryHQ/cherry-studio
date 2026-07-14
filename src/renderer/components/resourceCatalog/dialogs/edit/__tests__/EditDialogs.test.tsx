@@ -497,6 +497,9 @@ beforeEach(() => {
   useQueryMock.mockImplementation((path: string) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
+      if (id.startsWith('provider::missing-')) {
+        return { data: undefined, isLoading: false }
+      }
       return {
         data: {
           ...MODEL,
@@ -1211,6 +1214,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('refreshes an unresolved assistant model label after a same-id refresh', () => {
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
+    const { rerender } = render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={onSaved} />
+    )
+
+    rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          modelId: 'provider::missing-assistant-model',
+          modelName: null,
+          updatedAt: '2024-01-02T00:00:00.000Z'
+        }}
+        onOpenChange={onOpenChange}
+        onSaved={onSaved}
+      />
+    )
+
+    const modelTrigger = screen.getByRole('button', { name: 'Model' })
+    expect(modelTrigger).toHaveTextContent('missing-assistant-model')
+    expect(modelTrigger).not.toHaveTextContent('Old Model')
+    expect(screen.getByText(/Model .* is unavailable/)).toBeInTheDocument()
+  })
+
   it('does not write refreshed agent fields back after a same-id refresh', async () => {
     const { rerender } = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
@@ -1233,6 +1263,42 @@ describe('edit dialogs', () => {
     const body = updateAgentMock.mock.calls[0][0].body
     expect(body).toMatchObject({ name: 'Renamed Agent' })
     expect(body).not.toHaveProperty('description')
+  })
+
+  it('refreshes pristine agent model labels while preserving a dirty model label', () => {
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
+    const initialAgent = {
+      ...AGENT,
+      model: 'provider::old-primary-model',
+      planModel: 'provider::old-plan-model',
+      smallModel: 'provider::old-small-model'
+    } as AgentDetail
+    const { rerender } = render(
+      <AgentEditDialog open resource={initialAgent} onOpenChange={onOpenChange} onSaved={onSaved} />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
+    expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent('Updated Model')
+
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{
+          ...initialAgent,
+          model: 'provider::missing-primary-model',
+          planModel: 'provider::missing-plan-model',
+          smallModel: 'provider::missing-small-model',
+          updatedAt: '2024-01-02T00:00:00.000Z'
+        }}
+        onOpenChange={onOpenChange}
+        onSaved={onSaved}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent('Updated Model')
+    expect(screen.getByRole('button', { name: 'Plan model' })).toHaveTextContent('missing-plan-model')
+    expect(screen.getByRole('button', { name: 'Small model' })).toHaveTextContent('missing-small-model')
   })
 
   it('keeps the dialog open and shows an error when save fails', async () => {
