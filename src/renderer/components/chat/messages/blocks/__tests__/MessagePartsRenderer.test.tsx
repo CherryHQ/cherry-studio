@@ -1083,6 +1083,16 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
     })
 
+    it('does not show an empty completed process group for a non-renderable provider tool', () => {
+      renderParts([
+        { ...toolPart('search', 'output-available', 'web_search'), toolType: 'provider' },
+        { type: 'text', text: 'Provider-backed final answer' }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByText('Provider-backed final answer')).toBeInTheDocument()
+      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
+    })
+
     it('nests process text and child tool groups under one top-level tool group', () => {
       const { container } = renderParts([
         toolPart('read'),

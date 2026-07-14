@@ -1073,7 +1073,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     )
   })
 
-  if (completedHistoryEntries.length === 0) return <>{completedResult}</>
+  const hasVisibleCompletedHistory = completedHistoryEntries.some((entry) =>
+    isPotentiallyVisibleEntry(entry, message.id)
+  )
+  if (!hasVisibleCompletedHistory) return <>{completedResult}</>
 
   if (!collapseHistory) {
     return (
