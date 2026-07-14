@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import MessageTools from '../tools/MessageTools'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
-import ToolHeader from '../tools/ToolHeader'
+import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 import { usePartsMap } from './MessagePartsContext'
@@ -137,7 +137,23 @@ interface ToolBlockGroupHeaderContentProps {
   summary?: React.ReactNode
   isLiveProgress?: boolean
   preferSummary?: boolean
+  semanticToolTitle?: boolean
   showLatestWhenComplete?: boolean
+}
+
+function getSemanticToolTitle(
+  candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
+  t: ReturnType<typeof useTranslation>['t']
+) {
+  const { toolResponse } = candidate.item
+  const isActive = candidate.status === 'invoking' || candidate.status === 'streaming' || candidate.status === 'waiting'
+  const activity = getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t)
+  if (!activity) return t(isActive ? 'message.processing' : 'message.tools.processed')
+  if (!activity.description) return activity.label
+
+  return activity.description.toLocaleLowerCase().includes(activity.label.toLocaleLowerCase())
+    ? activity.description
+    : `${activity.label} ${activity.description}`
 }
 
 const DynamicToolBlockGroupHeaderContent = React.memo(
@@ -148,6 +164,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     summary,
     isLiveProgress,
     preferSummary,
+    semanticToolTitle,
     showLatestWhenComplete
   }: ToolBlockGroupHeaderContentProps) => {
     const { t } = useTranslation()
@@ -238,6 +255,23 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       )
     }
 
+    if (semanticToolTitle) {
+      const title = getSemanticToolTitle(displayCandidate, t)
+      return renderWithElapsed(
+        <div className="min-w-0 max-w-full overflow-hidden text-[13px]" key={displayCandidate.item.id}>
+          {isLiveProgress ? (
+            <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+              {title}
+            </PlaceholderShimmerText>
+          ) : (
+            <span className="block truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+              {title}
+            </span>
+          )}
+        </div>
+      )
+    }
+
     return renderWithElapsed(
       <div className="min-w-0 max-w-full overflow-hidden" key={displayCandidate.item.id}>
         <ToolHeader
@@ -307,37 +341,49 @@ ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
 
 interface ToolBlockGroupProps {
   children?: React.ReactNode
+  isLiveProgress?: boolean
+  isThinking?: boolean
   items: ToolRenderItem[]
 }
 
 /** A nested, independently collapsible group of adjacent tool calls. */
-export const ToolBlockGroup = React.memo(({ children, items }: ToolBlockGroupProps) => {
-  const [isExpanded, setIsExpanded] = React.useState(false)
-  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
-  const isLiveProgress = items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
+export const ToolBlockGroup = React.memo(
+  ({ children, isLiveProgress: isLiveProgressProp, isThinking = false, items }: ToolBlockGroupProps) => {
+    const { t } = useTranslation()
+    const [isExpanded, setIsExpanded] = React.useState(false)
+    const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
+    const isLiveProgress =
+      isLiveProgressProp ?? items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
 
-  return (
-    <div ref={anchorRef} className="group/child-tool-group w-full max-w-full" data-testid="child-tool-group">
-      <Accordion
-        type="single"
-        collapsible
-        value={isExpanded ? 'tools' : ''}
-        onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'tools'), { settleAfterMs: 220 })}>
-        <AccordionItem value="tools" className="border-0 first:border-t-0">
-          <AccordionTrigger className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
-            <div className="min-w-0 overflow-hidden">
-              <ToolBlockGroupHeaderContent items={items} isLiveProgress={isLiveProgress} />
-            </div>
-          </AccordionTrigger>
-          <AccordionContent
-            data-testid="child-tool-group-content"
-            className="p-0 pt-1 text-inherit"
-            contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
-            {children ?? <ToolBlockGroupContent items={items} />}
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </div>
-  )
-})
+    return (
+      <div ref={anchorRef} className="group/child-tool-group w-full max-w-full" data-testid="child-tool-group">
+        <Accordion
+          type="single"
+          collapsible
+          value={isExpanded ? 'tools' : ''}
+          onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'tools'), { settleAfterMs: 220 })}>
+          <AccordionItem value="tools" className="border-0 first:border-t-0">
+            <AccordionTrigger className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
+              <div className="min-w-0 overflow-hidden">
+                <ToolBlockGroupHeaderContent
+                  items={items}
+                  activityLabel={isThinking ? t('message.tools.thinkingHeader') : undefined}
+                  isLiveProgress={isLiveProgress}
+                  semanticToolTitle
+                  showLatestWhenComplete
+                />
+              </div>
+            </AccordionTrigger>
+            <AccordionContent
+              data-testid="child-tool-group-content"
+              className="p-0 pt-1 text-inherit"
+              contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
+              {children ?? <ToolBlockGroupContent items={items} />}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    )
+  }
+)
 ToolBlockGroup.displayName = 'ToolBlockGroup'

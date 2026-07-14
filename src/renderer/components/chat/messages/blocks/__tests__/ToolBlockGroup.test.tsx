@@ -36,6 +36,7 @@ vi.mock('../../tools/shared/GenericTools', () => ({
 
 vi.mock('../../tools/ToolHeader', () => ({
   __esModule: true,
+  getReadableToolActivity: () => ({ label: 'Check', description: 'Project checks' }),
   default: ({ shimmer, toolResponse, status }: any) => (
     <div data-testid="mock-tool-header" data-shimmer={String(!!shimmer)}>
       {toolResponse?.tool?.name}:{status ?? toolResponse?.status}
@@ -114,14 +115,27 @@ describe('ToolBlockGroup', () => {
   it('keeps a nested tool group collapsed until its own header is clicked', () => {
     render(<ToolBlockGroup items={[readDoneItem]} />)
 
-    const trigger = screen.getByRole('button', { name: '1 tool calls' })
+    const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
 
     fireEvent.click(trigger)
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
+  })
+
+  it('keeps the current task title animated after its latest tool completes', () => {
+    const { container } = render(<ToolBlockGroup items={[readDoneItem]} isLiveProgress />)
+
+    expect(container.querySelector('.animation-shimmer')).not.toBeNull()
+  })
+
+  it('shows thinking in the current task title while reasoning streams', () => {
+    render(<ToolBlockGroup items={[readDoneItem]} isLiveProgress isThinking />)
+
+    expect(screen.getByText('message.tools.thinkingHeader')).toBeInTheDocument()
   })
 
   it('shows live progress instead of the summary while any tool is still running', () => {

@@ -223,7 +223,7 @@ vi.mock('../ToolBlockGroup', () => ({
           data-testid="child-tool-group-trigger"
           aria-expanded={isExpanded}
           onClick={() => setIsExpanded((expanded) => !expanded)}>
-          {items?.length ?? 0} tool calls
+          {items?.at(-1)?.toolResponse?.tool?.name ?? `${items?.length ?? 0} tool calls`}
         </button>
         {isExpanded &&
           (children ?? (
@@ -1116,7 +1116,7 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
 
       expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
-      expect(screen.getByTestId('child-tool-group-trigger')).toHaveTextContent('9 tool calls')
+      expect(screen.getByTestId('child-tool-group-trigger')).toHaveTextContent('after-5')
     })
 
     it('omits tool-bound ellipsis fillers from completed history details', () => {

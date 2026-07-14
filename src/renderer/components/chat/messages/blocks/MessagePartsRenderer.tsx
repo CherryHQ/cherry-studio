@@ -804,9 +804,21 @@ function renderNestedHistory(
   entries: readonly PartEntry[],
   message: MessageListItem,
   isTranslationOverlayActive: boolean,
-  options: RenderGroupedEntryOptions
+  options: RenderGroupedEntryOptions,
+  markLastProcessLive = false
 ): React.ReactNode {
-  return groupNestedHistoryEntries(entries).map((item) => {
+  const nestedItems = groupNestedHistoryEntries(entries)
+  let lastProcessIndex = -1
+  if (markLastProcessLive) {
+    for (let index = nestedItems.length - 1; index >= 0; index--) {
+      if (nestedItems[index].kind === 'process') {
+        lastProcessIndex = index
+        break
+      }
+    }
+  }
+
+  return nestedItems.map((item, itemIndex) => {
     if (item.kind === 'content') {
       return renderGroupedEntry(item.entry, message, false, isTranslationOverlayActive, options)
     }
@@ -836,9 +848,16 @@ function renderNestedHistory(
       )
     }
 
+    const isCurrentProcess = itemIndex === lastProcessIndex
+    const lastProcessEntry = item.entries.at(-1)
+    const isThinking =
+      isCurrentProcess &&
+      (lastProcessEntry?.part.type as string) === 'reasoning' &&
+      (lastProcessEntry.part as ReasoningUIPart).state === 'streaming'
+
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
-        <ToolBlockGroup items={toolItems}>
+        <ToolBlockGroup items={toolItems} isLiveProgress={isCurrentProcess ? true : undefined} isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
             {groupPartEntries(item.entries).map((entry) =>
               renderGroupedEntry(entry, message, false, isTranslationOverlayActive, {
@@ -966,12 +985,18 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     const renderLiveHistory = (isExpanded: boolean) => {
       if (!isExpanded) return null
 
-      return renderNestedHistory(liveHistoryEntries, message, isTranslationOverlayActive, {
-        ...renderOptions,
-        enableAnimation: false,
-        settleStreamingReasoning: !isStreamLive,
-        toolDisplay: 'disclosure'
-      })
+      return renderNestedHistory(
+        liveHistoryEntries,
+        message,
+        isTranslationOverlayActive,
+        {
+          ...renderOptions,
+          enableAnimation: false,
+          settleStreamingReasoning: !isStreamLive,
+          toolDisplay: 'disclosure'
+        },
+        true
+      )
     }
 
     const resultContent = liveResultItems.map((item) => {
