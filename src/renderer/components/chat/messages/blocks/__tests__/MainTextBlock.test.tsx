@@ -789,7 +789,7 @@ describe('MainTextBlock', () => {
         expect(tooltipContent.querySelector('[data-token-size]')).toHaveTextContent('2 KB')
         expect(document.body).not.toHaveTextContent('/Users/jd/private/report.pdf')
 
-        fireEvent.focus(token)
+        token.focus()
         expect(token).toHaveFocus()
       }
     )
@@ -829,7 +829,7 @@ describe('MainTextBlock', () => {
       expect(trigger).toHaveAttribute('role', 'button')
       expect(trigger).toHaveAttribute('tabindex', '0')
 
-      fireEvent.focus(trigger)
+      trigger.focus()
       fireEvent.keyDown(trigger, { key: 'Enter' })
 
       const popover = screen.getByTestId('composer-message-token-popover-content')
@@ -875,7 +875,7 @@ describe('MainTextBlock', () => {
 
       const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
       const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
-      fireEvent.focus(trigger)
+      trigger.focus()
       fireEvent.keyDown(trigger, { key: 'Enter' })
 
       expect(screen.getByAltText('icon.svg')).toHaveAttribute('src', 'file:///internal/message-files')
@@ -929,7 +929,7 @@ describe('MainTextBlock', () => {
 
       const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
       const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
-      fireEvent.focus(trigger)
+      trigger.focus()
       fireEvent.keyDown(trigger, { key: ' ' })
 
       await waitFor(() =>

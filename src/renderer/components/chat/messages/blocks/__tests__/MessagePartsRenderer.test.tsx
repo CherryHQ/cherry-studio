@@ -11,6 +11,7 @@ const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
 const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
+const mockReadText = vi.hoisted(() => vi.fn())
 
 type MainTextBlockModule = {
   buildUserMessagePreview: (content: string) => { content: string; isTruncated: boolean }
@@ -371,6 +372,18 @@ describe('MessagePartsRenderer', () => {
     mockTopicStreamState.status = undefined
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
+    mockReadText.mockReset()
+    mockReadText.mockResolvedValue('Pasted text preview')
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...window.api,
+        fs: {
+          ...window.api?.fs,
+          readText: mockReadText
+        }
+      }
+    })
   })
 
   describe('leaf rendering', () => {
