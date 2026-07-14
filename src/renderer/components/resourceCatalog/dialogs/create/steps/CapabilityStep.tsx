@@ -84,7 +84,6 @@ export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
         onToggle={toggleSkill}
         emptyLabel={t('library.config.dialogs.create.capability.no_skills')}
         portalContainer={portalContainer}
-        variant="checkbox"
       />
 
       <ImportSkillDialog open={importOpen} onOpenChange={setImportOpen} onInstalled={() => void refresh()} />

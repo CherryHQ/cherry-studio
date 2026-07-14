@@ -50,7 +50,9 @@ function CapabilityStepHarness() {
 }
 
 describe('CapabilityStep', () => {
-  it('writes selected skills through the checkbox catalog variant', async () => {
+  // The skills now render through the switch catalog variant; the shared Switch mock
+  // renders as a checkbox input, so these query by role "checkbox".
+  it('writes selected skills through the switch catalog variant', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
@@ -64,16 +66,16 @@ describe('CapabilityStep', () => {
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
   })
 
-  it('shows builtin skills pre-checked and locked, and never adds them to skillIds', async () => {
+  it('shows builtin skills pre-enabled and locked, and never adds them to skillIds', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    const builtinCheckbox = screen.getByRole('checkbox', { name: 'Builtin Skill' })
-    expect(builtinCheckbox).toBeChecked()
-    expect(builtinCheckbox).toBeDisabled()
+    const builtinSwitch = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+    expect(builtinSwitch).toBeChecked()
+    expect(builtinSwitch).toBeDisabled()
 
-    await user.click(builtinCheckbox)
-    expect(builtinCheckbox).toBeChecked()
+    await user.click(builtinSwitch)
+    expect(builtinSwitch).toBeChecked()
     expect(screen.getByTestId('skill-ids').textContent).toBe('')
 
     await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
