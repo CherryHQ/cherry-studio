@@ -1,13 +1,18 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EmojiPicker } from '..'
 
 const emojiPickerPropsMock = vi.hoisted((): { value: any } => ({ value: undefined }))
 const i18nLanguageMock = vi.hoisted(() => ({ value: 'en-US' }))
+const zhEmojiDataMock = vi.hoisted(() => ({ categories: { smileys_people: { name: '表情' } }, emojis: {} }))
+
+vi.mock('emoji-picker-react/dist/data/emojis-zh', () => ({
+  default: zhEmojiDataMock
+}))
 
 vi.mock('emoji-picker-react', () => {
   const EmojiPickerReact = (props) => {
@@ -25,6 +30,14 @@ vi.mock('emoji-picker-react', () => {
             skin tone
           </button>
         ) : null}
+        <div data-testid="emoji-picker-categories">
+          {props.categories.map((item: any) => (
+            <span key={item.category} data-category={item.category}>
+              {item.icon}
+              {item.name}
+            </span>
+          ))}
+        </div>
         <button type="button" onClick={(event) => props.onEmojiClick({ emoji: '🤖' }, event)}>
           Pick robot
         </button>
@@ -78,7 +91,6 @@ describe('EmojiPicker', () => {
     expect(screen.getByRole('tablist', { name: 'Emoji categories' })).toBeInTheDocument()
     expect(emojiPickerPropsMock.value.searchDisabled).toBe(true)
     expect(emojiPickerPropsMock.value.searchPlaceholder).toBeUndefined()
-    expect(emojiPickerPropsMock.value.emojiData).toBeUndefined()
     expect(emojiPickerPropsMock.value.categories.map((item: any) => item.category)).toEqual([
       'suggested',
       'smileys_people',
@@ -90,18 +102,12 @@ describe('EmojiPicker', () => {
       'symbols',
       'flags'
     ])
-    expect(Object.keys(emojiPickerPropsMock.value.categoryIcons)).toEqual([
-      'suggested',
-      'smileys_people',
-      'animals_nature',
-      'food_drink',
-      'travel_places',
-      'activities',
-      'objects',
-      'symbols',
-      'flags'
-    ])
-    expect(emojiPickerPropsMock.value.categoryIcons.suggested.props.className).toBe('size-4.5')
+    expect(emojiPickerPropsMock.value.categoryIcons).toBeUndefined()
+    expect(emojiPickerPropsMock.value.categories.map((item: any) => item.icon.props.className)).toEqual(
+      Array.from({ length: 9 }, () => 'size-4.5')
+    )
+    expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.recent')
+    expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.smileys_emotion')
   })
 
   it('uses compact dimensions and Cherry theme variables', () => {
@@ -131,14 +137,22 @@ describe('EmojiPicker', () => {
     })
   })
 
-  it('keeps category title labels compact through scoped picker styles', () => {
+  it('passes category icons through the public categories configuration', () => {
+    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+
+    expect(emojiPickerPropsMock.value.categories.every((item: any) => item.icon)).toBe(true)
+    expect(emojiPickerPropsMock.value.categoryIcons).toBeUndefined()
+  })
+
+  it('keeps custom category icons and focus rings centered', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
 
-    expect(css).toContain('.cherry-emoji-picker-react .epr-emoji-category-label')
-    expect(css).toContain('font-size: 14px')
-    expect(css).toContain('font-weight: var(--font-weight-regular)')
-    expect(css).toContain('line-height: 22px')
-    expect(css).toContain('padding-left: calc(var(--epr-horizontal-padding) + var(--epr-emoji-padding))')
+    expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn')
+    expect(css).toContain('display: flex')
+    expect(css).toContain('align-items: center')
+    expect(css).toContain('justify-content: center')
+    expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn > svg')
+    expect(css).toContain('display: block')
     expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn:focus::before')
     expect(css).toContain('--cherry-emoji-category-focus-size: 30px')
     expect(css).toContain('top: 50%')
@@ -160,12 +174,25 @@ describe('EmojiPicker', () => {
     expect(screen.queryByTestId('skin-tone-picker')).not.toBeInTheDocument()
   })
 
-  it('does not load localized emoji search data when the app language changes', () => {
+  it('loads localized emoji data when the app language changes', async () => {
     i18nLanguageMock.value = 'zh-CN'
 
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
 
-    expect(emojiPickerPropsMock.value.emojiData).toBeUndefined()
+    await waitFor(() => {
+      expect(emojiPickerPropsMock.value.emojiData).toBe(zhEmojiDataMock)
+    })
+  })
+
+  it('does not render Cherry recent emojis outside the third-party picker', async () => {
+    const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
+    MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', '📁'])
+
+    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+
+    expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.recent')
+    expect(screen.queryByRole('button', { name: '🧠' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '📁' })).not.toBeInTheDocument()
   })
 
   it('calls onEmojiClick and updates Cherry recent emojis when an emoji is picked', async () => {
