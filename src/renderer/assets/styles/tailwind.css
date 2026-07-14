@@ -113,9 +113,6 @@
   --color-sidebar-glow-bg: var(--app-sidebar-glow-bg);
   --color-sidebar-glow-line: var(--app-sidebar-glow-line);
 
-  /* Selected-state inset outline (sidebar / tab-bar / settings active pill) —
-   * geometry centralized here; the color stays in --color-selected-border. */
-  --shadow-selected-outline: inset 0 0 0 0.5px var(--color-selected-border);
 }
 
 @layer base {

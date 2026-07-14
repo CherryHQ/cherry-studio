@@ -752,7 +752,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
@@ -807,7 +807,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)

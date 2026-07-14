@@ -32,11 +32,8 @@ export const EmojiAvatarPicker: FC<{
             'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
             size === 'sm' ? 'size-9' : 'size-8'
           )}>
-          {/* Match the adjacent Input's rounded-lg + border-fg-muted hairline. */}
-          <EmojiAvatar
-            size={avatarSize}
-            fontSize={fontSize}
-            className="rounded-lg border border-[color:var(--color-border-fg-muted)]">
+          {/* Match the adjacent Input's rounded-lg + hairline border. */}
+          <EmojiAvatar size={avatarSize} fontSize={fontSize} className="rounded-lg border border-border">
             {value || fallback}
           </EmojiAvatar>
         </Button>
