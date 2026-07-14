@@ -239,6 +239,7 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem').at(-1)).toHaveTextContent('BabelDOC')
   })
 
   it('gives the public icon-only dependency actions accessible names', async () => {

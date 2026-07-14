@@ -68,7 +68,6 @@ export const BABELDOC_BINARY_TOOL_PRESET = {
 } as const satisfies BinaryToolPreset
 
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
-  BABELDOC_BINARY_TOOL_PRESET,
   {
     name: 'uv',
     displayName: 'uv',
@@ -127,6 +126,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     icon: 'simple-icons:notion',
     repoUrl: 'https://github.com/makenotion/cli',
     homepage: 'https://ntn.dev'
-  }
+  },
+  BABELDOC_BINARY_TOOL_PRESET
   // Managed Code CLIs are listed in codeCliTools.ts instead of here.
 ]
