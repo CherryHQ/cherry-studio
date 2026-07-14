@@ -1,6 +1,6 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -83,7 +83,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
     let cancelled = false
 
     const refresh = async () => {
-      const binaryNames = tools.map((toolId) => CLI_BINARY_NAMES[toolId]).filter((name): name is string => !!name)
+      const binaryNames = tools.map((toolId) => CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
       const snapshots = await ipcApi.request('binary.get_tool_snapshots', binaryNames).catch((error) => {
         logger.error('Failed to get CLI tool snapshots', error as Error)
         return null
@@ -91,10 +91,10 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
       if (cancelled || !snapshots) return
 
       for (const toolId of tools) {
-        if (!snapshots[CLI_BINARY_NAMES[toolId]]?.intent) delete latestRef.current[toolId]
+        if (!snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.intent) delete latestRef.current[toolId]
       }
       const hasManagedCli = tools.some((toolId) => {
-        const snapshot = snapshots[CLI_BINARY_NAMES[toolId]]
+        const snapshot = snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]
         return snapshot?.intent && snapshot.availability.source === 'mise'
       })
       let latestVersions: Record<string, string> = {}
@@ -104,7 +104,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
           return {}
         })
         const needsLatest = tools.some((toolId) => {
-          const binaryName = CLI_BINARY_NAMES[toolId]
+          const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
           const snapshot = snapshots[binaryName]
           return (
             !!snapshot?.intent &&
@@ -124,10 +124,10 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
 
       const next: Record<string, VersionStatus> = {}
       for (const toolId of tools) {
-        const binaryName = CLI_BINARY_NAMES[toolId]
-        const latest = binaryName ? (latestVersions[binaryName] ?? latestRef.current[toolId]) : undefined
+        const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
+        const latest = latestVersions[binaryName] ?? latestRef.current[toolId]
         latestRef.current[toolId] = latest
-        next[toolId] = buildStatus(toolId, binaryName ? snapshots[binaryName] : undefined, latest)
+        next[toolId] = buildStatus(toolId, snapshots[binaryName], latest)
       }
       setStatuses(next)
     }

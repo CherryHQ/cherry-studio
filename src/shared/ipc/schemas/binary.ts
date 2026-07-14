@@ -25,11 +25,7 @@ import { defineRoute } from '../define'
  * schema only guards the wire shape, per the schema guide.
  */
 
-/**
- * A tool name used purely to address an existing entry (remove / open dir). The
- * legacy handlers gated these on TOOL_NAME_RE before doing anything; keep that as
- * the wire contract so a malformed name is rejected at the boundary.
- */
+/** A tool name used to address an existing entry; reject malformed names at the boundary. */
 const toolNameSchema = z.string().regex(TOOL_NAME_RE)
 
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })

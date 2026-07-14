@@ -1,6 +1,5 @@
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
@@ -155,13 +154,12 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     owned: false,
     canUpgrade: false
   }
-  const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
   const installError = versionStatus.operation?.status === 'failed' ? versionStatus.operation.error : undefined
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
-    !!cliPreset && versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
+    versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
@@ -233,7 +231,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           activeMeta,
           versionStatus,
           versionCard: {
-            visible: !!cliPreset,
+            visible: true,
             canLaunch,
             launching: launchDialog.launching || openClawGateway.launching || openClawGateway.starting,
             running: openClawGateway.running,

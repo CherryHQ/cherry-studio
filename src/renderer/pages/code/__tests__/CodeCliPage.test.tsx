@@ -192,15 +192,6 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
 }))
 
-vi.mock('@renderer/pages/code/constants/codeCliTools', () => ({
-  CLI_TOOL_PRESET_MAP: {
-    [CodeCli.CLAUDE_CODE]: {},
-    [CodeCli.OPENAI_CODEX]: {},
-    [CodeCli.OPEN_CODE]: {},
-    [CodeCli.QODER_CLI]: {}
-  }
-}))
-
 vi.mock('../cliConfig/claudeModels', () => ({
   getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
     const env = config.env as Record<string, string> | undefined

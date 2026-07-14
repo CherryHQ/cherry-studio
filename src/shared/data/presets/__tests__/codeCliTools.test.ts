@@ -1,4 +1,4 @@
-import { CLI_BINARY_NAMES, CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESET_MAP, CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import { CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
@@ -31,13 +31,13 @@ describe('Code CLI acquisition catalog', () => {
     expect(new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.id))).toEqual(new Set(Object.values(CodeCli)))
   })
 
-  it('keeps the catalog and derived binary-name map immutable', () => {
+  it('keeps the catalog and lookup map immutable', () => {
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESETS)).toBe(true)
     expect(CODE_CLI_TOOL_PRESETS.every((preset) => Object.isFrozen(preset))).toBe(true)
-    expect(Object.isFrozen(CLI_BINARY_NAMES)).toBe(true)
+    expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP)).toBe(true)
   })
 
-  it.each(CODE_CLI_TOOL_PRESETS)('$id: derives the binary name from the executable', (preset) => {
-    expect(CLI_BINARY_NAMES[preset.id]).toBe(preset.executable)
+  it.each(CODE_CLI_TOOL_PRESETS)('$id: indexes the canonical preset', (preset) => {
+    expect(CODE_CLI_TOOL_PRESET_MAP[preset.id]).toBe(preset)
   })
 })

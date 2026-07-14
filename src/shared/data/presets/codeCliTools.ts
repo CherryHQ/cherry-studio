@@ -70,7 +70,3 @@ export const CODE_CLI_TOOL_PRESET_MAP = Object.freeze(
     Readonly<CodeCliToolPreset>
   >
 )
-
-export const CLI_BINARY_NAMES = Object.freeze(
-  Object.fromEntries(CODE_CLI_TOOL_PRESETS.map((preset) => [preset.id, preset.executable])) as Record<CodeCli, string>
-)

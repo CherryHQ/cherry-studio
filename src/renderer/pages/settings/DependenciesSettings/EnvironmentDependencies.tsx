@@ -38,7 +38,7 @@ import {
   PRESETS_BINARY_TOOLS,
   validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
-import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { BinaryAvailability, BinaryOperation, BinaryToolSnapshot } from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -102,7 +102,7 @@ type ToolSource = BinaryAvailability['source']
 
 // Code CLIs are installed through BinaryManager too, but have their own
 // management surface (the Code CLI page) — keep them out of this inventory.
-const CODE_CLI_BINARIES = new Set<string>(Object.values(CLI_BINARY_NAMES))
+const CODE_CLI_BINARIES = new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
 
 const getInstallRecoveryIntent = (snapshot: BinaryToolSnapshot): BinaryManifestEntry | undefined =>
   snapshot.operation?.status === 'failed' && snapshot.operation.action === 'install'

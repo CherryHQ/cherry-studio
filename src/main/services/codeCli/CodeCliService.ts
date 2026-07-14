@@ -8,6 +8,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
@@ -23,7 +24,6 @@ import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
-import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
 import { posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -113,14 +113,6 @@ export class CodeCliService extends BaseService {
     } catch (error) {
       logger.warn('Terminal preloading failed:', error as Error)
     }
-  }
-
-  private getToolInstallSpec(cliTool: CodeCli): { name: string; tool: string } {
-    return getCodeCliInstallSpec(cliTool)
-  }
-
-  public async getCliExecutableName(cliTool: CodeCli) {
-    return getCodeCliPackageSpec(cliTool).executable
   }
 
   /**
@@ -363,8 +355,9 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    const executableName = await this.getCliExecutableName(cliTool)
-    const spec = this.getToolInstallSpec(cliTool)
+    const preset = CODE_CLI_TOOL_PRESET_MAP[cliTool]
+    const executableName = preset.executable
+    const spec = { name: executableName, tool: preset.miseTool }
 
     logger.debug(`Executable name: ${executableName}`)
     logger.debug(`Tool install spec: ${spec.tool}`)

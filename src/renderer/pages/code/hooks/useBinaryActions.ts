@@ -1,9 +1,8 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { toast } from '@renderer/services/toast'
 import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
-import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
 import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,17 +33,15 @@ export function useBinaryActions() {
     ) => {
       try {
         setBusy((prev) => new Set(prev).add(toolId))
-        const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
-        if (cliPreset) {
-          await ipcApi.request('binary.install_tool', {
-            intent: intent ?? {
-              name: CLI_BINARY_NAMES[toolId],
-              tool: cliPreset.miseTool
-            },
-            ...(targetVersion ? { targetVersion } : {})
-          })
-          toast.success(t(messages.successKey))
-        }
+        const cliPreset = CODE_CLI_TOOL_PRESET_MAP[toolId]
+        await ipcApi.request('binary.install_tool', {
+          intent: intent ?? {
+            name: cliPreset.executable,
+            tool: cliPreset.miseTool
+          },
+          ...(targetVersion ? { targetVersion } : {})
+        })
+        toast.success(t(messages.successKey))
       } catch (error) {
         logger.error(messages.logLabel, error as Error)
       } finally {
@@ -90,7 +87,7 @@ export function useBinaryActions() {
   const remove = useCallback(
     async (toolId: CodeCli): Promise<boolean> => {
       try {
-        await ipcApi.request('binary.remove_tool', CLI_BINARY_NAMES[toolId])
+        await ipcApi.request('binary.remove_tool', CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
         toast.success(t('common.delete_success'))
         return true
       } catch (error) {
