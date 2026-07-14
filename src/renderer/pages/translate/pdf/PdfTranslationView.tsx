@@ -219,41 +219,51 @@ const PdfTranslationView = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className="flex min-h-10 shrink-0 items-center gap-3 border-border-muted border-b px-3 py-2">
-        <span className="truncate font-medium text-foreground text-sm" title={file.name}>
-          {file.name}
-        </span>
-        {statusLabel && <span className="truncate text-foreground-muted text-xs">{statusLabel}</span>}
-        <span className="flex-1" />
-        {output && (
-          <Tooltip content={t('translate.pdf.action.export')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('translate.pdf.action.export')}
-              onClick={() => void exportOutput()}>
-              <Download size={14} />
-            </Button>
-          </Tooltip>
-        )}
-        <Tooltip content={t('translate.pdf.action.close')} delay={800}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('translate.pdf.action.close')}
-            onClick={close}>
-            <X size={14} />
-          </Button>
-        </Tooltip>
-      </div>
-
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
-        <PdfPane label={t('translate.pdf.pane.source')}>
+        <PdfPane
+          header={
+            <>
+              <span className="truncate font-medium text-foreground text-sm" title={file.name}>
+                {file.name}
+              </span>
+              <span className="flex-1" />
+              <Tooltip content={t('translate.pdf.action.close')} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-foreground-muted hover:text-foreground"
+                  aria-label={t('translate.pdf.action.close')}
+                  onClick={close}>
+                  <X size={14} />
+                </Button>
+              </Tooltip>
+            </>
+          }>
           <PdfPreviewPanel filePath={file.path} fileName={file.name} refreshKey={0} />
         </PdfPane>
-        <PdfPane label={t('translate.pdf.pane.translated')} bordered>
+        <PdfPane
+          header={
+            <>
+              <span className="shrink-0 text-foreground-muted text-xs">{t('translate.pdf.pane.translated')}</span>
+              {statusLabel && <span className="truncate text-foreground-muted text-xs">{statusLabel}</span>}
+              <span className="flex-1" />
+              {output && (
+                <Tooltip content={t('translate.pdf.action.export')} delay={800}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    aria-label={t('translate.pdf.action.export')}
+                    onClick={() => void exportOutput()}>
+                    <Download size={14} />
+                  </Button>
+                </Tooltip>
+              )}
+            </>
+          }
+          bordered>
           {output ? (
             <PdfPreviewPanel filePath={output.outputPath} fileName={output.fileName} refreshKey={0} />
           ) : running ? (
@@ -325,14 +335,22 @@ const PdfProgress = ({
   )
 }
 
-const PdfPane = ({ label, bordered, children }: { label: string; bordered?: boolean; children: React.ReactNode }) => (
+const PdfPane = ({
+  header,
+  bordered,
+  children
+}: {
+  header: React.ReactNode
+  bordered?: boolean
+  children: React.ReactNode
+}) => (
   <section
     className={
       bordered
         ? 'flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l'
         : 'flex min-h-0 min-w-0 flex-col'
     }>
-    <div className="shrink-0 border-border-muted border-b px-3 py-1.5 text-foreground-muted text-xs">{label}</div>
+    <div className="flex min-h-10 shrink-0 items-center gap-3 border-border-muted border-b px-3 py-1.5">{header}</div>
     <div className="min-h-0 flex-1">{children}</div>
   </section>
 )
