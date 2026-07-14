@@ -5,6 +5,7 @@ import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -22,8 +23,11 @@ import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
+const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+
 interface Props {
   messages: MessageListItem[]
+  partsByMessageId?: Record<string, CherryMessagePart[]> | null
   topic: Topic
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
@@ -45,6 +49,7 @@ function pickPreferredSelectedMessage(
 
 const MessageGroup = ({
   messages,
+  partsByMessageId,
   topic,
   captureMode = false,
   registerMessageElement,
@@ -306,6 +311,7 @@ const MessageGroup = ({
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         message,
+        messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
         topic,
         index
       } satisfies ComponentProps<typeof MessageItem>
@@ -363,7 +369,8 @@ const MessageGroup = ({
       selectedMessageId,
       onUpdateUseful,
       groupContextMessageId,
-      gridPopoverTrigger
+      gridPopoverTrigger,
+      partsByMessageId
     ]
   )
 
@@ -502,6 +509,15 @@ function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): b
   return true
 }
 
+function messagePartsShallowEqual(
+  previous: Record<string, CherryMessagePart[]> | null | undefined,
+  next: Record<string, CherryMessagePart[]> | null | undefined,
+  messages: MessageListItem[]
+): boolean {
+  if (previous === next) return true
+  return messages.every((message) => previous?.[message.id] === next?.[message.id])
+}
+
 // Custom comparator: bail out only when topic / latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
@@ -518,6 +534,7 @@ export default memo(MessageGroup, (prev, next) => {
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
-    messageArrayShallowEqual(prev.messages, next.messages)
+    messageArrayShallowEqual(prev.messages, next.messages) &&
+    messagePartsShallowEqual(prev.partsByMessageId, next.partsByMessageId, prev.messages)
   )
 })
