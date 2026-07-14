@@ -546,19 +546,25 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
+  // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
+  // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`
+  // drops `.optional()` fields from `required`), failing every call with "Missing 'offset'".
+  // `readFile` coerces null back to the paging defaults.
   offset: z
     .number()
     .int()
     .nonnegative()
-    .optional()
-    .describe('0-based character offset to start from. Page through long documents with offset + limit.'),
+    .nullable()
+    .describe(
+      '0-based character offset to start from. Page through long documents with offset + limit. Pass null to start at the beginning.'
+    ),
   limit: z
     .number()
     .int()
     .positive()
     .max(200_000)
-    .optional()
-    .describe(`Max characters to return. Defaults to ${READ_FILE_PAGE_SIZE} when omitted.`)
+    .nullable()
+    .describe(`Max characters to return. Pass null to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({

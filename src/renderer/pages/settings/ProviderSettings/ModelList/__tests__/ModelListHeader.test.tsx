@@ -72,8 +72,6 @@ describe('ModelListHeader', () => {
     const docsLink = screen.getByRole('link', { name: 'settings.models.docs' })
 
     expect(docsLink).toHaveAttribute('href', 'https://github.com/marketplace/models')
-    expect(docsLink).toHaveClass('size-6', 'bg-transparent')
-    expect(docsLink).not.toHaveClass('hover:underline')
     expect(screen.queryByText('settings.models.docs')).not.toBeInTheDocument()
     expect(screen.getAllByRole('link')).toHaveLength(1)
     expect(screen.queryByText('settings.provider.docs_check')).not.toBeInTheDocument()

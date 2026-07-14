@@ -95,7 +95,7 @@ export const DialogModelTrigger = ({
     aria-labelledby={ariaLabelledBy}
     className={cn(
       // Mirrors the shared SelectTrigger recipe (bg-muted/50, borderless, rounded-lg).
-      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground aria-expanded:bg-muted focus-visible:ring-1 focus-visible:ring-ring/40',
+      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 aria-expanded:bg-muted',
       model ? 'text-foreground' : 'text-muted-foreground',
       className
     )}>
