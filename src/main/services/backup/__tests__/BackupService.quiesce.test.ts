@@ -109,6 +109,23 @@ describe('BackupRestoreJobQuiesce', () => {
     expect(disposeHold).toHaveBeenCalledOnce()
   })
 
+  it('does not retain a hold while the bounded drain is still pending', async () => {
+    let rejectDrain: ((reason: Error) => void) | undefined
+    const pendingDrain = new Promise<never>((_resolve, reject) => {
+      rejectDrain = reject
+    })
+    jobManager.drainInFlight.mockReturnValue(pendingDrain)
+    const quiesce = new BackupRestoreJobQuiesce(5000)
+
+    const pendingQuiesce = quiesce.quiesce()
+    expect(() => quiesce.retainForRelaunch()).toThrow(/did not drain cleanly/)
+    rejectDrain?.(new Error('drain failed'))
+    await expect(pendingQuiesce).rejects.toThrow('drain failed')
+    quiesce.disposeOnAbort()
+
+    expect(disposeHold).toHaveBeenCalledOnce()
+  })
+
   it('fails closed on stragglers, logs diagnostics, and releases the hold exactly once', async () => {
     jobManager.drainInFlight.mockResolvedValue({
       stragglerIds: ['job-1', 'job-2'],

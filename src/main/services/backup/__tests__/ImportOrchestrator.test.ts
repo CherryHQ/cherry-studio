@@ -14,8 +14,10 @@ import { application } from '@application'
 import type { DbService } from '@main/data/db/DbService'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
+import type * as HashDbFileModule from '@main/data/db/restore/hashDbFile'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
-import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import type * as RestoreJournalModule from '@main/data/db/restore/restoreJournal'
+import { readRestoreJournal, type RestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { snapshotTo } from '@main/data/db/restore/snapshot'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
@@ -36,6 +38,35 @@ import type { BackupManifest } from '../manifest'
 // does (relative to this file, not process.cwd()) so applyMigrations finds _journal.json.
 const MIGRATIONS_FOLDER = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../migrations/sqlite-drizzle')
 
+/** Pass-through fault seams preserve real hashing and journal durability behavior. */
+const { hashDbFileSpy, journalWriteFault } = vi.hoisted(() => ({
+  hashDbFileSpy: vi.fn<(filePath: string) => void>(),
+  journalWriteFault: { phase: null as 'before' | 'after' | null }
+}))
+
+vi.mock('@main/data/db/restore/hashDbFile', async (importOriginal) => {
+  const actual = await importOriginal<typeof HashDbFileModule>()
+  return {
+    ...actual,
+    hashDbFile: (filePath: string) => {
+      hashDbFileSpy(filePath)
+      return actual.hashDbFile(filePath)
+    }
+  }
+})
+
+vi.mock('@main/data/db/restore/restoreJournal', async (importOriginal) => {
+  const actual = await importOriginal<typeof RestoreJournalModule>()
+  return {
+    ...actual,
+    writeRestoreJournal: (journal: RestoreJournal) => {
+      if (journalWriteFault.phase === 'before') throw new Error('injected journal write failure')
+      actual.writeRestoreJournal(journal)
+      if (journalWriteFault.phase === 'after') throw new Error('injected journal write failure')
+    }
+  }
+})
+
 describe('ImportOrchestrator spine', () => {
   // Real file-backed DB with production migrations — gives the snapshot a __drizzle_migrations
   // table so readAppliedChain returns a non-empty chain (journal schema requires min 1).
@@ -47,6 +78,7 @@ describe('ImportOrchestrator spine', () => {
   let liveDbPath: string
 
   beforeEach(() => {
+    journalWriteFault.phase = null
     tmpDir = mkdtempSync(join(tmpdir(), 'cs-import-'))
     stagingRoot = join(tmpDir, 'restore-staging')
     journalPath = join(tmpDir, 'restore-journal.json')
@@ -103,18 +135,24 @@ describe('ImportOrchestrator spine', () => {
 
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {
     const disposeHold = vi.fn()
+    const drainInFlight = vi.fn().mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
     const originalGet = application.get.bind(application)
     vi.spyOn(application, 'get').mockImplementation((name) => {
       if (name === 'JobManager') {
         return {
           pause: vi.fn(() => ({ dispose: disposeHold })),
-          drainInFlight: vi.fn().mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+          drainInFlight
         } as never
       }
       return originalGet(name)
     })
+    const checkpointTruncate = vi.fn(() => checkpointTruncateAssert(dbh.sqlite))
+    const createSnapshot = vi.fn((workPath: string) => snapshotTo(dbh.sqlite, workPath))
+    const liveDbService = { checkpointTruncate, createSnapshot } as unknown as DbService
     const quiesce = new BackupRestoreJobQuiesce(5000)
-    const orch = new ImportOrchestrator(makeDeps({ quiesceWriters: (signal) => quiesce.quiesce(signal) }))
+    const orch = new ImportOrchestrator(
+      makeDeps({ dbService: liveDbService, quiesceWriters: (signal) => quiesce.quiesce(signal) })
+    )
 
     const result = await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-001' })
     quiesce.retainForRelaunch()
@@ -122,6 +160,13 @@ describe('ImportOrchestrator spine', () => {
 
     expect(result.restoreId).toBe('rst-001')
     expect(disposeHold).not.toHaveBeenCalled()
+    expect(drainInFlight.mock.invocationCallOrder[0]).toBeLessThan(checkpointTruncate.mock.invocationCallOrder[0])
+    expect(checkpointTruncate.mock.invocationCallOrder[0]).toBeLessThan(hashDbFileSpy.mock.invocationCallOrder[0])
+    expect(hashDbFileSpy.mock.invocationCallOrder[0]).toBeLessThan(createSnapshot.mock.invocationCallOrder[0])
+    expect(checkpointTruncate.mock.contexts[0]).toBe(liveDbService)
+    expect(createSnapshot.mock.contexts[0]).toBe(liveDbService)
+    expect(hashDbFileSpy).toHaveBeenNthCalledWith(1, liveDbPath)
+    expect(createSnapshot).toHaveBeenCalledWith(join(stagingRoot, 'rst-001', 'work.sqlite'))
     const read = readRestoreJournal()
     expect(read.kind).toBe('ok')
     if (read.kind !== 'ok') return
@@ -147,6 +192,62 @@ describe('ImportOrchestrator spine', () => {
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite'))).toBe(true)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-wal'))).toBe(false)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-shm'))).toBe(false)
+  })
+
+  it('releases the hold when the staged journal write fails before reaching disk', async () => {
+    journalWriteFault.phase = 'before'
+    const disposeHold = vi.fn()
+    const originalGet = application.get.bind(application)
+    vi.spyOn(application, 'get').mockImplementation((name) => {
+      if (name === 'JobManager') {
+        return {
+          pause: vi.fn(() => ({ dispose: disposeHold })),
+          drainInFlight: vi.fn().mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+        } as never
+      }
+      return originalGet(name)
+    })
+    const quiesce = new BackupRestoreJobQuiesce(5000)
+    const orch = new ImportOrchestrator(makeDeps({ quiesceWriters: (signal) => quiesce.quiesce(signal) }))
+
+    try {
+      await expect(
+        orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-journal-missing' })
+      ).rejects.toThrow('injected journal write failure')
+    } finally {
+      quiesce.disposeOnAbort()
+    }
+
+    expect(readRestoreJournal().kind).toBe('none')
+    expect(disposeHold).toHaveBeenCalledOnce()
+  })
+
+  it('retains the hold when the staged journal landed before its write reported failure', async () => {
+    journalWriteFault.phase = 'after'
+    const disposeHold = vi.fn()
+    const originalGet = application.get.bind(application)
+    vi.spyOn(application, 'get').mockImplementation((name) => {
+      if (name === 'JobManager') {
+        return {
+          pause: vi.fn(() => ({ dispose: disposeHold })),
+          drainInFlight: vi.fn().mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+        } as never
+      }
+      return originalGet(name)
+    })
+    const quiesce = new BackupRestoreJobQuiesce(5000)
+    const orch = new ImportOrchestrator(makeDeps({ quiesceWriters: (signal) => quiesce.quiesce(signal) }))
+
+    const result = await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-journal-landed' })
+    quiesce.retainForRelaunch()
+    quiesce.disposeOnAbort()
+
+    expect(result.restoreId).toBe('rst-journal-landed')
+    expect(readRestoreJournal()).toMatchObject({
+      kind: 'ok',
+      journal: { restoreId: 'rst-journal-landed', state: 'staged' }
+    })
+    expect(disposeHold).not.toHaveBeenCalled()
   })
 
   it('aborts without a journal when a writer touches live during staging (2nd fingerprint mismatch)', async () => {

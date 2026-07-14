@@ -110,6 +110,8 @@ interface ActiveOperation {
  */
 export class BackupRestoreJobQuiesce {
   private hold: Disposable | undefined
+  /** True only after the strict verdict and post-drain cancellation check both pass. */
+  private drainClean = false
   private retainedForRelaunch = false
 
   constructor(private readonly timeoutMs: number) {
@@ -138,6 +140,7 @@ export class BackupRestoreJobQuiesce {
         throw new Error('backup restore JobManager did not drain cleanly')
       }
       if (signal?.aborted) throw new BackupCancelledError()
+      this.drainClean = true
     } catch (error) {
       this.disposeOnAbort()
       throw error
@@ -147,6 +150,7 @@ export class BackupRestoreJobQuiesce {
   /** Transfer ownership to process exit after the staged journal has committed. */
   retainForRelaunch(): void {
     if (!this.hold) throw new Error('backup restore JobManager quiesce was not acquired')
+    if (!this.drainClean) throw new Error('backup restore JobManager did not drain cleanly')
     this.retainedForRelaunch = true
   }
 
@@ -155,6 +159,7 @@ export class BackupRestoreJobQuiesce {
     if (this.retainedForRelaunch) return
     const hold = this.hold
     this.hold = undefined
+    this.drainClean = false
     hold?.dispose()
   }
 }
