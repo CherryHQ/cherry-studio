@@ -31,6 +31,11 @@
       "submit": "提交",
       "title": "來自Agent的提問"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cherry Studio 內建使用顧問。診斷問題、引導操作、收錄 FAQ、提交 Bug/需求、搜尋和建立 Skills"
+      }
+    },
     "channels": {
       "add": "新增",
       "bindAgent": "綁定代理",
@@ -1961,6 +1966,11 @@
       },
       "select_placeholder": "請選擇…"
     },
+    "api_gateway": {
+      "description": "任意 CLI，暢用全部模型",
+      "requires_running": "啟用後請保持 Cherry Studio 執行，外部 CLI 才能連線到它託管的閘道。",
+      "title": "統一網關"
+    },
     "apply_failed": "寫入 CLI 設定到系統檔案失敗",
     "auto_update_to_latest": "檢查更新並安裝最新版本",
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
@@ -2040,6 +2050,7 @@
     "model_required": "請選擇模型",
     "model_selection": "模型選擇",
     "more": "更多",
+    "move_provider_to_top": "將服務商移到頂部",
     "no_matching_providers": "沒有符合的服務商",
     "no_model_for_provider": "該服務商沒有可用的模型",
     "no_providers_description": "在 設定 → 模型服務 中啟用支援的服務商",

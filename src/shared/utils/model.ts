@@ -103,6 +103,19 @@ export const isAgentRuntimeSupportedModel = (model: Model, provider?: Provider):
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 
+/**
+ * Models the API gateway can route — the single predicate shared by the gateway's
+ * `/v1/models` listing and the renderer's gateway model picker, so the CLI can only
+ * pick what the gateway will actually serve. Excludes non-chat models (the gateway
+ * only proxies chat dialects), the CherryAI managed default (the gateway's own
+ * guard), and models of a provider whose id contains ':' — the gateway address
+ * ("providerId:apiModelId") splits on the FIRST ':', so such ids cannot round-trip.
+ */
+export const isGatewayRoutableModel = (model: Model): boolean => {
+  if (model.providerId.includes(':') || isNonChatModel(model)) return false
+  return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
+}
+
 // ---------------------------------------------------------------------------
 // Reasoning configuration
 // ---------------------------------------------------------------------------

@@ -31,6 +31,11 @@
       "submit": "Submit",
       "title": "Questions from Agent"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "channels": {
       "add": "Add",
       "bindAgent": "Bind Agent",
@@ -1961,6 +1966,11 @@
       },
       "select_placeholder": "Select…"
     },
+    "api_gateway": {
+      "description": "Any CLI, every model",
+      "requires_running": "Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "Unified Gateway"
+    },
     "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
@@ -2040,6 +2050,7 @@
     "model_required": "Please select a model",
     "model_selection": "Model Selection",
     "more": "More",
+    "move_provider_to_top": "Move provider to top",
     "no_matching_providers": "No matching providers",
     "no_model_for_provider": "No model available for this provider",
     "no_providers_description": "Enable a supported provider in Settings → Model Service",
