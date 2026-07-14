@@ -42,6 +42,8 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
+/** Below this chat-column width the anchor rail fades out instead of crowding the content. */
+const ANCHOR_RAIL_MIN_WIDTH_PX = 768
 
 interface ActiveMessageOutline {
   messageId: string
@@ -84,12 +86,14 @@ function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
 }
 
 type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
+  className?: string
   groupKey: string
   isLive: boolean
   narrowMode: boolean
 }
 
 function MessageGroupLayer({
+  className,
   groupKey,
   isLive,
   narrowMode,
@@ -100,7 +104,7 @@ function MessageGroupLayer({
   void isLive
   return (
     <PartsProvider value={partsByMessageId ?? null}>
-      <NarrowLayout narrowMode={narrowMode} withSidePadding>
+      <NarrowLayout narrowMode={narrowMode} withSidePadding className={className}>
         <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
       </NarrowLayout>
     </PartsProvider>
@@ -130,6 +134,7 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
   if (previous.isLive || next.isLive) return false
   return (
     previous.groupKey === next.groupKey &&
+    previous.className === next.className &&
     previous.narrowMode === next.narrowMode &&
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
@@ -157,6 +162,8 @@ const MessageList = () => {
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
+  const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
+  const [anchorRailVisible, setAnchorRailVisible] = useState(false)
   const bottomOverlayInsets = useChatBottomOverlayInset()
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
@@ -345,6 +352,51 @@ const MessageList = () => {
     cancelAnimationFrame(activeMessageOutlineFrameRef.current)
     activeMessageOutlineFrameRef.current = null
   }, [])
+
+  const shouldTrackAnchorPosition = messageNavigation === 'anchor'
+
+  // Anchor rail counterpart of the outline tracker: resolve the message near
+  // the viewport top (any role) so the rail can darken the current turn's tick.
+  // Top-aligned so a turn jumped to via its tick immediately reads as current;
+  // at the very bottom the last turn wins regardless of its height.
+  const updateActiveAnchorMessage = useCallback(() => {
+    if (!shouldTrackAnchorPosition) return
+
+    const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
+    if (!scrollElement) return
+
+    const containerRect = scrollElement.getBoundingClientRect()
+    const scrollRange = scrollElement.scrollHeight - scrollElement.clientHeight
+    const atBottom = scrollElement.scrollTop >= scrollRange - 2
+    const viewportCenter = atBottom
+      ? containerRect.bottom - 1
+      : containerRect.top + Math.min(120, containerRect.height * 0.25)
+    let bestMatch: { messageId: string; distance: number } | null = null
+
+    for (const [messageId, element] of messageElements.current) {
+      const message = messageById.get(messageId)
+      if (!message || message.type === 'clear') continue
+      if (!element.isConnected || !scrollElement.contains(element)) continue
+
+      const rect = element.getBoundingClientRect()
+      const visibleHeight = Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top)
+      if (visibleHeight <= 0) continue
+
+      const distance =
+        rect.top <= viewportCenter && rect.bottom >= viewportCenter
+          ? 0
+          : Math.min(Math.abs(rect.top - viewportCenter), Math.abs(rect.bottom - viewportCenter))
+
+      if (!bestMatch || distance < bestMatch.distance) {
+        bestMatch = { messageId, distance }
+      }
+    }
+
+    const nextId = bestMatch?.messageId ?? null
+    setActiveAnchorMessageId((current) => (current === nextId ? current : nextId))
+  }, [messageById, shouldTrackAnchorPosition])
+  const updateActiveAnchorMessageRef = useRef(updateActiveAnchorMessage)
+  updateActiveAnchorMessageRef.current = updateActiveAnchorMessage
 
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
@@ -537,6 +589,46 @@ const MessageList = () => {
   }, [data.isInitialLoading, data.listKey, requestActiveMessageOutlineUpdate, shouldTrackMessageOutline, topic.id])
 
   useEffect(() => {
+    if (!shouldTrackAnchorPosition) {
+      setActiveAnchorMessageId((current) => (current ? null : current))
+      return
+    }
+    updateActiveAnchorMessage()
+  }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
+
+  useEffect(() => {
+    if (!shouldTrackAnchorPosition) return
+    const scrollElement = messageListRef.current?.getScrollElement()
+    if (!scrollElement) return
+
+    const updateRailVisibility = () => {
+      const isWide = scrollElement.clientWidth >= ANCHOR_RAIL_MIN_WIDTH_PX
+      setAnchorRailVisible((current) => (current === isWide ? current : isWide))
+    }
+    updateRailVisibility()
+    const resizeObserver = new ResizeObserver(updateRailVisibility)
+    resizeObserver.observe(scrollElement)
+
+    let frame: number | null = null
+    const handleAnchorUpdate = () => {
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        updateActiveAnchorMessageRef.current()
+      })
+    }
+    scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
+    window.addEventListener('resize', handleAnchorUpdate)
+
+    return () => {
+      resizeObserver.disconnect()
+      if (frame !== null) cancelAnimationFrame(frame)
+      scrollElement.removeEventListener('scroll', handleAnchorUpdate)
+      window.removeEventListener('resize', handleAnchorUpdate)
+    }
+  }, [data.isInitialLoading, data.listKey, shouldTrackAnchorPosition, topic.id])
+
+  useEffect(() => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
       captureLocalSendScrollEligibility: () => runtimeActionsRef.current.captureLocalSendScrollEligibility(),
@@ -609,6 +701,10 @@ const MessageList = () => {
                   ? messageTail
                   : undefined
               const props: MessageGroupLayerProps = {
+                className:
+                  messageNavigation === 'anchor' && anchorRailVisible
+                    ? 'pr-12 transition-[padding] duration-300'
+                    : undefined,
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,
                 narrowMode: messageListNarrowMode,
@@ -669,8 +765,9 @@ const MessageList = () => {
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
           messages={messages}
+          activeMessageId={activeAnchorMessageId}
+          visible={anchorRailVisible}
           scrollToMessageId={scrollToMessageById}
-          scrollToBottom={scrollToBottom}
         />
       )}
       {activeOutline && activeOutlineMessage && (
