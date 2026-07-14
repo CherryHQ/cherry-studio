@@ -954,6 +954,81 @@ describe('ChatContent', () => {
     )
   })
 
+  it('preserves a single reply model when editing an assistant-less conversation', async () => {
+    const editedParts = [{ type: 'text', text: 'edited single-model prompt' } as CherryMessagePart]
+    const unlinkedTopic = { ...topic, assistantId: null }
+    const historyUser = {
+      ...createUiMessage('history-user', 'user'),
+      metadata: { parentId: 'branch-a', createdAt: '2026-01-01T00:00:00.000Z' }
+    } as CherryUIMessage
+    const singleModelReply = {
+      ...createUiMessage('reply-model-a', 'assistant'),
+      metadata: {
+        parentId: 'history-user',
+        modelId: 'provider-a::model-a',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
+    } as CherryUIMessage
+    const createSiblingTrigger = vi.fn().mockResolvedValue({
+      id: 'forked-user',
+      topicId: 'topic-1',
+      parentId: 'branch-a',
+      role: 'user',
+      data: { parts: editedParts },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 20,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:02.000Z',
+      updatedAt: '2026-01-01T00:00:02.000Z'
+    })
+
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [historyUser, singleModelReply],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'reply-model-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={unlinkedTopic} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+    })
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'forked-user',
+        mentionedModelIds: ['provider-a::model-a']
+      })
+    )
+  })
+
   it('resends an edited root user message by creating a root sibling', async () => {
     const editedParts = [{ type: 'text', text: 'edited root prompt' } as CherryMessagePart]
     const createSiblingTrigger = vi.fn().mockResolvedValue({

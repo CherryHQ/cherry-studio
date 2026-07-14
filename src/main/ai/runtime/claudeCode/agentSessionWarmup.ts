@@ -4,11 +4,11 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import {
   isExternalCliProvider,
   isGeminiProvider,
@@ -239,10 +239,7 @@ async function resolveApiGatewayRuntime(): Promise<{ baseUrl: string; apiKey: st
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {
-  if (isManagedCherryAiDefaultModel(ref.providerId, ref.apiModelId)) {
-    throw new Error('CherryAI managed default model is not available through the API gateway')
-  }
-  return `${ref.providerId}:${ref.apiModelId}`
+  return formatGatewayModelId(ref.providerId, ref.apiModelId)
 }
 
 function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
