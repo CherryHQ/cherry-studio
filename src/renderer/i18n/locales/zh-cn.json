@@ -7899,7 +7899,7 @@
       },
       "error": {
         "dependency_missing": "请先在环境依赖中安装 BabelDOC 0.6.3，再翻译 PDF。",
-        "ocr_required": "此 PDF 没有可提取的文字，请先添加 OCR 文字层再进行翻译。",
+        "ocr_required": "此 PDF 需要 OCR 翻译，将在后续版本支持。",
         "title": "PDF 翻译失败"
       },
       "export_failed": "导出译文 PDF 失败",
