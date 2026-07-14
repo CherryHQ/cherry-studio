@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "Aucune compétence activée",
             "search_placeholder": "Outils ou serveurs de recherche...",
             "skills_coming_soon": "Associations de compétences à venir",
+            "skills_enable_all": "Tout activer",
             "skills_require_save": "Enregistrer avant d'activer les compétences",
             "tab": {
               "mcp": "Serveur MCP",

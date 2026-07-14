@@ -7,7 +7,7 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/c
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -203,14 +203,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       let created: Assistant
       try {
         created = await createAssistant({
-          body: {
-            name: values.name,
-            emoji: values.avatar,
-            modelId: values.modelId,
-            description: values.description,
-            prompt: values.prompt,
-            knowledgeBaseIds: values.knowledgeBaseIds
-          }
+          body: buildCreateAssistantDto(values)
         })
       } catch (error) {
         logger.error('Failed to create assistant from selector', error as Error)

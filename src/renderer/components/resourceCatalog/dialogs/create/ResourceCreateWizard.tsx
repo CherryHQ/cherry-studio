@@ -141,6 +141,9 @@ export function ResourceCreateWizard({
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
   const { defaultModel } = useDefaultModel()
+  const selectableDefaultModelId =
+    open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
+  const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
@@ -164,24 +167,45 @@ export function ResourceCreateWizard({
     return [basic, persona, last]
   }, [kind, t])
 
-  const defaultCreateModelId = useMemo<UniqueModelId | null>(() => {
-    if (!defaultModel) return null
-    if (modelFilter && !modelFilter(defaultModel)) return null
-    return defaultModel.id
-  }, [defaultModel, modelFilter])
-
   useEffect(() => {
     if (!open) return
+    autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
 
+  // Preference/model hydration may finish after the dialog opens. Seed only an
+  // empty field, and retract only a value that this effect auto-selected if it
+  // later falls outside the active model filter.
   useEffect(() => {
-    if (!open || !defaultCreateModelId) return
-    if (form.getValues('modelId')) return
-    form.setValue('modelId', defaultCreateModelId, { shouldDirty: false, shouldTouch: false })
-  }, [defaultCreateModelId, form, open])
+    if (!open) {
+      autoSelectedDefaultModelIdRef.current = null
+      return
+    }
+
+    const currentModelId = form.getValues('modelId')
+    const autoSelectedModelId = autoSelectedDefaultModelIdRef.current
+    if (
+      autoSelectedModelId &&
+      currentModelId === autoSelectedModelId &&
+      selectableDefaultModelId !== autoSelectedModelId
+    ) {
+      autoSelectedDefaultModelIdRef.current = null
+      form.setValue('modelId', null, { shouldDirty: false, shouldTouch: false })
+      return
+    }
+
+    if (currentModelId || !selectableDefaultModelId) {
+      if (autoSelectedModelId && currentModelId !== autoSelectedModelId) {
+        autoSelectedDefaultModelIdRef.current = null
+      }
+      return
+    }
+
+    autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
+    form.setValue('modelId', selectableDefaultModelId, { shouldDirty: false, shouldTouch: false })
+  }, [form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
 

@@ -27,8 +27,8 @@ import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ResourceCatalogSearchInput } from '../ResourceCatalogSearchInput'
 import { ResourceCard } from './ResourceCards'
-import { ResourceCatalogSearchInput } from './ResourceCatalogSearchInput'
 
 const logger = loggerService.withContext('ResourceGrid')
 

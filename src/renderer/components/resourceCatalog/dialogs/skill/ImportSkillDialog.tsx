@@ -1,5 +1,6 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
+import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
 import { CheckCircle2, CircleAlert, FolderOpen, Loader2, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -9,11 +10,9 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Fired after successful install(s) so the parent can refetch the grid. */
-  onInstalled?: () => void
 }
 
-type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string }
+type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
 type InstallingKey = null | 'zip' | 'directory'
 type ImportKind = 'zip' | 'directory'
 type ImportItemStatus = 'pending' | 'installing' | 'success' | 'error'
@@ -28,16 +27,16 @@ type ImportItem = {
 }
 
 /**
- * Import-config dialog for skills — local install only (ZIP file or directory
- * containing `SKILL.md`). Marketplace search lives in 设置 → Skills; the
- * library entry intentionally keeps a tighter surface.
+ * Skill import dialog — local install only (ZIP file or directory
+ * containing `SKILL.md`). Online registry search stays in the sibling
+ * `SkillMarketplaceDialog`, keeping local and remote install flows separate.
  *
  * Drop-zone + explicit picker buttons share the same pipeline through
  * `useSkillInstall.installFromZip` / `installFromDirectory`. Cache
  * invalidation for `/skills` is handled inside the hook, so the library
  * grid refreshes automatically after each successful install.
  */
-export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
+export function ImportSkillDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
   const { installFromZip, installFromDirectory } = useSkillInstall()
 
@@ -103,8 +102,6 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
           }
         }
 
-        if (successCount > 0) onInstalled?.()
-
         if (preErrorCount === nextItems.length) {
           setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
         } else if (failedCount > 0) {
@@ -116,19 +113,18 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
               total: nextItems.length
             })
           })
-        } else if (nextItems.length === 1 && lastSkill) {
-          setStatus({ kind: 'success', message: t('settings.skills.installSuccess', { name: lastSkill.name }) })
         } else {
-          setStatus({
-            kind: 'success',
-            message: t('settings.skills.batchInstallComplete', { count: successCount })
-          })
+          const message =
+            nextItems.length === 1 && lastSkill
+              ? t('settings.skills.installSuccess', { name: lastSkill.name })
+              : t('settings.skills.batchInstallComplete', { count: successCount })
+          toast.success(message)
         }
       } finally {
         setInstalling(null)
       }
     },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, onInstalled, t, updateItem]
+    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
   )
 
   const createImportItem = useCallback(
@@ -321,15 +317,16 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
           <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
             <ImportItemStatusIcon status={item.status} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-foreground">{item.name}</div>
-              <div className="mt-0.5 truncate text-foreground-muted">
-                {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                {item.status === 'installing' ? t('common.loading') : null}
-                {item.status === 'success'
-                  ? t('settings.skills.installSuccess', { name: item.skillName ?? item.name })
-                  : null}
-                {item.status === 'error' ? item.error : null}
+              <div className="truncate text-foreground">
+                {item.status === 'success' ? (item.skillName ?? item.name) : item.name}
               </div>
+              {item.status !== 'success' ? (
+                <div className="mt-0.5 truncate text-foreground-muted">
+                  {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
+                  {item.status === 'installing' ? t('common.loading') : null}
+                  {item.status === 'error' ? item.error : null}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
@@ -354,20 +351,6 @@ function ImportItemStatusIcon({ status }: { status: ImportItemStatus }) {
 function StatusBanner({ status }: { status: ImportStatus }) {
   return (
     <AnimatePresence>
-      {status.kind === 'success' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className="mt-4">
-          <Alert
-            type="success"
-            showIcon
-            message={status.message}
-            className="rounded-md px-3 py-2 text-xs shadow-none"
-          />
-        </motion.div>
-      )}
       {status.kind === 'error' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}

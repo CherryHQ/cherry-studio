@@ -799,12 +799,14 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
-    Switch: ({ isSelected, onValueChange, ...props }) =>
+    Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
         type: 'checkbox',
-        checked: isSelected,
-        onChange: (e) => onValueChange?.(e.target.checked),
+        role: 'switch',
+        checked,
+        defaultChecked,
+        onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
     // Popover primitives — Radix-style trigger / content split
