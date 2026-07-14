@@ -73,8 +73,9 @@ export interface AgentRuntimeConnection {
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
    * current turn instead of opening a new one; if the turn ends before it is injected the connection
-   * emits `steer-undelivered`. Returns false when there is no live turn to steer, so the host queues
-   * the message as the next turn. Omitted ⇒ no native steer ⇒ host always queues.
+   * emits `steer-undelivered`. Returns false when there is no live turn or the message cannot be
+   * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
+   * host always queues.
    */
   redirect?(input: AgentRuntimeUserInput): boolean
   applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
