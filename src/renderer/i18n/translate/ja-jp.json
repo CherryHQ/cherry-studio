@@ -1461,7 +1461,8 @@
         "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar"
+        "customize": "[to be translated]:Customize toolbar",
+        "restore_default": "[to be translated]:Restore default"
       },
       "tools": {
         "collapse": "折りたたむ",
@@ -1964,6 +1965,11 @@
       },
       "select_placeholder": "選択…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "システムファイルへのCLI設定の書き込みに失敗しました",
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
@@ -2043,6 +2049,7 @@
     "model_required": "モデルを選択してください",
     "model_selection": "モデル選択",
     "more": "もっと",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "一致するプロバイダーがありません",
     "no_model_for_provider": "このプロバイダーには利用可能なモデルがありません",
     "no_providers_description": "設定 → モデルサービスで対応しているプロバイダーを有効にする",
@@ -5540,75 +5547,6 @@
         "siyuan": "思源ノートにエクスポート",
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "バックアップファイルを選択"
-        },
-        "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
-        "file": {
-          "button": "ファイルにエクスポート",
-          "content": "モバイルでファイル経由でインポートできるバックアップファイルとしてデータをエクスポートします。",
-          "export_failed": "エクスポートに失敗しました",
-          "export_success": "エクスポート成功",
-          "title": "ファイルとしてエクスポート"
-        },
-        "lan": {
-          "button": "転送を開始",
-          "connected": "接続済み",
-          "connection_failed": "接続に失敗しました",
-          "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
-          "device_list_title": "ローカルネットワークデバイス",
-          "discovered_devices": "発見されたデバイス",
-          "error": {
-            "file_too_large": "ファイルが大きすぎます。最大500MBまでサポートされています。",
-            "init_failed": "初期化に失敗しました",
-            "invalid_file_type": "ZIPファイルのみがサポートされています",
-            "no_file": "ファイルが選択されていません",
-            "no_ip": "IPアドレスを取得できません",
-            "not_connected": "まずハンドシェイクを完了してください",
-            "send_failed": "ファイルの送信に失敗しました"
-          },
-          "file_transfer": {
-            "cancelled": "転送がキャンセルされました",
-            "failed": "ファイル転送に失敗しました: {{message}}",
-            "progress": "送信中... {{progress}}%",
-            "success": "ファイルは正常に送信されました"
-          },
-          "handshake": {
-            "button": "握手",
-            "failed": "ハンドシェイクに失敗しました: {{message}}",
-            "in_progress": "ハンドシェイク中...",
-            "success": "{{device}}とのハンドシェイクが完了しました",
-            "test_message_received": "{{device}}からpongを受信しました",
-            "test_message_sent": "hello world テストペイロードを送信しました"
-          },
-          "idle_hint": "スキャンが一時停止されました。スキャンを開始して、LAN上のCherry Studioピアを検索してください。",
-          "ip_addresses": "IPアドレス",
-          "last_seen": "最後に見たのは{{time}}",
-          "metadata": "メタデータ",
-          "no_connection_warning": "Cherry StudioモバイルでLAN転送を開いてください",
-          "no_devices": "まだLANピアが見つかっていません",
-          "scan_devices": "デバイスをスキャン",
-          "scanning_hint": "ローカルネットワークでCherry Studioのピアをスキャンしています...",
-          "send_file": "ファイルを送信",
-          "status": {
-            "completed": "転送完了",
-            "connected": "接続済み",
-            "connecting": "接続中...",
-            "disconnected": "切断されました",
-            "error": "接続エラー",
-            "initializing": "接続を初期化中...",
-            "preparing": "転送準備中...",
-            "sending": "転送中 {{progress}}%"
-          },
-          "status_badge_idle": "アイドル",
-          "status_badge_scanning": "スキャン",
-          "stop_scan": "スキャンを停止",
-          "title": "LAN転送",
-          "transfer_progress": "転送進行"
-        },
-        "title": "スマートフォンにエクスポート"
       },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",

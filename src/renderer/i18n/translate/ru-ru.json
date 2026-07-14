@@ -1461,7 +1461,8 @@
         "unsupported_model": "Текущая модель не поддерживает регулируемое рассуждение"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar"
+        "customize": "[to be translated]:Customize toolbar",
+        "restore_default": "[to be translated]:Restore default"
       },
       "tools": {
         "collapse": "Свернуть",
@@ -1964,6 +1965,11 @@
       },
       "select_placeholder": "Выбрать…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "Не удалось записать конфигурацию CLI в системный файл",
     "auto_update_to_latest": "Автоматически обновлять до последней версии",
     "bun_required_message": "Запуск CLI-инструментов требует установки среды Bun",
@@ -2043,6 +2049,7 @@
     "model_required": "Пожалуйста, выберите модель",
     "model_selection": "Выбор модели",
     "more": "Больше",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "Нет подходящих провайдеров",
     "no_model_for_provider": "Нет доступных моделей для этого провайдера",
     "no_providers_description": "Включите поддерживаемого провайдера в Настройки → Сервис моделей",
@@ -5540,75 +5547,6 @@
         "siyuan": "Экспорт в SiYuan Note",
         "title": "Настройки меню экспорта",
         "yuque": "Экспорт в Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Выберите файл резервной копии"
-        },
-        "content": "Экспорт части данных, включая историю чатов и настройки. Обратите внимание, процесс резервного копирования может занять некоторое время, благодарим за ваше терпение.",
-        "file": {
-          "button": "Экспорт в файл",
-          "content": "Экспортируйте данные как резервный файл, который можно импортировать на мобильное устройство через файл.",
-          "export_failed": "Экспорт не удался",
-          "export_success": "Экспорт выполнен успешно",
-          "title": "Экспортировать как файл"
-        },
-        "lan": {
-          "button": "Начать передачу",
-          "connected": "Подключено",
-          "connection_failed": "Соединение не удалось",
-          "content": "Убедитесь, что компьютер и телефон подключены к одной сети, чтобы использовать локальную передачу. Откройте приложение Cherry Studio и отсканируйте этот QR-код.",
-          "device_list_title": "Устройства локальной сети",
-          "discovered_devices": "Обнаруженные устройства",
-          "error": {
-            "file_too_large": "Файл слишком большой, поддерживается максимум 500 МБ.",
-            "init_failed": "Инициализация не удалась",
-            "invalid_file_type": "Поддерживаются только ZIP-файлы",
-            "no_file": "Файл не выбран",
-            "no_ip": "Не удалось получить IP-адрес",
-            "not_connected": "Пожалуйста, сначала завершите рукопожатие",
-            "send_failed": "Не удалось отправить файл"
-          },
-          "file_transfer": {
-            "cancelled": "Перевод отменён",
-            "failed": "Передача файла не удалась: {{message}}",
-            "progress": "Отправка... {{progress}}%",
-            "success": "Файл успешно отправлен"
-          },
-          "handshake": {
-            "button": "Рукопожатие",
-            "failed": "Сбой рукопожатия: {{message}}",
-            "in_progress": "Рукопожатие...",
-            "success": "Рукопожатие завершено с {{device}}",
-            "test_message_received": "Получен понг от {{device}}",
-            "test_message_sent": "Отправлен тестовый полезный груз \"hello world\""
-          },
-          "idle_hint": "Сканирование приостановлено. Начните сканирование, чтобы найти пиры Cherry Studio в вашей локальной сети.",
-          "ip_addresses": "IP-адреса",
-          "last_seen": "В последний раз был(а) в сети в {{time}}",
-          "metadata": "Метаданные",
-          "no_connection_warning": "Пожалуйста, откройте LAN Transfer в мобильном приложении Cherry Studio",
-          "no_devices": "Пока не найдено участников локальной сети",
-          "scan_devices": "Сканировать устройства",
-          "scanning_hint": "Сканирование локальной сети на наличие узлов Cherry Studio...",
-          "send_file": "Отправить файл",
-          "status": {
-            "completed": "Перевод завершён",
-            "connected": "Подключено",
-            "connecting": "Подключение...",
-            "disconnected": "Отключено",
-            "error": "Ошибка подключения",
-            "initializing": "Инициализация соединения...",
-            "preparing": "Подготовка передачи...",
-            "sending": "Передача {{progress}}%"
-          },
-          "status_badge_idle": "Бездействие",
-          "status_badge_scanning": "Сканирование",
-          "stop_scan": "Остановить сканирование",
-          "title": "Передача по локальной сети",
-          "transfer_progress": "Прогресс передачи"
-        },
-        "title": "Экспорт на телефон"
       },
       "hour_interval_one": "{{count}} час",
       "hour_interval_other": "{{count}} часов",

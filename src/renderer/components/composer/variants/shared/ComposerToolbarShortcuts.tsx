@@ -6,7 +6,7 @@ import {
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,6 +41,9 @@ interface ShortcutCandidate {
 interface ComposerToolbarShortcutsProps {
   pinnedIds: readonly string[]
   onPinnedIdsChange: (next: string[]) => void
+  onResetPinnedIds: () => void
+  /** True when the pinned list already equals the default — disables the reset control. */
+  isDefault: boolean
   customTools?: readonly ComposerToolbarCustomTool[]
   customizeOpen: boolean
   onCustomizeOpenChange: (open: boolean) => void
@@ -68,6 +71,8 @@ const CUSTOMIZE_ROW_ICON_CLASS =
 export const ComposerToolbarShortcuts = ({
   pinnedIds,
   onPinnedIdsChange,
+  onResetPinnedIds,
+  isDefault,
   customTools,
   customizeOpen,
   onCustomizeOpenChange,
@@ -232,6 +237,18 @@ export const ComposerToolbarShortcuts = ({
             />
           </div>
         ))}
+        <div className="mx-2 mt-1.5 border-border border-t pt-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-full justify-start px-2 text-muted-foreground text-sm hover:text-foreground"
+            disabled={isDefault}
+            onClick={onResetPinnedIds}>
+            <RotateCcw className="size-4" />
+            {t('chat.input.toolbar.restore_default')}
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   )

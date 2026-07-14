@@ -777,6 +777,8 @@ const AgentComposerInner = ({
   const {
     pinnedIds: pinnedToolIds,
     setPinnedIds: setPinnedToolIds,
+    resetPinnedIds: resetPinnedToolIds,
+    isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
     customizePanelItem
@@ -1194,6 +1196,8 @@ const AgentComposerInner = ({
       <ComposerToolbarShortcuts
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
+        onResetPinnedIds={resetPinnedToolIds}
+        isDefault={pinnedToolsAtDefault}
         customTools={skillsCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
@@ -1201,7 +1205,15 @@ const AgentComposerInner = ({
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
-    [customizeToolbarOpen, pinnedToolIds, setCustomizeToolbarOpen, setPinnedToolIds, skillsCustomTools]
+    [
+      customizeToolbarOpen,
+      pinnedToolIds,
+      pinnedToolsAtDefault,
+      resetPinnedToolIds,
+      setCustomizeToolbarOpen,
+      setPinnedToolIds,
+      skillsCustomTools
+    ]
   )
 
   const controlSlots = renderControls({

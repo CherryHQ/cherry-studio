@@ -1461,7 +1461,8 @@
         "unsupported_model": "Modelul actual nu acceptă raționament ajustabil"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar"
+        "customize": "[to be translated]:Customize toolbar",
+        "restore_default": "[to be translated]:Restore default"
       },
       "tools": {
         "collapse": "Restrânge",
@@ -1964,6 +1965,11 @@
       },
       "select_placeholder": "Selectare…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "Nu s-a reușit scrierea configurației CLI în fișierul de sistem",
     "auto_update_to_latest": "Actualizează automat la cea mai recentă versiune",
     "bun_required_message": "Mediul Bun este necesar pentru a rula instrumente CLI",
@@ -2043,6 +2049,7 @@
     "model_required": "Te rugăm să selectezi un model",
     "model_selection": "Selecția modelului",
     "more": "Mai mult",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "Niciun furnizor corespunzător",
     "no_model_for_provider": "Niciun model disponibil pentru acest furnizor",
     "no_providers_description": "Activați un furnizor acceptat în Setări → Serviciu Model",
@@ -5540,75 +5547,6 @@
         "siyuan": "Exportă în SiYuan Note",
         "title": "Setări meniu export",
         "yuque": "Exportă în Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Selectează fișierul de backup"
-        },
-        "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
-        "file": {
-          "button": "Exportă în fișier",
-          "content": "Exportă datele ca fișier de rezervă care poate fi importat pe mobil prin fișier.",
-          "export_failed": "Exportul a eșuat",
-          "export_success": "Export reușit",
-          "title": "Exportă ca fișier"
-        },
-        "lan": {
-          "button": "Începe Transferul",
-          "connected": "Conectat",
-          "connection_failed": "Conexiune eșuată",
-          "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",
-          "device_list_title": "Dispozitive în rețeaua locală",
-          "discovered_devices": "Dispozitive descoperite",
-          "error": {
-            "file_too_large": "Fișier prea mare, maxim 500MB acceptat",
-            "init_failed": "Inițializare eșuată",
-            "invalid_file_type": "Doar fișierele ZIP sunt acceptate",
-            "no_file": "Niciun fișier selectat",
-            "no_ip": "Nu se poate obține adresa IP",
-            "not_connected": "Te rugăm să finalizezi handshake-ul mai întâi",
-            "send_failed": "Trimiterea fișierului a eșuat"
-          },
-          "file_transfer": {
-            "cancelled": "Transfer anulat",
-            "failed": "Transfer fișier eșuat: {{message}}",
-            "progress": "Se trimite... {{progress}}%",
-            "success": "Fișier trimis cu succes"
-          },
-          "handshake": {
-            "button": "Handshake",
-            "failed": "Handshake eșuat: {{message}}",
-            "in_progress": "Se efectuează handshake...",
-            "success": "Handshake finalizat cu {{device}}",
-            "test_message_received": "Primit pong de la {{device}}",
-            "test_message_sent": "Trimis payload test hello world"
-          },
-          "idle_hint": "Scanare în pauză. Începe scanarea pentru a găsi parteneri Cherry Studio în LAN.",
-          "ip_addresses": "Adrese IP",
-          "last_seen": "Văzut ultima dată la {{time}}",
-          "metadata": "Metadate",
-          "no_connection_warning": "Te rugăm să deschizi Transfer LAN pe mobil în Cherry Studio",
-          "no_devices": "Încă nu s-au găsit parteneri LAN",
-          "scan_devices": "Scanează dispozitive",
-          "scanning_hint": "Se scanează rețeaua locală pentru parteneri Cherry Studio...",
-          "send_file": "Trimite fișier",
-          "status": {
-            "completed": "Transfer finalizat",
-            "connected": "Conectat",
-            "connecting": "Se conectează...",
-            "disconnected": "Deconectat",
-            "error": "Eroare de conexiune",
-            "initializing": "Se inițializează conexiunea...",
-            "preparing": "Se pregătește transferul...",
-            "sending": "Se transferă {{progress}}%"
-          },
-          "status_badge_idle": "Inactiv",
-          "status_badge_scanning": "Se scanează",
-          "stop_scan": "Oprește scanarea",
-          "title": "Transmisie LAN",
-          "transfer_progress": "Progres transfer"
-        },
-        "title": "Exportă pe telefon"
       },
       "hour_interval_one": "{{count}} oră",
       "hour_interval_other": "{{count}} ore",

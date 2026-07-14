@@ -1461,7 +1461,8 @@
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar"
+        "customize": "[to be translated]:Customize toolbar",
+        "restore_default": "[to be translated]:Restore default"
       },
       "tools": {
         "collapse": "Falten",
@@ -1964,6 +1965,11 @@
       },
       "select_placeholder": "Auswählen…"
     },
+    "api_gateway": {
+      "description": "[to be translated]:Any CLI, every model",
+      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "[to be translated]:Unified Gateway"
+    },
     "apply_failed": "Fehler beim Schreiben der CLI-Konfiguration in die Systemdatei",
     "auto_update_to_latest": "Updates prüfen und neueste Version installieren",
     "bun_required_message": "Bun-Umgebung erforderlich zum Ausführen von CLI-Tools",
@@ -2043,6 +2049,7 @@
     "model_required": "Bitte Modell auswählen",
     "model_selection": "Modellauswahl",
     "more": "Mehr",
+    "move_provider_to_top": "[to be translated]:Move provider to top",
     "no_matching_providers": "Keine passenden Anbieter",
     "no_model_for_provider": "Kein Modell für diesen Anbieter verfügbar",
     "no_providers_description": "Aktiviere einen unterstützten Anbieter unter Einstellungen → Modell-Service",
@@ -5540,75 +5547,6 @@
         "siyuan": "Nach SiYuan-Notizen exportieren",
         "title": "Export-Menü-Einstellungen",
         "yuque": "Nach Yuque exportieren"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Sicherungsdatei auswählen"
-        },
-        "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
-        "file": {
-          "button": "In Datei exportieren",
-          "content": "Exportiere Daten als Sicherungsdatei, die per Datei auf dem Mobilgerät importiert werden kann.",
-          "export_failed": "Export fehlgeschlagen",
-          "export_success": "Export erfolgreich",
-          "title": "Als Datei exportieren"
-        },
-        "lan": {
-          "button": "Übertragung starten",
-          "connected": "Verbunden",
-          "connection_failed": "Verbindung fehlgeschlagen",
-          "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
-          "device_list_title": "Lokale Netzwerkgeräte",
-          "discovered_devices": "Entdeckte Geräte",
-          "error": {
-            "file_too_large": "Datei zu groß, maximal 500 MB unterstützt",
-            "init_failed": "Initialisierung fehlgeschlagen",
-            "invalid_file_type": "Nur ZIP-Dateien werden unterstützt",
-            "no_file": "Keine Datei ausgewählt",
-            "no_ip": "IP-Adresse kann nicht abgerufen werden",
-            "not_connected": "Bitte vervollständigen Sie zuerst das Handshake.",
-            "send_failed": "Fehler beim Senden der Datei"
-          },
-          "file_transfer": {
-            "cancelled": "Überweisung storniert",
-            "failed": "Dateiübertragung fehlgeschlagen: {{message}}",
-            "progress": "Senden... {{progress}}%",
-            "success": "Datei erfolgreich gesendet"
-          },
-          "handshake": {
-            "button": "Handshake",
-            "failed": "Handshake fehlgeschlagen: {{message}}",
-            "in_progress": "Handshake läuft...",
-            "success": "Handshake mit {{device}} abgeschlossen",
-            "test_message_received": "Pong von {{device}} empfangen",
-            "test_message_sent": "Hallo-Welt-Test-Payload gesendet"
-          },
-          "idle_hint": "Scanvorgang pausiert. Starten Sie das Scannen, um Cherry-Studio-Peers in Ihrem LAN zu finden.",
-          "ip_addresses": "IP-Adressen",
-          "last_seen": "Zuletzt gesehen um {{time}}",
-          "metadata": "Metadaten",
-          "no_connection_warning": "Bitte öffne LAN-Transfer in der Cherry Studio Mobile-App.",
-          "no_devices": "Noch keine LAN-Peers gefunden",
-          "scan_devices": "Geräte scannen",
-          "scanning_hint": "Scanne dein lokales Netzwerk nach Cherry-Studio-Peers …",
-          "send_file": "Datei senden",
-          "status": {
-            "completed": "Übertragung abgeschlossen",
-            "connected": "Verbunden",
-            "connecting": "Verbindung wird hergestellt...",
-            "disconnected": "Getrennt",
-            "error": "Verbindungsfehler",
-            "initializing": "Verbindung wird initialisiert...",
-            "preparing": "Übertragung wird vorbereitet...",
-            "sending": "Übertrage {{progress}}%"
-          },
-          "status_badge_idle": "Leerlauf",
-          "status_badge_scanning": "Scannen",
-          "stop_scan": "Scanvorgang stoppen",
-          "title": "LAN-Übertragung",
-          "transfer_progress": "Übertragungsfortschritt"
-        },
-        "title": "Auf Telefon exportieren"
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",

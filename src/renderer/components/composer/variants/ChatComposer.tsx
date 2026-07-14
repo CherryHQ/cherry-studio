@@ -503,6 +503,8 @@ const ChatComposerInner = ({
   const {
     pinnedIds: pinnedToolIds,
     setPinnedIds: setPinnedToolIds,
+    resetPinnedIds: resetPinnedToolIds,
+    isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
     customizePanelItem
@@ -1037,13 +1039,22 @@ const ChatComposerInner = ({
       <ComposerToolbarShortcuts
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
+        onResetPinnedIds={resetPinnedToolIds}
+        isDefault={pinnedToolsAtDefault}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
-    [customizeToolbarOpen, pinnedToolIds, setCustomizeToolbarOpen, setPinnedToolIds]
+    [
+      customizeToolbarOpen,
+      pinnedToolIds,
+      pinnedToolsAtDefault,
+      resetPinnedToolIds,
+      setCustomizeToolbarOpen,
+      setPinnedToolIds
+    ]
   )
 
   if (isMultiSelectMode) return null

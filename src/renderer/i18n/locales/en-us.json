@@ -1461,7 +1461,8 @@
         "unsupported_model": "Current model does not support adjustable reasoning"
       },
       "toolbar": {
-        "customize": "Customize toolbar"
+        "customize": "Customize toolbar",
+        "restore_default": "Restore default"
       },
       "tools": {
         "collapse": "Collapse",

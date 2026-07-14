@@ -92,6 +92,8 @@ const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarSho
   const props = {
     pinnedIds: ['thinking', 'ghost', 'web-search'],
     onPinnedIdsChange: vi.fn(),
+    onResetPinnedIds: vi.fn(),
+    isDefault: false,
     customizeOpen: false,
     onCustomizeOpenChange: vi.fn(),
     inputAdapter: { focus: vi.fn() } as any,
@@ -201,6 +203,18 @@ describe('ComposerToolbarShortcuts', () => {
 
     mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith(['web-search', 'ghost', 'thinking'])
+  })
+
+  it('restores the default pinned set, disabling the control when already at default', () => {
+    const { rerender, props } = renderShortcuts({ customizeOpen: true })
+
+    const resetButton = screen.getByRole('button', { name: 'chat.input.toolbar.restore_default' })
+    expect(resetButton).toBeEnabled()
+    fireEvent.click(resetButton)
+    expect(props.onResetPinnedIds).toHaveBeenCalledTimes(1)
+
+    rerender(<ComposerToolbarShortcuts {...props} isDefault />)
+    expect(screen.getByRole('button', { name: 'chat.input.toolbar.restore_default' })).toBeDisabled()
   })
 
   it('names the customize dialog via aria-labelledby referencing the visible title', () => {

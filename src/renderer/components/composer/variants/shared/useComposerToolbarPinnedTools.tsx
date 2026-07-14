@@ -2,6 +2,7 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { Settings2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +29,13 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
     [persistPinnedIds, t]
   )
 
+  const defaultPinnedIds = useMemo(() => getDefaultValue(prefKey), [prefKey])
+  const isDefault = useMemo(
+    () => pinnedIds.length === defaultPinnedIds.length && pinnedIds.every((id, i) => id === defaultPinnedIds[i]),
+    [defaultPinnedIds, pinnedIds]
+  )
+  const resetPinnedIds = useCallback(() => setPinnedIds([...defaultPinnedIds]), [defaultPinnedIds, setPinnedIds])
+
   const customizePanelItem = useMemo<QuickPanelListItem>(() => {
     const label = t('chat.input.toolbar.customize')
     return {
@@ -41,5 +49,5 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
     }
   }, [t])
 
-  return { pinnedIds, setPinnedIds, customizeOpen, setCustomizeOpen, customizePanelItem }
+  return { pinnedIds, setPinnedIds, resetPinnedIds, isDefault, customizeOpen, setCustomizeOpen, customizePanelItem }
 }
