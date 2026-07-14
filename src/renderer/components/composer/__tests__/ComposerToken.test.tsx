@@ -338,8 +338,10 @@ describe('ComposerToken', () => {
       'border-border',
       'bg-background',
       'hover:bg-accent',
+      'align-middle',
       'leading-[inherit]'
     )
+    expect(token).not.toHaveClass('align-baseline')
     expect(token).not.toHaveClass('bg-muted')
     expect(token).not.toHaveClass('py-0.5', 'leading-5')
 
@@ -457,7 +459,8 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('h-6', 'align-baseline', 'border-primary', 'ring-1', 'ring-ring')
+    expect(token).toHaveClass('h-6', 'align-middle', 'border-primary', 'ring-1', 'ring-ring')
+    expect(token).not.toHaveClass('align-baseline')
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
@@ -556,7 +559,8 @@ describe('ComposerToken', () => {
     )
 
     const token = expectFileTokenVariant(container, 'pdf', ['bg-[var(--color-red-100)]', 'text-[var(--color-red-700)]'])
-    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).toHaveClass('align-middle', 'border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('align-baseline')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
     expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('text-current', 'dark:text-black')
