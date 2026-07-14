@@ -90,7 +90,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   )
 
   return (
-    <div ref={anchorRef} className="group/completed-tool-history mb-2 w-full max-w-full pb-2">
+    <div ref={anchorRef} className={`group/completed-tool-history mb-2 w-full max-w-full ${isExpanded ? 'pb-2' : ''}`}>
       <Accordion
         type="single"
         collapsible
