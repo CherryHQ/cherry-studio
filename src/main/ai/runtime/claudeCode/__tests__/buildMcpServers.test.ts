@@ -61,7 +61,6 @@ const {
   adjustAllowedToolsForMcp,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
-  formatNetworkProbeLine,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
 
@@ -117,13 +116,17 @@ describe('adjustAllowedToolsForMcp', () => {
     expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
-  it('additionally lists assistant tools for the Cherry Assistant, excluding kb_manage', () => {
+  it('additionally lists only the navigate assistant tool for the Cherry Assistant', () => {
     const allowed = adjustAllowedToolsForMcp(true)
     expect(allowed).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__*'])
+      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__navigate'])
     )
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
+    // diagnose reads local logs/source/config — it must go through per-call approval, so neither
+    // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
+    expect(allowed).not.toContain('mcp__assistant__diagnose')
+    expect(allowed).not.toContain('mcp__assistant__*')
   })
 })
 
@@ -206,16 +209,5 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     )
 
     expect(mockMkdir).not.toHaveBeenCalled()
-  })
-})
-
-// claude-code-driver-3: the probe line must not embed volatile latency, or the assistant
-// systemPrompt (and thus the warm-query signature) differs every run and warm queries never reuse.
-describe('formatNetworkProbeLine', () => {
-  it('emits a stable reachable/unreachable line with no latency', () => {
-    expect(formatNetworkProbeLine({ host: 'github.com', ok: true })).toBe('- github.com: reachable')
-    expect(formatNetworkProbeLine({ host: 'github.com', ok: false })).toBe('- github.com: unreachable')
-    // No digits/ms — the line is identical across probe runs regardless of measured latency.
-    expect(formatNetworkProbeLine({ host: 'x', ok: true })).not.toMatch(/\d|ms/)
   })
 })
