@@ -8,6 +8,8 @@ const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
+const discoverSystemSkillsMock = vi.hoisted(() => vi.fn())
+const registerSystemSkillMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -30,6 +32,10 @@ function stubSkillRoutes() {
         return installSkillFromZipMock(input)
       case 'skill.install_from_directory':
         return installSkillFromDirectoryMock(input)
+      case 'skill.discover_system':
+        return discoverSystemSkillsMock(input)
+      case 'skill.register_system':
+        return registerSystemSkillMock(input)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -37,10 +43,10 @@ function stubSkillRoutes() {
 }
 
 import { toast } from '@renderer/services/toast'
-import type { InstalledSkill } from '@shared/types/skill'
+import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
-import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch, useSystemSkills } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -304,6 +310,68 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toast.error).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('useSystemSkills', () => {
+  const candidate: SystemSkillCandidate = {
+    id: 'candidate-1',
+    name: 'System Skill',
+    description: 'Installed by Codex',
+    filename: 'system-skill',
+    directoryPath: '/home/test/.codex/skills/system-skill',
+    placements: [
+      {
+        sourceId: 'codex',
+        sourceName: 'Codex',
+        directoryPath: '/home/test/.codex/skills/system-skill'
+      }
+    ],
+    status: 'available'
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+    discoverSystemSkillsMock.mockResolvedValue({ success: true, data: [candidate] })
+    registerSystemSkillMock.mockResolvedValue({
+      success: true,
+      data: createSkill({
+        id: 'system-skill-id',
+        name: candidate.name,
+        folderName: candidate.filename,
+        source: 'system',
+        sourceUrl: 'file:///home/test/.codex/skills/system-skill',
+        namespace: 'codex',
+        isEnabled: true
+      })
+    })
+    stubSkillRoutes()
+  })
+
+  it('discovers system skills for the required agent', async () => {
+    const { result } = renderHook(() => useSystemSkills('agent-1'))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills).toEqual([candidate])
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', { agentId: 'agent-1' })
+  })
+
+  it('registers by reference and enables for the same agent', async () => {
+    const { result } = renderHook(() => useSystemSkills('agent-1'))
+    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
+
+    await act(async () => {
+      const installed = await result.current.register(candidate)
+      expect(installed).toMatchObject({ source: 'system', isEnabled: true })
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.register_system', {
+      directoryPath: candidate.directoryPath,
+      agentId: 'agent-1'
+    })
+    expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 })
 

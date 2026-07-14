@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
@@ -10,18 +12,23 @@ import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import type {
   SkillFileNode,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
-  SkillToggleOptions
+  SkillRegisterSystemOptions,
+  SkillToggleOptions,
+  SystemSkillCandidate,
+  SystemSkillPlacement
 } from '@shared/types/skill'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
 import { SkillInstaller } from './SkillInstaller'
+import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
@@ -92,7 +99,7 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return null
 
-    const skillRoot = this.getSkillStoragePath(skill.folderName)
+    const skillRoot = this.getMirrorPath(skill.folderName)
     const filePath = path.resolve(skillRoot, filename)
 
     // Prevent path traversal
@@ -109,7 +116,7 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return []
 
-    const skillRoot = this.getSkillStoragePath(skill.folderName)
+    const skillRoot = this.getMirrorPath(skill.folderName)
     try {
       return await this.buildFileTree(skillRoot, skillRoot)
     } catch {
@@ -144,9 +151,12 @@ export class SkillService {
       throw new Error(`Skill not found: ${skillId}`)
     }
 
-    // Remove from global storage; FK cascade on skill_id deletes agent_skills rows.
-    const skillPath = this.getSkillStoragePath(skill.folderName)
-    await this.installer.uninstall(skillPath)
+    // External system skills are references: uninstall only removes Cherry's
+    // mirror and DB state, never the user-owned source directory.
+    if (skill.source !== 'system') {
+      const skillPath = this.getSkillStoragePath(skill.folderName)
+      await this.installer.uninstall(skillPath)
+    }
     await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skillId)
     logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
@@ -233,6 +243,163 @@ export class SkillService {
     }
 
     return results
+  }
+
+  /** Discover skills in known system-level CLI directories without copying them. */
+  async discoverSystem(agentId: string): Promise<SystemSkillCandidate[]> {
+    const env = await getShellEnv()
+    const sources = buildSystemSkillSources(application.getPath('sys.home'), env)
+    const installed = agentGlobalSkillService.list({ agentId })
+    const installedByPath = new Map(
+      installed.flatMap((skill) => {
+        if (skill.source !== 'system' || !skill.sourceUrl?.startsWith('file:')) return []
+        try {
+          return [[fileURLToPath(skill.sourceUrl), skill] as const]
+        } catch {
+          return []
+        }
+      })
+    )
+    const installedByFolder = new Map(installed.map((skill) => [skill.folderName, skill]))
+    const managedRoot = await fs.promises
+      .realpath(application.getPath('feature.agents.skills'))
+      .catch(() => path.resolve(application.getPath('feature.agents.skills')))
+    const mirrorRoot = path.resolve(this.getMirrorRoot())
+    const candidates = new Map<string, SystemSkillCandidate>()
+
+    for (const source of sources) {
+      if (path.resolve(source.directoryPath) === mirrorRoot) continue
+
+      let entries: fs.Dirent[]
+      try {
+        entries = await fs.promises.readdir(source.directoryPath, { withFileTypes: true })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          logger.warn('Failed to enumerate system skill source', {
+            sourceId: source.id,
+            directoryPath: source.directoryPath,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        continue
+      }
+
+      for (const entry of entries) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+
+        const entryPath = path.join(source.directoryPath, entry.name)
+        try {
+          const [stats, canonicalPath] = await Promise.all([
+            fs.promises.stat(entryPath),
+            fs.promises.realpath(entryPath)
+          ])
+          if (!stats.isDirectory()) continue
+          if (canonicalPath === managedRoot || canonicalPath.startsWith(managedRoot + path.sep)) continue
+
+          const placement: SystemSkillPlacement = {
+            sourceId: source.id,
+            sourceName: source.name,
+            directoryPath: entryPath
+          }
+          const duplicate = candidates.get(canonicalPath)
+          if (duplicate) {
+            duplicate.placements.push(placement)
+            continue
+          }
+
+          const metadata = await parseSkillMetadata(canonicalPath, entry.name, 'skills', { calculateSize: false })
+          const folderName = this.sanitizeFolderName(metadata.filename)
+          const registered = installedByPath.get(canonicalPath)
+          const folderConflict = installedByFolder.get(folderName)
+          const status = registered
+            ? registered.isEnabled
+              ? 'enabled'
+              : 'registered'
+            : folderConflict
+              ? 'conflict'
+              : 'available'
+
+          candidates.set(canonicalPath, {
+            id: createHash('sha256').update(canonicalPath).digest('hex'),
+            name: metadata.name,
+            description: metadata.description,
+            filename: folderName,
+            directoryPath: canonicalPath,
+            placements: [placement],
+            status,
+            registeredSkillId: registered?.id
+          })
+        } catch (error) {
+          logger.warn('Failed to inspect system skill; skipping', {
+            sourceId: source.id,
+            directoryPath: entryPath,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    }
+
+    return Array.from(candidates.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  /** Register a discovered system skill by reference and enable it for one agent. */
+  async registerSystem(options: SkillRegisterSystemOptions): Promise<InstalledSkill> {
+    const canonicalPath = await fs.promises.realpath(options.directoryPath)
+    const candidates = await this.discoverSystem(options.agentId)
+    const candidate = candidates.find((item) => item.directoryPath === canonicalPath)
+    if (!candidate) {
+      throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
+    }
+    if (candidate.status === 'conflict') {
+      throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
+    }
+
+    const existing = candidate.registeredSkillId ? agentGlobalSkillService.getById(candidate.registeredSkillId) : null
+    if (existing) {
+      await this.linkExternalMirror(existing.folderName, canonicalPath)
+      agentGlobalSkillService.upsertJoin(options.agentId, existing.id, true)
+      return { ...existing, isEnabled: true }
+    }
+
+    const metadata = await parseSkillMetadata(canonicalPath, candidate.filename, 'skills', { calculateSize: false })
+    const mirrorCreated = await this.linkExternalMirror(candidate.filename, canonicalPath)
+    let insertedId: string | undefined
+
+    try {
+      application.get('DbService').withWriteTx((tx) => {
+        const inserted = agentGlobalSkillService.insertTx(tx, {
+          name: metadata.name,
+          description: metadata.description ?? null,
+          folderName: candidate.filename,
+          source: 'system',
+          sourceUrl: pathToFileURL(canonicalPath).href,
+          namespace: candidate.placements[0]?.sourceId ?? null,
+          author: metadata.author ?? null,
+          tags: metadata.tags ?? [],
+          contentHash: metadata.contentHash,
+          isEnabled: false
+        })
+        insertedId = inserted.id
+        agentGlobalSkillService.upsertJoinTx(tx, options.agentId, inserted.id, true)
+      })
+    } catch (error) {
+      if (mirrorCreated) await this.unlinkMirror(candidate.filename)
+      throw error
+    }
+
+    const inserted = insertedId ? agentGlobalSkillService.getById(insertedId) : null
+    if (!inserted) {
+      if (mirrorCreated) await this.unlinkMirror(candidate.filename)
+      throw new Error(`Failed to register system skill: ${metadata.name}`)
+    }
+
+    logger.info('System skill registered by reference', {
+      skillId: inserted.id,
+      folderName: inserted.folderName,
+      directoryPath: canonicalPath,
+      agentId: options.agentId
+    })
+    return { ...inserted, isEnabled: true }
   }
 
   /**
@@ -389,6 +556,9 @@ export class SkillService {
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
     const existing = agentGlobalSkillService.getByFolderName(folderName)
+    if (existing?.source === 'system') {
+      throw new Error(`Cannot replace externally referenced skill with a managed copy: ${folderName}`)
+    }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destPath = this.getSkillStoragePath(folderName)
@@ -653,6 +823,41 @@ export class SkillService {
     }
   }
 
+  /**
+   * Link an external system skill directly into the SDK discovery directory.
+   * This is deliberately strict: it never copies and never overwrites another
+   * entry with the same folder name.
+   *
+   * @returns true when a new link was created, false when the correct link already existed.
+   */
+  async linkExternalMirror(folderName: string, sourceDirectory: string): Promise<boolean> {
+    const sourceDir = await fs.promises.realpath(sourceDirectory)
+    const rootDir = path.resolve(this.getMirrorRoot())
+    const targetDir = path.resolve(rootDir, folderName)
+    const relativeTarget = path.relative(rootDir, targetDir)
+    if (!relativeTarget || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+      throw new Error(`Refusing to link skill outside Claude config root: ${folderName}`)
+    }
+
+    const skillMdPath = await findSkillMdPath(sourceDir)
+    if (!skillMdPath) throw new Error(`SKILL.md not found in ${sourceDir}`)
+    await fs.promises.access(skillMdPath, fs.constants.R_OK)
+    await fs.promises.mkdir(rootDir, { recursive: true })
+
+    const targetStat = await fs.promises.lstat(targetDir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return null
+      throw error
+    })
+    if (targetStat) {
+      const targetRealPath = await fs.promises.realpath(targetDir).catch(() => null)
+      if (targetRealPath === sourceDir) return false
+      throw new Error(`Skill mirror entry already exists: ${folderName}`)
+    }
+
+    await fs.promises.symlink(sourceDir, targetDir, isWin ? 'junction' : 'dir')
+    return true
+  }
+
   /** Remove the CLAUDE_CONFIG_DIR/skills mirror entry for a skill. */
   async unlinkMirror(folderName: string): Promise<void> {
     const targetDir = this.getMirrorPath(folderName)
@@ -681,7 +886,20 @@ export class SkillService {
     const known = new Set(all.map((s) => s.folderName))
 
     for (const skill of all) {
-      await this.linkMirror(skill.folderName)
+      if (skill.source === 'system' && skill.sourceUrl?.startsWith('file:')) {
+        try {
+          await this.linkExternalMirror(skill.folderName, fileURLToPath(skill.sourceUrl))
+        } catch (error) {
+          logger.warn('External system skill is unavailable', {
+            skillId: skill.id,
+            folderName: skill.folderName,
+            sourceUrl: skill.sourceUrl,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      } else {
+        await this.linkMirror(skill.folderName)
+      }
     }
 
     const root = this.getMirrorRoot()

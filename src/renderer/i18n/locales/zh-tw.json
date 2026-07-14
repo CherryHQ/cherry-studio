@@ -3464,8 +3464,10 @@
       "title": "圖書館"
     },
     "skill_add": {
+      "add": "新增 Skill",
       "local_import": "本機匯入",
-      "online_search": "線上搜尋"
+      "online_search": "線上搜尋",
+      "system_search": "系統搜尋"
     },
     "skill_detail": {
       "created_at": "建立時間",
@@ -3493,6 +3495,17 @@
       "updated": "依更新時間"
     },
     "subtitle": "管理你的助手、智能體與技能",
+    "system_skill": {
+      "conflict": "名稱衝突",
+      "description": "偵測受支援 CLI 工具安裝的 Skill。Cherry 只建立符號連結，不複製來源檔案。",
+      "empty_description": "未在已知的系統層級 CLI 目錄中發現有效 Skill。",
+      "empty_title": "未發現系統 Skill",
+      "enable": "啟用",
+      "enabled": "已啟用",
+      "reference_enable": "引用並啟用",
+      "reference_enable_success": "已引用並啟用 {{name}}",
+      "title": "系統 Skill"
+    },
     "tag_picker": {
       "no_tags": "尚無標籤",
       "placeholder": "新標籤名稱..."

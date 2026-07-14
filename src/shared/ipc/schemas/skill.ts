@@ -1,4 +1,4 @@
-import type { InstalledSkill, LocalSkill, SkillResult } from '@shared/types/skill'
+import type { InstalledSkill, LocalSkill, SkillResult, SystemSkillCandidate } from '@shared/types/skill'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -33,5 +33,13 @@ export const skillRequestSchemas = {
   'skill.list_local': defineRoute({
     input: z.object({ workdir: z.string().min(1) }),
     output: z.custom<SkillResult<LocalSkill[]>>()
+  }),
+  'skill.discover_system': defineRoute({
+    input: z.object({ agentId: z.string().min(1) }),
+    output: z.custom<SkillResult<SystemSkillCandidate[]>>()
+  }),
+  'skill.register_system': defineRoute({
+    input: z.object({ directoryPath: z.string().min(1), agentId: z.string().min(1) }),
+    output: z.custom<SkillResult<InstalledSkill>>()
   })
 }

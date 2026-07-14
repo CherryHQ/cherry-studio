@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 import { ResourceGrid } from './ResourceGrid'
 import { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
+import { SystemSkillDialog } from './SystemSkillDialog'
 
 type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
@@ -22,6 +23,7 @@ export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
   resourceType: ResourceCatalogViewType
+  skillAgentId?: string
   toolbarLeading?: ReactNode
 }
 
@@ -29,6 +31,7 @@ export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
   resourceType,
+  skillAgentId,
   toolbarLeading
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
@@ -61,7 +64,11 @@ export function ResourceCatalogView({
             </div>
           </>
         ) : (
-          <ResourceGrid {...gridProps} toolbarLeading={toolbarLeading} />
+          <ResourceGrid
+            {...gridProps}
+            onOpenSystemSkills={skillAgentId ? gridProps.onOpenSystemSkills : undefined}
+            toolbarLeading={toolbarLeading}
+          />
         )}
       </div>
 
@@ -96,6 +103,14 @@ export function ResourceCatalogView({
         onOpenChange={dialogs.setSkillMarketplaceOpen}
         onInstalled={refetch}
       />
+      {skillAgentId ? (
+        <SystemSkillDialog
+          agentId={skillAgentId}
+          open={dialogs.systemSkillOpen}
+          onOpenChange={dialogs.setSystemSkillOpen}
+          onRegistered={refetch}
+        />
+      ) : null}
       <ResourceCreateWizard
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}

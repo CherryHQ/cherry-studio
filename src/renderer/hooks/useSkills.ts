@@ -3,7 +3,13 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { searchSkills } from '@renderer/utils/skillSearch'
-import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
+import type {
+  InstalledSkill,
+  LocalSkill,
+  SkillResult,
+  SkillSearchResult,
+  SystemSkillCandidate
+} from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useSkills')
@@ -162,6 +168,78 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     error: installed.error ?? localError,
     refresh
   }
+}
+
+/** Discover and register zero-copy skills from known system-level CLI directories. */
+export function useSystemSkills(agentId: string, enabled = true) {
+  const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [registering, setRegistering] = useState<Set<string>>(() => new Set())
+  const registeringRef = useRef<Set<string>>(new Set())
+  const invalidate = useInvalidateCache()
+  const requestIdRef = useRef(0)
+
+  const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current
+    if (!enabled) {
+      setSkills([])
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await ipcApi.request('skill.discover_system', { agentId })
+      const discovered = unwrapSkillResult(result)
+      if (requestId === requestIdRef.current) setSkills(discovered)
+    } catch (cause) {
+      if (requestId !== requestIdRef.current) return
+      const message = skillErrorMessage(cause)
+      setSkills([])
+      setError(message)
+      logger.warn('Failed to discover system skills', { error: message })
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }, [agentId, enabled])
+
+  useEffect(() => {
+    void refresh()
+    return () => {
+      requestIdRef.current += 1
+    }
+  }, [refresh])
+
+  const register = useCallback(
+    async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
+      if (registeringRef.current.has(skill.id)) return null
+      registeringRef.current.add(skill.id)
+      setRegistering((current) => new Set(current).add(skill.id))
+      try {
+        const installed = unwrapSkillResult(
+          await ipcApi.request('skill.register_system', { directoryPath: skill.directoryPath, agentId })
+        )
+        await Promise.all([refreshSkillsBestEffort(invalidate), refresh()])
+        return installed
+      } catch (cause) {
+        reportSkillMutationError('register system skill', cause)
+        return null
+      } finally {
+        registeringRef.current.delete(skill.id)
+        setRegistering((current) => {
+          const next = new Set(current)
+          next.delete(skill.id)
+          return next
+        })
+      }
+    },
+    [agentId, invalidate, refresh]
+  )
+
+  return { skills, loading, error, refresh, register, registering }
 }
 
 /**

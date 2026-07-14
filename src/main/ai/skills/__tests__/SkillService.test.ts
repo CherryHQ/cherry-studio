@@ -7,7 +7,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { loggerService } from '@logger'
-import { parseSkillMetadata } from '@main/utils/markdownParser'
+import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
@@ -17,6 +17,10 @@ vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
   findAllSkillDirectories: vi.fn().mockResolvedValue([]),
   findSkillMdPath: vi.fn()
+}))
+
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn().mockResolvedValue({})
 }))
 
 import { SkillService } from '../SkillService'
@@ -288,6 +292,110 @@ describe('SkillService', () => {
       } finally {
         warnSpy.mockRestore()
       }
+    })
+  })
+
+  describe('system skills', () => {
+    let skillService: SkillService
+    let home: string
+    let dataSkillsRoot: string
+    let mirrorRoot: string
+    let sourceSkillDir: string
+    let restoreGetPath = () => {}
+
+    beforeEach(async () => {
+      skillService = new SkillService()
+      home = await createTempDir('skill-system-home-')
+      dataSkillsRoot = path.join(home, 'app-data', 'Skills')
+      mirrorRoot = path.join(home, 'app-data', '.claude', 'skills')
+      sourceSkillDir = path.join(home, '.codex', 'skills', 'large-skill')
+      await fs.promises.mkdir(dataSkillsRoot, { recursive: true })
+      await fs.promises.mkdir(mirrorRoot, { recursive: true })
+      await fs.promises.mkdir(sourceSkillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(sourceSkillDir, 'SKILL.md'), '# Large skill')
+
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const roots: Record<string, string> = {
+          'sys.home': home,
+          'feature.agents.skills': dataSkillsRoot,
+          'feature.agents.claude.skills': mirrorRoot
+        }
+        const root = roots[key] ?? path.join(home, 'mock', key)
+        return filename ? path.join(root, filename) : root
+      })
+      restoreGetPath = () => getPathSpy.mockRestore()
+
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'large-skill',
+        filename: 'large-skill',
+        name: 'Large Skill',
+        description: 'Lives outside Cherry',
+        category: 'skills',
+        type: 'skill',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'system-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directoryPath) => path.join(directoryPath, 'SKILL.md'))
+    })
+
+    afterEach(() => {
+      restoreGetPath()
+      vi.mocked(parseSkillMetadata).mockReset()
+      vi.mocked(findSkillMdPath).mockReset()
+    })
+
+    it('discovers direct children of known system roots without calculating directory size', async () => {
+      await seedAgent()
+      const result = await skillService.discoverSystem(AGENT_ID)
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: 'Large Skill',
+          filename: 'large-skill',
+          directoryPath: await fs.promises.realpath(sourceSkillDir),
+          status: 'available',
+          placements: [expect.objectContaining({ sourceId: 'codex', sourceName: 'Codex' })]
+        })
+      ])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(
+        await fs.promises.realpath(sourceSkillDir),
+        'large-skill',
+        'skills',
+        { calculateSize: false }
+      )
+    })
+
+    it('registers and enables a system skill by symlink without copying its directory', async () => {
+      await seedAgent()
+
+      const result = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })
+
+      expect(result).toMatchObject({
+        name: 'Large Skill',
+        source: 'system',
+        sourceUrl: expect.stringMatching(/^file:/),
+        namespace: 'codex',
+        isEnabled: true
+      })
+      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
+        await fs.promises.realpath(sourceSkillDir)
+      )
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'large-skill'))).rejects.toThrow()
+      const joins = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
+      expect(joins).toEqual([expect.objectContaining({ skillId: result.id, isEnabled: true })])
+    })
+
+    it('unregisters an external skill without deleting its source directory', async () => {
+      await seedAgent()
+      const registered = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })
+      const uninstallSpy = vi.spyOn(skillService['installer'], 'uninstall')
+
+      await skillService.uninstall(registered.id)
+
+      expect(uninstallSpy).not.toHaveBeenCalled()
+      await expect(fs.promises.access(path.join(sourceSkillDir, 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(mirrorRoot, 'large-skill'))).rejects.toThrow()
     })
   })
 

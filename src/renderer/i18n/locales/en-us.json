@@ -3464,8 +3464,10 @@
       "title": "Library"
     },
     "skill_add": {
+      "add": "Add Skill",
       "local_import": "Local import",
-      "online_search": "Online search"
+      "online_search": "Online search",
+      "system_search": "System search"
     },
     "skill_detail": {
       "created_at": "Created",
@@ -3493,6 +3495,17 @@
       "updated": "Sort by updated"
     },
     "subtitle": "Manage your assistants, agents and skills",
+    "system_skill": {
+      "conflict": "Name conflict",
+      "description": "Finds skills installed by supported CLI tools. Cherry adds a symbolic link and does not copy source files.",
+      "empty_description": "No valid skills were found in known system-level CLI directories.",
+      "empty_title": "No system skills found",
+      "enable": "Enable",
+      "enabled": "Enabled",
+      "reference_enable": "Reference and enable",
+      "reference_enable_success": "Referenced and enabled {{name}}",
+      "title": "System skills"
+    },
     "tag_picker": {
       "no_tags": "No tags yet",
       "placeholder": "New tag name..."

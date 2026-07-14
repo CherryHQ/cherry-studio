@@ -3464,8 +3464,10 @@
       "title": "资源库"
     },
     "skill_add": {
+      "add": "添加 Skill",
       "local_import": "本地导入",
-      "online_search": "在线搜索"
+      "online_search": "在线搜索",
+      "system_search": "系统搜索"
     },
     "skill_detail": {
       "created_at": "创建时间",
@@ -3493,6 +3495,17 @@
       "updated": "按更新时间"
     },
     "subtitle": "管理你的助手、智能体与技能",
+    "system_skill": {
+      "conflict": "名称冲突",
+      "description": "检测受支持 CLI 工具安装的 Skill。Cherry 只创建符号链接，不复制源文件。",
+      "empty_description": "未在已知的系统级 CLI 目录中发现有效 Skill。",
+      "empty_title": "未发现系统 Skill",
+      "enable": "启用",
+      "enabled": "已启用",
+      "reference_enable": "引用并启用",
+      "reference_enable_success": "已引用并启用 {{name}}",
+      "title": "系统 Skill"
+    },
     "tag_picker": {
       "no_tags": "暂无标签",
       "placeholder": "新标签名..."
