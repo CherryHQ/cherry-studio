@@ -105,7 +105,7 @@ vi.mock('../../hooks/useImageGenerationSupport', () => ({
   useImageGenerationSupport: mockUseImageGenerationSupport
 }))
 
-vi.mock('../PaintingModelSelector', () => ({
+vi.mock('../../../CreationModelSelector', () => ({
   default: () => <div data-testid="painting-model-selector" />
 }))
 

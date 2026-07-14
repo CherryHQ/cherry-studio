@@ -4,7 +4,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { VideoGenerationMode, VideoGenerationSupport } from '@shared/data/types/model'
 
-import { fileEntryToMetadata } from '../../paintings/utils/fileEntryAdapter'
+import { fileEntryToMetadata } from '../image/utils/fileEntryAdapter'
 
 /**
  * Renderer → main bridge for video generation. Mirrors `canonicalGenerate` →

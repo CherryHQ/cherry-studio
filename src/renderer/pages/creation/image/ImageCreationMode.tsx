@@ -1,18 +1,14 @@
 import { useCache } from '@data/hooks/useCache'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import CreationGallery from '@renderer/pages/creation/CreationGallery'
-import CreationModelSelector, {
-  type CreationModelKindSelection,
-  type CreationModelSelection
-} from '@renderer/pages/creation/CreationModelSelector'
-import { creationClasses } from '@renderer/pages/creation/creationPrimitives'
+import type { CreationModelKindSelection, CreationModelSelection } from '@renderer/pages/creation/CreationModelSelector'
 import CreationWorkspace from '@renderer/pages/creation/CreationWorkspace'
 import type { CreationData } from '@renderer/pages/creation/types'
 import { useCreationHistory } from '@renderer/pages/creation/useCreationHistory'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Artboard from './components/Artboard'
-import PaintingPromptBar from './components/PaintingPromptBar'
-import PaintingSettings from './components/PaintingSettings'
+import PaintingComposer from './components/PaintingComposer'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
 import { usePaintingInitialSelection } from './hooks/usePaintingInitialSelection'
@@ -160,37 +156,28 @@ const ImageCreationMode: FC<ImageCreationModeProps> = ({
 
   return (
     <CreationWorkspace
-      modelSelector={
-        <CreationModelSelector
-          className={creationClasses.panelModelSelectorTrigger}
-          providerId={currentPainting.providerId}
-          modelId={currentPainting.model}
-          onSelect={onSelectModel}
-        />
-      }
-      settings={
-        <PaintingSettings
-          painting={currentPainting}
-          onConfigChange={patchPainting}
-          onGenerateRandomSeed={(key) =>
-            patchPainting({
-              params: {
-                ...currentPainting.params,
-                [key]: String(Math.floor(Math.random() * 1_000_000))
-              }
-            })
-          }
-        />
-      }
       artboard={<Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />}
       promptBar={
-        <PaintingPromptBar
-          painting={currentPainting}
-          generating={generating}
-          onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-          onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
-          onGenerate={submit}
-        />
+        <QuickPanelProvider>
+          <PaintingComposer
+            painting={composerPainting}
+            generating={generating}
+            onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+            onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
+            onGenerate={submit}
+            onCancel={onCancel}
+            onModelSelect={onSelectModel}
+            onConfigChange={patchPainting}
+            onGenerateRandomSeed={(key) =>
+              patchPainting({
+                params: {
+                  ...currentPainting.params,
+                  [key]: String(Math.floor(Math.random() * 1_000_000))
+                }
+              })
+            }
+          />
+        </QuickPanelProvider>
       }
       historyStrip={
         <CreationGallery

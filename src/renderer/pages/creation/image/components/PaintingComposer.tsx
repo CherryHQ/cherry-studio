@@ -20,6 +20,7 @@ import {
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
+import CreationModelSelector, { type CreationModelKindSelection } from '@renderer/pages/creation/CreationModelSelector'
 import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
@@ -36,7 +37,6 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { PaintingData } from '../model/types/paintingData'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
-import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
@@ -107,7 +107,8 @@ export interface PaintingComposerProps {
   onInputFilesChange: (files: FileEntry[]) => void
   onGenerate: () => void
   onCancel: () => void
-  onModelSelect: (selection: { providerId: string; modelId: string }) => void
+  /** Kind-aware: selecting a video model hands the page off to the video flow. */
+  onModelSelect: (selection: CreationModelKindSelection) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
@@ -245,9 +246,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
             unifiedPanelControl={unifiedPanelControl}
             renderContextControls={() => (
               <>
-                <PaintingModelSelector
+                <CreationModelSelector
                   hideTitle
-                  painting={painting}
+                  providerId={painting.providerId}
+                  modelId={painting.model}
                   onSelect={onModelSelect}
                   className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'w-auto max-w-[200px] border border-border-subtle')}
                 />

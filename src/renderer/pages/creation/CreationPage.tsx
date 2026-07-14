@@ -1,8 +1,8 @@
 import type { CreationKind } from '@shared/data/types/creation'
 import { type FC, useCallback, useState } from 'react'
 
-import ImageCreationMode from '../paintings/PaintingPage'
 import type { CreationModelKindSelection, CreationModelSelection } from './CreationModelSelector'
+import ImageCreationMode from './image/ImageCreationMode'
 import type { CreationData } from './types'
 import VideoCreationMode from './video/VideoCreationMode'
 

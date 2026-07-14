@@ -6,8 +6,8 @@ import type { FC, UIEventHandler } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getPaintingFileUrl } from '../paintings/utils/paintingFileUrl'
 import { creationClasses } from './creationPrimitives'
+import { getPaintingFileUrl } from './image/utils/paintingFileUrl'
 import type { CreationGalleryEntry } from './useCreationHistory'
 
 interface CreationGalleryProps {
@@ -124,7 +124,7 @@ const CreationGallery: FC<CreationGalleryProps> = ({
       <div ref={stripRef} className={creationClasses.historyStrip} onScroll={handleScroll}>
         <Tooltip
           content={kind === 'video' ? t('paintings.video.new') : t('paintings.button.new.image')}
-          placement="left"
+          placement="right"
           delay={500}>
           <Button
             type="button"

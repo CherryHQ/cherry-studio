@@ -29,11 +29,19 @@ interface CreationModelSelectorProps {
   providerId?: string
   modelId?: string
   onSelect: (selection: CreationModelKindSelection) => void
+  /** Drop the "Model" section title — used by the composer's bottom toolbar. */
+  hideTitle?: boolean
 }
 
 const isCreationModel = (model: Model) => isGenerateImageModel(model) || isGenerateVideoModel(model)
 
-const CreationModelSelector: FC<CreationModelSelectorProps> = ({ className, providerId, modelId, onSelect }) => {
+const CreationModelSelector: FC<CreationModelSelectorProps> = ({
+  className,
+  providerId,
+  modelId,
+  onSelect,
+  hideTitle
+}) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
@@ -66,10 +74,12 @@ const CreationModelSelector: FC<CreationModelSelectorProps> = ({ className, prov
   const selectedIcon = useIcon(selectedIconRef)
 
   return (
-    <div>
-      <CreationSectionTitle>
-        <span className="min-w-0 truncate">{t('paintings.model')}</span>
-      </CreationSectionTitle>
+    <div className={hideTitle ? 'contents' : undefined}>
+      {!hideTitle && (
+        <CreationSectionTitle>
+          <span className="min-w-0 truncate">{t('paintings.model')}</span>
+        </CreationSectionTitle>
+      )}
       <ModelSelector
         open={open}
         onOpenChange={setOpen}

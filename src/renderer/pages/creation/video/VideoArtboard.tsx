@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getPaintingFileUrl } from '../../paintings/utils/paintingFileUrl'
+import { getPaintingFileUrl } from '../image/utils/paintingFileUrl'
 
 export interface VideoArtboardProps {
   files: FileMetadata[]

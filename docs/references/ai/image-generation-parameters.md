@@ -158,8 +158,8 @@ registryOverride.imageGeneration  ??  presetModel.imageGeneration  ??  null   //
 
 ## Read half — registry + catalog → form
 
-1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`.../hooks/useImageGenerationSupport.ts`](../../../src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (DataApi → the same `ProviderRegistryService` main hosts; SWR-cached).
-2. **Map** — `imageGenerationToFields(support, { mode })` ([`.../form/imageGenerationToFields.ts`](../../../src/renderer/pages/paintings/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type` — no per-vendor branches:
+1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`.../hooks/useImageGenerationSupport.ts`](../../../src/renderer/pages/creation/image/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (DataApi → the same `ProviderRegistryService` main hosts; SWR-cached).
+2. **Map** — `imageGenerationToFields(support, { mode })` ([`.../form/imageGenerationToFields.ts`](../../../src/renderer/pages/creation/image/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type` — no per-vendor branches:
 
    | `SupportSpec.type` | widget |
    | --- | --- |
@@ -174,7 +174,7 @@ registryOverride.imageGeneration  ??  presetModel.imageGeneration  ??  null   //
 
 Form edits write into **`painting.params`** — a flat canonical-keyed bag. Defaults
 are committed when the model is selected by `computeModelFieldReset`
-([`.../utils/computeModelFieldReset.ts`](../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)).
+([`.../utils/computeModelFieldReset.ts`](../../../src/renderer/pages/creation/image/utils/computeModelFieldReset.ts)).
 
 ---
 
@@ -182,7 +182,7 @@ are committed when the model is selected by `computeModelFieldReset`
 
 ### 1. Validate + collapse to one IPC bag (`canonicalGenerate`)
 
-[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.generate_image`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
+[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/creation/image/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.generate_image`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
 
 ### 2. Partition in main (`splitParamValues` + `AI_SDK_NATIVE_BINDINGS`)
 
@@ -278,11 +278,11 @@ descriptor is a pure derivation, not a param.
 | Registry schema (`supports` / `vendorTransport`) | `packages/provider-registry/src/schemas/model.ts` |
 | Base / override model data | `packages/provider-registry/data/{models,provider-models}.json` |
 | Resolver (override ?? base) | `src/main/data/services/ProviderRegistryService.ts` |
-| Support fetch hook | `src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts` |
-| Registry → form fields + `KEY_LABELS` | `src/renderer/pages/paintings/form/imageGenerationToFields.ts` |
-| Default population on switch | `src/renderer/pages/paintings/utils/computeModelFieldReset.ts` |
-| Validate + build the IPC `paramValues` bag | `src/renderer/pages/paintings/model/canonicalGenerate.ts` |
-| Transport routing hint (→ backend, see §5) | `src/renderer/pages/paintings/model/paintingPipeline.ts` |
+| Support fetch hook | `src/renderer/pages/creation/image/hooks/useImageGenerationSupport.ts` |
+| Registry → form fields + `KEY_LABELS` | `src/renderer/pages/creation/image/form/imageGenerationToFields.ts` |
+| Default population on switch | `src/renderer/pages/creation/image/utils/computeModelFieldReset.ts` |
+| Validate + build the IPC `paramValues` bag | `src/renderer/pages/creation/image/model/canonicalGenerate.ts` |
+| Transport routing hint (→ backend, see §5) | `src/renderer/pages/creation/image/model/paintingPipeline.ts` |
 | IPC payload schema | `src/shared/ipc/schemas/ai.ts` |
 | Main entry + native split + job dispatch | `src/main/ai/AiService.ts` |
 | `splitParamValues` (native vs vendorBag) | `src/main/ai/utils/imageOptions.ts` |

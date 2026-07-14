@@ -7,7 +7,7 @@ import { type ChangeEvent, type FC, useCallback, useEffect, useRef, useState } f
 
 const logger = loggerService.withContext('creation/VideoMediaInput')
 
-/** Adapt a picked File into a v2 FileEntry (mirrors PaintingPromptBar's helper). */
+/** Adapt a picked File into a v2 FileEntry (mirrors the image composer's attachment pipeline). */
 async function fileToFileEntry(file: File): Promise<FileEntry | null> {
   try {
     const filePath = window.api.file.getPathForFile(file)

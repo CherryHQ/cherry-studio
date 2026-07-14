@@ -3,7 +3,7 @@ import type { VideoGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Adapt FileEntry → FileMetadata is exercised elsewhere; here we only need the id to flow through.
-vi.mock('../../../paintings/utils/fileEntryAdapter', () => ({
+vi.mock('../../image/utils/fileEntryAdapter', () => ({
   fileEntryToMetadata: vi.fn(async (entry: FileEntry) => ({ id: entry.id, name: entry.name }))
 }))
 

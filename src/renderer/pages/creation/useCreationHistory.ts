@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import type { CreationKind } from '@shared/data/types/creation'
 import { useEffect, useMemo, useState } from 'react'
 
-import { recordsToPaintingDataList } from '../paintings/model/mappers/recordToPaintingData'
+import { recordsToPaintingDataList } from './image/model/mappers/recordToPaintingData'
 import type { CreationData } from './types'
 
 const PAGE_SIZE = 30

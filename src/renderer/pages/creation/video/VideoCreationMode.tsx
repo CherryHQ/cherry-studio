@@ -9,8 +9,6 @@ import type { VideoGenerationMode } from '@shared/data/types/model'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PaintingFieldRenderer } from '../../paintings/form/PaintingFieldRenderer'
-import { videoGenerationToFields } from '../../paintings/form/videoGenerationToFields'
 import CreationGallery from '../CreationGallery'
 import CreationModelSelector, {
   type CreationModelKindSelection,
@@ -19,6 +17,8 @@ import CreationModelSelector, {
 import { creationClasses } from '../creationPrimitives'
 import CreationSectionTitle from '../CreationSectionTitle'
 import CreationWorkspace from '../CreationWorkspace'
+import { PaintingFieldRenderer } from '../image/form/PaintingFieldRenderer'
+import { videoGenerationToFields } from '../image/form/videoGenerationToFields'
 import type { CreationData } from '../types'
 import { useCreationHistory } from '../useCreationHistory'
 import { generateVideoRequest } from './generateVideo'
