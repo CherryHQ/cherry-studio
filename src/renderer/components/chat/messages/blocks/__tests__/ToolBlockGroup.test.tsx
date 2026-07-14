@@ -41,6 +41,7 @@ vi.mock('../../tools/shared/GenericTools', () => ({
 vi.mock('../../tools/ToolHeader', () => ({
   __esModule: true,
   getReadableToolActivity: (toolName: string) =>
+    toolName.startsWith('mcp__') ||
     ['do_magic', 'fetch_markdown', 'send_email', 'web_search'].some((name) => toolName.includes(name))
       ? undefined
       : { label: 'Check', description: 'Project checks' },
