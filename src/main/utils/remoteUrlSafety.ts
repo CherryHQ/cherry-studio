@@ -48,6 +48,7 @@ const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = 
   [ipaddr.IPv6.parse('3fff::'), 20],
   [ipaddr.IPv6.parse('5f00::'), 16]
 ]
+const PUBLIC_IPV6_RANGE: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('2000::'), 3]
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -84,7 +85,10 @@ function isBlockedIpHostname(hostname: string): boolean {
     return BLOCKED_IPV4_RANGES.has(address.range())
   }
 
+  const [publicRangeAddress, publicRangeBits] = PUBLIC_IPV6_RANGE
+
   return (
+    !address.match(publicRangeAddress, publicRangeBits) ||
     BLOCKED_IPV6_RANGES.has(address.range()) ||
     BLOCKED_IPV6_CIDR_RANGES.some(([rangeAddress, bits]) => address.match(rangeAddress, bits))
   )

@@ -82,6 +82,8 @@ describe('sanitizeRemoteUrl', () => {
     ['http://[2002:7f00:1::]/file', '[2002:7f00:1::]'],
     ['http://[3fff::1]/file', '[3fff::1]'],
     ['http://[5f00::1]/file', '[5f00::1]'],
+    ['http://[400::1]/file', '[400::1]'],
+    ['http://[fec0::1]/file', '[fec0::1]'],
     ['http://[::ffff:127.0.0.1]/file', '[::ffff:7f00:1]'],
     ['http://[::ffff:192.168.1.10]/file', '[::ffff:c0a8:10a]']
   ])('rejects localhost and private ip targets: %s', (rawUrl, hostname) => {
@@ -176,7 +178,9 @@ describe('resolveRemoteFetchUrl', () => {
     '2001:db8::1',
     '2002:7f00:1::',
     '3fff::1',
-    '5f00::1'
+    '5f00::1',
+    '400::1',
+    'fec0::1'
   ])('rejects hostnames that resolve to non-public IPv6 special-purpose addresses: %s', async (address) => {
     lookupMock.mockResolvedValue([{ address, family: 6 }])
 
