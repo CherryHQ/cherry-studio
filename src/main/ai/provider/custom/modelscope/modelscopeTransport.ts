@@ -17,10 +17,9 @@ import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal }
  *   - `size` is the WxH string itself (e.g. `'1024x1024'`), NOT a width /
  *     height split.
  *   - Sampling fields are `steps` and `guidance` (NOT `num_inference_steps`
- *     / `guidance_scale`). `buildImageProviderOptions`'s default branch
- *     snake-cases the painting form's `numInferenceSteps` / `guidanceScale`
- *     into `num_inference_steps` / `guidance_scale`, which this transport
- *     accepts and renames to ModelScope's spelling.
+ *     / `guidance_scale`). This transport reads the canonical camelCase
+ *     `numInferenceSteps` / `guidanceScale` from the vendor bag and renames
+ *     them to ModelScope's spelling.
  *   - `negative_prompt` and `seed` are forwarded as-is.
  *   - `image_url` carries the edit-mode input image (Qwen-Image-Edit-*).
  */
@@ -53,41 +52,9 @@ export interface ModelscopeTaskResult {
   message?: string
 }
 
-/**
- * Vendor-specific fields forwarded through `providerOptions.modelscope`.
- * AI SDK native fields (size / n / seed / prompt) source from `input.*`.
- */
-export interface ModelscopeProviderParams {
-  model?: string
-  numInferenceSteps?: number
-  num_inference_steps?: number
-  guidanceScale?: number
-  guidance_scale?: number
-  negativePrompt?: string
-  negative_prompt?: string
-  seed?: number
-}
-
 export interface ModelscopeTransportSettings {
   apiKey: string
   baseURL?: string
-}
-
-function readNumber(bag: Record<string, unknown>, ...keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = bag[key]
-    if (typeof value === 'number') return value
-    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value)) return Number(value)
-  }
-  return undefined
-}
-
-function readString(bag: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = bag[key]
-    if (typeof value === 'string' && value !== '') return value
-  }
-  return undefined
 }
 
 class ModelscopeTransport implements ImageGenerationTransport {
@@ -126,20 +93,13 @@ class ModelscopeTransport implements ImageGenerationTransport {
       }
     }
 
-    // ModelScope uses `steps` / `guidance`, not `num_inference_steps` /
-    // `guidance_scale`. The bag arrives snake-cased from
-    // `buildImageProviderOptions`'s default branch; accept both forms.
-    const steps = readNumber(bag, 'numInferenceSteps', 'num_inference_steps', 'steps')
-    if (steps !== undefined) body.steps = steps
+    // The bag is canonical camelCase (schema-coerced); ModelScope's wire names
+    // are `steps` / `guidance` (not `num_inference_steps` / `guidance_scale`).
+    if (typeof bag.numInferenceSteps === 'number') body.steps = bag.numInferenceSteps
+    if (typeof bag.guidanceScale === 'number') body.guidance = bag.guidanceScale
+    if (typeof bag.negativePrompt === 'string' && bag.negativePrompt) body.negative_prompt = bag.negativePrompt
 
-    const guidance = readNumber(bag, 'guidanceScale', 'guidance_scale', 'guidance')
-    if (guidance !== undefined) body.guidance = guidance
-
-    const negativePrompt = readString(bag, 'negativePrompt', 'negative_prompt')
-    if (negativePrompt) body.negative_prompt = negativePrompt
-
-    const seed = readNumber(bag, 'seed') ?? input.seed
-    if (seed !== undefined) body.seed = seed
+    if (input.seed !== undefined) body.seed = input.seed
 
     const response = await this.request<{ task_id: string }>(`/v1/images/generations`, 'POST', body, {
       timeout: 120000,

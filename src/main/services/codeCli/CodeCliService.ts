@@ -5,7 +5,6 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
-import { providerService } from '@main/data/services/ProviderService'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -19,8 +18,8 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { sanitizeProviderName } from '@shared/utils/provider'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -449,35 +448,10 @@ export class CodeCliService extends BaseService {
     const executablePath = await getBinaryPath(executableName)
     let baseCommand = `"${executablePath}"`
 
-    // OpenCode reads its provider from the opencode.json written above; here we only select the model
-    // at launch (matching the written provider key) and disable its own auto-update.
+    // OpenCode reads its provider AND default model from the opencode.json written by the
+    // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
+    // carries no model argument; we only disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
-      if (!normal) {
-        // Unreachable in practice: opencode is neither login-capable nor
-        // providerless, so non-normal modes were rejected above. Narrows types.
-        const message = `Provider ID is required for ${cliTool}`
-        logger.error(message)
-        return { success: false, message }
-      }
-      let providerName: string
-      try {
-        const provider = providerService.getByProviderId(normal.providerId)
-        providerName = sanitizeProviderName(provider.name, provider.id)
-      } catch (error) {
-        const message = `OpenCode provider not found: ${normal.providerId}`
-        logger.error(message, error as Error)
-        return { success: false, message }
-      }
-      // `model` is the only provider-derived value concatenated bare into the launch command (every
-      // other CLI writes the model into its own config file). Reject anything outside the model-id
-      // charset rather than launch, so a model id carrying shell metacharacters can't inject into the
-      // `sh -c` / AppleScript / `.bat` command this string is assembled into.
-      if (!isShellSafeModelId(normal.model)) {
-        const message = `Unsupported model id for ${cliTool}: ${normal.model}`
-        logger.error(message)
-        return { success: false, message }
-      }
-      baseCommand = `${baseCommand} --model cherry-${providerName}/${normal.model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 
@@ -488,6 +462,28 @@ export class CodeCliService extends BaseService {
     // documented bypass, scoped to this one launched session only.
     if (cliTool === CodeCli.GEMINI_CLI) {
       env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
+
+      // gemini-cli resolves its model with precedence `--model` → GEMINI_MODEL →
+      // settings.model.name, and its `resolveModel` rewrites any name ending in "flash" to a
+      // default Gemini model. Pass the model on the command line (highest precedence, honored
+      // verbatim) so the launched session hits the intended model. In gateway mode it needs the
+      // `providerId:modelId` address the gateway parses from the URL path, carrying the sentinel
+      // suffix so that rewrite can't corrupt a name ending in "flash" (see
+      // GEMINI_GATEWAY_MODEL_SUFFIX); direct mode passes the bare model id.
+      if (normal) {
+        // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
+        // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
+        if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
+        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
+        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
+        // model id carrying shell metacharacters rather than launch.
+        if (!isShellSafeModelId(modelArg)) {
+          const message = `Unsupported model id for ${cliTool}: ${modelArg}`
+          logger.error(message)
+          return { success: false, message }
+        }
+        baseCommand = `${baseCommand} --model ${modelArg}`
+      }
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather
