@@ -15,6 +15,8 @@ import {
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
+  RESOURCE_LIST_TITLE_FADE_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
@@ -1624,19 +1626,6 @@ const TopicRow = memo(function TopicRow({
   const canDeleteTopic = !topic.pinned
   const showDetachedStreamIndicator = isRightPanel && hasTopicStreamIndicator
   const showInlineStreamIndicator = hasTopicStreamIndicator && !showDetachedStreamIndicator
-  const showDeleteOrStreamAction = showInlineStreamIndicator || canDeleteTopic
-  // Reserve right-padding for the title sized to the resting stream indicator and hover actions.
-  const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
-  const topicTrailingActionPaddingClassName = cn(
-    showDetachedStreamIndicator && 'pr-7',
-    trailingActionCount >= 3
-      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-      : trailingActionCount === 2
-        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-        : trailingActionCount === 1
-          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-          : ''
-  )
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1684,7 +1673,14 @@ const TopicRow = memo(function TopicRow({
       {!rowState.renaming && (
         <ResourceList.ItemTitle
           title={topicName}
-          className={cn(nameAnimationClassName, 'transition-[padding]', topicTrailingActionPaddingClassName)}
+          className={cn(
+            nameAnimationClassName,
+            RESOURCE_LIST_TITLE_FADE_CLASS,
+            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+            // The detached indicator is absolutely positioned (keeps no flex
+            // space), so the title needs a standing yield for its dot zone.
+            showDetachedStreamIndicator && 'mr-7'
+          )}
           onDoubleClick={(event) => {
             event.stopPropagation()
             startInlineRename()
