@@ -90,8 +90,8 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="h-auto min-h-7 w-full justify-start rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:ring-0 [&>svg]:hidden">
-            <div className="min-w-0 flex-1 overflow-hidden">{header}</div>
+            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
+            <div className="min-w-0 overflow-hidden">{header}</div>
           </AccordionTrigger>
           <div aria-hidden="true" data-testid="tool-history-divider" className="my-1.5 h-px w-full bg-border-subtle" />
           <AccordionContent

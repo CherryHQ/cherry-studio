@@ -562,7 +562,8 @@ const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>)
 function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
   return [
     'items-center gap-1.5',
-    variant === 'collapse-label' && 'font-normal text-foreground-secondary [&_.tool-icon]:text-foreground-muted',
+    variant === 'collapse-label' &&
+      'font-normal text-foreground-secondary group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-muted',
     variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-(--color-primary)'
   ]
     .filter(Boolean)

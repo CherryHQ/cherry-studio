@@ -221,7 +221,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
         <div className="flex items-center text-[13px]">
-          <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 hover:text-foreground">
+          <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </span>
         </div>
@@ -231,7 +231,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'activity') {
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
-          <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 hover:text-foreground">
+          <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </PlaceholderShimmerText>
         </div>
@@ -263,7 +263,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
-            <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 hover:text-foreground">
+            <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {fallbackLabel}
             </span>
           </div>
@@ -324,7 +324,7 @@ export const ToolBlockGroup = React.memo(({ children, items }: ToolBlockGroupPro
         value={isExpanded ? 'tools' : ''}
         onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'tools'), { settleAfterMs: 220 })}>
         <AccordionItem value="tools" className="border-0 first:border-t-0">
-          <AccordionTrigger className="h-auto min-h-7 w-fit max-w-full flex-none justify-start rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:ring-0 [&>svg]:hidden">
+          <AccordionTrigger className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
             <div className="min-w-0 overflow-hidden">
               <ToolBlockGroupHeaderContent items={items} isLiveProgress={isLiveProgress} />
             </div>
