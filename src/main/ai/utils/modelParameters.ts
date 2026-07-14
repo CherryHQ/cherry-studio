@@ -156,7 +156,7 @@ export function getMaxTokens(assistant: Assistant, model: Model, provider: Provi
     isAnthropicLike
   ) {
     const reasoningEffort = assistant.settings?.reasoning_effort
-    const budget = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budget = getThinkingBudget(maxTokens, reasoningEffort, model)
     if (budget) maxTokens -= budget
   }
 

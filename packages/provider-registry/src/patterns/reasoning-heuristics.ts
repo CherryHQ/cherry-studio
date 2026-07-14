@@ -108,10 +108,10 @@ const EFFORT_RULES: EffortRule[] = [
 
   // ── Other vendors ─────────────────────────────────────────────────────────
   { pattern: /^hunyuan-a13b/i, toggle: true },
-  { pattern: /glm-?5|glm-4\.[567]/i, toggle: true },
-  { pattern: /mimo-v2\.5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)/i, toggle: true },
+  { pattern: /glm-?5|glm-4[.-][567]/i, toggle: true },
+  { pattern: /mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)/i, toggle: true },
   // Kimi K2.5+/K3+ expose the thinking toggle; kimi-k2-thinking is always-on.
-  { pattern: /^kimi-k(?:2\.[5-9]\d*|[3-9]\d*(?:\.\d+)?)/i, toggle: true },
+  { pattern: /^kimi-k(?:2[.-][5-9]\d*|[3-9]\d*(?:[.-]\d+)?)/i, toggle: true },
   { pattern: /^sonar-reasoning|^sonar-deep-research/i, values: ['low', 'medium', 'high'] },
   { pattern: /^deepseek-v(?:[4-9]\d*|[1-9]\d{1,})(?:\.\d+)?/i, values: ['none', 'high', 'max'] },
   // DeepSeek v3.x hybrid inference (thinking / non-thinking at one endpoint).
@@ -126,7 +126,7 @@ const EFFORT_RULES: EffortRule[] = [
  * (ids may arrive as `provider::model` unique ids).
  */
 const TOKEN_LIMIT_RULES: Array<{ pattern: RegExp; min: number; max: number }> = [
-  { pattern: /gemini-2\.5-flash-lite.*$/i, min: 512, max: 24_576 },
+  { pattern: /gemini-2[.-]5-flash-lite.*$/i, min: 512, max: 24_576 },
   // Gemini -latest aliases (point at the current Gemini 3 flagships).
   { pattern: /gemini-flash-lite-latest$/i, min: 512, max: 24_576 },
   { pattern: /gemini-flash-latest$/i, min: 0, max: 24_576 },
@@ -139,8 +139,8 @@ const TOKEN_LIMIT_RULES: Array<{ pattern: RegExp; min: number; max: number }> = 
   { pattern: /qwen3-vl-30b-a3b-thinking$/i, min: 0, max: 81_920 },
   { pattern: /qwen-plus-2025-07-14$/i, min: 0, max: 38_912 },
   { pattern: /qwen-plus-2025-04-28$/i, min: 0, max: 38_912 },
-  { pattern: /qwen3-1\.7b$/i, min: 0, max: 30_720 },
-  { pattern: /qwen3-0\.6b$/i, min: 0, max: 30_720 },
+  { pattern: /qwen3-1[.-]7b$/i, min: 0, max: 30_720 },
+  { pattern: /qwen3-0[.-]6b$/i, min: 0, max: 30_720 },
   { pattern: /qwen-plus.*$/i, min: 0, max: 81_920 },
   { pattern: /qwen-turbo.*$/i, min: 0, max: 38_912 },
   { pattern: /qwen-flash.*$/i, min: 0, max: 81_920 },
@@ -148,7 +148,7 @@ const TOKEN_LIMIT_RULES: Array<{ pattern: RegExp; min: number; max: number }> = 
   // `qwen-max-latest` is a distinct alias — the versioned `qwen-max-2025-09-23`
   // is explicitly excluded because that SKU predates thinking-token support.
   { pattern: /qwen-max-latest$/i, min: 0, max: 81_920 },
-  { pattern: /^qwen3\.[5-9]/i, min: 0, max: 81_920 },
+  { pattern: /^qwen3[.-][5-9](?!\d)/i, min: 0, max: 81_920 },
   { pattern: /qwen3-(?!max).*$/i, min: 1024, max: 38_912 },
   { pattern: /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i, min: 1024, max: 128_000 },
   { pattern: /(?:anthropic\.)?claude-opus-4[.-]6(?:[@\-:][\w\-:]+)?$/i, min: 1024, max: 128_000 },
@@ -175,12 +175,12 @@ const TOKEN_LIMIT_RULES: Array<{ pattern: RegExp; min: number; max: number }> = 
   { pattern: /hunyuan-a13b/i, min: 0, max: 30_720 },
   // Zhipu / GLM — GLM-5 and GLM-4.5 / 4.6 / 4.7. Unanchored to handle
   // provider-prefixed ids (zhipu/glm-4.6, fireworks normalized form).
-  { pattern: /glm-?5|glm-4\.[567]/i, min: 0, max: 30_720 },
+  { pattern: /glm-?5|glm-4[.-][567]/i, min: 0, max: 30_720 },
   // MiMo v2 family.
-  { pattern: /mimo-v2\.5(?:-pro)?(?!-)/i, min: 0, max: 30_720 },
+  { pattern: /mimo-v2[.-]5(?:-pro)?(?!-)/i, min: 0, max: 30_720 },
   { pattern: /mimo-v2-(?:flash|pro|omni)/i, min: 0, max: 30_720 },
   // Kimi K2.5+ / K3+.
-  { pattern: /kimi-k(?:2\.[5-9]\d*|[3-9]\d*(?:\.\d+)?)/i, min: 0, max: 30_720 },
+  { pattern: /kimi-k(?:2[.-][5-9]\d*|[3-9]\d*(?:[.-]\d+)?)/i, min: 0, max: 30_720 },
   // Doubao thinking SKUs (mirrors DOUBAO_THINKING_MODEL_REGEX scope).
   // The `(?!-thinking(?:-|$))` lookahead excludes always-thinking seed variants.
   {

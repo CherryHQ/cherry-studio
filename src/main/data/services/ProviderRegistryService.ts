@@ -423,7 +423,9 @@ function extractRuntimeReasoning(
   // type made the descriptor unusable (#16598 failure mode D).
   const type = reasoningFormatType ?? 'openai-chat'
 
-  let supportedEfforts: ReasoningEffortType[] = [...(reasoning.supportedEfforts ?? [])]
+  // A 'none'-format provider ignores/rejects reasoning params entirely —
+  // there is nothing to offer, whatever the model itself supports elsewhere.
+  let supportedEfforts: ReasoningEffortType[] = type === 'none' ? [] : [...(reasoning.supportedEfforts ?? [])]
   // Format-default vocabulary is a LEGACY-row fallback only. A declared
   // `controls` block is authoritative: budget-only models genuinely have no
   // effort vocabulary, and inventing one would hijack the request path's

@@ -340,9 +340,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -370,9 +379,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -475,9 +493,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -788,9 +815,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -990,9 +1026,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -1043,9 +1088,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -1287,9 +1341,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -1558,9 +1621,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -1632,9 +1704,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -1706,9 +1787,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 0
+        }
       }
     },
     {
@@ -1790,9 +1880,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -2422,9 +2521,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -2506,9 +2614,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -2545,9 +2662,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -2606,9 +2732,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 81920,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 0
+        }
       }
     },
     {
@@ -2674,8 +2809,8 @@
         "controls": [
           {
             "kind": "budget",
-            "max": 38912,
-            "min": 1024
+            "max": 81920,
+            "min": 0
           },
           {
             "kind": "toggle"
@@ -2683,8 +2818,8 @@
         ],
         "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
+          "max": 81920,
+          "min": 0
         }
       }
     },
@@ -2711,8 +2846,8 @@
         "controls": [
           {
             "kind": "budget",
-            "max": 38912,
-            "min": 1024
+            "max": 81920,
+            "min": 0
           },
           {
             "kind": "toggle"
@@ -2720,8 +2855,8 @@
         ],
         "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
+          "max": 81920,
+          "min": 0
         }
       }
     },
@@ -2748,8 +2883,8 @@
         "controls": [
           {
             "kind": "budget",
-            "max": 38912,
-            "min": 1024
+            "max": 81920,
+            "min": 0
           },
           {
             "kind": "toggle"
@@ -2757,8 +2892,8 @@
         ],
         "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
+          "max": 81920,
+          "min": 0
         }
       }
     },
@@ -3340,9 +3475,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 64000,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 64000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3431,9 +3575,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 128000,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
+        "thinkingTokenLimits": {
+          "max": 128000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3571,9 +3724,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 64000,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "none"]
+        "supportedEfforts": ["low", "medium", "high", "none"],
+        "thinkingTokenLimits": {
+          "max": 64000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3620,9 +3782,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 64000,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "thinkingTokenLimits": {
+          "max": 64000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3746,9 +3917,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 128000,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "thinkingTokenLimits": {
+          "max": 128000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3900,9 +4080,18 @@
           {
             "kind": "effort",
             "values": ["low", "medium", "high", "max"]
+          },
+          {
+            "kind": "budget",
+            "max": 128000,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max"]
+        "supportedEfforts": ["low", "medium", "high", "max"],
+        "thinkingTokenLimits": {
+          "max": 128000,
+          "min": 1024
+        }
       }
     },
     {
@@ -7064,9 +7253,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "high"]
+        "supportedEfforts": ["minimal", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -7257,9 +7455,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -7299,9 +7506,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "high"]
+        "supportedEfforts": ["minimal", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -7334,9 +7550,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -7378,9 +7603,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -7416,9 +7650,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 1024
+        }
       }
     },
     {
@@ -7623,9 +7866,18 @@
           {
             "kind": "effort",
             "values": ["low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
           }
         ],
-        "supportedEfforts": ["low", "medium", "high"]
+        "supportedEfforts": ["low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
+        }
       }
     },
     {
@@ -7665,9 +7917,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 1024
+        }
       }
     },
     {
@@ -7709,9 +7970,18 @@
           {
             "kind": "effort",
             "values": ["low", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
           }
         ],
-        "supportedEfforts": ["low", "high"]
+        "supportedEfforts": ["low", "high"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
+        }
       }
     },
     {
@@ -7752,9 +8022,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -7954,9 +8233,18 @@
           {
             "kind": "effort",
             "values": ["low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
           }
         ],
-        "supportedEfforts": ["low", "medium", "high"]
+        "supportedEfforts": ["low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
+        }
       }
     },
     {
@@ -8054,9 +8342,18 @@
           {
             "kind": "effort",
             "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -11633,9 +11930,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -11679,9 +11985,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -11716,6 +12031,23 @@
           "currency": "USD",
           "perMillionTokens": 4
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -11749,6 +12081,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 8
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
         }
       }
     },
@@ -17153,9 +17502,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17188,9 +17546,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17222,9 +17589,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17257,9 +17633,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17333,9 +17718,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17603,9 +17997,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17646,9 +18049,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["high", "xhigh", "max", "none"]
+        "supportedEfforts": ["high", "xhigh", "max", "none"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17685,9 +18097,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17724,9 +18145,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17766,9 +18196,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17805,9 +18244,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17844,9 +18292,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17883,9 +18340,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17925,9 +18391,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -17963,9 +18438,18 @@
           },
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["high", "xhigh", "none"]
+        "supportedEfforts": ["high", "xhigh", "none"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18008,9 +18492,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18028,9 +18521,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18067,9 +18569,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18106,9 +18617,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18144,9 +18664,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18183,9 +18712,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18214,9 +18752,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -18249,9 +18796,18 @@
         "controls": [
           {
             "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
       }
     },
     {
@@ -19334,5 +19890,5 @@
       }
     }
   ],
-  "version": "748c8a0c2c8c5787"
+  "version": "48e6971ac1c6bc08"
 }

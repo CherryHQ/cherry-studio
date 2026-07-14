@@ -27,7 +27,11 @@ import {
   readProviderModelRegistry,
   readProviderRegistry
 } from '@cherrystudio/provider-registry/node'
-import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
+import {
+  extractReasoningFormatTypes,
+  inferCustomModelReasoning,
+  mergePresetModel
+} from '@data/services/ProviderRegistryService'
 import type { Assistant } from '@shared/data/types/assistant'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
@@ -247,6 +251,31 @@ export function buildSyntheticRows(): MatrixRow[] {
     }
   }
   return rows.sort((a, b) => a.key.localeCompare(b.key))
+}
+
+/**
+ * The synthetic population AFTER production's ingest-time inference
+ * (`ModelService` create/read paths call `inferCustomModelReasoning` for
+ * reasoning-capable rows without a descriptor) — the state real custom rows
+ * are served in. Rows whose id matches no heuristic keep `reasoning`
+ * undefined and stay on the legacy fallback.
+ */
+export function buildEnrichedSyntheticRows(): MatrixRow[] {
+  const providers = readProviderRegistry(resolve(DATA_DIR, 'providers.json')).providers
+  const registryProviderById = new Map(providers.map((p) => [p.id, p]))
+  return buildSyntheticRows().map((row) => {
+    const provider = registryProviderById.get(row.provider.id)
+    const endpointConfigs = provider
+      ? (buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<Record<string, EndpointConfig>> | null)
+      : null
+    const reasoning = inferCustomModelReasoning(
+      row.model.apiModelId ?? '',
+      undefined,
+      extractReasoningFormatTypes(endpointConfigs as Parameters<typeof extractReasoningFormatTypes>[0]),
+      provider?.defaultChatEndpoint ?? undefined
+    )
+    return reasoning ? { ...row, model: { ...row.model, reasoning } } : row
+  })
 }
 
 /** 'unset' = no reasoning_effort in settings (distinct from 'default' only for ollama). */

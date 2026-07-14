@@ -1,6 +1,6 @@
 {
   "rows": 951,
-  "groups": 24,
+  "groups": 28,
   "behaviors": [
     {
       "behavior": {
@@ -40,8 +40,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 4172
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            }
           },
           "ollama": {
             "think": true
@@ -55,8 +60,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 4172
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            }
           },
           "ollama": {
             "think": true
@@ -70,8 +80,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 32512
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 32512
+            }
           },
           "ollama": {
             "think": true
@@ -85,8 +100,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 51404
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 51404
+            }
           },
           "ollama": {
             "think": true
@@ -100,8 +120,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 57702
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 57702
+            }
           },
           "ollama": {
             "think": true
@@ -115,8 +140,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 64000
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 64000
+            }
           },
           "ollama": {
             "think": true
@@ -130,8 +160,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 126976
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 126976
+            }
           },
           "ollama": {
             "think": true
@@ -141,21 +176,31 @@
       "members": [
         "302ai::claude-haiku-4-5",
         "302ai::claude-opus-4-5",
+        "302ai::claude-sonnet-4",
+        "302ai::claude-sonnet-4-5",
         "anthropic::claude-haiku-4-5",
         "anthropic::claude-opus-4-5",
-        "aws-bedrock::claude-haiku-4-5",
-        "aws-bedrock::claude-opus-4-5",
-        "aws-bedrock::claude-sonnet-4-5",
+        "anthropic::claude-sonnet-4",
+        "anthropic::claude-sonnet-4-5",
         "claude-code::claude-haiku-4-5",
         "claude-code::claude-opus-4-5",
+        "claude-code::claude-sonnet-4-5",
         "copilot::claude-haiku-4-5",
         "copilot::claude-opus-4-5",
+        "copilot::claude-sonnet-4",
+        "copilot::claude-sonnet-4-5",
         "gateway::claude-haiku-4-5",
         "gateway::claude-opus-4-5",
+        "gateway::claude-sonnet-4",
+        "gateway::claude-sonnet-4-5",
         "openrouter::claude-haiku-4-5",
         "openrouter::claude-opus-4-5",
+        "openrouter::claude-sonnet-4",
+        "openrouter::claude-sonnet-4-5",
         "vertexai::claude-haiku-4-5",
-        "vertexai::claude-opus-4-5"
+        "vertexai::claude-opus-4-5",
+        "vertexai::claude-sonnet-4",
+        "vertexai::claude-sonnet-4-5"
       ]
     },
     {
@@ -759,193 +804,6 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 4172
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 4172
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "low": {
-          "openai": {
-            "reasoningEffort": "low"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 4172
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 4172
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "medium": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 32512
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 32512
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "high": {
-          "openai": {
-            "reasoningEffort": "high"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 51404
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 51404
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "xhigh": {
-          "openai": {
-            "reasoningEffort": "xhigh"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 57702
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 57702
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "max": {
-          "openai": {
-            "reasoningEffort": "max"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 64000
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 64000
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "auto": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 126976
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "enabled",
-              "budgetTokens": 126976
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        }
-      },
-      "members": [
-        "302ai::claude-sonnet-4",
-        "302ai::claude-sonnet-4-5",
-        "anthropic::claude-sonnet-4",
-        "anthropic::claude-sonnet-4-5",
-        "claude-code::claude-sonnet-4-5",
-        "copilot::claude-sonnet-4",
-        "copilot::claude-sonnet-4-5",
-        "gateway::claude-sonnet-4",
-        "gateway::claude-sonnet-4-5",
-        "openrouter::claude-sonnet-4",
-        "openrouter::claude-sonnet-4-5",
-        "vertexai::claude-sonnet-4",
-        "vertexai::claude-sonnet-4-5"
-      ]
-    },
-    {
-      "behavior": {
-        "unset": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "default": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "none": {
-          "openai": {
-            "reasoningEffort": "none"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "disabled"
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "disabled"
-            }
-          },
-          "ollama": {
-            "think": false
-          }
-        },
-        "minimal": {
-          "openai": {
-            "reasoningEffort": "minimal"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
               "budgetTokens": 1792
             },
             "sendReasoning": true
@@ -1048,13 +906,6 @@
       "members": [
         "302ai::deepseek-reasoner",
         "302ai::deepseek-v3-2",
-        "302ai::glm-4-5",
-        "302ai::glm-4-5-air",
-        "302ai::glm-4-5v",
-        "302ai::glm-4-6",
-        "302ai::glm-4-6v",
-        "302ai::glm-4-7",
-        "302ai::glm-4-7-flashx",
         "302ai::grok-4-1",
         "302ai::grok-4-1-fast",
         "302ai::grok-4-fast",
@@ -1077,10 +928,7 @@
         "aws-bedrock::claude-opus-4-8",
         "aws-bedrock::deepseek-r1",
         "aws-bedrock::deepseek-v3-2",
-        "aws-bedrock::glm-4-7",
-        "aws-bedrock::glm-4-7-flash",
         "aws-bedrock::kimi-k2",
-        "aws-bedrock::kimi-k2-5",
         "aws-bedrock::magistral-small",
         "aws-bedrock::minimax-m2",
         "aws-bedrock::minimax-m2-1",
@@ -1095,19 +943,15 @@
         "baidu-cloud::ernie-5-0",
         "baidu-cloud::ernie-x1-1-preview",
         "baidu-cloud::ernie-x1-turbo",
-        "cerebras::glm-4-7",
         "claude-code::claude-fable-5",
         "claude-code::claude-opus-4-8",
         "copilot::claude-fable-5",
         "copilot::claude-opus-4-8",
         "copilot::claude-sonnet-5",
-        "copilot::kimi-k2-7-code",
         "dashscope::qvq-max",
         "dashscope::qwen-3-14b",
         "dashscope::qwen-3-235b",
         "dashscope::qwen-3-30b",
-        "dashscope::qwen-3-32b",
-        "dashscope::qwen-3-6-max-preview",
         "dashscope::qwq-32b",
         "dashscope::qwq-plus",
         "deepseek::deepseek-chat-v3-1",
@@ -1130,8 +974,6 @@
         "doubao::doubao-seed-evolving",
         "doubao::seed-1-6",
         "doubao::seed-1-8",
-        "fireworks::kimi-k2-6",
-        "fireworks::kimi-k2-7-code",
         "fireworks::minimax-m2-7",
         "fireworks::minimax-m3",
         "gateway::claude-fable-5",
@@ -1142,14 +984,6 @@
         "gateway::deepseek-v3-1-terminus",
         "gateway::deepseek-v3-2",
         "gateway::fugu-ultra",
-        "gateway::glm-4-5",
-        "gateway::glm-4-5-air",
-        "gateway::glm-4-5v",
-        "gateway::glm-4-6",
-        "gateway::glm-4-6v",
-        "gateway::glm-4-7",
-        "gateway::glm-4-7-flash",
-        "gateway::glm-4-7-flashx",
         "gateway::grok-4-1-fast",
         "gateway::grok-4-20",
         "gateway::grok-4-20-reasoning-beta",
@@ -1160,15 +994,9 @@
         "gateway::kat-coder-pro-v2",
         "gateway::kat-coder-pro-v2-5",
         "gateway::kimi-k2",
-        "gateway::kimi-k2-5",
-        "gateway::kimi-k2-6",
-        "gateway::kimi-k2-7-code",
-        "gateway::kimi-k2-7-code-highspeed",
         "gateway::magistral-medium",
         "gateway::magistral-small",
         "gateway::mercury-2",
-        "gateway::mimo-v2-5",
-        "gateway::mimo-v2-5-pro",
         "gateway::minimax-m2",
         "gateway::minimax-m2-1",
         "gateway::minimax-m2-1-lightning",
@@ -1190,8 +1018,6 @@
         "gateway::qwen-3-14b",
         "gateway::qwen-3-235b",
         "gateway::qwen-3-30b",
-        "gateway::qwen-3-32b",
-        "gateway::qwen-3-6-max-preview",
         "gateway::seed-1-6",
         "gateway::seed-1-8",
         "gateway::step-3-5-flash",
@@ -1210,17 +1036,7 @@
         "grok::grok-latest",
         "huggingface::deepseek-r1",
         "huggingface::deepseek-v3-2",
-        "huggingface::glm-4-5",
-        "huggingface::glm-4-5-air",
-        "huggingface::glm-4-5v",
-        "huggingface::glm-4-6",
-        "huggingface::glm-4-7",
-        "huggingface::glm-4-7-flash",
         "huggingface::kimi-k2",
-        "huggingface::kimi-k2-5",
-        "huggingface::kimi-k2-6",
-        "huggingface::kimi-k2-7-code",
-        "huggingface::mimo-v2-5-pro",
         "huggingface::minimax-m2",
         "huggingface::minimax-m2-1",
         "huggingface::minimax-m2-5",
@@ -1236,14 +1052,11 @@
         "lanyun::deepseek-v3-1",
         "lanyun::deepseek-v3-2",
         "lanyun::deepseek-v3-2-exp",
-        "lanyun::glm-4-7",
         "lanyun::kimi-k2",
         "lanyun::minimax-m2-1",
         "lanyun::minimax-m2-5",
         "lanyun::qwq-32b",
         "lanyun::step-3-5-flash",
-        "mimo::mimo-v2-5",
-        "mimo::mimo-v2-5-pro",
         "mimo::mimo-v2-5-pro-ultraspeed",
         "minimax::minimax-m1",
         "minimax::minimax-m2",
@@ -1263,17 +1076,10 @@
         "mistral::mistral-small",
         "mistral::mistral-small-4-119b",
         "mistral::mistral-small-latest",
-        "modelscope::glm-4-5",
-        "modelscope::glm-4-6",
         "moonshot::kimi-k2",
-        "moonshot::kimi-k2-5",
-        "moonshot::kimi-k2-6",
-        "moonshot::kimi-k2-7-code",
-        "moonshot::kimi-k2-7-code-highspeed",
         "moonshot::kimi-k2-thinking-maas",
         "moonshot::kimi-k2-thinking-turbo",
         "moonshot::kimi-latest",
-        "nvidia::kimi-k2-6",
         "nvidia::magistral-small",
         "nvidia::minimax-m2-7",
         "nvidia::minimax-m3",
@@ -1307,13 +1113,6 @@
         "openrouter::deepseek-v3-2-exp",
         "openrouter::ernie-4-5-vl-424b-a47b",
         "openrouter::fugu-ultra",
-        "openrouter::glm-4-5",
-        "openrouter::glm-4-5-air",
-        "openrouter::glm-4-5v",
-        "openrouter::glm-4-6",
-        "openrouter::glm-4-6v",
-        "openrouter::glm-4-7",
-        "openrouter::glm-4-7-flash",
         "openrouter::grok-4-20",
         "openrouter::grok-build-0-1",
         "openrouter::grok-latest",
@@ -1323,14 +1122,9 @@
         "openrouter::hy3-preview",
         "openrouter::kat-coder-pro-v2",
         "openrouter::kimi-k2",
-        "openrouter::kimi-k2-5",
-        "openrouter::kimi-k2-6",
-        "openrouter::kimi-k2-7-code",
         "openrouter::kimi-latest",
         "openrouter::llama-3-3-nemotron-super-49b-v1-5",
         "openrouter::mercury-2",
-        "openrouter::mimo-v2-5",
-        "openrouter::mimo-v2-5-pro",
         "openrouter::minimax-m1",
         "openrouter::minimax-m2",
         "openrouter::minimax-m2-1",
@@ -1369,15 +1163,7 @@
         "ppio::deepseek-v3-2",
         "ppio::deepseek-v3-2-exp",
         "ppio::ernie-4-5-vl-424b-a47b",
-        "ppio::glm-4-5",
-        "ppio::glm-4-5-air",
-        "ppio::glm-4-5v",
-        "ppio::glm-4-6",
-        "ppio::glm-4-6v",
-        "ppio::glm-4-7",
-        "ppio::glm-4-7-flash",
         "ppio::kimi-k2",
-        "ppio::kimi-k2-5",
         "ppio::minimax-m2",
         "ppio::minimax-m2-1",
         "ppio::minimax-m2-5",
@@ -1387,10 +1173,7 @@
         "silicon::deepseek-v3-1-terminus",
         "silicon::deepseek-v3-2",
         "silicon::deepseek-v3-2-exp",
-        "silicon::glm-4-5-air",
         "silicon::hy3-preview",
-        "silicon::kimi-k2-5",
-        "silicon::kimi-k2-6",
         "silicon::minimax-m2-5",
         "silicon::step-3-5-flash",
         "sophnet::deepseek-r1",
@@ -1399,9 +1182,6 @@
         "tokenhub::deepseek-v3-2",
         "tokenhub::hunyuan-2-0",
         "tokenhub::hy3-preview",
-        "tokenhub::kimi-k2-5",
-        "tokenhub::kimi-k2-6",
-        "tokenhub::kimi-k2-7-code",
         "tokenhub::minimax-m2-5",
         "tokenhub::minimax-m2-7",
         "tokenhub::minimax-m3",
@@ -1409,20 +1189,8 @@
         "vertexai::claude-sonnet-5",
         "vertexai::deepseek-v3-1-maas",
         "vertexai::deepseek-v3-2-maas",
-        "vertexai::glm-4-7-maas",
         "vertexai::kimi-k2-thinking-maas",
         "zhipu::glm-4-1v",
-        "zhipu::glm-4-5",
-        "zhipu::glm-4-5-air",
-        "zhipu::glm-4-5-flash",
-        "zhipu::glm-4-5v",
-        "zhipu::glm-4-6",
-        "zhipu::glm-4-6v",
-        "zhipu::glm-4-6v-flash",
-        "zhipu::glm-4-7",
-        "zhipu::glm-4-7-flash",
-        "zhipu::glm-4-7-flashx",
-        "zhipu::glm-4-7-maas",
         "zhipu::glm-z1",
         "zhipu::glm-z1-air",
         "zhipu::glm-z1-airx",
@@ -1568,11 +1336,23 @@
       "members": [
         "302ai::doubao-seed-1-6",
         "302ai::doubao-seed-1-6-vision",
+        "302ai::glm-4-5",
+        "302ai::glm-4-5-air",
+        "302ai::glm-4-5v",
+        "302ai::glm-4-6",
+        "302ai::glm-4-6v",
+        "302ai::glm-4-7",
+        "302ai::glm-4-7-flashx",
         "302ai::glm-5",
         "302ai::glm-5-1",
         "302ai::glm-5-turbo",
         "302ai::glm-5v-turbo",
+        "aws-bedrock::glm-4-7",
+        "aws-bedrock::glm-4-7-flash",
         "aws-bedrock::glm-5",
+        "aws-bedrock::kimi-k2-5",
+        "cerebras::glm-4-7",
+        "copilot::kimi-k2-7-code",
         "doubao::doubao-seed-1-6",
         "doubao::doubao-seed-1-6-flash",
         "doubao::doubao-seed-1-6-vision",
@@ -1583,44 +1363,118 @@
         "fireworks::glm-5-1",
         "fireworks::glm-5-2",
         "fireworks::glm-5-2-fast",
+        "fireworks::kimi-k2-6",
+        "fireworks::kimi-k2-7-code",
+        "gateway::glm-4-5",
+        "gateway::glm-4-5-air",
+        "gateway::glm-4-5v",
+        "gateway::glm-4-6",
+        "gateway::glm-4-6v",
+        "gateway::glm-4-7",
+        "gateway::glm-4-7-flash",
+        "gateway::glm-4-7-flashx",
         "gateway::glm-5",
         "gateway::glm-5-1",
         "gateway::glm-5-2",
         "gateway::glm-5-2-fast",
         "gateway::glm-5-turbo",
         "gateway::glm-5v-turbo",
+        "gateway::kimi-k2-5",
+        "gateway::kimi-k2-6",
+        "gateway::kimi-k2-7-code",
+        "gateway::kimi-k2-7-code-highspeed",
+        "gateway::mimo-v2-5",
+        "gateway::mimo-v2-5-pro",
         "gateway::mimo-v2-flash",
         "gateway::mimo-v2-pro",
+        "huggingface::glm-4-5",
+        "huggingface::glm-4-5-air",
+        "huggingface::glm-4-5v",
+        "huggingface::glm-4-6",
+        "huggingface::glm-4-7",
+        "huggingface::glm-4-7-flash",
         "huggingface::glm-5",
         "huggingface::glm-5-1",
         "huggingface::glm-5-2",
+        "huggingface::kimi-k2-5",
+        "huggingface::kimi-k2-6",
+        "huggingface::kimi-k2-7-code",
+        "huggingface::mimo-v2-5-pro",
         "huggingface::mimo-v2-flash",
         "hunyuan::hunyuan-a13b-instruct",
+        "lanyun::glm-4-7",
         "lanyun::glm-5",
+        "mimo::mimo-v2-5",
+        "mimo::mimo-v2-5-pro",
         "mimo::mimo-v2-flash",
         "mimo::mimo-v2-omni",
         "mimo::mimo-v2-pro",
+        "modelscope::glm-4-5",
+        "modelscope::glm-4-6",
+        "moonshot::kimi-k2-5",
+        "moonshot::kimi-k2-6",
+        "moonshot::kimi-k2-7-code",
+        "moonshot::kimi-k2-7-code-highspeed",
         "nvidia::glm-5-2",
+        "nvidia::kimi-k2-6",
+        "openrouter::glm-4-5",
+        "openrouter::glm-4-5-air",
+        "openrouter::glm-4-5v",
+        "openrouter::glm-4-6",
+        "openrouter::glm-4-6v",
+        "openrouter::glm-4-7",
+        "openrouter::glm-4-7-flash",
         "openrouter::glm-5",
         "openrouter::glm-5-1",
         "openrouter::glm-5-2",
         "openrouter::glm-5-turbo",
         "openrouter::glm-5v-turbo",
         "openrouter::hunyuan-a13b-instruct",
+        "openrouter::kimi-k2-5",
+        "openrouter::kimi-k2-6",
+        "openrouter::kimi-k2-7-code",
+        "openrouter::mimo-v2-5",
+        "openrouter::mimo-v2-5-pro",
+        "ppio::glm-4-5",
+        "ppio::glm-4-5-air",
+        "ppio::glm-4-5v",
+        "ppio::glm-4-6",
+        "ppio::glm-4-6v",
+        "ppio::glm-4-7",
+        "ppio::glm-4-7-flash",
         "ppio::glm-5",
+        "ppio::kimi-k2-5",
         "ppio::mimo-v2-flash",
         "qiniu::mimo-v2-flash",
+        "silicon::glm-4-5-air",
         "silicon::glm-5",
         "silicon::glm-5-1",
         "silicon::glm-5-2",
         "silicon::glm-5v-turbo",
         "silicon::hunyuan-a13b-instruct",
+        "silicon::kimi-k2-5",
+        "silicon::kimi-k2-6",
         "tokenhub::glm-5",
         "tokenhub::glm-5-1",
         "tokenhub::glm-5-2",
         "tokenhub::glm-5-turbo",
         "tokenhub::glm-5v-turbo",
+        "tokenhub::kimi-k2-5",
+        "tokenhub::kimi-k2-6",
+        "tokenhub::kimi-k2-7-code",
+        "vertexai::glm-4-7-maas",
         "vertexai::glm-5-maas",
+        "zhipu::glm-4-5",
+        "zhipu::glm-4-5-air",
+        "zhipu::glm-4-5-flash",
+        "zhipu::glm-4-5v",
+        "zhipu::glm-4-6",
+        "zhipu::glm-4-6v",
+        "zhipu::glm-4-6v-flash",
+        "zhipu::glm-4-7",
+        "zhipu::glm-4-7-flash",
+        "zhipu::glm-4-7-flashx",
+        "zhipu::glm-4-7-maas",
         "zhipu::glm-5",
         "zhipu::glm-5-1",
         "zhipu::glm-5-2",
@@ -1817,25 +1671,30 @@
       "members": [
         "302ai::gemini-2-5-flash",
         "302ai::gemini-2-5-flash-image",
+        "302ai::gemini-3-1-flash-image-preview",
         "dmxapi::gemini-2-5-flash-image",
+        "dmxapi::gemini-3-1-flash-image-preview",
         "gateway::gemini-2-5-flash",
         "gateway::gemini-2-5-flash-image",
-        "gateway::gemini-2-5-flash-lite",
+        "gateway::gemini-3-1-flash-image",
+        "gateway::gemini-3-1-flash-image-preview",
         "gateway::gemini-3-1-flash-lite-image",
         "gateway::gemini-omni-flash-preview",
         "gemini::gemini-2-5-flash",
         "gemini::gemini-2-5-flash-image",
         "gemini::gemini-2-5-flash-image-preview",
-        "gemini::gemini-2-5-flash-lite",
+        "gemini::gemini-3-1-flash-image",
+        "gemini::gemini-3-1-flash-image-preview",
         "gemini::gemini-3-1-flash-lite-image",
         "gemini::gemini-omni-flash-preview",
         "openrouter::gemini-2-5-flash",
         "openrouter::gemini-2-5-flash-image",
-        "openrouter::gemini-2-5-flash-lite",
+        "openrouter::gemini-3-1-flash-image",
+        "openrouter::gemini-3-1-flash-image-preview",
         "openrouter::gemini-3-1-flash-lite-image",
         "vertexai::gemini-2-5-flash",
         "vertexai::gemini-2-5-flash-image",
-        "vertexai::gemini-2-5-flash-lite"
+        "vertexai::gemini-3-1-flash-image"
       ]
     },
     {
@@ -2062,6 +1921,12 @@
               "type": "disabled"
             }
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": false,
+              "thinkingLevel": "minimal"
+            }
+          },
           "bedrock": {
             "reasoningConfig": {
               "type": "disabled"
@@ -2082,6 +1947,12 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "minimal"
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2096,6 +1967,12 @@
               "budgetTokens": 1228
             },
             "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "low"
+            }
           },
           "ollama": {
             "think": true
@@ -2112,6 +1989,12 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "medium"
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2126,6 +2009,12 @@
               "budgetTokens": 19660
             },
             "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
           },
           "ollama": {
             "think": true
@@ -2142,6 +2031,12 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2156,6 +2051,12 @@
               "budgetTokens": 24576
             },
             "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
           },
           "ollama": {
             "think": true
@@ -2172,41 +2073,40 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true
+            }
+          },
           "ollama": {
             "think": true
           }
         }
       },
       "members": [
-        "302ai::gemini-3-1-flash-image-preview",
         "302ai::gemini-3-flash-preview",
         "copilot::gemini-3-5-flash",
         "copilot::gemini-3-flash-preview",
-        "dmxapi::gemini-3-1-flash-image-preview",
-        "gateway::gemini-3-1-flash-image",
-        "gateway::gemini-3-1-flash-image-preview",
         "gateway::gemini-3-1-flash-lite",
         "gateway::gemini-3-1-flash-lite-preview",
         "gateway::gemini-3-5-flash",
         "gateway::gemini-3-flash",
-        "gemini::gemini-3-1-flash-image",
-        "gemini::gemini-3-1-flash-image-preview",
         "gemini::gemini-3-1-flash-lite",
         "gemini::gemini-3-1-flash-lite-preview",
         "gemini::gemini-3-5-flash",
         "gemini::gemini-3-flash",
         "gemini::gemini-3-flash-preview",
-        "openrouter::gemini-3-1-flash-image",
-        "openrouter::gemini-3-1-flash-image-preview",
+        "gemini::gemini-flash-latest",
         "openrouter::gemini-3-1-flash-lite",
         "openrouter::gemini-3-1-flash-lite-preview",
         "openrouter::gemini-3-5-flash",
         "openrouter::gemini-3-flash-preview",
-        "vertexai::gemini-3-1-flash-image",
+        "openrouter::gemini-flash-latest",
         "vertexai::gemini-3-1-flash-lite",
         "vertexai::gemini-3-1-flash-lite-preview",
         "vertexai::gemini-3-5-flash",
-        "vertexai::gemini-3-flash-preview"
+        "vertexai::gemini-3-flash-preview",
+        "vertexai::gemini-flash-latest"
       ]
     },
     {
@@ -2230,6 +2130,12 @@
               "type": "disabled"
             }
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": false,
+              "thinkingLevel": "low"
+            }
+          },
           "bedrock": {
             "reasoningConfig": {
               "type": "disabled"
@@ -2250,6 +2156,12 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "low"
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2264,6 +2176,12 @@
               "budgetTokens": 1760
             },
             "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "low"
+            }
           },
           "ollama": {
             "think": true
@@ -2280,6 +2198,12 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "medium"
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2294,6 +2218,12 @@
               "budgetTokens": 26240
             },
             "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
           },
           "ollama": {
             "think": true
@@ -2310,6 +2240,12 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2324,6 +2260,12 @@
               "budgetTokens": 32768
             },
             "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
           },
           "ollama": {
             "think": true
@@ -2340,6 +2282,11 @@
             },
             "sendReasoning": true
           },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true
+            }
+          },
           "ollama": {
             "think": true
           }
@@ -2353,8 +2300,10 @@
         "gemini::gemini-3-1-pro-preview",
         "gemini::gemini-3-1-pro-preview-customtools",
         "gemini::gemini-3-pro-preview",
+        "gemini::gemini-pro-latest",
         "openrouter::gemini-3-1-pro-preview",
         "openrouter::gemini-3-1-pro-preview-customtools",
+        "openrouter::gemini-pro-latest",
         "vertexai::gemini-3-1-pro-preview",
         "vertexai::gemini-3-1-pro-preview-customtools"
       ]
@@ -2948,13 +2897,213 @@
       "members": [
         "302ai::qwen-flash",
         "302ai::qwen-plus",
-        "302ai::qwen3-max",
         "dashscope::qwen-flash",
         "dashscope::qwen-plus",
-        "dashscope::qwen3-max",
-        "gateway::qwen3-max",
+        "dashscope::qwen3-5-122b-a10b",
+        "dashscope::qwen3-5-27b",
+        "dashscope::qwen3-5-35b-a3b",
+        "dashscope::qwen3-5-397b-a17b",
+        "dashscope::qwen3-5-9b",
+        "dashscope::qwen3-5-flash-02-23",
+        "dashscope::qwen3-5-plus-02-15",
+        "dashscope::qwen3-6-35b-a3b",
+        "dashscope::qwen3-6-flash",
+        "dashscope::qwen3-6-max-preview",
+        "dashscope::qwen3-8b",
+        "huggingface::qwen3-5-122b-a10b",
+        "huggingface::qwen3-5-27b",
+        "huggingface::qwen3-5-35b-a3b",
+        "huggingface::qwen3-5-397b-a17b",
+        "huggingface::qwen3-5-9b",
+        "huggingface::qwen3-6-35b-a3b",
+        "nvidia::qwen3-5-122b-a10b",
+        "nvidia::qwen3-5-397b-a17b",
         "openrouter::qwen-plus",
-        "openrouter::qwen3-max"
+        "openrouter::qwen3-5-122b-a10b",
+        "openrouter::qwen3-5-27b",
+        "openrouter::qwen3-5-35b-a3b",
+        "openrouter::qwen3-5-397b-a17b",
+        "openrouter::qwen3-5-9b",
+        "openrouter::qwen3-5-flash-02-23",
+        "openrouter::qwen3-5-plus-02-15",
+        "openrouter::qwen3-6-35b-a3b",
+        "openrouter::qwen3-6-flash",
+        "openrouter::qwen3-6-max-preview",
+        "openrouter::qwen3-8b",
+        "ppio::qwen3-5-122b-a10b",
+        "ppio::qwen3-5-27b",
+        "ppio::qwen3-5-35b-a3b",
+        "ppio::qwen3-5-397b-a17b",
+        "silicon::qwen3-5-122b-a10b",
+        "silicon::qwen3-5-27b",
+        "silicon::qwen3-5-35b-a3b",
+        "silicon::qwen3-5-397b-a17b",
+        "silicon::qwen3-5-9b",
+        "silicon::qwen3-6-35b-a3b",
+        "silicon::qwen3-8b"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 4096
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 4096
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 40960
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 65536
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 73728
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 81920
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 163839
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "302ai::qwen3-235b-a22b",
+        "302ai::qwen3-max",
+        "aws-bedrock::qwen3-235b-a22b",
+        "dashscope::qwen3-235b-a22b",
+        "dashscope::qwen3-5-flash",
+        "dashscope::qwen3-5-plus",
+        "dashscope::qwen3-max",
+        "dashscope::qwen3-vl",
+        "gateway::qwen3-235b-a22b",
+        "gateway::qwen3-5-flash",
+        "gateway::qwen3-5-plus",
+        "gateway::qwen3-max",
+        "gateway::qwen3-vl",
+        "huggingface::qwen3-235b-a22b",
+        "lanyun::qwen3-235b-a22b",
+        "modelscope::qwen3-235b-a22b",
+        "openrouter::qwen3-235b-a22b",
+        "openrouter::qwen3-5-plus",
+        "openrouter::qwen3-max",
+        "ppio::qwen3-235b-a22b",
+        "ppio::qwen3-5-plus",
+        "silicon::qwen3-235b-a22b",
+        "tokenhub::qwen3-5-flash",
+        "tokenhub::qwen3-5-plus"
       ]
     },
     {
@@ -3094,131 +3243,197 @@
         }
       },
       "members": [
-        "302ai::qwen3-235b-a22b",
         "302ai::qwen3-30b-a3b",
-        "aws-bedrock::qwen3-235b-a22b",
         "aws-bedrock::qwen3-32b",
         "aws-bedrock::qwen3-coder-30b-a3b",
         "aws-bedrock::qwen3-coder-next",
         "aws-bedrock::qwen3-next-80b-a3b",
         "aws-bedrock::qwen3-vl-235b-a22b",
         "dashscope::qwen3-14b",
-        "dashscope::qwen3-235b-a22b",
         "dashscope::qwen3-235b-a22b-instruct-2507-maas",
         "dashscope::qwen3-30b-a3b",
         "dashscope::qwen3-32b",
-        "dashscope::qwen3-5-122b-a10b",
-        "dashscope::qwen3-5-27b",
-        "dashscope::qwen3-5-35b-a3b",
-        "dashscope::qwen3-5-397b-a17b",
-        "dashscope::qwen3-5-9b",
-        "dashscope::qwen3-5-flash",
-        "dashscope::qwen3-5-flash-02-23",
-        "dashscope::qwen3-5-plus",
-        "dashscope::qwen3-5-plus-02-15",
-        "dashscope::qwen3-6-27b",
-        "dashscope::qwen3-6-35b-a3b",
-        "dashscope::qwen3-6-flash",
-        "dashscope::qwen3-6-max-preview",
-        "dashscope::qwen3-6-plus",
-        "dashscope::qwen3-7-max",
-        "dashscope::qwen3-7-plus",
-        "dashscope::qwen3-8b",
         "dashscope::qwen3-coder",
         "dashscope::qwen3-coder-30b-a3b",
         "dashscope::qwen3-coder-next",
         "dashscope::qwen3-next-80b-a3b",
         "dashscope::qwen3-omni-flash",
-        "dashscope::qwen3-vl",
         "dashscope::qwen3-vl-235b-a22b",
         "dashscope::qwen3-vl-30b-a3b",
         "dashscope::qwen3-vl-8b",
         "dashscope::qwen3-vl-plus",
-        "fireworks::qwen3-7-plus",
-        "gateway::qwen3-235b-a22b",
-        "gateway::qwen3-5-flash",
-        "gateway::qwen3-5-plus",
-        "gateway::qwen3-6-27b",
-        "gateway::qwen3-6-plus",
-        "gateway::qwen3-7-max",
-        "gateway::qwen3-7-plus",
         "gateway::qwen3-coder",
         "gateway::qwen3-coder-30b-a3b",
         "gateway::qwen3-coder-next",
         "gateway::qwen3-next-80b-a3b",
-        "gateway::qwen3-vl",
         "groq::qwen3-32b",
-        "huggingface::qwen3-235b-a22b",
         "huggingface::qwen3-32b",
-        "huggingface::qwen3-5-122b-a10b",
-        "huggingface::qwen3-5-27b",
-        "huggingface::qwen3-5-35b-a3b",
-        "huggingface::qwen3-5-397b-a17b",
-        "huggingface::qwen3-5-9b",
-        "huggingface::qwen3-6-27b",
-        "huggingface::qwen3-6-35b-a3b",
         "huggingface::qwen3-coder-next",
         "huggingface::qwen3-next-80b-a3b",
-        "lanyun::qwen3-235b-a22b",
         "lanyun::qwen3-32b",
-        "modelscope::qwen3-235b-a22b",
         "modelscope::qwen3-30b-a3b",
-        "nvidia::qwen3-5-122b-a10b",
-        "nvidia::qwen3-5-397b-a17b",
         "openrouter::qwen3-14b",
-        "openrouter::qwen3-235b-a22b",
         "openrouter::qwen3-30b-a3b",
         "openrouter::qwen3-32b",
-        "openrouter::qwen3-5-122b-a10b",
-        "openrouter::qwen3-5-27b",
-        "openrouter::qwen3-5-35b-a3b",
-        "openrouter::qwen3-5-397b-a17b",
-        "openrouter::qwen3-5-9b",
-        "openrouter::qwen3-5-flash-02-23",
-        "openrouter::qwen3-5-plus",
-        "openrouter::qwen3-5-plus-02-15",
-        "openrouter::qwen3-6-27b",
-        "openrouter::qwen3-6-35b-a3b",
-        "openrouter::qwen3-6-flash",
-        "openrouter::qwen3-6-max-preview",
-        "openrouter::qwen3-6-plus",
-        "openrouter::qwen3-7-max",
-        "openrouter::qwen3-7-plus",
-        "openrouter::qwen3-8b",
         "openrouter::qwen3-coder",
         "openrouter::qwen3-coder-next",
         "openrouter::qwen3-next-80b-a3b",
         "openrouter::qwen3-vl-235b-a22b",
         "openrouter::qwen3-vl-30b-a3b",
         "openrouter::qwen3-vl-8b",
-        "ppio::qwen3-235b-a22b",
         "ppio::qwen3-30b-a3b",
         "ppio::qwen3-32b",
-        "ppio::qwen3-5-122b-a10b",
-        "ppio::qwen3-5-27b",
-        "ppio::qwen3-5-35b-a3b",
-        "ppio::qwen3-5-397b-a17b",
-        "ppio::qwen3-5-plus",
         "ppio::qwen3-coder-next",
         "ppio::qwen3-next-80b-a3b",
         "ppio::qwen3-vl-235b-a22b",
         "ppio::qwen3-vl-30b-a3b",
         "silicon::qwen3-14b",
-        "silicon::qwen3-235b-a22b",
         "silicon::qwen3-32b",
-        "silicon::qwen3-5-122b-a10b",
-        "silicon::qwen3-5-27b",
-        "silicon::qwen3-5-35b-a3b",
-        "silicon::qwen3-5-397b-a17b",
-        "silicon::qwen3-5-9b",
-        "silicon::qwen3-6-27b",
-        "silicon::qwen3-6-35b-a3b",
-        "silicon::qwen3-8b",
         "silicon::qwen3-vl-235b-a22b",
         "silicon::qwen3-vl-30b-a3b",
-        "tokenhub::qwen3-5-flash",
-        "tokenhub::qwen3-5-plus",
         "vertexai::qwen3-235b-a22b-instruct-2507-maas"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32512
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 51404
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 57702
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 64000
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 126976
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "aws-bedrock::claude-haiku-4-5",
+        "aws-bedrock::claude-opus-4-5",
+        "aws-bedrock::claude-sonnet-4-5"
       ]
     },
     {
@@ -3367,9 +3582,6 @@
         "gateway::gpt-oss-120b",
         "gateway::gpt-oss-20b",
         "gateway::gpt-oss-safeguard-20b",
-        "groq::gpt-oss-120b",
-        "groq::gpt-oss-20b",
-        "groq::gpt-oss-safeguard-20b",
         "huggingface::gpt-oss-120b",
         "huggingface::gpt-oss-20b",
         "nvidia::gpt-oss-120b",
@@ -3386,6 +3598,296 @@
         "silicon::gpt-oss-20b",
         "vertexai::gpt-oss-120b-maas",
         "vertexai::gpt-oss-20b-maas"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1946
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1946
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 19456
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 31129
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 35020
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 38912
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 77823
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "dashscope::qwen-3-32b",
+        "gateway::qwen-3-32b"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 6554
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 6554
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 65536
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 104857
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 117964
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 131072
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 262143
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "dashscope::qwen-3-6-max-preview",
+        "dashscope::qwen3-6-27b",
+        "dashscope::qwen3-6-plus",
+        "gateway::qwen-3-6-max-preview",
+        "gateway::qwen3-6-27b",
+        "gateway::qwen3-6-plus",
+        "huggingface::qwen3-6-27b",
+        "openrouter::qwen3-6-27b",
+        "openrouter::qwen3-6-plus",
+        "silicon::qwen3-6-27b"
       ]
     },
     {
@@ -3565,6 +4067,152 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
+              "budgetTokens": 13108
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 13108
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 131072
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 209715
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 235929
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 262144
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 524287
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "dashscope::qwen3-7-max",
+        "dashscope::qwen3-7-plus",
+        "fireworks::qwen3-7-plus",
+        "gateway::qwen3-7-max",
+        "gateway::qwen3-7-plus",
+        "openrouter::qwen3-7-max",
+        "openrouter::qwen3-7-plus"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
               "budgetTokens": 1792
             },
             "sendReasoning": true
@@ -3683,468 +4331,6 @@
         "silicon::deepseek-v4-pro",
         "tokenhub::deepseek-v4-flash",
         "tokenhub::deepseek-v4-pro"
-      ]
-    },
-    {
-      "behavior": {
-        "unset": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "default": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "none": {
-          "openai": {
-            "reasoningEffort": "none"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "disabled"
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "disabled"
-            }
-          },
-          "ollama": {
-            "think": false
-          }
-        },
-        "minimal": {
-          "openai": {
-            "reasoningEffort": "minimal"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 2508
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "low": {
-          "openai": {
-            "reasoningEffort": "low"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 2508
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "medium": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 15872
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "high": {
-          "openai": {
-            "reasoningEffort": "high"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 24780
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "xhigh": {
-          "openai": {
-            "reasoningEffort": "xhigh"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 27750
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "max": {
-          "openai": {
-            "reasoningEffort": "max"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 30720
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "auto": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 60416
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        }
-      },
-      "members": [
-        "gateway::gemma-4-26b-a4b-it",
-        "gateway::gemma-4-31b-it",
-        "gemini::gemma-4-26b-a4b-it",
-        "gemini::gemma-4-31b-it",
-        "huggingface::gemma-4-26b-a4b-it",
-        "huggingface::gemma-4-31b-it",
-        "nvidia::gemma-4-31b-it",
-        "openrouter::gemma-4-26b-a4b-it",
-        "openrouter::gemma-4-31b-it",
-        "silicon::gemma-4-26b-a4b-it",
-        "silicon::gemma-4-31b-it"
-      ]
-    },
-    {
-      "behavior": {
-        "unset": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "default": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "none": {
-          "anthropic": {
-            "thinking": {
-              "type": "disabled"
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "disabled"
-            }
-          },
-          "ollama": {
-            "think": false
-          }
-        },
-        "minimal": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 1792
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "low": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 1792
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "medium": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 8704
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "high": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 13312
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "xhigh": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 14848
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "max": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 16384
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "auto": {
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 31744
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        }
-      },
-      "members": [
-        "gateway::gpt-5-chat",
-        "openai::gpt-5-chat",
-        "openai::gpt-5-chat-latest",
-        "openai::gpt-latest",
-        "openai::gpt-mini-latest",
-        "openrouter::gpt-5-chat",
-        "openrouter::gpt-latest",
-        "openrouter::gpt-mini-latest"
-      ]
-    },
-    {
-      "behavior": {
-        "unset": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "default": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "none": {
-          "openai": {
-            "reasoningEffort": "none"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "disabled"
-            }
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": false,
-              "thinkingLevel": "minimal"
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "disabled"
-            }
-          },
-          "ollama": {
-            "think": false
-          }
-        },
-        "minimal": {
-          "openai": {
-            "reasoningEffort": "minimal"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 1228
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "minimal"
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "low": {
-          "openai": {
-            "reasoningEffort": "low"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 1228
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "low"
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "medium": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 12288
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "medium"
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "high": {
-          "openai": {
-            "reasoningEffort": "high"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 19660
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "high"
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "xhigh": {
-          "openai": {
-            "reasoningEffort": "xhigh"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 22118
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "high"
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "max": {
-          "openai": {
-            "reasoningEffort": "max"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 24576
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "high"
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "auto": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 49152
-            },
-            "sendReasoning": true
-          },
-          "gemini": {
-            "thinkingConfig": {
-              "includeThoughts": true
-            }
-          },
-          "ollama": {
-            "think": true
-          }
-        }
-      },
-      "members": [
-        "gemini::gemini-flash-latest",
-        "openrouter::gemini-flash-latest",
-        "vertexai::gemini-flash-latest"
       ]
     },
     {
@@ -4332,8 +4518,283 @@
         }
       },
       "members": [
+        "gateway::gemini-2-5-flash-lite",
+        "gemini::gemini-2-5-flash-lite",
         "gemini::gemini-flash-lite-latest",
+        "openrouter::gemini-2-5-flash-lite",
+        "vertexai::gemini-2-5-flash-lite",
         "vertexai::gemini-flash-lite-latest"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 2508
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 2508
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 15872
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 24780
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 27750
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 30720
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 60416
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "gateway::gemma-4-26b-a4b-it",
+        "gateway::gemma-4-31b-it",
+        "huggingface::gemma-4-26b-a4b-it",
+        "huggingface::gemma-4-31b-it",
+        "nvidia::gemma-4-31b-it",
+        "openrouter::gemma-4-26b-a4b-it",
+        "openrouter::gemma-4-31b-it",
+        "silicon::gemma-4-26b-a4b-it",
+        "silicon::gemma-4-31b-it"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1792
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1792
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 8704
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 13312
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 14848
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 31744
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "gateway::gpt-5-chat",
+        "openai::gpt-5-chat",
+        "openai::gpt-5-chat-latest",
+        "openai::gpt-latest",
+        "openai::gpt-mini-latest",
+        "openrouter::gpt-5-chat",
+        "openrouter::gpt-latest",
+        "openrouter::gpt-mini-latest"
       ]
     },
     {
@@ -4360,7 +4821,7 @@
           "gemini": {
             "thinkingConfig": {
               "includeThoughts": false,
-              "thinkingLevel": "low"
+              "thinkingLevel": "minimal"
             }
           },
           "bedrock": {
@@ -4379,14 +4840,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 1760
+              "budgetTokens": 2508
             },
             "sendReasoning": true
           },
           "gemini": {
             "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "low"
+              "includeThoughts": false,
+              "thinkingLevel": "minimal"
             }
           },
           "ollama": {
@@ -4400,14 +4861,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 1760
+              "budgetTokens": 2508
             },
             "sendReasoning": true
           },
           "gemini": {
             "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "low"
+              "includeThoughts": false,
+              "thinkingLevel": "minimal"
             }
           },
           "ollama": {
@@ -4421,14 +4882,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 16448
+              "budgetTokens": 15872
             },
             "sendReasoning": true
           },
           "gemini": {
             "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "medium"
+              "includeThoughts": false,
+              "thinkingLevel": "minimal"
             }
           },
           "ollama": {
@@ -4442,7 +4903,7 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 26240
+              "budgetTokens": 24780
             },
             "sendReasoning": true
           },
@@ -4463,7 +4924,7 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 29504
+              "budgetTokens": 27750
             },
             "sendReasoning": true
           },
@@ -4484,14 +4945,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 32768
+              "budgetTokens": 30720
             },
             "sendReasoning": true
           },
           "gemini": {
             "thinkingConfig": {
-              "includeThoughts": true,
-              "thinkingLevel": "high"
+              "includeThoughts": false,
+              "thinkingLevel": "minimal"
             }
           },
           "ollama": {
@@ -4505,13 +4966,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 65408
+              "budgetTokens": 60416
             },
             "sendReasoning": true
           },
           "gemini": {
             "thinkingConfig": {
-              "includeThoughts": true
+              "includeThoughts": false,
+              "thinkingLevel": "minimal"
             }
           },
           "ollama": {
@@ -4520,8 +4982,126 @@
         }
       },
       "members": [
-        "gemini::gemini-pro-latest",
-        "openrouter::gemini-pro-latest"
+        "gemini::gemma-4-26b-a4b-it",
+        "gemini::gemma-4-31b-it"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1792
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1792
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": "low"
+          }
+        },
+        "medium": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 8704
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": "medium"
+          }
+        },
+        "high": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 13312
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": "high"
+          }
+        },
+        "xhigh": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 14848
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 31744
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "groq::gpt-oss-120b",
+        "groq::gpt-oss-20b",
+        "groq::gpt-oss-safeguard-20b"
       ]
     },
     {

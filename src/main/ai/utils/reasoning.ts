@@ -60,9 +60,11 @@ import { isSystemProviderId, SystemProviderIds } from '@shared/utils/systemProvi
 import { toInteger } from 'es-toolkit/compat'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
+import { serializeReasoningEffort } from './reasoningSerializers'
+
 const logger = loggerService.withContext('reasoning')
 
-type ReasoningEffortOptionalParams = {
+export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: ReasoningEffortOption
@@ -95,8 +97,37 @@ type ReasoningEffortOptionalParams = {
   // Add any other potential reasoning-related keys here if they exist
 }
 
-// The function is only for generic provider. May extract some logics to independent provider
+/**
+ * Reasoning params for the generic (OpenAI-compatible) request path.
+ *
+ * Descriptor-driven dispatch (#16598): models whose registry descriptor
+ * carries a reasoning format type route through the format-keyed serializer
+ * catalog (`reasoningSerializers.ts`); descriptor-less models (fixed-reasoning
+ * SKUs, rows predating ingest inference) fall back to the legacy branch tower
+ * below until Phase 6 deletes it.
+ */
 export function getReasoningEffort(
+  assistant: Assistant,
+  model: Model,
+  provider: Provider
+): ReasoningEffortOptionalParams {
+  const format = model.reasoning?.type
+  if (format) {
+    // Head order mirrors the legacy tower: groq's data-declared 'none' format
+    // wins over everything; deep research pins medium before effort parsing.
+    if (format === 'none') return {}
+    if (!isReasoningModel(model)) return {}
+    if (isOpenAIDeepResearchModel(model)) return { reasoning_effort: 'medium' }
+    return serializeReasoningEffort(assistant, model, provider, format)
+  }
+  return legacyGetReasoningEffort(assistant, model, provider)
+}
+
+// The legacy provider-id branch tower — reached only for descriptor-less
+// models; deleted in the final migration phase once the fallback hit rate is
+// provably zero. Do NOT extend: new knowledge goes into the registry data +
+// serializer catalog.
+function legacyGetReasoningEffort(
   assistant: Assistant,
   model: Model,
   provider: Provider
@@ -659,18 +690,24 @@ export function getOpenAIReasoningParams(
 }
 
 /**
- * Main-side wrapper around the shared `getThinkingBudget` — fixes the
- * `effortRatioMap` argument so internal callers don't pass it on every
- * call. Uses the strict (no-fallback) variant: unknown models return
- * `undefined`. The renderer Code page calls the shared function directly
- * with `{ fallbackOnUnknown: true }`.
+ * Main-side thinking budget: DESCRIPTOR-FIRST (#16598) — reads the model's
+ * registry `thinkingTokenLimits` when present, falling back to the shared
+ * regex-table lookup for descriptor-less models. Strict (no-fallback)
+ * variant: unknown models return `undefined`. The renderer Code page calls
+ * the shared function directly with `{ fallbackOnUnknown: true }`.
  */
 export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
-  modelId: string
+  model: Model
 ): number | undefined {
-  return sharedGetThinkingBudget(maxTokens, reasoningEffort, modelId, EFFORT_RATIO)
+  if (reasoningEffort === undefined || reasoningEffort === 'none') return undefined
+  const limits = model.reasoning?.thinkingTokenLimits
+  if (limits?.min != null && limits.max != null) {
+    const ratio = EFFORT_RATIO[reasoningEffort as keyof typeof EFFORT_RATIO] ?? EFFORT_RATIO.high
+    return computeBudgetTokens({ min: limits.min, max: limits.max }, ratio, maxTokens)
+  }
+  return sharedGetThinkingBudget(maxTokens, reasoningEffort, model.id, EFFORT_RATIO)
 }
 
 // Compute a fallback budgetTokens using a conservative token limit when
@@ -771,7 +808,7 @@ export function getAnthropicReasoningParams(
 
     // Other Claude models continue using enabled + budgetTokens
     const maxTokens = assistant.settings?.maxTokens
-    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model)
 
     return {
       thinking: {
@@ -782,7 +819,7 @@ export function getAnthropicReasoningParams(
   } else {
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
     const maxTokens = assistant.settings?.maxTokens
-    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model)
     const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
       thinking: {
         type: 'enabled',
@@ -1039,7 +1076,7 @@ export function getBedrockReasoningParams(
 
   // Other Claude models use enabled + budgetTokens
   const maxTokens = assistant.settings?.maxTokens
-  const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+  const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model)
   return {
     reasoningConfig: {
       type: 'enabled',

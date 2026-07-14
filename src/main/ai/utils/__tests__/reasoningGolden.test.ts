@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type BehaviorGroup,
   buildCatalogRows,
+  buildEnrichedSyntheticRows,
   buildSyntheticRows,
   captureGenericTower,
   captureNativeParams,
@@ -55,5 +56,16 @@ describe('reasoning injection golden matrix (characterization)', () => {
   it('freezes the native adapter params over synthetic custom rows', async () => {
     const groups = groupByBehavior(syntheticRows, captureNativeParams)
     await expect(toGoldenJson(syntheticRows, groups)).toMatchFileSnapshot('goldens/native-params.synthetic.json')
+  })
+
+  it('freezes the tower over ingest-ENRICHED synthetic rows (the descriptor-driven custom population)', async () => {
+    const enriched = buildEnrichedSyntheticRows()
+    // The custom population must be descriptor-driven: ingest inference covers
+    // every family the heuristics know (rows without descriptors are the
+    // knob-less/fixed-reasoning tail, served by the legacy fallback).
+    const withDescriptor = enriched.filter((r) => r.model.reasoning?.type).length
+    expect(withDescriptor / enriched.length).toBeGreaterThan(0.75)
+    const groups = groupByBehavior(enriched, captureGenericTower)
+    await expect(toGoldenJson(enriched, groups)).toMatchFileSnapshot('goldens/generic-tower.synthetic-enriched.json')
   })
 })

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import type { ZodType } from 'zod'
 
 import { CREATORS } from '../src/creators'
-import { inferReasoningControls } from '../src/patterns/reasoning-heuristics'
+import { findHeuristicTokenLimits, inferReasoningControls } from '../src/patterns/reasoning-heuristics'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import { stripHostReprefix } from '../src/utils/normalize'
@@ -221,6 +221,16 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     if (m.reasoning || !(m.capabilities ?? []).includes('reasoning')) continue
     const controls = inferReasoningControls(m.id)
     if (controls) m.reasoning = { controls }
+  }
+  // Budget completion — models.dev frequently reports only the on/off toggle
+  // for budget-capable families (glm, claude-haiku, …). A missing budget makes
+  // the request path inert on compat providers, so merge the heuristic
+  // token-limit knowledge in when the declaration lacks it.
+  for (const m of models.values()) {
+    const controls = m.reasoning?.controls
+    if (!controls?.length || controls.some((c: { kind: string }) => c.kind === 'budget')) continue
+    const limits = findHeuristicTokenLimits(m.id)
+    if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
   }
   // Reasoning normalization — `controls` is the source of truth: whenever a
   // model declares it (upstream ingest, creator hand-list, or heuristic fill),
