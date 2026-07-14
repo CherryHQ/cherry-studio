@@ -313,14 +313,15 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   if (/\bmkdir\b/.test(text)) return { label: labels.create, description: t('message.tools.activity.folder') }
   if (/\btouch\b/.test(text)) return { label: labels.create, description: getCommandPathTarget(command, t) }
   if (/\b(?:unzip|tar)\b/.test(text)) return { label: labels.extract, description: t('message.tools.activity.archive') }
-  if (/\b(?:open|xdg-open|start)\b/.test(text))
-    return { label: labels.open, description: getCommandPathTarget(command, t) }
   if (
     /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start|serve)\b|\b(?:cargo|go)\s+run\b|\b(?:vite|next|nuxt|electron-vite)\s+(?:dev|serve)\b|\bdocker\s+compose\s+up\b/.test(
       text
     )
   ) {
     return { label: labels.start, description: t('message.tools.activity.projectTask') }
+  }
+  if (/\b(?:open|xdg-open)\b/.test(text) || /^\s*start\b/i.test(command ?? '')) {
+    return { label: labels.open, description: getCommandPathTarget(command, t) }
   }
   if (
     /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|compile|package)\b|\b(?:vite|next|nuxt|electron-vite)\s+build\b|\b(?:tsup|rollup|webpack|electron-builder)\b/.test(

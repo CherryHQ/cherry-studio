@@ -31,6 +31,7 @@ const translations: Record<string, string> = {
   'message.tools.activity.handling': 'Handling',
   'message.tools.activity.installing': 'Installing',
   'message.tools.activity.matchingFiles': 'matching files',
+  'message.tools.activity.opening': 'Opening',
   'message.tools.activity.projectDependencies': 'project requirements',
   'message.tools.activity.projectTask': 'project task',
   'message.tools.activity.projectRootFiles': 'top-level project files',
@@ -166,9 +167,23 @@ describe('getReadableToolActivity', () => {
       description: 'project task'
     })
 
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'pnpm start' }, true, t)).toEqual({
+      label: 'Starting',
+      description: 'project task'
+    })
+
     expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'vite dev' }, true, t)).toEqual({
       label: 'Starting',
       description: 'project task'
+    })
+  })
+
+  it('recognizes Windows start only at the beginning of the command', () => {
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'start README.md' }, true, t)).toMatchObject({
+      label: 'Opening'
+    })
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'echo start README.md' }, true, t)).toMatchObject({
+      label: 'Running task'
     })
   })
 
