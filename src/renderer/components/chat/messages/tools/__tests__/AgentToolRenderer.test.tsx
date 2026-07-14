@@ -30,9 +30,13 @@ const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  usePartsMap: () => mockPartsMap()
-}))
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    usePartsMap: () => mockPartsMap()
+  }
+})
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
