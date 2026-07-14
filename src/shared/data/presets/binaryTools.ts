@@ -59,7 +59,16 @@ export interface BinaryToolPreset {
   homepage?: string
 }
 
+export const BABELDOC_BINARY_TOOL_PRESET = {
+  name: 'babeldoc',
+  displayName: 'BabelDOC',
+  tool: 'pipx:babeldoc',
+  version: '0.6.3',
+  repoUrl: 'https://github.com/funstory-ai/BabelDOC'
+} as const satisfies BinaryToolPreset
+
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
+  BABELDOC_BINARY_TOOL_PRESET,
   {
     name: 'uv',
     displayName: 'uv',

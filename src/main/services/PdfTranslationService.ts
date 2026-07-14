@@ -11,18 +11,15 @@ import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
+import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { Mutex } from 'async-mutex'
 import { stringify as stringifyToml } from 'smol-toml'
 
 const logger = loggerService.withContext('PdfTranslationService')
-const BABELDOC_BINARY = 'babeldoc'
-const BABELDOC_INSTALL_SPEC = {
-  name: BABELDOC_BINARY,
-  tool: 'pipx:babeldoc',
-  version: '0.6.3'
-} as const
 const SIDECAR_ENV_KEYS = new Set([
   'ALL_PROXY',
   'COMSPEC',
@@ -46,7 +43,7 @@ const BABELDOC_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
   'zh-hant': 'zh-TW'
 }
 
-export type PdfTranslationStage = 'installing' | 'translating'
+export type PdfTranslationStage = 'preparing' | 'translating'
 
 export interface PdfTranslationRequest {
   jobId: string
@@ -135,8 +132,8 @@ export class PdfTranslationService extends BaseService {
         throw new Error('PDF translation requires a .pdf source file')
       }
 
-      onStage?.('installing')
-      const executable = await this.ensureSidecar()
+      onStage?.('preparing')
+      const executable = await this.resolveSidecar()
       this.throwIfCancelled(job)
 
       const { providerId, modelId } = parseUniqueModelId(request.modelId)
@@ -190,18 +187,33 @@ export class PdfTranslationService extends BaseService {
     })
   }
 
-  private async ensureSidecar(): Promise<string> {
-    const result = await application.get('BinaryManager').reconcile([BABELDOC_INSTALL_SPEC])
-    const failure = result.failed.find(({ name }) => name === BABELDOC_BINARY || name === '*')
-    if (failure) {
-      throw new Error(`Failed to install BabelDOC: ${failure.error}`)
+  private async resolveSidecar(): Promise<string> {
+    const installed = application.get('BinaryManager').getState().tools[BABELDOC_BINARY_TOOL_PRESET.name]
+    if (
+      installed?.tool !== BABELDOC_BINARY_TOOL_PRESET.tool ||
+      installed.version !== BABELDOC_BINARY_TOOL_PRESET.version
+    ) {
+      throw new IpcError(
+        translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
+        `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not installed`
+      )
     }
 
-    const installedPath = await getBinaryPath(BABELDOC_BINARY)
+    const installedPath = await getBinaryPath(BABELDOC_BINARY_TOOL_PRESET.name)
     if (!path.isAbsolute(installedPath)) {
-      throw new Error('BabelDOC installed without a resolvable executable')
+      throw new IpcError(
+        translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
+        `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not available`
+      )
     }
-    await fs.promises.access(installedPath, fs.constants.X_OK)
+    try {
+      await fs.promises.access(installedPath, fs.constants.X_OK)
+    } catch {
+      throw new IpcError(
+        translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
+        `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not available`
+      )
+    }
     return installedPath
   }
 

@@ -41,6 +41,6 @@ export const translateRequestSchemas = {
 export type TranslateEventSchemas = {
   'translate.pdf.stage': {
     jobId: string
-    stage: 'installing' | 'translating'
+    stage: 'preparing' | 'translating'
   }
 }

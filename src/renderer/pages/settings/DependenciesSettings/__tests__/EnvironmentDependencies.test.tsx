@@ -247,6 +247,22 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
   })
 
+  it('lets the user install the BabelDOC dependency', async () => {
+    setSnapshots({
+      babeldoc: {
+        name: 'babeldoc',
+        application: { status: 'absent' },
+        availability: { source: 'none' }
+      }
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('BabelDOC')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByRole('button', { name: 'settings.mcp.install' }))
+
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'babeldoc' }))
+  })
+
   it('keeps a system preset display-only, never shadowing it with a managed copy', async () => {
     setSnapshots({ fd: { name: 'fd', availability: { source: 'system', path: '/usr/local/bin/fd' } } })
     render(<EnvironmentDependencies />)
