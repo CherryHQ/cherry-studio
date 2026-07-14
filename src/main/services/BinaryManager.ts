@@ -688,20 +688,18 @@ export class BinaryManager extends BaseService {
   /**
    * Installed entries reported by isolated mise for the *exact* canonical spec.
    *
-   * Unlike getInstalledVersion (which flattens every key mise returns and is
-   * therefore alias-tolerant for the install path), this reads only the entry
-   * keyed by the queried spec. mise reports a `core:` runtime under its bare
-   * name (`core:node` → `node`) — the only key normalization evidenced in this
-   * repo — so that one prefix is stripped; no other backend alias is accepted.
-   * A result keyed by any other spec yields no entries, so an unexpected or
-   * aliased mise response cannot be mistaken for proof that `tool` is installed.
-   * Query-only: never runs a mise mutation.
+   * `mise ls --json <spec>` filters to the queried spec and returns a bare
+   * array of that spec's installs — unlike the no-arg `mise ls --json`, which
+   * returns an object keyed by spec. The array is already scoped to `tool`, so
+   * an alias/other spec cannot masquerade as installed, and an absent spec
+   * yields `[]`. The `Array.isArray` guard keeps an unexpected object response
+   * from being mistaken for proof that `tool` is installed. Query-only: never
+   * runs a mise mutation.
    */
   private async listExactSpec(tool: string): Promise<Array<{ version?: string; active?: boolean }>> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const parsed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-    const expectedKey = tool.startsWith('core:') ? tool.slice('core:'.length) : tool
-    return parsed[expectedKey] ?? []
+    const parsed = JSON.parse(stdout) as Array<{ version?: string; active?: boolean }>
+    return Array.isArray(parsed) ? parsed : []
   }
 
   /**

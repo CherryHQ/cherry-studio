@@ -811,14 +811,21 @@ describe('BinaryManager', () => {
   })
 
   describe('claimTool', () => {
-    // `mise ls --json <spec>` returns the installed entries keyed exactly as mise
-    // reports them (a `core:` runtime is reported under its bare name). The map
-    // is returned verbatim so a test can simulate mise responding under an
-    // unexpected/alias key. `which` returns a shim path so the runnable check
-    // passes. No use/reshim/uninstall may ever be invoked.
+    // Mirror real mise: `ls --json <spec>` filters to the queried spec and
+    // returns a *bare array* of that spec's installs (a `core:` runtime is
+    // reported under its bare name); only the no-arg `ls --json` returns an
+    // object keyed by spec. Keying `byTool` lets a test declare what each spec
+    // resolves to; a spec absent from the map yields `[]`, exactly as mise
+    // reports an uninstalled spec. `which` returns a shim path so the runnable
+    // check passes. No use/reshim/uninstall may ever be invoked.
     const mockInstalled = (byTool: Record<string, Array<{ version?: string; active?: boolean }>>, shim = true) => {
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') return { stdout: JSON.stringify(byTool), stderr: '' }
+        if (args[0] === 'ls') {
+          const queried = args[2] as string | undefined
+          if (queried === undefined) return { stdout: JSON.stringify(byTool), stderr: '' }
+          const key = queried.startsWith('core:') ? queried.slice('core:'.length) : queried
+          return { stdout: JSON.stringify(byTool[key] ?? []), stderr: '' }
+        }
         if (args[0] === 'which') return { stdout: shim ? '/mock/mise/shims/fd\n' : '', stderr: '' }
         throw new Error(`unexpected mise invocation: ${args.join(' ')}`)
       })
@@ -853,12 +860,13 @@ describe('BinaryManager', () => {
       expect(miseSubcommands()).not.toContain('use')
     })
 
-    it('rejects and does not persist when mise reports the entry under a different spec key', async () => {
+    it('rejects and does not persist when only a different spec is installed', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      // Exact-spec probe must not accept an alias/other spec: querying npm:foo but
-      // mise answers with npm:bar proves nothing about npm:foo being installed.
+      // Exact-spec probe must not accept an alias/other spec: `ls --json npm:foo`
+      // filters to npm:foo, so npm:bar being installed proves nothing and the
+      // query yields an empty array for npm:foo.
       mockInstalled({ 'npm:bar': [{ version: '1.0.0', active: true }] })
 
       await expect(service.claimTool({ name: 'foo', tool: 'npm:foo' })).rejects.toThrow(

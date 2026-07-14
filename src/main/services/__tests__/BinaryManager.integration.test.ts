@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +17,7 @@ describeFakeMise('BinaryManager fake-mise integration', () => {
   let misePath: string
 
   beforeEach(() => {
+    BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     MockMainPreferenceServiceUtils.resetMocks()
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-fake-mise-'))
@@ -49,8 +51,10 @@ if (command === 'use') {
   fs.chmodSync(shim, 0o755)
   writeState(state)
 } else if (command === 'ls') {
+  // Match real mise: no-arg 'ls --json' returns an object keyed by spec, while
+  // 'ls --json <spec>' returns a bare array of that spec's installs ([] if none).
   const tool = args.at(-1) === '--json' ? undefined : args.at(-1)
-  process.stdout.write(JSON.stringify(tool && state[tool] ? { [tool]: state[tool] } : tool ? {} : state))
+  process.stdout.write(JSON.stringify(tool === undefined ? state : (state[tool] ?? [])))
 } else if (command === 'which') {
   const tool = args[0]
   const key = Object.keys(state).find((candidate) => candidate.replace(/^core:/, '').split(':').at(-1) === tool)
@@ -124,6 +128,24 @@ if (command === 'use') {
     await expect(service.installTool({ intent: { name: 'rg', tool: 'rg' } })).rejects.toThrow()
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
       { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+    ])
+  })
+
+  it('claims an already-installed tool from the single-spec array listing', async () => {
+    // Regression for #16719 follow-up: claim reads `ls --json <spec>`, which mise
+    // answers with a bare array — not the object the no-arg listing returns.
+    const service = createService()
+    const shimsDir = path.join(tempDir, 'shims')
+    fs.mkdirSync(shimsDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(tempDir, 'fake-installed-tools.json'),
+      JSON.stringify({ fd: [{ version: '10.4.2', active: true }] })
+    )
+    fs.writeFileSync(path.join(shimsDir, 'fd'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+
+    await expect(service.claimTool({ name: 'fd', tool: 'fd' })).resolves.toEqual({ version: '10.4.2' })
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
+      { name: 'fd', tool: 'fd' }
     ])
   })
 })
