@@ -1,8 +1,10 @@
+import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
-import { createContext, type ReactNode, use, useMemo, useState } from 'react'
+import { createContext, type ReactNode, use, useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 type ConversationTopBarPortalContextValue = {
+  iconOnly: boolean
   target: HTMLDivElement | null
   setTarget: (target: HTMLDivElement | null) => void
 }
@@ -10,8 +12,16 @@ type ConversationTopBarPortalContextValue = {
 const ConversationTopBarPortalContext = createContext<ConversationTopBarPortalContextValue | undefined>(undefined)
 
 export function ConversationTopBarPortalProvider({ children }: { children: ReactNode }) {
-  const [target, setTarget] = useState<HTMLDivElement | null>(null)
-  const value = useMemo(() => ({ target, setTarget }), [target])
+  const { iconOnly, containerRef } = useOverflowIconOnly()
+  const [target, setPortalTarget] = useState<HTMLDivElement | null>(null)
+  const setTarget = useCallback(
+    (nextTarget: HTMLDivElement | null) => {
+      containerRef(nextTarget)
+      setPortalTarget(nextTarget)
+    },
+    [containerRef]
+  )
+  const value = useMemo(() => ({ iconOnly, target, setTarget }), [iconOnly, setTarget, target])
 
   return <ConversationTopBarPortalContext value={value}>{children}</ConversationTopBarPortalContext>
 }
@@ -40,6 +50,7 @@ export function ConversationTopBarPortal({ children }: { children: ReactNode }) 
   return createPortal(children, context.target)
 }
 
-export function useConversationTopBarPortalAvailable() {
-  return use(ConversationTopBarPortalContext) !== undefined
+export function useConversationTopBarPortalLayout() {
+  const context = use(ConversationTopBarPortalContext)
+  return { available: context !== undefined, iconOnly: context?.iconOnly ?? false }
 }

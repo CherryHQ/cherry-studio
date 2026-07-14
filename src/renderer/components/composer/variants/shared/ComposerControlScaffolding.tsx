@@ -1,10 +1,9 @@
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
-
-import { useComposerBottomToolbarIconOnly } from '../useComposerBottomToolbarIconOnly'
 
 export const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
 export const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
@@ -61,7 +60,7 @@ export const ComposerToolbarControls = ({
   leading?: ReactNode
   showToolMenu?: boolean
 }) => {
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const { iconOnly, containerRef: toolbarRef } = useOverflowIconOnly()
   const contextControls = renderContextControls({ side: 'top', iconOnly })
 
   if (toolMenuPlacement === 'beforeContext') {
@@ -99,7 +98,7 @@ export const ComposerBelowControls = ({
   renderContextControls: RenderContextControls
   trailing?: (args: { iconOnly: boolean }) => ReactNode
 }) => {
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const { iconOnly, containerRef: toolbarRef } = useOverflowIconOnly()
 
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>

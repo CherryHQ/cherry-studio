@@ -5,7 +5,7 @@ import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/compon
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import {
   ConversationTopBarPortal,
-  useConversationTopBarPortalAvailable
+  useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
@@ -661,6 +661,7 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
   topBarPortalAvailable: boolean
+  topBarPortalIconOnly: boolean
   model?: Model
   modelProviderName?: string
   selectModelLabel: string
@@ -754,7 +755,7 @@ const renderAgentComposerContextControls = (
   { side, iconOnly }: { side: 'top' | 'bottom'; iconOnly: boolean }
 ) => {
   const resolvedSide = props.topBarPortalAvailable ? 'bottom' : side
-  const resolvedIconOnly = props.topBarPortalAvailable ? false : iconOnly
+  const resolvedIconOnly = props.topBarPortalAvailable ? props.topBarPortalIconOnly : iconOnly
   const controls = (
     <>
       <AgentComposerContextControlsWithAutoFocus
@@ -869,7 +870,7 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const topBarPortalAvailable = useConversationTopBarPortalAvailable()
+  const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -1281,6 +1282,7 @@ const AgentComposerInner = ({
     agentTriggerMode: canChangeAgent ? 'selector' : 'edit',
     shouldAutoSelectCreatedAgent: true,
     topBarPortalAvailable,
+    topBarPortalIconOnly,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1389,7 +1391,7 @@ const MissingAgentHomeComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [narrowMode] = usePreference('chat.narrow_mode')
-  const topBarPortalAvailable = useConversationTopBarPortalAvailable()
+  const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1425,6 +1427,7 @@ const MissingAgentHomeComposerInner = ({
     agentTriggerMode: 'selector',
     shouldAutoSelectCreatedAgent: true,
     topBarPortalAvailable,
+    topBarPortalIconOnly,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined,

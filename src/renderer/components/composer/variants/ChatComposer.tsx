@@ -4,7 +4,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import {
   ConversationTopBarPortal,
-  useConversationTopBarPortalAvailable
+  useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
@@ -297,6 +297,7 @@ const ChatComposerContextControls = ({
 
 type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'> & {
   topBarPortalAvailable: boolean
+  topBarPortalIconOnly: boolean
   leadingControl?: React.ReactNode
   renderPersistentToolShortcuts?: (args: {
     inputAdapter?: ComposerInputAdapter
@@ -405,7 +406,7 @@ const renderChatComposerContextControls = (
     <ChatComposerContextControlsWithAutoFocus
       {...props}
       side={props.topBarPortalAvailable ? 'bottom' : side}
-      iconOnly={props.topBarPortalAvailable ? false : iconOnly}
+      iconOnly={props.topBarPortalAvailable ? props.topBarPortalIconOnly : iconOnly}
       inputAdapter={inputAdapter}
     />
   )
@@ -591,7 +592,7 @@ const ChatComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
-  const topBarPortalAvailable = useConversationTopBarPortalAvailable()
+  const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -1175,6 +1176,7 @@ const ChatComposerInner = ({
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     topBarPortalAvailable,
+    topBarPortalIconOnly,
     leadingControl: newTopicControl,
     renderPersistentToolShortcuts,
     onAssistantChange: handleAssistantChange,
