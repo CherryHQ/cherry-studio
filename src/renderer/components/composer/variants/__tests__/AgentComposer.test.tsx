@@ -718,13 +718,14 @@ describe('AgentComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(newSessionButton.querySelector('.new-conversation-icon')).toBeInTheDocument()
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
     fireEvent.click(newSessionButton)
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
 
@@ -747,7 +748,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps the new session action at the far left and puts the tool menu on the right', () => {
+  it('keeps the new session action at the far left and the tool menu at the far right of the left toolbar', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -765,13 +766,14 @@ describe('AgentComposer', () => {
     const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(newSessionButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agentButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newSessionItem).toEqual(
@@ -932,13 +934,13 @@ describe('AgentComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const workspaceButton = within(leftControls).getByText('Workspace 1').closest('button')!
-    const indicator = screen.getByLabelText('agent.right_pane.info.context_usage 42%')
-    const toolMenuButton = within(screen.getByTestId('composer-send-accessory')).getByRole('button', {
-      name: 'tool menu'
-    })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    const indicator = within(sendAccessory).getByLabelText('agent.right_pane.info.context_usage 42%')
     expect(modelButton.compareDocumentPosition(workspaceButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(workspaceButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(indicator.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(workspaceButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(toolMenuButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(indicator).toBeInTheDocument()
     expect(indicator).not.toHaveTextContent('42%')
     expect(indicator).toHaveAttribute('style', expect.stringContaining('--context-usage-progress: 42%'))
@@ -2106,13 +2108,17 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
+    const leftControls = screen.getByTestId('composer-left-controls')
+    expect(within(leftControls).getByRole('button', { name: 'tool menu' })).toBeInTheDocument()
+    expect(leftControls).not.toHaveTextContent('Agent')
     expect(mocks.surfaceProps?.narrowMode).toBe(true)
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('Agent')
     expect(belowControls).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
     expect(belowControls).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(sendAccessory).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')

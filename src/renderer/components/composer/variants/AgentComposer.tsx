@@ -92,7 +92,6 @@ import {
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
-  ComposerToolMenuButton,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
@@ -786,9 +785,7 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
               {quickPanelShortcuts}
             </>
           }
-          showToolMenu={false}
           unifiedPanelControl={unifiedPanelControl}
-          toolMenuPlacement="beforeContext"
           renderContextControls={({ side, iconOnly }) =>
             renderAgentComposerContextControls(props, inputAdapter, { side, iconOnly })
           }
@@ -814,11 +811,7 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
           <div className={COMPOSER_TOOLBAR_CLASS}>
             {props.leadingControl}
             {quickPanelShortcuts}
-            <ComposerToolMenuControls
-              inputAdapter={inputAdapter}
-              unifiedPanelControl={unifiedPanelControl}
-              showToolMenu={false}
-            />
+            <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
           </div>
         </>
       )
@@ -1292,11 +1285,8 @@ const AgentComposerInner = ({
     renderWorkspaceControl
   })
 
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter, unifiedPanelControl) => (
-    <>
-      <AgentComposerContextUsage model={model} sessionId={sessionId} />
-      <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-    </>
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+    <AgentComposerContextUsage model={model} sessionId={sessionId} />
   )
 
   return (

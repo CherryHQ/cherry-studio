@@ -690,18 +690,19 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('puts the tool menu on the right in the modern layout', () => {
+  it('puts the tool menu at the far right of the left toolbar in the modern layout', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
     const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(assistantButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
@@ -732,11 +733,13 @@ describe('ChatComposer', () => {
       name: 'assistants.settings.reasoning_effort.label'
     })
     const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(reasoningButton).toHaveAttribute('data-active', 'true')
     expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
     expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(webSearchButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(reasoningButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({
@@ -1095,16 +1098,17 @@ describe('ChatComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newTopicButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     const newConversationIcon = newTopicButton.querySelector('.new-conversation-icon')
     expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
     expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
     expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
     fireEvent.click(newTopicButton)
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
@@ -1165,10 +1169,12 @@ describe('ChatComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newTopicButton.compareDocumentPosition(assistantButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(assistantButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
 
     const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newTopicItem).toEqual(
@@ -1723,8 +1729,8 @@ describe('ChatComposer', () => {
   it('renders selectors below the surface in draft home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('tool menu')
-    expect(screen.getByTestId('composer-send-accessory')).toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('tool menu')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')

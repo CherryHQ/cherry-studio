@@ -16,7 +16,7 @@ export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 
-/** The shared "+" tool menu plus the active-tool controls rendered on the composer's left. */
+/** Active-tool controls followed by the shared "+" menu on the composer's left. */
 export const ComposerToolMenuControls = ({
   inputAdapter,
   unifiedPanelControl,
@@ -28,20 +28,10 @@ export const ComposerToolMenuControls = ({
 }) => {
   return (
     <>
-      {showToolMenu ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
       <ComposerActiveToolControls inputAdapter={inputAdapter} />
+      {showToolMenu ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
     </>
   )
-}
-
-export const ComposerToolMenuButton = ({
-  inputAdapter,
-  unifiedPanelControl
-}: {
-  inputAdapter?: QuickPanelInputAdapter
-  unifiedPanelControl?: ComposerUnifiedPanelControl
-}) => {
-  return <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
 }
 
 /** Toolbar (top) layout: variant-specific context controls + the shared tool menu. */

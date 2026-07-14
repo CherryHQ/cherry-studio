@@ -79,7 +79,6 @@ import {
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
-  ComposerToolMenuButton,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
@@ -427,9 +426,7 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
             {persistentToolShortcuts}
           </>
         }
-        showToolMenu={false}
         unifiedPanelControl={unifiedPanelControl}
-        toolMenuPlacement="beforeContext"
         renderContextControls={(placement) => renderChatComposerContextControls(props, inputAdapter, placement)}
       />
     )
@@ -448,11 +445,7 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
         <div className={COMPOSER_TOOLBAR_CLASS}>
           {props.leadingControl}
           {persistentToolShortcuts}
-          <ComposerToolMenuControls
-            inputAdapter={inputAdapter}
-            unifiedPanelControl={unifiedPanelControl}
-            showToolMenu={false}
-          />
+          <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
         </div>
       </>
     )
@@ -1185,10 +1178,6 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter, unifiedPanelControl) => (
-    <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-  )
-
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1277,7 +1266,6 @@ const ChatComposerInner = ({
         toolLaunchersVersion={toolLaunchersVersion}
         rootPanelLeadingItems={rootPanelLeadingItems}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        sendAccessory={sendAccessory}
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>
