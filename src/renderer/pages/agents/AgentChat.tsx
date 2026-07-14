@@ -421,6 +421,7 @@ const AgentChatSessionFrame = ({
       isStreaming={runtime.isPending}
       sendDisabled={false}
       onCreateEmptySession={onCreateEmptySession}
+      canChangeAgent={isEmptyConversation}
       workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}

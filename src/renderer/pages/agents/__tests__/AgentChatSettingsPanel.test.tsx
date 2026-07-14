@@ -251,6 +251,7 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     return (
       <div
         data-testid="agent-composer"
+        data-can-change-agent={String(Boolean(props.canChangeAgent))}
         data-can-change-workspace={String(Boolean(props.onWorkspaceChange))}
         data-can-change-model={String(props.canChangeModel !== false)}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
@@ -362,6 +363,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'true')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-agent', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'change composer workspace' }))
@@ -383,6 +385,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-agent', 'false')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 
@@ -402,6 +405,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-agent', 'false')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 

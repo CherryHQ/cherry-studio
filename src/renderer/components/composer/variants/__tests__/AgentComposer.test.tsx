@@ -418,6 +418,16 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
+    <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close edit dialog
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
@@ -1913,7 +1923,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
-  it('uses the agent selector for an active session and updates the session agent', () => {
+  it('opens the agent edit dialog for a session with history', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1924,9 +1934,31 @@ describe('AgentComposer', () => {
       />
     )
 
+    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Agent').closest('button')!)
+
+    const dialog = await screen.findByTestId('resource-edit-dialog-host')
+    expect(dialog).toHaveAttribute('data-kind', 'agent')
+    expect(dialog).toHaveAttribute('data-id', 'agent-1')
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('uses the agent selector for an empty session and updates the session agent', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeAgent
+        isStreaming={false}
+      />
+    )
+
     expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
     expect(screen.getByText('select agent 2')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
     expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
 
     fireEvent.click(screen.getByText('select agent 2'))
@@ -1950,9 +1982,10 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
     expect(screen.getByText('Agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 

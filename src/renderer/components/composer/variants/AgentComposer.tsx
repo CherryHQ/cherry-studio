@@ -25,6 +25,7 @@ import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -100,6 +101,11 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 
 const logger = loggerService.withContext('AgentComposer')
+const ResourceEditDialogHost = React.lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
@@ -180,6 +186,7 @@ type Props = {
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
+  canChangeAgent?: boolean
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
@@ -202,6 +209,7 @@ const AgentComposerRoot = ({
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
+  canChangeAgent = false,
   workspaceId,
   onWorkspaceChange,
   workspaceChanging,
@@ -275,6 +283,7 @@ const AgentComposerRoot = ({
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
+        canChangeAgent={canChangeAgent}
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}
         canChangeModel={canChangeModel}
@@ -300,6 +309,7 @@ interface InnerProps {
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
+  canChangeAgent: boolean
   onWorkspaceChange?: Props['onWorkspaceChange']
   workspaceChanging?: boolean
   canChangeModel: boolean
@@ -316,6 +326,7 @@ interface AgentComposerContextControlsProps {
   shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  agentTriggerMode: 'selector' | 'edit'
   onDialogCloseAutoFocus?: () => void
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
@@ -349,6 +360,7 @@ const AgentComposerContextControls = ({
   shouldAutoSelectCreatedAgent,
   side,
   iconOnly = false,
+  agentTriggerMode,
   onDialogCloseAutoFocus,
   onAgentChange
 }: AgentComposerContextControlsProps) => {
@@ -356,9 +368,19 @@ const AgentComposerContextControls = ({
   const triggerClassName = cn(baseTriggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
+  const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const agentTrigger = (
-    <Button variant="ghost" size="sm" className={triggerClassName} disabled={agentChanging}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className={triggerClassName}
+      disabled={agentChanging || (agentTriggerMode === 'edit' && !agent)}
+      onClick={
+        agentTriggerMode === 'edit' && agent
+          ? () => setAgentEditDialogTarget({ kind: 'agent', id: agent.id })
+          : undefined
+      }>
       {agent ? (
         <AgentLabel
           agent={agent}
@@ -374,9 +396,30 @@ const AgentComposerContextControls = ({
           <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
         </>
       )}
-      <ChevronDown size={14} className={chevronClassName} />
+      {agentTriggerMode === 'selector' ? <ChevronDown size={14} className={chevronClassName} /> : null}
     </Button>
   )
+
+  if (agentTriggerMode === 'edit') {
+    return (
+      <>
+        {agentTrigger}
+        {agentEditDialogTarget ? (
+          <React.Suspense fallback={null}>
+            <ResourceEditDialogHost
+              target={agentEditDialogTarget}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setAgentEditDialogTarget(null)
+                  onDialogCloseAutoFocus?.()
+                }
+              }}
+            />
+          </React.Suspense>
+        ) : null}
+      </>
+    )
+  }
 
   return (
     <AgentSelector
@@ -804,6 +847,7 @@ const AgentComposerInner = ({
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
+  canChangeAgent,
   onWorkspaceChange,
   workspaceChanging,
   canChangeModel,
@@ -1234,6 +1278,7 @@ const AgentComposerInner = ({
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
     agentChanging,
+    agentTriggerMode: canChangeAgent ? 'selector' : 'edit',
     shouldAutoSelectCreatedAgent: true,
     topBarPortalAvailable,
     canChangeModel,
@@ -1377,6 +1422,7 @@ const MissingAgentHomeComposerInner = ({
     modelProviderName: undefined,
     selectModelLabel: t('button.select_model'),
     agentChanging,
+    agentTriggerMode: 'selector',
     shouldAutoSelectCreatedAgent: true,
     topBarPortalAvailable,
     canChangeModel: false,
@@ -1459,7 +1505,14 @@ const AgentComposer = (props: Props) => {
 }
 
 export const AgentHomeComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} forceNarrowLayout renderControls={renderAgentHomeControls} />
+  return (
+    <AgentComposerRoot
+      {...props}
+      canChangeAgent={props.canChangeAgent ?? true}
+      forceNarrowLayout
+      renderControls={renderAgentHomeControls}
+    />
+  )
 }
 
 export default AgentComposer
