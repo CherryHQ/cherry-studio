@@ -276,6 +276,8 @@ const TranslatePage: FC = () => {
   const pdfHandleRef = useRef<PdfTranslationHandle | null>(null)
   const pdfTextCacheRef = useRef<{ filePath: string; text: string } | null>(null)
   const pdfTextRequestIdRef = useRef(0)
+  const pdfTextFallbackStartedRef = useRef(false)
+  const prePdfOutputRef = useRef<string | null>(null)
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -294,6 +296,9 @@ const TranslatePage: FC = () => {
     pdfHandleRef.current = null
     pdfTextCacheRef.current = null
     if (pdfTextFallbackActive && isTranslating) cancel()
+    if (pdfTextFallbackStartedRef.current) setTranslateOutput(prePdfOutputRef.current ?? '')
+    pdfTextFallbackStartedRef.current = false
+    prePdfOutputRef.current = null
     setPdfHandleReady(false)
     setPdfStatus({ phase: 'idle', running: false })
     setPdfTextFallbackActive(false)
@@ -301,7 +306,7 @@ const TranslatePage: FC = () => {
     setIsPdfTextExtracting(false)
     setIsProcessing(false)
     setPdfFile(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -469,6 +474,7 @@ const TranslatePage: FC = () => {
     if (!pdfFile || !selectedModelId || isProcessing || isTranslating) return
 
     const requestId = ++pdfTextRequestIdRef.current
+    pdfTextFallbackStartedRef.current = true
     setPdfTextFallbackActive(true)
     setPdfTextOcrRequired(false)
     setIsPdfTextExtracting(true)
@@ -487,7 +493,6 @@ const TranslatePage: FC = () => {
         return
       }
 
-      setTranslateInput(extractedText)
       await translateTextContent(extractedText, false)
     } catch (error) {
       if (pdfTextRequestIdRef.current !== requestId) return
@@ -500,7 +505,7 @@ const TranslatePage: FC = () => {
         setIsProcessing(false)
       }
     }
-  }, [isProcessing, isTranslating, pdfFile, selectedModelId, setTranslateInput, smoothReset, t, translateTextContent])
+  }, [isProcessing, isTranslating, pdfFile, selectedModelId, smoothReset, t, translateTextContent])
 
   const onTranslate = useCallback(async () => {
     if (pdfFile) {
@@ -565,9 +570,9 @@ const TranslatePage: FC = () => {
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
 
+      resetPdfMode()
       setTranslateInput(history.sourceText)
       setTranslateOutput(history.targetText)
-      resetPdfMode()
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
@@ -706,6 +711,8 @@ const TranslatePage: FC = () => {
         }
         pdfTextRequestIdRef.current += 1
         pdfTextCacheRef.current = null
+        pdfTextFallbackStartedRef.current = false
+        prePdfOutputRef.current = translateOutput
         setPdfTextFallbackActive(false)
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
@@ -720,7 +727,7 @@ const TranslatePage: FC = () => {
         await readFile(file)
       }
     },
-    [readFile, resetPdfMode, startOcr, t]
+    [readFile, resetPdfMode, startOcr, t, translateOutput]
   )
 
   const handleSelectFile = useCallback(async () => {

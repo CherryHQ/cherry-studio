@@ -750,6 +750,10 @@ describe('TranslatePage', () => {
     )
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
     expect(screen.getByTestId('translate-output-content')).toHaveTextContent('streamed translation')
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
   })
 
   it('installs the pinned BabelDOC version from the PDF prompt without starting translation', async () => {
@@ -850,7 +854,8 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/first.pdf', true))
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '' } })
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
     await waitFor(() =>
       expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/second.pdf')
