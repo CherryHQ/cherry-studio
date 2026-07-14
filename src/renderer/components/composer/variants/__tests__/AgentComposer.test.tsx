@@ -57,7 +57,9 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
-  sessionWorkspacePath: '/workspace'
+  sessionWorkspacePath: '/workspace',
+  runtimeProviderMounts: 0,
+  runtimeProviderUnmounts: 0
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -219,7 +221,15 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 })
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
-  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => {
+    useEffect(() => {
+      mocks.runtimeProviderMounts += 1
+      return () => {
+        mocks.runtimeProviderUnmounts += 1
+      }
+    }, [])
+    return <>{children}</>
+  },
   ComposerToolDerivedStateProvider: ({
     children,
     couldAddImageFile,
@@ -560,6 +570,8 @@ describe('AgentComposer', () => {
     mocks.sessionWorkspaceId = 'workspace-1'
     mocks.sessionWorkspaceName = 'Workspace 1'
     mocks.sessionWorkspacePath = '/workspace'
+    mocks.runtimeProviderMounts = 0
+    mocks.runtimeProviderUnmounts = 0
     mocks.sessionLayout = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
@@ -1975,6 +1987,54 @@ describe('AgentComposer', () => {
       { id: 'session-1', agentId: 'agent-2' },
       { showSuccessToast: false }
     )
+  })
+
+  it('resets the agent-scoped draft and tool runtime after switching agents', async () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1'
+        ? { text: 'draft for agent one', tokens: [{ ...pdfSkillToken, index: 0, textOffset: 0 }] }
+        : ''
+    )
+
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeAgent
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('draft for agent one')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    expect(mocks.runtimeProviderMounts).toBe(1)
+
+    fireEvent.click(screen.getByText('select agent 2'))
+    await waitFor(() => {
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    })
+
+    rerender(
+      <AgentComposer
+        agentId="agent-2"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeAgent
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(mocks.runtimeProviderMounts).toBe(2)
+    expect(mocks.runtimeProviderUnmounts).toBe(1)
   })
 
   it('keeps the active session agent control visible in classic layout', () => {

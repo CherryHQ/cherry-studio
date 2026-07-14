@@ -1503,13 +1503,15 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
   )
 }
 
+// Composer state is agent-scoped, so switching agents must also reset the draft and tool runtime.
 const AgentComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} renderControls={renderAgentToolbarControls} />
+  return <AgentComposerRoot key={props.agentId} {...props} renderControls={renderAgentToolbarControls} />
 }
 
 export const AgentHomeComposer = (props: Props) => {
   return (
     <AgentComposerRoot
+      key={props.agentId}
       {...props}
       canChangeAgent={props.canChangeAgent ?? true}
       forceNarrowLayout
