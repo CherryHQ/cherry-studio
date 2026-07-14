@@ -107,7 +107,7 @@ export function NavigateToolInline({
             .filter(Boolean)
             .join('')
         : ''
-  const isSuccess = outputText.includes('Navigated to')
+  const isSuccess = outputText.includes('Navigate link created')
 
   const navigateToRoute = useOptionalMessageListActions()?.navigateToRoute
 

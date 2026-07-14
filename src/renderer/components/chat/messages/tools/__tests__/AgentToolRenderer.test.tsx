@@ -697,7 +697,7 @@ describe('AgentToolRenderer', () => {
           path: '/app/agents',
           query: { sessionId: 'session-1' }
         },
-        response: 'Navigated to /app/agents'
+        response: 'Navigate link created: /app/agents'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
