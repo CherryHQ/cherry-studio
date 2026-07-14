@@ -18,6 +18,7 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
@@ -25,7 +26,7 @@ import { promisify } from 'util'
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
 import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
-import { posixQuote } from './shellQuote'
+import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -461,6 +462,28 @@ export class CodeCliService extends BaseService {
     // documented bypass, scoped to this one launched session only.
     if (cliTool === CodeCli.GEMINI_CLI) {
       env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
+
+      // gemini-cli resolves its model with precedence `--model` → GEMINI_MODEL →
+      // settings.model.name, and its `resolveModel` rewrites any name ending in "flash" to a
+      // default Gemini model. Pass the model on the command line (highest precedence, honored
+      // verbatim) so the launched session hits the intended model. In gateway mode it needs the
+      // `providerId:modelId` address the gateway parses from the URL path, carrying the sentinel
+      // suffix so that rewrite can't corrupt a name ending in "flash" (see
+      // GEMINI_GATEWAY_MODEL_SUFFIX); direct mode passes the bare model id.
+      if (normal) {
+        // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
+        // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
+        if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
+        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
+        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
+        // model id carrying shell metacharacters rather than launch.
+        if (!isShellSafeModelId(modelArg)) {
+          const message = `Unsupported model id for ${cliTool}: ${modelArg}`
+          logger.error(message)
+          return { success: false, message }
+        }
+        baseCommand = `${baseCommand} --model ${modelArg}`
+      }
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather

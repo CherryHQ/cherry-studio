@@ -35,7 +35,10 @@ describe('OVMS request boundary', () => {
       modelId: 'OpenVINO/stable-diffusion-v1-5',
       prompt: 'a fox',
       size: '768x768',
-      providerParams: { numInferenceSteps: 8, seed: 123 }
+      seed: 123,
+      // OVMS is in-SDK: the WireProfile diffusion profile delivers the snake_case
+      // wire body, so the bag carries `num_inference_steps` (not the camelCase twin).
+      providerParams: { num_inference_steps: 8 }
     } as ImageGenerationSubmitInput)
 
     expect(req.url).toBe('http://localhost:8000/images/generations')

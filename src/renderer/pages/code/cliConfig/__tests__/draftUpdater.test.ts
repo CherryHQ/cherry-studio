@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { GEMINI_GATEWAY_MODEL_SUFFIX } from '@shared/utils/apiGateway'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
@@ -238,5 +239,53 @@ describe('updateCliConfigDraftConfig', () => {
     expect(parsed.autoCompact).toBe(true)
     expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
     expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
+  })
+
+  // A gateway gemini draft stores the sentinel-suffixed address in settings.model.name, but
+  // extractConnection strips the suffix for connection matching. A config-only edit must therefore
+  // re-append it (and re-force the gateway-only API version) rather than write the bare `flash`-ending
+  // name back — gemini-cli reads settings.model.name and would re-normalize a bare flash name.
+  it('preserves the gateway sentinel + API version through a config-only edit for gemini', () => {
+    const model = `deepseek:deepseek-v4-flash${GEMINI_GATEWAY_MODEL_SUFFIX}`
+    const gatewayFiles: CliConfigFileDraft[] = [
+      {
+        target: 'gemini-env' as CliConfigTarget,
+        label: '',
+        path: '/resolved~/.gemini/.env',
+        language: 'dotenv',
+        content:
+          'GEMINI_API_KEY=cs-sk-gateway\nGOOGLE_GEMINI_BASE_URL=http://127.0.0.1:23333\nGOOGLE_GENAI_API_VERSION=v1beta\n'
+      },
+      {
+        target: 'gemini-settings' as CliConfigTarget,
+        label: '',
+        path: '/resolved~/.gemini/settings.json',
+        language: 'json',
+        content: JSON.stringify({ model: { name: model }, security: { auth: { selectedType: 'gemini-api-key' } } })
+      }
+    ]
+
+    const updated = updateCliConfigDraftConfig(CodeCli.GEMINI_CLI, gatewayFiles, {
+      general: { defaultApprovalMode: 'plan' }
+    })
+
+    const settings = JSON.parse(updated.find((f) => f.target === 'gemini-settings')!.content)
+    expect(settings.model.name).toBe(model)
+    expect(updated.find((f) => f.target === 'gemini-env')!.content).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
+  })
+
+  // Symmetric guard for the non-gateway branch: extractConnection strips the sentinel, so the parity
+  // case above cannot catch an erroneous append. A direct-provider edit must leave settings.model.name
+  // bare (no @cherry — else a direct terminal launch would re-normalize a `flash`-ending name) and must
+  // NOT force the gateway-only API version onto the user's own .env.
+  it('leaves a non-gateway gemini draft bare (no sentinel, no forced API version) through a config-only edit', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-flash')
+    const updated = updateCliConfigDraftConfig(CodeCli.GEMINI_CLI, files, {
+      general: { defaultApprovalMode: 'plan' }
+    })
+
+    const settings = JSON.parse(updated.find((f) => f.target === 'gemini-settings')!.content)
+    expect(settings.model.name).toBe('gemini-2.5-flash')
+    expect(updated.find((f) => f.target === 'gemini-env')!.content).not.toContain('GOOGLE_GENAI_API_VERSION')
   })
 })

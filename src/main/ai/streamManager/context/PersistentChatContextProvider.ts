@@ -146,18 +146,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-    const { assistantId, defaultModelId } = resolveAssistantModelId(topic?.assistantId)
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
-      return this.prepareSteerContinuation(subscriber, req, assistantId, defaultModelId)
+      return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
     }
+
+    const selectedModelId = req.mentionedModelIds?.[0]
+    const { assistantId, defaultModelId } =
+      !topic?.assistantId && selectedModelId
+        ? { assistantId: undefined, defaultModelId: selectedModelId }
+        : resolveAssistantModelId(topic?.assistantId)
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
       // Stamp the row with the model the user selected for this steer so the continuation answers
@@ -330,8 +335,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareContinueDispatch(
     subscriber: StreamListener,
     req: MainContinueConversationRequest,
-    assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const anchor = messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
@@ -346,8 +350,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
-    const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = resolveModels([continueModelId], defaultModelId)
+    const continueModelId = (anchor.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const [model] = resolveModels([continueModelId], continueModelId)
 
     // `ai.turn` span under the topic's container trace; end it explicitly if
     // anything below throws or it leaks.
@@ -400,8 +404,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareSteerContinuation(
     subscriber: StreamListener,
     req: MainSteerContinuationRequest,
-    assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const userMessage = messageService.getById(req.userMessageId)
     if (userMessage.role !== 'user') {
@@ -411,8 +414,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'steer-continuation' anchor does not belong to topic ${req.topicId}`)
     }
 
-    const steerModelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = resolveModels([steerModelId], defaultModelId)
+    const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const [model] = resolveModels([steerModelId], steerModelId)
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
 
     const containerTraceId = topicService.ensureTraceId(req.topicId)
