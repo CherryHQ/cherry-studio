@@ -1,4 +1,4 @@
-import type { ManagedBinary } from '../preference/preferenceTypes'
+import type { BinaryState, ManagedBinary } from '../preference/preferenceTypes'
 
 // Tool identity validators, shared so the renderer can reject malformed custom
 // tools before persisting to the `feature.binary.tools` preference — not just
@@ -32,6 +32,18 @@ export const BABELDOC_BINARY_TOOL_PRESET = {
   version: '0.6.3',
   repoUrl: 'https://github.com/funstory-ai/BabelDOC'
 } as const satisfies BinaryToolPreset
+
+/**
+ * Whether the pinned BabelDOC version is installed. Shared by the renderer (to gate the
+ * layout-preserving PDF workflow) and the main service (to resolve the sidecar) so the
+ * pin-version predicate lives in one place instead of being duplicated per process.
+ */
+export function isBabelDocInstalled(state: BinaryState): boolean {
+  const installed = state.tools[BABELDOC_BINARY_TOOL_PRESET.name]
+  return (
+    installed?.tool === BABELDOC_BINARY_TOOL_PRESET.tool && installed.version === BABELDOC_BINARY_TOOL_PRESET.version
+  )
+}
 
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
   {

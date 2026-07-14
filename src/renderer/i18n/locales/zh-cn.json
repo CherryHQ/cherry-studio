@@ -7899,7 +7899,7 @@
       },
       "dependency": {
         "checking": "正在检测 BabelDOC...",
-        "description": "可以安装 BabelDOC 插件提升翻译效果。",
+        "description": "安装 BabelDOC 插件即可在翻译 PDF 时保留原始版式。",
         "installing": "正在安装 BabelDOC...",
         "title": "检测到 PDF"
       },
@@ -7909,7 +7909,6 @@
       },
       "export_failed": "导出译文 PDF 失败",
       "pane": {
-        "source": "原始 PDF",
         "translated": "译文 PDF",
         "translated_text": "译文"
       },

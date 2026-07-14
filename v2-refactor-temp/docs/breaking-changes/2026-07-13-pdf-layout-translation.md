@@ -8,7 +8,7 @@ date: 2026-07-13
 
 ## What changed
 
-Uploading a PDF on the Translate page now opens a layout-preserving workflow that generates translated-only PDF pages instead of extracting the document into plain text; the source pane header shows the file name and close action while the right pane remains labeled Translated PDF. BabelDOC appears last in Environment Dependencies and must be installed manually; the first translation may download its layout model assets, and subsequent progress is streamed as BabelDOC parses, translates, typesets, and renders the document. Scanned PDFs are reported as requiring OCR translation, which will be supported in a future release.
+Uploading a PDF on the Translate page now opens a layout-preserving workflow. When BabelDOC is installed it generates translated-only PDF pages — the source pane header shows the file name and close action, and the right pane is labeled Translated PDF. When BabelDOC is not installed it falls back to the previous plain-text extraction, with the right pane labeled Translation, so uploading a PDF never becomes impossible. BabelDOC appears last in Environment Dependencies and must be installed manually; the first translation may download its layout model assets, and subsequent progress is streamed as BabelDOC parses, translates, typesets, and renders the document. Scanned PDFs are reported as requiring OCR translation, which will be supported in a future release.
 
 ## Why this matters to the user
 

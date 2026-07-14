@@ -9,10 +9,10 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
+import { BABELDOC_BINARY_TOOL_PRESET, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
@@ -150,10 +150,20 @@ export class PdfTranslationService extends BaseService {
   private gatewayLeaseCount = 0
   private gatewayStartedByService = false
 
+  protected async onInit(): Promise<void> {
+    // Success-path output dirs are cleaned only by the renderer effect, which never runs
+    // on window close / app quit. No jobs are active at init, so drop the whole feature
+    // temp root here to clear anything a prior session left behind.
+    const tempRoot = application.getPath('feature.pdf_translation.temp')
+    await fs.promises.rm(tempRoot, { force: true, recursive: true }).catch((error) => {
+      logger.warn('Failed to sweep stale PDF translation temp dirs', { error: String(error) })
+    })
+  }
+
   protected async onStop(): Promise<void> {
     for (const job of this.activeJobs.values()) {
       job.cancelled = true
-      job.child?.kill()
+      if (job.child) killProcessTree(job.child)
     }
     await Promise.allSettled(this.activeRuns)
   }
@@ -227,6 +237,16 @@ export class PdfTranslationService extends BaseService {
       this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
       completed = true
       return { outputPath, fileName }
+    } catch (error) {
+      // Surface the failure to the main-process log (the stderr tail rides along in the
+      // reject message on the non-zero-exit path). Cancellation is expected; IpcErrors
+      // (OCR required, dependency missing) are actionable user conditions, so log those at
+      // warn and reserve error for genuine sidecar failures.
+      if (!job.cancelled) {
+        const level = error instanceof IpcError ? 'warn' : 'error'
+        logger[level]('PDF translation failed', error as Error, { jobId: request.jobId })
+      }
+      throw error
     } finally {
       this.activeJobs.delete(request.jobId)
       if (!completed) {
@@ -242,7 +262,7 @@ export class PdfTranslationService extends BaseService {
     const job = this.activeJobs.get(jobId)
     if (!job) return
     job.cancelled = true
-    job.child?.kill()
+    if (job.child) killProcessTree(job.child)
   }
 
   public async cleanup(jobId: string): Promise<void> {
@@ -255,11 +275,7 @@ export class PdfTranslationService extends BaseService {
 
   private async resolveSidecar(): Promise<string> {
     const binaryManager = application.get('BinaryManager')
-    const installed = binaryManager.getState().tools[BABELDOC_BINARY_TOOL_PRESET.name]
-    if (
-      installed?.tool !== BABELDOC_BINARY_TOOL_PRESET.tool ||
-      installed.version !== BABELDOC_BINARY_TOOL_PRESET.version
-    ) {
+    if (!isBabelDocInstalled(binaryManager.getState())) {
       throw new IpcError(
         translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
         `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not installed`
@@ -330,9 +346,14 @@ export class PdfTranslationService extends BaseService {
       await new Promise<void>((resolve, reject) => {
         const child = crossPlatformSpawn(executable, args, { cwd: outputDir, env })
         job.child = child
+        // A cancel that landed during the pre-spawn await window (resolveSidecar →
+        // gateway → mkdir → writeFile) killed a still-null child; re-check now so the
+        // freshly-spawned sidecar is terminated instead of running the full translation.
+        if (job.cancelled) killProcessTree(child)
         let stderr = ''
         let sidecarError: Error | null = null
         let downloadingAssets = false
+        let adapterWarned = false
         const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
         progressLines?.on('line', (line) => {
@@ -390,6 +411,14 @@ export class PdfTranslationService extends BaseService {
         })
         child.stderr?.on('data', (chunk) => {
           stderr = `${stderr}${String(chunk)}`.slice(-8000)
+          // The progress adapter (sitecustomize.py) monkeypatches BabelDOC; if it breaks
+          // (version bump, packaging change), no progress/structured-error events arrive.
+          if (!adapterWarned && stderr.includes('Cherry Studio progress adapter failed')) {
+            adapterWarned = true
+            logger.warn('BabelDOC progress adapter failed; progress and structured errors unavailable', {
+              jobId: request.jobId
+            })
+          }
         })
         child.once('error', (error) => {
           progressLines?.close()
@@ -404,6 +433,12 @@ export class PdfTranslationService extends BaseService {
             reject(sidecarError)
           } else if (code === 0) {
             resolve()
+          } else if (/ScannedPDFError|Scanned PDF detected/i.test(stderr)) {
+            // A broken adapter can't emit the structured ScannedPDFError, so match the raw
+            // traceback (class name or exact message) and still surface the friendly OCR hint.
+            // Kept narrow so an unrelated failure whose stderr merely mentions "scanned PDF"
+            // isn't misreported as OCR-required.
+            reject(createOcrRequiredError())
           } else {
             reject(new Error(stderr.trim() || `BabelDOC exited with code ${code ?? 'null'} (${signal ?? 'no signal'})`))
           }
@@ -477,7 +512,7 @@ export class PdfTranslationService extends BaseService {
 
   private async releaseGateway(): Promise<void> {
     await this.gatewayMutex.runExclusive(async () => {
-      this.gatewayLeaseCount -= 1
+      this.gatewayLeaseCount = Math.max(0, this.gatewayLeaseCount - 1)
       if (this.gatewayLeaseCount > 0 || !this.gatewayStartedByService) return
 
       try {

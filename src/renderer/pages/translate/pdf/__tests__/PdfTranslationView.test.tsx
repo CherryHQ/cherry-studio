@@ -63,7 +63,6 @@ describe('PdfTranslationView', () => {
     )
 
     expect(screen.getByText('paper.pdf')).toBeInTheDocument()
-    expect(screen.queryByText('translate.pdf.pane.source')).not.toBeInTheDocument()
     expect(screen.getByText('translate.pdf.pane.translated')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'translate.pdf.action.close' })).toBeInTheDocument()
     expect(screen.getByTestId('pdf-preview')).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
@@ -174,7 +173,6 @@ describe('PdfTranslationView', () => {
       '80'
     )
     expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '80')
-    expect(screen.queryByText('translate.pdf.progress.status')).not.toBeInTheDocument()
 
     resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())

@@ -33,8 +33,8 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import type { BinaryState, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BABELDOC_BINARY_TOOL_PRESET, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
@@ -79,13 +79,6 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
 
-const hasBabelDoc = (state: BinaryState): boolean => {
-  const installed = state.tools[BABELDOC_BINARY_TOOL_PRESET.name]
-  return (
-    installed?.tool === BABELDOC_BINARY_TOOL_PRESET.tool && installed.version === BABELDOC_BINARY_TOOL_PRESET.version
-  )
-}
-
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -99,7 +92,7 @@ const useBabelDoc = (enabled: boolean) => {
     void ipcApi
       .request('binary.get_state')
       .then((state) => {
-        if (!cancelled) setAvailability(hasBabelDoc(state) ? 'available' : 'missing')
+        if (!cancelled) setAvailability(isBabelDocInstalled(state) ? 'available' : 'missing')
       })
       .catch((error) => {
         if (cancelled) return
@@ -113,7 +106,7 @@ const useBabelDoc = (enabled: boolean) => {
   }, [enabled])
 
   useIpcOn('binary.state_changed', (state) => {
-    if (enabled) setAvailability(hasBabelDoc(state) ? 'available' : 'missing')
+    if (enabled) setAvailability(isBabelDocInstalled(state) ? 'available' : 'missing')
   })
 
   const install = useCallback(async () => {
