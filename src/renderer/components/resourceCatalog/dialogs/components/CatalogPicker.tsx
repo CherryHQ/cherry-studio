@@ -235,13 +235,16 @@ export const AddCatalogPopover: FC<{
         align={align}
         portalContainer={portalContainer ?? undefined}
         className="w-72 max-w-[calc(100vw-2rem)] rounded-md p-0">
-        <Command shouldFilter={false}>
+        {/* Pill search row: style CommandInput's own wrapper via its data-slot so the
+            shared CommandInput stays untouched. */}
+        <Command
+          shouldFilter={false}
+          className="[&_[data-slot=command-input-wrapper]]:mx-2 [&_[data-slot=command-input-wrapper]]:mt-2 [&_[data-slot=command-input-wrapper]]:mb-1 [&_[data-slot=command-input-wrapper]]:h-7 [&_[data-slot=command-input-wrapper]]:rounded-full [&_[data-slot=command-input-wrapper]]:border-[0.5px] [&_[data-slot=command-input-wrapper]]:border-border-subtle [&_[data-slot=command-input-wrapper]]:px-2.5">
           <CommandInput
             value={search}
             onValueChange={setSearch}
             disabled={disabled}
             placeholder={searchPlaceholder}
-            wrapperClassName="mx-2 mt-2 mb-1 h-7 rounded-full border-[0.5px] border-border-subtle px-2.5"
             className="h-7 text-xs placeholder:text-muted-foreground/40"
           />
           <CommandList>

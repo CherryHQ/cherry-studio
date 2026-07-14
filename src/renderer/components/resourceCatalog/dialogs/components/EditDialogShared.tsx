@@ -18,7 +18,6 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
-  submenuItemClassName,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -39,6 +38,11 @@ import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
+
+// Vertical submenu / nav item preset — kept in sync with the settings sidebar's
+// settingsSubmenuItemClassName so the edit-dialog rail and settings nav read identically.
+const submenuItemClassName =
+  'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground'
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
