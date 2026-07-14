@@ -153,6 +153,7 @@ describe('SelectedModelsTrigger', () => {
     expect(within(iconRail).getByTestId('model-avatar-provider-a::model-a')).toBeInTheDocument()
     expect(within(iconRail).getByTestId('model-avatar-provider-b::model-b')).toBeInTheDocument()
     expect(iconRail.className).not.toContain('overflow-x-auto')
+    expect(screen.getByRole('button', { name: 'Selected models' }).querySelector('.lucide-chevron-down')).toBeTruthy()
   })
 
   it('shows model names, providers, capability tags, and context windows in the popover content', () => {
