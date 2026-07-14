@@ -154,6 +154,28 @@ describe('EnvironmentDependencies', () => {
     )
   })
 
+  it('keeps install settings open and blocks duplicate saves when persistence fails', async () => {
+    let rejectSave!: (error: Error) => void
+    setInstallSettingsMock.mockReturnValueOnce(
+      new Promise<void>((_, reject) => {
+        rejectSave = reject
+      })
+    )
+    render(<EnvironmentDependencies />)
+    fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
+    const saveButton = screen.getByText('common.save').closest('button')!
+
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(saveButton).toBeDisabled())
+    fireEvent.click(saveButton)
+    expect(setInstallSettingsMock).toHaveBeenCalledTimes(1)
+
+    rejectSave(new Error('preference write failed'))
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('preference write failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(saveButton).not.toBeDisabled()
+  })
+
   it('does not persist invalid install URLs', async () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))

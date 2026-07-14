@@ -6105,9 +6105,9 @@
       "remove": "移除工具",
       "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
       "removeConfirmTitle": "移除工具",
-      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "removeRuntimeConfirmMessage": "确定要移除 \"{{name}}\" 吗？卸载此运行时可能导致依赖它的 npm 或 pip 工具无法使用。",
       "runtimeDependency": "运行时依赖",
-      "runtimeDependencyHint": "npm/pip 工具的运行时，由应用自动管理，不可删除",
+      "runtimeDependencyHint": "npm/pip 工具使用的运行时",
       "searchFailed": "搜索失败，请查看日志",
       "searchRegistry": "搜索 mise 工具仓库...",
       "source": {

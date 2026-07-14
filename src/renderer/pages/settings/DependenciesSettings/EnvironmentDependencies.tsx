@@ -1000,6 +1000,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
   const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS)
   const [draft, setDraft] = useState(settings)
   const [showToken, setShowToken] = useState(false)
+  const [saving, setSaving] = useState(false)
   const tokenId = useId()
   const tokenDescriptionId = useId()
 
@@ -1011,8 +1012,22 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
   }, [open, settings])
 
   const close = () => {
+    if (saving) return
     setShowToken(false)
     onOpenChange(false)
+  }
+  const save = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await setSettings(draft)
+      setShowToken(false)
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setSaving(false)
+    }
   }
   const urlsValid = [draft.githubMirror, draft.npmRegistry, draft.pipIndexUrl].every(
     (value) => !value.trim() || isValidUrl(value.trim())
@@ -1094,14 +1109,10 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={close}>
+          <Button variant="outline" onClick={close} disabled={saving}>
             {t('common.cancel')}
           </Button>
-          <Button
-            disabled={!urlsValid}
-            onClick={() => {
-              void setSettings(draft).then(close)
-            }}>
+          <Button disabled={!urlsValid || saving} loading={saving} onClick={() => void save()}>
             {t('common.save')}
           </Button>
         </DialogFooter>
