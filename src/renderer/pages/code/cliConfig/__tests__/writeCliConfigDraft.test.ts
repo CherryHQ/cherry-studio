@@ -838,6 +838,24 @@ describe('writeCliConfigDraft', () => {
           'GOOGLE_GEMINI_BASE_URL=https://generativelanguage.googleapis.com\n'
       )
     })
+
+    it("preserves a user's own GOOGLE_GENAI_API_VERSION on a direct (non-gateway) write", async () => {
+      // GOOGLE_GENAI_API_VERSION is deliberately NOT a managed key (only gateway mode forces it to
+      // v1beta), so a direct provider write must neither overwrite nor delete the user's own value.
+      existing['/resolved~/.gemini/.env'] = 'GOOGLE_GENAI_API_VERSION=v1\nGEMINI_API_KEY=old\n'
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro'
+      })
+
+      expect(findWrite('.env').content).toContain('GOOGLE_GENAI_API_VERSION=v1\n')
+    })
   })
 
   describe('qwen-code (~/.qwen/settings.json)', () => {
@@ -1066,6 +1084,31 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.model_provider).toBe('cherry-gateway')
       expect(parsed.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
       expect(JSON.parse(authWrite.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
+    })
+
+    it('writes the bare gateway host + gateway key + gateway-addressed model for gemini-cli', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      // @google/genai appends /v1beta itself, so the base URL must stay bare (no /v1, no /v1beta).
+      const env = writes.find((w) => w.path.endsWith('.env'))!.content
+      expect(env).toContain(`GOOGLE_GEMINI_BASE_URL=${GATEWAY_BASE_URL}`)
+      expect(env).not.toContain(`${GATEWAY_BASE_URL}/v1`)
+      expect(env).toContain('GEMINI_API_KEY=cs-sk-gateway')
+      // The gateway serves only /v1beta; force the SDK's API version so a stale v1 can't redirect it.
+      expect(env).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
+
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel
+      // suffix that keeps gemini-cli's model normalization from rewriting the name.
+      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat@cherry' })
+      // The real provider is never read, so its key can't leak into the CLI config file.
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     })
 
     it('rejects the CherryAI managed default model and writes nothing', async () => {

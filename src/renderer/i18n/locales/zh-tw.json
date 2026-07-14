@@ -31,6 +31,11 @@
       "submit": "提交",
       "title": "來自Agent的提問"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cherry Studio 內建使用顧問。診斷問題、引導操作、收錄 FAQ、提交 Bug/需求、搜尋和建立 Skills"
+      }
+    },
     "channels": {
       "add": "新增",
       "bindAgent": "綁定代理",
@@ -3151,6 +3156,7 @@
             "no_skills_enabled": "未啟用任何技能",
             "search_placeholder": "搜尋工具或 Server...",
             "skills_coming_soon": "Skill 綁定即將支援",
+            "skills_enable_all": "全部開啟",
             "skills_require_save": "儲存後才能啟用技能",
             "tab": {
               "mcp": "MCP",

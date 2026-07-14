@@ -201,12 +201,16 @@ export function buildOpenCodeConfig(
 
 export function buildGeminiEnvConfig(
   envMap: Map<string, string>,
-  resolved: { apiKey: string; baseUrl: string }
+  resolved: { apiKey: string; baseUrl: string; gateway?: boolean }
 ): Map<string, string> {
   const next = new Map(envMap)
   for (const key of GEMINI_MANAGED_ENV_KEYS) next.delete(key)
   if (resolved.apiKey) next.set('GEMINI_API_KEY', resolved.apiKey)
   if (resolved.baseUrl) next.set('GOOGLE_GEMINI_BASE_URL', resolved.baseUrl)
+  // The gateway serves only `/v1beta`. Force the SDK's API version so a stale
+  // `GOOGLE_GENAI_API_VERSION=v1` left in the user's ~/.gemini/.env can't redirect
+  // gemini-cli's @google/genai to the unsupported `/v1` prefix and break launch.
+  if (resolved.gateway) next.set('GOOGLE_GENAI_API_VERSION', 'v1beta')
   return next
 }
 
