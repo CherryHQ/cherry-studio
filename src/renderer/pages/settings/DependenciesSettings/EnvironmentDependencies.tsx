@@ -29,10 +29,12 @@ import {
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import {
+  BINARY_INSTALL_PREFERENCE_KEYS,
   type BinaryToolPreset,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
@@ -60,7 +62,6 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { gt as semverGt, valid as semverValid } from 'semver'
 
 import {
   GITHUB_MIRROR_PRESETS,
@@ -71,25 +72,6 @@ import {
 import LocalModelsSection from './LocalModelsSection'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
-
-const BINARY_INSTALL_PREFERENCE_KEYS = {
-  githubMirror: 'feature.binary.install.github_mirror',
-  githubToken: 'feature.binary.install.github_token',
-  npmRegistry: 'feature.binary.install.npm_registry',
-  pipIndexUrl: 'feature.binary.install.pip_index_url',
-  verifySignatures: 'feature.binary.install.signature_verification.enabled'
-} as const
-
-const isNewerVersion = (latest?: string, installed?: string): boolean => {
-  const validLatest = latest ? semverValid(latest) : null
-  const validInstalled = installed ? semverValid(installed) : null
-  if (!validLatest || !validInstalled) return false
-  try {
-    return semverGt(validLatest, validInstalled)
-  } catch {
-    return false
-  }
-}
 
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
   if (icon) {
@@ -348,25 +330,18 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const snapshot = snapshots[tool.name]
-          const availability = snapshot?.availability ?? { source: 'none' as const }
-          const source: ToolSource = availability.source
-          const owned = !!snapshot?.intent
-          const managedIntent = snapshot?.intent
-          const systemPath = availability.source === 'system' ? availability.path : undefined
-          const resolvedPath = availability.source === 'none' ? undefined : availability.path
-          const installedVersion =
-            availability.source === 'mise' || availability.source === 'bundled' ? availability.version : undefined
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = owned && isNewerVersion(latestVersion, installedVersion)
+          const view = interpretBinarySnapshot(snapshot, { latest: latestVersion })
+          const managedIntent = snapshot?.intent
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
-              source={source}
-              owned={owned}
-              systemPath={systemPath}
-              installedVersion={installedVersion}
-              latestVersion={hasUpdate ? latestVersion : undefined}
+              source={view.source}
+              owned={view.owned}
+              systemPath={view.systemPath}
+              installedVersion={view.installedVersion}
+              latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot?.operation}
               onShowError={(message) => setInstallError({ name: tool.name, message })}
               onInstall={() =>
@@ -375,12 +350,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                 )
               }
               onUpdate={() => managedIntent && installTool(managedIntent, { targetVersion: latestVersion ?? 'latest' })}
-              onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
+              onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
               onRemove={() => setDeleteTarget({ name: tool.name, runtime: false })}
             />
           )
         })}
         {extraTools.map((snapshot) => {
+          const latestVersion = latestVersions?.[snapshot.name]
+          const view = interpretBinarySnapshot(snapshot, { latest: latestVersion })
           const { availability } = snapshot
           const recoveryIntent = getInstallRecoveryIntent(snapshot)
           const toolSpec =
@@ -389,30 +366,25 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             (availability.source === 'mise' ? availability.tool : snapshot.name)
           const runtime = isRuntimeDependency(toolSpec)
           const readOnly = !snapshot.intent && !recoveryIntent
-          const owned = !!snapshot.intent
-          const available = availability.source !== 'none'
-          const systemPath = !readOnly && availability.source === 'system' ? availability.path : undefined
-          const resolvedPath = availability.source === 'none' ? undefined : availability.path
-          const installedVersion =
-            availability.source === 'mise' || availability.source === 'bundled' ? availability.version : undefined
-          const latestVersion = latestVersions?.[snapshot.name]
-          const hasUpdate = owned && isNewerVersion(latestVersion, installedVersion)
+          // A read-only (unowned) tool hides its system path — Cherry uses it in
+          // place but does not surface it as a managed location.
+          const systemPath = readOnly ? undefined : view.systemPath
           return (
             <CustomToolCard
               key={snapshot.name}
               tool={snapshot}
               runtime={runtime}
-              owned={owned}
-              available={available}
+              owned={view.owned}
+              available={view.installed}
               readOnly={readOnly}
               systemPath={systemPath}
-              installedVersion={installedVersion}
-              latestVersion={hasUpdate ? latestVersion : undefined}
+              installedVersion={view.installedVersion}
+              latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot.operation}
               onShowError={(message) => setInstallError({ name: snapshot.name, message })}
               onInstall={() => installTool(toManifestIntent(snapshot))}
               onUpdate={() => installTool(toManifestIntent(snapshot), { targetVersion: latestVersion ?? 'latest' })}
-              onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
+              onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
               onRemove={() => setDeleteTarget({ name: snapshot.name, runtime })}
             />
           )

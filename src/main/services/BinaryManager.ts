@@ -16,6 +16,7 @@ import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolv
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import {
+  BINARY_INSTALL_PREFERENCE_KEYS,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
   TOOL_KEY_RE,
@@ -64,14 +65,6 @@ const MISE_PASSTHROUGH_ENV = [
   'PIP_INDEX_URL'
 ]
 
-const BINARY_INSTALL_PREFERENCE_KEYS = {
-  githubMirror: 'feature.binary.install.github_mirror',
-  githubToken: 'feature.binary.install.github_token',
-  npmRegistry: 'feature.binary.install.npm_registry',
-  pipIndexUrl: 'feature.binary.install.pip_index_url',
-  verifySignatures: 'feature.binary.install.signature_verification.enabled'
-} as const
-
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
 // Query commands (which/ls/registry/latest) finish in seconds. Installs are a
@@ -96,6 +89,22 @@ function parseInstallUrl(value: string, setting: string): string | undefined {
     return url.toString().replace(/\/$/, '')
   } catch {
     throw new Error(`${setting} must be a valid HTTP(S) URL`)
+  }
+}
+
+// Ambient PIP_INDEX_URL comes from the user's login shell, not Cherry's install
+// settings. A non-HTTP value there (e.g. a `file://` index) must not abort the
+// whole isolated-env build and brick every mise operation with a misleading
+// "pip index" error — it is left to pass through unchanged, exactly as an ambient
+// NPM_CONFIG_REGISTRY is. Only Cherry's own explicit setting is strictly
+// validated (parseInstallUrl throws to surface the user's own misconfiguration).
+function parseAmbientUrl(value: string | undefined, setting: string): string | undefined {
+  if (!value) return undefined
+  try {
+    return parseInstallUrl(value, setting)
+  } catch {
+    logger.warn(`Ignoring invalid ambient ${setting}; passing it through to mise unchanged`)
+    return undefined
   }
 }
 
@@ -476,7 +485,8 @@ export class BinaryManager extends BaseService {
     const installSettings = application.get('PreferenceService').getMultiple(BINARY_INSTALL_PREFERENCE_KEYS)
     const githubMirror = parseInstallUrl(installSettings.githubMirror, 'GitHub mirror')
     const npmRegistry = parseInstallUrl(installSettings.npmRegistry, 'npm registry')
-    const pipIndexUrl = parseInstallUrl(installSettings.pipIndexUrl || env['PIP_INDEX_URL'] || '', 'pip index')
+    const pipIndexUrl =
+      parseInstallUrl(installSettings.pipIndexUrl, 'pip index') ?? parseAmbientUrl(env['PIP_INDEX_URL'], 'pip index')
     if (npmRegistry) env['NPM_CONFIG_REGISTRY'] = npmRegistry
     if (pipIndexUrl) {
       env['PIP_INDEX_URL'] = pipIndexUrl

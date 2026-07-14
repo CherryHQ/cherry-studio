@@ -1201,6 +1201,48 @@ describe('BinaryManager', () => {
       expect(getBinaryExecutionEnv()['GITHUB_TOKEN']).toBeUndefined()
     })
 
+    it('falls back to a valid ambient PIP_INDEX_URL when no pip index is configured', async () => {
+      const original = { ...process.env }
+      try {
+        process.env['PIP_INDEX_URL'] = 'https://pypi.ambient/simple/'
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        const env = await (service as any).buildIsolatedEnv()
+
+        expect(env['PIP_INDEX_URL']).toBe('https://pypi.ambient/simple')
+        expect(env['MISE_PIPX_REGISTRY_URL']).toBe('https://pypi.ambient/simple/{}/')
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('tolerates an invalid ambient PIP_INDEX_URL instead of bricking every mise operation', async () => {
+      const original = { ...process.env }
+      try {
+        // A file:// pip index in the user's login shell must not abort the env
+        // build and surface as a misleading "pip index" error on every install.
+        process.env['PIP_INDEX_URL'] = 'file:///srv/pypi/simple'
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+
+        const env = await (service as any).buildIsolatedEnv()
+
+        // Raw value passes through unchanged; no pipx registry is derived from it.
+        expect(env['PIP_INDEX_URL']).toBe('file:///srv/pypi/simple')
+        expect(env['MISE_PIPX_REGISTRY_URL']).toBeUndefined()
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('still rejects an explicitly configured non-HTTP pip index', async () => {
+      mockInstallPreferences({ ...DEFAULT_INSTALL_PREFERENCES, pipIndexUrl: 'file:///srv/pypi/simple' })
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+
+      await expect((service as any).buildIsolatedEnv()).rejects.toThrow('pip index must be a valid HTTP(S) URL')
+    })
+
     it('relocates HOME/XDG into the isolated data dir so mise cannot read user-level config/creds', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

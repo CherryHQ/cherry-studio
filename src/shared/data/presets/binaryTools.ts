@@ -7,6 +7,20 @@ export const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$/
 
 /**
+ * Advanced install settings that shape the isolated mise subprocess. The single
+ * source of truth for both the renderer settings dialog that persists them and
+ * BinaryManager's `buildIsolatedEnv` that reads them — keeping the two ends from
+ * drifting when a setting is added or renamed.
+ */
+export const BINARY_INSTALL_PREFERENCE_KEYS = {
+  githubMirror: 'feature.binary.install.github_mirror',
+  githubToken: 'feature.binary.install.github_token',
+  npmRegistry: 'feature.binary.install.npm_registry',
+  pipIndexUrl: 'feature.binary.install.pip_index_url',
+  verifySignatures: 'feature.binary.install.signature_verification.enabled'
+} as const
+
+/**
  * Whether a tool spec is a runtime interpreter that mise auto-installs for
  * package backends (BinaryManager's RUNTIME_DEPS: npm → node, pipx → python).
  * Once owned, a runtime stays removable after the UI warns about dependent tools.

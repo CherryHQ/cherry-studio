@@ -1,72 +1,28 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
+import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { gt as semverGt, valid as semverValid } from 'semver'
 
 import type { VersionStatus } from '../types'
 
 const logger = loggerService.withContext('useCliVersionStatus')
 
-const isNewerVersion = (latest?: string, installed?: string): boolean => {
-  const validLatest = latest ? semverValid(latest) : null
-  const validInstalled = installed ? semverValid(installed) : null
-  if (!validLatest || !validInstalled) return false
-  try {
-    return semverGt(validLatest, validInstalled)
-  } catch {
-    return false
-  }
-}
-
 const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
-  const availability = snapshot?.availability ?? { source: 'none' as const }
+  const view = interpretBinarySnapshot(snapshot, { latest, ignoreSystemSource: toolId === CodeCli.OPENCLAW })
   const operation = snapshot?.operation
   const intent = snapshot?.intent
-  const owned = !!intent
-  const intentField = intent ? { intent } : {}
-  if (availability.source === 'mise') {
-    return {
-      installed: true,
-      source: 'mise',
-      owned,
-      ...intentField,
-      current: availability.version,
-      latest,
-      canUpgrade: owned && isNewerVersion(latest, availability.version),
-      ...(operation ? { operation } : {})
-    }
-  }
-  if (availability.source === 'bundled') {
-    return {
-      installed: true,
-      source: 'bundled',
-      owned,
-      ...intentField,
-      current: availability.version,
-      canUpgrade: false,
-      ...(operation ? { operation } : {})
-    }
-  }
-  if (availability.source === 'system' && toolId !== CodeCli.OPENCLAW) {
-    return {
-      installed: true,
-      source: 'system',
-      owned,
-      ...intentField,
-      systemPath: availability.path,
-      canUpgrade: false,
-      ...(operation ? { operation } : {})
-    }
-  }
   return {
-    installed: false,
-    source: 'none',
-    owned,
-    ...intentField,
-    canUpgrade: false,
+    installed: view.installed,
+    source: view.source,
+    owned: view.owned,
+    ...(intent ? { intent } : {}),
+    ...(view.installedVersion !== undefined ? { current: view.installedVersion } : {}),
+    ...(view.source === 'mise' ? { latest } : {}),
+    ...(view.systemPath !== undefined ? { systemPath: view.systemPath } : {}),
+    canUpgrade: view.hasUpdate,
     ...(operation ? { operation } : {})
   }
 }
