@@ -106,8 +106,8 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   // these the verify step fails with "Could not determine cache directory" (#16719).
   // Point them into the isolated data dir alongside HOME/XDG.
   if (isWin) {
-    env.LOCALAPPDATA = path.join(dataDir, 'localappdata')
-    env.APPDATA = path.join(dataDir, 'appdata')
+    env.LOCALAPPDATA = application.getPath('feature.binary.isolated.localappdata')
+    env.APPDATA = application.getPath('feature.binary.isolated.appdata')
   }
   return env
 }

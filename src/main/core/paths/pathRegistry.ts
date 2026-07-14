@@ -97,6 +97,11 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
+    // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
+    // home so mise's aqua signature verification resolves its cache/config dirs
+    // without reading the user's real values (see getBinaryIsolatedHomeEnv).
+    'feature.binary.isolated.localappdata': path.join(CHERRY_HOME, 'binary-manager', 'localappdata'),
+    'feature.binary.isolated.appdata': path.join(CHERRY_HOME, 'binary-manager', 'appdata'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
