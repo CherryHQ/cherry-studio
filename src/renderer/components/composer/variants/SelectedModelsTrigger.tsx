@@ -5,7 +5,7 @@ import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/c
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { RotateCcw, X } from 'lucide-react'
+import { ChevronDown, RotateCcw, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
   type FocusEvent,
@@ -289,6 +289,11 @@ export const SelectedModelsTrigger = ({
               <span className={cn('max-w-52 truncate', iconOnly && singleModel && 'sr-only')}>{singleModelLabel}</span>
             </>
           )}
+          <ChevronDown
+            size={14}
+            aria-hidden
+            className={cn('text-muted-foreground', iconOnly && hasVisibleTriggerIcon && 'hidden')}
+          />
         </Button>
       </PopoverAnchor>
       {canShowSelectionPopover ? (

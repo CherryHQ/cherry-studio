@@ -8,6 +8,7 @@ import type { CSSProperties, ReactNode, Ref } from 'react'
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
 import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
+import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
 export interface ConversationShellProps {
@@ -84,22 +85,24 @@ export default function ConversationShell({
           className
         )}>
         <QuickPanelProvider>
-          <ChatAppShell
-            pane={pane}
-            paneOpen={paneOpen}
-            panePosition={panePosition}
-            topBar={resolvedTopBar}
-            centerContent={center}
-            sidePanel={sidePanel}
-            centerOverlay={centerOverlay}
-            centerTopOverlay={centerTopOverlay}
-            overlay={overlay}
-            centerId={centerId}
-            centerRef={centerRef}
-            centerClassName={centerClassName}
-            onPaneCollapse={onPaneCollapse}
-            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-          />
+          <ConversationTopBarPortalProvider>
+            <ChatAppShell
+              pane={pane}
+              paneOpen={paneOpen}
+              panePosition={panePosition}
+              topBar={resolvedTopBar}
+              centerContent={center}
+              sidePanel={sidePanel}
+              centerOverlay={centerOverlay}
+              centerTopOverlay={centerTopOverlay}
+              overlay={overlay}
+              centerId={centerId}
+              centerRef={centerRef}
+              centerClassName={centerClassName}
+              onPaneCollapse={onPaneCollapse}
+              onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+            />
+          </ConversationTopBarPortalProvider>
         </QuickPanelProvider>
         {rightPane}
       </div>
