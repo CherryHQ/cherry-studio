@@ -852,8 +852,9 @@ async function buildToolPermissions(
     // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
     // holder the connection wired, not a holder instance captured before this connection existed.
     const holder = getSteerHolder(session.id)
+    if (holder.pending.length === 0) return {}
+
     const taken = holder.pending.splice(0)
-    if (taken.length === 0) return {}
     const text = taken
       .map(extractSteerText)
       .filter((t) => t.trim())

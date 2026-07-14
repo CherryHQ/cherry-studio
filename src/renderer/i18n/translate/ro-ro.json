@@ -3154,6 +3154,7 @@
             "no_skills_enabled": "Niciun abilități activate",
             "search_placeholder": "Instrumente sau servere de căutare...",
             "skills_coming_soon": "Asocierile de abilități vor apărea în curând",
+            "skills_enable_all": "Activează tot",
             "skills_require_save": "Salvează înainte de a activa abilitățile",
             "tab": {
               "mcp": "Server MCP",
