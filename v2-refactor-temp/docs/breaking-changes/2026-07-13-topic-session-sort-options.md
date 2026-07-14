@@ -2,7 +2,7 @@
 title: Conversation and task lists gain sorting controls
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#16998"
 date: 2026-07-13
 ---
 
@@ -19,7 +19,3 @@ Pinned conversations and tasks keep their own pin order regardless of the select
 ## What the user should do
 
 Nothing is required. Choose a sort from the list options menu when a different item order is preferred.
-
-## Notes for release manager
-
-Replace `TBD` with the PR number or direct-push commit hash before release aggregation.

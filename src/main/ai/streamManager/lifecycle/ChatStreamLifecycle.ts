@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { type ActiveExecution, type TopicStreamStatus } from '@shared/ai/transport'
+import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'

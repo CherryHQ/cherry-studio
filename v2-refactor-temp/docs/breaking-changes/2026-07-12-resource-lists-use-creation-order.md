@@ -2,7 +2,7 @@
 title: Conversation and task lists no longer use date groups
 category: changed
 severity: notice
-introduced_in_pr: 523ab28297
+introduced_in_pr: "#16998"
 date: 2026-07-12
 ---
 
@@ -17,7 +17,3 @@ The default conversation list no longer moves an existing conversation between d
 ## What the user should do
 
 Nothing — automatic.
-
-## Notes for release manager
-
-If this local commit is later attached to a PR, replace the commit hash with the PR number.
