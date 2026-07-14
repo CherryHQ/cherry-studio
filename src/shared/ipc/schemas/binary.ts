@@ -71,6 +71,9 @@ const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const binaryRequestSchemas = {
   'binary.install_tool': defineRoute({ input: binaryInstallRequestSchema, output: z.object({ version: z.string() }) }),
+  // Ownership-only: take over a tool already installed in Cherry's mise env
+  // (no install/version change). Gated like install_tool — see the handler.
+  'binary.claim_tool': defineRoute({ input: binaryManifestEntrySchema, output: z.object({ version: z.string() }) }),
   'binary.remove_tool': defineRoute({ input: toolNameSchema, output: z.void() }),
   'binary.get_tool_snapshots': defineRoute({
     input: z.array(toolNameSchema),

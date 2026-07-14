@@ -150,6 +150,7 @@ export class BinaryManager extends BaseService {
   private readonly activeMutations = new Map<
     string,
     | { action: 'install'; request: BinaryInstallRequest; promise: Promise<{ version: string }> }
+    | { action: 'claim'; promise: Promise<{ version: string }> }
     | {
         action: 'remove'
         promise: Promise<void>
@@ -717,25 +718,34 @@ export class BinaryManager extends BaseService {
     application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
   }
 
-  private validateInstallRequest(request: BinaryInstallRequest) {
-    validateBinaryManifestEntry(request.intent)
-    if (request.targetVersion && !TOOL_KEY_RE.test(request.targetVersion)) {
-      throw new Error(`Invalid tool version: ${request.targetVersion}`)
-    }
+  /**
+   * Validate a durable manifest intent's identity and canonical/runtime spec.
+   * Shared by install and claim, both of which persist an intent under the same
+   * name/spec invariants; only the one-shot install target is install-specific.
+   */
+  private validateIntentSpec(intent: BinaryManifestEntry) {
+    validateBinaryManifestEntry(intent)
     const canonicalTools = new Map([
       ...PRESETS_BINARY_TOOLS.map((tool) => [tool.name, tool.tool] as const),
       ...CODE_CLI_TOOL_PRESETS.map((tool) => [tool.executable, tool.miseTool] as const)
     ])
-    const canonicalTool = canonicalTools.get(request.intent.name)
-    if (canonicalTool && canonicalTool !== request.intent.tool) {
-      throw new Error(`Tool ${request.intent.name} must use its canonical specification`)
+    const canonicalTool = canonicalTools.get(intent.name)
+    if (canonicalTool && canonicalTool !== intent.tool) {
+      throw new Error(`Tool ${intent.name} must use its canonical specification`)
     }
 
-    const runtimeTool = request.intent.tool.replace(/^core:/, '').split('@')[0]
-    const usesRuntimeBackend = isRuntimeDependency(request.intent.tool)
-    const hasRuntimeName = request.intent.name === 'node' || request.intent.name === 'python'
-    if ((usesRuntimeBackend && request.intent.name !== runtimeTool) || (hasRuntimeName && !usesRuntimeBackend)) {
-      throw new Error(`Runtime ${request.intent.name} must use its canonical runtime specification`)
+    const runtimeTool = intent.tool.replace(/^core:/, '').split('@')[0]
+    const usesRuntimeBackend = isRuntimeDependency(intent.tool)
+    const hasRuntimeName = intent.name === 'node' || intent.name === 'python'
+    if ((usesRuntimeBackend && intent.name !== runtimeTool) || (hasRuntimeName && !usesRuntimeBackend)) {
+      throw new Error(`Runtime ${intent.name} must use its canonical runtime specification`)
+    }
+  }
+
+  private validateInstallRequest(request: BinaryInstallRequest) {
+    this.validateIntentSpec(request.intent)
+    if (request.targetVersion && !TOOL_KEY_RE.test(request.targetVersion)) {
+      throw new Error(`Invalid tool version: ${request.targetVersion}`)
     }
   }
 
@@ -773,7 +783,9 @@ export class BinaryManager extends BaseService {
         new Error(
           active.action === 'remove'
             ? `Tool ${intent.name} is already removing`
-            : `Tool ${intent.name} is already installing with a different specification`
+            : active.action === 'claim'
+              ? `Tool ${intent.name} is currently being claimed`
+              : `Tool ${intent.name} is already installing with a different specification`
         )
       )
     }
@@ -851,6 +863,82 @@ export class BinaryManager extends BaseService {
       })
       throw err
     }
+  }
+
+  /**
+   * Take durable ownership of a tool that is *already* installed in Cherry's
+   * isolated mise environment, without touching mise state. This is an
+   * ownership-only mutation: it never runs `mise use/install/uninstall`,
+   * reshims, downloads, or changes a version. It exists so a user can opt an
+   * already-managed-by-mise tool into Cherry's update/remove lifecycle.
+   *
+   * Ownership is never inferred from availability — the caller supplies the
+   * canonical intent, and this proves the exact spec is installed via mise
+   * before persisting. A `senderId: null` caller is refused at the IPC handler,
+   * as with install/remove.
+   */
+  claimTool(intent: BinaryManifestEntry): Promise<{ version: string }> {
+    try {
+      this.validateIntentSpec(intent)
+    } catch (err) {
+      return Promise.reject(err)
+    }
+    const active = this.activeMutations.get(intent.name)
+    if (active) {
+      return Promise.reject(
+        new Error(
+          active.action === 'remove'
+            ? `Tool ${intent.name} is already removing`
+            : active.action === 'claim'
+              ? `Tool ${intent.name} is already being claimed`
+              : `Tool ${intent.name} is already installing`
+        )
+      )
+    }
+    if (!this.miseBin) {
+      return Promise.reject(new Error('Binary backend not available'))
+    }
+
+    const promise = this.claimToolImpl(intent)
+    this.activeMutations.set(intent.name, { action: 'claim', promise })
+    void promise
+      .finally(() => {
+        if (this.activeMutations.get(intent.name)?.promise === promise) this.activeMutations.delete(intent.name)
+      })
+      .catch(() => undefined)
+    return promise
+  }
+
+  private async claimToolImpl(intent: BinaryManifestEntry): Promise<{ version: string }> {
+    return this.mutationMutex.runExclusive(async () => {
+      const manifest = this.getManifest()
+      const existing = manifest.find((entry) => entry.name === intent.name)
+      if (existing && (existing.tool !== intent.tool || existing.requestedVersion !== intent.requestedVersion)) {
+        throw new Error(`Tool ${intent.name} is already owned with a different specification`)
+      }
+      const conflictingOwner = manifest.find((entry) => entry.name !== intent.name && entry.tool === intent.tool)
+      if (conflictingOwner) {
+        throw new Error(`Tool specification ${intent.tool} is already owned as ${conflictingOwner.name}`)
+      }
+
+      // Prove the *exact* spec is installed in Cherry's isolated mise env — never
+      // infer ownership from a PATH/shim name. getInstalledVersion throws when the
+      // spec is absent or (with requestedVersion) the observed version mismatches.
+      const version = await this.getInstalledVersion(intent.tool, intent.requestedVersion)
+      // And prove the named executable target is actually runnable, not just listed.
+      if (!(await this.isManagedBinaryReady(intent.name))) {
+        throw new Error(`Tool is not runnable: ${intent.name}`)
+      }
+
+      // A node/python runtime claim without an explicit version pins the observed
+      // one, mirroring install's runtime-claim path so ownership is unambiguous.
+      const persistedIntent =
+        isRuntimeDependency(intent.tool) && !intent.requestedVersion ? { ...intent, requestedVersion: version } : intent
+      // A manifest write failure leaves the tool runnable-but-unowned (no catch):
+      // ownership only exists once the preference is durably persisted.
+      await this.upsertManifest(persistedIntent)
+      return { version }
+    })
   }
 
   private async loadRegistry(): Promise<Array<{ name: string; tool: string }>> {
@@ -953,7 +1041,13 @@ export class BinaryManager extends BaseService {
     const active = this.activeMutations.get(toolName)
     if (active) {
       if (active.action === 'remove') return active.promise
-      return Promise.reject(new Error(`Tool ${toolName} is already installing`))
+      return Promise.reject(
+        new Error(
+          active.action === 'claim'
+            ? `Tool ${toolName} is already being claimed`
+            : `Tool ${toolName} is already installing`
+        )
+      )
     }
 
     // As with installs, expose removal before waiting for a mutation of another
@@ -969,15 +1063,42 @@ export class BinaryManager extends BaseService {
     return promise
   }
 
+  /**
+   * Owned tools that would lose their interpreter if `intent` (a node/python
+   * runtime) were removed. Uses the same backend→runtime map as install
+   * (RUNTIME_DEPS): npm tools need node, pipx tools need python. Returns [] when
+   * `intent` is not a runtime. Names only, for the rejection message.
+   */
+  private ownedRuntimeDependents(intent: BinaryManifestEntry, manifest: BinaryManifestEntry[]): string[] {
+    if (!isRuntimeDependency(intent.tool)) return []
+    const runtimeName = intent.tool.replace(/^core:/, '').split('@')[0]
+    const dependentBackends = Object.entries(RUNTIME_DEPS)
+      .filter(([, dep]) => dep.split('@')[0] === runtimeName)
+      .map(([backend]) => backend)
+    if (dependentBackends.length === 0) return []
+    return manifest
+      .filter((entry) => entry.name !== intent.name && dependentBackends.includes(entry.tool.split(':')[0]))
+      .map((entry) => entry.name)
+  }
+
   private async removeToolImpl(toolName: string): Promise<void> {
     return this.mutationMutex.runExclusive(async () => {
-      const intent = this.getManifest().find((entry) => entry.name === toolName)
+      const manifest = this.getManifest()
+      const intent = manifest.find((entry) => entry.name === toolName)
       if (!intent) {
         this.setOperation(toolName, null)
         return
       }
       try {
         if (!this.miseBin) throw new Error('Binary backend not available')
+
+        // Runtime removal safety: an owned node/python runtime must not be removed
+        // while an owned package tool still depends on it (npm→node, pipx→python) —
+        // that would strand those tools. Reject before any mise mutation.
+        const dependents = this.ownedRuntimeDependents(intent, manifest)
+        if (dependents.length > 0) {
+          throw new Error(`Cannot remove ${toolName} while managed tools depend on it: ${dependents.join(', ')}`)
+        }
 
         const wasAbsent = await this.isMiseToolAbsent(intent.tool)
         if (!wasAbsent) {

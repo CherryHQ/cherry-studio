@@ -8,13 +8,14 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * the deep validation of the install spec. Input is already shape-parsed by the
  * route schema; the source-trust gate (validateSender) runs before dispatch.
  *
- * `install_tool` / `remove_tool` mutate host state (install_tool can execute
- * arbitrary package postinstall code), so they additionally refuse a `senderId:
- * null` caller — one that passed validateSender but is not a WindowManager-managed
- * window. `validateSender` and `senderId` are independent trust sources that are
- * not cross-checked, so a sensitive route gates on `senderId` explicitly rather
- * than assuming a window is present (see ipc-overview.md "Caller Identity").
- * The read-only query routes have no such side effect and need no gate.
+ * `install_tool` / `claim_tool` / `remove_tool` mutate the durable ownership
+ * manifest (install_tool can additionally execute arbitrary package postinstall
+ * code), so they refuse a `senderId: null` caller — one that passed validateSender
+ * but is not a WindowManager-managed window. `validateSender` and `senderId` are
+ * independent trust sources that are not cross-checked, so a sensitive route gates
+ * on `senderId` explicitly rather than assuming a window is present (see
+ * ipc-overview.md "Caller Identity"). The read-only query routes have no such side
+ * effect and need no gate.
  *
  * This is a should-never-happen guard the renderer does not branch on, so it
  * throws a plain Error (normalized to the framework's INTERNAL code), mirroring
@@ -29,6 +30,10 @@ export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
   'binary.install_tool': async (tool, { senderId }) => {
     requireManagedSender(senderId, 'binary.install_tool')
     return application.get('BinaryManager').installTool(tool)
+  },
+  'binary.claim_tool': async (intent, { senderId }) => {
+    requireManagedSender(senderId, 'binary.claim_tool')
+    return application.get('BinaryManager').claimTool(intent)
   },
   'binary.remove_tool': async (name, { senderId }) => {
     requireManagedSender(senderId, 'binary.remove_tool')

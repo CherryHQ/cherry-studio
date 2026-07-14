@@ -7,6 +7,7 @@ import { binaryHandlers } from '../binary'
 
 const binaryManager = {
   installTool: vi.fn(),
+  claimTool: vi.fn(),
   removeTool: vi.fn(),
   getToolSnapshots: vi.fn(),
   searchRegistry: vi.fn(),
@@ -38,6 +39,22 @@ describe('binaryHandlers', () => {
       'binary.remove_tool requires a managed window'
     )
     expect(binaryManager.removeTool).not.toHaveBeenCalled()
+  })
+
+  it('claim_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
+    const intent = { name: 'fd', tool: 'fd' }
+    await expect(binaryHandlers['binary.claim_tool'](intent, unmanagedCtx)).rejects.toThrow(
+      'binary.claim_tool requires a managed window'
+    )
+    expect(binaryManager.claimTool).not.toHaveBeenCalled()
+  })
+
+  it('claim_tool forwards the intent and returns the observed version', async () => {
+    binaryManager.claimTool.mockResolvedValue({ version: '10.0.0' })
+    const intent = { name: 'fd', tool: 'fd' }
+    const result = await binaryHandlers['binary.claim_tool'](intent, ctx)
+    expect(binaryManager.claimTool).toHaveBeenCalledWith(intent)
+    expect(result).toEqual({ version: '10.0.0' })
   })
 
   it('install_tool forwards the tool spec and returns the install result', async () => {
