@@ -2486,7 +2486,7 @@ const App = defineComponent({
                 {
                   class: 'scroll-bottom-button',
                   type: 'button',
-                  style: { bottom: `${composerHeight.value + (attachments.value.length ? 104 : 72)}px` },
+                  style: { bottom: `${composerHeight.value + (attachments.value.length ? 116 : 84)}px` },
                   title: text('backToBottom'),
                   'aria-label': text('backToBottom'),
                   onClick: () => scrollMessagesToEnd('smooth')
@@ -2900,6 +2900,9 @@ const style = document.createElement('style')
 style.textContent = `
   :root {
     --webui-divider: #e5e7eb;
+    --webui-scrollbar-thumb: #cbd5e1;
+    --webui-scrollbar-thumb-hover: #94a3b8;
+    --webui-scrollbar-track: transparent;
     color: #1f2937;
     background: #f6f7fb;
     font-family:
@@ -2908,6 +2911,30 @@ style.textContent = `
 
   * {
     box-sizing: border-box;
+    scrollbar-color: var(--webui-scrollbar-thumb) var(--webui-scrollbar-track);
+    scrollbar-width: thin;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--webui-scrollbar-track);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-height: 44px;
+    background: var(--webui-scrollbar-thumb);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--webui-scrollbar-thumb-hover);
+    background-clip: padding-box;
   }
 
   body {
@@ -3263,8 +3290,9 @@ style.textContent = `
   .scroll-bottom-button {
     position: absolute;
     z-index: 4;
-    right: 30px;
+    left: 50%;
     bottom: 148px;
+    transform: translateX(-50%);
     display: grid;
     width: 36px;
     height: 36px;
@@ -4408,24 +4436,25 @@ style.textContent = `
   .composer-resize-handle {
     position: absolute;
     z-index: 2;
-    top: 8px;
-    right: 9px;
+    top: -1px;
+    right: -1px;
     display: grid;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    place-items: center;
+    place-items: start end;
     color: #94a3b8;
     background: transparent;
     border: 0;
-    border-radius: 6px;
+    border-radius: 0 18px 0 0;
     cursor: ns-resize;
     touch-action: none;
   }
 
   .composer-resize-handle svg {
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
+    stroke-width: 1.5;
   }
 
   .composer-toolbar {
@@ -5003,6 +5032,9 @@ style.textContent = `
 
   :root[data-webui-theme='dark'] {
     --webui-divider: #334155;
+    --webui-scrollbar-thumb: #64748b;
+    --webui-scrollbar-thumb-hover: #94a3b8;
+    --webui-scrollbar-track: transparent;
     color: #e5e7eb;
     background: #111827;
     color-scheme: dark;
@@ -5083,6 +5115,11 @@ style.textContent = `
   :root[data-webui-theme='dark'] .slash-command-description,
   :root[data-webui-theme='dark'] .model-picker-provider {
     color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .model-selector-button {
+    color: #cbd5e1;
+    background: #334155;
   }
 
   :root[data-webui-theme='dark'] .language-picker-option {
@@ -5410,7 +5447,6 @@ style.textContent = `
     }
 
     .scroll-bottom-button {
-      right: 20px;
       bottom: 132px;
     }
 
