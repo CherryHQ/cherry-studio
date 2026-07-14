@@ -192,8 +192,7 @@ export function useSystemSkills(agentId: string, enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const result = await ipcApi.request('skill.discover_system', { agentId })
-      const discovered = unwrapSkillResult(result)
+      const discovered = await ipcApi.request('skill.discover_system', { agentId })
       if (requestId === requestIdRef.current) setSkills(discovered)
     } catch (cause) {
       if (requestId !== requestIdRef.current) return
@@ -219,9 +218,10 @@ export function useSystemSkills(agentId: string, enabled = true) {
       registeringRef.current.add(skill.id)
       setRegistering((current) => new Set(current).add(skill.id))
       try {
-        const installed = unwrapSkillResult(
-          await ipcApi.request('skill.register_system', { directoryPath: skill.directoryPath, agentId })
-        )
+        const installed = await ipcApi.request('skill.register_system', {
+          directoryPath: skill.directoryPath,
+          agentId
+        })
         await Promise.all([refreshSkillsBestEffort(invalidate), refresh()])
         return installed
       } catch (cause) {

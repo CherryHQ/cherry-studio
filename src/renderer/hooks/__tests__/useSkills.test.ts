@@ -333,10 +333,9 @@ describe('useSystemSkills', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)
-    discoverSystemSkillsMock.mockResolvedValue({ success: true, data: [candidate] })
-    registerSystemSkillMock.mockResolvedValue({
-      success: true,
-      data: createSkill({
+    discoverSystemSkillsMock.mockResolvedValue([candidate])
+    registerSystemSkillMock.mockResolvedValue(
+      createSkill({
         id: 'system-skill-id',
         name: candidate.name,
         folderName: candidate.filename,
@@ -345,7 +344,7 @@ describe('useSystemSkills', () => {
         namespace: 'codex',
         isEnabled: true
       })
-    })
+    )
     stubSkillRoutes()
   })
 

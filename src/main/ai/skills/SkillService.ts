@@ -39,6 +39,7 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
 const MAX_FILES_COUNT = 1000
 const MAX_FOLDER_NAME_LENGTH = 80
+const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 
 /**
  * Skill management service.
@@ -143,6 +144,23 @@ export class SkillService {
    */
   getSkillDirectory(name: string): string {
     return this.getSkillStoragePath(this.sanitizeFolderName(name))
+  }
+
+  /** Resolve the canonical editable directory for an installed skill. */
+  getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
+    if (skill.source === 'system') {
+      if (!skill.sourceUrl?.startsWith('file:')) {
+        throw new Error(`System skill has no file source: ${skill.folderName}`)
+      }
+      return fileURLToPath(skill.sourceUrl)
+    }
+
+    return this.getSkillStoragePath(skill.folderName)
+  }
+
+  /** Local plugin bridge used only when external CLI auth selects the user's Claude config root. */
+  getSkillPluginDirectory(): string {
+    return path.dirname(this.getMirrorRoot())
   }
 
   async uninstall(skillId: string): Promise<void> {
@@ -779,6 +797,12 @@ export class SkillService {
     return path.join(this.getMirrorRoot(), folderName)
   }
 
+  private async ensureSkillPluginManifest(): Promise<void> {
+    const manifestDirectory = path.join(this.getSkillPluginDirectory(), '.claude-plugin')
+    await fs.promises.mkdir(manifestDirectory, { recursive: true })
+    await fs.promises.writeFile(path.join(manifestDirectory, 'plugin.json'), SKILLS_PLUGIN_MANIFEST, 'utf-8')
+  }
+
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
   async linkMirror(folderName: string): Promise<void> {
     const sourceDir = this.getSkillStoragePath(folderName)
@@ -882,6 +906,12 @@ export class SkillService {
    * so concurrent session builds only read this directory.
    */
   async reconcileSkills(): Promise<void> {
+    try {
+      await this.ensureSkillPluginManifest()
+    } catch (error) {
+      logger.warn('Failed to prepare external CLI skill plugin bridge', { error })
+    }
+
     const all = agentGlobalSkillService.listAll()
     const known = new Set(all.map((s) => s.folderName))
 

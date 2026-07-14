@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { installMock, uninstallMock, installFromZipMock, installFromDirectoryMock, listLocalMock } = vi.hoisted(() => ({
+const {
+  installMock,
+  uninstallMock,
+  installFromZipMock,
+  installFromDirectoryMock,
+  listLocalMock,
+  discoverSystemMock,
+  registerSystemMock
+} = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
   installFromZipMock: vi.fn(),
   installFromDirectoryMock: vi.fn(),
-  listLocalMock: vi.fn()
+  listLocalMock: vi.fn(),
+  discoverSystemMock: vi.fn(),
+  registerSystemMock: vi.fn()
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -14,7 +24,9 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     uninstall: uninstallMock,
     installFromZip: installFromZipMock,
     installFromDirectory: installFromDirectoryMock,
-    listLocal: listLocalMock
+    listLocal: listLocalMock,
+    discoverSystem: discoverSystemMock,
+    registerSystem: registerSystemMock
   }
 }))
 
@@ -66,5 +78,22 @@ describe('skillHandlers', () => {
       data: [{ name: 'a', filename: 'a.md' }]
     })
     expect(listLocalMock).toHaveBeenCalledWith('/w')
+  })
+
+  it('discover_system returns native IpcApi data without a nested SkillResult envelope', async () => {
+    discoverSystemMock.mockResolvedValue([{ id: 'candidate-1' }])
+
+    await expect(skillHandlers['skill.discover_system']({ agentId: 'agent-1' }, ctx)).resolves.toEqual([
+      { id: 'candidate-1' }
+    ])
+    expect(discoverSystemMock).toHaveBeenCalledWith('agent-1')
+  })
+
+  it('register_system lets errors propagate to IpcApi', async () => {
+    registerSystemMock.mockRejectedValue(new Error('registration failed'))
+
+    await expect(
+      skillHandlers['skill.register_system']({ directoryPath: '/skill', agentId: 'agent-1' }, ctx)
+    ).rejects.toThrow('registration failed')
   })
 })

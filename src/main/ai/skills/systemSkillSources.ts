@@ -24,6 +24,7 @@ export function buildSystemSkillSources(home: string, env: Record<string, string
 
   return [
     { id: 'agents', name: 'Agent Skills', directoryPath: path.join(home, '.agents', 'skills') },
+    { id: 'agents-xdg', name: 'Agent Skills', directoryPath: path.join(configHome, 'agents', 'skills') },
     { id: 'claude-code', name: 'Claude Code', directoryPath: path.join(claudeHome, 'skills') },
     { id: 'codex', name: 'Codex', directoryPath: path.join(codexHome, 'skills') },
     { id: 'cursor', name: 'Cursor', directoryPath: path.join(home, '.cursor', 'skills') },

@@ -763,6 +763,10 @@ describe('SkillService', () => {
       try {
         await skillService.reconcileSkills()
 
+        await expect(
+          fs.promises.readFile(path.join(path.dirname(mirrorRoot), '.claude-plugin', 'plugin.json'), 'utf-8')
+        ).resolves.toBe('{\n  "name": "cherry-studio-skills"\n}\n')
+
         // heal: DB skill with files is mirrored
         await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
         // warn: DB skill whose source files are missing

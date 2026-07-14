@@ -10,6 +10,7 @@ describe('buildSystemSkillSources', () => {
     const byId = new Map(buildSystemSkillSources(home, {}).map((source) => [source.id, source.directoryPath]))
 
     expect(byId.get('agents')).toBe(path.join(home, '.agents', 'skills'))
+    expect(byId.get('agents-xdg')).toBe(path.join(home, '.config', 'agents', 'skills'))
     expect(byId.get('claude-code')).toBe(path.join(home, '.claude', 'skills'))
     expect(byId.get('codex')).toBe(path.join(home, '.codex', 'skills'))
     expect(byId.get('opencode')).toBe(path.join(home, '.config', 'opencode', 'skills'))
@@ -28,5 +29,6 @@ describe('buildSystemSkillSources', () => {
     expect(byId.get('claude-code')).toBe(path.join('/configs/claude', 'skills'))
     expect(byId.get('codex')).toBe(path.join('/configs/codex', 'skills'))
     expect(byId.get('opencode')).toBe(path.join('/configs/xdg', 'opencode', 'skills'))
+    expect(byId.get('agents-xdg')).toBe(path.join('/configs/xdg', 'agents', 'skills'))
   })
 })
