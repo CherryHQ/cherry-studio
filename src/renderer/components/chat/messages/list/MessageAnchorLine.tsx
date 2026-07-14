@@ -1,403 +1,247 @@
-import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { scrollIntoView } from '@renderer/utils/dom'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
-import { getModelLogoRef } from '@renderer/utils/model'
-import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils/naming'
-import { CircleChevronDown } from 'lucide-react'
-import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { classNames } from '@renderer/utils/style'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { usePartsMap } from '../blocks/MessagePartsContext'
-import { useMessageListActions, useMessageListMeta, useMessageRenderConfig } from '../MessageListProvider'
-import { defaultMessageRenderConfig, type MessageListItem } from '../types'
-import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
+import type { MessageListItem } from '../types'
 
 interface MessageLineProps {
   messages: MessageListItem[]
+  /** Message currently at the viewport center; highlights its turn's tick. */
+  activeMessageId?: string | null
+  /** Fades the rail out (and disables it) when the chat column is too narrow. */
+  visible?: boolean
   scrollToMessageId?: (messageId: string) => void
-  /** Scroll the message list to its bottom. */
-  scrollToBottom?: () => void
 }
 
-const MessageAnchorLine: FC<MessageLineProps> = ({
-  messages,
-  scrollToMessageId,
-  scrollToBottom: scrollToBottomProp
-}) => {
-  const { t } = useTranslation()
+/** One conversation turn: a user question plus the replies that follow it. */
+interface AnchorTurn {
+  /** Turn start message — the scroll target. */
+  anchorId: string
+  userMessageId?: string
+  assistantMessageId?: string
+  memberIds: string[]
+}
+
+const TICK_BASE_WIDTH = 6
+/** The hovered tick leads the wave without towering over it. */
+const TICK_PEAK_WIDTH = 20
+/** Neighbouring ticks swell towards the peak so the wave reads as one shape. */
+const TICK_WAVE_BONUS = 10
+const HOVER_FALLOFF_DISTANCE = 56
+/** Beyond this distance from the nearest tick, nothing is focused and no card shows. */
+const FOCUS_MAX_DISTANCE = 24
+/** Keep the preview card's center away from the rail's vertical edges. */
+const PREVIEW_EDGE_INSET = 56
+const PREVIEW_MAX_CHARS = 240
+
+const tickTransitionClassName =
+  'transition-[width,height,background-color] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:width]'
+
+const MessageAnchorLine: FC<MessageLineProps> = ({ messages, activeMessageId, visible = true, scrollToMessageId }) => {
   const partsMap = usePartsMap()
-  const { theme } = useTheme()
-  const actions = useMessageListActions()
-  const meta = useMessageListMeta()
-  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
-  const userName = renderConfig.userName
-  const assistantProfile = meta.assistantProfile
-  const avatar = meta.userProfile?.avatar ?? ''
-  const { updateMessageUiState } = actions
-  const { setTimeoutTimer } = useTimer()
 
-  const messagesListRef = useRef<HTMLDivElement>(null)
-  const messageItemsRef = useRef<Map<string, HTMLDivElement>>(new Map())
-  const containerRef = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const tickRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
+  /** Cursor Y in rail-list coordinates; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
   const [listOffsetY, setListOffsetY] = useState(0)
-  const [containerHeight, setContainerHeight] = useState<number | null>(null)
+  const [focused, setFocused] = useState<{ index: number; top: number } | null>(null)
 
-  useEffect(() => {
-    const updateHeight = () => {
-      if (containerRef.current) {
-        const parentElement = containerRef.current.parentElement
-        if (parentElement) {
-          setContainerHeight(parentElement.clientHeight)
-        }
+  const turns = useMemo<AnchorTurn[]>(() => {
+    const result: AnchorTurn[] = []
+    let current: AnchorTurn | null = null
+    for (const message of messages) {
+      if (message.type === 'clear') continue
+      if (message.role === 'user') {
+        current = { anchorId: message.id, userMessageId: message.id, memberIds: [message.id] }
+        result.push(current)
+        continue
+      }
+      if (!current) {
+        current = { anchorId: message.id, memberIds: [] }
+        result.push(current)
+      }
+      current.memberIds.push(message.id)
+      if (!current.assistantMessageId && message.role === 'assistant') {
+        current.assistantMessageId = message.id
       }
     }
-
-    updateHeight()
-    window.addEventListener('resize', updateHeight)
-
-    return () => {
-      window.removeEventListener('resize', updateHeight)
-    }
+    return result
   }, [messages])
 
-  // 函数用于计算根据距离的变化值
-  const calculateValueByDistance = useCallback(
-    (itemId: string, maxValue: number) => {
+  const turnIndexByMessageId = useMemo(() => {
+    const map = new Map<string, number>()
+    turns.forEach((turn, index) => turn.memberIds.forEach((id) => map.set(id, index)))
+    return map
+  }, [turns])
+
+  const activeTurnIndex =
+    activeMessageId != null ? (turnIndexByMessageId.get(activeMessageId) ?? turns.length - 1) : turns.length - 1
+
+  const calculateWaveBonus = useCallback(
+    (turnAnchorId: string) => {
       if (mouseY === null) return 0
-
-      const element = messageItemsRef.current.get(itemId)
-      if (!element) return 0
-
+      const element = tickRefs.current.get(turnAnchorId)
+      const listElement = listRef.current
+      if (!element || !listElement) return 0
       const rect = element.getBoundingClientRect()
-      const centerY = rect.top + rect.height / 2
-      const distance = Math.abs(centerY - (messagesListRef.current?.getBoundingClientRect().top || 0) - mouseY)
-      const maxDistance = 100
-
-      return Math.max(0, maxValue * (1 - distance / maxDistance))
+      const centerY = rect.top + rect.height / 2 - listElement.getBoundingClientRect().top
+      const distance = Math.abs(centerY - mouseY)
+      const falloff = Math.max(0, 1 - distance / HOVER_FALLOFF_DISTANCE)
+      return TICK_WAVE_BONUS * falloff ** 1.5
     },
     [mouseY]
   )
 
-  const getUserName = useCallback(
-    (message: MessageListItem) => {
-      if (message.role === 'assistant') {
-        if (assistantProfile?.name) {
-          return assistantProfile.name
-        }
-
-        return getMessageListItemModelName(message)
-      }
-
-      return userName || t('common.you')
-    },
-    [assistantProfile?.name, userName, t]
-  )
-
-  const setSelectedMessage = useCallback(
-    (message: MessageListItem) => {
-      const groupMessages = messages.filter((m) => m.parentId === message.parentId)
-      if (groupMessages.length > 1) {
-        for (const m of groupMessages) {
-          updateMessageUiState?.(m.id, { foldSelected: m.id === message.id })
-        }
-
-        setTimeoutTimer(
-          'setSelectedMessage',
-          () => {
-            const messageElement = document.getElementById(`message-${message.id}`)
-            if (messageElement) {
-              scrollIntoView(messageElement, { behavior: 'auto', block: 'start', container: 'nearest' })
-            }
-          },
-          100
-        )
-      }
-    },
-    [messages, setTimeoutTimer, updateMessageUiState]
-  )
-
-  const scrollToMessage = useCallback(
-    (message: MessageListItem) => {
-      if (message.role === 'assistant' && message.parentId) {
-        const siblings = messages.filter((m) => m.role === 'assistant' && m.parentId === message.parentId)
-        if (siblings.length > 1) {
-          for (const sibling of siblings) {
-            updateMessageUiState?.(sibling.id, { foldSelected: sibling.id === message.id })
-          }
-        }
-      }
-
-      // Virtualized message list: prefer the imperative API. Off-screen
-      // messages have no DOM, so direct DOM lookup would silently no-op.
-      // Fall back to it only when the prop isn't wired.
-      if (scrollToMessageId) {
-        scrollToMessageId(message.id)
-        return
-      }
-      const messageElement = document.getElementById(`message-${message.id}`)
-      if (!messageElement) return
-      const display = messageElement ? window.getComputedStyle(messageElement).display : null
-      if (display === 'none') {
-        setSelectedMessage(message)
-        return
-      }
-      scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
-    },
-    [messages, scrollToMessageId, setSelectedMessage, updateMessageUiState]
-  )
-
-  const scrollToBottom = useCallback(() => {
-    if (scrollToBottomProp) {
-      scrollToBottomProp()
-      return
-    }
-    const messagesContainer = document.getElementById('messages')
-    if (messagesContainer) {
-      messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' })
-    }
-  }, [scrollToBottomProp])
-
-  if (messages.length === 0) return null
-
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (messagesListRef.current) {
-      const containerRect = e.currentTarget.getBoundingClientRect()
-      const listRect = messagesListRef.current.getBoundingClientRect()
-      setMouseY(e.clientY - listRect.top)
+    const wrapper = wrapperRef.current
+    const list = listRef.current
+    if (!wrapper || !list) return
+    const wrapperRect = wrapper.getBoundingClientRect()
+    const listRect = list.getBoundingClientRect()
+    setMouseY(e.clientY - listRect.top)
 
-      if (listRect.height > containerRect.height) {
-        const mousePositionRatio = (e.clientY - containerRect.top) / containerRect.height
-        const maxOffset = (containerRect.height - listRect.height) / 2 - 20
-        setListOffsetY(-maxOffset + mousePositionRatio * (maxOffset * 2))
-      } else {
-        setListOffsetY(0)
+    // Rail taller than the viewport: slide it with the cursor so every tick stays reachable.
+    if (listRect.height > wrapperRect.height) {
+      const ratio = (e.clientY - wrapperRect.top) / wrapperRect.height
+      const maxOffset = (listRect.height - wrapperRect.height) / 2
+      setListOffsetY(maxOffset * (1 - ratio * 2))
+    } else {
+      setListOffsetY(0)
+    }
+
+    let nearest: { index: number; centerY: number; distance: number } | null = null
+    for (const [index, turn] of turns.entries()) {
+      const element = tickRefs.current.get(turn.anchorId)
+      if (!element) continue
+      const rect = element.getBoundingClientRect()
+      const centerY = rect.top + rect.height / 2
+      const distance = Math.abs(centerY - e.clientY)
+      if (!nearest || distance < nearest.distance) {
+        nearest = { index, centerY, distance }
       }
     }
+    // Only focus (and show the card) while the cursor is actually near a tick —
+    // hovering the empty stretch of the rail should not pin the last card.
+    setFocused(
+      nearest && nearest.distance <= FOCUS_MAX_DISTANCE
+        ? {
+            index: nearest.index,
+            top: Math.min(
+              Math.max(nearest.centerY - wrapperRect.top, PREVIEW_EDGE_INSET),
+              Math.max(wrapperRect.height - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
+            )
+          }
+        : null
+    )
   }
 
   const handleMouseLeave = () => {
     setMouseY(null)
     setListOffsetY(0)
+    setFocused(null)
   }
 
+  // Falling below the width threshold mid-hover would otherwise freeze the
+  // wave and card in place behind the fade-out.
+  useEffect(() => {
+    if (visible) return
+    setMouseY(null)
+    setListOffsetY(0)
+    setFocused(null)
+  }, [visible])
+
+  if (turns.length === 0) return null
+
+  const isHovering = mouseY !== null
+  const focusedTurn = focused !== null ? turns[focused.index] : null
+  const getPreviewText = (messageId?: string) =>
+    messageId ? getTextFromParts(partsMap?.[messageId] ?? []).slice(0, PREVIEW_MAX_CHARS) : ''
+  const focusedQuestion = getPreviewText(focusedTurn?.userMessageId)
+  const focusedAnswer = getPreviewText(focusedTurn?.assistantMessageId)
+
   return (
-    <MessageLineContainer
-      ref={containerRef}
+    <div
+      ref={wrapperRef}
+      className={classNames(
+        // right-4 keeps the ticks clear of the scrollbar gutter (~15px) so the
+        // thumb never overlaps them while scrolling. The gutter is 15px because
+        // the Scrollbar composite's inline scrollbar-color opts Chromium out of
+        // the global 6px ::-webkit-scrollbar styling into the standard CSS
+        // scrollbar; scrollbar-gutter:stable only keeps it reserved while hidden.
+        'group absolute top-2.5 right-4 bottom-2.5 z-20 w-8 select-none transition-opacity duration-300',
+        !visible && 'pointer-events-none opacity-0'
+      )}
       onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      $height={containerHeight}>
-      <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
-        {messages.map((message, index) => {
-          const opacity = 0.5 + calculateValueByDistance(message.id, 1)
-          const scale = 1 + calculateValueByDistance(message.id, 1.2)
-          const size = 10 + calculateValueByDistance(message.id, 20)
-          const model = getMessageListItemModel(message)
-          const username = removeLeadingEmoji(getUserName(message))
-          const parts = partsMap?.[message.id]
-          const content = parts ? getTextFromParts(parts) : ''
-
-          if (message.type === 'clear') return null
-
-          return (
-            <MessageItem
-              key={message.id}
-              ref={(el) => {
-                if (el) messageItemsRef.current.set(message.id, el)
-                else messageItemsRef.current.delete(message.id)
-              }}
-              style={{
-                opacity: mouseY ? opacity : Math.max(0, 0.6 - (0.3 * Math.abs(index - messages.length / 2)) / 5)
-              }}
-              onClick={() => scrollToMessage(message)}>
-              <MessageItemContainer style={{ transform: ` scale(${scale})` }}>
-                <MessageItemTitle>{username}</MessageItemTitle>
-                <MessageItemContent>{content.substring(0, 50)}</MessageItemContent>
-              </MessageItemContainer>
-
-              {message.role === 'assistant' ? (
-                assistantProfile?.avatar ? (
-                  isEmoji(assistantProfile.avatar) ? (
-                    <EmojiAvatar
-                      className="rounded-full"
-                      size={size}
-                      fontSize={size * 0.6}
-                      style={{
-                        cursor: 'default',
-                        pointerEvents: 'none'
-                      }}>
-                      {assistantProfile.avatar}
-                    </EmojiAvatar>
-                  ) : (
-                    <MessageItemAvatar style={{ width: size, height: size }}>
-                      <AvatarImage src={assistantProfile.avatar} />
-                      <AvatarFallback>{firstLetter(assistantProfile.name ?? '').toUpperCase()}</AvatarFallback>
-                    </MessageItemAvatar>
-                  )
-                ) : (
-                  <AnchorModelAvatar model={model} size={size} />
-                )
-              ) : (
-                <>
-                  {isEmoji(avatar) ? (
-                    <EmojiAvatar
-                      className="rounded-full"
-                      size={size}
-                      fontSize={size * 0.6}
-                      style={{
-                        cursor: 'default',
-                        pointerEvents: 'none'
-                      }}>
-                      {avatar}
-                    </EmojiAvatar>
-                  ) : (
-                    <MessageItemAvatar style={{ width: size, height: size }}>
-                      <AvatarImage src={avatar} />
-                    </MessageItemAvatar>
+      onMouseLeave={handleMouseLeave}>
+      <div
+        className={classNames(
+          'flex h-full flex-col justify-center overflow-hidden transition-opacity duration-150',
+          isHovering ? 'opacity-100' : 'opacity-70'
+        )}>
+        <div
+          ref={listRef}
+          className="flex flex-col items-end [will-change:transform]"
+          style={{ transform: `translateY(${listOffsetY}px)` }}>
+          {turns.map((turn, index) => {
+            const isActive = index === activeTurnIndex
+            const isFocused = focused?.index === index
+            // The active turn is marked by color only — every tick keeps the
+            // same length at rest; length changes belong to the hover wave.
+            const width = isHovering
+              ? isFocused
+                ? TICK_PEAK_WIDTH
+                : TICK_BASE_WIDTH + calculateWaveBonus(turn.anchorId)
+              : TICK_BASE_WIDTH
+            const emphasized = focused !== null ? isFocused : isActive
+            return (
+              <div
+                key={turn.anchorId}
+                ref={(el) => {
+                  if (el) tickRefs.current.set(turn.anchorId, el)
+                  else tickRefs.current.delete(turn.anchorId)
+                }}
+                data-message-anchor-tick
+                data-active={isActive}
+                className="flex h-2.5 w-full cursor-pointer items-center justify-end"
+                onClick={() => scrollToMessageId?.(turn.anchorId)}>
+                <div
+                  className={classNames(
+                    'rounded-full',
+                    tickTransitionClassName,
+                    isFocused ? 'h-0.5' : 'h-[1.5px]',
+                    emphasized ? 'bg-foreground' : 'bg-foreground-muted'
                   )}
-                </>
-              )}
-            </MessageItem>
-          )
-        })}
-        <MessageItem
-          key="bottom-anchor"
-          ref={(el) => {
-            if (el) messageItemsRef.current.set('bottom-anchor', el)
-            else messageItemsRef.current.delete('bottom-anchor')
-          }}
-          style={{
-            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(messages.length - messages.length / 2)) / 5)
-          }}
-          onClick={scrollToBottom}>
-          <CircleChevronDown
-            size={10 + calculateValueByDistance('bottom-anchor', 20)}
-            style={{ color: theme === 'dark' ? 'var(--color-foreground)' : 'var(--color-primary)' }}
-          />
-        </MessageItem>
-      </MessagesList>
-    </MessageLineContainer>
+                  style={{ width }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {focused !== null && (focusedQuestion || focusedAnswer) && (
+        <div
+          className="-translate-y-1/2 pointer-events-none absolute right-full z-30 w-max max-w-80 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] dark:bg-neutral-800"
+          style={{ top: focused.top }}>
+          {focusedQuestion && (
+            <div className="line-clamp-1 break-all font-medium text-foreground text-sm">{focusedQuestion}</div>
+          )}
+          {focusedAnswer && (
+            <div
+              className={classNames(
+                'line-clamp-2 break-all text-foreground-secondary text-sm leading-5',
+                focusedQuestion && 'mt-1'
+              )}>
+              {focusedAnswer}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
-
-const MessageItemContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={[
-      'flex origin-right flex-col items-end justify-between gap-[3px] text-right leading-none opacity-0 transition-transform duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:transform] group-hover:opacity-100',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-
-const MessageItemAvatar = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Avatar>) => (
-  <Avatar
-    className={[
-      'overflow-hidden rounded-full transition-[width,height] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:width,height]',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-
-/** Model avatar for one anchor item: sync ref resolution, async icon component. */
-const AnchorModelAvatar: FC<{ model: ReturnType<typeof getMessageListItemModel>; size: number }> = ({
-  model,
-  size
-}) => {
-  const { theme } = useTheme()
-  // Walk the full resolution chain (model icon → provider-by-model → provider).
-  const ModelIcon = useIcon(getModelLogoRef(model))
-  if (ModelIcon) {
-    return <ModelIcon.Avatar size={size} shape="circle" className="rounded-full" />
-  }
-  return (
-    <MessageItemAvatar
-      style={{
-        width: size,
-        height: size,
-        border: 'none',
-        filter: theme === 'dark' ? 'invert(0.05)' : undefined
-      }}></MessageItemAvatar>
-  )
-}
-
-const MessageLineContainer = ({
-  ref,
-  className,
-  $height,
-  style,
-  ...props
-}: React.ComponentPropsWithoutRef<'div'> & { $height: number | null } & {
-  ref?: React.RefObject<HTMLDivElement | null>
-}) => (
-  <div
-    ref={ref}
-    className={[
-      'group absolute right-3.25 z-20 flex w-3.5 translate-y-[-50%] select-none items-center justify-end overflow-hidden text-[5px] hover:w-125 hover:overflow-y-hidden hover:overflow-x-visible',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    style={{
-      top: '50%',
-      maxHeight: $height ? `${$height - 20}px` : 'calc(100% - 20px)',
-      ...style
-    }}
-    {...props}
-  />
-)
-MessageLineContainer.displayName = 'MessageLineContainer'
-
-const MessagesList = ({
-  ref,
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) => (
-  <div
-    ref={ref}
-    className={['flex flex-col [will-change:transform]', className].filter(Boolean).join(' ')}
-    {...props}
-  />
-)
-MessagesList.displayName = 'MessagesList'
-
-const MessageItem = ({
-  ref,
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) => (
-  <div
-    ref={ref}
-    className={[
-      'relative flex origin-right cursor-pointer items-center justify-end gap-2.5 py-0.5 opacity-40 transition-opacity duration-100 ease-linear [will-change:opacity]',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-MessageItem.displayName = 'MessageItem'
-
-const MessageItemTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={['whitespace-nowrap font-medium text-foreground', className].filter(Boolean).join(' ')} {...props} />
-)
-const MessageItemContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-foreground-secondary', className]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
 
 export default MessageAnchorLine
