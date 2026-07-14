@@ -215,7 +215,7 @@ export const ComposerToolbarShortcuts = ({
                   {...dragHandleProps?.listeners}
                   data-dragging={dragging ? 'true' : 'false'}
                   aria-label={t('chat.input.toolbar.drag_handle')}
-                  className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 data-[dragging=true]:opacity-100">
+                  className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 data-[dragging=true]:opacity-100">
                   <GripVertical className="size-4" />
                 </button>
                 <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
