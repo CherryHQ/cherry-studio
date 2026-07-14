@@ -8,6 +8,7 @@ import { Client } from '@notionhq/client'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
@@ -134,7 +135,12 @@ const sanitizeReasoningContent = (content: string): string => {
   })
 }
 
-const getRoleText = async (role: string, modelName?: string, providerId?: string): Promise<string> => {
+const getRoleText = async (
+  role: string,
+  modelName?: string,
+  providerId?: string,
+  author?: { name: string; emoji?: string }
+): Promise<string> => {
   const { showModelNameInMarkdown, showModelProviderInMarkdown } = await preferenceService.getMultiple({
     showModelNameInMarkdown: 'data.export.markdown.show_model_name',
     showModelProviderInMarkdown: 'data.export.markdown.show_model_provider'
@@ -144,9 +150,13 @@ const getRoleText = async (role: string, modelName?: string, providerId?: string
   } else if (role === 'system') {
     return '🤖 System'
   } else {
-    let assistantText = '🤖 '
+    // Prefer the frozen producing author (survives rename/delete); fall back to the generic label.
+    const emoji = author?.emoji || '🤖'
+    const authorLabel = author?.name || 'Assistant'
+    let assistantText = `${emoji} `
     if (showModelNameInMarkdown && modelName) {
-      assistantText += `${modelName}`
+      // Author-first (mirrors the on-screen header); model is secondary when the author is known.
+      assistantText += author?.name ? `${authorLabel} | ${modelName}` : modelName
       if (showModelProviderInMarkdown && providerId) {
         const providerDisplayName = i18n.t(getProviderLabelKey(providerId), { defaultValue: providerId })
         assistantText += ` | ${providerDisplayName}`
@@ -155,10 +165,10 @@ const getRoleText = async (role: string, modelName?: string, providerId?: string
       return assistantText
     } else if (showModelProviderInMarkdown && providerId) {
       const providerDisplayName = i18n.t(getProviderLabelKey(providerId), { defaultValue: providerId })
-      assistantText += `Assistant | ${providerDisplayName}`
+      assistantText += `${authorLabel} | ${providerDisplayName}`
       return assistantText
     }
-    return assistantText + 'Assistant'
+    return assistantText + authorLabel
   }
 }
 
@@ -191,7 +201,11 @@ const createBaseMarkdown = async (
   normalizeCitations: boolean = true
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
-  const roleText = await getRoleText(message.role, message.model?.name, message.model?.provider)
+  const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
+  // Fall back to the frozen author's model when the projection didn't populate a live `model`
+  // (e.g. topic exports), so the model/provider still render when those export prefs are on.
+  const model = message.model ?? author?.model
+  const roleText = await getRoleText(message.role, model?.name, model?.provider, author)
   const titleSection = `## ${roleText}`
   let reasoningSection = ''
 
@@ -1186,7 +1200,10 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':
-        void window.api.export.toWord(`# ${node.name}\n\n${content}`, removeSpecialCharactersForFileName(node.name))
+        void ipcApi.request('export.word.from_markdown', {
+          markdown: `# ${node.name}\n\n${content}`,
+          fileName: removeSpecialCharactersForFileName(node.name)
+        })
         return
       case 'notion':
         await exportMessageToNotion(node.name, content)

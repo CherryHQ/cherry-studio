@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
-    codeMirrorProps: undefined as { onCreateEditor?: (view: unknown) => void } | undefined,
+    codeMirrorProps: undefined as { autoFocus?: boolean; onCreateEditor?: (view: unknown) => void } | undefined,
     dispatch: vi.fn(),
     focus: vi.fn(),
     replacement,
@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@uiw/react-codemirror', () => ({
-  default: (props: { onCreateEditor?: (view: unknown) => void }) => {
+  default: (props: { autoFocus?: boolean; onCreateEditor?: (view: unknown) => void }) => {
     mocks.codeMirrorProps = props
     mocks.scrollDOM.addEventListener.mockImplementation((event: string, listener: () => void) => {
       if (event === 'scroll') mocks.scrollListener = listener
@@ -112,6 +112,12 @@ describe('CodeEditor', () => {
     expect(mocks.replaceSelection).toHaveBeenCalledWith('${variable}')
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.replacement)
     expect(mocks.focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('delegates autofocus to CodeMirror', () => {
+    render(<CodeEditor autoFocus value="" language="markdown" />)
+
+    expect(mocks.codeMirrorProps?.autoFocus).toBe(true)
   })
 
   it('scrolls the internal editor to the document bottom when streaming content grows', () => {

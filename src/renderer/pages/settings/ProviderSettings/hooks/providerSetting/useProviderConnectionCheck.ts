@@ -9,7 +9,6 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
-import { isNoApiKeyProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +21,7 @@ import { useProviderEndpoints } from './useProviderEndpoints'
 const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
 
 export function useProviderConnectionCheck(providerId: string) {
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, enableProvider } = useProvider(providerId)
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
   const { models } = useModels(
     { providerId },
@@ -40,7 +39,9 @@ export function useProviderConnectionCheck(providerId: string) {
 
   const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
-  const requiresApiKey = !isNoApiKeyProvider(provider)
+  // Keyless local servers (registry `authOptional`) can be connection-checked
+  // without a key; the flag rides the merged Provider, so duplicates inherit it.
+  const requiresApiKey = !provider?.authOptional
 
   // AbortController + runId pair guards against stale callbacks landing on the
   // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight
@@ -113,9 +114,20 @@ export function useProviderConnectionCheck(providerId: string) {
 
         if (runId !== runIdRef.current) return
 
-        // Enable the provider (if disabled) only after a successful check. Enable
-        // swallows its own errors, so it never diverts to the failure path.
-        await enableProviderWhenModelsAvailable(provider, updateProvider, checkableModels.length, 'connection_check')
+        // Connectivity has already succeeded. Provider enablement is a follow-up
+        // action, so report its failure separately without marking the probe failed.
+        try {
+          await enableProviderWhenModelsAvailable(provider, enableProvider, checkableModels.length, 'connection_check')
+        } catch (error) {
+          if (runId !== runIdRef.current || controller.signal.aborted) return
+
+          logger.error('Provider connection succeeded but enablement failed', {
+            providerId: provider.id,
+            modelId: model.id,
+            error
+          })
+          toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
+        }
 
         // The enable await can interleave with a newer check; drop this run if it
         // was superseded or aborted before touching success state.
@@ -169,7 +181,7 @@ export function useProviderConnectionCheck(providerId: string) {
       provider,
       requiresApiKey,
       setTimeoutTimer,
-      updateProvider
+      enableProvider
     ]
   )
 

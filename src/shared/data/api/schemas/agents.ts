@@ -245,10 +245,11 @@ export const AGENTS_MAX_LIMIT = 500
 /**
  * Query parameters for `GET /agents`.
  * - `search` LIKEs against `name` OR `description` (case-insensitive,
- *   wildcards in the raw input are escaped server-side).
+ *   wildcards in the raw input are escaped server-side), including the localized
+ *   builtin Cherry Assistant fallback when its stored description is blank.
  */
 export const ListAgentsQuerySchema = z.strictObject({
-  /** Free-text match against name OR description (case-insensitive LIKE). */
+  /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),

@@ -129,37 +129,27 @@ export class MainWindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.MainWindow_SetMinimumSize, (_, width: number, height: number) => {
-      this.requireMainWindow().setMinimumSize(width, height)
-    })
-
-    this.ipcHandle(IpcChannel.MainWindow_ResetMinimumSize, () => {
-      const mainWindow = this.requireMainWindow()
-      mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-      const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-      if (width < MIN_WINDOW_WIDTH) {
-        mainWindow.setSize(MIN_WINDOW_WIDTH, height)
-      }
-    })
-
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
+  }
 
-    // ─── Main-window-specific handlers migrated from src/main/ipc.ts ───
-    // Each reads `this.mainWindow` at call time, so a main window that was
-    // destroyed and rebuilt (singleton reopen path) is handled correctly.
+  /** Set the main window's minimum size (window.main.set_minimum_size). */
+  public setMainWindowMinimumSize(width: number, height: number): void {
+    this.requireMainWindow().setMinimumSize(width, height)
+  }
 
-    this.ipcHandle(IpcChannel.MainWindow_Reload, () => {
-      this.mainWindow?.reload()
-    })
+  /** Reset the main window's minimum size, growing it back if it shrank below the floor. */
+  public resetMainWindowMinimumSize(): void {
+    const mainWindow = this.requireMainWindow()
+    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    if (width < MIN_WINDOW_WIDTH) {
+      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
+    }
+  }
 
-    // Renderer tells main that a notification was clicked → broadcast the
-    // click back to all main-window consumers. Distinct from the Electron
-    // native-notification click path in NotificationService, which also
-    // broadcasts 'notification-click'; both share the same bare-string
-    // channel on the receiver side.
-    this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
-      application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
-    })
+  /** Reload the main window if present (read at call time for singleton-reopen safety). */
+  public reloadMainWindow(): void {
+    this.mainWindow?.reload()
   }
 
   /**

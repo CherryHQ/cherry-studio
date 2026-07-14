@@ -104,7 +104,7 @@ const HeaderNavbar = ({
         return
       }
       const fileName = activeNode.name.replace('.md', '')
-      await window.api.export.toWord(content, fileName)
+      await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
     } catch (error) {
       logger.error('Failed to export to Word:', error as Error)
       toast.error(t('notes.export_to_word_failed'))

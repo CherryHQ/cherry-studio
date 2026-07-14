@@ -31,6 +31,11 @@
       "submit": "提交",
       "title": "来自智能体的问题"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
+      }
+    },
     "channels": {
       "add": "添加",
       "bindAgent": "绑定智能体",
@@ -380,7 +385,7 @@
       },
       "empty": {
         "description": "开始任务后，任务记录会显示在这里。",
-        "title": "还没有任务"
+        "title": "暂无任务"
       },
       "file_manager": {
         "file_explorer": "资源管理器",
@@ -1343,8 +1348,8 @@
     },
     "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是默认助手。你可以立刻开始跟我聊天",
-      "name": "默认助手",
+      "description": "你好，我是 Cherry 助手。你可以立刻开始跟我聊天",
+      "name": "Cherry 助手",
       "topic": {
         "name": "默认对话"
       }
@@ -1754,7 +1759,7 @@
       },
       "empty": {
         "description": "新建一个对话后，这里会保存你的聊天记录，方便继续上下文。",
-        "title": "还没有对话"
+        "title": "暂无对话"
       },
       "export": {
         "failed": "导出失败",
@@ -1961,6 +1966,11 @@
       },
       "select_placeholder": "请选择…"
     },
+    "api_gateway": {
+      "description": "任意 CLI，畅用全部模型",
+      "requires_running": "启用后请保持 Cherry Studio 运行，外部 CLI 才能连接到它托管的网关。",
+      "title": "统一网关"
+    },
     "apply_failed": "写入 CLI 配置到系统文件失败",
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
@@ -2040,6 +2050,7 @@
     "model_required": "请选择模型",
     "model_selection": "模型选择",
     "more": "更多",
+    "move_provider_to_top": "将服务商移到顶部",
     "no_matching_providers": "没有匹配的服务商",
     "no_model_for_provider": "该服务商没有可用的模型",
     "no_providers_description": "在 设置 → 模型服务 中启用支持的服务商",
@@ -3267,6 +3278,7 @@
       },
       "knowledge": {
         "add": "添加知识库",
+        "create_first": "前往知识库创建",
         "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",
         "doc_count": "{{count}} 文档",
         "empty_desc": "关联知识库后,助手可以根据文档内容回答问题",
@@ -3280,6 +3292,7 @@
         "title": "知识库关联"
       },
       "prompt": {
+        "copy_variable": "复制 {{variable}}",
         "create_title": "新建 Prompt",
         "dblclick_hint": "双击预览区可切回编辑",
         "desc": "系统提示词将作为该助手的上下文开头发送给模型",
@@ -3594,6 +3607,7 @@
     },
     "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
     "error": {
+      "avatar_image_too_large": "图片过大（上限 {{limit}}）",
       "chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "copy": "复制失败",
       "dimension_too_large": "内容尺寸过大",
@@ -3615,6 +3629,7 @@
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
       },
       "get_embedding_dimensions": "获取嵌入维度失败",
+      "image_process_failed": "图片处理失败，请重试",
       "invalid": {
         "api": {
           "host": "无效的 API 地址",
@@ -4034,6 +4049,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "配置自定义模型",
       "pin": "置顶此模型",
       "unpin": "取消置顶"
     },
@@ -5533,75 +5549,6 @@
         "title": "导出菜单设置",
         "yuque": "导出到语雀"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "选择备份文件"
-        },
-        "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
-        "file": {
-          "button": "导出到文件",
-          "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
-          "export_failed": "导出失败",
-          "export_success": "导出成功",
-          "title": "导出为文件"
-        },
-        "lan": {
-          "button": "开始传输",
-          "connected": "连接成功",
-          "connection_failed": "连接失败",
-          "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
-          "device_list_title": "局域网设备列表",
-          "discovered_devices": "已发现的设备",
-          "error": {
-            "file_too_large": "文件过大，最大支持 500MB",
-            "init_failed": "初始化失败",
-            "invalid_file_type": "仅支持 ZIP 文件",
-            "no_file": "未选择文件",
-            "no_ip": "无法获取 IP 地址",
-            "not_connected": "请先完成握手连接",
-            "send_failed": "发送文件失败"
-          },
-          "file_transfer": {
-            "cancelled": "传输已取消",
-            "failed": "文件发送失败: {{message}}",
-            "progress": "发送中... {{progress}}%",
-            "success": "文件发送成功"
-          },
-          "handshake": {
-            "button": "握手测试",
-            "failed": "握手失败：{{message}}",
-            "in_progress": "正在握手...",
-            "success": "已与 {{device}} 建立握手",
-            "test_message_received": "已收到 {{device}} 的 pong 响应",
-            "test_message_sent": "已发送 hello world 测试数据"
-          },
-          "idle_hint": "扫描已暂停。开始扫描以发现局域网中的 Cherry Studio 设备。",
-          "ip_addresses": "IP 地址",
-          "last_seen": "最后活动：{{time}}",
-          "metadata": "元数据",
-          "no_connection_warning": "请在 Cherry Studio 移动端打开局域网传输",
-          "no_devices": "尚未发现局域网设备",
-          "scan_devices": "扫描设备",
-          "scanning_hint": "正在扫描局域网中的 Cherry Studio 设备...",
-          "send_file": "发送文件",
-          "status": {
-            "completed": "传输完成",
-            "connected": "连接成功",
-            "connecting": "正在连接中...",
-            "disconnected": "连接已断开",
-            "error": "连接出错",
-            "initializing": "正在初始化连接...",
-            "preparing": "准备传输中...",
-            "sending": "传输中 {{progress}}%"
-          },
-          "status_badge_idle": "空闲",
-          "status_badge_scanning": "扫描中",
-          "stop_scan": "停止扫描",
-          "title": "局域网传输",
-          "transfer_progress": "传输进度"
-        },
-        "title": "导出至手机"
-      },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
       "import_settings": {
@@ -6797,6 +6744,7 @@
           "confirm": "确定要添加所有模型到列表吗？",
           "label": "添加全部模型"
         },
+        "add_success_enable_failed": "模型已添加，但服务商启用失败。",
         "add_whole_group": "添加整个分组",
         "clean_stale_models": "清理失效模型",
         "clean_stale_success": "已清理 {{count}} 个失效模型",
@@ -7208,6 +7156,7 @@
         "fill_after_create": "创建后请在详情页填写认证字段",
         "menu_label": "添加实例"
       },
+      "enable_failed_after_connection": "连接成功，但服务商启用失败。",
       "filter": {
         "agent": "支持 Agent",
         "all": "全部服务商",

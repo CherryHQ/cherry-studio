@@ -1,3 +1,4 @@
+import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
@@ -11,11 +12,12 @@ const useTimerMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const checkApiMock = vi.fn()
-const updateProviderMock = vi.fn()
+const enableProviderMock = vi.fn()
 const commitInputApiKeyNowMock = vi.fn()
 const { loggerErrorMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn()
 }))
+let inputApiKey = 'sk-a,sk-b'
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -66,10 +68,11 @@ describe('useProviderConnectionCheck', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    inputApiKey = 'sk-a,sk-b'
 
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN', isEnabled: false },
-      updateProvider: updateProviderMock
+      enableProvider: enableProviderMock
     })
     useModelsMock.mockReturnValue({
       models: [
@@ -91,10 +94,10 @@ describe('useProviderConnectionCheck', () => {
     })
     useTimerMock.mockReturnValue({ setTimeoutTimer })
     commitInputApiKeyNowMock.mockResolvedValue(undefined)
-    useAuthenticationApiKeyMock.mockReturnValue({
-      inputApiKey: 'sk-a,sk-b',
+    useAuthenticationApiKeyMock.mockImplementation(() => ({
+      inputApiKey,
       commitInputApiKeyNow: commitInputApiKeyNowMock
-    })
+    }))
     useProviderEndpointsMock.mockReturnValue({
       apiHost: 'https://open.cherryin.net',
       anthropicApiHost: 'https://open.cherryin.net'
@@ -118,8 +121,8 @@ describe('useProviderConnectionCheck', () => {
 
   it('opens the connection drawer without API keys for no-key providers', () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', isEnabled: false },
-      updateProvider: updateProviderMock
+      provider: { id: 'ollama', name: 'Ollama', isEnabled: false, authOptional: true },
+      enableProvider: enableProviderMock
     })
     useAuthenticationApiKeyMock.mockReturnValue({
       inputApiKey: '',
@@ -138,8 +141,14 @@ describe('useProviderConnectionCheck', () => {
 
   it('opens the connection drawer without API keys for providers derived from no-key presets', () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'custom-ollama', presetProviderId: 'ollama', name: 'Custom Ollama', isEnabled: false },
-      updateProvider: updateProviderMock
+      provider: {
+        id: 'custom-ollama',
+        presetProviderId: 'ollama',
+        name: 'Custom Ollama',
+        isEnabled: false,
+        authOptional: true
+      },
+      enableProvider: enableProviderMock
     })
     useAuthenticationApiKeyMock.mockReturnValue({
       inputApiKey: '',
@@ -180,8 +189,8 @@ describe('useProviderConnectionCheck', () => {
 
   it('runs no-key provider checks without an API key override', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', isEnabled: false },
-      updateProvider: updateProviderMock
+      provider: { id: 'ollama', name: 'Ollama', isEnabled: false, authOptional: true },
+      enableProvider: enableProviderMock
     })
     useAuthenticationApiKeyMock.mockReturnValue({
       inputApiKey: '',
@@ -213,7 +222,7 @@ describe('useProviderConnectionCheck', () => {
       })
     })
 
-    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
   })
 
   it('persists the pending API key before running the check and before enabling the provider', async () => {
@@ -227,11 +236,11 @@ describe('useProviderConnectionCheck', () => {
     })
 
     expect(commitInputApiKeyNowMock).toHaveBeenCalledTimes(1)
-    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
     // commit must run before the check so a freshly typed key is saved before
     // provider enablement, while the check still uses the selected key override.
     expect(commitInputApiKeyNowMock.mock.invocationCallOrder[0]).toBeLessThan(checkApiMock.mock.invocationCallOrder[0])
-    expect(checkApiMock.mock.invocationCallOrder[0]).toBeLessThan(updateProviderMock.mock.invocationCallOrder[0])
+    expect(checkApiMock.mock.invocationCallOrder[0]).toBeLessThan(enableProviderMock.mock.invocationCallOrder[0])
   })
 
   it('does not run the check or enable the provider when saving the pending API key fails', async () => {
@@ -251,7 +260,7 @@ describe('useProviderConnectionCheck', () => {
     // enabling, surfacing only the failure path — never success-then-failure.
     // The toast must name the save failure, not the connection: nothing was probed.
     expect(checkApiMock).not.toHaveBeenCalled()
-    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
     expect(loggerErrorMock).toHaveBeenCalledWith('Failed to persist pending API key before connection check', {
       providerId: 'cherryin',
       modelId: 'cherryin::claude-4-sonnet',
@@ -266,7 +275,7 @@ describe('useProviderConnectionCheck', () => {
   it('does not patch an already enabled provider after a successful model connection check', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN', isEnabled: true },
-      updateProvider: updateProviderMock
+      enableProvider: enableProviderMock
     })
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
@@ -277,7 +286,59 @@ describe('useProviderConnectionCheck', () => {
       })
     })
 
-    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves connection success and warns when provider enablement fails', async () => {
+    const enableError = new Error('enable and pin failed')
+    enableProviderMock.mockRejectedValueOnce(enableError)
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    await act(async () => {
+      await result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a'
+      })
+    })
+
+    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection succeeded but enablement failed', {
+      providerId: 'cherryin',
+      modelId: 'cherryin::claude-4-sonnet',
+      error: enableError
+    })
+    expect(toast.warning).toHaveBeenCalledWith('settings.provider.enable_failed_after_connection')
+    expect(toast.success).toHaveBeenCalled()
+    expect(result.current.apiKeyConnectivity.status).toBe(HealthStatus.SUCCESS)
+  })
+
+  it('ignores an enablement failure from a superseded connection check', async () => {
+    let rejectEnable: ((error: Error) => void) | undefined
+    enableProviderMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectEnable = reject
+        })
+    )
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    act(() => {
+      void result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a'
+      })
+    })
+    await vi.waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
+
+    inputApiKey = 'sk-new'
+    rerender()
+
+    await act(async () => {
+      rejectEnable?.(new Error('stale enable failure'))
+      await Promise.resolve()
+    })
+
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('logs provider/model context when the connection check fails', async () => {

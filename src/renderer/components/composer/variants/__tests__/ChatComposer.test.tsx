@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   modelPending: false,
   modelMissing: undefined as boolean | undefined,
   selectedModel: undefined as Model | undefined,
+  modelSelectorProps: [] as any[],
   topicPending: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
@@ -284,58 +285,63 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({
-    onSelect,
-    trigger,
-    multiple,
-    open,
-    onOpenChange,
-    value,
-    defaultMultiSelectMode,
-    multiSelectMode,
-    onMultiSelectModeChange
-  }: any) => (
-    <div
-      data-testid="model-selector"
-      data-multiple={String(multiple)}
-      data-open={String(Boolean(open))}
-      data-default-multi-select={String(Boolean(defaultMultiSelectMode))}
-      data-multi-select-mode={String(Boolean(multiSelectMode))}
-      data-value-count={Array.isArray(value) ? String(value.length) : ''}>
-      {trigger}
-      {onOpenChange ? (
-        <>
-          <button type="button" onClick={() => onOpenChange(true)}>
-            open model selector popup
-          </button>
-          <button type="button" onClick={() => onOpenChange(false)}>
-            close model selector popup
-          </button>
-        </>
-      ) : null}
-      <button
-        type="button"
-        onClick={() => {
-          const selectedModel = mocks.selectedModel ?? modelB
-          onSelect(multiple ? [selectedModel] : selectedModel)
-        }}>
-        select model 2
-      </button>
-      {multiple ? (
-        <>
-          <button type="button" onClick={() => onMultiSelectModeChange?.(!multiSelectMode)}>
-            toggle model multi select
-          </button>
-          <button type="button" onClick={() => onSelect([model, modelB])}>
-            select models 1 and 2
-          </button>
-          <button type="button" onClick={() => onSelect([])}>
-            clear model selection
-          </button>
-        </>
-      ) : null}
-    </div>
-  )
+  ModelSelector: (props: any) => {
+    const {
+      onSelect,
+      trigger,
+      multiple,
+      open,
+      onOpenChange,
+      value,
+      defaultMultiSelectMode,
+      multiSelectMode,
+      onMultiSelectModeChange
+    } = props
+    mocks.modelSelectorProps.push(props)
+
+    return (
+      <div
+        data-testid="model-selector"
+        data-multiple={String(multiple)}
+        data-open={String(Boolean(open))}
+        data-default-multi-select={String(Boolean(defaultMultiSelectMode))}
+        data-multi-select-mode={String(Boolean(multiSelectMode))}
+        data-value-count={Array.isArray(value) ? String(value.length) : ''}>
+        {trigger}
+        {onOpenChange ? (
+          <>
+            <button type="button" onClick={() => onOpenChange(true)}>
+              open model selector popup
+            </button>
+            <button type="button" onClick={() => onOpenChange(false)}>
+              close model selector popup
+            </button>
+          </>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            const selectedModel = mocks.selectedModel ?? modelB
+            onSelect(multiple ? [selectedModel] : selectedModel)
+          }}>
+          select model 2
+        </button>
+        {multiple ? (
+          <>
+            <button type="button" onClick={() => onMultiSelectModeChange?.(!multiSelectMode)}>
+              toggle model multi select
+            </button>
+            <button type="button" onClick={() => onSelect([model, modelB])}>
+              select models 1 and 2
+            </button>
+            <button type="button" onClick={() => onSelect([])}>
+              clear model selection
+            </button>
+          </>
+        ) : null}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
@@ -462,7 +468,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 vi.mock('@shared/utils/model', () => ({
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isNonChatModel: () => false,
+  isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
   isWebSearchModel: () => false
 }))
 
@@ -635,6 +641,7 @@ describe('ChatComposer', () => {
     mocks.modelPending = false
     mocks.modelMissing = undefined
     mocks.selectedModel = undefined
+    mocks.modelSelectorProps = []
     mocks.topicPending = false
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
@@ -854,6 +861,14 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
   })
 
+  it('filters reranker models from the composer model selector', () => {
+    const rerankerModel = { ...modelB, capabilities: [MODEL_CAPABILITY.RERANK] }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
+  })
+
   it('keeps web search enabled when switching to a function-calling model', () => {
     mocks.selectedModel = modelBWithFunctionCall
 
@@ -929,7 +944,7 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
-    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
   })
 
   it('does not expose selected models as editor tokens', () => {
@@ -1212,6 +1227,70 @@ describe('ChatComposer', () => {
       })
     )
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('sends an explicitly selected model when an unlinked home topic has no default', async () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+    const onSend = vi.fn()
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [modelB.id]
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('keeps an explicit unlinked-home selection when the runtime default rolls back', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn()
+    const view = render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    mocks.model = modelB
+    view.rerender(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+    mocks.model = model
+    view.rerender(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
+    })
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [modelB.id]
+      })
+    )
+  })
+
+  it('keeps the remaining model in the payload when multi-select is disabled', async () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+    const onSend = vi.fn()
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select model 2'))
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [modelB.id]
+      })
+    )
   })
 
   it('blocks sends for missing-assistant topics until a new assistant is selected', async () => {
@@ -1700,7 +1779,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })

@@ -24,6 +24,7 @@ import {
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
@@ -195,6 +196,8 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
     updatedAt: shared.updatedAt,
     parentId: shared.parentId ?? undefined,
     modelId: shared.modelId ?? undefined,
+    // Carry the frozen author so export headers survive assistant/agent rename/delete.
+    ...(shared.messageSnapshot && { messageSnapshot: shared.messageSnapshot }),
     ...(shared.stats && { stats: shared.stats })
   }
 }
@@ -392,22 +395,13 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `IpcChannel.Topic_AutoRenamed` and invalidates the renamed
+ * Listens for `ai.topic_auto_renamed` and invalidates the renamed
  * topic's SWR cache so the new name shows up without manual refetch.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useEffect(() => {
-    const onAutoRenamed = window.api?.topic?.onAutoRenamed
-    if (!onAutoRenamed) return
-    const unsubscribe = onAutoRenamed(({ topicId }) => {
-      void invalidate(['/topics', `/topics/${topicId}`])
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [invalidate])
+  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

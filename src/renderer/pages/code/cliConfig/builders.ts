@@ -21,11 +21,11 @@ import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
+  cliProviderKeyName,
   dropFeatureGoalsIfEmpty,
   isCherryManagedModel,
   normalizeUrl,
-  omitKeysByPrefix,
-  sanitizeProviderName
+  omitKeysByPrefix
 } from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
@@ -162,12 +162,14 @@ export function buildOpenCodeConfig(
   existing: Record<string, any>,
   provider: OpenCodeProviderIdentity,
   npmInfo: OpenCodeNpmInfo,
-  resolved: { apiKey: string; baseUrl: string; model: string },
+  resolved: { apiKey: string; baseUrl: string; model: string; modelLabel?: string },
   options: Record<string, any>
 ): Record<string, any> {
-  const providerName = sanitizeProviderName(provider.name, provider.id)
+  const providerName = cliProviderKeyName(provider)
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
-  const modelConfig: Record<string, any> = { name: resolved.model }
+  // The models map key is the addressing id sent to the API; `name` is only what
+  // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
+  const modelConfig: Record<string, any> = { name: resolved.modelLabel ?? resolved.model }
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
@@ -178,6 +180,10 @@ export function buildOpenCodeConfig(
   const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
+    // OpenCode's default-model selector. It splits at the FIRST "/", so the model id may
+    // itself contain "/" (gateway ids do) but providerKey must not — cliProviderKeyName
+    // strips it. Without this field OpenCode falls back to its own last-used model.
+    model: `${providerKey}/${resolved.model}`,
     provider: {
       ...preservedProviders,
       [providerKey]: {
@@ -195,12 +201,16 @@ export function buildOpenCodeConfig(
 
 export function buildGeminiEnvConfig(
   envMap: Map<string, string>,
-  resolved: { apiKey: string; baseUrl: string }
+  resolved: { apiKey: string; baseUrl: string; gateway?: boolean }
 ): Map<string, string> {
   const next = new Map(envMap)
   for (const key of GEMINI_MANAGED_ENV_KEYS) next.delete(key)
   if (resolved.apiKey) next.set('GEMINI_API_KEY', resolved.apiKey)
   if (resolved.baseUrl) next.set('GOOGLE_GEMINI_BASE_URL', resolved.baseUrl)
+  // The gateway serves only `/v1beta`. Force the SDK's API version so a stale
+  // `GOOGLE_GENAI_API_VERSION=v1` left in the user's ~/.gemini/.env can't redirect
+  // gemini-cli's @google/genai to the unsupported `/v1` prefix and break launch.
+  if (resolved.gateway) next.set('GOOGLE_GENAI_API_VERSION', 'v1beta')
   return next
 }
 
