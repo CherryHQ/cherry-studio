@@ -51,8 +51,11 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   AssistantEditDialog: () => null
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
-  ImportAssistantDialog: () => null,
-  ImportSkillDialog: () => null
+  ImportAssistantDialog: () => null
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
+  ImportSkillDialog: () => null,
+  SkillMarketplaceDialog: () => null
 }))
 
 vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
@@ -77,10 +80,6 @@ vi.mock('../ResourceGrid', () => ({
 
     return <div data-testid="resource-grid">{props.toolbarLeading}</div>
   }
-}))
-
-vi.mock('../SkillMarketplaceDialog', () => ({
-  SkillMarketplaceDialog: () => null
 }))
 
 function createController(resourceError?: Error) {

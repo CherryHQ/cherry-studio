@@ -168,6 +168,13 @@ vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   const DropdownMenuOpenContext = React.createContext(null)
+  const AccordionContext = React.createContext({
+    collapsible: false,
+    onValueChange: undefined,
+    type: 'single',
+    value: ''
+  })
+  const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -248,18 +255,73 @@ vi.mock('@cherrystudio/ui', () => {
           }
         })
     },
-    Accordion: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion' }, children),
-    AccordionItem: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-item' }, children),
-    AccordionTrigger: ({ children, disabled, ...props }) =>
+    Accordion: ({ children, collapsible = false, defaultValue, onValueChange, type = 'single', value, ...props }) => {
+      const [internalValue, setInternalValue] = React.useState(defaultValue ?? (type === 'multiple' ? [] : ''))
+      const currentValue = value ?? internalValue
+      const handleValueChange = (nextValue) => {
+        if (value === undefined) setInternalValue(nextValue)
+        onValueChange?.(nextValue)
+      }
+      return React.createElement(
+        AccordionContext.Provider,
+        { value: { collapsible, onValueChange: handleValueChange, type, value: currentValue } },
+        React.createElement('div', { ...props, 'data-testid': props['data-testid'] ?? 'accordion' }, children)
+      )
+    },
+    AccordionItem: ({ children, disabled = false, value, ...props }) =>
       React.createElement(
-        'button',
-        { ...props, type: 'button', disabled, 'data-testid': 'accordion-trigger' },
-        children
+        AccordionItemContext.Provider,
+        { value: { disabled, value } },
+        React.createElement('div', { ...props, 'data-testid': props['data-testid'] ?? 'accordion-item' }, children)
       ),
-    AccordionContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
+    AccordionTrigger: ({ children, disabled, onClick, ...props }) => {
+      const accordion = React.use(AccordionContext)
+      const item = React.use(AccordionItemContext)
+      const isOpen =
+        accordion.type === 'multiple' ? accordion.value.includes(item.value) : accordion.value === item.value
+      const handleClick = (event) => {
+        onClick?.(event)
+        if (event.defaultPrevented || disabled || item.disabled) return
+
+        if (accordion.type === 'multiple') {
+          accordion.onValueChange?.(
+            isOpen ? accordion.value.filter((value) => value !== item.value) : [...accordion.value, item.value]
+          )
+        } else if (!isOpen || accordion.collapsible) {
+          accordion.onValueChange?.(isOpen ? '' : item.value)
+        }
+      }
+      return React.createElement(
+        'button',
+        {
+          ...props,
+          type: 'button',
+          disabled: disabled || item.disabled,
+          'aria-expanded': isOpen,
+          'data-testid': props['data-testid'] ?? 'accordion-trigger',
+          onClick: handleClick
+        },
+        children
+      )
+    },
+    AccordionContent: ({ children, className, contentClassName, forceMount = false, ...props }) => {
+      const accordion = React.use(AccordionContext)
+      const item = React.use(AccordionItemContext)
+      const isOpen =
+        accordion.type === 'multiple' ? accordion.value.includes(item.value) : accordion.value === item.value
+      if (!isOpen && !forceMount) return null
+
+      return React.createElement(
+        'div',
+        {
+          ...props,
+          className: [contentClassName, className].filter(Boolean).join(' '),
+          'data-state': isOpen ? 'open' : 'closed',
+          'data-testid': props['data-testid'] ?? 'accordion-content'
+        },
+        children
+      )
+    },
     DropdownMenu: ({ children, onOpenChange }) =>
       React.createElement(
         DropdownMenuOpenContext.Provider,
@@ -763,12 +825,14 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
-    Switch: ({ isSelected, onValueChange, ...props }) =>
+    Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
         type: 'checkbox',
-        checked: isSelected,
-        onChange: (e) => onValueChange?.(e.target.checked),
+        role: 'switch',
+        checked,
+        defaultChecked,
+        onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
     // Popover primitives — Radix-style trigger / content split
