@@ -56,8 +56,8 @@ export default defineConfig({
           }
         }
       },
-      // Main-process utilities do not load native addons, so they can use the
-      // faster worker-thread pool instead of the database-safe fork pool.
+      // Main-process utilities avoid native addons that are unsafe under worker_threads,
+      // such as better-sqlite3, so they can use the faster thread pool.
       {
         extends: true,
         plugins: mainConfig.plugins,
