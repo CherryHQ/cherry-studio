@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -194,5 +194,56 @@ describe('ActionTranslate', () => {
     await act(async () => {
       resolveTranslate('translated text')
     })
+  })
+
+  it('groups auxiliary controls so they wrap together behind the language direction group', async () => {
+    state.detectLanguage.mockResolvedValue('en-us')
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+
+    const detectedLabel = await screen.findByText('English')
+    const detectedBadge = detectedLabel.parentElement as HTMLElement
+    const languageDirectionGroup = detectedBadge.parentElement as HTMLElement
+    const showOriginalButton = screen.getByRole('button', {
+      name: 'selection.action.window.original_show'
+    })
+    const auxiliaryActionGroup = showOriginalButton.parentElement as HTMLElement
+    const toolbar = auxiliaryActionGroup.parentElement as HTMLElement
+
+    expect(toolbar).toHaveClass('flex-wrap')
+    expect(toolbar).toContainElement(languageDirectionGroup)
+    expect(toolbar).toContainElement(auxiliaryActionGroup)
+    expect(languageDirectionGroup).toHaveClass('min-w-0', 'shrink')
+    expect(languageDirectionGroup.querySelector('[data-testid="language-select"]')).not.toBeNull()
+    expect(auxiliaryActionGroup).toHaveClass('ml-auto', 'shrink-0')
+    expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')).not.toBeNull()
+    expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).not.toBeNull()
+    expect(detectedBadge).toHaveClass('min-w-0')
+    expect(detectedLabel).toHaveClass('min-w-0', 'truncate')
+    expect(detectedLabel).toHaveAttribute('title', 'English')
+  })
+
+  it('toggles the original text after the auxiliary controls are regrouped', async () => {
+    state.detectLanguage.mockResolvedValue('en-us')
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'selection.action.window.original_show'
+      })
+    )
+    expect(screen.getByText('There is no default export.')).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'selection.action.window.original_hide'
+      })
+    )
+    expect(screen.queryByText('There is no default export.')).not.toBeInTheDocument()
   })
 })
