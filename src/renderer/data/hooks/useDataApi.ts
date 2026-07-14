@@ -20,13 +20,19 @@
  *
  * @example
  * // Create with auto-refresh
- * const { trigger } = useMutation('POST', '/topics', { refresh: ['/topics'] })
+ * const { trigger } = useMutation('POST', '/topics', {
+ *   refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+ * })
  * await trigger({ body: { name: 'New Topic' } })
  *
  * @example
  * // Template path + `/*` prefix refresh (delete any topic, invalidate the whole resource tree)
  * const { trigger } = useMutation('DELETE', '/topics/:topicId', {
- *   refresh: ({ args }) => ['/topics', `/topics/${args.params.topicId}/*`]
+ *   refresh: ({ args }) => [
+ *     { path: '/topics', strategy: 'reset-cursor' },
+ *     '/topics/stats',
+ *     `/topics/${args.params.topicId}/*`
+ *   ]
  * })
  * await trigger({ params: { topicId: clickedId } })
  *
@@ -61,8 +67,6 @@ import useSWRMutation from 'swr/mutation'
 
 import {
   type DataApiCursorResource,
-  getDataApiCursorLinkedRefreshPaths,
-  getRegisteredDataApiCursorResources,
   publishDataApiCursorRevision,
   useDataApiCursorRevision
 } from './useDataApiCursorRevision'
@@ -93,36 +97,6 @@ const DEFAULT_SWR_OPTIONS = {
 
 /** Stable empty-array constant so `items` identity doesn't churn while data is undefined. */
 const EMPTY_ITEMS: readonly never[] = Object.freeze([])
-
-/**
- * Cursor pages cannot be safely patched after local writes that may change
- * ordering. Bump only the resources their feature modules registered as
- * cursor-paged; this is a Renderer-local revision and deliberately has no
- * IPC/cross-window behavior.
- */
-function publishLocalCursorResets(patterns: readonly string[]): DataApiCursorResource[] {
-  const normalizedPatterns = new Set(patterns.map((pattern) => pattern.replace(/\/\*$/, '')))
-  const resetResources: DataApiCursorResource[] = []
-  for (const resource of getRegisteredDataApiCursorResources()) {
-    if (!normalizedPatterns.has(resource)) continue
-    publishDataApiCursorRevision(resource)
-    resetResources.push(resource)
-  }
-  return resetResources
-}
-
-/** Expand refresh patterns with each registered resource's linked sibling paths (e.g. its /stats). */
-function expandLocalListRefreshPatterns(patterns: readonly string[]): string[] {
-  const expanded = new Set(patterns)
-  const normalizedPatterns = new Set(patterns.map((pattern) => pattern.replace(/\/\*$/, '')))
-
-  for (const resource of getRegisteredDataApiCursorResources()) {
-    if (!normalizedPatterns.has(resource)) continue
-    for (const path of getDataApiCursorLinkedRefreshPaths(resource)) expanded.add(path)
-  }
-
-  return [...expanded]
-}
 
 // ============================================================================
 // Hook Result Types
@@ -225,13 +199,50 @@ export interface RefreshContext<TPath extends ApiPath, TMethod extends 'POST' | 
 }
 
 /**
- * `refresh` option shape: either a static array of paths (supporting `/*`
- * prefix matching) or a function computing paths from the trigger args and
- * server response.
+ * One cache target refreshed after a local write.
+ *
+ * A plain path performs ordinary SWR revalidation. Use `reset-cursor` only
+ * when the write can invalidate cursor boundaries: it retires the existing
+ * cursor family and lets subscribed infinite queries rebuild from page one.
+ * Related paths such as `/stats` remain explicit, separate targets.
+ */
+type DataApiRefreshTarget<TRefreshPath extends string = ConcreteApiPaths> =
+  | TRefreshPath
+  | {
+      path: TRefreshPath
+      strategy: 'reset-cursor'
+    }
+
+/**
+ * `refresh` option shape: either a static array of targets or a function
+ * computing targets from the trigger args and server response. Plain paths
+ * support `/*` prefix matching; cursor reset targets use a concrete list path.
  */
 export type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> =
-  | ConcreteApiPaths[]
-  | ((ctx: RefreshContext<TPath, TMethod>) => ConcreteApiPaths[])
+  | DataApiRefreshTarget[]
+  | ((ctx: RefreshContext<TPath, TMethod>) => DataApiRefreshTarget[])
+
+/** Apply explicit refresh semantics without endpoint-specific knowledge. */
+async function invalidateRefreshTargets(
+  cache: Cache,
+  globalMutate: ScopedMutator,
+  targets: readonly DataApiRefreshTarget<string>[]
+): Promise<void> {
+  const patterns: string[] = []
+  const resetResources = new Set<DataApiCursorResource>()
+
+  for (const target of targets) {
+    if (typeof target === 'string') {
+      patterns.push(target)
+      continue
+    }
+    patterns.push(target.path)
+    resetResources.add(target.path)
+  }
+
+  for (const resource of resetResources) publishDataApiCursorRevision(resource)
+  await invalidatePathPatterns(cache, globalMutate, patterns, [...resetResources])
+}
 
 /**
  * useMutation result type
@@ -407,7 +418,7 @@ export function useQuery<TPath extends ApiPath>(
  * @example
  * // With auto-refresh and callbacks
  * const { trigger } = useMutation('POST', '/topics', {
- *   refresh: ['/topics'],
+ *   refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats'],
  *   onSuccess: (data) => toast.success('Created!'),
  *   onError: (error) => toast.error(error.message)
  * })
@@ -463,7 +474,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
     onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
     /** Callback when mutation fails */
     onError?: (error: Error) => void
-    /** API paths to revalidate on success; supports trailing `/*` for prefix match or a function of trigger args/result */
+    /** Cache targets to refresh on success; cursor resets and related paths must be declared explicitly */
     refresh?: RefreshOption<TPath, TMethod>
     /** If provided, updates cache immediately (with auto-rollback on error) */
     optimisticData?: ResponseForPath<TPath, TMethod>
@@ -591,8 +602,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           try {
             const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
             if (keys.length > 0) {
-              const resetResources = publishLocalCursorResets(keys)
-              await invalidatePathPatterns(cache, globalMutate, expandLocalListRefreshPatterns(keys), resetResources)
+              await invalidateRefreshTargets(cache, globalMutate, keys)
             }
           } catch (refreshErr) {
             logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
@@ -647,6 +657,9 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
  * // Invalidate multiple paths
  * await invalidate(['/topics', '/messages'])
  *
+ * // Retire a cursor chain and refresh its aggregate explicitly
+ * await invalidate([{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats'])
+ *
  * // Invalidate all cached data
  * await invalidate(true)
  *
@@ -664,16 +677,14 @@ export function useInvalidateCache() {
   const { mutate, cache } = useSWRConfig()
 
   const invalidate = useCallback(
-    async (keys?: string | string[] | boolean): Promise<void> => {
+    async (keys?: DataApiRefreshTarget<string> | DataApiRefreshTarget<string>[] | boolean): Promise<void> => {
       if (keys === true || keys === undefined) {
-        for (const resource of getRegisteredDataApiCursorResources()) publishDataApiCursorRevision(resource)
         await mutate(() => true)
         return
       }
       if (keys === false) return
-      const patterns = typeof keys === 'string' ? [keys] : keys
-      const resetResources = publishLocalCursorResets(patterns)
-      await invalidatePathPatterns(cache, mutate, expandLocalListRefreshPatterns(patterns), resetResources)
+      const targets = Array.isArray(keys) ? keys : [keys]
+      await invalidateRefreshTargets(cache, mutate, targets)
     },
     [cache, mutate]
   )
@@ -1560,9 +1571,6 @@ export const __testing = {
   },
   get reconcileInfiniteRevisionFamilies() {
     return reconcileInfiniteRevisionFamilies
-  },
-  get expandLocalListRefreshPatterns() {
-    return expandLocalListRefreshPatterns
   },
   get invalidatePathPatterns() {
     return invalidatePathPatterns

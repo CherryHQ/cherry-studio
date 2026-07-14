@@ -97,7 +97,14 @@ export function AgentResourceList({
   } = usePins('agent')
   const closeConversationTabs = useCloseConversationTabs()
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: [
+      '/agents',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
+      '/agent-workspaces',
+      '/pins',
+      '/agent-channels'
+    ]
   })
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)

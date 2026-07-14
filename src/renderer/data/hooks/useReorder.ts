@@ -76,6 +76,11 @@ export interface UseReorderOptions {
    */
   revalidateOnSuccess?: boolean
   /**
+   * Refresh strategy for the collection after a successful reorder. Omit for
+   * ordinary revalidation; cursor-paged consumers use `reset-cursor`.
+   */
+  refreshStrategy?: 'reset-cursor'
+  /**
    * Name of the item field used as identity. Defaults to `'id'`.
    *
    * Pass `'appId'` (or any other field name) when the collection's primary key
@@ -216,6 +221,10 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
   const unrecognizedWarnedRef = useRef(false)
 
   const revalidate = options?.revalidateOnSuccess !== false
+  const refreshTarget =
+    options?.refreshStrategy === 'reset-cursor'
+      ? ({ path: collectionUrl, strategy: 'reset-cursor' } as const)
+      : collectionUrl
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
 
@@ -226,13 +235,13 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
   const { trigger: patchOrder } = useMutation(
     'PATCH',
     `${collectionUrl}/:id/order` as TemplateApiPaths,
-    revalidate ? { refresh: [collectionUrl] } : undefined
+    revalidate ? { refresh: [refreshTarget] } : undefined
   )
 
   const { trigger: patchBatch } = useMutation(
     'PATCH',
     `${collectionUrl}/order:batch` as ConcreteApiPaths,
-    revalidate ? { refresh: [collectionUrl] } : undefined
+    revalidate ? { refresh: [refreshTarget] } : undefined
   )
 
   /**

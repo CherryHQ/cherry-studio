@@ -70,7 +70,7 @@ const TopicBranchPanel: FC<Props> = ({
     refresh: [messagesCachePath, treeCachePath]
   })
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
-    refresh: ['/topics']
+    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
   })
 
   const tree = useMemo(

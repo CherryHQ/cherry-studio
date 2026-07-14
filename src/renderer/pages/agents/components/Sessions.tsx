@@ -450,10 +450,10 @@ const Sessions = ({
     refetch: refetchSessionStats
   } = useAgentSessionStats({ enabled: isSessionListEnabled, query: sessionStatsQuery })
   const { trigger: pinSession, isLoading: isPinningSession } = useMutation('POST', '/pins', {
-    refresh: ['/pins', '/agent-sessions']
+    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
   })
   const { trigger: unpinSession, isLoading: isUnpinningSession } = useMutation('DELETE', '/pins/:id', {
-    refresh: ['/pins', '/agent-sessions']
+    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
   })
   const isSessionPinMutating = isPinningSession || isUnpinningSession
 
@@ -1312,10 +1312,23 @@ const Sessions = ({
     }
   )
   const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: [
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
+      '/agent-workspaces',
+      '/pins',
+      '/agent-channels'
+    ]
   })
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: [
+      '/agents',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
+      '/agent-workspaces',
+      '/pins',
+      '/agent-channels'
+    ]
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })

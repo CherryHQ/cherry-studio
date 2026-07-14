@@ -655,7 +655,7 @@ describe('useUpdateSession', () => {
     expect(toast.success).toHaveBeenCalledWith('common.update_success')
   })
 
-  it('keeps the session PATCH refresh scoped to session caches', () => {
+  it('keeps the session PATCH refresh scoped to session caches and stats', () => {
     renderHook(() => useUpdateSession())
 
     const updateMutationCall = mockUseMutation.mock.calls.find(
@@ -664,14 +664,18 @@ describe('useUpdateSession', () => {
     const refresh = updateMutationCall?.[2]?.refresh as (context: {
       args: { params: { sessionId: string }; body?: Record<string, unknown> }
       result: AgentSessionEntity
-    }) => string[]
+    }) => unknown[]
 
     expect(
       refresh({
         args: { params: { sessionId: 'session-1' }, body: { name: 'Renamed session' } },
         result: createSession()
       })
-    ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
+    ).toEqual([
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/session-1',
+      '/agent-sessions/stats'
+    ])
   })
 
   it('refreshes workspaces through the dedicated workspace mutation', async () => {
@@ -695,10 +699,11 @@ describe('useUpdateSession', () => {
     )
     const refresh = workspaceMutationCall?.[2]?.refresh as (context: {
       args: { params: { sessionId: string } }
-    }) => string[]
+    }) => unknown[]
     expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
-      '/agent-sessions',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
       '/agent-sessions/session-1',
+      '/agent-sessions/stats',
       '/agent-workspaces'
     ])
   })
@@ -754,6 +759,10 @@ describe('useAgentSessionAutoRenameSync', () => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })
 
-    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
+    expect(invalidate).toHaveBeenCalledWith([
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/session-1',
+      '/agent-sessions/stats'
+    ])
   })
 })

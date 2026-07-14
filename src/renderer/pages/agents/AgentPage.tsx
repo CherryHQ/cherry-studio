@@ -469,7 +469,8 @@ const AgentPage = () => {
         })
         closeConversationTabs('agents', sessionIds)
         await invalidateCache([
-          '/agent-sessions',
+          { path: '/agent-sessions', strategy: 'reset-cursor' },
+          '/agent-sessions/stats',
           '/agent-workspaces',
           ...sessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
         ])
@@ -524,11 +525,14 @@ const AgentPage = () => {
         activateSession(session, agentId)
         await deleteDuplicateEmptySystemSessions(duplicateEmptySystemSessionIds)
         if (!reusableSession) {
-          void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
-            (err) => {
-              logger.warn('Failed to refresh session metadata after empty session create', err as Error)
-            }
-          )
+          void invalidateCache([
+            { path: '/agent-sessions', strategy: 'reset-cursor' },
+            '/agent-sessions/stats',
+            '/agent-workspaces',
+            `/agent-sessions/${session.id}`
+          ]).catch((err) => {
+            logger.warn('Failed to refresh session metadata after empty session create', err as Error)
+          })
         }
 
         return session
@@ -645,11 +649,14 @@ const AgentPage = () => {
         activateSession(session, agentId)
         await deleteDuplicateEmptySystemSessions(duplicateEmptySystemSessionIds)
         if (!reusableSession) {
-          void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
-            (err) => {
-              logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
-            }
-          )
+          void invalidateCache([
+            { path: '/agent-sessions', strategy: 'reset-cursor' },
+            '/agent-sessions/stats',
+            '/agent-workspaces',
+            `/agent-sessions/${session.id}`
+          ]).catch((err) => {
+            logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
+          })
         }
       } catch (err) {
         logger.error('Failed to create agent session after agent creation', err as Error, { agentId })

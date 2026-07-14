@@ -526,25 +526,31 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       mutate: vi.fn()
     }
   }),
-  useMutation: vi.fn((method: string, path: string, options?: { refresh?: string[] }) => {
-    dataApiMocks.mutationOptions.set(`${method} ${path}`, options ?? {})
-    return {
-      trigger:
-        method === 'PATCH' && path === '/agent-workspaces/:id/order'
-          ? dataApiMocks.reorderWorkspace
-          : method === 'PATCH' && path === '/agents/:id/order'
-            ? dataApiMocks.reorderAgent
-            : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
-              ? dataApiMocks.updateWorkspace
-              : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
-                ? dataApiMocks.deleteWorkspace
-                : method === 'DELETE' && path === '/agents/:agentId'
-                  ? dataApiMocks.deleteAgent
-                  : dataApiMocks.findOrCreateWorkspace,
-      isLoading: false,
-      error: undefined
+  useMutation: vi.fn(
+    (
+      method: string,
+      path: string,
+      options?: { refresh?: Array<string | { path: string; strategy: 'reset-cursor' }> }
+    ) => {
+      dataApiMocks.mutationOptions.set(`${method} ${path}`, options ?? {})
+      return {
+        trigger:
+          method === 'PATCH' && path === '/agent-workspaces/:id/order'
+            ? dataApiMocks.reorderWorkspace
+            : method === 'PATCH' && path === '/agents/:id/order'
+              ? dataApiMocks.reorderAgent
+              : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
+                ? dataApiMocks.updateWorkspace
+                : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
+                  ? dataApiMocks.deleteWorkspace
+                  : method === 'DELETE' && path === '/agents/:agentId'
+                    ? dataApiMocks.deleteAgent
+                    : dataApiMocks.findOrCreateWorkspace,
+        isLoading: false,
+        error: undefined
+      }
     }
-  })
+  )
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -2863,7 +2869,8 @@ describe('Sessions', () => {
       })
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /agent-workspaces/:workspaceId')?.refresh).toEqual([
-      '/agent-sessions',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
       '/agent-workspaces',
       '/pins',
       '/agent-channels'
@@ -3042,7 +3049,8 @@ describe('Sessions', () => {
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
     expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId')?.refresh).toEqual([
       '/agents',
-      '/agent-sessions',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
       '/agent-workspaces',
       '/pins',
       '/agent-channels'

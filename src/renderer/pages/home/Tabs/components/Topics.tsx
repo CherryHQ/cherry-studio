@@ -324,10 +324,10 @@ export function Topics({
     error: topicStatsError
   } = useTopicStats({ enabled: isTopicListEnabled, query: topicStatsQuery })
   const { trigger: pinTopic, isLoading: isPinningTopic } = useMutation('POST', '/pins', {
-    refresh: ['/pins', '/topics']
+    refresh: ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
   })
   const { trigger: unpinTopic, isLoading: isUnpinningTopic } = useMutation('DELETE', '/pins/:id', {
-    refresh: ['/pins', '/topics']
+    refresh: ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
   })
   const isPinsMutating = isPinningTopic || isUnpinningTopic
   const {

@@ -1784,7 +1784,8 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-composer-empty')
     expect(agentPageMocks.invalidateCache).toHaveBeenCalledWith([
-      '/agent-sessions',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
       '/agent-workspaces',
       '/agent-sessions/session-composer-empty'
     ])

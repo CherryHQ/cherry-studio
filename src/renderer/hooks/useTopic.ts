@@ -22,7 +22,6 @@ import {
   useMutation,
   useQuery
 } from '@data/hooks/useDataApi'
-import { registerDataApiCursorResource } from '@data/hooks/useDataApiCursorRevision'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
@@ -43,10 +42,6 @@ import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
-
-// '/topics' is cursor-paged: a local write restarts its cursor chains from
-// page one, and every list refresh also refetches the '/topics/stats' facts.
-registerDataApiCursorResource('/topics', { linkedRefreshPaths: ['/topics/stats'] })
 
 // ─── Tier 1: pure / non-React helpers ─────────────────────────────────────
 
@@ -282,8 +277,8 @@ export function useTopics(opts?: {
 /**
  * Factual topic aggregation from `GET /topics/stats` (D3 of #16890): totals,
  * pinned counts, and a per-assistant breakdown whose `assistantId: null`
- * entry represents unlinked topics. Local list mutations refetch it through
- * the ordinary DataApi cache refresh path.
+ * entry represents unlinked topics. Mutations that affect these facts list
+ * this path explicitly in their refresh targets.
  */
 export function useTopicStats(opts?: { enabled?: boolean; query?: TopicStatsQuery }) {
   const { data, isLoading, error, refetch } = useQuery('/topics/stats', {
@@ -344,24 +339,31 @@ export function useTopicMutations() {
   const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
-    refresh: ['/topics']
+    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
-    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+    refresh: ({ args }) => [
+      { path: '/topics', strategy: 'reset-cursor' },
+      `/topics/${args!.params.id}`,
+      '/topics/stats'
+    ]
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list — refreshing `/topics/:id` would
     // trigger a fetch that 404s and caches an error in SWR.
-    refresh: ['/topics']
+    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
   })
   const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
-    refresh: ['/topics', '/pins']
+    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats', '/pins']
   })
   const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
-    refresh: ['/topics', '/pins']
+    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats', '/pins']
   })
 
-  const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
+  const refreshTopics = useCallback(
+    () => invalidate([{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']),
+    [invalidate]
+  )
 
   const createTopic = useCallback(
     async (dto: CreateTopicDto): Promise<Topic> => {
@@ -442,7 +444,11 @@ export function useTopicMutations() {
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn(
+    'ai.topic_auto_renamed',
+    ({ topicId }) =>
+      void invalidate([{ path: '/topics', strategy: 'reset-cursor' }, `/topics/${topicId}`, '/topics/stats'])
+  )
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

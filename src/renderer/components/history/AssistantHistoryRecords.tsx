@@ -123,8 +123,12 @@ const AssistantHistoryRecords = ({
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
-  const { trigger: pinTopic } = useMutation('POST', '/pins', { refresh: ['/pins', '/topics'] })
-  const { trigger: unpinTopic } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/topics'] })
+  const { trigger: pinTopic } = useMutation('POST', '/pins', {
+    refresh: ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+  })
+  const { trigger: unpinTopic } = useMutation('DELETE', '/pins/:id', {
+    refresh: ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+  })
   const renamingTopicIdSet = useMemo(
     () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
     [renamingTopics]

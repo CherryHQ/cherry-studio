@@ -15,7 +15,6 @@ import {
   useMutation,
   useQuery
 } from '@renderer/data/hooks/useDataApi'
-import { registerDataApiCursorResource } from '@renderer/data/hooks/useDataApiCursorRevision'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
@@ -40,10 +39,6 @@ import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
-
-// '/agent-sessions' is cursor-paged: a local write restarts its cursor chains
-// from page one, and every list refresh also refetches '/agent-sessions/stats'.
-registerDataApiCursorResource('/agent-sessions', { linkedRefreshPaths: ['/agent-sessions/stats'] })
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const AGENT_SESSION_IDS_PAGE_SIZE = 200
@@ -120,7 +115,8 @@ export function useLatestSession(opts?: { enabled?: boolean }) {
  * Factual session aggregation from `GET /agent-sessions/stats` (D3 of
  * #16890): totals, pinned counts, and a per-agent breakdown whose
  * `agentId: null` entry represents orphaned (unlinked) sessions. Local list
- * mutations refetch it through the ordinary DataApi cache refresh path.
+ * mutations that affect these facts list this path explicitly in their
+ * refresh targets.
  */
 export function useAgentSessionStats(opts?: { enabled?: boolean; query?: AgentSessionStatsQuery }) {
   const { data, isLoading, error, refetch } = useQuery('/agent-sessions/stats', {
@@ -323,7 +319,9 @@ export const useSessions = (
     resetOnLocalWrite: '/agent-sessions'
   })
   // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions')
+  const { applyReorderedList } = useReorder('/agent-sessions', {
+    refreshStrategy: 'reset-cursor'
+  })
 
   const sessions = useInfiniteFlatItems(pages)
   const pinIdBySessionId = useMemo(
@@ -343,7 +341,7 @@ export const useSessions = (
   }, [hasMore, isLoadingMore, loadNext])
 
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces']
+    refresh: [{ path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats', '/agent-workspaces']
   })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
@@ -372,10 +370,16 @@ export const useSessions = (
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: ['/agent-sessions']
+    refresh: [{ path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
   })
   const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: [
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
+      '/agent-workspaces',
+      '/pins',
+      '/agent-channels'
+    ]
   })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
@@ -417,7 +421,7 @@ export const useSessions = (
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
-    refresh: ['/agent-sessions']
+    refresh: [{ path: '/agent-sessions', strategy: 'reset-cursor' }]
   })
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
@@ -436,8 +440,12 @@ export const useSessions = (
   // `AgentSessionService.listByCursor`, so pin-state changes affect `/agent-sessions`
   // page ordering, not just `/pins` membership. Refresh both keys so the
   // row visibly relocates after pin/unpin.
-  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/agent-sessions'] })
-  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
+  const { trigger: pinTrigger } = useMutation('POST', '/pins', {
+    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+  })
+  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', {
+    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+  })
   const togglePin = useCallback(
     async (sessionId: string, projectedPinId?: string | null) => {
       const pinId = projectedPinId === undefined ? pinIdBySessionId.get(sessionId) : projectedPinId
@@ -490,14 +498,19 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => [
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
+      '/agent-sessions/stats'
+    ]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
     refresh: ({ args }) => [
-      '/agent-sessions',
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
       `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
+      '/agent-sessions/stats',
       '/agent-workspaces'
     ]
   })
@@ -548,6 +561,11 @@ export function useAgentSessionAutoRenameSync() {
 
   useIpcOn(
     'ai.agent_session_auto_renamed',
-    ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+    ({ sessionId }) =>
+      void invalidate([
+        { path: '/agent-sessions', strategy: 'reset-cursor' },
+        `/agent-sessions/${sessionId}`,
+        '/agent-sessions/stats'
+      ])
   )
 }

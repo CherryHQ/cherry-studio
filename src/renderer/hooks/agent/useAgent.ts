@@ -85,7 +85,7 @@ export const useAgents = () => {
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/pins']
+    refresh: ['/agents', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats', '/pins']
   })
   const deleteAgent = useCallback(
     async (id: string) => {

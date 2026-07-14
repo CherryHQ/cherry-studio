@@ -31,12 +31,16 @@ type TriggerArgs<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE
   query?: QueryParamsForPath<TPath, TMethod>
 }
 
+type DataApiRefreshTarget<TRefreshPath extends string = ConcreteApiPaths> =
+  | TRefreshPath
+  | { path: TRefreshPath; strategy: 'reset-cursor' }
+
 type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> =
-  | ConcreteApiPaths[]
+  | DataApiRefreshTarget[]
   | ((ctx: {
       args: TriggerArgs<TPath, TMethod> | undefined
       result: ResponseForPath<TPath, TMethod>
-    }) => ConcreteApiPaths[])
+    }) => DataApiRefreshTarget[])
 
 /**
  * Create mock data based on API path
@@ -290,12 +294,16 @@ export const mockUseInfiniteFlatItems = vi.fn(
  * Mock useInvalidateCache hook
  * Matches actual signature: useInvalidateCache() => (keys?) => Promise<any>
  */
-export const mockUseInvalidateCache = vi.fn((): ((keys?: string | string[] | boolean) => Promise<any>) => {
-  const invalidate = vi.fn(async (_keys?: string | string[] | boolean) => {
-    return Promise.resolve()
-  })
-  return invalidate
-})
+export const mockUseInvalidateCache = vi.fn(
+  (): ((keys?: DataApiRefreshTarget<string> | DataApiRefreshTarget<string>[] | boolean) => Promise<any>) => {
+    const invalidate = vi.fn(
+      async (_keys?: DataApiRefreshTarget<string> | DataApiRefreshTarget<string>[] | boolean) => {
+        return Promise.resolve()
+      }
+    )
+    return invalidate
+  }
+)
 
 /**
  * Mock prefetch function

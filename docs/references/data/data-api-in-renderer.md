@@ -56,7 +56,10 @@ await deleteTopic()
 
 // With auto-refresh of other queries
 const { trigger } = useMutation('POST', '/topics', {
-  refresh: ['/topics'],  // Refresh these keys on success
+  refresh: [
+    { path: '/topics', strategy: 'reset-cursor' },
+    '/topics/stats'
+  ],
   onSuccess: (data) => logger.info('Created:', data)
 })
 ```
@@ -203,10 +206,34 @@ In dev mode, a concurrent trigger with changed params logs a warning.
 ### Static paths (exact match)
 
 ```typescript
-useMutation('POST', '/topics', { refresh: ['/topics'] })
+useMutation('POST', '/assistants', { refresh: ['/assistants'] })
 ```
 
-Invalidates only `['/topics']`. Use when you know exactly which paths are affected and they don't depend on mutation input or output.
+Invalidates only `['/assistants']`. Use when you know exactly which paths are affected and they don't depend on mutation input or output.
+
+### Cursor reset target
+
+A plain path only revalidates existing SWR keys. When a write changes list
+membership or ordering and therefore invalidates cursor boundaries, declare the
+reset explicitly and subscribe the infinite query with the same resource key:
+
+```typescript
+const topics = useInfiniteQuery('/topics', {
+  resetOnLocalWrite: '/topics'
+})
+
+useMutation('POST', '/topics', {
+  refresh: [
+    { path: '/topics', strategy: 'reset-cursor' },
+    '/topics/stats'
+  ]
+})
+```
+
+`reset-cursor` retires the old cursor family and fetches page one; it does not
+implicitly refresh sibling endpoints. List `/stats` or any other derived path
+separately only when that write can change its facts. For a metadata change that
+does not affect ordering or membership, keep the plain string form.
 
 ### `/*` suffix (prefix match)
 
@@ -242,6 +269,7 @@ Use when the set of keys is only known at call time (ids from args/result).
 | Need | Form |
 |---|---|
 | Static, known keys | Array |
+| Retire an invalid cursor chain | `{ path, strategy: 'reset-cursor' }` target |
 | Invalidate all sub-paths of a resource | `/*` prefix in array |
 | Invalidate keys computed from args / result | Function |
 | Both: fan-out + precision | Function returning a mix of exact and `/*` |
@@ -351,7 +379,7 @@ if (error instanceof DataApiError && error.isRetryable) {
 function CreateTopicForm() {
   // Use refresh option to auto-refresh /topics after creation
   const { trigger: createTopic, isLoading } = useMutation('POST', '/topics', {
-    refresh: ['/topics']
+    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
   })
 
   const handleSubmit = async (data: CreateTopicDto) => {

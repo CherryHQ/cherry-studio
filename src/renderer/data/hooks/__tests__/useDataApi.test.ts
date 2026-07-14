@@ -1,9 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import {
-  getDataApiCursorRevision,
-  publishDataApiCursorRevision,
-  registerDataApiCursorResource
-} from '@data/hooks/useDataApiCursorRevision'
+import { getDataApiCursorRevision, publishDataApiCursorRevision } from '@data/hooks/useDataApiCursorRevision'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
@@ -45,21 +41,11 @@ const {
   resolveTemplate,
   buildSWRKey,
   evictInfiniteRevisionFamily,
-  expandLocalListRefreshPatterns,
   extractInfinitePath,
   findMatchingInfiniteKeys,
   invalidatePathPatterns,
   reconcileInfiniteRevisionFamilies
 } = __testing
-
-describe('expandLocalListRefreshPatterns', () => {
-  it('refreshes registered linked paths without invalidating read-on-demand latest queries', () => {
-    registerDataApiCursorResource('/topics', { linkedRefreshPaths: ['/topics/stats'] })
-    registerDataApiCursorResource('/agent-sessions', { linkedRefreshPaths: ['/agent-sessions/stats'] })
-    expect(expandLocalListRefreshPatterns(['/topics'])).toEqual(['/topics', '/topics/stats'])
-    expect(expandLocalListRefreshPatterns(['/agent-sessions'])).toEqual(['/agent-sessions', '/agent-sessions/stats'])
-  })
-})
 
 /**
  * Build a useSWRInfinite cache key for `[path, query?, revisionToken?]`. Uses `swr/infinite`'s
@@ -1201,13 +1187,32 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(dataApiService.post).toHaveBeenCalledTimes(1)
   })
 
-  it('restarts the local topic cursor after a successful topic mutation', async () => {
+  it('keeps the local topic cursor for a plain refresh target', async () => {
     spyPost()
     const { Wrapper } = makeWrapper()
     const previousRevision = getDataApiCursorRevision('/topics')
     const { result } = renderHook(() => useMutation('POST', '/topics', { refresh: ['/topics'] }), {
       wrapper: Wrapper
     })
+
+    await act(async () => {
+      await result.current.trigger({ body: { name: 't' } as never })
+    })
+
+    expect(getDataApiCursorRevision('/topics')).toBe(previousRevision)
+  })
+
+  it('restarts the local topic cursor only for an explicit reset target', async () => {
+    spyPost()
+    const { Wrapper } = makeWrapper()
+    const previousRevision = getDataApiCursorRevision('/topics')
+    const { result } = renderHook(
+      () =>
+        useMutation('POST', '/topics', {
+          refresh: [{ path: '/topics', strategy: 'reset-cursor' }]
+        }),
+      { wrapper: Wrapper }
+    )
 
     await act(async () => {
       await result.current.trigger({ body: { name: 't' } as never })
