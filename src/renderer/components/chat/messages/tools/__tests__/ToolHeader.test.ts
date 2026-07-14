@@ -12,30 +12,37 @@ vi.mock('react-i18next', () => ({
 }))
 
 const translations: Record<string, string> = {
+  'message.tools.activity.archive': 'archive',
+  'message.tools.activity.assistantTask': 'task',
   'message.tools.activity.availableFeatures': 'available features',
   'message.tools.activity.building': 'Building',
   'message.tools.activity.checking': 'Checking',
-  'message.tools.activity.codeFiles': 'code files',
-  'message.tools.activity.commandName': '{{name}} command',
-  'message.tools.activity.configFiles': 'project docs and config files',
+  'message.tools.activity.codeFiles': 'program files',
+  'message.tools.activity.codeHostInfo': 'online project information',
+  'message.tools.activity.configFiles': 'project docs and settings',
   'message.tools.activity.copying': 'Copying',
   'message.tools.activity.currentFolder': 'current folder',
   'message.tools.activity.documentFiles': 'document files',
   'message.tools.activity.downloading': 'Downloading',
-  'message.tools.activity.executingCommand': 'Running command',
+  'message.tools.activity.environmentInfo': 'environment information',
+  'message.tools.activity.executingCommand': 'Running task',
   'message.tools.activity.file': 'file',
   'message.tools.activity.fileList': 'file list',
+  'message.tools.activity.handling': 'Handling',
   'message.tools.activity.installing': 'Installing',
   'message.tools.activity.matchingFiles': 'matching files',
-  'message.tools.activity.projectDependencies': 'project dependencies',
-  'message.tools.activity.projectRootFiles': 'project root files',
+  'message.tools.activity.projectDependencies': 'project requirements',
+  'message.tools.activity.projectTask': 'project task',
+  'message.tools.activity.projectRootFiles': 'top-level project files',
   'message.tools.activity.relatedContent': 'related content',
-  'message.tools.activity.repository': 'code repository',
+  'message.tools.activity.repository': 'project content',
   'message.tools.activity.searching': 'Finding',
+  'message.tools.activity.starting': 'Starting',
   'message.tools.activity.syncing': 'Syncing',
   'message.tools.activity.taskId': 'Task {{id}}',
   'message.tools.activity.taskList': 'task list',
   'message.tools.activity.viewing': 'Viewing',
+  'message.tools.activity.webPage': 'web page',
   'message.tools.labels.taskCreate': 'Create task',
   'message.tools.labels.taskGet': 'View task',
   'message.tools.labels.taskList': 'List tasks',
@@ -54,7 +61,7 @@ describe('getReadableToolActivity', () => {
   it('turns package commands into install progress', () => {
     expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'pnpm add lodash' }, true, t)).toEqual({
       label: 'Installing',
-      description: 'lodash'
+      description: 'project requirements'
     })
   })
 
@@ -63,7 +70,7 @@ describe('getReadableToolActivity', () => {
       getReadableToolActivity(AgentToolsType.Bash, { command: 'curl https://example.com/releases/app.zip' }, true, t)
     ).toEqual({
       label: 'Downloading',
-      description: 'app.zip'
+      description: 'archive'
     })
   })
 
@@ -71,7 +78,7 @@ describe('getReadableToolActivity', () => {
     expect(getReadableToolActivity(AgentToolsType.Bash, { description: 'List root directory files' }, true, t)).toEqual(
       {
         label: 'Viewing',
-        description: 'project root files'
+        description: 'top-level project files'
       }
     )
   })
@@ -86,7 +93,7 @@ describe('getReadableToolActivity', () => {
       )
     ).toEqual({
       label: 'Finding',
-      description: 'project docs and config files'
+      description: 'project docs and settings'
     })
 
     expect(getReadableToolActivity(AgentToolsType.Glob, { pattern: '*.md' }, true, t)).toEqual({
@@ -95,10 +102,73 @@ describe('getReadableToolActivity', () => {
     })
   })
 
-  it('keeps opaque commands readable without exposing full shell text', () => {
+  it('turns version checks into readable environment information', () => {
     expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'node --version' }, true, t)).toEqual({
-      label: 'Running command',
-      description: 'node command'
+      label: 'Viewing',
+      description: 'environment information'
+    })
+  })
+
+  it('does not expose unknown shell commands in the activity title', () => {
+    expect(
+      getReadableToolActivity(AgentToolsType.Bash, { command: 'custom-internal-cli deploy --production' }, true, t)
+    ).toEqual({
+      label: 'Running task',
+      description: 'project task'
+    })
+  })
+
+  it('uses readable categories instead of technical file names and addresses', () => {
+    expect(
+      getReadableToolActivity(AgentToolsType.Read, { file_path: '/src/MessagePartsRenderer.tsx' }, true, t)
+    ).toEqual({
+      label: 'Viewing',
+      description: 'program files'
+    })
+
+    expect(
+      getReadableToolActivity(AgentToolsType.WebFetch, { url: 'https://api.example.com/v1/models' }, true, t)
+    ).toEqual({
+      label: 'Viewing',
+      description: 'web page'
+    })
+  })
+
+  it('hides internal skill names and tool search queries', () => {
+    expect(getReadableToolActivity(AgentToolsType.Skill, { skill: 'cherry-code-review' }, true, t)).toEqual({
+      label: 'Handling',
+      description: 'task'
+    })
+
+    expect(getReadableToolActivity(AgentToolsType.ToolSearch, { query: 'mcp__internal__search' }, true, t)).toEqual({
+      label: 'Finding',
+      description: 'available features'
+    })
+  })
+
+  it('describes source control and search commands without exposing their syntax', () => {
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'gh api repos/org/private-repo' }, true, t)).toEqual(
+      {
+        label: 'Viewing',
+        description: 'online project information'
+      }
+    )
+
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'rg secretPattern src' }, true, t)).toEqual({
+      label: 'Finding',
+      description: 'related content'
+    })
+  })
+
+  it('describes common project start commands as a user-facing action', () => {
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'pnpm dev' }, true, t)).toEqual({
+      label: 'Starting',
+      description: 'project task'
+    })
+
+    expect(getReadableToolActivity(AgentToolsType.Bash, { command: 'vite dev' }, true, t)).toEqual({
+      label: 'Starting',
+      description: 'project task'
     })
   })
 
@@ -153,8 +223,9 @@ describe('ToolHeader', () => {
 
     expect(container.querySelectorAll('.animation-shimmer')).toHaveLength(1)
     expect(container.querySelector('.animation-shimmer')).toHaveTextContent('message.tools.activity.viewing')
-    expect(container.querySelector('.animation-shimmer')).not.toHaveTextContent('unifiedPanel.test.ts')
-    expect(container).toHaveTextContent('unifiedPanel.test.ts')
+    expect(container.querySelector('.animation-shimmer')).not.toHaveTextContent('message.tools.activity.codeFiles')
+    expect(container).toHaveTextContent('message.tools.activity.codeFiles')
+    expect(container).not.toHaveTextContent('unifiedPanel.test.ts')
   })
 
   it('shows command information for bash tool calls', () => {
