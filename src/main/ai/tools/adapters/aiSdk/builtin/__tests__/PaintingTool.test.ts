@@ -9,7 +9,7 @@ const { getPreference, generateImage } = vi.hoisted(() => ({
   generateImage: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'PreferenceService') return { get: getPreference }

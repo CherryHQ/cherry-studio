@@ -15,9 +15,9 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { isAbortError } from '@main/services/webSearch/utils/errors'
+import { isAbortError } from '@main/utils/error'
 import type { GenerateImageInput, GenerateImageOutput } from '@shared/ai/builtinTools'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'

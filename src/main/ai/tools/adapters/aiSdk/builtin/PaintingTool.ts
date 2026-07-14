@@ -8,7 +8,7 @@
  * wrapper.
  */
 
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { GENERATE_IMAGE_TOOL_NAME, generateImageInputSchema, generateImageOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
