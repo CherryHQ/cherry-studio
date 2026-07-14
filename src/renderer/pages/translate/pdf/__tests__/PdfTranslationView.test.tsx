@@ -198,4 +198,31 @@ describe('PdfTranslationView', () => {
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
+
+  it('explains when an image-only PDF requires OCR', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') {
+        return Promise.reject(new IpcError(translateErrorCodes.PDF_OCR_REQUIRED, 'OCR required'))
+      }
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'scan.pdf', path: '/tmp/scan.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        onClose={vi.fn()}
+        onHandleChange={(next) => {
+          handle = next
+        }}
+        onStatusChange={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+
+    expect(await screen.findByText('translate.pdf.error.ocr_required')).toBeInTheDocument()
+  })
 })
