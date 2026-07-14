@@ -11,6 +11,7 @@ const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
 const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
+const mockUsePlaceholderElapsedMs = vi.hoisted(() => vi.fn(() => 1000))
 
 type MainTextBlockModule = {
   buildUserMessagePreview: (content: string) => { content: string; isTruncated: boolean }
@@ -303,7 +304,7 @@ vi.mock('../PlaceholderBlock', () => ({
     <div data-testid="mock-placeholder" data-created-at={createdAt} data-status={status} />
   ),
   formatPlaceholderElapsed: () => '1 second',
-  usePlaceholderElapsedMs: () => 1000
+  usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
 
 import MessagePartsRenderer from '../MessagePartsRenderer'
@@ -403,6 +404,7 @@ describe('MessagePartsRenderer', () => {
     mockTopicStreamState.status = undefined
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
+    mockUsePlaceholderElapsedMs.mockClear()
   })
 
   describe('leaf rendering', () => {
@@ -938,6 +940,15 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
       expandCollapsedLiveToolGroups()
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
+    })
+
+    it('updates the active process elapsed time once per second', () => {
+      activateTurn('streaming')
+      const message = msg({ status: 'pending' })
+
+      renderParts([toolPart('read', 'input-available')] as unknown as CherryMessagePart[], message)
+
+      expect(mockUsePlaceholderElapsedMs).toHaveBeenCalledWith(true, message.createdAt, 1000)
     })
 
     it('settles the last tool group once normal text starts rendering after it', () => {

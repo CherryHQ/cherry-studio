@@ -34,13 +34,27 @@ const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessCont
   return <>{render(true)}</>
 })
 
+const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
+  createdAt,
+  toolItems
+}: {
+  createdAt: string
+  toolItems: ToolRenderItem[]
+}) {
+  const { t } = useTranslation()
+  const elapsedMs = usePlaceholderElapsedMs(true, createdAt, 1000)
+  const elapsedText = formatPlaceholderElapsed(elapsedMs, t)
+  const summary = t('message.processing').replace(/(?:\.{3}|…)\s*$/u, '')
+
+  return <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
+})
+
 /** The top-level process group across both active and completed message phases. */
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
   const { children, message, toolItems } = props
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
-  const liveElapsedMs = usePlaceholderElapsedMs(props.phase === 'active', message.createdAt)
   const completedElapsedMs = useMemo(() => {
     if (props.phase === 'active') return undefined
     if (typeof message.stats?.timeCompletionMs === 'number') return message.stats.timeCompletionMs
@@ -51,18 +65,6 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
     return finishedAt - startedAt
   }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase])
-  const elapsedMs = props.phase === 'active' ? liveElapsedMs : completedElapsedMs
-  const elapsedText = elapsedMs === undefined ? undefined : formatPlaceholderElapsed(elapsedMs, t)
-  const processingSummary = t('message.processing').replace(/(?:\.{3}|…)\s*$/u, '')
-  const summary =
-    props.phase === 'active'
-      ? processingSummary
-      : props.outcome === 'error'
-        ? t('message.tools.error')
-        : t('message.tools.processed')
-  const header = (
-    <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
-  )
 
   if (props.phase === 'active') {
     return (
@@ -70,7 +72,9 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <div
           data-testid="live-tool-group-header"
           className="flex min-h-7 w-full select-none items-center py-0.5 text-left">
-          <div className="min-w-0 flex-1 overflow-hidden">{header}</div>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <ActiveProcessHeader createdAt={message.createdAt} toolItems={toolItems} />
+          </div>
         </div>
         <div data-testid="live-tool-group-content" className={`${PROCESS_CONTENT_CLASS_NAME} pt-2`}>
           {children(true)}
@@ -78,6 +82,12 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
       </div>
     )
   }
+
+  const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
+  const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+  const header = (
+    <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
+  )
 
   return (
     <div ref={anchorRef} className="group/completed-tool-history mb-2 w-full max-w-full">
