@@ -47,7 +47,7 @@ vi.mock('electron-devtools-installer', () => ({
   REACT_DEVELOPER_TOOLS: 'react-devtools'
 }))
 
-import { installDevtoolsExtensions } from '../devtools'
+import { installDevtoolsExtensions } from '../devtools/installDevtoolsExtensions'
 
 describe('installDevtoolsExtensions', () => {
   beforeEach(() => {

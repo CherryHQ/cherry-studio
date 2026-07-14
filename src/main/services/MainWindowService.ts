@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { installDevtoolsExtensions } from '@main/core/devtools'
+import { installDevtoolsExtensions } from '@main/core/devtools/installDevtoolsExtensions'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
