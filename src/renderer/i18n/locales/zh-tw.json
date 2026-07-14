@@ -7895,17 +7895,23 @@
       "action": {
         "close": "關閉 PDF 翻譯",
         "export": "匯出譯文 PDF",
-        "open_dependencies": "開啟環境依賴"
+        "install_babeldoc": "安裝 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在偵測 BabelDOC...",
+        "description": "可以安裝 BabelDOC 外掛程式提升翻譯效果。",
+        "installing": "正在安裝 BabelDOC...",
+        "title": "偵測到 PDF"
       },
       "error": {
-        "dependency_missing": "請先在環境依賴中安裝 BabelDOC 0.6.3，再翻譯 PDF。",
         "ocr_required": "此 PDF 需要 OCR 翻譯，將於後續版本支援。",
         "title": "PDF 翻譯失敗"
       },
       "export_failed": "匯出譯文 PDF 失敗",
       "pane": {
         "source": "原始 PDF",
-        "translated": "譯文 PDF"
+        "translated": "譯文 PDF",
+        "translated_text": "譯文"
       },
       "progress": {
         "analyzing": "正在分析文件版面",

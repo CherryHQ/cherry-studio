@@ -19,7 +19,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
@@ -33,7 +33,8 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { BinaryState, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
@@ -59,7 +60,12 @@ import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
 import TranslateLanguageBar from './components/TranslateLanguageBar'
 import TranslateOutputPane from './components/TranslateOutputPane'
-import type { PdfTranslationFile, PdfTranslationHandle, PdfTranslationStatus } from './pdf/PdfTranslationView'
+import type {
+  BabelDocAvailability,
+  PdfTranslationFile,
+  PdfTranslationHandle,
+  PdfTranslationStatus
+} from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
@@ -72,6 +78,67 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.RERANK,
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
+
+const hasBabelDoc = (state: BinaryState): boolean => {
+  const installed = state.tools[BABELDOC_BINARY_TOOL_PRESET.name]
+  return (
+    installed?.tool === BABELDOC_BINARY_TOOL_PRESET.tool && installed.version === BABELDOC_BINARY_TOOL_PRESET.version
+  )
+}
+
+const useBabelDoc = (enabled: boolean) => {
+  const { t } = useTranslation()
+  const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
+  const [installing, setInstalling] = useState(false)
+
+  useEffect(() => {
+    if (!enabled) return
+
+    let cancelled = false
+    setAvailability('checking')
+    void ipcApi
+      .request('binary.get_state')
+      .then((state) => {
+        if (!cancelled) setAvailability(hasBabelDoc(state) ? 'available' : 'missing')
+      })
+      .catch((error) => {
+        if (cancelled) return
+        logger.error('Failed to get BabelDOC installation state', error as Error)
+        setAvailability('missing')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [enabled])
+
+  useIpcOn('binary.state_changed', (state) => {
+    if (enabled) setAvailability(hasBabelDoc(state) ? 'available' : 'missing')
+  })
+
+  const install = useCallback(async () => {
+    if (installing) return
+    setInstalling(true)
+    try {
+      await ipcApi.request('binary.install_tool', {
+        name: BABELDOC_BINARY_TOOL_PRESET.name,
+        tool: BABELDOC_BINARY_TOOL_PRESET.tool,
+        version: BABELDOC_BINARY_TOOL_PRESET.version
+      })
+      setAvailability('available')
+    } catch (error) {
+      logger.error('Failed to install BabelDOC', error as Error)
+      setAvailability('missing')
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.dependencies.installError')))
+    } finally {
+      setInstalling(false)
+    }
+  }, [installing, t])
+
+  const markUnavailable = useCallback(() => setAvailability('missing'), [])
+
+  return { availability, installing, install, markUnavailable }
+}
 
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
@@ -195,14 +262,20 @@ const TranslatePage: FC = () => {
   const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
   const [pdfStatus, setPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
   const [pdfHandleReady, setPdfHandleReady] = useState(false)
+  const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
+  const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
+  const [isPdfTextExtracting, setIsPdfTextExtracting] = useState(false)
   const isOcrRunning = ocrJob !== null
   const isPdfMode = pdfFile !== null
   const isTranslationRunning = isTranslating || pdfStatus.running
+  const babelDoc = useBabelDoc(isPdfMode)
 
   const inputScrollRef = useRef<HTMLDivElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
   const pdfHandleRef = useRef<PdfTranslationHandle | null>(null)
+  const pdfTextCacheRef = useRef<{ filePath: string; text: string } | null>(null)
+  const pdfTextRequestIdRef = useRef(0)
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -217,11 +290,18 @@ const TranslatePage: FC = () => {
   )
 
   const resetPdfMode = useCallback(() => {
+    pdfTextRequestIdRef.current += 1
     pdfHandleRef.current = null
+    pdfTextCacheRef.current = null
+    if (pdfTextFallbackActive && isTranslating) cancel()
     setPdfHandleReady(false)
     setPdfStatus({ phase: 'idle', running: false })
+    setPdfTextFallbackActive(false)
+    setPdfTextOcrRequired(false)
+    setIsPdfTextExtracting(false)
+    setIsProcessing(false)
     setPdfFile(null)
-  }, [])
+  }, [cancel, isTranslating, pdfTextFallbackActive])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -333,63 +413,118 @@ const TranslatePage: FC = () => {
     [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
   )
 
+  const translateTextContent = useCallback(
+    async (rawText: string, allowBidirectional: boolean): Promise<void> => {
+      if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
+
+      let actualSourceLanguage = sourceLanguage
+      if (sourceLanguage === 'auto') {
+        setIsDetecting(true)
+        try {
+          actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
+            logger.error('Failed to detect language', error as Error)
+          })
+          setDetectedLanguage(actualSourceLanguage)
+        } finally {
+          setIsDetecting(false)
+        }
+      } else {
+        setDetectedLanguage(null)
+      }
+
+      const shouldUseBidirectionalTarget =
+        allowBidirectional && isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
+      const targetResult = determineTargetLanguage(
+        actualSourceLanguage,
+        targetLanguage,
+        shouldUseBidirectionalTarget,
+        bidirectionalPair
+      )
+
+      if (!targetResult.success) {
+        toast.warning(
+          targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
+        )
+        return
+      }
+
+      await translate(rawText, actualSourceLanguage, targetResult.language)
+    },
+    [
+      bidirectionalPair,
+      detectLanguage,
+      isBidirectional,
+      isDetecting,
+      isTranslating,
+      selectedModelId,
+      setIsDetecting,
+      sourceLanguage,
+      t,
+      targetLanguage,
+      translate
+    ]
+  )
+
+  const translatePdfText = useCallback(async (): Promise<void> => {
+    if (!pdfFile || !selectedModelId || isProcessing || isTranslating) return
+
+    const requestId = ++pdfTextRequestIdRef.current
+    setPdfTextFallbackActive(true)
+    setPdfTextOcrRequired(false)
+    setIsPdfTextExtracting(true)
+    setIsProcessing(true)
+    smoothReset('')
+
+    try {
+      const cached = pdfTextCacheRef.current
+      const extractedText =
+        cached?.filePath === pdfFile.path ? cached.text : await window.api.file.readExternal(pdfFile.path, true)
+      if (pdfTextRequestIdRef.current !== requestId) return
+      pdfTextCacheRef.current = { filePath: pdfFile.path, text: extractedText }
+
+      if (!extractedText.trim()) {
+        setPdfTextOcrRequired(true)
+        return
+      }
+
+      setTranslateInput(extractedText)
+      await translateTextContent(extractedText, false)
+    } catch (error) {
+      if (pdfTextRequestIdRef.current !== requestId) return
+      logger.error('Failed to extract PDF text', error as Error)
+      setPdfTextFallbackActive(false)
+      toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+    } finally {
+      if (pdfTextRequestIdRef.current === requestId) {
+        setIsPdfTextExtracting(false)
+        setIsProcessing(false)
+      }
+    }
+  }, [isProcessing, isTranslating, pdfFile, selectedModelId, setTranslateInput, smoothReset, t, translateTextContent])
+
   const onTranslate = useCallback(async () => {
     if (pdfFile) {
-      if (!isSelectedPdfModelRoutable || targetLanguage === UNKNOWN_LANG_CODE || pdfStatus.running) return
-      pdfHandleRef.current?.start(targetLanguage)
-      return
-    }
-
-    if (!translateInput.trim() || !selectedModelId || isDetecting || isTranslating) return
-
-    let actualSourceLanguage = sourceLanguage
-    if (sourceLanguage === 'auto') {
-      setIsDetecting(true)
-      try {
-        actualSourceLanguage = await detectLanguageOrUnknown(translateInput, detectLanguage, (error) => {
-          logger.error('Failed to detect language', error as Error)
-        })
-        setDetectedLanguage(actualSourceLanguage)
-      } finally {
-        setIsDetecting(false)
+      if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
+      if (babelDoc.availability === 'available') {
+        if (!isSelectedPdfModelRoutable || pdfStatus.running) return
+        pdfHandleRef.current?.start(targetLanguage)
+        return
       }
-    } else {
-      setDetectedLanguage(null)
-    }
-
-    const shouldUseBidirectionalTarget = isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
-
-    const targetResult = determineTargetLanguage(
-      actualSourceLanguage,
-      targetLanguage,
-      shouldUseBidirectionalTarget,
-      bidirectionalPair
-    )
-
-    if (!targetResult.success) {
-      toast.warning(
-        targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
-      )
+      await translatePdfText()
       return
     }
 
-    await translate(translateInput, actualSourceLanguage, targetResult.language)
+    await translateTextContent(translateInput, true)
   }, [
-    bidirectionalPair,
-    detectLanguage,
-    isBidirectional,
-    isDetecting,
-    setIsDetecting,
-    sourceLanguage,
-    t,
-    targetLanguage,
-    translate,
-    translateInput,
-    selectedModelId,
+    babelDoc.availability,
+    babelDoc.installing,
     isSelectedPdfModelRoutable,
-    isTranslating,
     pdfFile,
-    pdfStatus.running
+    pdfStatus.running,
+    targetLanguage,
+    translateInput,
+    translatePdfText,
+    translateTextContent
   ])
 
   const onAbort = useCallback(() => {
@@ -479,8 +614,8 @@ const TranslatePage: FC = () => {
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>
       !model.capabilities.some((capability) => EXCLUDED_TRANSLATE_MODEL_CAPABILITIES.has(capability)) &&
-      (!isPdfMode || isGatewayRoutableModel(model)),
-    [isPdfMode]
+      (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
+    [babelDoc.availability, isPdfMode]
   )
 
   const handleModelIdSelect = useCallback(
@@ -569,6 +704,11 @@ const TranslatePage: FC = () => {
           toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
           return
         }
+        pdfTextRequestIdRef.current += 1
+        pdfTextCacheRef.current = null
+        setPdfTextFallbackActive(false)
+        setPdfTextOcrRequired(false)
+        setIsPdfTextExtracting(false)
         setPdfFile({ name: file.name, path: file.path })
         return
       }
@@ -705,11 +845,16 @@ const TranslatePage: FC = () => {
 
   const handlePdfStatusChange = useCallback((status: PdfTranslationStatus) => setPdfStatus(status), [])
 
+  const pdfModelReady =
+    babelDoc.availability === 'available'
+      ? pdfHandleReady && isSelectedPdfModelRoutable
+      : babelDoc.availability === 'missing' && !!selectedModelId
   const couldTranslate = isPdfMode
-    ? pdfHandleReady &&
-      isSelectedPdfModelRoutable &&
+    ? pdfModelReady &&
+      !babelDoc.installing &&
       targetLanguage !== UNKNOWN_LANG_CODE &&
       !pdfStatus.running &&
+      !isTranslating &&
       !isProcessing
     : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
   const couldExchange =
@@ -852,9 +997,33 @@ const TranslatePage: FC = () => {
               file={pdfFile}
               modelId={isSelectedPdfModelRoutable ? selectedModelId : undefined}
               sourceLangCode={sourceLanguage}
+              babelDocAvailability={babelDoc.availability}
+              babelDocInstalling={babelDoc.installing}
+              textFallback={
+                pdfTextFallbackActive
+                  ? {
+                      ocrRequired: pdfTextOcrRequired,
+                      content: (
+                        <TranslateOutputPane
+                          ref={outputTextRef}
+                          translatedContent={translateOutput}
+                          renderedMarkdown={renderedMarkdown}
+                          enableMarkdown={enableMarkdown}
+                          translating={isTranslating || isDetecting || isPdfTextExtracting}
+                          copied={copied}
+                          onCopy={onCopyOutput}
+                          onExportToNotes={onExportOutputToNotes}
+                          onScroll={outputScrollHandler}
+                        />
+                      )
+                    }
+                  : undefined
+              }
               onClose={resetPdfMode}
               onHandleChange={handlePdfHandleChange}
               onStatusChange={handlePdfStatusChange}
+              onInstallBabelDoc={() => void babelDoc.install()}
+              onBabelDocUnavailable={babelDoc.markUnavailable}
             />
           </Suspense>
         ) : (

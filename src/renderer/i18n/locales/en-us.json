@@ -7895,17 +7895,23 @@
       "action": {
         "close": "Close PDF translation",
         "export": "Export translated PDF",
-        "open_dependencies": "Open Environment Dependencies"
+        "install_babeldoc": "Install BabelDOC"
+      },
+      "dependency": {
+        "checking": "Checking BabelDOC...",
+        "description": "Install the BabelDOC plugin to improve translation quality.",
+        "installing": "Installing BabelDOC...",
+        "title": "PDF detected"
       },
       "error": {
-        "dependency_missing": "Install BabelDOC 0.6.3 from Environment Dependencies before translating PDFs.",
         "ocr_required": "This PDF requires OCR translation, which will be supported in a future release.",
         "title": "PDF translation failed"
       },
       "export_failed": "Failed to export translated PDF",
       "pane": {
         "source": "Source PDF",
-        "translated": "Translated PDF"
+        "translated": "Translated PDF",
+        "translated_text": "Translation"
       },
       "progress": {
         "analyzing": "Analyzing document layout",

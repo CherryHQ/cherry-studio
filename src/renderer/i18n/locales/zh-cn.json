@@ -7895,17 +7895,23 @@
       "action": {
         "close": "关闭 PDF 翻译",
         "export": "导出译文 PDF",
-        "open_dependencies": "打开环境依赖"
+        "install_babeldoc": "安装 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在检测 BabelDOC...",
+        "description": "可以安装 BabelDOC 插件提升翻译效果。",
+        "installing": "正在安装 BabelDOC...",
+        "title": "检测到 PDF"
       },
       "error": {
-        "dependency_missing": "请先在环境依赖中安装 BabelDOC 0.6.3，再翻译 PDF。",
         "ocr_required": "此 PDF 需要 OCR 翻译，将在后续版本支持。",
         "title": "PDF 翻译失败"
       },
       "export_failed": "导出译文 PDF 失败",
       "pane": {
         "source": "原始 PDF",
-        "translated": "译文 PDF"
+        "translated": "译文 PDF",
+        "translated_text": "译文"
       },
       "progress": {
         "analyzing": "正在分析文档版式",
