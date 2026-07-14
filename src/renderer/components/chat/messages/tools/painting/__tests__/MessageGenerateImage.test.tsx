@@ -115,6 +115,13 @@ describe('MessageGenerateImageToolTitle', () => {
     expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
   })
 
+  it('falls back to an error note (not a perpetual spinner) when path resolution fails', async () => {
+    getPhysicalPath.mockReset().mockRejectedValue(new Error('file gone'))
+    render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
+    await waitFor(() => expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument())
+    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+  })
+
   it('renders a spinner while the tool is still running', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ status: 'pending', response: undefined })} />)
     expect(screen.getByTestId('spinner')).toHaveTextContent('chat.input.tools.generate_image.generating')

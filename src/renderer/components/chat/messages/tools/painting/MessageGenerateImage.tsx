@@ -14,25 +14,32 @@ import ImageBlock from '../../blocks/ImageBlock'
  * `getPhysicalPath` IPC (same round-trip the Paintings page uses). Keyed on the
  * joined id string so the effect doesn't re-fire on every render (safeParse
  * hands back a fresh array each time).
+ *
+ * `failed` distinguishes "still resolving" (urls empty, not failed) from
+ * "resolution failed" (urls empty, failed) — e.g. a historical message whose
+ * file was since deleted — so the caller can show an error instead of a spinner
+ * that never resolves.
  */
-function useGeneratedImageUrls(ids: string[]): string[] {
+function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean } {
   const key = ids.join(',')
-  const [urls, setUrls] = useState<string[]>([])
+  const [state, setState] = useState<{ urls: string[]; failed: boolean }>({ urls: [], failed: false })
   useEffect(() => {
     const list = key ? key.split(',') : []
     if (list.length === 0) {
-      setUrls((current) => (current.length === 0 ? current : []))
+      setState((current) => (current.urls.length === 0 && !current.failed ? current : { urls: [], failed: false }))
       return
     }
     let cancelled = false
+    // Back to "resolving" for this id set (drops any stale failed flag from a previous set).
+    setState({ urls: [], failed: false })
     Promise.all(list.map(async (id) => toSafeFileUrl(await window.api.file.getPhysicalPath({ id }), null)))
-      .then((resolved) => !cancelled && setUrls(resolved))
-      .catch(() => !cancelled && setUrls([]))
+      .then((resolved) => !cancelled && setState({ urls: resolved, failed: false }))
+      .catch(() => !cancelled && setState({ urls: [], failed: true }))
     return () => {
       cancelled = true
     }
   }, [key])
-  return urls
+  return state
 }
 
 const NoteText = ({ children }: { children: React.ReactNode }) => (
@@ -62,7 +69,7 @@ export const MessageGenerateImageToolTitle = ({
         : ''
     }
   }, [toolResponse.response])
-  const resolvedUrls = useGeneratedImageUrls(items.map((item) => item.id))
+  const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
   const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
 
   // Still running (pending / streaming / invoking).
@@ -70,8 +77,9 @@ export const MessageGenerateImageToolTitle = ({
     return <Spinner text={<NoteText>{t('chat.input.tools.generate_image.generating')}</NoteText>} />
   }
 
-  // Failure: a returned `{ error }` note, or a thrown error (generic fallback).
-  if (urls.length === 0 && items.length === 0) {
+  // Failure: a returned `{ error }` note, a thrown error, or files we could no longer
+  // resolve to a path (`resolveFailed`) — otherwise the success branch below would spin forever.
+  if (urls.length === 0 && (items.length === 0 || resolveFailed)) {
     const response = toolResponse.response
     const errorText =
       response && typeof response === 'object' && typeof (response as { error?: unknown }).error === 'string'
