@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
+import { fileTypeFromBuffer } from 'file-type'
 
 const logger = loggerService.withContext('downloadAsBase64')
 
@@ -38,52 +39,10 @@ export type FileAttachment = {
 /** Maximum file size we'll download (100 MB). */
 export const MAX_FILE_SIZE_BYTES = 100 * MB
 
-function detectImageMimeFromBytes(buffer: Buffer): string | null {
-  if (
-    buffer.length >= 8 &&
-    buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-  ) {
-    return 'image/png'
-  }
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return 'image/jpeg'
-  }
-  if (buffer.length >= 6) {
-    const gifHeader = buffer.subarray(0, 6).toString('ascii')
-    if (gifHeader === 'GIF87a' || gifHeader === 'GIF89a') return 'image/gif'
-  }
-  if (
-    buffer.length >= 12 &&
-    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
-  ) {
-    return 'image/webp'
-  }
-  if (buffer.length >= 2 && buffer[0] === 0x42 && buffer[1] === 0x4d) {
-    return 'image/bmp'
-  }
-  if (buffer.length >= 4 && buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x01 && buffer[3] === 0x00) {
-    return 'image/vnd.microsoft.icon'
-  }
-  if (
-    buffer.length >= 4 &&
-    ((buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2a && buffer[3] === 0x00) ||
-      (buffer[0] === 0x4d && buffer[1] === 0x4d && buffer[2] === 0x00 && buffer[3] === 0x2a))
-  ) {
-    return 'image/tiff'
-  }
-  if (buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
-    const brand = buffer.subarray(8, 12).toString('ascii')
-    if (brand === 'avif' || brand === 'avis') return 'image/avif'
-    if (brand === 'heic' || brand === 'heix' || brand === 'hevc' || brand === 'hevx') return 'image/heic'
-    if (brand === 'mif1' || brand === 'msf1') return 'image/heif'
-  }
-  return null
-}
-
 function normalizeImageContentType(contentType: string | null): string | null {
   const mediaType = contentType?.split(';')[0]?.trim().toLowerCase()
   if (!mediaType || !/^image\/[a-z0-9.+-]+$/.test(mediaType)) return null
+  if (mediaType === 'image/octet-stream') return null
   if (mediaType === 'image/jpg') return 'image/jpeg'
   return mediaType
 }
@@ -128,9 +87,11 @@ function trustedImageMimeFromUrl(url: string): string | null {
   }
 }
 
-function resolveTrustedImageMime(buffer: Buffer, response: Response, url: string): string | null {
+async function resolveTrustedImageMime(buffer: Buffer, response: Response, url: string): Promise<string | null> {
+  const fileType = await fileTypeFromBuffer(buffer)
+  if (fileType) return fileType.mime.startsWith('image/') ? fileType.mime : null
+
   return (
-    detectImageMimeFromBytes(buffer) ??
     normalizeImageContentType(response.headers.get('content-type')) ??
     trustedImageMimeFromUrl(url) ??
     trustedImageMimeFromExt(
@@ -165,7 +126,7 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
       return null
     }
 
-    const mediaType = resolveTrustedImageMime(buffer, response, safeUrl)
+    const mediaType = await resolveTrustedImageMime(buffer, response, safeUrl)
     if (!mediaType) {
       logger.warn('Downloaded image response has no trustworthy image format', { url })
       return null
