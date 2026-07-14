@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
   buildSkillWhitelist: vi.fn(),
+  findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
@@ -45,6 +46,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { findByIdOrName: mocks.findMcpServerByIdOrName }
+}))
+
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: { findBySessionId: mocks.findChannelBySessionId }
 }))
 
 vi.mock('@application', () => ({
@@ -95,6 +100,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getRotatedApiKey.mockReturnValue('api-key')
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
@@ -185,6 +191,29 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const current = await deriveConnectionConfig('session-1')
 
     expect(request?.settings.maxTurns).toBe(1)
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('captures the channel binding that materializes the request and rebuilds after a later binding', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      expect(options?.linkedChannelSnapshot).toBeNull()
+      // Simulate an external channel binding while settings are still being materialized.
+      mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+      return { env: {}, skills: [] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
@@ -495,6 +524,7 @@ describe('deriveConnectionConfig', () => {
     mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
@@ -547,6 +577,11 @@ describe('deriveConnectionConfig', () => {
 
   it('changes the rebuild signature for each rebuild-group input', async () => {
     const base = await deriveSignature()
+
+    mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    const channelChanged = await deriveSignature()
+    expect(channelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+    mocks.findChannelBySessionId.mockReturnValue(null)
 
     mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, workspace: { type: 'user', path: '/elsewhere' } })
     const workspaceChanged = await deriveSignature()

@@ -6,6 +6,7 @@ import {
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -710,6 +711,34 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+  })
+
+  it('uses one captured channel snapshot for Assistant MCP, approval, and prompt policy', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      linkedChannelSnapshot: null
+    })
+
+    expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.systemPrompt).not.toContain(CHANNEL_SECURITY_PROMPT)
+    expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
   it('excludes Assistant MCP capability for channel-linked sessions', async () => {

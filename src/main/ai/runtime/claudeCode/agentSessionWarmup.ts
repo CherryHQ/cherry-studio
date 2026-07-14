@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { application } from '@application'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -63,6 +64,7 @@ interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
+  linkedChannelId: string | null
 }
 
 /**
@@ -184,6 +186,9 @@ async function deriveConnectionConfigFromSnapshot(
     )
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd))
+  const linkedChannelId = materialized
+    ? materialized.linkedChannelId
+    : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const rebuildFacts = {
     modelId: uniqueModelId,
     route: routeFacts,
@@ -195,7 +200,8 @@ async function deriveConnectionConfigFromSnapshot(
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
-    mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps)
+    mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
+    linkedChannelId
   }
 
   return {
@@ -250,6 +256,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
+  const linkedChannelSnapshot = agentChannelService.findBySessionId(session.id)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
   const uniqueModelId = connectionModelId ?? agent.model
@@ -276,7 +283,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         lastAgentSessionId: resumeSessionId,
-        mcpServerSnapshots
+        mcpServerSnapshots,
+        linkedChannelSnapshot
       },
       agent
     ),
@@ -288,7 +296,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, {
     route: toConnectionRouteFacts(route),
     mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
-    skills: settings.skills ?? []
+    skills: settings.skills ?? [],
+    linkedChannelId: linkedChannelSnapshot?.id ?? null
   })
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
