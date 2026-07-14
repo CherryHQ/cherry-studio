@@ -4,7 +4,7 @@ import https from 'node:https'
 import type { AddressInfo } from 'node:net'
 
 import { loggerService } from '@logger'
-import { installBundledDevtools } from '@main/core/devtools/installDevtoolsExtensions'
+import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { net } from 'electron'

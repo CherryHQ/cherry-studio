@@ -31,11 +31,11 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@main/core/devtools/installDevtoolsExtensions', () => ({
+vi.mock('@main/core/devtools', () => ({
   installBundledDevtools: vi.fn()
 }))
 
-import { installBundledDevtools } from '@main/core/devtools/installDevtoolsExtensions'
+import { installBundledDevtools } from '@main/core/devtools'
 
 import {
   clearMainNetworkDevtoolsOrigins,
