@@ -143,7 +143,7 @@ describe('SessionService updateSession', () => {
   // skips it; guard against a regression where the flag stops being persisted.
   it('persists name_manually_edited even though it is not an AgentBase field', async () => {
     const setWhere = vi.fn().mockResolvedValue(undefined)
-    const updateSet = vi.fn((_payload: Record<string, unknown>) => ({ where: setWhere }))
+    const updateSet = vi.fn(() => ({ where: setWhere }))
     const update = vi.fn(() => ({ set: updateSet }))
 
     vi.spyOn(service as never, 'getDatabase').mockResolvedValue({ update } as never)
@@ -157,8 +157,6 @@ describe('SessionService updateSession', () => {
     await service.updateSession('agent-1', 'session-1', { name: 'New name', name_manually_edited: true })
 
     expect(update).toHaveBeenCalledWith(sessionsTable)
-    const payload = updateSet.mock.calls[0][0]
-    expect(payload.name).toBe('New name')
-    expect(payload.name_manually_edited).toBe(true)
+    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ name: 'New name', name_manually_edited: true }))
   })
 })
