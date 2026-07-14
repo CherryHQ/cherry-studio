@@ -27,17 +27,17 @@ import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../typ
 // Deferred so tests control when a grandfathered dispatch settles; `mock.calls`
 // exposes the request (trigger / topicId / userMessageId) for assertions.
 const dispatchResolvers: Array<() => void> = []
-const mockDispatchStreamRequest = vi.fn(
+const mockDispatchStreamRequest = vi.fn<
   (
-    _manager: unknown,
-    _subscriber: unknown,
-    _req: { topicId: string; trigger?: string; userMessageId?: string }
-  ): Promise<unknown> => {
-    return new Promise((resolve) => {
-      dispatchResolvers.push(() => resolve({ mode: 'started' }))
-    })
-  }
-)
+    manager: unknown,
+    subscriber: unknown,
+    req: { topicId: string; trigger?: string; userMessageId?: string }
+  ) => Promise<unknown>
+>(() => {
+  return new Promise((resolve) => {
+    dispatchResolvers.push(() => resolve({ mode: 'started' }))
+  })
+})
 
 vi.mock('../context/dispatch', () => ({
   dispatchStreamRequest: mockDispatchStreamRequest

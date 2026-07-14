@@ -229,7 +229,7 @@ describe('ChannelMessageHandler write quiesce', () => {
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
     let turnSettled = false
-    turn.finally(() => {
+    void turn.finally(() => {
       turnSettled = true
     })
     const hold = handler.pause()
