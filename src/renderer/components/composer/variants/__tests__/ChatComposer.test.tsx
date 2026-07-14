@@ -74,8 +74,9 @@ const serializeComposerToken = (token: ComposerSurfaceProps['tokens'][number]) =
 
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
-  target?: Element
+  targets: Set<Element>
   observe: ReturnType<typeof vi.fn>
+  unobserve: ReturnType<typeof vi.fn>
   disconnect: ReturnType<typeof vi.fn>
 }
 
@@ -560,15 +561,22 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
       const instance: ResizeObserverMockInstance = {
         callback,
+        targets: new Set(),
         observe: vi.fn((target: Element) => {
-          instance.target = target
+          instance.targets.add(target)
         }),
-        disconnect: vi.fn()
+        unobserve: vi.fn((target: Element) => {
+          instance.targets.delete(target)
+        }),
+        disconnect: vi.fn(() => {
+          instance.targets.clear()
+        })
       }
       resizeObserverMockInstances.push(instance)
 
       return {
         observe: instance.observe,
+        unobserve: instance.unobserve,
         disconnect: instance.disconnect
       } as unknown as ResizeObserver
     }) as unknown as typeof ResizeObserver
@@ -696,18 +704,19 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('puts the tool menu on the right in the modern layout', () => {
+  it('puts the tool menu at the far right of the left toolbar in the modern layout', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
     const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(assistantButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
@@ -738,11 +747,13 @@ describe('ChatComposer', () => {
       name: 'assistants.settings.reasoning_effort.label'
     })
     const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(reasoningButton).toHaveAttribute('data-active', 'true')
     expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
     expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(webSearchButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(reasoningButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({
@@ -862,6 +873,8 @@ describe('ChatComposer', () => {
   it('updates the topic assistant from the composer toolbar', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
+    expect(screen.getByTestId('assistant-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
+
     fireEvent.click(screen.getByText('select assistant 2'))
 
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', { assistantId: 'assistant-2' })
@@ -869,6 +882,8 @@ describe('ChatComposer', () => {
 
   it('updates the assistant model from the composer toolbar', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -1056,14 +1071,13 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('hides the active assistant trigger from the toolbar in classic layout', () => {
+  it('keeps the active assistant trigger visible in classic layout', () => {
     mocks.topicLayout = 'classic'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    // Old/传统 view has a left assistant rail, so the input toolbar should not duplicate the assistant trigger.
-    expect(screen.queryByTestId('assistant-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('Assistant 1')).not.toBeInTheDocument()
+    expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
+    expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
@@ -1098,16 +1112,17 @@ describe('ChatComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newTopicButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     const newConversationIcon = newTopicButton.querySelector('.new-conversation-icon')
     expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
     expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
     expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
     fireEvent.click(newTopicButton)
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
@@ -1168,10 +1183,12 @@ describe('ChatComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newTopicButton.compareDocumentPosition(assistantButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(assistantButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
 
     const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newTopicItem).toEqual(
@@ -2214,8 +2231,8 @@ describe('ChatComposer', () => {
   it('renders selectors below the surface in draft home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('tool menu')
-    expect(screen.getByTestId('composer-send-accessory')).toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('tool menu')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
@@ -3628,25 +3645,29 @@ async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = wid
   await waitFor(() => {
     expect(
       resizeObserverMockInstances.some((instance) =>
-        String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
+        Array.from(instance.targets).some((target) => String(target.getAttribute('class') ?? '').includes('max-w-full'))
       )
     ).toBe(true)
   })
 
-  const toolbarInstances = resizeObserverMockInstances.filter((instance) =>
-    String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
-  )
-  if (toolbarInstances.length === 0) {
+  const toolbarObservers = resizeObserverMockInstances.flatMap((instance) => {
+    const target = Array.from(instance.targets).find((target) =>
+      String(target.getAttribute('class') ?? '').includes('max-w-full')
+    )
+    return target ? [{ instance, target }] : []
+  })
+  if (toolbarObservers.length === 0) {
     throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
   }
 
   act(() => {
-    for (const instance of toolbarInstances) {
-      Object.defineProperty(instance.target, 'clientWidth', { configurable: true, value: width })
-      Object.defineProperty(instance.target, 'scrollWidth', { configurable: true, value: scrollWidth })
+    for (const { instance, target } of toolbarObservers) {
+      Object.defineProperty(target, 'clientWidth', { configurable: true, value: width })
+      Object.defineProperty(target, 'scrollWidth', { configurable: true, value: scrollWidth })
       instance.callback(
         [
           {
+            target,
             contentRect: { width }
           } as ResizeObserverEntry
         ],

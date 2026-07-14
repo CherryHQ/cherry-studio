@@ -60,7 +60,9 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
-  sessionWorkspacePath: '/workspace'
+  sessionWorkspacePath: '/workspace',
+  runtimeProviderMounts: 0,
+  runtimeProviderUnmounts: 0
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -71,8 +73,9 @@ const seedInputHistory = (items: string[]) => {
 }
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
-  target?: Element
+  targets: Set<Element>
   observe: ReturnType<typeof vi.fn>
+  unobserve: ReturnType<typeof vi.fn>
   disconnect: ReturnType<typeof vi.fn>
 }
 
@@ -144,6 +147,14 @@ vi.mock('@data/CacheService', () => ({
     getShared: vi.fn(() => undefined),
     subscribe: vi.fn(() => () => {})
   }
+}))
+
+vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
+  default: ({ workdir, menuTrigger }: { workdir: string; menuTrigger?: ReactNode }) => (
+    <div data-testid="workspace-open-button" data-workdir={workdir}>
+      {menuTrigger}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
@@ -225,7 +236,15 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 })
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
-  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => {
+    useEffect(() => {
+      mocks.runtimeProviderMounts += 1
+      return () => {
+        mocks.runtimeProviderUnmounts += 1
+      }
+    }, [])
+    return <>{children}</>
+  },
   ComposerToolDerivedStateProvider: ({
     children,
     couldAddImageFile,
@@ -425,9 +444,6 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   )
 }))
 
-// AgentComposer lazy-imports the `dialogs/edit` barrel (not the leaf), so the mock must
-// replace the barrel — otherwise the lazy import loads the real barrel's heavy sibling
-// dialogs, whose async resolution races findByTestId's timeout under full-suite load.
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
@@ -478,15 +494,22 @@ describe('AgentComposer', () => {
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
       const instance: ResizeObserverMockInstance = {
         callback,
+        targets: new Set(),
         observe: vi.fn((target: Element) => {
-          instance.target = target
+          instance.targets.add(target)
         }),
-        disconnect: vi.fn()
+        unobserve: vi.fn((target: Element) => {
+          instance.targets.delete(target)
+        }),
+        disconnect: vi.fn(() => {
+          instance.targets.clear()
+        })
       }
       resizeObserverMockInstances.push(instance)
 
       return {
         observe: instance.observe,
+        unobserve: instance.unobserve,
         disconnect: instance.disconnect
       } as unknown as ResizeObserver
     }) as unknown as typeof ResizeObserver
@@ -566,6 +589,8 @@ describe('AgentComposer', () => {
     mocks.sessionWorkspaceId = 'workspace-1'
     mocks.sessionWorkspaceName = 'Workspace 1'
     mocks.sessionWorkspacePath = '/workspace'
+    mocks.runtimeProviderMounts = 0
+    mocks.runtimeProviderUnmounts = 0
     mocks.sessionLayout = undefined
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
@@ -624,7 +649,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
-    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeNull()
+    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
@@ -714,13 +739,14 @@ describe('AgentComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(newSessionButton.querySelector('.new-conversation-icon')).toBeInTheDocument()
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
     fireEvent.click(newSessionButton)
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
 
@@ -743,7 +769,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps the new session action at the far left and puts the tool menu on the right', () => {
+  it('keeps the new session action at the far left and the tool menu at the far right of the left toolbar', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -761,13 +787,14 @@ describe('AgentComposer', () => {
     const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(newSessionButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agentButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
-      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
-    ).toBeInTheDocument()
+      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
+    ).not.toBeInTheDocument()
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newSessionItem).toEqual(
@@ -1254,7 +1281,6 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         isStreaming={false}
       />
     )
@@ -1262,13 +1288,13 @@ describe('AgentComposer', () => {
     const leftControls = screen.getByTestId('composer-left-controls')
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const workspaceButton = within(leftControls).getByText('Workspace 1').closest('button')!
-    const indicator = screen.getByLabelText('agent.right_pane.info.context_usage 42%')
-    const toolMenuButton = within(screen.getByTestId('composer-send-accessory')).getByRole('button', {
-      name: 'tool menu'
-    })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    const indicator = within(sendAccessory).getByLabelText('agent.right_pane.info.context_usage 42%')
     expect(modelButton.compareDocumentPosition(workspaceButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(workspaceButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(indicator.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(workspaceButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(toolMenuButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(indicator).toBeInTheDocument()
     expect(indicator).not.toHaveTextContent('42%')
     expect(indicator).toHaveAttribute('style', expect.stringContaining('--context-usage-progress: 42%'))
@@ -1407,7 +1433,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         onWorkspaceChange={onWorkspaceChange}
-        showWorkspaceSelector
       />
     )
 
@@ -1428,7 +1453,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         onWorkspaceChange={vi.fn()}
-        showWorkspaceSelector
       />
     )
 
@@ -2409,7 +2433,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
-  it('opens the active session agent edit dialog from the toolbar trigger while keeping the model selector inline', async () => {
+  it('opens the agent edit dialog for a session with history', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -2420,9 +2444,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    // Active sessions are bound to their agent: that trigger edits while model switching stays inline.
     expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('select agent 2')).not.toBeInTheDocument()
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Agent').closest('button')!)
@@ -2431,6 +2453,78 @@ describe('AgentComposer', () => {
     expect(dialog).toHaveAttribute('data-kind', 'agent')
     expect(dialog).toHaveAttribute('data-id', 'agent-1')
     expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('uses the agent selector for an empty session and updates the session agent', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeAgent
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+    expect(screen.getByText('select agent 2')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
+
+    fireEvent.click(screen.getByText('select agent 2'))
+
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', agentId: 'agent-2' },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('resets the agent-scoped draft and tool runtime after switching agents', async () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1'
+        ? { text: 'draft for agent one', tokens: [{ ...pdfSkillToken, index: 0, textOffset: 0 }] }
+        : ''
+    )
+
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeAgent
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('draft for agent one')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    expect(mocks.runtimeProviderMounts).toBe(1)
+
+    fireEvent.click(screen.getByText('select agent 2'))
+    await waitFor(() => {
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    })
+
+    rerender(
+      <AgentComposer
+        agentId="agent-2"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeAgent
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(mocks.runtimeProviderMounts).toBe(2)
+    expect(mocks.runtimeProviderUnmounts).toBe(1)
   })
 
   it('restores composer focus after closing the active session agent edit dialog', async () => {
@@ -2452,7 +2546,7 @@ describe('AgentComposer', () => {
     expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
   })
 
-  it('hides the active session agent trigger from the toolbar in classic layout', () => {
+  it('keeps the active session agent control visible in classic layout', () => {
     mocks.sessionLayout = 'classic'
 
     render(
@@ -2466,7 +2560,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+    expect(screen.getByText('Agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateSession).not.toHaveBeenCalled()
@@ -2521,13 +2615,17 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
+    const leftControls = screen.getByTestId('composer-left-controls')
+    expect(within(leftControls).getByRole('button', { name: 'tool menu' })).toBeInTheDocument()
+    expect(leftControls).not.toHaveTextContent('Agent')
     expect(mocks.surfaceProps?.narrowMode).toBe(true)
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('Agent')
     expect(belowControls).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
     expect(belowControls).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(sendAccessory).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
@@ -2569,13 +2667,13 @@ describe('AgentComposer', () => {
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('hides the missing-agent trigger in classic layout', () => {
+  it('keeps the missing-agent trigger visible in classic layout', () => {
     mocks.sessionLayout = 'classic'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 
-    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('chat.alerts.select_agent')
+    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('chat.alerts.select_agent')
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
   })
 
@@ -2589,12 +2687,12 @@ describe('AgentComposer', () => {
     expect(workspaceLabel.closest('button')).toBeDisabled()
   })
 
-  it('hides the workspace placeholder in the missing-agent composer in workdir mode', () => {
+  it('keeps the workspace placeholder visible in the missing-agent composer in workdir mode', () => {
     mocks.sessionLayout = 'workdir'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent(
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
       'agent.session.workspace_selector.placeholder'
     )
   })
@@ -2626,7 +2724,7 @@ describe('AgentComposer', () => {
     expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })
 
-  it('does not render the workspace selector in docked composer mode', () => {
+  it('renders a workspace opener in docked composer mode', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -2637,29 +2735,30 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('workspace-open-button')).toHaveAttribute('data-workdir', '/workspace')
     expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
+    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
   })
 
-  it('hides the workspace selector when sessions are grouped by workspace', () => {
+  it('keeps the workspace selector visible when sessions are grouped by workspace', () => {
     render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         onWorkspaceChange={vi.fn()}
         isStreaming={false}
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
-    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
+    expect(screen.getByText('select workspace 2')).toBeInTheDocument()
   })
 
-  it('renders a read-only workspace control in docked composer mode when requested without a change handler', () => {
+  it('keeps the workspace opener visible in the alternate grouping mode', () => {
     mocks.sessionLayout = 'time'
 
     render(
@@ -2668,13 +2767,13 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         isStreaming={false}
       />
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
     expect(leftControls).toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('workspace-open-button')).toHaveAttribute('data-workdir', '/workspace')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
     expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
   })
@@ -2689,7 +2788,6 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         onWorkspaceChange={onWorkspaceChange}
         isStreaming={false}
       />
@@ -2763,7 +2861,6 @@ describe('AgentComposer', () => {
         }}
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        showWorkspaceSelector
         isStreaming={false}
       />
     )
@@ -2782,25 +2879,29 @@ async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = wid
   await waitFor(() => {
     expect(
       resizeObserverMockInstances.some((instance) =>
-        String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
+        Array.from(instance.targets).some((target) => String(target.getAttribute('class') ?? '').includes('max-w-full'))
       )
     ).toBe(true)
   })
 
-  const toolbarInstances = resizeObserverMockInstances.filter((instance) =>
-    String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
-  )
-  if (toolbarInstances.length === 0) {
+  const toolbarObservers = resizeObserverMockInstances.flatMap((instance) => {
+    const target = Array.from(instance.targets).find((target) =>
+      String(target.getAttribute('class') ?? '').includes('max-w-full')
+    )
+    return target ? [{ instance, target }] : []
+  })
+  if (toolbarObservers.length === 0) {
     throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
   }
 
   act(() => {
-    for (const instance of toolbarInstances) {
-      Object.defineProperty(instance.target, 'clientWidth', { configurable: true, value: width })
-      Object.defineProperty(instance.target, 'scrollWidth', { configurable: true, value: scrollWidth })
+    for (const { instance, target } of toolbarObservers) {
+      Object.defineProperty(target, 'clientWidth', { configurable: true, value: width })
+      Object.defineProperty(target, 'scrollWidth', { configurable: true, value: scrollWidth })
       instance.callback(
         [
           {
+            target,
             contentRect: { width }
           } as ResizeObserverEntry
         ],
