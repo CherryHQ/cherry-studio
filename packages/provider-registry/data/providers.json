@@ -401,6 +401,26 @@
       "name": "OpenRouter"
     },
     {
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "OrcaRouter - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.orcarouter.ai/v1/"
+        }
+      },
+      "id": "orcarouter",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.orcarouter.ai/console",
+          "docs": "https://docs.orcarouter.ai",
+          "models": "https://www.orcarouter.ai/models",
+          "official": "https://www.orcarouter.ai/"
+        }
+      },
+      "name": "OrcaRouter"
+    },
+    {
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
