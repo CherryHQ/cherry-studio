@@ -45,6 +45,7 @@ import {
 } from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
+  AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
@@ -593,6 +594,34 @@ function isSupportedOpenAIModel(modelId: string): boolean {
   return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
 }
 
+// Anthropic authenticates model listing with `x-api-key` + `anthropic-version`, not
+// `Authorization: Bearer` — the generic OpenAI fetcher's Bearer header would 401. `/v1/models`
+// only returns chat models (no audio/tts), and `limit` maxes at 1000, well above the catalog
+// size, so a single page covers it.
+const ANTHROPIC_VERSION = '2023-06-01'
+
+const anthropicFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.anthropic),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    const response = await getFromApi({
+      url: `${baseUrl}/models?limit=1000`,
+      headers: {
+        ...defaultAppHeaders(),
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        ...provider.settings?.extraHeaders
+      },
+      responseSchema: AnthropicModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
+    )
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
@@ -638,18 +667,10 @@ const fetchers: ModelFetcher[] = [
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
+  anthropicFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
-
-const UNSUPPORTED_PROVIDER_PRESETS = [SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic] as const
-
-function isUnsupported(provider: Provider): boolean {
-  return (
-    UNSUPPORTED_PROVIDER_PRESETS.some((presetId) => matchesPreset(provider, presetId)) ||
-    provider.presetProviderId === 'vertex-anthropic'
-  )
-}
 
 // ── Public API ──
 
@@ -659,14 +680,6 @@ export async function listModels(
   options?: { throwOnError?: boolean }
 ): Promise<Partial<Model>[]> {
   try {
-    if (isUnsupported(provider)) {
-      logger.warn('Provider does not support model listing', { providerId: provider.id })
-      if (options?.throwOnError) {
-        throw new Error(`Provider does not support model listing: ${provider.id}`)
-      }
-      return []
-    }
-
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {

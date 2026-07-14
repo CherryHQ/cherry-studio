@@ -57,9 +57,9 @@ Returns `null` (not `{}`) when no data is present (missing file / parse error / 
 
 ## Writes and Validation
 
-- Writes via `bootConfigService.set(targetKey, value)` followed by `bootConfigService.flush()` to force an immediate durable write.
+- Writes via `bootConfigService.set(targetKey, value)` followed by `bootConfigService.persist()` (the strict flush variant) to force an immediate durable write. `persist()` **throws** on a disk-write failure, which `execute()` catches and reports as `{ success: false, error }` — so a failed write surfaces as a migration failure instead of a silent false-success.
 - `validate()` iterates `preparedItems` and checks `bootConfigService.get(targetKey) !== undefined`.
-- **Known validate weakness**: for `Record<string, string>` keys like `app.user_data_path`, `mergeDefaults()` fills a `{}` default on get, so `value !== undefined` is always true. The validation step cannot detect a silent write failure for Record-typed keys. Unit tests in `__tests__/BootConfigMigrator.test.ts` compensate by directly asserting `bootConfigService.get('app.user_data_path')` returns the expected structure rather than relying on validate().
+- **Known validate weakness**: for `Record<string, string>` keys like `app.user_data_path`, `mergeDefaults()` fills a `{}` default on get, so `value !== undefined` is always true — `validate()` cannot confirm the written *value* is correct for Record-typed keys. (A failed disk *write* is now caught upstream: `persist()` throws and `execute()` reports failure.) Unit tests in `__tests__/BootConfigMigrator.test.ts` compensate by directly asserting `bootConfigService.get('app.user_data_path')` returns the expected structure rather than relying on validate().
 
 ## Implementation Files
 

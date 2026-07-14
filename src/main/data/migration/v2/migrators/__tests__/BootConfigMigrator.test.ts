@@ -9,20 +9,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
-// Mock bootConfigService — the migrator writes via .set() and .flush(), then
-// validates via .get(). We spy on the mutations and stub the reads.
+// Mock bootConfigService — the migrator writes via .set() and .persist() (the
+// strict, throwing flush variant), then validates via .get(). We spy on the
+// mutations and stub the reads.
 const bootConfigStore: Record<string, unknown> = {}
 const mockBootConfigSet = vi.fn((key: string, value: unknown) => {
   bootConfigStore[key] = value
 })
 const mockBootConfigGet = vi.fn((key: string) => bootConfigStore[key])
-const mockBootConfigFlush = vi.fn()
+const mockBootConfigPersist = vi.fn()
 
 vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: {
     set: mockBootConfigSet,
     get: mockBootConfigGet,
-    flush: mockBootConfigFlush
+    persist: mockBootConfigPersist
   }
 }))
 
@@ -106,7 +107,25 @@ describe('BootConfigMigrator', () => {
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', {
         '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data'
       })
-      expect(mockBootConfigFlush).toHaveBeenCalled()
+      expect(mockBootConfigPersist).toHaveBeenCalled()
+    })
+
+    it('returns { success: false } when persisting boot config fails', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        legacyHomeConfig: { '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data' }
+      })
+
+      await migrator.prepare(ctx)
+
+      mockBootConfigPersist.mockImplementationOnce(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+
+      const executed = await migrator.execute()
+
+      expect(executed.success).toBe(false)
+      expect(executed.error).toContain('ENOSPC')
     })
 
     it('skips the configfile source when reader returns null (no v1 config file)', async () => {

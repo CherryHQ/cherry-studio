@@ -299,6 +299,13 @@ export const ProviderSchema = z.object({
    * {@link isLoginBasedProvider}.
    */
   authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
+  /**
+   * Registry capability: the provider serves requests without any credential
+   * (local server — ollama / lmstudio / gpustack / ovms), so the missing-API-key
+   * guards (model sync, painting/OpenClaw gating) skip the key check. Carried
+   * from the registry; absent ⇒ false.
+   */
+  authOptional: z.boolean().optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */

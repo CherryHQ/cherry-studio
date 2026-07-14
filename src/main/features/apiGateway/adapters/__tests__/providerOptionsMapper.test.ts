@@ -14,6 +14,7 @@ import { isAnthropicProvider, isAwsBedrockProvider, isGeminiProvider, isOpenAIPr
 
 import {
   mapAnthropicThinkingToProviderOptions,
+  mapGeminiThinkingToProviderOptions,
   mapReasoningEffortToProviderOptions
 } from '../converters/providerOptionsMapper'
 
@@ -115,5 +116,76 @@ describe('mapReasoningEffortToProviderOptions', () => {
 
   it('returns undefined for an unsupported provider', () => {
     expect(mapReasoningEffortToProviderOptions(provider('mystery'), 'high')).toBeUndefined()
+  })
+})
+
+describe('mapGeminiThinkingToProviderOptions', () => {
+  // A Gemini/Google target must keep the native sentinel semantics verbatim — the old
+  // round trip through the Anthropic shape inverted them (-1 → 0, 0 → -1) and dropped
+  // thinkingLevel. Each case pins the exact byte the Gemini upstream should receive.
+  describe('Gemini/Google target (native, lossless)', () => {
+    beforeEach(() => asMock(isGeminiProvider).mockReturnValue(true))
+
+    it('passes a dynamic budget (-1) through unchanged (was inverted to 0)', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: -1 })).toEqual({
+        google: { thinkingConfig: { thinkingBudget: -1 } }
+      })
+    })
+
+    it('passes a disabled budget (0) through unchanged (was inverted to -1)', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: 0 })).toEqual({
+        google: { thinkingConfig: { thinkingBudget: 0 } }
+      })
+    })
+
+    it('keeps includeThoughts without a budget (no bogus budget 0 injected)', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { includeThoughts: true })).toEqual({
+        google: { thinkingConfig: { includeThoughts: true } }
+      })
+    })
+
+    it('preserves the Gemini 3 thinkingLevel (previously dropped)', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingLevel: 'high' })).toEqual({
+        google: { thinkingConfig: { thinkingLevel: 'high' } }
+      })
+    })
+
+    it('forwards a positive fixed budget with includeThoughts', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: 512, includeThoughts: true })).toEqual({
+        google: { thinkingConfig: { thinkingBudget: 512, includeThoughts: true } }
+      })
+    })
+
+    it('returns undefined for an empty thinkingConfig', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), {})).toBeUndefined()
+    })
+  })
+
+  describe('non-Gemini target (translate without inverting)', () => {
+    beforeEach(() => asMock(isOpenAIProvider).mockReturnValue(true))
+
+    it('treats a dynamic budget (-1) as enabled', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: -1 })).toEqual({
+        openai: { reasoningEffort: 'high' }
+      })
+    })
+
+    it('treats a zero budget as disabled', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: 0 })).toEqual({
+        openai: { reasoningEffort: 'none' }
+      })
+    })
+
+    it('treats includeThoughts-only as enabled', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { includeThoughts: true })).toEqual({
+        openai: { reasoningEffort: 'high' }
+      })
+    })
+
+    it('treats a thinkingLevel-only config (no budget) as enabled', () => {
+      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingLevel: 'high' })).toEqual({
+        openai: { reasoningEffort: 'high' }
+      })
+    })
   })
 })

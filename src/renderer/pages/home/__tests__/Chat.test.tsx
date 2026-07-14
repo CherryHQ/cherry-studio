@@ -89,7 +89,6 @@ vi.mock('../components/ChatNavbar', () => ({
 
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = ({ children }: { children: ReactNode }) => <>{children}</>
-  TopicRightPane.Toggle = () => <div data-testid="topic-right-toggle" />
   TopicRightPane.Shortcuts = ({ topicId }: { topicId?: string }) => (
     <div data-testid="topic-right-shortcuts" data-topic-id={topicId ?? ''} />
   )
@@ -115,7 +114,6 @@ describe('Chat', () => {
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
     expect(screen.getByTestId('topic-right-shortcuts')).toHaveAttribute('data-topic-id', 'topic-1')
-    expect(screen.getByTestId('topic-right-toggle')).toBeInTheDocument()
   })
 
   it('keeps the navbar mounted while disabling sidebar controls', () => {

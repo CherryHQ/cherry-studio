@@ -37,7 +37,7 @@ const h = vi.hoisted(() => ({
   normalizedExe: vi.fn((): string => '/current/exe'),
   bootGet: vi.fn((): unknown => undefined),
   bootSet: vi.fn(),
-  bootFlush: vi.fn()
+  bootPersist: vi.fn()
 }))
 
 vi.mock('node:fs', async () => {
@@ -63,7 +63,7 @@ vi.mock('@main/core/preboot/userDataLocation', async (importOriginal) => {
 })
 
 vi.mock('@main/data/bootConfig', () => ({
-  bootConfigService: { get: h.bootGet, set: h.bootSet, flush: h.bootFlush }
+  bootConfigService: { get: h.bootGet, set: h.bootSet, persist: h.bootPersist }
 }))
 
 vi.mock('@main/core/paths/constants', () => ({
