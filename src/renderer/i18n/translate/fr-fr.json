@@ -6118,6 +6118,7 @@
         },
         "presetLabels": {
           "aliyun": "[to be translated]:Aliyun (China)",
+          "default": "[to be translated]:Default (no mirror)",
           "ghfast": "[to be translated]:ghfast.top",
           "ghproxy": "[to be translated]:ghproxy.net",
           "npmOfficial": "[to be translated]:npmjs (official)",
@@ -6133,6 +6134,7 @@
         }
       },
       "installing": "Installation en cours...",
+      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "Nom d'outil ou clé invalide",
       "localModels": {
         "cancel": "Annuler",
@@ -6163,6 +6165,9 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "runtimeDependency": "[to be translated]:Runtime",
+      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
@@ -6187,7 +6192,8 @@
         "uv": "Python package manager for MCP services and dependency installation."
       },
       "update": "Update to latest version",
-      "updateCheckFailed": "Échec de la vérification des mises à jour"
+      "updateCheckFailed": "Échec de la vérification des mises à jour",
+      "viewErrorDetails": "[to be translated]:View details"
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",
