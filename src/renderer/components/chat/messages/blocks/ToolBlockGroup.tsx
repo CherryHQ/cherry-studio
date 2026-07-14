@@ -3,6 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { BeatLoader } from 'react-spinners'
 
 import MessageTools from '../tools/MessageTools'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
@@ -37,7 +38,7 @@ function getItemEffectiveStatus(
 
 // ============ Sub-Components ============
 
-const LIVE_HEADER_MIN_DURATION_MS = 700
+const LIVE_HEADER_MIN_DURATION_MS = 1200
 
 type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }
@@ -234,6 +235,19 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         )}
       </div>
     )
+    const renderSemanticTitle = (title: React.ReactNode, key?: React.Key) =>
+      renderWithElapsed(
+        <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
+          <span className="block truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            {title}
+          </span>
+          {isLiveProgress && (
+            <span aria-hidden="true" className="flex shrink-0 items-center">
+              <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
+            </span>
+          )}
+        </div>
+      )
 
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
@@ -246,6 +260,8 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     }
 
     if (displayCandidate.kind === 'activity') {
+      if (semanticToolTitle) return renderSemanticTitle(displayCandidate.label)
+
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
           <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
@@ -257,19 +273,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     if (semanticToolTitle) {
       const title = getSemanticToolTitle(displayCandidate, t)
-      return renderWithElapsed(
-        <div className="min-w-0 max-w-full overflow-hidden text-[13px]" key={displayCandidate.item.id}>
-          {isLiveProgress ? (
-            <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
-              {title}
-            </PlaceholderShimmerText>
-          ) : (
-            <span className="block truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
-              {title}
-            </span>
-          )}
-        </div>
-      )
+      return renderSemanticTitle(title, displayCandidate.item.id)
     }
 
     return renderWithElapsed(

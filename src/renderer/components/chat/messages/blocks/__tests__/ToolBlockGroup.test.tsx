@@ -27,6 +27,10 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+vi.mock('react-spinners', () => ({
+  BeatLoader: () => <span data-testid="beat-loader" />
+}))
+
 vi.mock('../../tools/shared/GenericTools', () => ({
   getEffectiveStatus: (status: string | undefined, isWaiting: boolean) => {
     if (status === 'pending') return isWaiting ? 'waiting' : 'invoking'
@@ -126,15 +130,17 @@ describe('ToolBlockGroup', () => {
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
   })
 
-  it('keeps the current task title animated after its latest tool completes', () => {
+  it('shows a beat loader while the current task continues after its latest tool completes', () => {
     const { container } = render(<ToolBlockGroup items={[readDoneItem]} isLiveProgress />)
 
-    expect(container.querySelector('.animation-shimmer')).not.toBeNull()
+    expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
+    expect(container.querySelector('.animation-shimmer')).toBeNull()
   })
 
   it('shows thinking in the current task title while reasoning streams', () => {
     render(<ToolBlockGroup items={[readDoneItem]} isLiveProgress isThinking />)
 
+    expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
     expect(screen.getByText('message.tools.thinkingHeader')).toBeInTheDocument()
   })
 
@@ -263,7 +269,7 @@ describe('ToolBlockGroup', () => {
     expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Read:invoking')
 
     act(() => {
-      vi.advanceTimersByTime(699)
+      vi.advanceTimersByTime(1199)
     })
     expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Read:invoking')
 

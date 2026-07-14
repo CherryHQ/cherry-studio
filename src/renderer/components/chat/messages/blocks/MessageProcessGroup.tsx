@@ -54,9 +54,10 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase])
   const elapsedMs = props.phase === 'active' ? liveElapsedMs : completedElapsedMs
   const elapsedText = elapsedMs === undefined ? undefined : formatPlaceholderElapsed(elapsedMs, t)
+  const processingSummary = t('message.processing').replace(/(?:\.{3}|…)\s*$/u, '')
   const summary =
     props.phase === 'active'
-      ? t('message.processing')
+      ? processingSummary
       : props.outcome === 'error'
         ? t('message.tools.error')
         : props.contentKind === 'reasoning'
