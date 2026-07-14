@@ -115,6 +115,17 @@ describe('restoreJournal', () => {
       expect(readRestoreJournal().kind).toBe('corrupt')
     })
 
+    it.each([
+      ['restoreId traversal', { restoreId: '../..' }],
+      ['restoreId NUL', { restoreId: 'restore\0evil' }],
+      ['absolute promote path', { db: { ...stagedJournal().db, promote: '/tmp/work.sqlite' } }],
+      ['parent-traversing resource path', { fileResources: [{ ...stagedJournal().fileResources[0], livePath: '../outside' }] }]
+    ])("returns 'corrupt' for %s", (_label, overrides) => {
+      writeFileSync(journalPath(), JSON.stringify({ ...stagedJournal(), ...overrides }))
+
+      expect(readRestoreJournal().kind).toBe('corrupt')
+    })
+
     it('ignores a stray .tmp leftover from an interrupted write', () => {
       writeRestoreJournal(stagedJournal())
       writeFileSync(`${journalPath()}.tmp`, 'garbage from a crashed writer')

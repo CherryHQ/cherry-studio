@@ -46,14 +46,16 @@ export async function stageFileResources(options: FileResourceStageOptions): Pro
 
   const db = new Database(archive.backupDbPath, { readonly: true })
   let selectedRows: readonly BackupFileRow[]
+  let hasAnyFileEntries: boolean
   try {
     selectedRows = selectedFileRows(db, archive.domains)
+    hasAnyFileEntries = db.prepare('SELECT 1 FROM file_entry LIMIT 1').get() !== undefined
   } finally {
     db.close()
   }
 
   if (!archive.includeFiles) {
-    if (selectedRows.length > 0 || archive.resourceMetadata.fileIds.length > 0 || hasPayload(archiveFilesRoot)) {
+    if (hasAnyFileEntries || archive.resourceMetadata.fileIds.length > 0 || hasPayload(archiveFilesRoot)) {
       throw new Error('restore resources declared by a lite archive')
     }
     return { candidates, skippedFileEntryIds }
@@ -117,7 +119,7 @@ export function finalizeFileResources(options: FileResourceFinalizeOptions): Res
     const newlyReferenced = options.mergeResult.acceptedFileRefFileEntryIds.includes(fileEntryId)
 
     if (accepted) {
-      const liveTarget = inspectExistingLiveTarget(path.dirname(candidate.livePath), candidate.livePath)
+      const liveTarget = inspectExistingLiveTarget(options.userData, candidate.livePath)
       if (liveTarget === 'unsafe') {
         throw new Error(`restore resource add target is unsafe: ${candidate.livePath}`)
       }
@@ -147,7 +149,7 @@ export function finalizeFileResources(options: FileResourceFinalizeOptions): Res
     if (!survivorLivePath) {
       throw new Error(`restore resource survivor path is unsafe: ${fileEntryId}`)
     }
-    const survivorTarget = inspectExistingLiveTarget(liveRoot, survivorLivePath)
+    const survivorTarget = inspectExistingLiveTarget(options.userData, survivorLivePath)
     if (survivorTarget === 'unsafe') {
       throw new Error(`restore resource survivor target is unsafe: ${survivorLivePath}`)
     }
@@ -202,20 +204,31 @@ function resolveLivePath(liveFileRoot: string, id: string, ext: string | null): 
 
 /** File extensions are metadata, but managed blobs are always flat filenames. */
 function isSafeFileExtension(ext: string | null): boolean {
-  return ext === null || (typeof ext === 'string' && ext.length > 0 && !/[\\/\\u0000]/.test(ext))
+  return (
+    ext === null ||
+    (typeof ext === 'string' &&
+      ext.length > 0 &&
+      !ext.includes('/') &&
+      !ext.includes('\\') &&
+      !ext.includes('\0'))
+  )
 }
 
-/** Classify an existing target without following a symlink outside the managed root. */
-function inspectExistingLiveTarget(liveRoot: string, target: string): 'missing' | 'file' | 'unsafe' {
+/** Classify an existing target without following any ancestor outside userData. */
+function inspectExistingLiveTarget(userData: string, target: string): 'missing' | 'file' | 'unsafe' {
   try {
-    if (!isContained(path.resolve(liveRoot), path.resolve(target))) return 'unsafe'
+    assertRealpathContained(userData, target)
     const targetStat = fs.lstatSync(target)
     if (!targetStat.isFile()) return 'unsafe'
-    const realRoot = fs.realpathSync(liveRoot)
-    const realTarget = fs.realpathSync(target)
-    return isContained(realRoot, realTarget) ? 'file' : 'unsafe'
+    return 'file'
   } catch (error) {
-    return isFileNotFoundError(error) ? 'missing' : 'unsafe'
+    if (!isFileNotFoundError(error)) return 'unsafe'
+    try {
+      assertRealpathContained(userData, target)
+      return 'missing'
+    } catch {
+      return 'unsafe'
+    }
   }
 }
 
@@ -297,7 +310,9 @@ function toJournalResource(
 
 /** Restore journal paths are always relative to and contained by userData. */
 function relativeContainedPath(userData: string, target: string): string {
-  const relativePath = path.relative(path.resolve(userData), path.resolve(target))
+  const resolvedUserData = path.resolve(userData)
+  const resolvedTarget = path.resolve(target)
+  const relativePath = path.relative(resolvedUserData, resolvedTarget)
   if (
     relativePath === '' ||
     path.isAbsolute(relativePath) ||
@@ -306,7 +321,29 @@ function relativeContainedPath(userData: string, target: string): string {
   ) {
     throw new Error(`restore resource path escapes userData: ${target}`)
   }
+  assertRealpathContained(resolvedUserData, resolvedTarget)
   return relativePath
+}
+
+/** Resolve the nearest existing ancestor and require physical containment. */
+function assertRealpathContained(root: string, target: string): void {
+  const resolvedRoot = path.resolve(root)
+  const resolvedTarget = path.resolve(target)
+  if (!isContained(resolvedRoot, resolvedTarget)) {
+    throw new Error(`restore resource path escapes userData: ${target}`)
+  }
+
+  const realRoot = fs.realpathSync(resolvedRoot)
+  let ancestor = resolvedTarget
+  while (!fs.existsSync(ancestor)) {
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) throw new Error(`restore resource path has no existing ancestor: ${target}`)
+    ancestor = parent
+  }
+  const realAncestor = fs.realpathSync(ancestor)
+  if (!isContained(realRoot, realAncestor)) {
+    throw new Error(`restore resource path escapes userData through symlink: ${target}`)
+  }
 }
 
 function isContained(root: string, target: string): boolean {

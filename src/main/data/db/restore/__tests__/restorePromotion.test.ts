@@ -8,6 +8,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -162,6 +163,7 @@ interface JournalOverrides {
   step?: Extract<RestoreJournal, { state: 'promoting' }>['step']
   fingerprint?: string
   chain?: Array<{ folderMillis: number; hash: string }>
+  aside?: string
   fileResources?: RestoreJournal['fileResources']
 }
 
@@ -172,7 +174,7 @@ async function buildJournal(overrides: JournalOverrides = {}): Promise<RestoreJo
     createdAt: '2026-07-09T12:00:00.000Z',
     db: {
       promote: workRel,
-      aside: asideRel,
+      aside: overrides.aside ?? asideRel,
       fingerprint: overrides.fingerprint ?? (await hashDbFile(livePath())),
       chain: overrides.chain ?? chainOf(workPath())
     },
@@ -619,6 +621,26 @@ describe('runRestorePromotion', () => {
     expect(quarantined).toHaveLength(1)
     expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
     expect(readMarker(livePath())).toBe('old')
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects an aside path whose existing ancestor symlinks outside userData', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const outside = mkdtempSync(join(tmpdir(), 'cs-restore-aside-outside-'))
+    const escapedAside = join(outside, 'old.sqlite')
+    writeFileSync(escapedAside, 'outside must survive')
+    symlinkSync(outside, join(userData, 'restore-aside'))
+    writeRestoreJournal(await buildJournal({ aside: 'restore-aside/old.sqlite' }))
+
+    try {
+      await expect(runRestorePromotion()).rejects.toThrow(/escapes userData through symlink/)
+      expect(readFileSync(escapedAside, 'utf8')).toBe('outside must survive')
+      expect(readMarker(livePath())).toBe('old')
+      expect(journalState()).toBe('staged')
+      expect(existsSync(stagingDir())).toBe(true)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
   })
 
   it('expires when work.sqlite is missing (nothing to promote)', async () => {

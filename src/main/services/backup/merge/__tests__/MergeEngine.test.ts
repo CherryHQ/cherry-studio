@@ -17,9 +17,9 @@ import { join } from 'node:path'
 import { contributorManager } from '@main/services/backup/contributors/ContributorManager'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { MergeContext } from '..'
+import type { MergeContext, MergeResult } from '..'
 import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '..'
 import { FtsCentralHelper } from '../FtsCentralHelper'
 
@@ -42,6 +42,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await rm(tmpDir, { recursive: true, force: true })
   })
 
@@ -95,6 +96,19 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     ).run(id, id, externalPath, now, now)
   }
 
+  /** Insert a managed internal file entry, optionally soft-deleted. */
+  const insertInternalFileEntry = (
+    db: Database.Database,
+    id: string,
+    options: { readonly ext?: string | null; readonly deletedAt?: number | null } = {}
+  ): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO file_entry (id, origin, name, ext, size, external_path, created_at, updated_at, deleted_at)
+       VALUES (?, 'internal', ?, ?, 1, NULL, ?, ?, ?)`
+    ).run(id, id, options.ext ?? null, now, now, options.deletedAt ?? null)
+  }
+
   /** Insert a preference row keyed by the composite [scope, key] primary key. */
   const insertPreference = (db: Database.Database, scope: string, key: string, value: string): void => {
     const now = Date.now()
@@ -125,7 +139,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   const countRows = (table: string): number =>
     (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c
 
-  const runMerge = (ctx: MergeContext): Promise<unknown> =>
+  const runMerge = (ctx: MergeContext): Promise<MergeResult> =>
     new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
 
   const topCtx = (): MergeContext => ({ backupDbPath: backupPath, domains: ['TOPICS'], skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map() })
@@ -304,6 +318,110 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const ids = (dbh.sqlite.prepare(`SELECT id FROM file_entry`).all() as { id: string }[]).map((r) => r.id)
     expect(ids).toContain('fe-keep')
     expect(ids).not.toContain('fe-skip')
+  })
+
+  it('inserts a valid external rewrite and reports accepted file-entry evidence', async () => {
+    seedBackup((db) => insertFileEntry(db, 'fe-rewrite', '/archive/fe-rewrite'))
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['FILE_STORAGE'],
+      skippedFileEntryIds: new Set(),
+      fileEntryRewrites: new Map([
+        ['fe-rewrite', { origin: 'internal' as const, externalPath: null, size: 12 }]
+      ])
+    })
+
+    expect(result.acceptedFileEntryIds).toEqual(['fe-rewrite'])
+    expect(result.acceptedFileRefFileEntryIds).toEqual([])
+    expect(result.survivingFileEntries).toEqual(
+      new Map([['fe-rewrite', { origin: 'internal', ext: null, deletedAt: null }]])
+    )
+    expect(
+      dbh.sqlite.prepare('SELECT origin, external_path, size FROM file_entry WHERE id = ?').get('fe-rewrite')
+    ).toEqual({ origin: 'internal', external_path: null, size: 12 })
+  })
+
+  it('reports a newly accepted reference to a surviving local internal file entry', async () => {
+    insertInternalFileEntry(dbh.sqlite, 'fe-local-internal', { ext: 'bin' })
+    seedBackup(
+      (db) => {
+        insertTopic(db, 'tpc-local-ref')
+        insertMessage(db, 'msg-local-ref', 'tpc-local-ref', 'root', null)
+        insertChatMessageFileRef(db, 'ref-local-internal', 'msg-local-ref', 'fe-local-internal')
+      },
+      { foreignKeys: false }
+    )
+
+    const result = await runMerge({
+      ...topCtx(),
+      fileEntryRewrites: new Map([
+        ['fe-local-internal', { origin: 'internal' as const, externalPath: null, size: 1 }]
+      ])
+    })
+
+    expect(result.acceptedFileEntryIds).toEqual([])
+    expect(result.acceptedFileRefFileEntryIds).toEqual(['fe-local-internal'])
+    expect(result.survivingFileEntries).toEqual(
+      new Map([['fe-local-internal', { origin: 'internal', ext: 'bin', deletedAt: null }]])
+    )
+    expect(countRows('chat_message_file_ref')).toBe(1)
+  })
+
+  it('prunes refs to external, soft-deleted, and pre-staging-skipped targets without evidence', async () => {
+    insertFileEntry(dbh.sqlite, 'fe-local-external')
+    insertInternalFileEntry(dbh.sqlite, 'fe-local-deleted', { deletedAt: Date.now() })
+    seedBackup((db) => {
+      insertFileEntry(db, 'fe-local-external')
+      insertInternalFileEntry(db, 'fe-local-deleted', { deletedAt: Date.now() })
+      insertFileEntry(db, 'fe-pre-skipped')
+      insertTopic(db, 'tpc-pruned-refs')
+      insertMessage(db, 'msg-pruned-refs', 'tpc-pruned-refs', 'root', null)
+      insertChatMessageFileRef(db, 'ref-external', 'msg-pruned-refs', 'fe-local-external')
+      insertChatMessageFileRef(db, 'ref-deleted', 'msg-pruned-refs', 'fe-local-deleted')
+      insertChatMessageFileRef(db, 'ref-skipped', 'msg-pruned-refs', 'fe-pre-skipped')
+    })
+
+    const result = await runMerge({
+      ...topCtx(),
+      skippedFileEntryIds: new Set(['fe-pre-skipped']),
+      fileEntryRewrites: new Map([
+        ['fe-local-external', { origin: 'internal' as const, externalPath: null, size: 1 }],
+        ['fe-local-deleted', { origin: 'internal' as const, externalPath: null, size: 1 }],
+        ['fe-pre-skipped', { origin: 'internal' as const, externalPath: null, size: 1 }]
+      ])
+    })
+
+    expect(result.acceptedFileEntryIds).toEqual([])
+    expect(result.acceptedFileRefFileEntryIds).toEqual([])
+    expect(result.survivingFileEntries).toEqual(
+      new Map([
+        ['fe-local-external', { origin: 'external', ext: null, deletedAt: null }],
+        ['fe-local-deleted', expect.objectContaining({ origin: 'internal', ext: null })]
+      ])
+    )
+    expect(countRows('chat_message_file_ref')).toBe(0)
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('throws and rolls back when a decisioned root disappears between scan and import', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-imported-first')
+      insertTopic(db, 'tpc-removed-after-scan')
+    })
+    const originalTransaction = dbh.sqlite.transaction.bind(dbh.sqlite)
+    vi.spyOn(dbh.sqlite, 'transaction').mockImplementation(((fn: () => void) => {
+      const tamper = new Database(backupPath)
+      try {
+        tamper.prepare('DELETE FROM topic WHERE id = ?').run('tpc-removed-after-scan')
+      } finally {
+        tamper.close()
+      }
+      return originalTransaction(fn)
+    }) as Database.Database['transaction'])
+
+    await expect(runMerge(topCtx())).rejects.toThrow(MergeConsistencyCheckError)
+    expect(countRows('topic')).toBe(0)
   })
 
   it('fails closed on a non-PK UNIQUE conflict instead of silently dropping the row', async () => {

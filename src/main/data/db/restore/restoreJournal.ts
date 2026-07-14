@@ -57,11 +57,31 @@ const AppliedMigrationSchema = z.strictObject({
   hash: z.string().min(1)
 })
 
+/** Restore IDs are single safe path components, never traversal-capable names. */
+export function isSafeRestoreId(value: string): boolean {
+  return value.length > 0 && !value.includes('/') && !value.includes('\\') && !value.includes('..') && !value.includes('\0')
+}
+
+/** Journal paths are normalized relative paths under userData on both path dialects. */
+export function isSafeJournalRelativePath(value: string): boolean {
+  if (value.length === 0 || value.includes('\0') || path.posix.isAbsolute(value) || path.win32.isAbsolute(value)) {
+    return false
+  }
+  if (/^[A-Za-z]:/.test(value)) return false
+  const segments = value.split(/[\\/]/)
+  return segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..')
+}
+
+const RestoreIdSchema = z.string().refine(isSafeRestoreId, 'restoreId must be a safe basename')
+const RelativeJournalPathSchema = z
+  .string()
+  .refine(isSafeJournalRelativePath, 'journal path must be normalized and relative')
+
 const RestoreDbSchema = z.strictObject({
   /** userData-relative path to the staged work.sqlite to promote. */
-  promote: z.string().min(1),
+  promote: RelativeJournalPathSchema,
   /** userData-relative path the live DB is renamed to (the undo snapshot). */
-  aside: z.string().min(1),
+  aside: RelativeJournalPathSchema,
   /** Hash of the live main file, post-TRUNCATE-checkpoint, busy==0 asserted. */
   fingerprint: z.string().min(1),
   /** Complete applied-migration sequence of work.sqlite — never empty. */
@@ -70,16 +90,16 @@ const RestoreDbSchema = z.strictObject({
 
 const FileResourceSchema = z.strictObject({
   kind: z.enum(['blob-add', 'dir-add', 'note-add', 'note-overwrite', 'overwrite']),
-  stagingPath: z.string().min(1),
-  livePath: z.string().min(1),
-  asidePath: z.string().min(1).optional()
+  stagingPath: RelativeJournalPathSchema,
+  livePath: RelativeJournalPathSchema,
+  asidePath: RelativeJournalPathSchema.optional()
 })
 
 // All journal paths (db.*, fileResources[].*) are stored userData-relative;
 // readers join them onto the currently resolved userData.
 const commonFields = {
   version: z.literal(1),
-  restoreId: z.string().min(1),
+  restoreId: RestoreIdSchema,
   /** ISO-8601 timestamp, diagnostic only — the gate never reads it. */
   createdAt: z.string().min(1),
   db: RestoreDbSchema,

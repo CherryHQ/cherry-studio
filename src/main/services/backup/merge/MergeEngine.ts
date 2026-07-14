@@ -315,7 +315,11 @@ export class MergeEngine {
     const rootRow = backupDb.prepare(`SELECT * FROM ${agg.root} WHERE ${where}`).get(...backupPrimaryKey) as
       | Record<string, unknown>
       | undefined
-    if (!rootRow) return // root vanished from backup mid-merge — skip defensively
+    if (!rootRow) {
+      throw new MergeConsistencyCheckError(
+        `decisioned root disappeared before import: ${agg.root} ${JSON.stringify(backupPrimaryKey)}`
+      )
+    }
     const transformedRoot = this.transformRow(agg.root, rootRow, ctx)
     if (!transformedRoot) return
     this.insertRow(workSqlite, agg.root, transformedRoot)

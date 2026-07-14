@@ -10,7 +10,13 @@ import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
-import { PROMOTION_STEP_ORDER, readRestoreJournal, writeRestoreJournal } from './restoreJournal'
+import {
+  isSafeJournalRelativePath,
+  isSafeRestoreId,
+  PROMOTION_STEP_ORDER,
+  readRestoreJournal,
+  writeRestoreJournal
+} from './restoreJournal'
 
 const logger = loggerService.withContext('RestorePromotion')
 
@@ -35,6 +41,7 @@ interface PromotionContext {
   readonly livePath: string
   readonly workPath: string
   readonly asidePath: string
+  readonly stagingPath: string
 }
 
 /**
@@ -147,18 +154,35 @@ export function isLiveDbStranded(): boolean {
     return false
   }
   const livePath = application.getPath('app.database.file')
-  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+  let asidePath: string
+  try {
+    asidePath = resolveContainedRelativePath(application.getPath('app.userdata'), read.journal.db.aside)
+  } catch {
+    return !fs.existsSync(livePath)
+  }
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
+  if (!isSafeRestoreId(journal.restoreId)) {
+    throw new Error(`unsafe restoreId: ${JSON.stringify(journal.restoreId)}`)
+  }
   const userData = application.getPath('app.userdata')
+  const stagingRoot = application.getPath('feature.backup.restore.staging')
+  const workPath = resolveContainedRelativePath(userData, journal.db.promote)
+  const asidePath = resolveContainedRelativePath(userData, journal.db.aside)
+  for (const entry of journal.fileResources) {
+    resolveContainedRelativePath(userData, entry.stagingPath)
+    resolveContainedRelativePath(userData, entry.livePath)
+    if (entry.asidePath) resolveContainedRelativePath(userData, entry.asidePath)
+  }
   return {
     journal,
     userData,
     livePath: application.getPath('app.database.file'),
-    workPath: path.resolve(userData, journal.db.promote),
-    asidePath: path.resolve(userData, journal.db.aside)
+    workPath,
+    asidePath,
+    stagingPath: resolveContainedAbsolutePath(userData, path.join(stagingRoot, journal.restoreId))
   }
 }
 
@@ -588,8 +612,7 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
   writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)
-  const stagingRoot = application.getPath('feature.backup.restore.staging')
-  fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
+  fs.rmSync(ctx.stagingPath, { recursive: true, force: true })
 }
 
 function quarantineCorruptJournal(error: string): void {
@@ -609,7 +632,41 @@ function quarantineCorruptJournal(error: string): void {
 // ─── filesystem primitives ───
 
 function resolveEntry(ctx: PromotionContext, relativePath: string): string {
-  return path.resolve(ctx.userData, relativePath)
+  return resolveContainedRelativePath(ctx.userData, relativePath)
+}
+
+/** Resolve a validated journal-relative path and reject physical symlink escapes. */
+function resolveContainedRelativePath(root: string, relativePath: string): string {
+  if (!isSafeJournalRelativePath(relativePath)) {
+    throw new Error(`unsafe restore journal path: ${JSON.stringify(relativePath)}`)
+  }
+  return resolveContainedAbsolutePath(root, path.resolve(root, relativePath))
+}
+
+/** Require lexical and nearest-existing-ancestor realpath containment. */
+function resolveContainedAbsolutePath(root: string, target: string): string {
+  const resolvedRoot = path.resolve(root)
+  const resolvedTarget = path.resolve(target)
+  if (!isContained(resolvedRoot, resolvedTarget)) {
+    throw new Error(`restore promotion path escapes userData: ${target}`)
+  }
+
+  const realRoot = fs.realpathSync(resolvedRoot)
+  let ancestor = resolvedTarget
+  while (!fs.existsSync(ancestor)) {
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) throw new Error(`restore promotion path has no existing ancestor: ${target}`)
+    ancestor = parent
+  }
+  const realAncestor = fs.realpathSync(ancestor)
+  if (!isContained(realRoot, realAncestor)) {
+    throw new Error(`restore promotion path escapes userData through symlink: ${target}`)
+  }
+  return resolvedTarget
+}
+
+function isContained(root: string, target: string): boolean {
+  return target === root || target.startsWith(`${root}${path.sep}`)
 }
 
 function markStep(journal: PromotingJournal, step: PromotionStep): PromotingJournal {

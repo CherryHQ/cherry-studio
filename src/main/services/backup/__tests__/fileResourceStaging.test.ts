@@ -23,10 +23,15 @@ const emptyMergeResult = (): MergeResult => ({
 function createArchiveContext(
   root: string,
   options: {
-    readonly rows: readonly { readonly id: string; readonly ext: string | null }[]
+    readonly rows: readonly {
+      readonly id: string
+      readonly ext: string | null
+      readonly deletedAt?: number | null
+    }[]
     readonly manifestIds: readonly string[]
     readonly payloads?: Readonly<Record<string, string>>
     readonly includeFiles?: boolean
+    readonly domains?: ArchiveContext['domains']
   }
 ): ArchiveContext {
   const archiveRoot = join(root, 'archive')
@@ -35,8 +40,8 @@ function createArchiveContext(
   const db = new Database(backupDbPath)
   try {
     db.exec('CREATE TABLE file_entry (id TEXT PRIMARY KEY, ext TEXT, deleted_at INTEGER)')
-    const insert = db.prepare('INSERT INTO file_entry (id, ext, deleted_at) VALUES (?, ?, NULL)')
-    for (const row of options.rows) insert.run(row.id, row.ext)
+    const insert = db.prepare('INSERT INTO file_entry (id, ext, deleted_at) VALUES (?, ?, ?)')
+    for (const row of options.rows) insert.run(row.id, row.ext, row.deletedAt ?? null)
   } finally {
     db.close()
   }
@@ -46,7 +51,7 @@ function createArchiveContext(
   return {
     backupDbPath,
     manifest: {} as BackupManifest,
-    domains: ['FILE_STORAGE'],
+    domains: options.domains ?? ['FILE_STORAGE'],
     includeFiles: options.includeFiles ?? true,
     resourceMetadata: { fileIds: [...options.manifestIds], knowledgeBases: [], notePaths: [] }
   }
@@ -200,6 +205,119 @@ describe('file resource staging', () => {
     expect(result.skippedFileEntryIds).toEqual(new Set(['unsafe-extension']))
   })
 
+  it.each(['opus', 'au', 'foo0'])('accepts a flat managed file extension containing ordinary characters: %s', async (ext) => {
+    const archive = createArchiveContext(root, {
+      rows: [{ id: `file-${ext}`, ext }],
+      manifestIds: [`file-${ext}`],
+      payloads: { [`file-${ext}`]: 'blob' }
+    })
+
+    const result = await stageFileResources({
+      archive,
+      backupRoot: join(userData, 'restore-staging', `restore-extension-${ext}`, 'resources'),
+      liveFileRoot: join(userData, 'Data', 'Files')
+    })
+
+    expect(result.candidates.get(`file-${ext}`)?.livePath).toBe(join(userData, 'Data', 'Files', `file-${ext}.${ext}`))
+    expect(result.skippedFileEntryIds).toEqual(new Set())
+  })
+
+  it.each(['bad/ext', 'bad\\ext', 'bad\0ext'])('rejects a file extension containing a path or NUL separator', async (ext) => {
+    const archive = createArchiveContext(root, {
+      rows: [{ id: 'unsafe-extension-char', ext }],
+      manifestIds: ['unsafe-extension-char'],
+      payloads: { 'unsafe-extension-char': 'blob' }
+    })
+
+    const result = await stageFileResources({
+      archive,
+      backupRoot: join(userData, 'restore-staging', 'restore-unsafe-extension-char', 'resources'),
+      liveFileRoot: join(userData, 'Data', 'Files')
+    })
+
+    expect(result.candidates).toEqual(new Map())
+    expect(result.skippedFileEntryIds).toEqual(new Set(['unsafe-extension-char']))
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects a missing live target below a liveFileRoot symlink escape', async () => {
+    const outside = join(root, 'outside-live-root')
+    const liveFileRoot = join(userData, 'Data', 'Files')
+    mkdirSync(outside, { recursive: true })
+    mkdirSync(join(userData, 'Data'), { recursive: true })
+    fs.symlinkSync(outside, liveFileRoot)
+    const archive = createArchiveContext(root, {
+      rows: [{ id: 'live-root-escape', ext: 'txt' }],
+      manifestIds: ['live-root-escape'],
+      payloads: { 'live-root-escape': 'blob' }
+    })
+    const staged = await stageFileResources({
+      archive,
+      backupRoot: join(userData, 'restore-staging', 'restore-live-root-escape', 'resources'),
+      liveFileRoot
+    })
+
+    expect(() =>
+      finalizeFileResources({
+        candidates: staged.candidates,
+        mergeResult: { ...emptyMergeResult(), acceptedFileEntryIds: ['live-root-escape'] },
+        userData
+      })
+    ).toThrow(/add target is unsafe/)
+    expect(existsSync(join(outside, 'live-root-escape.txt'))).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects a missing live target below an intermediate directory symlink escape', async () => {
+    const outsideData = join(root, 'outside-data')
+    const liveFileRoot = join(userData, 'Data', 'Files')
+    mkdirSync(join(outsideData, 'Files'), { recursive: true })
+    fs.symlinkSync(outsideData, join(userData, 'Data'))
+    const archive = createArchiveContext(root, {
+      rows: [{ id: 'live-ancestor-escape', ext: null }],
+      manifestIds: ['live-ancestor-escape'],
+      payloads: { 'live-ancestor-escape': 'blob' }
+    })
+    const staged = await stageFileResources({
+      archive,
+      backupRoot: join(userData, 'restore-staging', 'restore-live-ancestor-escape', 'resources'),
+      liveFileRoot
+    })
+
+    expect(() =>
+      finalizeFileResources({
+        candidates: staged.candidates,
+        mergeResult: { ...emptyMergeResult(), acceptedFileEntryIds: ['live-ancestor-escape'] },
+        userData
+      })
+    ).toThrow(/add target is unsafe/)
+    expect(existsSync(join(outsideData, 'Files', 'live-ancestor-escape'))).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects an existing staged file below a staging-root symlink escape', () => {
+    const outsideStaging = join(root, 'outside-staging')
+    const stagedPath = join(userData, 'restore-staging', 'restore-stage-escape', 'resources', 'files', 'stage-escape')
+    mkdirSync(join(outsideStaging, 'restore-stage-escape', 'resources', 'files'), { recursive: true })
+    writeFileSync(join(outsideStaging, 'restore-stage-escape', 'resources', 'files', 'stage-escape'), 'blob')
+    fs.symlinkSync(outsideStaging, join(userData, 'restore-staging'))
+    const candidate: StagedFileResourceCandidate = {
+      stagedPath,
+      kind: 'blob-add',
+      livePath: join(userData, 'Data', 'Files', 'stage-escape'),
+      ext: null,
+      rewrite: { origin: 'internal', externalPath: null, size: 4 }
+    }
+
+    expect(() =>
+      finalizeFileResources({
+        candidates: new Map([['stage-escape', candidate]]),
+        mergeResult: { ...emptyMergeResult(), acceptedFileEntryIds: ['stage-escape'] },
+        userData
+      })
+    ).toThrow(/escapes userData through symlink/)
+    expect(readFileSync(join(outsideStaging, 'restore-stage-escape', 'resources', 'files', 'stage-escape'), 'utf8')).toBe(
+      'blob'
+    )
+  })
+
   it('defers a live target symlink conflict until merge evidence is available', async () => {
     const liveFileRoot = join(userData, 'Data', 'Files')
     const outside = join(root, 'outside-blob')
@@ -258,6 +376,39 @@ describe('file resource staging', () => {
       stageFileResources({
         archive,
         backupRoot: join(userData, 'restore-staging', 'restore-lite-db-row', 'resources'),
+        liveFileRoot: join(userData, 'Data', 'Files')
+      })
+    ).rejects.toThrow(/lite archive/)
+  })
+
+  it('rejects a lite archive with an unreferenced file_entry row outside selected domains', async () => {
+    const archive = createArchiveContext(root, {
+      rows: [{ id: 'unreferenced-lite-file', ext: 'txt' }],
+      manifestIds: [],
+      includeFiles: false,
+      domains: ['PREFERENCES']
+    })
+
+    await expect(
+      stageFileResources({
+        archive,
+        backupRoot: join(userData, 'restore-staging', 'restore-lite-unreferenced', 'resources'),
+        liveFileRoot: join(userData, 'Data', 'Files')
+      })
+    ).rejects.toThrow(/lite archive/)
+  })
+
+  it('rejects a lite archive with only a soft-deleted file_entry row', async () => {
+    const archive = createArchiveContext(root, {
+      rows: [{ id: 'soft-deleted-lite-file', ext: 'txt', deletedAt: Date.now() }],
+      manifestIds: [],
+      includeFiles: false
+    })
+
+    await expect(
+      stageFileResources({
+        archive,
+        backupRoot: join(userData, 'restore-staging', 'restore-lite-soft-deleted', 'resources'),
         liveFileRoot: join(userData, 'Data', 'Files')
       })
     ).rejects.toThrow(/lite archive/)

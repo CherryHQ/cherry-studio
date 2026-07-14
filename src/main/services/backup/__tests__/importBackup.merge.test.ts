@@ -14,9 +14,9 @@
 // better-sqlite3 online backup of the live test DB — same schema + migration chain, so the
 // admission chain gate classifies it as equal (no migrate-forward) and integrity_check passes.
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
@@ -52,6 +52,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
   const registry = contributorManager.getRegistry()
 
   let tmpDir: string
+  const userDataRoot = tmpdir()
   let stagingRoot: string
   let journalPath: string
   let liveDbPath: string
@@ -76,7 +77,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
         case 'feature.backup.restore.staging':
           return stagingRoot
         case 'app.userdata':
-          return tmpDir
+          return userDataRoot
         case 'app.database.file':
           return liveDbPath
         default:
@@ -143,6 +144,24 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     ).run(id, sourceId, fileEntryId, now, now)
   }
 
+  /** Insert a minimal painting aggregate root. */
+  const insertPainting = (db: Database.Database, id: string): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO painting (id, provider_id, prompt, order_key, created_at, updated_at)
+       VALUES (?, 'provider-test', ?, ?, ?, ?)`
+    ).run(id, `prompt-${id}`, `order-${id}`, now, now)
+  }
+
+  /** Insert a painting output reference. */
+  const insertPaintingFileRef = (db: Database.Database, id: string, sourceId: string, fileEntryId: string): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO painting_file_ref (id, source_id, file_entry_id, role, created_at, updated_at)
+       VALUES (?, ?, ?, 'output', ?, ?)`
+    ).run(id, sourceId, fileEntryId, now, now)
+  }
+
   /** Build a minimal TOPICS lite manifest for archive admission. */
   const buildManifest = (): BackupManifest => ({
     backupFormatVersion: BACKUP_FORMAT_VERSION,
@@ -169,7 +188,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     preset: 'full',
-    domains: ['FILE_STORAGE', 'TOPICS'],
+    domains: ['FILE_STORAGE', 'TOPICS', 'PAINTINGS'],
     includeFiles: true,
     includeKnowledgeFiles: false,
     sensitiveData: { included: true, rotated: false },
@@ -204,7 +223,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     liveDbPath,
     restoreStagingRoot: stagingRoot,
     liveFileRoot: join(tmpDir, 'Data', 'Files'),
-    userData: tmpDir,
+    userData: userDataRoot,
     journalPath,
     admitArchive,
     quiesceWriters: async () => {},
@@ -380,9 +399,11 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
       insertExternalFileEntry(db, 'fe-drift')
       insertTopic(db, 'tpc-files')
       insertMessage(db, 'msg-files', 'tpc-files', 'root', null)
+      insertPainting(db, 'painting-files')
       insertChatMessageFileRef(db, 'ref-accepted', 'msg-files', 'fe-accepted')
       insertChatMessageFileRef(db, 'ref-rejected', 'msg-files', 'fe-rejected')
       insertChatMessageFileRef(db, 'ref-drift', 'msg-files', 'fe-drift')
+      insertPaintingFileRef(db, 'painting-ref-drift', 'painting-files', 'fe-drift')
     })
     await packFileArchive(['fe-accepted', 'fe-rejected'])
 
@@ -406,8 +427,11 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     expect(journal.journal.fileResources).toEqual([
       {
         kind: 'blob-add',
-        stagingPath: join('restore-staging', 'rst-files', 'resources', 'files', 'fe-accepted'),
-        livePath: join('Data', 'Files', 'fe-accepted')
+        stagingPath: relative(
+          userDataRoot,
+          join(stagingRoot, 'rst-files', 'resources', 'files', 'fe-accepted')
+        ),
+        livePath: relative(userDataRoot, join(tmpDir, 'Data', 'Files', 'fe-accepted'))
       }
     ])
     expect(existsSync(join(stagingRoot, 'rst-files', 'resources', 'files', 'fe-rejected'))).toBe(false)
@@ -420,9 +444,34 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
         file_entry_id: string
       }[]
       expect(refs).toEqual([{ file_entry_id: 'fe-accepted' }])
+      expect(workRo.prepare('SELECT file_entry_id FROM painting_file_ref').all()).toEqual([])
+      expect(workRo.prepare(`SELECT id FROM painting WHERE id = 'painting-files'`).get()).toBeDefined()
     } finally {
       workRo.close()
     }
+  })
+
+  it('rejects an unequal pre-existing live blob before journaling and removes the restore subtree', async () => {
+    seedBackup((db) => insertExternalFileEntry(db, 'fe-live-conflict'))
+    await packFileArchive(['fe-live-conflict'])
+    const liveTarget = join(tmpDir, 'Data', 'Files', 'fe-live-conflict')
+    mkdirSync(dirname(liveTarget), { recursive: true })
+    writeFileSync(liveTarget, 'user-owned-live-content')
+
+    const orchestrator = new ImportOrchestrator(
+      makeDeps({
+        stageFileResources: (options) => stageFileResources(options),
+        finalizeFileResources: async (options) => finalizeFileResources(options)
+      })
+    )
+
+    await expect(
+      orchestrator.importBackup({ archivePath, restoreId: 'rst-live-conflict' })
+    ).rejects.toThrow(/conflicts with staged blob/)
+
+    expect(readRestoreJournal().kind).toBe('none')
+    expect(existsSync(join(stagingRoot, 'rst-live-conflict'))).toBe(false)
+    expect(readFileSync(liveTarget, 'utf8')).toBe('user-owned-live-content')
   })
 
   it('throws RestoreQuiesceNotImplementedError and writes no journal when quiesce is the throwing stub (fail-closed ordering)', async () => {

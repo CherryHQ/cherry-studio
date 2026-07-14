@@ -41,6 +41,7 @@ describe('ImportOrchestrator spine', () => {
   const dbh = setupTestDatabase()
 
   let tmpDir: string
+  const userDataRoot = tmpdir()
   let stagingRoot: string
   let journalPath: string
   let liveDbPath: string
@@ -58,7 +59,7 @@ describe('ImportOrchestrator spine', () => {
         case 'feature.backup.restore.staging':
           return stagingRoot
         case 'app.userdata':
-          return tmpDir
+          return userDataRoot
         case 'app.database.file':
           return liveDbPath
         default:
@@ -83,7 +84,7 @@ describe('ImportOrchestrator spine', () => {
     liveDbPath,
     restoreStagingRoot: stagingRoot,
     liveFileRoot: join(tmpDir, 'Data', 'Files'),
-    userData: tmpDir,
+    userData: userDataRoot,
     journalPath,
     // Archive admission is real (admitArchive.ts); spine tests use a no-op stub returning
     // a dummy ArchiveContext (importBackup awaits without binding — the return is discarded
@@ -124,11 +125,9 @@ describe('ImportOrchestrator spine', () => {
     } finally {
       workRo.close()
     }
-    // promote/aside stored userData-relative. In production app.database.file lives
-    // under userData so aside is a clean basename; here the test live DB is in a
-    // sibling temp dir, so assert the exact path.relative the producer computes.
-    expect(read.journal.db.promote).toBe(join('restore-staging', 'rst-001', 'work.sqlite'))
-    expect(read.journal.db.aside).toBe(relative(tmpDir, `${liveDbPath}.aside-rst-001`))
+    // promote/aside are stored relative to the shared temp userData root.
+    expect(read.journal.db.promote).toBe(relative(userDataRoot, join(stagingRoot, 'rst-001', 'work.sqlite')))
+    expect(read.journal.db.aside).toBe(relative(userDataRoot, `${liveDbPath}.aside-rst-001`))
     // work.sqlite sealed — no -wal/-shm sidecars (gate renames only the main file)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite'))).toBe(true)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-wal'))).toBe(false)
