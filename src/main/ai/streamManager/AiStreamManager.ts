@@ -5,8 +5,9 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
@@ -200,6 +201,17 @@ export class AiStreamManager extends BaseService {
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
+  /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
+   *  lifecycle pause — this never touches service state. See `pause()`. */
+  private readonly pauseHolds = new Set<symbol>()
+  /** Steer continuations suppressed by the write-quiesce gate; the last hold's disposal re-kicks
+   *  them (mirrors JobManager's suppressed-fires sets). */
+  private readonly suppressedChatContinuationTopicIds = new Set<string>()
+  /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
+   *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
+  private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /** Shutdown wins over pause-release compensation (same posture as JobManager). */
+  private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -244,7 +256,22 @@ export class AiStreamManager extends BaseService {
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
     await this.reconciled
-    return this.withDispatchLock(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+    return this.withDispatchLock(req.topicId, async () => {
+      // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
+      // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
+      // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates
+      // from `startNextChatTurn`, which is itself gated; the exemption covers the microtask race
+      // where a pause lands between that gate and this one, and the grandfathered launch is
+      // awaited by `drainInFlight` via `inFlightChatContinuations`.
+      if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
+        return {
+          mode: 'blocked' as const,
+          reason: 'paused' as const,
+          message: 'A backup restore is in progress; new messages are paused until it completes.'
+        }
+      }
+      return dispatchStreamRequest(this, subscriber, req)
+    })
   }
 
   /**
@@ -258,6 +285,139 @@ export class AiStreamManager extends BaseService {
    */
   withDispatchLock<T>(topicId: string, fn: () => Promise<T>): Promise<T> {
     return this.dispatchLock.runExclusive(topicId, fn)
+  }
+
+  // ── Write quiesce (backup restore) ───────────────────────────────
+  // Contract shared with JobManager / AgentSessionRuntimeService / ChannelManager
+  // (issues #16849/#16850): pause() gates new-turn ADMISSION (before prepareDispatch
+  // writes rows) so a restore snapshot sees no new `agent_session_message`/`message`
+  // writes; drainInFlight() awaits everything already writing. Prompt streams
+  // (translate / API gateway / topic naming) carry no persistence listener and are
+  // neither gated nor drained. `AiService.embedMany` never routes through this
+  // manager, so embeddings stay available while quiesced.
+
+  /** True while any write-quiesce hold is live. Public because `startAgentSessionRun` gates on it. */
+  get isWriteQuiesced(): boolean {
+    return this.pauseHolds.size > 0
+  }
+
+  /**
+   * Pause new-turn admission: `dispatch()` returns `{mode:'blocked', reason:'paused'}` and
+   * `startAgentSessionRun` throws while any hold is live; queued steer continuations are
+   * suppressed (not consumed). In-flight streams keep running until drained. There is
+   * deliberately NO resume(): dispose your own hold; the last disposal re-kicks suppressed
+   * continuations. A dropped hold fails closed (paused until relaunch).
+   */
+  pause(reason?: string): Disposable {
+    const token = Symbol(reason ?? 'ai-stream-manager-pause')
+    this.pauseHolds.add(token)
+    logger.info('AiStreamManager paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+    return {
+      dispose: () => {
+        if (!this.pauseHolds.delete(token)) return
+        logger.info('AiStreamManager pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
+        if (this.pauseHolds.size > 0) return
+        // Shutdown wins: onStop owns the teardown; a compensation kick would only race it.
+        if (this.isShuttingDown) return
+        this.runReleaseCompensation()
+      }
+    }
+  }
+
+  /**
+   * Await in-flight persistence-bearing work, bounded by timeoutMs. Never rejects; stragglers
+   * are NOT aborted (the restore orchestrator decides — aborting would settle terminal rows
+   * into the snapshot). Wait-set: live executions of streams that carry a `persistence:*`
+   * listener, in-flight steer-continuation launches, and the detached topic/session naming
+   * writes (`TopicNamingService.inFlightWrites()` — spawned `void` from PersistenceListener,
+   * so a stream's loopPromise settles before they land). The set can GROW one step while
+   * draining (a settling loop spawns a naming write; a grandfathered continuation opens a
+   * stream), so the drain is a fixed point over promise identities rather than one snapshot.
+   *
+   * PRECONDITION: hold a live pause() hold — without one the verdict is a point-in-time
+   * snapshot (warned, not thrown).
+   */
+  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    if (!this.isWriteQuiesced) {
+      logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
+    }
+
+    const seen = new WeakSet<Promise<unknown>>()
+    const pending = new Map<Promise<unknown>, string>()
+    const collect = (): void => {
+      for (const [promise, id] of this.drainWaitSet()) {
+        if (seen.has(promise)) continue
+        seen.add(promise)
+        pending.set(promise, id)
+        // Single-hop removal: registered before allSettled attaches its handlers, so by the
+        // time an allSettled round resolves every settled promise has left `pending`.
+        const remove = () => pending.delete(promise)
+        promise.then(remove, remove)
+      }
+    }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
+    })
+    try {
+      for (;;) {
+        collect()
+        if (pending.size === 0) return { stragglerIds: [] }
+        const winner = await Promise.race([
+          Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
+          timeout
+        ])
+        if (winner === 'timeout') {
+          const stragglerIds = [...new Set(pending.values())]
+          logger.warn('drainInFlight timed out with unsettled work', { timeoutMs: opts.timeoutMs, stragglerIds })
+          return { stragglerIds }
+        }
+      }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
+  /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
+  listActiveWork(): Array<{ id: string; summary: string }> {
+    const work: Array<{ id: string; summary: string }> = []
+    for (const [topicId, stream] of this.activeStreams) {
+      if (!isLiveStatus(stream.status)) continue
+      work.push({ id: topicId, summary: `stream:${stream.status} execs=${stream.executions.size}` })
+    }
+    for (const topicId of this.inFlightChatContinuations.keys()) {
+      work.push({ id: `chat-continuation:${topicId}`, summary: 'steer continuation launching' })
+    }
+    return work
+  }
+
+  private drainWaitSet(): Array<[Promise<unknown>, string]> {
+    const entries: Array<[Promise<unknown>, string]> = []
+    for (const [topicId, stream] of this.activeStreams) {
+      // Only streams that persist are waited on. That's listener-derived, not lifecycle-derived:
+      // a chunks-only prompt stream (API gateway, orphan translate) is excluded, while a
+      // translate-with-persist carries a TranslationBackend PersistenceListener and IS drained.
+      const persistent = [...stream.listeners.keys()].some((id) => id.startsWith('persistence:'))
+      if (!persistent) continue
+      for (const exec of stream.executions.values()) entries.push([exec.loopPromise, topicId])
+    }
+    for (const [topicId, launch] of this.inFlightChatContinuations) {
+      entries.push([launch, `chat-continuation:${topicId}`])
+    }
+    for (const [key, write] of topicNamingService.inFlightWrites()) {
+      entries.push([write, `naming:${key}`])
+    }
+    return entries
+  }
+
+  /** Last-hold release: re-kick suppressed steer continuations. The re-check guard skips
+   *  WITHOUT draining the set, so a newer hold (or shutdown) inherits the debt. */
+  private runReleaseCompensation(): void {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    const suppressed = [...this.suppressedChatContinuationTopicIds]
+    this.suppressedChatContinuationTopicIds.clear()
+    for (const topicId of suppressed) this.scheduleNextChatTurn(topicId)
   }
 
   /**
@@ -284,6 +444,7 @@ export class AiStreamManager extends BaseService {
    * cause append-only backends to write the assistant turn twice.
    */
   protected async onStop(): Promise<void> {
+    this.isShuttingDown = true
     const activeTopics = [...this.activeStreams.entries()]
       .filter(([, s]) => isLiveStatus(s.status))
       .map(([topicId]) => topicId)
@@ -824,15 +985,25 @@ export class AiStreamManager extends BaseService {
     })
   }
 
-  /** Drain-dedup + microtask defer for the steer continuation. Mirrors `scheduleNextTurn`. */
+  /** Drain-dedup + microtask defer for the steer continuation. Mirrors `scheduleNextTurn`.
+   *  The launch promise is registered into `inFlightChatContinuations` SYNCHRONOUSLY — the
+   *  caller runs inside a settling loopPromise, so a drain that just awaited that loop must
+   *  see the pending launch on its next collect, not miss it behind the microtask. */
   private scheduleNextChatTurn(topicId: string): void {
     if (this.startingNextChatTopicIds.has(topicId)) return
     this.startingNextChatTopicIds.add(topicId)
-    queueMicrotask(() => {
-      void this.startNextChatTurn(topicId)
-        .catch((error) => logger.error('Failed to start chat steer continuation', { topicId, error }))
-        .finally(() => this.startingNextChatTopicIds.delete(topicId))
+    const launch = new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        void this.startNextChatTurn(topicId)
+          .catch((error) => logger.error('Failed to start chat steer continuation', { topicId, error }))
+          .finally(() => {
+            this.startingNextChatTopicIds.delete(topicId)
+            this.inFlightChatContinuations.delete(topicId)
+            resolve()
+          })
+      })
     })
+    this.inFlightChatContinuations.set(topicId, launch)
   }
 
   /**
@@ -841,6 +1012,12 @@ export class AiStreamManager extends BaseService {
    * listeners are rebuilt by `prepareDispatch`. Mirrors `AgentSessionRuntimeService.startNextTurn`.
    */
   private async startNextChatTurn(topicId: string): Promise<void> {
+    // Write-quiesce: suppress the launch before consuming the queue head — the steer stays
+    // queued (its user row is already persisted) and the last hold's disposal re-kicks it.
+    if (this.isWriteQuiesced) {
+      this.suppressedChatContinuationTopicIds.add(topicId)
+      return
+    }
     const queue = this.pendingSteers.get(topicId)
     const userMessageId = queue?.[0]
     if (!userMessageId) {

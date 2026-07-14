@@ -43,6 +43,16 @@ export async function startAgentSessionRun(input: {
   // concurrently — or race a renderer open — and without this both could observe no live
   // stream and each write a placeholder, orphaning one as a permanently "thinking" row.
   await manager.withDispatchLock(topicId, async () => {
+    // Write-quiesce admission gate (backup restore), re-checked under the lock and BEFORE
+    // `prepareDispatch` writes the user/pending-assistant rows. Both callers handle the
+    // rejection: an `agent.task` job settles failed-retryable; channel inbound notifies the
+    // user — and per the restore orchestration order, channel batches are flushed and
+    // admitted before the AI pause, so this throw only fires for out-of-order callers.
+    if (manager.isWriteQuiesced) {
+      throw new Error(
+        'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
+      )
+    }
     const prepared = await agentChatContextProvider.prepareDispatch(primary, {
       trigger: 'submit-message',
       topicId,
