@@ -1,3 +1,4 @@
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import React from 'react'
@@ -10,6 +11,7 @@ import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike 
 import BlockErrorFallback from './BlockErrorFallback'
 import { usePartsMap } from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
+import { useScrollAnchor } from './useScrollAnchor'
 
 // ============ Types & Helpers ============
 
@@ -219,7 +221,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
         <div className="flex items-center text-[13px]">
-          <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+          <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 hover:text-foreground">
             {displayCandidate.label}
           </span>
         </div>
@@ -229,7 +231,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'activity') {
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
-          <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+          <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 hover:text-foreground">
             {displayCandidate.label}
           </PlaceholderShimmerText>
         </div>
@@ -261,7 +263,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
-            <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+            <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 hover:text-foreground">
               {fallbackLabel}
             </span>
           </div>
@@ -302,3 +304,40 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
   </div>
 ))
 ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
+
+interface ToolBlockGroupProps {
+  children?: React.ReactNode
+  items: ToolRenderItem[]
+}
+
+/** A nested, independently collapsible group of adjacent tool calls. */
+export const ToolBlockGroup = React.memo(({ children, items }: ToolBlockGroupProps) => {
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
+  const isLiveProgress = items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
+
+  return (
+    <div ref={anchorRef} className="group/child-tool-group w-full max-w-full" data-testid="child-tool-group">
+      <Accordion
+        type="single"
+        collapsible
+        value={isExpanded ? 'tools' : ''}
+        onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'tools'), { settleAfterMs: 220 })}>
+        <AccordionItem value="tools" className="border-0 first:border-t-0">
+          <AccordionTrigger className="h-auto min-h-7 w-fit max-w-full flex-none justify-start rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:ring-0 [&>svg]:hidden">
+            <div className="min-w-0 overflow-hidden">
+              <ToolBlockGroupHeaderContent items={items} isLiveProgress={isLiveProgress} />
+            </div>
+          </AccordionTrigger>
+          <AccordionContent
+            data-testid="child-tool-group-content"
+            className="p-0 pt-1 text-inherit"
+            contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
+            {children ?? <ToolBlockGroupContent items={items} />}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  )
+})
+ToolBlockGroup.displayName = 'ToolBlockGroup'

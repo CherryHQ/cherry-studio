@@ -1,20 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { AgentToolsType } from '../shared/agentToolTypes'
 import ToolHeader, { getReadableToolActivity } from '../ToolHeader'
-
-const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => options?.defaultValue ?? key
   })
-}))
-
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ theme: mockThemeState.theme })
 }))
 
 const translations: Record<string, string> = {
@@ -122,10 +116,6 @@ describe('getReadableToolActivity', () => {
 })
 
 describe('ToolHeader', () => {
-  beforeEach(() => {
-    mockThemeState.theme = 'light'
-  })
-
   it('does not render a tool icon in collapsed tool titles', () => {
     const { container } = render(
       React.createElement(ToolHeader, {
@@ -187,10 +177,10 @@ describe('ToolHeader', () => {
       'title',
       'pnpm test:renderer src/renderer/components/chat/messages/tools/__tests__/ToolHeader.test.ts'
     )
-    expect(commandPreview.querySelector('span')).toHaveTextContent('pnpm')
+    expect(commandPreview.querySelector('span')).toBeNull()
   })
 
-  it('uses CSS theme variants for command preview colors', () => {
+  it('uses a plain neutral style for command previews', () => {
     render(
       React.createElement(ToolHeader, {
         args: { command: 'gh pr view 16600 --json title' },
@@ -201,26 +191,8 @@ describe('ToolHeader', () => {
     )
 
     const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview.className).toContain('bg-[#f5f5f5]')
-    expect(commandPreview.className).toContain('text-[#1e1e1e]')
-    expect(commandPreview.className).toContain('dark:bg-[#1e1e1e]')
-    expect(commandPreview.className).toContain('dark:text-[#d4d4d4]')
-  })
-
-  it('keeps shell highlighting when command preview uses the dark palette', () => {
-    mockThemeState.theme = 'dark'
-
-    render(
-      React.createElement(ToolHeader, {
-        args: { command: 'gh pr view 16600 --json title' },
-        status: 'invoking',
-        toolName: AgentToolsType.Bash,
-        variant: 'collapse-label'
-      })
-    )
-
-    const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview.querySelector('span')).toBeInTheDocument()
+    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-foreground-secondary')
+    expect(commandPreview.querySelector('span')).toBeNull()
   })
 
   it('truncates long bash command information in tool call labels', () => {
@@ -244,7 +216,7 @@ describe('ToolHeader', () => {
     expect(commandPreview).toHaveClass('sm:block')
     expect(commandPreview.className).toContain('max-w-[clamp(6rem,42vw,32rem)]')
     expect(commandPreview.className).toContain('shrink-[2]')
-    expect(commandPreview.querySelectorAll('span').length).toBeGreaterThan(0)
+    expect(commandPreview.querySelector('span')).toBeNull()
   })
 
   it('truncates long chained bash commands at shell separators', () => {
@@ -283,24 +255,6 @@ describe('ToolHeader', () => {
     expect(commandPreview).toHaveTextContent(/…$/)
     expect(commandPreview.textContent?.endsWith('/…')).toBe(false)
     expect(commandPreview.textContent?.length).toBeLessThanOrEqual(160)
-  })
-
-  it('uses terminal shell highlighting for command previews', () => {
-    render(
-      React.createElement(ToolHeader, {
-        args: { command: 'node scripts/build.js --mode "production"' },
-        status: 'invoking',
-        toolName: AgentToolsType.Bash,
-        variant: 'collapse-label'
-      })
-    )
-
-    const commandPreview = screen.getByTestId('tool-command-preview')
-    const highlightedTokens = Array.from(commandPreview.querySelectorAll('span')).filter((node) =>
-      node.getAttribute('style')?.includes('color')
-    )
-    expect(highlightedTokens.length).toBeGreaterThan(0)
-    expect(commandPreview).toHaveTextContent('node scripts/build.js --mode "production"')
   })
 
   it('normalizes multiline bash commands before showing the command preview', () => {

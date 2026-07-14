@@ -1,9 +1,6 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/hooks/useTheme'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import Ansi from 'ansi-to-react'
 import {
   Bot,
   DoorOpen,
@@ -29,7 +26,6 @@ import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
 import { AgentToolsType } from './shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
-import { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from './shared/terminalOutputHelpers'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 export interface ToolActivity {
@@ -549,20 +545,12 @@ const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
 )
 
 const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) => {
-  const { theme } = useTheme()
-  const isLightTheme = theme === ThemeMode.light
-  const palette = isLightTheme ? shellColorPalettes.light : shellColorPalettes.dark
-  const colorized = colorizeShellOutput(text, true, palette)
-
   return (
     <code
       data-testid="tool-command-preview"
       title={fullText}
-      className={[
-        "hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] leading-4 sm:block",
-        TERMINAL_SURFACE_CLASS
-      ].join(' ')}>
-      <Ansi>{colorized}</Ansi>
+      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-foreground-secondary leading-4 sm:block">
+      {text}
     </code>
   )
 }

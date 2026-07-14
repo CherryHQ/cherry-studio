@@ -1,8 +1,8 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
-import { ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
+import { ToolBlockGroup, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
@@ -109,6 +109,19 @@ const errorEditItem = {
 describe('ToolBlockGroup', () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('keeps a nested tool group collapsed until its own header is clicked', () => {
+    render(<ToolBlockGroup items={[readDoneItem]} />)
+
+    const trigger = screen.getByRole('button', { name: '1 tool calls' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+    fireEvent.click(trigger)
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
   })
 
   it('shows live progress instead of the summary while any tool is still running', () => {
