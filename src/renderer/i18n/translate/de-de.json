@@ -3168,6 +3168,7 @@
             "no_skills_enabled": "Keine Fähigkeiten aktiviert",
             "search_placeholder": "Suchwerkzeuge oder Server...",
             "skills_coming_soon": "Fertigkeitszuordnungen kommen bald",
+            "skills_enable_all": "Alle aktivieren",
             "skills_require_save": "Vor dem Aktivieren von Fähigkeiten speichern",
             "tab": {
               "mcp": "MCP-Server",

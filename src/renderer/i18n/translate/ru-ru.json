@@ -3168,6 +3168,7 @@
             "no_skills_enabled": "Навыки не включены",
             "search_placeholder": "Инструменты или серверы поиска...",
             "skills_coming_soon": "Привязки навыков скоро появятся",
+            "skills_enable_all": "Включить все",
             "skills_require_save": "Сохраните перед включением навыков",
             "tab": {
               "mcp": "MCP-сервер",

@@ -3168,6 +3168,7 @@
             "no_skills_enabled": "未启用任何技能",
             "search_placeholder": "搜索工具或 Server...",
             "skills_coming_soon": "Skill 绑定即将支持",
+            "skills_enable_all": "全部开启",
             "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP",

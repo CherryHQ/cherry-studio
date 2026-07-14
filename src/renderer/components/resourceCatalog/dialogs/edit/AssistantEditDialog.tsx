@@ -181,6 +181,7 @@ function AssistantEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const initializedResourceIdRef = useRef<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -209,8 +210,31 @@ function AssistantEditDialogContent({
     [t]
   )
 
+  // Cache refresh can replace `resource` before the controlled dialog closes.
+  // Initialize once per open resource id so that refresh cannot flash the initial form.
+  // A same-id refresh instead merges the fresh values into pristine fields (dirty
+  // fields keep the user's edits) so that saving cannot write stale data back over
+  // the refresh; `saveIntent` diffs against the refreshed resource, so merged fields
+  // stay out of the PATCH.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedResourceIdRef.current = null
+      return
+    }
+    if (initializedResourceIdRef.current === resource.id) {
+      if (!form.formState.isSubmitting) {
+        const isModelDirty = form.getFieldState('modelId').isDirty
+        form.reset(defaultValues, { keepDirtyValues: true, keepErrors: true })
+        if (!isModelDirty) {
+          setModelLabels((currentLabels) => ({
+            ...currentLabels,
+            modelId: modelLabelsForAssistant(resource).modelId
+          }))
+        }
+      }
+      return
+    }
+    initializedResourceIdRef.current = resource.id
 
     form.reset(defaultValues)
     form.clearErrors()

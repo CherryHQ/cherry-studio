@@ -3168,6 +3168,7 @@
             "no_skills_enabled": "No skills enabled",
             "search_placeholder": "Search tools or servers...",
             "skills_coming_soon": "Skill bindings coming soon",
+            "skills_enable_all": "Enable all",
             "skills_require_save": "Save before enabling skills",
             "tab": {
               "mcp": "MCP",

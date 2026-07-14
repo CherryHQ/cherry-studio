@@ -10,6 +10,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -158,20 +159,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       let created: AgentDetail
       try {
         created = await createAgent({
-          body: {
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions'
-            }
-          }
+          body: buildCreateAgentDto(values)
         })
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)

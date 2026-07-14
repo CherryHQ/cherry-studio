@@ -3168,6 +3168,7 @@
             "no_skills_enabled": "Nenhuma habilidade ativada",
             "search_placeholder": "Ferramentas ou servidores de pesquisa...",
             "skills_coming_soon": "Vinculações de habilidades em breve",
+            "skills_enable_all": "Ativar Todos",
             "skills_require_save": "Salve antes de ativar habilidades",
             "tab": {
               "mcp": "Servidor MCP",
