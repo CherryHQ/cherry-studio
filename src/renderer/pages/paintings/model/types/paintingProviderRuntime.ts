@@ -6,6 +6,7 @@ export interface PaintingProviderRuntime {
   id: string
   name: string
   presetProviderId?: string
+  defaultChatEndpoint?: Provider['defaultChatEndpoint']
   isEnabled: boolean
   apiHost: string
   getApiKey: () => Promise<string>
@@ -96,6 +97,7 @@ export function createPaintingProviderRuntime(
     id: provider?.id || providerId,
     name: provider?.name || providerId,
     presetProviderId: provider?.presetProviderId,
+    defaultChatEndpoint: provider?.defaultChatEndpoint,
     isEnabled: provider?.isEnabled ?? false,
     apiHost: resolvePaintingApiHost(provider),
     getApiKey: async () => apiKey
