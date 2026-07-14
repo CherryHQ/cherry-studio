@@ -156,6 +156,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.input': 'Input',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
+    'agent.sidebar_title': 'Agents',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -693,18 +694,20 @@ describe('AgentToolRenderer', () => {
         },
         status: 'done',
         arguments: {
-          path: '/settings/provider',
-          query: { id: 'openai' }
+          path: '/app/agents',
+          query: { sessionId: 'session-1' }
         },
-        response: 'Navigated to /settings/provider'
+        response: 'Navigate link created: /app/agents'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText(/Agents/)).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button'))
 
       expect(navigateToRoute).toHaveBeenCalledWith({
-        path: '/settings/provider',
-        query: { id: 'openai' }
+        path: '/app/agents',
+        query: { sessionId: 'session-1' }
       })
     })
   })
