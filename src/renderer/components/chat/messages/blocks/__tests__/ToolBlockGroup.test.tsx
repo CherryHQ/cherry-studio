@@ -40,7 +40,10 @@ vi.mock('../../tools/shared/GenericTools', () => ({
 
 vi.mock('../../tools/ToolHeader', () => ({
   __esModule: true,
-  getReadableToolActivity: () => ({ label: 'Check', description: 'Project checks' }),
+  getReadableToolActivity: (toolName: string) =>
+    ['do_magic', 'fetch_markdown', 'send_email', 'web_search'].some((name) => toolName.includes(name))
+      ? undefined
+      : { label: 'Check', description: 'Project checks' },
   default: ({ shimmer, toolResponse, status }: any) => (
     <div data-testid="mock-tool-header" data-shimmer={String(!!shimmer)}>
       {toolResponse?.tool?.name}:{status ?? toolResponse?.status}
@@ -101,6 +104,68 @@ const bashDoneItem = {
   }
 } as ToolRenderItem
 
+const webSearchDoneItem = {
+  ...readDoneItem,
+  id: 'tool-web-search',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-web-search',
+    toolCallId: 'tool-web-search',
+    tool: { id: 'tool-web-search', name: 'exa:web_search_exa', type: 'mcp' }
+  }
+} as ToolRenderItem
+
+const webFetchDoneItem = {
+  ...readDoneItem,
+  id: 'tool-web-fetch',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-web-fetch',
+    toolCallId: 'tool-web-fetch',
+    tool: { id: 'tool-web-fetch', name: 'fetch_markdown', type: 'mcp' }
+  }
+} as ToolRenderItem
+
+const emailDoneItem = {
+  ...readDoneItem,
+  id: 'tool-email',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-email',
+    toolCallId: 'tool-email',
+    tool: { id: 'tool-email', name: 'send_email', type: 'mcp' }
+  }
+} as ToolRenderItem
+
+const unknownMcpDoneItem = {
+  ...readDoneItem,
+  id: 'tool-unknown-mcp',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-unknown-mcp',
+    toolCallId: 'tool-unknown-mcp',
+    tool: { id: 'mcp__custom__do_magic', name: 'mcp__custom__do_magic', type: 'provider' }
+  }
+} as ToolRenderItem
+
+const unknownMcpRunningItem = {
+  ...unknownMcpDoneItem,
+  toolResponse: {
+    ...unknownMcpDoneItem.toolResponse,
+    status: 'pending',
+    response: undefined
+  }
+} as ToolRenderItem
+
+const unknownMcpErrorItem = {
+  ...unknownMcpDoneItem,
+  toolResponse: {
+    ...unknownMcpDoneItem.toolResponse,
+    status: 'error',
+    response: { isError: true }
+  }
+} as ToolRenderItem
+
 const runningEditItem = {
   id: 'tool-c',
   toolResponse: {
@@ -132,6 +197,7 @@ describe('ToolBlockGroup', () => {
 
     const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveClass('select-none')
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-file-text')).not.toBeNull()
     expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
@@ -140,7 +206,8 @@ describe('ToolBlockGroup', () => {
     fireEvent.click(trigger)
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByTestId('child-tool-group-divider')).toBeInTheDocument()
+    expect(screen.getByTestId('child-tool-group-content')).toHaveClass('pt-2')
+    expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
   })
 
@@ -162,7 +229,54 @@ describe('ToolBlockGroup', () => {
   it('uses the latest tool type to choose the collapsed group icon', () => {
     render(<ToolBlockGroup items={[bashDoneItem]} />)
 
-    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-terminal')).not.toBeNull()
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-square-terminal')).not.toBeNull()
+  })
+
+  it('uses a readable title and web icon for a web-search tool group', () => {
+    render(<ToolBlockGroup items={[webSearchDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-globe')).not.toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'message.tools.activity.search message.tools.activity.webSearch' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses a readable title and web icon for a web-fetch tool group', () => {
+    render(<ToolBlockGroup items={[webFetchDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-globe')).not.toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'message.tools.activity.view message.tools.activity.webPage' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the MCP action and content type for the group title and icon', () => {
+    render(<ToolBlockGroup items={[emailDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-mail')).not.toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'message.tools.activity.send message.tools.activity.email' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses a safe extension title for an unrecognized MCP tool', () => {
+    render(<ToolBlockGroup items={[unknownMcpDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-sparkles')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'message.tools.activity.usedExtension' })).toBeInTheDocument()
+  })
+
+  it('uses the active extension title while an unrecognized MCP tool is running', () => {
+    render(<ToolBlockGroup items={[unknownMcpRunningItem]} isLiveProgress />)
+
+    expect(screen.getByRole('button', { name: 'message.tools.activity.usingExtension' })).toBeInTheDocument()
+    expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
+  })
+
+  it('uses a clear failure title when an MCP tool fails', () => {
+    render(<ToolBlockGroup items={[unknownMcpErrorItem]} />)
+
+    expect(screen.getByRole('button', { name: 'message.tools.activity.extensionFailed' })).toBeInTheDocument()
   })
 
   it('shows live progress instead of the summary while any tool is still running', () => {

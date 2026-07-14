@@ -225,6 +225,24 @@ describe('AgentToolRenderer', () => {
     })
   })
 
+  describe('unknown MCP tool rendering', () => {
+    it('shows the tool type before the MCP tool name', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__exa__web_search_exa',
+          name: 'mcp__exa__web_search_exa',
+          description: 'Search the web',
+          type: 'provider'
+        },
+        status: 'done'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByRole('button', { name: 'MCP Server Tool exa:web_search_exa' })).toBeInTheDocument()
+    })
+  })
+
   describe('partial-json parsing', () => {
     it('should parse partial JSON correctly', () => {
       // Test partial-json library behavior

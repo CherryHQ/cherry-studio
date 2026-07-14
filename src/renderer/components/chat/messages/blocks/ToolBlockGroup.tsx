@@ -3,13 +3,17 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
+  CalendarDays,
+  Database,
   FileSearch,
   FileText,
   Globe,
+  ImageIcon,
   ListChecks,
   type LucideIcon,
+  Mail,
   Sparkles,
-  Terminal,
+  SquareTerminal,
   Wrench
 } from 'lucide-react'
 import React from 'react'
@@ -59,8 +63,8 @@ type ToolHeaderCandidate =
 
 const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.Agent]: Sparkles,
-  [AgentToolsType.Bash]: Terminal,
-  [AgentToolsType.BashOutput]: Terminal,
+  [AgentToolsType.Bash]: SquareTerminal,
+  [AgentToolsType.BashOutput]: SquareTerminal,
   [AgentToolsType.Edit]: FileText,
   [AgentToolsType.Glob]: FileSearch,
   [AgentToolsType.Grep]: FileSearch,
@@ -84,10 +88,116 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.WebSearch]: Globe,
   [AgentToolsType.Write]: FileText
 }
+const TOOL_GROUP_ICON_CLASS_NAME =
+  'size-3.5 text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
 
-function ToolGroupContentIcon({ toolName }: { toolName?: string }) {
-  const Icon = (toolName && TOOL_GROUP_ICON_BY_NAME[toolName]) || Wrench
-  return <Icon aria-hidden="true" className="size-3.5" />
+type ToolGroupTool = ToolRenderItem['toolResponse']['tool']
+type McpActivityAction = 'analyze' | 'create' | 'delete' | 'execute' | 'modify' | 'search' | 'send' | 'view'
+type McpActivityTarget =
+  | 'calendar'
+  | 'data'
+  | 'documentFiles'
+  | 'email'
+  | 'imageFiles'
+  | 'relatedContent'
+  | 'taskList'
+  | 'webPage'
+  | 'webSearch'
+
+interface McpToolGroupPresentation {
+  action?: McpActivityAction
+  icon: LucideIcon
+  target?: McpActivityTarget
+}
+
+const MCP_LABEL_KEYS_BY_ACTION: Record<McpActivityAction, [inactive: string, active: string]> = {
+  analyze: ['analyze', 'analyzing'],
+  create: ['create', 'creating'],
+  delete: ['delete', 'deleting'],
+  execute: ['executeCommand', 'executingCommand'],
+  modify: ['modify', 'modifying'],
+  search: ['search', 'searching'],
+  send: ['send', 'sending'],
+  view: ['view', 'viewing']
+}
+const MCP_ANALYZE_PATTERN = /_(?:analyze|inspect|summarize)_/
+const MCP_CALENDAR_PATTERN = /_(?:calendar|event|schedule)_/
+const MCP_CREATE_PATTERN = /_(?:create|insert|new)_/
+const MCP_DATA_PATTERN = /_(?:database|dataset|record|sql|table)_/
+const MCP_DELETE_PATTERN = /_(?:delete|remove)_/
+const MCP_DOCUMENT_PATTERN = /_(?:document|file|markdown|pdf)_/
+const MCP_EMAIL_PATTERN = /_(?:mail|email|message)_/
+const MCP_EXECUTE_PATTERN = /_(?:call|execute|invoke|run)_/
+const MCP_IMAGE_PATTERN = /_(?:image|photo|picture)_/
+const MCP_MODIFY_PATTERN = /_(?:edit|patch|update|write)_/
+const MCP_SEARCH_PATTERN = /_(?:find|query|search)_/
+const MCP_SEND_PATTERN = /_(?:publish|send|upload)_/
+const MCP_TASK_PATTERN = /_(?:task|todo)_/
+const MCP_VIEW_PATTERN = /_(?:fetch|get|list|read|view)_/
+const MCP_WEB_PATTERN = /_(?:browser|fetch_markdown|http|url|web|website)_/
+
+function normalizeToolSemanticText(value: string): string {
+  return `_${value
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')}_`
+}
+
+function getMcpToolGroupPresentation(tool: ToolGroupTool | undefined): McpToolGroupPresentation | undefined {
+  if (!tool || (tool.type !== 'mcp' && !tool.id.startsWith('mcp__') && !tool.name.startsWith('mcp__'))) {
+    return undefined
+  }
+
+  const serverName = 'serverName' in tool && typeof tool.serverName === 'string' ? tool.serverName : ''
+  const semanticText = normalizeToolSemanticText(`${serverName} ${tool.id} ${tool.name} ${tool.description ?? ''}`)
+
+  let target: McpActivityTarget | undefined
+  let icon: LucideIcon = Sparkles
+  if (MCP_EMAIL_PATTERN.test(semanticText)) {
+    target = 'email'
+    icon = Mail
+  } else if (MCP_CALENDAR_PATTERN.test(semanticText)) {
+    target = 'calendar'
+    icon = CalendarDays
+  } else if (MCP_DATA_PATTERN.test(semanticText)) {
+    target = 'data'
+    icon = Database
+  } else if (MCP_IMAGE_PATTERN.test(semanticText)) {
+    target = 'imageFiles'
+    icon = ImageIcon
+  } else if (MCP_TASK_PATTERN.test(semanticText)) {
+    target = 'taskList'
+    icon = ListChecks
+  } else if (MCP_WEB_PATTERN.test(semanticText)) {
+    target = MCP_SEARCH_PATTERN.test(semanticText) ? 'webSearch' : 'webPage'
+    icon = Globe
+  } else if (MCP_DOCUMENT_PATTERN.test(semanticText)) {
+    target = 'documentFiles'
+    icon = FileText
+  }
+
+  let action: McpActivityAction | undefined
+  if (MCP_DELETE_PATTERN.test(semanticText)) action = 'delete'
+  else if (MCP_CREATE_PATTERN.test(semanticText)) action = 'create'
+  else if (MCP_MODIFY_PATTERN.test(semanticText)) action = 'modify'
+  else if (MCP_SEND_PATTERN.test(semanticText)) action = 'send'
+  else if (MCP_ANALYZE_PATTERN.test(semanticText)) action = 'analyze'
+  else if (MCP_SEARCH_PATTERN.test(semanticText)) action = 'search'
+  else if (MCP_VIEW_PATTERN.test(semanticText)) action = 'view'
+  else if (MCP_EXECUTE_PATTERN.test(semanticText)) action = 'execute'
+
+  if (icon === Sparkles) {
+    if (action === 'search') icon = FileSearch
+    else if (action === 'execute') icon = SquareTerminal
+    else if (action === 'create' || action === 'delete' || action === 'modify') icon = FileText
+  }
+
+  return { action, icon, target: target ?? (action ? 'relatedContent' : undefined) }
+}
+
+function ToolGroupContentIcon({ tool }: { tool?: ToolGroupTool }) {
+  const Icon = (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool)?.icon || Wrench
+  return <Icon aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
 }
 
 function getActivityCandidateKey(label: React.ReactNode): string {
@@ -190,13 +300,34 @@ interface ToolBlockGroupHeaderContentProps {
   summaryIcon?: React.ReactNode
 }
 
+function getMcpToolGroupActivity(
+  presentation: McpToolGroupPresentation,
+  isActive: boolean,
+  t: ReturnType<typeof useTranslation>['t']
+) {
+  if (!presentation.action) {
+    return { label: t(`message.tools.activity.${isActive ? 'usingExtension' : 'usedExtension'}`) }
+  }
+
+  const [inactiveLabelKey, activeLabelKey] = MCP_LABEL_KEYS_BY_ACTION[presentation.action]
+  return {
+    label: t(`message.tools.activity.${isActive ? activeLabelKey : inactiveLabelKey}`),
+    description: presentation.target ? t(`message.tools.activity.${presentation.target}`) : undefined
+  }
+}
+
 function getSemanticToolTitle(
   candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
   t: ReturnType<typeof useTranslation>['t']
 ) {
   const { toolResponse } = candidate.item
   const isActive = candidate.status === 'invoking' || candidate.status === 'streaming' || candidate.status === 'waiting'
-  const activity = getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t)
+  const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool)
+  if (mcpPresentation && candidate.status === 'error') return t('message.tools.activity.extensionFailed')
+
+  const activity =
+    getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t) ??
+    (mcpPresentation ? getMcpToolGroupActivity(mcpPresentation, isActive, t) : undefined)
   if (!activity) return t(isActive ? 'message.processing' : 'message.tools.processed')
   if (!activity.description) return activity.label
 
@@ -278,7 +409,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         {icon && (
           <span
             aria-hidden="true"
-            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
             {icon}
           </span>
@@ -297,7 +428,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     const renderSemanticTitle = (title: React.ReactNode, icon?: React.ReactNode, key?: React.Key) =>
       renderWithElapsed(
         <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
-          <span className="block truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="block truncate font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {title}
           </span>
           {isLiveProgress && (
@@ -309,14 +440,12 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         icon
       )
 
-    const latestToolIcon = showContentIcon ? (
-      <ToolGroupContentIcon toolName={items.at(-1)?.toolResponse.tool.name} />
-    ) : undefined
+    const latestToolIcon = showContentIcon ? <ToolGroupContentIcon tool={items.at(-1)?.toolResponse.tool} /> : undefined
 
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
         <div className="flex items-center text-[13px]">
-          <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="whitespace-nowrap font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </span>
         </div>,
@@ -329,7 +458,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
-          <PlaceholderShimmerText className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <PlaceholderShimmerText className="truncate font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </PlaceholderShimmerText>
         </div>
@@ -338,9 +467,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     if (semanticToolTitle) {
       const title = getSemanticToolTitle(displayCandidate, t)
-      const icon = showContentIcon ? (
-        <ToolGroupContentIcon toolName={displayCandidate.item.toolResponse.tool.name} />
-      ) : undefined
+      const icon = showContentIcon ? <ToolGroupContentIcon tool={displayCandidate.item.toolResponse.tool} /> : undefined
       return renderSemanticTitle(title, icon, displayCandidate.item.id)
     }
 
@@ -379,14 +506,14 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         {(summaryIcon || showContentIcon) && (
           <span
             aria-hidden="true"
-            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
-            {summaryIcon ?? <ToolGroupContentIcon toolName={items.at(-1)?.toolResponse.tool.name} />}
+            {summaryIcon ?? <ToolGroupContentIcon tool={items.at(-1)?.toolResponse.tool} />}
           </span>
         )}
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
-            <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="whitespace-nowrap font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {fallbackLabel}
             </span>
           </div>
@@ -452,12 +579,14 @@ export const ToolBlockGroup = React.memo(
           value={isExpanded ? 'tools' : ''}
           onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'tools'), { settleAfterMs: 220 })}>
           <AccordionItem value="tools" className="border-0 first:border-t-0">
-            <AccordionTrigger className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
+            <AccordionTrigger className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
               <div className="min-w-0 overflow-hidden">
                 <ToolBlockGroupHeaderContent
                   items={items}
                   activityLabel={isThinking ? t('message.tools.thinkingHeader') : undefined}
-                  activityIcon={isThinking ? <Brain aria-hidden="true" className="size-3.5" /> : undefined}
+                  activityIcon={
+                    isThinking ? <Brain aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} /> : undefined
+                  }
                   isLiveProgress={isLiveProgress}
                   semanticToolTitle
                   showContentIcon
@@ -467,13 +596,8 @@ export const ToolBlockGroup = React.memo(
             </AccordionTrigger>
             <AccordionContent
               data-testid="child-tool-group-content"
-              className="p-0 text-inherit"
+              className="px-0 pt-2 pb-0 text-inherit"
               contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
-              <div
-                aria-hidden="true"
-                data-testid="child-tool-group-divider"
-                className="my-1.5 h-px w-full bg-border-subtle"
-              />
               {children ?? <ToolBlockGroupContent items={items} />}
             </AccordionContent>
           </AccordionItem>

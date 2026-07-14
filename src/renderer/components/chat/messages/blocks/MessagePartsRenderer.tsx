@@ -1035,10 +1035,14 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
   if (!completedLayout) return null
 
+  const completedHistoryEntries = collapseHistory
+    ? completedLayout.historyEntries.filter((entry) => !isReasoningMessagePart(entry.part))
+    : completedLayout.historyEntries
+
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
       ? renderNestedHistory(
-          completedLayout.historyEntries,
+          completedHistoryEntries,
           message,
           isTranslationOverlayActive,
           collapseHistory
@@ -1069,7 +1073,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     )
   })
 
-  if (completedLayout.historyEntries.length === 0) return <>{completedResult}</>
+  if (completedHistoryEntries.length === 0) return <>{completedResult}</>
 
   if (!collapseHistory) {
     return (
@@ -1080,11 +1084,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     )
   }
 
-  const completedToolItems = buildToolRenderItems(completedLayout.historyEntries, message.id, true)
-  const completedHasTools = completedLayout.historyEntries.some((entry) => isToolUIPart(entry.part))
-  const completedHasReasoning = completedLayout.historyEntries.some((entry) => isReasoningMessagePart(entry.part))
+  const completedToolItems = buildToolRenderItems(completedHistoryEntries, message.id, true)
   const completedHasError = (() => {
-    const historyHasError = completedLayout.historyEntries.some((entry) => {
+    const historyHasError = completedHistoryEntries.some((entry) => {
       if ((entry.part.type as string) === 'data-error') return true
       if (!isToolUIPart(entry.part)) return false
 
@@ -1092,7 +1094,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       return toolResponse?.status === 'error' || toolResponse?.response?.isError === true
     })
     const projectedIndexes = new Set(
-      [...completedLayout.historyEntries, ...completedLayout.resultEntries].map((entry) => entry.index)
+      [...completedHistoryEntries, ...completedLayout.resultEntries].map((entry) => entry.index)
     )
 
     for (let index = entries.length - 1; index >= 0; index--) {
@@ -1114,7 +1116,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       <MessageProcessGroup
         key={`completed-process-${message.id}-${message.status}-${message.updatedAt ?? ''}`}
         phase="completed"
-        contentKind={completedHasTools ? 'tools' : completedHasReasoning ? 'reasoning' : 'other'}
         outcome={completedHasError ? 'error' : 'success'}
         message={message}
         toolItems={completedToolItems}>

@@ -1,7 +1,6 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import { Brain, MessageSquareText } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,13 +19,12 @@ type Props = BaseProps &
     | { phase: 'active' }
     | {
         phase: 'completed'
-        contentKind: 'tools' | 'reasoning' | 'other'
         outcome: 'success' | 'error'
       }
   )
 
 const PROCESS_CONTENT_CLASS_NAME =
-  'flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!'
+  'flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!'
 
 const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
   render
@@ -61,34 +59,20 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
       ? processingSummary
       : props.outcome === 'error'
         ? t('message.tools.error')
-        : props.contentKind === 'reasoning'
-          ? t('common.reasoning_content')
-          : t('message.tools.processed')
+        : t('message.tools.processed')
   const header = (
-    <ToolBlockGroupHeaderContent
-      items={toolItems}
-      elapsedText={elapsedText}
-      summary={summary}
-      preferSummary
-      showContentIcon={props.phase === 'completed'}
-      summaryIcon={
-        props.phase === 'completed' && props.contentKind === 'reasoning' ? (
-          <Brain aria-hidden="true" className="size-3.5" />
-        ) : props.phase === 'completed' && props.contentKind === 'other' ? (
-          <MessageSquareText aria-hidden="true" className="size-3.5" />
-        ) : undefined
-      }
-    />
+    <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )
 
   if (props.phase === 'active') {
     return (
       <div className="group/live-tool-group mb-2 w-full max-w-full" data-testid="live-tool-group">
-        <div data-testid="live-tool-group-header" className="flex min-h-7 w-full items-center py-0.5 text-left">
+        <div
+          data-testid="live-tool-group-header"
+          className="flex min-h-7 w-full select-none items-center py-0.5 text-left">
           <div className="min-w-0 flex-1 overflow-hidden">{header}</div>
         </div>
-        <div aria-hidden="true" className="my-1.5 h-px w-full bg-border-subtle" />
-        <div data-testid="live-tool-group-content" className={PROCESS_CONTENT_CLASS_NAME}>
+        <div data-testid="live-tool-group-content" className={`${PROCESS_CONTENT_CLASS_NAME} pt-2`}>
           {children(true)}
         </div>
       </div>
@@ -105,13 +89,12 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
+            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:transition-[transform,opacity] hover:[&>svg]:opacity-60 focus-visible:[&>svg]:opacity-60 [&[data-state=open]>svg]:opacity-60">
             <div className="min-w-0 overflow-hidden">{header}</div>
           </AccordionTrigger>
-          <div aria-hidden="true" data-testid="tool-history-divider" className="my-1.5 h-px w-full bg-border-subtle" />
           <AccordionContent
             data-testid="tool-history-content"
-            className={`${PROCESS_CONTENT_CLASS_NAME} p-0 text-inherit`}
+            className={`${PROCESS_CONTENT_CLASS_NAME} px-0 pt-2 pb-0 text-inherit`}
             contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
             <LazyCompletedProcessContent render={children} />
           </AccordionContent>

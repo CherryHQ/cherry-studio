@@ -1025,7 +1025,8 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
-      expect(screen.getByTestId('live-tool-group-content')).toBeInTheDocument()
+      expect(screen.getByTestId('live-tool-group-header')).toHaveClass('select-none')
+      expect(screen.getByTestId('live-tool-group-content')).toHaveClass('pt-2')
 
       mockIsActiveTurnTarget.mockReturnValue(false)
       mockTopicStreamState.status = 'done'
@@ -1034,7 +1035,8 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed 1 second')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
-      expect(screen.getByTestId('tool-history-divider')).toBeInTheDocument()
+      expect(screen.getByTestId('completed-process-trigger')).toHaveClass('select-none')
+      expect(screen.queryByTestId('tool-history-divider')).toBeNull()
       expect(screen.queryByTestId('tool-history-content')).toBeNull()
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
@@ -1066,6 +1068,7 @@ describe('MessagePartsRenderer', () => {
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
 
       fireEvent.click(historyTrigger)
+      expect(screen.getByTestId('tool-history-content')).toHaveClass('pt-2')
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
     })
 
@@ -1096,7 +1099,7 @@ describe('MessagePartsRenderer', () => {
       expect(html.lastIndexOf('mock-tool-group-content')).toBeLessThan(html.indexOf('Main final answer'))
     })
 
-    it('treats reasoning between tools as part of one continuous child tool group', () => {
+    it('keeps tools adjacent while filtering reasoning from completed child groups', () => {
       renderParts([
         toolPart('read'),
         { type: 'reasoning', text: 'Reasoning between tools', state: 'done' },
@@ -1112,7 +1115,8 @@ describe('MessagePartsRenderer', () => {
 
       expandCollapsedChildToolGroups()
 
-      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Reasoning between tools')
+      expect(screen.queryByText('Reasoning between tools')).toBeNull()
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
       expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(2)
       expect(screen.getByText('Main final answer')).toBeInTheDocument()
     })
@@ -1179,18 +1183,15 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
 
-    it('shows completed summaries for pure tool and pure reasoning messages', () => {
+    it('shows completed summaries for tools and hides pure reasoning groups', () => {
       const tools = renderParts([toolPart('read')] as unknown as CherryMessagePart[])
       expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       tools.unmount()
 
-      renderParts([
-        { type: 'reasoning', text: 'Only thought one', state: 'done' },
-        { type: 'reasoning', text: 'Only thought two', state: 'done' }
-      ] as unknown as CherryMessagePart[])
-      expect(screen.getByRole('button', { name: 'Reasoning content' })).toHaveAttribute('aria-expanded', 'false')
+      renderParts([{ type: 'reasoning', text: 'Only thought', state: 'done' }] as unknown as CherryMessagePart[])
+      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
       expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
     })
 
@@ -1329,7 +1330,7 @@ describe('MessagePartsRenderer', () => {
       expect(html.indexOf('final answer')).toBeLessThan(html.indexOf('report.md'))
     })
 
-    it('keeps all adjacent reasoning blocks inside the completed tool group', () => {
+    it('filters adjacent reasoning blocks from the completed tool group', () => {
       renderParts([
         toolPart('read'),
         ...Array.from({ length: 4 }, (_, index) => ({
@@ -1344,26 +1345,9 @@ describe('MessagePartsRenderer', () => {
       expandCollapsedChildToolGroups()
 
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
-      expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(4)
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
       expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
-    })
-
-    it('keeps all adjacent blocks in a pure reasoning group', () => {
-      renderParts(
-        Array.from({ length: 4 }, (_, index) => ({
-          type: 'reasoning',
-          text: `pure thought ${index + 1}`,
-          state: 'done'
-        })) as unknown as CherryMessagePart[]
-      )
-
-      fireEvent.click(screen.getByRole('button', { name: 'Reasoning content' }))
-      expandCollapsedChildToolGroups()
-
-      expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(4)
-      expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
-      expect(screen.getByText('pure thought 4')).toBeInTheDocument()
     })
 
     it('seals unfinished reasoning and tools when a terminal snapshot lacks end chunks', () => {
@@ -1376,7 +1360,7 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
 
-      expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-streaming', 'false')
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
       expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
