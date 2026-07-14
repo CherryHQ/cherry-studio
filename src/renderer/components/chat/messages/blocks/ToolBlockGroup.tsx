@@ -46,12 +46,21 @@ function getActivityCandidateKey(label: React.ReactNode): string {
   return typeof label === 'string' || typeof label === 'number' ? `activity:${label}` : 'activity'
 }
 
-function shouldBypassHeaderStabilization(candidate: ToolHeaderCandidate): boolean {
+function isErrorHeaderCandidate(candidate: ToolHeaderCandidate): boolean {
   return (
     candidate.kind === 'tool' &&
-    (candidate.status === 'waiting' ||
-      candidate.status === 'error' ||
-      candidate.item.toolResponse.response?.isError === true)
+    (candidate.status === 'error' || candidate.item.toolResponse.response?.isError === true)
+  )
+}
+
+function shouldBypassHeaderStabilization(
+  currentCandidate: ToolHeaderCandidate,
+  nextCandidate: ToolHeaderCandidate
+): boolean {
+  return (
+    (nextCandidate.kind === 'tool' && nextCandidate.status === 'waiting') ||
+    isErrorHeaderCandidate(nextCandidate) ||
+    isErrorHeaderCandidate(currentCandidate)
   )
 }
 
@@ -79,13 +88,13 @@ function useStableHeaderCandidate(
     }
 
     if (displayCandidateRef.current.key === nextCandidate.key) {
+      clearPendingTimer()
       pendingCandidateRef.current = null
       displayCandidateRef.current = nextCandidate
-      setDisplayCandidate(nextCandidate)
       return clearPendingTimer
     }
 
-    if (!isLiveProgress || shouldBypassHeaderStabilization(nextCandidate)) {
+    if (!isLiveProgress || shouldBypassHeaderStabilization(displayCandidateRef.current, nextCandidate)) {
       clearPendingTimer()
       pendingCandidateRef.current = null
       commitCandidate(nextCandidate)
@@ -108,7 +117,7 @@ function useStableHeaderCandidate(
     return clearPendingTimer
   }, [isLiveProgress, nextCandidate])
 
-  if (!isLiveProgress || shouldBypassHeaderStabilization(nextCandidate)) {
+  if (!isLiveProgress || shouldBypassHeaderStabilization(displayCandidateRef.current, nextCandidate)) {
     return nextCandidate
   }
 
@@ -129,7 +138,7 @@ interface ToolBlockGroupHeaderContentProps {
   showLatestWhenComplete?: boolean
 }
 
-export const ToolBlockGroupHeaderContent = React.memo(
+const DynamicToolBlockGroupHeaderContent = React.memo(
   ({
     items,
     activityLabel,
@@ -148,12 +157,12 @@ export const ToolBlockGroupHeaderContent = React.memo(
         return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
       }
 
-      if (allCompleted && !showLatestWhenComplete) {
-        return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
-      }
-
       if (activityLabel) {
         return { key: getActivityCandidateKey(activityLabel), kind: 'activity', label: activityLabel }
+      }
+
+      if (allCompleted && !showLatestWhenComplete) {
+        return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
       }
 
       // Find items actually waiting for approval (using effective status)
@@ -186,21 +195,12 @@ export const ToolBlockGroupHeaderContent = React.memo(
       const latestItem = showLatestWhenComplete ? items.at(-1) : undefined
       if (latestItem) {
         const effectiveStatus = getItemEffectiveStatus(latestItem, partsMap)
-        const latestStatus = isLiveProgress && effectiveStatus === 'done' ? 'invoking' : effectiveStatus
+        const latestStatus = latestItem.toolResponse.response?.isError === true ? 'error' : effectiveStatus
         return { key: `${latestItem.id}:${latestStatus}`, kind: 'tool', item: latestItem, status: latestStatus }
       }
 
       return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
-    }, [
-      activityLabel,
-      allCompleted,
-      fallbackLabel,
-      isLiveProgress,
-      items,
-      partsMap,
-      preferSummary,
-      showLatestWhenComplete
-    ])
+    }, [activityLabel, allCompleted, fallbackLabel, items, partsMap, preferSummary, showLatestWhenComplete])
     const displayCandidate = useStableHeaderCandidate(nextCandidate, isLiveProgress)
     const renderWithElapsed = (content: React.ReactNode) => (
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
@@ -248,6 +248,38 @@ export const ToolBlockGroupHeaderContent = React.memo(
     )
   }
 )
+DynamicToolBlockGroupHeaderContent.displayName = 'DynamicToolBlockGroupHeaderContent'
+
+export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHeaderContentProps) => {
+  const { t } = useTranslation()
+  const { activityLabel, elapsedText, items, preferSummary, showLatestWhenComplete, summary } = props
+  const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
+  const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
+
+  if (preferSummary || (allCompleted && !showLatestWhenComplete && !activityLabel)) {
+    return (
+      <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
+        <div className="min-w-0 overflow-hidden">
+          <div className="flex items-center text-[13px]">
+            <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+              {fallbackLabel}
+            </span>
+          </div>
+        </div>
+        {elapsedText && (
+          <>
+            <span aria-hidden="true" className="shrink-0 text-muted-foreground/40">
+              ·
+            </span>
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground/55">{elapsedText}</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return <DynamicToolBlockGroupHeaderContent {...props} />
+})
 ToolBlockGroupHeaderContent.displayName = 'ToolBlockGroupHeaderContent'
 
 // Component for tool list content with auto-scroll

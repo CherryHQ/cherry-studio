@@ -3,6 +3,7 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import type { TFunction } from 'i18next'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 
@@ -12,6 +13,19 @@ export function getAgentAvatar(avatar?: unknown) {
 
 export function getAgentAvatarFromConfiguration(configuration?: Pick<AgentConfiguration, 'avatar'> | null) {
   return getAgentAvatar(configuration?.avatar)
+}
+
+export function getAgentDescriptionForDisplay(
+  agent: { description?: string | null; configuration?: AgentConfiguration | null },
+  t: TFunction
+): string {
+  if (agent.description) return agent.description
+  // Builtin contract: an empty DB description means the bundle/UI owns the localized
+  // default. A non-empty user edit is user-owned and is never overwritten.
+  if (agent.configuration?.builtin_role === 'assistant') {
+    return t('agent.builtin.cherry_assistant.description')
+  }
+  return ''
 }
 
 export function getAgentModelFallbackSnapshot(agent?: {

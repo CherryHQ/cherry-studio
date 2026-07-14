@@ -21,7 +21,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -38,6 +38,7 @@ type ModelFieldProps = {
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }
 
 type BasicInfoStepProps = {
@@ -47,6 +48,7 @@ type BasicInfoStepProps = {
   modelFilter?: (model: Model) => boolean
   /** Agent create flows expose a runtime selector that drives the model filter (D8). */
   runtimeSelectable?: boolean
+  onSettingsNavigate?: (navigate: () => void) => void
 }
 
 /**
@@ -55,7 +57,13 @@ type BasicInfoStepProps = {
  * for agents — assistants keep using the static `modelFilter` prop and never
  * touch the agent-runtime filter.
  */
-function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelLabels }: ModelFieldProps) {
+function AgentRuntimeModelFields({
+  form,
+  portalContainer,
+  modelLabels,
+  setModelLabels,
+  onSettingsNavigate
+}: ModelFieldProps) {
   const { t } = useTranslation()
   const agentType = form.watch('agentType')
   const runtimeFilter = useAgentModelFilter(agentType)
@@ -104,6 +112,7 @@ function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelL
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
+        onSettingsNavigate={onSettingsNavigate}
       />
     </>
   )
@@ -120,11 +129,16 @@ export function BasicInfoStep({
   portalContainer,
   fallbackAvatar,
   modelFilter,
-  runtimeSelectable = false
+  runtimeSelectable = false,
+  onSettingsNavigate
 }: BasicInfoStepProps) {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
+
+  useEffect(() => {
+    form.setFocus('name')
+  }, [form])
 
   return (
     <div className="flex flex-col gap-4">
@@ -152,6 +166,7 @@ export function BasicInfoStep({
           portalContainer={portalContainer}
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
+          onSettingsNavigate={onSettingsNavigate}
         />
       ) : (
         <CompactModelField
@@ -162,6 +177,7 @@ export function BasicInfoStep({
           portalContainer={portalContainer}
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
+          onSettingsNavigate={onSettingsNavigate}
         />
       )}
 

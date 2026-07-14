@@ -81,6 +81,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   isProvisioned: vi.fn(() => true),
+  loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn()
 }))
 
@@ -161,23 +162,7 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, redactProxyUrlForAssistantContext } = await import(
-  '../settingsBuilder'
-)
-
-describe('redactProxyUrlForAssistantContext', () => {
-  it('redacts proxy credentials while keeping the host and port visible', () => {
-    expect(redactProxyUrlForAssistantContext('http://user:pass@proxy.example:8080')).toBe('http://proxy.example:8080/')
-  })
-
-  it('leaves plain proxy URLs unchanged', () => {
-    expect(redactProxyUrlForAssistantContext('http://proxy.example:8080')).toBe('http://proxy.example:8080')
-  })
-
-  it('redacts scheme-less proxy credentials', () => {
-    expect(redactProxyUrlForAssistantContext('user:pass@proxy.example:8080')).toBe('proxy.example:8080')
-  })
-})
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
@@ -663,6 +648,61 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.mcpServers?.assistant).toBeDefined()
+    // Only navigate is pre-approved. diagnose reads local logs/source/config and must go through
+    // per-call approval — a namespace wildcard would silently re-include it.
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__*')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
+    expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+  })
+
+  it('excludes Assistant MCP capability for channel-linked sessions', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
+  })
+
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
     const session = {
       id: 'session-1',
@@ -744,15 +784,18 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.anything(),
       expect.objectContaining({
         autoAllowRuntimeNames: expect.arrayContaining(['mcp__cherry-tools__notify']),
-        autoAllowRuntimeNamePrefixes: [],
         autoAllowRuntimeNameExceptions: exceptions
       })
     )
+    // No prefix-based auto-approval anywhere: a namespace prefix would silently pre-approve
+    // future sensitive tools (e.g. assistant diagnose). Auto-approval is explicit names only.
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
-  it('redacts proxy credentials in the assembled assistant context', async () => {
+  it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
     const preferenceGet = vi.fn((key: string) => {
-      if (key === 'app.proxy.url') return 'user:pass@proxy.example:8080'
+      if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret#frag'
       return undefined
     })
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -777,8 +820,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.systemPrompt).toContain('- Proxy: proxy.example:8080')
-    expect(settings.systemPrompt).not.toContain('pass')
+    expect(typeof settings.systemPrompt).toBe('string')
+    const proxyLine = (settings.systemPrompt as string).split('\n').find((line) => line.startsWith('- Proxy:'))
+    expect(proxyLine).toBe('- Proxy: http://proxy.example:8080')
+    expect(proxyLine).not.toContain('user')
+    expect(proxyLine).not.toContain('pass')
+    expect(proxyLine).not.toContain('token=secret')
+    expect(proxyLine).not.toContain('/path')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

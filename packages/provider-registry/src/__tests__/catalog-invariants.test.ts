@@ -110,6 +110,28 @@ describe('catalog invariants (data/*.json)', () => {
     expect(orderDependent).toEqual([])
   })
 
+  // sequentialImageGeneration is a string enum in the central catalog
+  // (imageParamCatalog.ts) and the Doubao API only accepts 'auto'/'disabled' — a
+  // `switch` support spec here renders a boolean UI control that gets coerced
+  // away before the request, silently no-opping the feature (aihubmix's
+  // doubao-seedream-4-0/4-5 had this; dmxapi's doubao model already declares it
+  // correctly as the reference shape).
+  it('sequentialImageGeneration is never declared as a switch (must be the string enum)', () => {
+    type Row = { id?: string; modelId?: string; providerId?: string; imageGeneration?: unknown }
+    const allRows: Row[] = [...(modelsRaw.models as Row[]), ...(providerModelsRaw.overrides as Row[])]
+    const offenders: string[] = []
+    for (const row of allRows) {
+      const modes = (row.imageGeneration as { modes?: Record<string, unknown> } | undefined)?.modes ?? {}
+      for (const [modeName, def] of Object.entries(modes)) {
+        const spec = (def as { supports?: Record<string, { type?: string }> }).supports?.sequentialImageGeneration
+        if (spec?.type === 'switch') {
+          offenders.push(`${row.providerId ?? 'base'}/${row.modelId ?? row.id}:${modeName}`)
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
   it('maxOutputTokens never exceeds contextWindow', () => {
     const bad = models.filter((m) => m.contextWindow && m.maxOutputTokens && m.maxOutputTokens > m.contextWindow)
     expect(bad.map((m) => m.id)).toEqual([])

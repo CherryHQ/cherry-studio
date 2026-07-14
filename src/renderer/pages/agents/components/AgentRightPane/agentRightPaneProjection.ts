@@ -70,6 +70,17 @@ export interface AgentRightPaneStatus {
   artifacts: AgentArtifactFile[]
 }
 
+const strippedParentMetadataCache = new WeakMap<object, CherryMessagePart>()
+
+function getPartWithoutParentMetadata(part: CherryMessagePart): CherryMessagePart {
+  if (typeof part !== 'object' || part === null) return stripPartParentToolMetadata(part)
+  const cached = strippedParentMetadataCache.get(part)
+  if (cached) return cached
+  const stripped = stripPartParentToolMetadata(part)
+  strippedParentMetadataCache.set(part, stripped)
+  return stripped
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -275,7 +286,7 @@ export function buildAgentToolFlowProjection(
           if (!parentToolCallId || !selectedToolCallIds.has(parentToolCallId)) continue
         }
 
-        assistantParts.push(stripPartParentToolMetadata(part))
+        assistantParts.push(getPartWithoutParentMetadata(part))
       }
     }
 
