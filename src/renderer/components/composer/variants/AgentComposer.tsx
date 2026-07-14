@@ -63,9 +63,11 @@ import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAle
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { useInputHistory } from '../useInputHistory'
 import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   type AgentComposerDraftCache,
@@ -98,6 +100,7 @@ import { emptyActions, type ProviderActionHandlers } from './shared/composerProv
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
@@ -262,6 +265,7 @@ const AgentComposerRoot = ({
 
   return (
     <ComposerToolRuntimeProvider
+      key={`${agentId}:${sessionId}`}
       initialState={initialState}
       actions={{
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
@@ -920,12 +924,58 @@ const AgentComposerInner = ({
   }, [t, userWorkspacePath])
 
   const setText = useCallback(
-    (nextText: string) => {
+    (nextText: string, options: { persist?: boolean } = {}) => {
+      clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
-      writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      if (options.persist ?? true) {
+        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      }
     },
-    [draftCacheKey]
+    [clearTimeoutTimer, draftCacheKey]
+  )
+  const filesRef = useLatest(files)
+  const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
+  const applyHistoryDraft = useCallback(
+    (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
+      const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
+      const persistDraft = options.source === 'draft'
+      actionsRef.current.replaceDraft(historyDraft)
+      setText(historyDraft.text, { persist: false })
+      setDraftTokens(nextSkillTokens)
+      draftTokensRef.current = nextSkillTokens
+      if (persistDraft) {
+        writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+      }
+      setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
+
+      if (options.source === 'history') {
+        inputHistoryFilesRef.current ??= filesRef.current
+        setFiles([])
+        return
+      }
+
+      const savedFiles = inputHistoryFilesRef.current
+      inputHistoryFilesRef.current = null
+      if (!savedFiles) return
+      setFiles(savedFiles)
+    },
+    [actionsRef, draftCacheKey, filesRef, setFiles, setText]
+  )
+  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
+  const handleTextChange = useCallback(
+    (nextText: string) => {
+      resetHistoryIndex()
+      inputHistoryFilesRef.current = null
+      setText(nextText)
+    },
+    [resetHistoryIndex, setText]
+  )
+  const handleInputHistoryNavigate = useCallback(
+    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
+    [actionsRef, navigateHistory]
   )
 
   useEffect(() => {
@@ -1112,13 +1162,14 @@ const AgentComposerInner = ({
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        saveHistory(payload.text)
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1129,7 +1180,13 @@ const AgentComposerInner = ({
     draftTokensRef.current = []
     writeAgentDraftCache(draftCacheKey, '', [])
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-  }, [draftCacheKey, setFiles, setText, setTimeoutTimer])
+    // Drop the input-history nav state so a recalled draft that gets sent/queued
+    // does not leave useInputHistory pointing at it; otherwise the next
+    // ArrowDown would restore the already-sent draft and ArrowUp would resume
+    // from a stale index.
+    resetHistoryIndex()
+    inputHistoryFilesRef.current = null
+  }, [draftCacheKey, resetHistoryIndex, setFiles, setText, setTimeoutTimer])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
@@ -1148,15 +1205,21 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
-  // it from the queue. Agent editor tokens derive from `files` + `selectedSkills`, so set those.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
+  // skill subset and managed file/skill state before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
+      const nextDraftTokens = getCachedSkillTokens(item.draft.tokens)
+      resetHistoryIndex()
+      inputHistoryFilesRef.current = null
+      actionsRef.current.replaceDraft(item.draft)
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
       setText(item.draft.text)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      setSelectedSkills(item.draft.tokens.filter((token) => token.kind === 'skill').map(getSkillFromCachedToken))
+      setSelectedSkills(nextDraftTokens.map(getSkillFromCachedToken))
     },
-    [setFiles, setText]
+    [actionsRef, resetHistoryIndex, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
@@ -1294,7 +1357,7 @@ const AgentComposerInner = ({
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ComposerSurface
         text={text}
-        onTextChange={setText}
+        onTextChange={handleTextChange}
         tokens={tokens}
         draftTokens={draftTokens}
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
@@ -1343,6 +1406,7 @@ const AgentComposerInner = ({
         fontSize={fontSize}
         narrowMode={forceNarrowLayout || narrowMode}
         onActionsChange={handleSurfaceActionsChange}
+        onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         suggestionSources={[]}
