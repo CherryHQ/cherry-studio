@@ -25,6 +25,12 @@ import type { UIMessageChunk } from 'ai'
 import { app } from 'electron'
 
 import type { WebUiSseRelay } from './sseRelay'
+import {
+  listWebUiWorkspaceFiles,
+  readWebUiWorkspaceImage,
+  readWebUiWorkspaceTextFile,
+  WebUiWorkspaceFileError
+} from './workspaceFiles'
 
 export type WebUiApiRouterOptions = {
   readonly getAuthKey: () => string
@@ -40,6 +46,8 @@ export type WebUiApiRouter = {
 type WebUiApiRouteResult = {
   readonly status: number
   readonly body?: unknown
+  readonly rawBody?: Buffer
+  readonly headers?: Readonly<Record<string, string | number>>
 }
 
 type WebUiSendMessageBody = {
@@ -72,9 +80,19 @@ export const isWebUiApiRequest = (requestUrl?: string) => {
   return new URL(requestUrl, 'http://webui.local').pathname.startsWith('/api/')
 }
 
-const writeJson = (response: ServerResponse, { status, body }: WebUiApiRouteResult) => {
-  response.writeHead(status, jsonHeaders)
-  response.end(JSON.stringify(body ?? null))
+const writeResult = (response: ServerResponse, result: WebUiApiRouteResult) => {
+  if (result.rawBody !== undefined) {
+    response.writeHead(result.status, {
+      'Cache-Control': 'no-store',
+      'Content-Length': result.rawBody.byteLength,
+      'X-Content-Type-Options': 'nosniff',
+      ...result.headers
+    })
+    response.end(result.rawBody)
+    return
+  }
+  response.writeHead(result.status, jsonHeaders)
+  response.end(JSON.stringify(result.body ?? null))
 }
 
 const methodNotAllowed = (allowed: readonly string[]): WebUiApiRouteResult => ({
@@ -122,6 +140,9 @@ const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
 const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
 const sessionSlashCommandsPath = /^\/api\/agent-sessions\/([^/]+)\/slash-commands$/
 const sessionModelPath = /^\/api\/agent-sessions\/([^/]+)\/model$/
+const sessionWorkspaceFilesPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/files$/
+const sessionWorkspaceFilePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/file$/
+const sessionWorkspaceImagePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/image$/
 const readableDataApiPatterns = [
   /^\/agents$/,
   /^\/models$/,
@@ -385,6 +406,9 @@ export const createWebUiApiRouter = ({
     const contextUsageMatch = pathname.match(sessionContextUsagePath)
     const slashCommandsMatch = pathname.match(sessionSlashCommandsPath)
     const sessionModelMatch = pathname.match(sessionModelPath)
+    const workspaceFilesMatch = pathname.match(sessionWorkspaceFilesPath)
+    const workspaceFileMatch = pathname.match(sessionWorkspaceFilePath)
+    const workspaceImageMatch = pathname.match(sessionWorkspaceImagePath)
 
     if (pathname === '/api/auth/status') {
       if (method !== 'GET') return methodNotAllowed(['GET'])
@@ -402,6 +426,62 @@ export const createWebUiApiRouter = ({
     }
 
     if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
+
+    const workspaceMatch = workspaceFilesMatch ?? workspaceFileMatch ?? workspaceImageMatch
+    if (workspaceMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      if (!normalizeAuthKey(getAuthKey())) {
+        return {
+          status: 403,
+          body: {
+            code: 'WEBUI_WORKSPACE_AUTH_REQUIRED',
+            message: 'Configure a WebUI access key before enabling workspace file access'
+          }
+        }
+      }
+
+      try {
+        const encodedSessionId = workspaceMatch[1]
+        if (!encodedSessionId) {
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        }
+        const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
+        const requestedPath = url.searchParams.get('path') ?? ''
+
+        if (workspaceFilesMatch) {
+          const result = await listWebUiWorkspaceFiles(
+            session.workspace.path,
+            requestedPath,
+            url.searchParams.get('search') ?? ''
+          )
+          return { status: 200, body: result }
+        }
+        if (workspaceFileMatch) {
+          return { status: 200, body: await readWebUiWorkspaceTextFile(session.workspace.path, requestedPath) }
+        }
+
+        const image = await readWebUiWorkspaceImage(session.workspace.path, requestedPath)
+        return {
+          status: 200,
+          rawBody: image.bytes,
+          headers: {
+            'Content-Type': image.contentType,
+            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(image.name)}`
+          }
+        }
+      } catch (error) {
+        if (error instanceof WebUiWorkspaceFileError) {
+          return { status: error.status, body: { code: error.code, message: error.message } }
+        }
+        return {
+          status: 404,
+          body: {
+            code: 'WEBUI_WORKSPACE_UNAVAILABLE',
+            message: 'Workspace is unavailable'
+          }
+        }
+      }
+    }
 
     if (pathname === webUiModelsPath) {
       if (method !== 'GET') return methodNotAllowed(['GET'])
@@ -618,7 +698,7 @@ export const createWebUiApiRouter = ({
 
   return {
     async handle(request, response) {
-      writeJson(response, await route(request))
+      writeResult(response, await route(request))
     }
   }
 }
