@@ -55,7 +55,6 @@ jobs:
     env:
       CI: true
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
-
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
@@ -63,8 +62,10 @@ jobs:
           fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
 
       # provider-registry data/*.json are generated from src/creators + src/providers.
+      # The daily catalog workflow regenerates data without source changes, so exempt only
+      # its exact same-repository branch from the hand-edit guard.
       - name: Detect provider-registry changes
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !(github.head_ref == 'auto-update-catalog-daily' && github.event.pull_request.head.repo.full_name == github.repository)
         id: catalog-filter
         uses: dorny/paths-filter@v4
         with:

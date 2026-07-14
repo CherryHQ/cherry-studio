@@ -28,7 +28,6 @@ export function translatePaintingGenerateError(error: Error): string {
   }
 
   const keyMap: Record<Exclude<PaintingGenerateErrorCode, 'REMOTE_ERROR'>, string> = {
-    NO_API_KEY: 'error.no_api_key',
     PROVIDER_DISABLED: 'error.provider_disabled',
     PROMPT_REQUIRED: 'paintings.prompt_required',
     TEXT_DESC_REQUIRED: 'paintings.text_desc_required',
