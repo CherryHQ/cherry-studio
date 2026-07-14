@@ -11,6 +11,7 @@ const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
 const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
+const mockReadText = vi.hoisted(() => vi.fn())
 const mockUsePlaceholderElapsedMs = vi.hoisted(() => vi.fn(() => 1000))
 const mockToolBlockGroupRender = vi.hoisted(() => vi.fn())
 const mockMessageToolsRender = vi.hoisted(() => vi.fn())
@@ -409,6 +410,18 @@ describe('MessagePartsRenderer', () => {
     mockTopicStreamState.status = undefined
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
+    mockReadText.mockReset()
+    mockReadText.mockResolvedValue('Pasted text preview')
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...window.api,
+        fs: {
+          ...window.api?.fs,
+          readText: mockReadText
+        }
+      }
+    })
     mockUsePlaceholderElapsedMs.mockClear()
     mockToolBlockGroupRender.mockClear()
     mockMessageToolsRender.mockClear()
@@ -565,6 +578,70 @@ describe('MessagePartsRenderer', () => {
 
       expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
       expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-1')).toEqual({
+        url: 'file:///tmp/first/photo.png',
+        mediaType: 'image/png'
+      })
+      expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-2')).toEqual({
+        url: 'file:///tmp/second/photo.png',
+        mediaType: 'image/png'
+      })
+    })
+
+    it('links pasted-text token previews through fileTokenSourceId without rendering a duplicate attachment', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Read ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-pasted-text',
+                      kind: 'file',
+                      label: 'Pasted text.txt',
+                      index: 0,
+                      textOffset: 5,
+                      payload: {
+                        type: 'text',
+                        ext: '.txt',
+                        name: 'pasted_text.txt',
+                        origin_name: 'Pasted text.txt',
+                        size: 1024
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/pasted-text.txt',
+            mediaType: 'text/plain',
+            filename: 'Pasted text.txt',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-pasted-text',
+                fileTokenSourceId: 'source-pasted-text',
+                composerFileKind: 'pasted-text'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-pasted-text')).toEqual({
+        url: 'file:///internal/message-files/pasted-text.txt',
+        mediaType: 'text/plain',
+        composerFileKind: 'pasted-text'
+      })
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
     })
 
     it('keeps a user image when no composer file token is visible', () => {
