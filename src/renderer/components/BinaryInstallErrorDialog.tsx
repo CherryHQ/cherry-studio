@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { Check, Copy, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useRef, useState } from 'react'
@@ -58,15 +59,20 @@ export const BinaryInstallErrorDialog: FC<{
   if (error) lastError.current = error
 
   const copyError = () => {
-    void navigator.clipboard.writeText(lastError.current.message).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    navigator.clipboard.writeText(lastError.current.message).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      // A denied clipboard permission rejects the write — surface it instead of
+      // leaving an unhandled rejection and a silently-uncopied error.
+      () => toast.error(t('common.copy_failed'))
+    )
   }
 
   return (
     <Dialog open={!!error} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{`${t('settings.dependencies.installError')}: ${lastError.current.name}`}</DialogTitle>
           <DialogDescription>{t('settings.dependencies.installErrorHint')}</DialogDescription>
@@ -79,7 +85,9 @@ export const BinaryInstallErrorDialog: FC<{
             {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             {copied ? t('common.copied') : t('common.copy')}
           </Button>
-          <Button onClick={() => onOpenChange(false)}>{t('common.close')}</Button>
+          <Button variant="emphasis" onClick={() => onOpenChange(false)}>
+            {t('common.close')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
