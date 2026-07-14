@@ -392,13 +392,15 @@ export const AppShellTabBar = ({
         ? {
             activeClass:
               'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+            // data-[state=open] mirrors hover: it keeps the highlight while the
+            // right-click menu is open (ContextMenuTrigger sets data-state on the tab).
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[state=open]:bg-black/6 data-[state=open]:text-sidebar-foreground data-[state=open]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[state=open]:bg-white/6 dark:data-[state=open]:text-sidebar-foreground dark:data-[state=open]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
           }
         : {
             activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[state=open]:bg-white data-[state=open]:text-sidebar-foreground dark:data-[state=open]:bg-white/10 dark:data-[state=open]:text-sidebar-foreground'
           },
     [isMacTransparentWindow]
   )
