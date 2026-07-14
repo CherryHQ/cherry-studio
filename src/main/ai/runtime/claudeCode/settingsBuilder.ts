@@ -232,7 +232,9 @@ export interface ClaudeCodeSessionOptions {
 export async function buildClaudeCodeSessionSettings(
   session: AgentSessionEntity,
   provider: Provider,
-  options?: ClaudeCodeSessionOptions
+  options?: ClaudeCodeSessionOptions,
+  /** Pins every derived setting to the caller's already-captured agent revision. */
+  agentSnapshot?: AgentEntity
 ): Promise<ClaudeCodeSettings> {
   // Agent owns cognitive config (model, instructions, mcps, allowedTools,
   // configuration); workspace lives on the session (CMA Environment binding).
@@ -240,7 +242,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!session.agentId) {
     throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
   }
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentSnapshot ?? agentService.getAgent(session.agentId)
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }

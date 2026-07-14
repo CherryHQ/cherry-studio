@@ -2,7 +2,7 @@
 title: Agent configuration edits now take effect in already-open sessions
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#16946"
 date: 2026-07-11
 ---
 

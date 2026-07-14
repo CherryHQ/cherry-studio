@@ -7,6 +7,8 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -27,6 +29,7 @@ import { buildClaudeCodeSessionSettings, buildSkillWhitelist } from './settingsB
 import type { ClaudeCodeSettings } from './types'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
+  connectionConfig: ConnectionConfig
   settings: ClaudeCodeSettings
   sdkModelId: string
 }
@@ -64,10 +67,10 @@ function fingerprintCredentials(material: string[]): string {
 }
 
 /**
- * Normalized tool-policy facts — the live-updatable group of {@link ConnectionConfig}. These are
- * hot-appliable on a running connection (SDK `setPermissionMode` + the session-keyed
- * `toolPolicySnapshot.update`), so they are EXCLUDED from `rebuildSignature`: a policy edit must
- * live-patch, not respawn.
+ * Normalized tool-policy facts — the immediately enforceable side of {@link ConnectionConfig}.
+ * Permission mode and newly disabled tools can be applied to a running connection; `disabledTools`
+ * is also part of the rebuild signature because removing a disabled tool must restore it to the
+ * subprocess model context, which the SDK cannot do live.
  */
 export interface ToolPolicyFacts {
   permissionMode: string | null
@@ -86,9 +89,9 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
  * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
  * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
- * NOTE: `agent.mcps` feeds BOTH groups on purpose — the policy gating side is live (snapshot
- * update), but the spawned `options.mcpServers` set is rebuild-only, so an MCP set edit live-heals
- * the gating AND flags 'rebuild' for the servers themselves.
+ * NOTE: `agent.mcps` and `agent.disabledTools` feed BOTH groups on purpose — their policy-gating
+ * side is live (snapshot update), but the spawned MCP/disallowed-tool sets are rebuild-only. An edit
+ * therefore live-heals the gate and flags `rebuild` for the subprocess context.
  *
  * Spike result (SDK 0.3.185, why MCP servers are NOT a live key): `query.setMcpServers` manages a
  * separate "dynamically managed" server layer in the CLI — it cannot remove servers baked into the
@@ -132,55 +135,62 @@ export async function deriveConnectionConfig(
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return unroutable
-  const cwd = session.workspace?.path
-  if (!cwd) return unroutable
-
-  const uniqueModelId = connectionModelId ?? agent.model
-  let routeFacts: ClaudeCodeRouteFacts
   try {
-    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    const provider = providerService.getByProviderId(providerId)
-    const model = modelService.getByKey(providerId, modelId)
-    const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
-    routeFacts = deriveRouteFacts(
-      provider,
-      model,
-      modelId,
-      baseUrl,
-      pinSubModelsToPrimary ? undefined : agent.planModel,
-      pinSubModelsToPrimary ? undefined : agent.smallModel
-    )
+    return {
+      ok: true,
+      config: await deriveConnectionConfigFromSnapshot(session, agent, connectionModelId ?? agent.model)
+    }
   } catch {
     // Deleted provider/model rows or an unroutable combination (e.g. Gemini) — the connection
     // cannot be rebuilt to a valid target, so it is invalid rather than merely stale.
     return unroutable
   }
+}
 
-  const skills = await buildSkillWhitelist(agent.id, cwd)
+async function deriveConnectionConfigFromSnapshot(
+  session: AgentSessionEntity,
+  agent: AgentEntity,
+  uniqueModelId: UniqueModelId,
+  materializedSkills?: string[]
+): Promise<ConnectionConfig> {
+  const cwd = session.workspace?.path
+  if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
+  const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+  // Same pinning semantics as the query-request builder (see its comment).
+  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  const routeFacts = deriveRouteFacts(
+    provider,
+    model,
+    modelId,
+    baseUrl,
+    pinSubModelsToPrimary ? undefined : agent.planModel,
+    pinSubModelsToPrimary ? undefined : agent.smallModel
+  )
+  const skills = materializedSkills ?? (await buildSkillWhitelist(agent.id, cwd))
   const rebuildFacts = {
     modelId: uniqueModelId,
     route: routeFacts,
     cwd,
     instructions: agent.instructions ?? null,
     builtinRole: agent.configuration?.builtin_role ?? null,
+    bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    disabledTools: [...(agent.disabledTools ?? [])].sort(),
     mcp: deriveMcpDefinitionFacts(agent.mcps)
   }
 
   return {
-    ok: true,
-    config: {
-      rebuildSignature: createHash('sha256').update(JSON.stringify(rebuildFacts)).digest('hex'),
-      live: {
-        toolPolicy: {
-          permissionMode: agent.configuration?.permission_mode ?? null,
-          disabledTools: [...(agent.disabledTools ?? [])].sort(),
-          mcps: [...(agent.mcps ?? [])].sort()
-        }
+    rebuildSignature: createHash('sha256').update(JSON.stringify(rebuildFacts)).digest('hex'),
+    live: {
+      toolPolicy: {
+        permissionMode: agent.configuration?.permission_mode ?? null,
+        disabledTools: [...(agent.disabledTools ?? [])].sort(),
+        mcps: [...(agent.mcps ?? [])].sort()
       }
     }
   }
@@ -238,11 +248,20 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
-    await buildClaudeCodeSessionSettings(session, provider, {
-      lastAgentSessionId: resumeSessionId
-    }),
+    await buildClaudeCodeSessionSettings(
+      session,
+      provider,
+      {
+        lastAgentSessionId: resumeSessionId
+      },
+      agent
+    ),
     route
   )
+  // Capture the baseline from the same agent snapshot and skill list that materialized `settings`.
+  // This runs after route materialization so a first-use gateway key is already persisted and the
+  // connect-time fingerprint matches later pure reconciles.
+  const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, settings.skills)
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
     modelId: sdkModelId,
@@ -255,6 +274,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 
   return {
+    connectionConfig,
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,

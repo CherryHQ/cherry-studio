@@ -80,7 +80,11 @@ const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = a
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1' })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',
@@ -155,6 +159,35 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-2-api'
     })
+  })
+
+  it('captures the baseline from the same agent snapshot that materializes the request', async () => {
+    const materializedAgent = {
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { max_turns: 1 }
+    }
+    const editedAgent = {
+      ...materializedAgent,
+      configuration: { max_turns: 2 }
+    }
+    mocks.getAgent.mockReturnValue(materializedAgent)
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, _options, agentSnapshot) => {
+      expect(agentSnapshot).toBe(materializedAgent)
+      // Simulate an agent edit while the async settings builder is still materializing the request.
+      mocks.getAgent.mockReturnValue(editedAgent)
+      return { maxTurns: agentSnapshot.configuration.max_turns, skills: [] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(request?.settings.maxTurns).toBe(1)
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
   it('pins explicit plan/small to the captured primary for an overridden connection instead of the latest edited sub-models', async () => {
@@ -486,6 +519,26 @@ describe('deriveConnectionConfig', () => {
       id: 'agent-1',
       model: 'provider-1::model-1',
       disabledTools: [],
+      mcps: [],
+      configuration: { bootstrap_completed: false }
+    })
+    const bootstrapChanged = await deriveSignature()
+    expect(bootstrapChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: ['WebSearch'],
+      mcps: [],
+      configuration: {}
+    })
+    const disabledToolsChanged = await deriveSignature()
+    expect(disabledToolsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
       mcps: ['mcp-1'],
       configuration: {}
     })
@@ -509,13 +562,13 @@ describe('deriveConnectionConfig', () => {
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
   })
 
-  it('keeps the rebuild signature stable across live tool-policy edits and surfaces them as facts', async () => {
+  it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {
     const base = await deriveSignature()
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
-      disabledTools: ['WebSearch'],
+      disabledTools: [],
       mcps: [],
       configuration: { permission_mode: 'acceptEdits' }
     })
@@ -524,10 +577,32 @@ describe('deriveConnectionConfig', () => {
     expect(policyChanged.rebuildSignature).toBe(base.rebuildSignature)
     expect(policyChanged.live.toolPolicy).toEqual({
       permissionMode: 'acceptEdits',
-      disabledTools: ['WebSearch'],
+      disabledTools: [],
       mcps: []
     })
     expect(base.live.toolPolicy.permissionMode).toBeNull()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: ['WebSearch'],
+      mcps: [],
+      configuration: { permission_mode: 'acceptEdits' }
+    })
+    const disabledToolsChanged = await deriveSignature()
+
+    expect(disabledToolsChanged.rebuildSignature).not.toBe(policyChanged.rebuildSignature)
+    expect(disabledToolsChanged.live.toolPolicy.disabledTools).toEqual(['WebSearch'])
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { permission_mode: 'acceptEdits' }
+    })
+    const toolReenabled = await deriveSignature()
+    expect(toolReenabled.rebuildSignature).toBe(policyChanged.rebuildSignature)
   })
 
   it('reports unroutable for deleted agents, missing workspaces and unroutable providers', async () => {
