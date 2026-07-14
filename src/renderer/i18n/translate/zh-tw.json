@@ -2729,8 +2729,6 @@
       "filter": {
         "selectAgent": "請選擇智能體",
         "selectAssistant": "請選擇助理",
-        "statusLabel": "狀態",
-        "statusPlaceholder": "請選擇狀態",
         "unlinkedAssistant": "未連結的助理"
       },
       "loading": {
@@ -2742,11 +2740,6 @@
       "searchSession": "搜尋任務...",
       "searchTopic": "搜尋對話...",
       "shortTitle": "歷史",
-      "status": {
-        "completed": "已完成",
-        "failed": "失敗",
-        "running": "奔跑"
-      },
       "table": {
         "actions": "動作",
         "conversation": "對話",

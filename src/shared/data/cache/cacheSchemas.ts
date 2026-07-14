@@ -257,8 +257,6 @@ export type SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
-  /** Atomic Main-owned index of active and failed Agent Session turns. */
-  'agent.session.stream.status_ids': CacheValueTypes.CacheAgentSessionStreamStatusIds
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -290,7 +288,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
-  'agent.session.stream.status_ids': { activeIds: [], failedIds: [] },
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',

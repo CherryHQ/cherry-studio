@@ -1,13 +1,7 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ReactElement, ReactNode } from 'react'
 
-import type {
-  HistoryBulkMoveTarget,
-  HistoryRecordsMode,
-  HistorySourceOption,
-  HistorySourceStatus,
-  HistoryStatusOption
-} from './historyRecordsTypes'
+import type { HistoryBulkMoveTarget, HistoryRecordsMode, HistorySourceOption } from './historyRecordsTypes'
 
 /** Callback the row passes to the menu preset so a menu item can open the rename dialog. */
 export type HistoryOpenRename = (id: string, name: string) => void
@@ -44,8 +38,8 @@ export interface HistoryRecordDescriptor<T> {
   mode: HistoryRecordsMode
 
   // --- identity + filtering (consumed by useHistoryRecordsController) ---
-  // Search, source scope, and runtime status are query filters owned by the
-  // mode wrapper (D1/D6/D7 of #16890).
+  // Search and source scope are query filters owned by the mode wrapper
+  // (D1/D6 of #16890).
   getId: (item: T) => string
   isPinned: (id: string) => boolean
   /** Runs the mode's bulk-delete mutation; resolves to the deleted ids, or undefined on failure/no-op. */
@@ -72,7 +66,6 @@ export interface HistoryRecordDescriptor<T> {
   sources: HistorySourceOption[]
   /** Renders the shared assistant/agent selector as the source filter (null = all). */
   renderSourceFilter: (selectedId: string | null, onSelect: (id: string | null) => void) => ReactNode
-  statusOptions?: HistoryStatusOption[]
   bulkMoveTargets?: readonly HistoryBulkMoveTarget[]
   /** Assistant mode only: move `ids` to `targetId`; resolves to the ids actually moved (for selection pruning). */
   onBulkMove?: (targetId: string, ids: string[]) => Promise<readonly string[] | undefined>
@@ -81,5 +74,3 @@ export interface HistoryRecordDescriptor<T> {
   onRename: (id: string, name: string) => void | Promise<void>
   strings: HistoryRecordsStrings
 }
-
-export type { HistorySourceStatus }

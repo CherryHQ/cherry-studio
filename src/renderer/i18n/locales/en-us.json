@@ -2730,8 +2730,6 @@
       "filter": {
         "selectAgent": "Select an agent",
         "selectAssistant": "Select an assistant",
-        "statusLabel": "Status",
-        "statusPlaceholder": "Select status",
         "unlinkedAssistant": "Unlinked assistant"
       },
       "loading": {
@@ -2743,11 +2741,6 @@
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
       "shortTitle": "History",
-      "status": {
-        "completed": "Completed",
-        "failed": "Failed",
-        "running": "Running"
-      },
       "table": {
         "actions": "Actions",
         "conversation": "Conversation",

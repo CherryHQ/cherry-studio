@@ -138,12 +138,6 @@ export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 
-/** Main-owned, cross-window index for Agent History runtime status filters. */
-export type CacheAgentSessionStreamStatusIds = {
-  activeIds: string[]
-  failedIds: string[]
-}
-
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.
  *

@@ -22,7 +22,7 @@ against the v2 agent shape, so it pulls the whole agent-session stack with it.
    agent shape: `name: string`, `modelName: string | null`, and
    `planModel?: \`${string}::${string}\`` (branded `UniqueModelId`) — vs main's
    `model: string` / `planModel?: string` / no `name`. `HistoryRecordsPage`
-   passes `Map<string, Agent>` into `buildAgentSources` / `buildAgentStatusItems`
+   passes `Map<string, Agent>` into `buildAgentSources`
    (`SessionList.helpers.ts`, brought) which expect the enriched shape →
    `TS2345` at HistoryRecordsPage:555/571/715, plus `deleteSessions` /
    signature drift at :514/516/585. Bringing `types/agent.ts` cascades through

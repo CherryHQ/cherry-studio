@@ -130,10 +130,6 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: hookMocks.useAgents
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionStreamStatuses', () => ({
-  useAgentSessionStreamStatuses: vi.fn(() => new Map())
-}))
-
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
@@ -304,7 +300,6 @@ vi.mock('react-i18next', () => ({
         'history.records.searchTopic': 'Search conversations...',
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
-        'history.records.filter.statusLabel': 'Status',
         'history.records.filter.unlinkedAssistant': 'Unlinked assistant',
         'history.records.table.actions': 'Actions',
         'history.records.table.conversation': 'Conversation',
@@ -1445,8 +1440,6 @@ describe('HistoryRecordsView locale resources', () => {
       'clearSearch',
       'filter.selectAgent',
       'filter.selectAssistant',
-      'filter.statusLabel',
-      'filter.statusPlaceholder',
       'filter.unlinkedAssistant',
       'table.conversation'
     ]
@@ -1467,7 +1460,6 @@ describe('HistoryRecordsView locale resources', () => {
       'empty.sessionsDescription',
       'empty.sessionsTitle',
       'empty.title',
-      'filter.statusLabel',
       'filter.unlinkedAssistant',
       'loading.description',
       'loading.sessionsDescription',
@@ -1476,9 +1468,6 @@ describe('HistoryRecordsView locale resources', () => {
       'searchSession',
       'searchTopic',
       'shortTitle',
-      'status.completed',
-      'status.failed',
-      'status.running',
       'table.emptyValue',
       'table.actions',
       'table.conversation',

@@ -45,11 +45,6 @@ export function HistoryRecordsContent<T>({
         selectedSourceId={controller.selectedSourceId}
         onSourceSelect={controller.setSelectedSourceId}
         renderSourceFilter={descriptor.renderSourceFilter}
-        statusOptions={descriptor.statusOptions}
-        statusLabel={t('history.records.filter.statusLabel')}
-        statusPlaceholder={t('history.records.filter.statusPlaceholder')}
-        selectedStatus={controller.selectedStatus}
-        onStatusSelect={controller.setSelectedStatus}
         selectedCount={controller.selectedCount}
         bulkDeleteCount={controller.bulkDeleteCount}
         bulkMoveTargets={descriptor.bulkMoveTargets}

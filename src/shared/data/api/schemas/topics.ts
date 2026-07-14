@@ -97,7 +97,7 @@ export const ListTopicsQuerySchema = z
     assistantId: TopicOwnerScopeSchema.optional(),
     /** true → pin-owned stream; false → only unpinned topics (requires sortBy). Omitted → both. */
     pinned: z.boolean().optional(),
-    /** Bounded explicit id filter (e.g. History running/failed row fetches). */
+    /** Bounded explicit id filter for locating known topic rows. */
     ids: z.array(z.string().min(1)).min(1).max(200).optional()
   })
   .refine((q) => q.sortBy !== undefined || q.pinned === true || !hasRecordFilters(q), {

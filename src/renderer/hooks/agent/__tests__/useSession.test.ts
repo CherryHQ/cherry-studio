@@ -14,7 +14,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useActiveSession,
   useAgentSessionAutoRenameSync,
-  useAgentSessionsByIds,
   useLatestSession,
   useSessionMutations,
   useSessions,
@@ -333,7 +332,6 @@ describe('useSessions', () => {
 
     renderHook(() =>
       useSessions('unlinked', {
-        ids: ['session-1'],
         pinned: false,
         q: 'needle',
         searchScope: 'full',
@@ -342,13 +340,11 @@ describe('useSessions', () => {
     )
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
-      continuityKey:
-        '{"agentId":"unlinked","ids":["session-1"],"mode":"flat","pinned":false,"q":"needle","searchScope":"full"}',
+      continuityKey: '{"agentId":"unlinked","mode":"flat","pinned":false,"q":"needle","searchScope":"full"}',
       enabled: undefined,
       limit: 20,
       query: {
         agentId: 'unlinked',
-        ids: ['session-1'],
         pinned: false,
         q: 'needle',
         searchScope: 'full',
@@ -468,74 +464,6 @@ describe('useSessions', () => {
 
     expect(created).toBeNull()
     expect(toast.error).toHaveBeenCalled()
-  })
-})
-
-describe('useAgentSessionsByIds', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('resolves runtime ids through bounded 200-id DataApi pages', async () => {
-    const sessionIds = Array.from({ length: 201 }, (_, index) => `session-${String(index).padStart(3, '0')}`)
-    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
-      const ids = options?.query?.ids ?? []
-      return {
-        items: ids.map((id) => createSession({ id })),
-        nextCursor: undefined
-      } as never
-    })
-
-    const { result } = renderHook(() =>
-      useAgentSessionsByIds(sessionIds, {
-        agentId: '00000000-0000-4000-8000-000000000001',
-        q: 'needle',
-        searchScope: 'full'
-      })
-    )
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false))
-
-    expect(dataApiService.get).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).toMatchObject({
-      ids: sessionIds.slice(0, 200),
-      limit: 200,
-      q: 'needle',
-      searchScope: 'full',
-      sortBy: 'updatedAt'
-    })
-    expect(vi.mocked(dataApiService.get).mock.calls[1][1]?.query).toMatchObject({
-      ids: sessionIds.slice(200),
-      limit: 200
-    })
-    expect(result.current.sessions).toHaveLength(201)
-  })
-
-  it('reapplies updatedAt order across bounded id request chunks', async () => {
-    const sessionIds = Array.from({ length: 201 }, (_, index) => `session-${String(index).padStart(3, '0')}`)
-    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
-      const ids = options?.query?.ids ?? []
-      return {
-        items: ids.map((id) =>
-          createSession({
-            id,
-            pinId: `pin-${id}`,
-            pinned: true,
-            updatedAt: id === 'session-200' ? '2025-01-01T00:00:00Z' : '2024-01-01T00:00:00Z'
-          })
-        ),
-        nextCursor: undefined
-      } as never
-    })
-
-    const { result } = renderHook(() => useAgentSessionsByIds(sessionIds))
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false))
-
-    expect(dataApiService.get).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).not.toHaveProperty('pinned')
-    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).toMatchObject({ sortBy: 'updatedAt' })
-    expect(result.current.sessions[0]?.id).toBe('session-200')
   })
 })
 

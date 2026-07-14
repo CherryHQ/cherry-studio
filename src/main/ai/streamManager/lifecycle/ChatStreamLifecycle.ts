@@ -1,34 +1,8 @@
 import { application } from '@application'
-import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import { type ActiveExecution, type TopicStreamStatus } from '@shared/ai/transport'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
-
-const AGENT_SESSION_STREAM_STATUS_IDS_KEY = 'agent.session.stream.status_ids' as const
-
-function updateIdMembership(ids: readonly string[], id: string, included: boolean): string[] {
-  const next = new Set(ids)
-  if (included) {
-    next.add(id)
-  } else {
-    next.delete(id)
-  }
-  return [...next]
-}
-
-function updateAgentSessionStatusIndexes(topicId: string, status: TopicStreamStatus): void {
-  if (!isAgentSessionTopic(topicId)) return
-
-  const sessionId = extractAgentSessionId(topicId)
-  const cacheService = application.get('CacheService')
-  const flags = classifyTurn(status)
-  const current = cacheService.getShared(AGENT_SESSION_STREAM_STATUS_IDS_KEY) ?? { activeIds: [], failedIds: [] }
-  cacheService.setShared(AGENT_SESSION_STREAM_STATUS_IDS_KEY, {
-    activeIds: updateIdMembership(current.activeIds, sessionId, flags.isTurnActive),
-    failedIds: updateIdMembership(current.failedIds, sessionId, status === 'error')
-  })
-}
 
 /**
  * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<topicId>`),
@@ -58,7 +32,6 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       awaitingApprovalAnchors,
       lastCompletedAt
     })
-    updateAgentSessionStatusIndexes(stream.topicId, status)
   }
 
   return {

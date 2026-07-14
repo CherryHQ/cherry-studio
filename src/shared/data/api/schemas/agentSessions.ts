@@ -212,7 +212,7 @@ export const ListAgentSessionsQuerySchema = z
     searchScope: AgentSessionSearchScopeSchema.optional(),
     /** true → pin-owned stream; false → only unpinned sessions (requires sortBy). Omitted → both. */
     pinned: z.boolean().optional(),
-    /** Bounded explicit id filter (e.g. History running/failed row fetches). */
+    /** Bounded explicit id filter for locating known session rows. */
     ids: z.array(z.string().min(1)).min(1).max(200).optional(),
     /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
     workspaceId: AgentSessionWorkspaceScopeSchema.optional()

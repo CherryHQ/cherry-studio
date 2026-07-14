@@ -27,8 +27,6 @@ import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/e
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
-  AgentSessionListItem,
-  AgentSessionOwnerScope,
   AgentSessionSearchScope,
   AgentSessionSortBy,
   AgentSessionStatsQuery,
@@ -41,18 +39,15 @@ import type {
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
 
 const logger = loggerService.withContext('useSession')
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
-const AGENT_SESSION_IDS_PAGE_SIZE = 200
 
 /** Cursor-chain reset for the session list — include it in every membership/order-changing write. */
 const SESSION_LIST_RESET = { path: '/agent-sessions', strategy: 'reset-cursor' } as const
 /** Canonical session-list write refresh: reset the cursor chain and refresh stats. */
 const SESSION_LIST_REFRESH: DataApiRefreshTarget[] = [SESSION_LIST_RESET, '/agent-sessions/stats']
-const EMPTY_AGENT_SESSIONS: readonly AgentSessionListItem[] = Object.freeze([])
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
@@ -63,8 +58,6 @@ type UseSessionsOptions = {
   q?: string
   /** 'name' (default) or 'full' (name OR description OR owning agent name). */
   searchScope?: AgentSessionSearchScope
-  /** Bounded explicit id filter for runtime History status rows. Flat path only. */
-  ids?: string[]
   /** true selects the independent pin-owned stream; false filters the flat stream. */
   pinned?: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
@@ -135,74 +128,6 @@ export function useAgentSessionStats(opts?: { enabled?: boolean; query?: AgentSe
   })
 
   return { stats: data, isLoading, error, refetch }
-}
-
-/**
- * Resolve runtime-selected session ids through bounded DataApi requests. History
- * uses this for `running` / `failed`: runtime status remains in SharedCache,
- * while SQLite still owns pin/source/search filtering. History order is always
- * reapplied by `updatedAt` across 200-id request chunks.
- */
-type UseAgentSessionsByIdsOptions = {
-  agentId?: AgentSessionOwnerScope
-  enabled?: boolean
-  q?: string
-  searchScope?: AgentSessionSearchScope
-}
-
-const compareOrderToken = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0)
-
-export function useAgentSessionsByIds(sessionIds: readonly string[], options: UseAgentSessionsByIdsOptions = {}) {
-  const normalizedIds = useMemo(() => [...new Set(sessionIds)].sort(), [sessionIds])
-  const idsKey = normalizedIds.join('\u0000')
-  const q = options.q?.trim() || undefined
-  const enabled = options.enabled !== false && normalizedIds.length > 0
-  const key = enabled
-    ? ['/agent-sessions', 'history-status-ids', idsKey, options.agentId ?? '', q ?? '', options.searchScope ?? '']
-    : null
-
-  const { data, error, isLoading, isValidating, mutate } = useSWR<readonly AgentSessionListItem[]>(
-    key,
-    async () => {
-      const sessions: AgentSessionListItem[] = []
-      for (let index = 0; index < normalizedIds.length; index += AGENT_SESSION_IDS_PAGE_SIZE) {
-        const ids = normalizedIds.slice(index, index + AGENT_SESSION_IDS_PAGE_SIZE)
-        const page = await dataApiService.get('/agent-sessions', {
-          query: {
-            agentId: options.agentId,
-            ids,
-            limit: AGENT_SESSION_IDS_PAGE_SIZE,
-            q,
-            searchScope: q ? options.searchScope : undefined,
-            sortBy: 'updatedAt'
-          }
-        })
-        sessions.push(...page.items)
-      }
-
-      sessions.sort((left, right) => {
-        const updatedAtDelta = Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-        if (updatedAtDelta !== 0) return updatedAtDelta
-        return compareOrderToken(left.id, right.id)
-      })
-      return sessions
-    },
-    {
-      dedupingInterval: 5000,
-      keepPreviousData: false,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false
-    }
-  )
-
-  return {
-    sessions: data ?? EMPTY_AGENT_SESSIONS,
-    error,
-    isLoading: enabled && isLoading,
-    isRefreshing: enabled && isValidating && data !== undefined,
-    refetch: mutate
-  }
 }
 
 export interface UseActiveSessionOptions {
@@ -281,7 +206,6 @@ export const useSessions = (
   const sortBy = typeof options === 'number' ? undefined : options.sortBy
   const q = typeof options === 'number' ? undefined : options.q?.trim() || undefined
   const searchScope = typeof options === 'number' ? undefined : options.searchScope
-  const ids = typeof options === 'number' ? undefined : options.ids
   const pinned = typeof options === 'number' ? undefined : options.pinned
   const workspaceId = typeof options === 'number' ? undefined : options.workspaceId
   const isPinnedStream = pinned === true
@@ -293,7 +217,6 @@ export const useSessions = (
       sortBy?: AgentSessionSortBy
       q?: string
       searchScope?: AgentSessionSearchScope
-      ids?: string[]
       pinned?: boolean
       workspaceId?: AgentSessionWorkspaceScope
     } = {}
@@ -302,24 +225,22 @@ export const useSessions = (
     const supportsRecordFilters = !!effectiveSortBy || isPinnedStream
     if (supportsRecordFilters && q) built.q = q
     if (supportsRecordFilters && q && searchScope) built.searchScope = searchScope
-    if (supportsRecordFilters && ids?.length) built.ids = ids
     if (supportsRecordFilters && pinned !== undefined) built.pinned = pinned
     if (supportsRecordFilters && workspaceId !== undefined) built.workspaceId = workspaceId
     return Object.keys(built).length > 0 ? built : undefined
-  }, [agentId, effectiveSortBy, ids, isPinnedStream, pinned, q, searchScope, workspaceId])
+  }, [agentId, effectiveSortBy, isPinnedStream, pinned, q, searchScope, workspaceId])
 
   const continuityKey = useMemo(
     () =>
       JSON.stringify({
         agentId,
-        ids,
         mode: isPinnedStream ? 'pinned' : effectiveSortBy ? 'flat' : 'legacy',
         pinned,
         q,
         searchScope,
         workspaceId
       }),
-    [agentId, effectiveSortBy, ids, isPinnedStream, pinned, q, searchScope, workspaceId]
+    [agentId, effectiveSortBy, isPinnedStream, pinned, q, searchScope, workspaceId]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     continuityKey,

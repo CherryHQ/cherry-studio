@@ -2729,8 +2729,6 @@
       "filter": {
         "selectAgent": "エージェントを選択",
         "selectAssistant": "アシスタントを選択",
-        "statusLabel": "ステータス",
-        "statusPlaceholder": "ステータスを選択",
         "unlinkedAssistant": "リンクされていないアシスタント"
       },
       "loading": {
@@ -2742,11 +2740,6 @@
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
       "shortTitle": "歴史",
-      "status": {
-        "completed": "完了",
-        "failed": "失敗",
-        "running": "走っている"
-      },
       "table": {
         "actions": "アクション",
         "conversation": "会話",

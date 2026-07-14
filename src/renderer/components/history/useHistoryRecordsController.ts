@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
 import { ALL_SOURCE_ID, findAdjacentHistoryRecordAfterBulkDelete } from './historyRecordsHelpers'
-import type { HistorySourceStatus } from './historyRecordsTypes'
 
 /**
  * Filter state owned by the mode wrapper (not this hook) because it drives the
@@ -14,17 +13,13 @@ export interface HistoryRecordsFilterState {
   setSearchText: (value: string) => void
   selectedSourceId: string
   setSelectedSourceId: (id: string) => void
-  selectedStatus: HistorySourceStatus
-  setSelectedStatus: (status: HistorySourceStatus) => void
 }
 
 interface UseHistoryRecordsControllerParams<T> {
   descriptor: HistoryRecordDescriptor<T>
   /**
-   * The loaded window of server-filtered records. The wrapper selects activity
-   * order for the all-source view and manual order for a concrete source;
-   * runtime status (agent mode) remains renderer-owned because it lives in
-   * SharedCache, not SQLite (D7 of #16890).
+   * The loaded window of server-filtered records. The wrapper selects the
+   * mode-specific ordering and source scope.
    */
   items: readonly T[]
   filters: HistoryRecordsFilterState
@@ -38,8 +33,6 @@ export interface HistoryRecordsController<T> {
   setSearchText: (value: string) => void
   selectedSourceId: string
   setSelectedSourceId: (id: string) => void
-  selectedStatus: HistorySourceStatus
-  setSelectedStatus: (status: HistorySourceStatus) => void
   visibleItems: readonly T[]
   selectedIds: string[]
   selectedCount: number
@@ -60,7 +53,7 @@ export interface HistoryRecordsController<T> {
  *
  * Selection semantics (D7 of #16890): "select all" selects only the rows
  * displayed at that moment; pages loaded afterwards are not auto-selected;
- * and changing source, status, or search clears the selection so rows
+ * and changing source or search clears the selection so rows
  * scrolled out of the new result set cannot be changed accidentally.
  */
 export function useHistoryRecordsController<T>({
@@ -70,8 +63,7 @@ export function useHistoryRecordsController<T>({
   activeRecordId
 }: UseHistoryRecordsControllerParams<T>): HistoryRecordsController<T> {
   const { getId, isPinned, sources, onBulkDelete, onActiveRecordChange, onBulkMove } = descriptor
-  const { searchText, setSearchText, selectedSourceId, setSelectedSourceId, selectedStatus, setSelectedStatus } =
-    filters
+  const { searchText, setSearchText, selectedSourceId, setSelectedSourceId } = filters
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
@@ -88,7 +80,7 @@ export function useHistoryRecordsController<T>({
   // Filter changes swap the visible result set — clear the selection outright.
   useEffect(() => {
     setSelectedIds([])
-  }, [searchText, selectedSourceId, selectedStatus])
+  }, [searchText, selectedSourceId])
 
   // Prune the selection down to currently-visible, non-pinned records (deletions, pins, refetches).
   useEffect(() => {
@@ -171,8 +163,6 @@ export function useHistoryRecordsController<T>({
     setSearchText,
     selectedSourceId,
     setSelectedSourceId,
-    selectedStatus,
-    setSelectedStatus,
     visibleItems,
     selectedIds,
     selectedCount: selectedIds.length,
@@ -195,7 +185,6 @@ export function useHistoryRecordsController<T>({
 export function useHistoryRecordsFilters(): HistoryRecordsFilterState {
   const [searchText, setSearchText] = useState('')
   const [selectedSourceId, setSelectedSourceId] = useState<string>(ALL_SOURCE_ID)
-  const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
 
-  return { searchText, setSearchText, selectedSourceId, setSelectedSourceId, selectedStatus, setSelectedStatus }
+  return { searchText, setSearchText, selectedSourceId, setSelectedSourceId }
 }

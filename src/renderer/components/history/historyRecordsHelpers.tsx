@@ -5,7 +5,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import type { HistorySourceOption, HistoryStatusOption } from './historyRecordsTypes'
+import type { HistorySourceOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
 export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
@@ -43,30 +43,6 @@ export function findAdjacentHistoryRecordAfterBulkDelete<T>(
   }
 
   return undefined
-}
-
-export function buildAgentStatusItems(t: TFunction): HistoryStatusOption[] {
-  return [
-    {
-      id: ALL_SOURCE_ID,
-      label: t('common.all')
-    },
-    {
-      id: 'running',
-      label: t('history.records.status.running'),
-      dotClassName: 'text-warning'
-    },
-    {
-      id: 'completed',
-      label: t('history.records.status.completed'),
-      dotClassName: 'text-success'
-    },
-    {
-      id: 'failed',
-      label: t('history.records.status.failed'),
-      dotClassName: 'text-destructive'
-    }
-  ]
 }
 
 export function buildAssistantSources(
