@@ -66,4 +66,9 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.mediaType).toBe('application/pdf')
     expect(part.url).toBe('file:///p/fe-3.pdf')
   })
+
+  it('throws when metadata is unreadable (null) for the freshly created file', async () => {
+    mocks.request.mockResolvedValueOnce(null)
+    await expect(buildFilePartsForAttachments([attachment()])).rejects.toThrow(/Failed to read metadata/)
+  })
 })

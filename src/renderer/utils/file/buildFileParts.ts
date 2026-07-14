@@ -31,9 +31,15 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
       const entry = await window.api.file.createInternalEntry({ source: 'path', path: attachment.path as FilePath })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
       const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
+      if (metadata === null) {
+        // The physical file was just created by createInternalEntry above, so an
+        // unreadable (null) metadata means a broken internal invariant — surface
+        // it here rather than silently shipping an octet-stream part.
+        throw new Error(`Failed to read metadata for freshly created file entry ${entry.id}`)
+      }
       const basePart: FileUIPart = {
         type: 'file',
-        mediaType: metadata?.kind === 'file' ? metadata.mime : 'application/octet-stream',
+        mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
         url: `file://${physicalPath}`,
         filename: attachment.origin_name || attachment.name
       }

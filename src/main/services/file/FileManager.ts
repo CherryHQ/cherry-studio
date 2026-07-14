@@ -146,7 +146,6 @@ import type {
   PhysicalFileMetadata
 } from '@shared/types/file'
 import { SafeExtSchema } from '@shared/types/file'
-import mime from 'mime'
 import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
@@ -185,6 +184,7 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
+import { buildPhysicalFileMetadata } from './utils/metadata'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
@@ -840,33 +840,18 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Returns the structural shape with `type: 'other'` for files regardless
-   * of ext. Per-kind enrichment — image width/height, PDF pageCount, text
-   * encoding — is deferred; renderer call sites that need those fields are
-   * expected to tolerate their absence until enrichment lands.
+   * Live physical metadata for an entry. Resolves the entry's physical path and
+   * delegates the stat → shape mapping to the shared `buildPhysicalFileMetadata`
+   * (the same derivation as the path-arm `getMetadataByPath`), so `type` is
+   * content-derived rather than hardcoded. Per-kind enrichment — image
+   * width/height, PDF pageCount, text encoding — is still deferred; call sites
+   * that need those fields tolerate their absence until enrichment lands.
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
-    if (s.isDirectory) {
-      return {
-        kind: 'directory',
-        size: s.size,
-        createdAt: s.createdAt || s.modifiedAt,
-        modifiedAt: s.modifiedAt
-      }
-    }
-    const ext = entry.ext
-    const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
-    return {
-      kind: 'file',
-      type: 'other',
-      size: s.size,
-      createdAt: s.createdAt || s.modifiedAt,
-      modifiedAt: s.modifiedAt,
-      mime: inferredMime
-    }
+    return buildPhysicalFileMetadata(physicalPath, s)
   }
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {
