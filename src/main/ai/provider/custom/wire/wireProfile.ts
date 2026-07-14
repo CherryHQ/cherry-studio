@@ -151,6 +151,19 @@ export const DMXAPI_GOOGLE_PROFILE: WireProfile = {
   }
 }
 
+/**
+ * Ollama's own experimental image-gen models (`x/z-image-turbo`,
+ * `x/flux2-klein`, served through `/api/generate`). Only `numInferenceSteps`
+ * needs a rule — its wire name is `steps`, not the catalog's auto snake_case
+ * `num_inference_steps` — since `size`/`seed` reach `ollamaTransport` via the
+ * native AI SDK call options (`input.size`/`input.seed`), never this profile.
+ */
+export const OLLAMA_WIRE_PROFILE: WireProfile = {
+  fields: {
+    numInferenceSteps: { to: 'steps' }
+  }
+}
+
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
@@ -203,7 +216,8 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] }
+  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
+  ollama: { profile: OLLAMA_WIRE_PROFILE }
 }
 
 /**

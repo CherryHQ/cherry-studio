@@ -1,5 +1,5 @@
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
@@ -29,6 +29,12 @@ const platformMock = vi.hoisted(() => ({
 }))
 const shellEnvMock = vi.hoisted(() => ({
   getShellEnv: vi.fn()
+}))
+const childProcessMock = vi.hoisted(() => ({
+  exec: vi.fn(),
+  execFile: vi.fn(),
+  execAsync: vi.fn().mockResolvedValue({ stdout: '' }),
+  execFileAsync: vi.fn().mockResolvedValue({ stdout: '' })
 }))
 
 vi.mock('@logger', () => ({
@@ -73,11 +79,14 @@ vi.mock('child_process', () => ({
     },
     on: () => {}
   })),
-  exec: vi.fn()
+  exec: childProcessMock.exec,
+  execFile: childProcessMock.execFile
 }))
 
 vi.mock('util', () => ({
-  promisify: vi.fn().mockReturnValue(vi.fn().mockResolvedValue({ stdout: '' }))
+  promisify: vi.fn((fn) =>
+    fn === childProcessMock.execFile ? childProcessMock.execFileAsync : childProcessMock.execAsync
+  )
 }))
 
 vi.mock('semver', () => ({
@@ -115,6 +124,8 @@ describe('CodeCliService', () => {
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
+    childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
+    childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
 
   it('should extend BaseService', async () => {
@@ -142,6 +153,64 @@ describe('CodeCliService', () => {
     expect(() => new CodeCliService()).toThrow(/already been instantiated/)
   })
 
+  describe('getAvailableTerminalsForPlatform (macOS)', () => {
+    const terminal = expect.objectContaining({ id: TerminalApp.SYSTEM_DEFAULT })
+    const ghostty = expect.objectContaining({ id: TerminalApp.GHOSTTY })
+
+    const mockInstalledBundles = (...bundleIds: string[]) => {
+      const installed = new Set(bundleIds)
+      childProcessMock.execFileAsync.mockImplementation((_file: string, args: string[]) => {
+        const bundleId = args.at(-1)
+        return Promise.resolve({ stdout: bundleId && installed.has(bundleId) ? `/Applications/${bundleId}.app` : '' })
+      })
+    }
+
+    it('uses LaunchServices instead of Spotlight to detect installed terminals', async () => {
+      childProcessMock.execAsync.mockImplementation((command: string) =>
+        Promise.resolve({ stdout: command.includes('com.apple.Terminal') ? '/System/Applications/Terminal.app' : '' })
+      )
+      mockInstalledBundles('com.mitchellh.ghostty')
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+      expect(childProcessMock.execAsync).not.toHaveBeenCalledWith(expect.stringContaining('mdfind'), expect.anything())
+    })
+
+    it('omits supported terminals that LaunchServices does not resolve', async () => {
+      mockInstalledBundles()
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal])
+    })
+
+    it('keeps the last complete cache when a later probe fails', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(new Date('2026-07-14T00:00:00Z'))
+        mockInstalledBundles('com.mitchellh.ghostty')
+        const { codeCliService } = await loadModules()
+        await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+
+        vi.advanceTimersByTime(5 * 60 * 1000 + 1)
+        childProcessMock.execFileAsync.mockRejectedValue(new Error('LaunchServices unavailable'))
+
+        await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('retries after an incomplete uncached probe and recovers installed terminals', async () => {
+      childProcessMock.execFileAsync.mockRejectedValue(new Error('LaunchServices unavailable'))
+      const { codeCliService } = await loadModules()
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal])
+
+      mockInstalledBundles('com.mitchellh.ghostty')
+
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+    })
+  })
+
   // macOS keeps the Claude Code login credential in the global Keychain; existence is probed via
   // `security find-generic-password` WITHOUT `-w` so we never read the secret or trip the ACL prompt.
   it('checkClaudeLogin returns true when the macOS keychain entry exists', async () => {
@@ -150,13 +219,8 @@ describe('CodeCliService', () => {
   })
 
   it('checkClaudeLogin returns false when the macOS keychain lookup fails', async () => {
-    const util = await import('util')
     const { codeCliService } = await loadModules()
-    // CodeCliService promisifies exec once at module load; grab that resolver and make it reject.
-    const execAsync = (
-      util.promisify as unknown as { mock: { results: { value: ReturnType<typeof vi.fn> }[] } }
-    ).mock.results.at(-1)?.value
-    execAsync?.mockRejectedValueOnce(new Error('not found'))
+    childProcessMock.execAsync.mockRejectedValueOnce(new Error('not found'))
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
   })
 

@@ -279,7 +279,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const pendingActiveScrollBlockRef = useRef<ScrollLogicalPosition>('nearest')
+  const pendingActiveScrollBlockRef = useRef<ScrollLogicalPosition | null>(null)
   const wasOpenForActiveScrollRef = useRef(false)
 
   useEffect(() => {
@@ -378,7 +378,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   useEffect(() => {
     if (!open) {
       wasOpenForActiveScrollRef.current = false
-      pendingActiveScrollBlockRef.current = 'nearest'
+      pendingActiveScrollBlockRef.current = null
       setActiveIndex(-1)
       return
     }
@@ -457,20 +457,24 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       switch (event.key) {
         case 'ArrowDown':
           event.preventDefault()
+          pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex((index) => step(index < 0 ? -1 : index, 1))
           return
         case 'ArrowUp':
           event.preventDefault()
+          pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex((index) => step(index < 0 ? flatItems.length : index, -1))
           return
         case 'Home':
           if (flatItems.length === 0) return
           event.preventDefault()
+          pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex(step(-1, 1))
           return
         case 'End':
           if (flatItems.length === 0) return
           event.preventDefault()
+          pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex(step(0, -1))
           return
         case 'Enter': {
@@ -488,11 +492,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   useEffect(() => {
     if (activeIndex < 0) return
+    const scrollBlock = pendingActiveScrollBlockRef.current
+    if (!scrollBlock) return
+    pendingActiveScrollBlockRef.current = null
     const item = flatItems[activeIndex]
     if (!item) return
-    const element = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(item.id)}"]`)
-    element?.scrollIntoView({ block: pendingActiveScrollBlockRef.current })
-    pendingActiveScrollBlockRef.current = 'nearest'
+    const element = listRef.current?.querySelector<HTMLElement>(`[data-option-row="${CSS.escape(item.id)}"]`)
+    element?.scrollIntoView({ block: scrollBlock })
   }, [activeIndex, flatItems])
 
   const activeOptionDomId =
@@ -642,7 +648,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           onSelect={() => handleSelectItem(item)}
           rootProps={{
             onMouseEnter: () => {
-              if (!item.disabled) setActiveIndex(flatIndex)
+              if (item.disabled) return
+              pendingActiveScrollBlockRef.current = null
+              setActiveIndex(flatIndex)
             },
             className: 'pr-0.5',
             'data-option-row': item.id
@@ -731,7 +739,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
             role="listbox"
             aria-multiselectable={multiEnabled}
             tabIndex={-1}
-            className="min-h-0 flex-1 px-1 py-1 outline-none"
+            className="min-h-0 flex-1 scroll-pt-1.5 px-1 py-1 outline-none"
             style={{ height: listHeight }}>
             {listContent}
           </Scrollbar>

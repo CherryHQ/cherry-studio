@@ -6,6 +6,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ConversationShell from '../ConversationShell'
+import { ConversationTopBarPortal, ConversationTopBarPortalHost } from '../ConversationTopBarPortal'
 
 const shellProps = vi.hoisted(() => ({
   current: null as {
@@ -86,6 +87,22 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
     expect(document.getElementById('conversation')).toHaveClass('message-style')
+  })
+
+  it('renders conversation controls into the top bar host', () => {
+    const { container } = render(
+      <ConversationShell
+        topBar={<ConversationTopBarPortalHost />}
+        center={
+          <ConversationTopBarPortal>
+            <button type="button">assistant selector</button>
+          </ConversationTopBarPortal>
+        }
+      />
+    )
+
+    const host = container.querySelector<HTMLElement>('[data-conversation-topbar-controls]')
+    expect(host).toContainElement(screen.getByRole('button', { name: 'assistant selector' }))
   })
 
   it('keeps the window-mode navbar wrapper at the title-bar height', () => {
