@@ -53,7 +53,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     }
 
     return { ok: true }
-  }, [ensureCurrentCatalog, modelId, provider, providerId])
+  }, [ensureCurrentCatalog, modelId, provider])
 
   return { validateBeforeGenerate }
 }
