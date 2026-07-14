@@ -161,9 +161,13 @@ const entry = await ipcApi.request('file.create_internal_entry', { source: 'byte
 
 **受影响消费者**：
 
-- `isDirectory`（3）：`components/composer/variants/AgentComposer.tsx:677`、`components/resource/dialogs/import/ImportSkillDialog.tsx:127`、`pages/agents/messages/agentMessageListAdapter.ts:157`
-- `isTextFile`（2）：`utils/file.ts:93`（`isSupportedFile` 兜底）、`hooks/useIsTextFile.ts:44`
-  - ⚠️ `isTextFile` 依赖 chardet buffer 探针（把无扩展名规则的文件判为文本）。若 v2 `getMetadata.type` 仅按 ext 派生、不做 buffer 探针，这两个消费者会退化——见 §5 缺口③。
+- `isDirectory`（4）：`components/composer/variants/AgentComposer.tsx`（workspace 警告）、`components/composer/paste/useFileDragDrop.ts`（`getDroppedPathKind`）、`components/resourceCatalog/dialogs/import/ImportSkillDialog.tsx`、`pages/agents/messages/agentMessageListAdapter.ts`（→ `ClickableFilePath`）
+- `isTextFile`（2）：`utils/file.ts`（`isSupportedFile` 兜底）、`hooks/useIsTextFile.ts`
+  - chardet buffer 探针已在前一 slice 保留（下沉进 `@main/utils/file/metadata` 的 `getFileType`），§5 缺口③的退化风险**已消除**。
+
+> **✅ 已实施（C-1，2026-07-13）**：新增单项 IpcApi route `file.get_metadata`（输出 `PhysicalFileMetadata | null`，缺失/不可读→`null`，与 `batch_get_metadata` 一致；**不引入 reason 错误码**——无消费者读）。`isDirectory`(4) + `getMetadata`(4，含 `useFileSize`/`buildFileParts`) 消费者全部迁到该 route；退休 legacy `File_IsDirectory` / `File_GetMetadata`（含 preload + FileManager handler），删 `FileStorage.isDirectory`。AgentComposer 保持 v1 行为（缺失/文件均报 `inaccessible`）——完整 missing/not_directory/inaccessible 三分仍 defer，见 [`filemetadata-consumer-audit.md`](./filemetadata-consumer-audit.md) §9(10)。
+
+> **成本-vs-分层（决定于 2026-07-13）**：`getMetadata` 为纯 kind 探针（`isDirectory`）顺带做了层 2 内容分类（`type`/`mime`，未知扩展名还会 chardet 读 8KB）。评估后认为该开销很小（ext 未命中罕见），**本轮仍折进 `getMetadata`**，不为此新建 tier-1 `file.stat`。分层观察与 Node 参照见 [`filemetadata-consumer-audit.md`](./filemetadata-consumer-audit.md) §9(10)。
 
 ### P5 — 图片/内容特化方法（`saveImage` / `savePastedImage` / `binaryImage`）
 
