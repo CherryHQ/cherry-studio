@@ -1,10 +1,9 @@
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
-
-import { useComposerBottomToolbarIconOnly } from '../useComposerBottomToolbarIconOnly'
 
 export const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
 export const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
@@ -17,7 +16,7 @@ export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 
-/** The shared "+" tool menu plus the active-tool controls rendered on the composer's left. */
+/** Active-tool controls followed by the shared "+" menu on the composer's left. */
 export const ComposerToolMenuControls = ({
   inputAdapter,
   unifiedPanelControl,
@@ -29,20 +28,10 @@ export const ComposerToolMenuControls = ({
 }) => {
   return (
     <>
-      {showToolMenu ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
       <ComposerActiveToolControls inputAdapter={inputAdapter} />
+      {showToolMenu ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
     </>
   )
-}
-
-export const ComposerToolMenuButton = ({
-  inputAdapter,
-  unifiedPanelControl
-}: {
-  inputAdapter?: QuickPanelInputAdapter
-  unifiedPanelControl?: ComposerUnifiedPanelControl
-}) => {
-  return <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
 }
 
 /** Toolbar (top) layout: variant-specific context controls + the shared tool menu. */
@@ -61,7 +50,7 @@ export const ComposerToolbarControls = ({
   leading?: ReactNode
   showToolMenu?: boolean
 }) => {
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const { iconOnly, containerRef: toolbarRef } = useOverflowIconOnly()
   const contextControls = renderContextControls({ side: 'top', iconOnly })
 
   if (toolMenuPlacement === 'beforeContext') {
@@ -99,7 +88,7 @@ export const ComposerBelowControls = ({
   renderContextControls: RenderContextControls
   trailing?: (args: { iconOnly: boolean }) => ReactNode
 }) => {
-  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const { iconOnly, containerRef: toolbarRef } = useOverflowIconOnly()
 
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
