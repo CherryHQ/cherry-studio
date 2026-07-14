@@ -156,4 +156,46 @@ describe('getMaxTokens', () => {
     const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
     expect(getMaxTokens(a, model, provider)).toBe(8000)
   })
+
+  // Characterization of the subtraction path (#16598 migration oracle). The
+  // gate `isSupportedThinkingTokenClaudeModel` reads the DESCRIPTOR
+  // (`reasoning.thinkingTokenLimits != null`), while the budget itself comes
+  // from the regex THINKING_TOKEN_MAP — both facts are frozen here.
+  const claude45WithLimits = () =>
+    makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { type: '', supportedEfforts: [], thinkingTokenLimits: { min: 1024, max: 64_000 } }
+    })
+
+  it('subtracts the thinking budget on pre-4.6 Claude with a token-limit descriptor', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 100_000, reasoning_effort: 'high' })
+    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
+    // budget = floor((64000-1024)*.8+1024) = 51404 → 100000 - 51404
+    expect(getMaxTokens(a, claude45WithLimits(), provider)).toBe(48_596)
+  })
+
+  it('collapses maxTokens to 0 when the budget cap equals maxTokens — frozen quirk', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
+    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
+    // computeBudgetTokens caps the budget AT maxTokens (8000), so 8000 - 8000 = 0.
+    expect(getMaxTokens(a, claude45WithLimits(), provider)).toBe(0)
+  })
+
+  it('skips subtraction on non-anthropic-like providers', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 100_000, reasoning_effort: 'high' })
+    expect(getMaxTokens(a, claude45WithLimits(), makeProvider({ id: 'openrouter' }))).toBe(100_000)
+  })
+
+  it('skips subtraction when the descriptor has no token limits (current catalog state for claude)', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 100_000, reasoning_effort: 'high' })
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
+    expect(getMaxTokens(a, model, provider)).toBe(100_000)
+  })
 })
