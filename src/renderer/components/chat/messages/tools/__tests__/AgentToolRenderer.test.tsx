@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
@@ -792,6 +793,34 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('agent tool flow action', () => {
+    it('routes a nested subagent click through the real tool group and renderer chain', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+        status: 'done',
+        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+        response: 'ok'
+      })
+
+      render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
+
+      const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
+      fireEvent.click(groupTrigger)
+
+      const agentRow = screen
+        .getAllByRole('button')
+        .find((element) => element !== groupTrigger && element.tagName === 'DIV')
+      expect(agentRow).toBeDefined()
+      fireEvent.click(agentRow!)
+
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'Agent',
+        title: 'Inspect renderer'
+      })
+    })
+
     it('opens the right-pane flow only from subagent rows', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })
