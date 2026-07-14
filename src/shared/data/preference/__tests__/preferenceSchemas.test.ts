@@ -32,7 +32,7 @@ describe('DefaultPreferences', () => {
     const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
     const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
     const topicSortDefault: PreferenceSchemas['default']['topic.sort_type'] = 'createdAt'
-    const agentSessionSortDefault: PreferenceSchemas['default']['agent.session.sort_type'] = 'orderKey'
+    const agentSessionSortDefault: PreferenceSchemas['default']['agent.session.sort_type'] = 'createdAt'
 
     expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)

@@ -142,7 +142,7 @@ vi.mock('@data/hooks/usePreference', () => ({
           : key === 'agent.session.display_mode'
             ? 'agent'
             : key === 'agent.session.sort_type'
-              ? 'orderKey'
+              ? 'createdAt'
               : undefined
 
     return [
@@ -832,10 +832,10 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.sort.created_at' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.sort.updated_at' }))
 
     await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'createdAt')
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'updatedAt')
     })
   })
 

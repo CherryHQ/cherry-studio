@@ -8,7 +8,7 @@ date: 2026-07-13
 
 ## What changed
 
-The conversation and agent-task list options now separate display mode from sorting. Items can be sorted by latest update, creation time, or manual order; conversations default to creation time and agent tasks default to manual order.
+The conversation and agent-task list options now separate display mode from sorting. Items can be sorted by latest update, creation time, or manual order; both conversations and agent tasks default to creation time.
 
 ## Why this matters to the user
 

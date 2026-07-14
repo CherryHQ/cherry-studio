@@ -22,9 +22,8 @@ preference. The layout is derived from the resource-list display mode.
 
 - Display mode, topic/session position, and topic/session item sort are stored as
   Preference data.
-- `topic.sort_type` defaults to `createdAt` and
-  `agent.session.sort_type` defaults to `orderKey`. Changing display mode does
-  not change either sort preference.
+- `topic.sort_type` and `agent.session.sort_type` both default to `createdAt`;
+  changing display mode does not change either sort preference.
 - `topic.tab.show` controls whether the left resource list is expanded.
 - Classic-layout right-pane state is persisted independently per surface via
   `useClassicLayoutRightPaneOpen(surface, { enabled, defaultOpen })`:

@@ -182,7 +182,7 @@
     {
       "targetKey": "agent.session.sort_type",
       "type": "PreferenceTypes.TopicSessionSortBy",
-      "defaultValue": "orderKey",
+      "defaultValue": "createdAt",
       "status": "classified",
       "description": "Agent session sidebar item sort profile (v2 new feature, no v1 source)"
     },

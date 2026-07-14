@@ -922,7 +922,7 @@ describe('Sessions', () => {
     vi.useRealTimers()
   })
 
-  it('loads all sessions and renders collapsed workspace groups with drag by default', () => {
+  it('loads all sessions and renders collapsed workspace groups with drag in manual order', () => {
     setSessionGroupExpansionCache({
       ...createExpandedSessionGroupExpansionFixture(),
       // Collapse the workspace groups; sections stay expanded.
