@@ -653,12 +653,12 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
-    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toBeNull()
+    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'true')
 
     closeRightPane()
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
-    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
   })
 
@@ -896,19 +896,21 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
   })
 
-  it('opens one right-pane tab per selected subagent flow', () => {
+  it('opens selected subagent flows in the right-pane title header', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('cache-usage.md')
+    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
 
-    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /renderer audit/ })).toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('renderer audit')
+    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
     expect(screen.queryByText('Agent')).not.toBeInTheDocument()
   })
 
@@ -984,19 +986,16 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
   })
 
-  it('closes a subagent flow tab from its hover close button', () => {
+  it('keeps subagent flows as a title-only focus surface', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
     fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
-    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /renderer audit/ })).toBeInTheDocument()
 
-    const flowBTab = screen.getByRole('button', { name: /renderer audit/ })
-    fireEvent.click(within(flowBTab.parentElement as HTMLElement).getByRole('button', { name: 'common.close' }))
-
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('renderer audit')
+    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
-    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
   })
 

@@ -10,10 +10,13 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAppUpdateHandler')
 
-// REFACTOR(window-runtime-init): copied from the old useUpdateHandler and adjusted
-// during the v2 data refactor — but it should NOT be a React hook at all. It is a
-// main-only IPC->notification subscriber (twin of useStorageMonitorNotification) and
-// belongs in a notification/service layer, not the window render tree. — fullex
+// Main-only IPC->notification subscriber (twin of useStorageMonitorNotification):
+// maps updater IPC events onto toasts, notifications, and the update dialog.
+//
+// Intentionally a React hook, not a service: service-ification was considered and
+// rejected — it depends on React-visible state (useAppUpdateState cache, toast/popup)
+// and manages its own effect cleanup, and the renderer has no service lifecycle
+// container, so a service would only add manual start/stop wiring for no gain.
 export function useAppUpdateHandler() {
   const { t } = useTranslation()
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()

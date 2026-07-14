@@ -1,7 +1,7 @@
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { isExternalCliProvider, isLoginBasedProvider, isNoApiKeyProvider } from '../provider'
+import { isExternalCliProvider, isLoginBasedProvider } from '../provider'
 
 const withAuthMethods = (authMethods?: Provider['authMethods']): Pick<Provider, 'authMethods'> => ({ authMethods })
 
@@ -47,21 +47,5 @@ describe('isExternalCliProvider', () => {
   it('is false for api-key providers and when authMethods is absent', () => {
     expect(isExternalCliProvider(withAuthMethods(['api-key']))).toBe(false)
     expect(isExternalCliProvider(withAuthMethods(undefined))).toBe(false)
-  })
-})
-
-describe('isNoApiKeyProvider', () => {
-  it('matches local providers that can be checked without an API key', () => {
-    expect(isNoApiKeyProvider({ id: 'ollama' })).toBe(true)
-    expect(isNoApiKeyProvider({ id: 'lmstudio' })).toBe(true)
-    expect(isNoApiKeyProvider({ id: 'gpustack' })).toBe(true)
-  })
-
-  it('matches providers derived from no-key presets', () => {
-    expect(isNoApiKeyProvider({ id: 'custom-ollama', presetProviderId: 'ollama' })).toBe(true)
-  })
-
-  it('does not match normal API-key providers', () => {
-    expect(isNoApiKeyProvider({ id: 'openai' })).toBe(false)
   })
 })

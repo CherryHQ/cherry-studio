@@ -73,6 +73,7 @@
       "name": "AiHubMix"
     },
     {
+      "authOptional": true,
       "description": "OpenVINO Model Server - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -401,6 +402,7 @@
       "name": "OpenRouter"
     },
     {
+      "authOptional": true,
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -450,6 +452,7 @@
       "name": "New API"
     },
     {
+      "authOptional": true,
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1190,6 +1193,7 @@
           "official": "https://cloud.tencent.com/product/tokenhub"
         }
       },
+      "modelListSource": "registry",
       "name": "TokenHub"
     },
     {
@@ -1213,6 +1217,7 @@
       "name": "Baidu Cloud"
     },
     {
+      "authOptional": true,
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "GPUStack - AI model provider",
       "endpointConfigs": {
@@ -1248,6 +1253,7 @@
           "official": "https://www.voyageai.com/"
         }
       },
+      "modelListSource": "registry",
       "name": "VoyageAI"
     },
     {
@@ -1267,6 +1273,7 @@
           "official": "https://aws.amazon.com/bedrock/"
         }
       },
+      "modelListSource": "registry",
       "name": "AWS Bedrock"
     },
     {
@@ -1452,5 +1459,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "92482a2571d2ff1e"
+  "version": "6dd76cf1b8f4d058"
 }

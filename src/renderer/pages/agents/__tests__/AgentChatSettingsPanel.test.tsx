@@ -25,6 +25,9 @@ const agentRightPanePropsMock = vi.hoisted(() => ({
 const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
+const conversationShellPropsMock = vi.hoisted(() => ({
+  last: undefined as any
+}))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 
@@ -42,30 +45,27 @@ vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
-  default: ({
-    topBar,
-    topRightTool,
-    sidePanel,
-    center,
-    rightPane,
-    overlay
-  }: {
+  default: (props: {
     topBar?: ReactNode
     topRightTool?: ReactNode
     sidePanel?: ReactNode
     center?: ReactNode
     rightPane?: ReactNode
     overlay?: ReactNode
-  }) => (
-    <div>
-      <div data-testid="agent-top-bar">{topBar}</div>
-      <div data-testid="agent-top-right-tool">{topRightTool}</div>
-      <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{center}</div>
-      <div>{overlay}</div>
-      {rightPane}
-    </div>
-  )
+    showTopRightToolWhenPaneOpen?: boolean
+  }) => {
+    conversationShellPropsMock.last = props
+    return (
+      <div>
+        <div data-testid="agent-top-bar">{props.topBar}</div>
+        <div data-testid="agent-top-right-tool">{props.topRightTool}</div>
+        <div data-testid="agent-side-panel">{props.sidePanel}</div>
+        <div>{props.center}</div>
+        <div>{props.overlay}</div>
+        {props.rightPane}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
@@ -251,7 +251,7 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     return (
       <div
         data-testid="agent-composer"
-        data-show-workspace={String(Boolean(props.showWorkspaceSelector))}
+        data-can-change-agent={String(Boolean(props.canChangeAgent))}
         data-can-change-workspace={String(Boolean(props.onWorkspaceChange))}
         data-can-change-model={String(props.canChangeModel !== false)}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
@@ -302,6 +302,7 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
     agentRightPanePropsMock.last = undefined
     agentComposerPropsMock.last = undefined
+    conversationShellPropsMock.last = undefined
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     agentRightPanePropsMock.openTrace.mockReset()
@@ -327,11 +328,12 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
-  it('keeps the right-pane expand button next to the tab shortcuts', () => {
+  it('keeps right-pane shortcuts visible without the expand button', () => {
     renderAgentChat()
 
     expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
+    expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {
@@ -360,8 +362,8 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange
     })
 
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-show-workspace', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'true')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-agent', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'change composer workspace' }))
@@ -369,7 +371,7 @@ describe('AgentChat settings panel', () => {
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('keeps the workspace control read-only while the empty session is pending', () => {
+  it('does not allow switching the workspace while the empty session is pending', () => {
     topicStreamStatusMock.isPending = true
 
     renderAgentChat({
@@ -383,10 +385,11 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-agent', 'false')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 
-  it('keeps the workspace control read-only after messages are present', () => {
+  it('does not allow switching the workspace after messages are present', () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]
     }
@@ -401,8 +404,8 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange: vi.fn()
     })
 
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-show-workspace', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-agent', 'false')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 

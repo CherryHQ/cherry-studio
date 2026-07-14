@@ -4,10 +4,11 @@ import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -16,6 +17,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -263,10 +265,10 @@ export function ModelSelector(props: ModelSelectorProps) {
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
+    onSettingsNavigate,
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -276,6 +278,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
+  const [shellKey, setShellKey] = useState(0)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
@@ -447,6 +450,21 @@ export function ModelSelector(props: ModelSelectorProps) {
     [setFocusedItemKey]
   )
 
+  const focusItemBeforePaint = useCallback(
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
+      setFocusedItemKey(key)
+      const index = listItemsRef.current.findIndex((item) => item.key === key)
+      if (index < 0) return
+
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current)
+        focusScrollFrameRef.current = null
+      }
+      listRef.current?.scrollToIndex(index, { align })
+    },
+    [setFocusedItemKey]
+  )
+
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
       skipNextFocusScroll.current = true
@@ -474,15 +492,54 @@ export function ModelSelector(props: ModelSelectorProps) {
     setOpen(false)
   }, [setOpen])
 
-  const handleNavigateToProviderSettings = useCallback(
-    (providerId: string) => {
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        setShellKey((key) => key + 1)
+        runPendingCloseAction()
+        return
+      }
+
+      setShellKey((key) => key + 1)
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
-        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
+    },
+    [open, runPendingCloseAction, setOpen]
+  )
+
+  const closeBeforeSettingsNavigation = useCallback(
+    (path: SettingsPath) => {
+      closeBeforeAction(() => {
+        const navigate = () => openSettingsTab(path)
+        if (onSettingsNavigate) {
+          onSettingsNavigate(navigate)
+          return
+        }
+
+        navigate()
       })
     },
-    [navigate, setOpen]
+    [closeBeforeAction, onSettingsNavigate]
   )
+
+  const handleNavigateToProviderSettings = useCallback(
+    (providerId: string) => {
+      closeBeforeSettingsNavigation(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+    },
+    [closeBeforeSettingsNavigation]
+  )
+
+  const handleNavigateToCustomModelSettings = useCallback(() => {
+    closeBeforeSettingsNavigation('/settings/provider')
+  }, [closeBeforeSettingsNavigation])
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
@@ -582,6 +639,15 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open, resetTags, setFocusedItemKey])
 
   useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
+
+  useLayoutEffect(() => {
     const currentModelItems = modelItemsRef.current
     if (!open || isLoading || currentModelItems.length === 0) {
       return
@@ -599,9 +665,11 @@ export function ModelSelector(props: ModelSelectorProps) {
           currentModelItems[0]?.key)
 
     if (targetKey) {
-      focusItem(targetKey, 'start')
+      // Position the virtual list before paint so opening does not briefly show
+      // the first rows before jumping to the selected model on the next frame.
+      focusItemBeforePaint(targetKey, 'start')
     }
-  }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
+  }, [deferredSearchText, focusItemBeforePaint, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
@@ -726,12 +794,22 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
+  const bottomAction = useMemo(
+    () => ({
+      icon: <Settings2 className="size-3.5" />,
+      label: t('models.action.configure_custom'),
+      onClick: handleNavigateToCustomModelSettings
+    }),
+    [handleNavigateToCustomModelSettings, t]
+  )
+
   const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
 
   return (
     <>
       {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
       <SelectorShell
+        key={shellKey}
         trigger={trigger}
         open={open}
         onOpenChange={setOpen}
@@ -745,6 +823,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
         contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        bottomAction={bottomAction}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

@@ -2,7 +2,8 @@ import { toast } from '@renderer/services/toast'
 import type * as ModelModule from '@renderer/utils/model'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type {
   ButtonHTMLAttributes,
   CSSProperties,
@@ -11,6 +12,7 @@ import type {
   ReactNode,
   RefObject
 } from 'react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../../SelectorShell'
@@ -20,6 +22,7 @@ import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult }
 const {
   mockUseModelSelectorData,
   mockNavigate,
+  mockOpenSettingsTab,
   mockScrollToIndex,
   mockLoggerError,
   mockVirtualListSizes,
@@ -28,6 +31,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseModelSelectorData: vi.fn(),
   mockNavigate: vi.fn().mockResolvedValue(undefined),
+  mockOpenSettingsTab: vi.fn(),
   mockScrollToIndex: vi.fn(),
   mockLoggerError: vi.fn(),
   mockVirtualListSizes: [] as number[],
@@ -51,6 +55,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mockOpenSettingsTab
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -349,10 +357,41 @@ function mockSelectorChromeHeight(height: number) {
   })
 }
 
+function mockDeferredAnimationFrames() {
+  const callbacks: FrameRequestCallback[] = []
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callbacks.push(callback)
+    return callbacks.length
+  })
+
+  return {
+    pendingCount: () => callbacks.length,
+    flushNextFrame: () => {
+      const callback = callbacks.shift()
+      if (!callback) {
+        throw new Error('No pending animation frame')
+      }
+
+      act(() => callback(0))
+    },
+    flushAllFrames: () => {
+      while (callbacks.length > 0) {
+        const pendingCallbacks = callbacks.splice(0)
+        act(() => {
+          for (const callback of pendingCallbacks) {
+            callback(0)
+          }
+        })
+      }
+    }
+  }
+}
+
 describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
     mockNavigate.mockReset()
+    mockOpenSettingsTab.mockReset()
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
@@ -429,7 +468,8 @@ describe('ModelSelector', () => {
     expect(screen.queryByText('models.type.vision')).not.toBeInTheDocument()
     expect(screen.queryByText('models.type.reasoning')).not.toBeInTheDocument()
     expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('button.transition-colors svg')).toHaveLength(3)
+    const filterIcons = container.querySelectorAll('[data-selector-shell-chrome="filter"] button.transition-colors svg')
+    expect(filterIcons).toHaveLength(3)
   })
 
   it('uses neutral color on the row action when the model row is selected', () => {
@@ -617,6 +657,21 @@ describe('ModelSelector', () => {
     await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'start' }))
   })
 
+  it('positions the selected model before the next animation frame when opened', () => {
+    mockDeferredAnimationFrames()
+    const selectedModelId = 'openai::gpt-3.5' as UniqueModelId
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: [selectedModelId],
+        visibleSelectedModelIdSet: makeSelectedSet([selectedModelId])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
+  })
+
   it('refetches models, providers, and pinned models when controlled open switches to true', async () => {
     const refetchModels = vi.fn(async () => undefined)
     const refetchProviders = vi.fn(async () => undefined)
@@ -732,17 +787,179 @@ describe('ModelSelector', () => {
     expect(screen.getByTestId('model-selector-content')).toHaveAttribute('hidden')
   })
 
-  it('opens provider settings from the provider group action without selecting a model', async () => {
+  it('passes provider settings navigation to the host after the selector closes', async () => {
     mockUseModelSelectorData.mockReturnValue(makeData())
+    const onSettingsNavigate = vi.fn()
     const onSelect = vi.fn()
+    let settingsNavigate: (() => void) | undefined
 
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
+    function ControlledSelector() {
+      const [open, setOpen] = useState(true)
+
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          trigger={<button type="button">open</button>}
+          onOpenChange={setOpen}
+          onSettingsNavigate={(navigate) => {
+            onSettingsNavigate(navigate)
+            settingsNavigate = navigate
+          }}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<ControlledSelector />)
+    const frames = mockDeferredAnimationFrames()
 
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
-    )
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(onSettingsNavigate).not.toHaveBeenCalled()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(frames.pendingCount()).toBeGreaterThan(0))
+    frames.flushAllFrames()
+
+    expect(onSettingsNavigate).toHaveBeenCalledTimes(1)
+    expect(settingsNavigate).toEqual(expect.any(Function))
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+
+    act(() => settingsNavigate?.())
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('passes custom model settings navigation to the host after the selector closes', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const onSettingsNavigate = vi.fn()
+    const onSelect = vi.fn()
+    let settingsNavigate: (() => void) | undefined
+
+    function ControlledSelector() {
+      const [open, setOpen] = useState(true)
+
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          trigger={<button type="button">open</button>}
+          onOpenChange={setOpen}
+          onSettingsNavigate={(navigate) => {
+            onSettingsNavigate(navigate)
+            settingsNavigate = navigate
+          }}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<ControlledSelector />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
+
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(onSettingsNavigate).not.toHaveBeenCalled()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(frames.pendingCount()).toBeGreaterThan(0))
+    frames.flushAllFrames()
+
+    expect(onSettingsNavigate).toHaveBeenCalledTimes(1)
+    expect(settingsNavigate).toEqual(expect.any(Function))
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+
+    act(() => settingsNavigate?.())
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('lets a host dialog close before running the delegated settings navigation', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const onSelect = vi.fn()
+
+    function HostDialog() {
+      const [dialogOpen, setDialogOpen] = useState(true)
+      const [selectorOpen, setSelectorOpen] = useState(true)
+
+      return dialogOpen ? (
+        <div role="dialog">
+          <ModelSelector
+            open={selectorOpen}
+            multiple={false}
+            trigger={<button type="button">open</button>}
+            onOpenChange={setSelectorOpen}
+            onSettingsNavigate={(navigate) => {
+              setDialogOpen(false)
+              navigate()
+            }}
+            onSelect={onSelect}
+          />
+        </div>
+      ) : (
+        <div data-testid="dialog-closed" />
+      )
+    }
+
+    render(<HostDialog />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(frames.pendingCount()).toBeGreaterThan(0))
+    frames.flushAllFrames()
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('dialog-closed')).toBeInTheDocument()
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('does not select the focused model when pressing Enter on the bottom custom model action', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    function ControlledSelector() {
+      const [open, setOpen] = useState(true)
+
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          trigger={<button type="button">open</button>}
+          onOpenChange={(nextOpen) => {
+            onOpenChange(nextOpen)
+            setOpen(nextOpen)
+          }}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<ControlledSelector />)
+
+    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(1, { align: 'start' }))
+    const bottomAction = screen.getByRole('button', { name: 'models.action.configure_custom' })
+    bottomAction.focus()
+
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider'))
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -781,14 +998,27 @@ describe('ModelSelector', () => {
     )
     const onSelect = vi.fn()
 
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
+    function ControlledSelector() {
+      const [open, setOpen] = useState(true)
+
+      return (
+        <ModelSelector
+          open={open}
+          multiple={false}
+          trigger={<button type="button">open</button>}
+          onOpenChange={setOpen}
+          onSelect={onSelect}
+        />
+      )
+    }
+
+    render(<ControlledSelector />)
 
     expect(screen.queryByText('cherryin')).toBeNull()
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'cherryin' } })
-    )
+    await waitFor(() => expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
+    expect(mockNavigate).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -898,7 +1128,7 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(100))
+    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(48))
   })
 
   it('honors a measured zero available list height', async () => {

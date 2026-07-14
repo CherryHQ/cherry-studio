@@ -1,9 +1,8 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 import * as z from 'zod'
@@ -15,26 +14,25 @@ export const RequestPayloadSchema = z.object({
 
 export type RequestPayload = z.infer<typeof RequestPayloadSchema>
 
-export class Fetcher {
-  private static async _fetch({ url, headers }: RequestPayload): Promise<Response> {
-    try {
-      // SSRF guard: the URL is model-supplied and `z.url()` accepts file://, localhost,
-      // RFC1918, and link-local (e.g. the 169.254.169.254 metadata endpoint). Reject
-      // non-http(s) schemes, credentials, and local/private/reserved hosts before fetching.
-      // Reuses the project's ipaddr.js-based guard (single blocklist).
-      const safeUrl = sanitizeRemoteUrl(url)
-      const response = await net.fetch(safeUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          ...headers
-        }
-      })
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
-      }
-      return response
+function buildHeaders(headers: RequestPayload['headers']): Headers {
+  const resolvedHeaders = new Headers(headers)
+
+  if (!resolvedHeaders.has('User-Agent')) {
+    resolvedHeaders.set('User-Agent', DEFAULT_USER_AGENT)
+  }
+
+  return resolvedHeaders
+}
+
+export class Fetcher {
+  private static async _fetchText({ url, headers }: RequestPayload): Promise<string> {
+    try {
+      // The URL is model-supplied and this tool is auto-callable, so direct
+      // main-process fetches must bind the connection to validated DNS results.
+      return await fetchRemoteText(url, { headers: buildHeaders(headers) })
     } catch (e: unknown) {
       if (e instanceof Error) {
         throw new Error(`Failed to fetch ${url}: ${e.message}`)
@@ -46,8 +44,7 @@ export class Fetcher {
 
   static async html(requestPayload: RequestPayload) {
     try {
-      const response = await this._fetch(requestPayload)
-      const html = await response.text()
+      const html = await this._fetchText(requestPayload)
       return { content: [{ type: 'text', text: html }], isError: false }
     } catch (error) {
       return {
@@ -59,8 +56,8 @@ export class Fetcher {
 
   static async json(requestPayload: RequestPayload) {
     try {
-      const response = await this._fetch(requestPayload)
-      const json = await response.json()
+      const text = await this._fetchText(requestPayload)
+      const json = JSON.parse(text)
       return {
         content: [{ type: 'text', text: JSON.stringify(json) }],
         isError: false
@@ -75,8 +72,7 @@ export class Fetcher {
 
   static async txt(requestPayload: RequestPayload) {
     try {
-      const response = await this._fetch(requestPayload)
-      const html = await response.text()
+      const html = await this._fetchText(requestPayload)
 
       const dom = new JSDOM(html)
       const document = dom.window.document
@@ -104,8 +100,7 @@ export class Fetcher {
 
   static async markdown(requestPayload: RequestPayload) {
     try {
-      const response = await this._fetch(requestPayload)
-      const html = await response.text()
+      const html = await this._fetchText(requestPayload)
       const turndownService = new TurndownService()
       const markdown = turndownService.turndown(html)
       return { content: [{ type: 'text', text: markdown }], isError: false }
