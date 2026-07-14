@@ -44,6 +44,16 @@ Removal publishes `removing`, removes the mise tool when present, reshims even w
 
 Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, installation claims it by writing a pinned manifest entry at its observed version. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime while making a durable claim explicit.
 
+Removing a runtime is guarded symmetrically. Under the mutation lock, removal of an owned `node` runtime is rejected while any owned `npm:` tool remains in the manifest, and an owned `python` runtime while any owned `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph.
+
+### Claiming an already-installed tool
+
+`claimTool(intent)` (route `binary.claim_tool`) takes durable ownership of a tool that is **already installed** in Cherry's isolated mise environment, without any mise mutation — it never runs `mise use/install/uninstall`, reshims, downloads, runs a postinstall, or changes a version. It exists so a user can opt an already-mise-managed tool into Cherry's update/remove lifecycle explicitly, rather than having ownership inferred from the tool merely being available.
+
+Under the mutation lock it validates the canonical intent, rejects an active install/remove for the same name, enforces the same name/spec single-owner invariants as install, proves the exact tool spec is installed via `mise ls` (never inferring ownership from a PATH or shim name), verifies the named executable target is runnable, and only then persists the manifest entry. If `requestedVersion` is supplied the observed installed version must match it; for a `node`/`python` runtime claim without `requestedVersion` the observed version is pinned into the entry. It returns the observed version. A manifest write failure leaves the tool runnable-but-unowned, and success broadcasts `availability_changed` through the normal manifest invalidation. Like `install_tool`/`remove_tool`, the route refuses a `senderId: null` caller.
+
+The settings surfaces (Dependencies presets/custom/runtime cards and the Code CLI version card) map a snapshot's `availability.source` to a single ownership action when there is no `intent`: `mise` offers "Manage with Cherry Studio", which calls `claim_tool` with the canonical/exact spec; `system` offers "Install a Cherry-managed copy", which calls `install_tool` and never touches the system binary; `bundled` stays read-only; `none` uses the existing install flow. An existing installation is therefore never described or treated as a system takeover. Once a snapshot carries `intent`, the claim action is replaced by the normal update/remove controls.
+
 `feature.binary.install_states` is a main-owned, session-only operation cache. It is not a renderer storage API; operations reach renderer windows only as part of snapshots. `feature.binary.latest_versions` is likewise a session cache: non-forced reads are cache-only, while a forced lookup runs `mise latest` for manifest entries and writes results only if the manifest did not change during the batch.
 
 ## IPC and events

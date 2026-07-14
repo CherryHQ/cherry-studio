@@ -44,6 +44,18 @@ describe('useBinaryActions', () => {
     expect(toast.success).toHaveBeenCalledWith('code.install_success')
   })
 
+  it('claims an already-installed CLI with its canonical intent and no version target', async () => {
+    const { result } = renderHook(() => useBinaryActions())
+
+    await act(async () => {
+      await result.current.claim(CodeCli.CLAUDE_CODE)
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('binary.claim_tool', { name: 'claude', tool: 'claude' })
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('binary.install_tool', expect.anything())
+    expect(toast.success).toHaveBeenCalledWith('code.claim_success')
+  })
+
   it('preserves durable intent while using the detected latest version as a one-shot target', async () => {
     const { result } = renderHook(() => useBinaryActions())
 

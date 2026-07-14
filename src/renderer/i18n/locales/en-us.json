@@ -1970,6 +1970,8 @@
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
     "can_upgrade": "Upgrade available",
+    "claim_failed": "Failed to bring the tool under management",
+    "claim_success": "Now managed by Cherry Studio",
     "clear_config_failed": "Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
     "cli_config": {
       "format_failed": "Format failed. Check the file syntax.",
@@ -6024,6 +6026,9 @@
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Check for updates",
+      "claimAction": "Manage with Cherry Studio",
+      "claimConfirmMessage": "Add \"{{name}}\" to Cherry Studio's managed tools? It will not be reinstalled and its version will not change. Cherry Studio may later update or remove it.",
+      "claimConfirmTitle": "Manage with Cherry Studio",
       "coreDepsMissing": "Core dependencies not installed",
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "duplicateName": "A tool with the same name already exists",
@@ -6031,6 +6036,7 @@
       "install": "Install",
       "installError": "Failed to install tool",
       "installErrorHint": "The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installManagedCopy": "Install a Cherry-managed copy",
       "installSettings": {
         "description": "Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {

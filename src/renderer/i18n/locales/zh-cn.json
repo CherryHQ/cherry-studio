@@ -1970,6 +1970,8 @@
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "can_upgrade": "可升级",
+    "claim_failed": "纳入管理失败",
+    "claim_success": "已纳入 Cherry 管理",
     "clear_config_failed": "清除 CLI 配置失败，凭证可能仍保留在该工具的配置文件中",
     "cli_config": {
       "format_failed": "格式化失败，请检查文件格式",
@@ -6024,6 +6026,9 @@
       "addTool": "添加工具",
       "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "检查更新",
+      "claimAction": "纳入 Cherry 管理",
+      "claimConfirmMessage": "将 “{{name}}” 纳入 Cherry Studio 管理？不会重新安装，也不会更改版本。Cherry Studio 之后可能会更新或移除它。",
+      "claimConfirmTitle": "纳入 Cherry 管理",
       "coreDepsMissing": "核心依赖未安装",
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
       "duplicateName": "已存在相同名称的工具",
@@ -6031,6 +6036,7 @@
       "install": "安装",
       "installError": "工具安装失败",
       "installErrorHint": "安装命令执行失败。复制下方日志以便排查或寻求帮助。",
+      "installManagedCopy": "安装 Cherry 管理的副本",
       "installSettings": {
         "description": "微调内置 CLI 工具的安装方式。所有字段均为可选，留空则保持默认。",
         "githubMirror": {

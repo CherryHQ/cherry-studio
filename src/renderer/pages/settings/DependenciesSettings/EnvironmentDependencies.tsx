@@ -131,10 +131,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean } | null>(null)
+  const [claimTarget, setClaimTarget] = useState<{ intent: BinaryManifestEntry; displayName: string } | null>(null)
   const [installError, setInstallError] = useState<{ name: string; message: string } | null>(null)
   // Retain the last target so the confirm dialog keeps its message during the close animation.
   const deleteTargetRef = useRef<{ name: string; runtime: boolean }>({ name: '', runtime: false })
   if (deleteTarget) deleteTargetRef.current = deleteTarget
+  const claimTargetRef = useRef<{ intent: BinaryManifestEntry; displayName: string }>({
+    intent: { name: '', tool: '' },
+    displayName: ''
+  })
+  if (claimTarget) claimTargetRef.current = claimTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
   const mountedRef = useRef(true)
@@ -261,6 +267,21 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     if (!(await installTool(claimedTool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
   }
 
+  // Ownership-only claim: takes over a tool already installed in Cherry's mise
+  // env without reinstalling or changing its version. The main process refreshes
+  // every window through the availability_changed broadcast on success.
+  const handleClaimTool = async (intent: BinaryManifestEntry) => {
+    try {
+      await ipcApi.request('binary.claim_tool', intent)
+      setClaimTarget(null)
+    } catch (error) {
+      logger.error('Failed to claim tool', error as Error)
+      toast.error(formatErrorMessage(error))
+    } finally {
+      await refreshState()
+    }
+  }
+
   // BinaryManager removes the physical binary and its manifest ownership together.
   const handleRemoveTool = async (toolName: string) => {
     try {
@@ -374,6 +395,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               }
               onUpdate={() => managedIntent && installTool(managedIntent, { targetVersion: latestVersion ?? 'latest' })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
+              onManage={() =>
+                setClaimTarget({
+                  intent: {
+                    name: tool.name,
+                    tool: tool.tool,
+                    ...(tool.requestedVersion ? { requestedVersion: tool.requestedVersion } : {})
+                  },
+                  displayName: tool.displayName
+                })
+              }
               onRemove={() => setDeleteTarget({ name: tool.name, runtime: false })}
             />
           )
@@ -411,6 +442,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               onInstall={() => installTool(toManifestIntent(snapshot))}
               onUpdate={() => installTool(toManifestIntent(snapshot), { targetVersion: latestVersion ?? 'latest' })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
+              onManage={() => setClaimTarget({ intent: toManifestIntent(snapshot), displayName: snapshot.name })}
               onRemove={() => setDeleteTarget({ name: snapshot.name, runtime })}
             />
           )
@@ -439,6 +471,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           if (deleteTarget) await handleRemoveTool(deleteTarget.name)
         }}
       />
+
+      <ConfirmDialog
+        open={!!claimTarget}
+        onOpenChange={(open) => !open && setClaimTarget(null)}
+        title={t('settings.dependencies.claimConfirmTitle')}
+        description={t('settings.dependencies.claimConfirmMessage', { name: claimTargetRef.current.displayName })}
+        confirmText={t('settings.dependencies.claimAction')}
+        onConfirm={async () => {
+          if (claimTarget) await handleClaimTool(claimTarget.intent)
+        }}
+      />
     </div>
   )
 }
@@ -455,6 +498,7 @@ const BinaryToolPresetCard: FC<{
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
+  onManage: () => void
   onRemove: () => void
 }> = ({
   tool,
@@ -468,6 +512,7 @@ const BinaryToolPresetCard: FC<{
   onInstall,
   onUpdate,
   onOpenPath,
+  onManage,
   onRemove
 }) => {
   const { t } = useTranslation()
@@ -475,6 +520,7 @@ const BinaryToolPresetCard: FC<{
   const present = source !== 'none'
   const isBundled = source === 'bundled'
   const isSystem = source === 'system'
+  const isMise = source === 'mise'
   const installing = operation?.status === 'installing'
   const removing = operation?.status === 'removing'
   const failedInstall = operation?.status === 'failed' && operation.action === 'install'
@@ -594,7 +640,22 @@ const BinaryToolPresetCard: FC<{
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {(source === 'none' || (failedInstall && !owned)) && !failedRemove && (
+      {/* Installed via mise but not yet owned: offer an explicit ownership claim
+          (no reinstall/version change) rather than treating it as a takeover. */}
+      {isMise && !owned && !failedInstall && (
+        <div className="mt-3 border-border border-t pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-full gap-1 font-medium text-xs"
+            onClick={onManage}
+            disabled={busy}>
+            {t('settings.dependencies.claimAction')}
+          </Button>
+        </div>
+      )}
+
+      {(source === 'none' || isSystem || (failedInstall && !owned)) && !failedRemove && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -608,9 +669,11 @@ const BinaryToolPresetCard: FC<{
               ? t('settings.dependencies.installing')
               : failedInstall
                 ? t('common.retry')
-                : isBundled
-                  ? t('settings.dependencies.install')
-                  : t('settings.mcp.install')}
+                : isSystem
+                  ? t('settings.dependencies.installManagedCopy')
+                  : isBundled
+                    ? t('settings.dependencies.install')
+                    : t('settings.mcp.install')}
           </Button>
           {installing && <BinaryInstallingHint />}
         </div>
@@ -633,6 +696,7 @@ const CustomToolCard: FC<{
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
+  onManage: () => void
   onRemove: () => void
 }> = ({
   tool,
@@ -648,6 +712,7 @@ const CustomToolCard: FC<{
   onInstall,
   onUpdate,
   onOpenPath,
+  onManage,
   onRemove
 }) => {
   const { t } = useTranslation()
@@ -750,6 +815,21 @@ const CustomToolCard: FC<{
 
       {(failedInstall || failedRemove) && !busy && (
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
+      )}
+
+      {/* Discovered mise runtime/tool without ownership: offer an explicit claim
+          (no reinstall/version change) instead of leaving it read-only. */}
+      {tool.availability.source === 'mise' && !owned && !failedInstall && (
+        <div className="mt-3 border-border border-t pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-full gap-1 font-medium text-xs"
+            onClick={onManage}
+            disabled={busy}>
+            {t('settings.dependencies.claimAction')}
+          </Button>
+        </div>
       )}
 
       {(!installed || (failedInstall && !owned)) && !readOnly && !failedRemove && (

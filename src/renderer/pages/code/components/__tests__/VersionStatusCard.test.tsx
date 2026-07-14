@@ -27,7 +27,8 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.install' })).toBeInTheDocument()
   })
 
-  it('treats a system PATH tool as launchable without install or remove actions', () => {
+  it('offers a Cherry-managed copy for a system PATH tool via install, never a claim', () => {
+    const onInstall = vi.fn()
     render(
       <VersionStatusCard
         toolId="claude-code"
@@ -39,7 +40,8 @@ describe('VersionStatusCard', () => {
           systemPath: '/usr/local/bin/claude',
           canUpgrade: false
         }}
-        onInstall={vi.fn()}
+        onInstall={onInstall}
+        onManage={vi.fn()}
         onRemove={vi.fn()}
         onLaunch={vi.fn()}
         canLaunch
@@ -47,9 +49,51 @@ describe('VersionStatusCard', () => {
     )
 
     expect(screen.getByText('settings.dependencies.source.system')).toHaveAttribute('title', '/usr/local/bin/claude')
-    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    // A system binary is not owned; the action installs a Cherry copy alongside it.
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.claimAction' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.dependencies.installManagedCopy' }))
+    expect(onInstall).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
+  })
+
+  it('offers a Manage-with-Cherry claim for an unowned mise tool without treating it as an install', () => {
+    const onManage = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ installed: true, source: 'mise', owned: false, canUpgrade: false }}
+        onManage={onManage}
+        onInstall={vi.fn()}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.dependencies.claimAction' }))
+    expect(onManage).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a bundled tool read-only with neither a claim nor a remove action', () => {
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{ installed: true, source: 'bundled', owned: false, current: '1.0.0', canUpgrade: false }}
+        onManage={vi.fn()}
+        onInstall={vi.fn()}
+        onRemove={vi.fn()}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.claimAction' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
   })
 
   it('renders a disabled launch action when launch requirements are missing', () => {
