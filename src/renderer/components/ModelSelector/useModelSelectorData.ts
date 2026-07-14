@@ -22,7 +22,6 @@ import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
 const SELECTOR_LIST_SWR_OPTIONS = { revalidateOnFocus: true } as const
-const CHERRYAI_SETTINGS_PROVIDER_ID = 'cherryin'
 
 function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
   return getSearchMatchScore(keywords, [
@@ -68,10 +67,6 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
   const remaining = providers.filter((provider) => !prioritizedIds.has(provider.id))
 
   return [...prioritized, ...remaining]
-}
-
-function getProviderSettingsProviderId(provider: Provider): string {
-  return provider.id === CHERRYAI_PROVIDER_ID ? CHERRYAI_SETTINGS_PROVIDER_ID : provider.id
 }
 
 export function useModelSelectorData({
@@ -289,8 +284,7 @@ export function useModelSelectorData({
         title: getProviderDisplayName(provider),
         groupKind: 'provider',
         provider,
-        canNavigateToSettings: true,
-        settingsProviderId: getProviderSettingsProviderId(provider)
+        canNavigateToSettings: provider.id !== CHERRYAI_PROVIDER_ID
       })
 
       items.push(
