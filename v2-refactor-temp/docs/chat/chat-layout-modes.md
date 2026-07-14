@@ -121,8 +121,9 @@ record filters.
 - Create/delete/rename/clear/move refresh the affected cursor windows inside the
   current Renderer after the local mutation succeeds; compatible visible rows
   remain mounted during the first-page handoff.
-- Unpinned History records keep their own updated-time order and do not read
-  these list sort preferences; their pinned band follows the shared pin order.
+- Unpinned History records keep their own creation-time order
+  (`createdAt DESC, id ASC`) and do not read these list sort preferences; their
+  pinned band follows the shared pin order.
 
 ## Key Files
 
