@@ -857,6 +857,22 @@ const App = defineComponent({
       const errorWeight = (percentage - 50) * 2
       return `color-mix(in oklch, #f59e0b ${100 - errorWeight}%, #ef4444 ${errorWeight}%)`
     })
+    const renderContextOrb = () =>
+      h(
+        'span',
+        {
+          class: [
+            'context-orb',
+            contextUsagePercentage.value === undefined ? 'context-orb-empty' : `context-orb-${contextUsageTone.value}`
+          ],
+          style: {
+            '--context-usage':
+              contextUsagePercentage.value === undefined ? '0deg' : `${Math.round((contextUsagePercentage.value / 100) * 360)}deg`
+          },
+          'aria-hidden': 'true'
+        },
+        contextUsagePercentage.value === undefined ? '--' : String(contextUsagePercentage.value)
+      )
     const agentStatus = computed(() => buildWebUiAgentStatus(messages.value))
     const incompleteTaskCount = computed(
       () => agentStatus.value.tasks.filter((task) => task.status !== 'completed').length
@@ -2349,7 +2365,11 @@ const App = defineComponent({
                   h(
                     'button',
                     {
-                      class: ['agent-status-shortcut', { 'agent-status-shortcut-active': statusPanelOpen.value }],
+                      class: [
+                        'agent-status-shortcut',
+                        'agent-status-context-shortcut',
+                        { 'agent-status-shortcut-active': statusPanelOpen.value }
+                      ],
                       type: 'button',
                       disabled: !selectedConversation.value,
                       title: `${text('status')} · ${contextUsageLabel.value}`,
@@ -2358,7 +2378,7 @@ const App = defineComponent({
                       onClick: toggleStatusPanel
                     },
                     [
-                      renderActionIcon('activity'),
+                      renderContextOrb(),
                       incompleteTaskCount.value > 0
                         ? h('span', { class: 'agent-status-shortcut-badge' }, String(incompleteTaskCount.value))
                         : undefined
@@ -3334,6 +3354,17 @@ style.textContent = `
     border-radius: 7px;
     cursor: pointer;
     transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+  }
+
+  .agent-status-context-shortcut {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+
+  .agent-status-context-shortcut .context-orb {
+    width: 40px;
+    height: 40px;
   }
 
   .agent-status-shortcut:hover,
