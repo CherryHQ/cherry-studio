@@ -76,7 +76,7 @@ const AssistantHistoryRecords = ({
   const filters = useHistoryRecordsFilters()
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
-  const historySortBy = 'updatedAt' as const
+  const historySortBy = 'createdAt' as const
   const pinnedTopicsSource = useTopics({
     q: debouncedSearch,
     assistantId: ownerScope,

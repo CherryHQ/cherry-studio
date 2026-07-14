@@ -911,11 +911,23 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(within(firstHomePage).queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
-  it('matches external assistant source and selected-source order', () => {
+  it('matches external assistant source and orders selected rows by creation time', () => {
     const topics = [
       createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
-      createTopic({ id: 'topic-alpha-b', name: 'Alpha B', orderKey: 'b' }),
-      createTopic({ id: 'topic-alpha-a', name: 'Alpha A', orderKey: 'a' })
+      createTopic({
+        id: 'topic-alpha-b',
+        name: 'Alpha B',
+        orderKey: 'b',
+        createdAt: '2026-05-14T08:00:00.000Z',
+        updatedAt: '2026-05-16T08:00:00.000Z'
+      }),
+      createTopic({
+        id: 'topic-alpha-a',
+        name: 'Alpha A',
+        orderKey: 'a',
+        createdAt: '2026-05-15T08:00:00.000Z',
+        updatedAt: '2026-05-14T08:00:00.000Z'
+      })
     ]
     hookMocks.useTopics.mockImplementation((options?: { assistantId?: string; pinned?: boolean; sortBy?: string }) => ({
       topics: topics
@@ -928,7 +940,8 @@ describe('HistoryRecordsView assistant mode', () => {
           if (options?.sortBy === 'orderKey') {
             return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
           }
-          return Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || left.id.localeCompare(right.id)
+          const sortBy = options?.sortBy === 'createdAt' ? 'createdAt' : 'updatedAt'
+          return Date.parse(right[sortBy]) - Date.parse(left[sortBy]) || left.id.localeCompare(right.id)
         }),
       error: undefined,
       hasNext: false,
@@ -950,7 +963,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: true }))
     const pinnedCall = hookMocks.useTopics.mock.calls.find(([options]) => options?.pinned === true)
     expect(pinnedCall?.[0]).not.toHaveProperty('sortBy')
-    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: false, sortBy: 'updatedAt' }))
+    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: false, sortBy: 'createdAt' }))
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant/ })
     const gammaSource = screen.getByRole('button', { name: /Gamma assistant/ })
@@ -960,7 +973,7 @@ describe('HistoryRecordsView assistant mode', () => {
     fireEvent.click(alphaSource)
 
     expect(hookMocks.useTopics).toHaveBeenCalledWith(
-      expect.objectContaining({ assistantId: 'assistant-alpha', pinned: false, sortBy: 'updatedAt' })
+      expect.objectContaining({ assistantId: 'assistant-alpha', pinned: false, sortBy: 'createdAt' })
     )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement

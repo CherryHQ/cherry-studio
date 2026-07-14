@@ -360,7 +360,7 @@ function setupAgentHistory({
     ownerScope?: string,
     q?: string,
     pinned?: boolean,
-    sortBy: 'updatedAt' | 'orderKey' = 'updatedAt'
+    sortBy: 'createdAt' | 'updatedAt' | 'orderKey' = 'createdAt'
   ) => {
     const normalizedQuery = q?.trim().toLowerCase()
     return projectedSessions
@@ -375,8 +375,8 @@ function setupAgentHistory({
         )
       })
       .sort((left, right) => {
-        if (sortBy === 'updatedAt') {
-          return Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || left.id.localeCompare(right.id)
+        if (sortBy !== 'orderKey') {
+          return Date.parse(right[sortBy]) - Date.parse(left[sortBy]) || left.id.localeCompare(right.id)
         }
         return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
       })
@@ -490,7 +490,7 @@ describe('HistoryRecordsView agent mode', () => {
       pinned: false,
       q: '',
       searchScope: 'full',
-      sortBy: 'updatedAt'
+      sortBy: 'createdAt'
     })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
@@ -557,7 +557,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('orders agent sources and selected agent rows by agent order', () => {
+  it('orders agent sources by agent order and selected agent rows by creation time', () => {
     setupAgentHistory({
       agents: [
         createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
@@ -578,14 +578,18 @@ describe('HistoryRecordsView agent mode', () => {
           name: 'Alpha B',
           workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a'),
-          orderKey: 'b'
+          orderKey: 'b',
+          createdAt: '2026-05-14T08:00:00.000Z',
+          updatedAt: '2026-05-16T08:00:00.000Z'
         }),
         createSession({
           id: 'session-alpha-a',
           name: 'Alpha A',
           workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a'),
-          orderKey: 'a'
+          orderKey: 'a',
+          createdAt: '2026-05-15T08:00:00.000Z',
+          updatedAt: '2026-05-14T08:00:00.000Z'
         })
       ]
     })
@@ -601,7 +605,7 @@ describe('HistoryRecordsView agent mode', () => {
       'agent-alpha',
       expect.objectContaining({
         pinned: false,
-        sortBy: 'updatedAt'
+        sortBy: 'createdAt'
       })
     )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement

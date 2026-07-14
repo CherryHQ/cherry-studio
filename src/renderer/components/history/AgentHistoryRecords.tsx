@@ -44,7 +44,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const filters = useHistoryRecordsFilters()
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
-  const historySortBy = 'updatedAt' as const
+  const historySortBy = 'createdAt' as const
 
   const pinnedSessionsSource = useSessions(ownerScope, {
     pageSize: HISTORY_PAGE_SIZE,
