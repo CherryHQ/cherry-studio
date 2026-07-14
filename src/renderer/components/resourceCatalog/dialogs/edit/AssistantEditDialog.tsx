@@ -224,12 +224,16 @@ function AssistantEditDialogContent({
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  // Tracks whether the most recent save attempt failed, so the close path can
+  // keep the dialog open (and the error visible) instead of closing over a loss.
+  const saveFailedRef = useRef(false)
 
   const persist = async () => {
     const pending = saveIntent
     if (!pending) return
 
     form.clearErrors('root')
+    saveFailedRef.current = false
 
     let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
@@ -240,6 +244,7 @@ function AssistantEditDialogContent({
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      saveFailedRef.current = true
       return
     }
 
@@ -254,17 +259,25 @@ function AssistantEditDialogContent({
   // update mutation refreshes /assistants/* → resource refetches → saveIntent's
   // baseline moves, but the values are unchanged, so this never re-fires from our
   // own save (prevents a save→refetch→save loop).
-  useDebouncedAutoSave({
+  const flush = useDebouncedAutoSave({
     enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
 
-  // Flush a still-pending debounced change when the dialog closes so a quick
-  // edit-then-close never loses the last keystroke.
+  // On close with a pending edit, flush through the same serialized save queue and
+  // only close once it settles — so a failed final save stays visible instead of
+  // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
-    if (!next && canPersist) void persist()
-    onOpenChange(next)
+    if (next || !canPersist) {
+      onOpenChange(next)
+      return
+    }
+    void (async () => {
+      await flush()
+      if (saveFailedRef.current) return
+      onOpenChange(false)
+    })()
   }
   // Route the settings-navigate close through handleOpenChange so it flushes too.
   const closeBeforeAction = useCloseBeforeAction(handleOpenChange)

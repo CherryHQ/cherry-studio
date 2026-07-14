@@ -1056,6 +1056,88 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({ name: 'Updated Assistant' })
       })
     )
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    // The close now awaits the flush and only closes once it settles.
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('persists the latest edit made while an earlier save is still in flight', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAssistantMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
+        })
+    )
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Edit' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
+      body: expect.objectContaining({ name: 'First Edit' })
+    })
+
+    // Keep editing while the first PATCH is still in flight.
+    fireEvent.change(nameInput, { target: { value: 'Second Edit' } })
+    // Let the debounce fire; the in-flight guard must queue — not drop — this edit.
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: 'Second Edit' })
+    })
+  })
+
+  it('keeps the dialog open with a visible error when the save on close fails', async () => {
+    updateAssistantMock.mockRejectedValue(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('reuses the in-flight save when closing mid-save instead of racing a second one', async () => {
+    let resolveSave: (() => void) | undefined
+    updateAssistantMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = () => resolve({ ...ASSISTANT, name: 'Mid Save' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mid Save' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+
+    // Close while that save is still in flight: no second concurrent save, and the
+    // dialog must not close until the in-flight save settles.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    resolveSave?.()
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the agent dialog open with a visible error when the save on close fails', async () => {
+    updateAgentMock.mockRejectedValue(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 })

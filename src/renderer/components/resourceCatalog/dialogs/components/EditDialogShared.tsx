@@ -33,7 +33,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -42,7 +42,7 @@ import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './Dialo
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'flex-none justify-start data-[state=active]:!shadow-none')
+const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
 
 const logger = loggerService.withContext('EditDialogShared')
 
@@ -112,8 +112,15 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
 /**
  * Debounced auto-save for the edit dialogs. Re-arms whenever `changeKey` changes
  * (a serialized snapshot of the pending diff) and fires `onSave` after `delay`ms
- * of quiet. `changeKey === null` means nothing to save. A ref guards against
- * overlapping in-flight saves.
+ * of quiet. `changeKey === null` means nothing to save.
+ *
+ * Saves are serialized: only one runs at a time. If the state moves on while a
+ * save is in flight, a single follow-up pass is queued and runs (with the latest
+ * `onSave`) once the current save settles — so the last edit is never dropped.
+ *
+ * Returns a `flush()` that runs/awaits the serialized save immediately; callers
+ * (e.g. the close path) await it to persist pending edits before proceeding,
+ * reusing the same queue instead of racing a second concurrent save.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -125,27 +132,50 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}) {
+}): () => Promise<void> {
   const onSaveRef = useRef(onSave)
+  const changeKeyRef = useRef(changeKey)
   const savingRef = useRef(false)
+  // `changeKey` captured when the in-flight save started; a follow-up pass is
+  // only queued when the state has moved past it.
+  const savedKeyRef = useRef<string | null>(null)
+  const pendingRef = useRef(false)
+  const inFlightRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     onSaveRef.current = onSave
+    changeKeyRef.current = changeKey
   })
 
-  useEffect(() => {
-    if (!enabled || changeKey === null) return
-    const handle = setTimeout(async () => {
-      if (savingRef.current) return
-      savingRef.current = true
+  const flush = useCallback((): Promise<void> => {
+    if (savingRef.current) {
+      // A save is already running; queue one more pass only if the latest state
+      // differs from what that save captured (otherwise it already covers it).
+      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
+      return inFlightRef.current
+    }
+    savingRef.current = true
+    inFlightRef.current = (async () => {
       try {
-        await onSaveRef.current()
+        do {
+          pendingRef.current = false
+          savedKeyRef.current = changeKeyRef.current
+          await onSaveRef.current()
+        } while (pendingRef.current)
       } finally {
         savingRef.current = false
       }
-    }, delay)
+    })()
+    return inFlightRef.current
+  }, [])
+
+  useEffect(() => {
+    if (!enabled || changeKey === null) return
+    const handle = setTimeout(() => void flush(), delay)
     return () => clearTimeout(handle)
-  }, [enabled, changeKey, delay])
+  }, [enabled, changeKey, delay, flush])
+
+  return flush
 }
 
 const HelpIconButton = ({
@@ -354,6 +384,7 @@ export function EditDialogShell<TValues extends FieldValues>({
   onActiveTabChange,
   onOpenChange,
   open,
+  rootError,
   setDialogContentElement,
   tabs,
   title,
@@ -509,6 +540,13 @@ export function EditDialogShell<TValues extends FieldValues>({
                 <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-4">
                   {children}
                 </Scrollbar>
+                {/* Live-save surfaces failures here — rendered only when present so it never
+                    reserves space against the fill-height prompt editor. */}
+                {rootError ? (
+                  <p className="shrink-0 px-5 pb-3 text-destructive text-xs" aria-live="polite">
+                    {rootError}
+                  </p>
+                ) : null}
               </div>
             </Tabs>
           </form>
