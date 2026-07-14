@@ -9,7 +9,9 @@ import PdfTranslationView, { type PdfTranslationHandle } from '../PdfTranslation
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   progressHandler: null as null | ((payload: PdfTranslationProgress & { jobId: string }) => void),
-  stageHandler: null as null | ((payload: { jobId: string; stage: 'preparing' | 'translating' }) => void),
+  stageHandler: null as
+    | null
+    | ((payload: { jobId: string; stage: 'preparing' | 'downloading_assets' | 'translating' }) => void),
   uuid: vi.fn(() => 'b289bad7-a813-4cf7-91c0-2a9dc82235b2')
 }))
 
@@ -83,7 +85,7 @@ describe('PdfTranslationView', () => {
     expect(onStatusChange).toHaveBeenLastCalledWith({ phase: 'success', running: false })
   })
 
-  it('shows streamed progress for the active PDF translation job', async () => {
+  it('shows stable streamed progress for the active PDF translation job', async () => {
     let resolveStart!: (result: { fileName: string; outputPath: string }) => void
     const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
       resolveStart = resolve
@@ -122,6 +124,30 @@ describe('PdfTranslationView', () => {
     act(() => {
       mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'parsing',
+        progress: 10
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.preparing' })).toHaveAttribute(
+      'aria-valuenow',
+      '10'
+    )
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'processing',
+        progress: 30
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.analyzing' })).toHaveAttribute(
+      'aria-valuenow',
+      '30'
+    )
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
         stage: 'translating',
         progress: 42
       })
@@ -130,10 +156,66 @@ describe('PdfTranslationView', () => {
       'aria-valuenow',
       '42'
     )
-    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '42')
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'typesetting',
+        progress: 70
+      })
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'parsing',
+        progress: 80
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.generating' })).toHaveAttribute(
+      'aria-valuenow',
+      '80'
+    )
+    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '80')
+    expect(screen.queryByText('translate.pdf.progress.status')).not.toBeInTheDocument()
 
     resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
+  })
+
+  it('shows PDF resource downloads without a misleading percentage', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') return new Promise(() => {})
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
+        onClose={vi.fn()}
+        onHandleChange={(next) => {
+          handle = next
+        }}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+    await waitFor(() => expect(mocks.stageHandler).not.toBeNull())
+
+    act(() => {
+      mocks.stageHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'downloading_assets'
+      })
+    })
+
+    expect(screen.getByText('translate.pdf.progress.downloading_assets')).toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
   it('cancels an active job on unmount and cleans output that wins the completion race', async () => {

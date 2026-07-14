@@ -7915,23 +7915,16 @@
       },
       "progress": {
         "analyzing": "正在分析文件版面",
-        "extracting_terms": "正在擷取術語",
-        "parsing": "正在解析 PDF",
+        "downloading_assets": "正在下載 PDF 處理資源...",
+        "generating": "正在產生譯文 PDF",
         "percent": "{{progress}}%",
-        "processing": "正在處理 PDF",
-        "rendering": "正在產生譯文 PDF",
-        "status": "{{stage}} {{progress}}%",
-        "translating": "正在翻譯段落",
-        "typesetting": "正在排版譯文",
+        "preparing": "正在準備文件",
+        "translating": "正在翻譯內容",
         "value": "{{stage}}，{{progress}}%"
       },
       "ready": {
         "description": "選擇目標語言並開始翻譯。",
         "title": "等待翻譯"
-      },
-      "status": {
-        "preparing": "正在準備 PDF 翻譯...",
-        "translating": "正在翻譯 PDF..."
       },
       "success": "譯文 PDF 已產生"
     },

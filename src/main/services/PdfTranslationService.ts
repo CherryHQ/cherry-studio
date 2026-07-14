@@ -9,7 +9,6 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { hasPdfTextLayer } from '@main/utils/pdf'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
@@ -26,6 +25,10 @@ import * as z from 'zod'
 const logger = loggerService.withContext('PdfTranslationService')
 const BABELDOC_ERROR_PREFIX = '__CHERRY_BABELDOC_ERROR__'
 const BABELDOC_PROGRESS_PREFIX = '__CHERRY_BABELDOC_PROGRESS__'
+const BABELDOC_ASSET_DOWNLOAD_PATTERNS = [
+  /not found or corrupted, downloading/i,
+  /downloading (?:all assets|fonts|cmaps)(?: from)?/i
+]
 // BabelDOC 0.6.3 exposes structured events to Python callers but renders only
 // terminal output in its CLI. This per-run hook preserves those events as NDJSON.
 const BABELDOC_PROGRESS_ADAPTER = `import contextlib
@@ -94,7 +97,7 @@ const BABELDOC_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
 const createOcrRequiredError = (): IpcError =>
   new IpcError(translateErrorCodes.PDF_OCR_REQUIRED, 'OCR translation for scanned PDFs is not supported yet')
 
-export type PdfTranslationStage = 'preparing' | 'translating'
+export type PdfTranslationStage = 'preparing' | 'downloading_assets' | 'translating'
 
 export interface PdfTranslationRequest {
   jobId: string
@@ -188,12 +191,6 @@ export class PdfTranslationService extends BaseService {
       }
 
       onStage?.('preparing')
-      const hasTextLayer = await hasPdfTextLayer(await fs.promises.readFile(request.sourcePath))
-      this.throwIfCancelled(job)
-      if (!hasTextLayer) {
-        throw createOcrRequiredError()
-      }
-
       const executable = await this.resolveSidecar()
       this.throwIfCancelled(job)
 
@@ -214,7 +211,7 @@ export class PdfTranslationService extends BaseService {
       await fs.promises.mkdir(outputDir, { recursive: true })
       onStage?.('translating')
 
-      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
+      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onStage, onProgress)
       this.throwIfCancelled(job)
 
       const fileName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
@@ -287,6 +284,7 @@ export class PdfTranslationService extends BaseService {
     gatewayModelId: string,
     baseUrl: string,
     apiKey: string,
+    onStage?: (stage: PdfTranslationStage) => void,
     onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<void> {
     const configPath = path.join(outputDir, 'babeldoc.toml')
@@ -314,6 +312,8 @@ export class PdfTranslationService extends BaseService {
       normalizeLanguageCode(request.targetLangCode),
       '--report-interval',
       '0.2',
+      '--watermark-output-mode',
+      'no_watermark',
       '--no-dual'
     ]
     const env = { ...(await this.buildSidecarEnv()), PYTHONPATH: progressAdapterDir }
@@ -324,6 +324,7 @@ export class PdfTranslationService extends BaseService {
         job.child = child
         let stderr = ''
         let sidecarError: Error | null = null
+        let downloadingAssets = false
         const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
         progressLines?.on('line', (line) => {
@@ -347,6 +348,10 @@ export class PdfTranslationService extends BaseService {
             return
           }
           if (!line.startsWith(BABELDOC_PROGRESS_PREFIX)) {
+            if (!downloadingAssets && BABELDOC_ASSET_DOWNLOAD_PATTERNS.some((pattern) => pattern.test(line))) {
+              downloadingAssets = true
+              onStage?.('downloading_assets')
+            }
             logger.debug(line.trim())
             return
           }
@@ -361,6 +366,10 @@ export class PdfTranslationService extends BaseService {
           if (!parsed.success) {
             logger.warn('Ignored invalid BabelDOC progress event')
             return
+          }
+          if (downloadingAssets) {
+            downloadingAssets = false
+            onStage?.('translating')
           }
           this.reportProgress(
             job,

@@ -7915,23 +7915,16 @@
       },
       "progress": {
         "analyzing": "Analyzing document layout",
-        "extracting_terms": "Extracting terminology",
-        "parsing": "Parsing PDF",
+        "downloading_assets": "Downloading PDF processing resources...",
+        "generating": "Generating translated PDF",
         "percent": "{{progress}}%",
-        "processing": "Processing PDF",
-        "rendering": "Generating translated PDF",
-        "status": "{{stage}} {{progress}}%",
-        "translating": "Translating paragraphs",
-        "typesetting": "Typesetting translation",
+        "preparing": "Preparing document",
+        "translating": "Translating content",
         "value": "{{stage}}, {{progress}}%"
       },
       "ready": {
         "description": "Select a target language and start translation.",
         "title": "Ready to translate"
-      },
-      "status": {
-        "preparing": "Preparing PDF translation...",
-        "translating": "Translating PDF..."
       },
       "success": "Translated PDF generated"
     },

@@ -55,7 +55,7 @@ export interface PdfTranslationProgress {
 export type TranslateEventSchemas = {
   'translate.pdf.stage': {
     jobId: string
-    stage: 'preparing' | 'translating'
+    stage: 'preparing' | 'downloading_assets' | 'translating'
   }
   'translate.pdf.progress': PdfTranslationProgress & {
     jobId: string
