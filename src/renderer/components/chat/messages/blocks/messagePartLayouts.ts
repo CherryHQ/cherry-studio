@@ -117,6 +117,10 @@ function isReportToolPart(part: CherryMessagePart): boolean {
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 }
 
+function isAskUserQuestionPart(part: CherryMessagePart): boolean {
+  return isToolUIPart(part) && isAskUserQuestionToolName(getPartToolName(part))
+}
+
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   if ((part.type as string) !== 'reasoning') return false
   const reasoningPart = part as ReasoningUIPart
@@ -125,7 +129,7 @@ function isVisibleReasoningPart(part: CherryMessagePart): boolean {
 
 function isFoldableToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  return !isAskUserQuestionToolName(getPartToolName(part))
+  return !isAskUserQuestionPart(part)
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
@@ -256,14 +260,30 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   let resultStart = -1
   let resultEnd = -1
   if (lastAnswerPosition >= 0) {
-    resultStart = lastAnswerPosition
-    while (
-      resultStart > 0 &&
-      (isSubstantiveAnswerPart(contentEntries[resultStart - 1].part) ||
-        isAssociatedResultPart(contentEntries[resultStart - 1].part) ||
-        isHiddenPart(contentEntries[resultStart - 1].part))
-    ) {
-      resultStart--
+    let lastRegularToolPosition = -1
+    for (let position = lastAnswerPosition - 1; position >= 0; position--) {
+      if (isFoldableToolPart(contentEntries[position].part)) {
+        lastRegularToolPosition = position
+        break
+      }
+    }
+
+    const hasAskUserQuestionAfterLastRegularTool = contentEntries
+      .slice(lastRegularToolPosition + 1, lastAnswerPosition)
+      .some((entry) => isAskUserQuestionPart(entry.part))
+
+    if (hasAskUserQuestionAfterLastRegularTool) {
+      resultStart = lastRegularToolPosition + 1
+    } else {
+      resultStart = lastAnswerPosition
+      while (
+        resultStart > 0 &&
+        (isSubstantiveAnswerPart(contentEntries[resultStart - 1].part) ||
+          isAssociatedResultPart(contentEntries[resultStart - 1].part) ||
+          isHiddenPart(contentEntries[resultStart - 1].part))
+      ) {
+        resultStart--
+      }
     }
 
     resultEnd = lastAnswerPosition + 1
@@ -292,7 +312,10 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
     }
   }
 
-  const isDirectResult = (_entry: PartEntry, position: number) => position >= resultStart && position < resultEnd
+  const isDirectResult = (entry: PartEntry, position: number) =>
+    position >= resultStart &&
+    position < resultEnd &&
+    (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part))
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
