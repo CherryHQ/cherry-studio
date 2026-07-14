@@ -101,6 +101,7 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateBinaryManifestEntry } = await import('../BinaryManager')
+const { application } = await import('@application')
 const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
@@ -173,37 +174,54 @@ describe('BinaryManager', () => {
   })
 
   describe('install preference subscriptions', () => {
-    it('invalidates the isolated environment for every atomic install preference', async () => {
+    const EXPECTED_KEYS = [
+      'feature.binary.install.github_mirror',
+      'feature.binary.install.github_token',
+      'feature.binary.install.npm_registry',
+      'feature.binary.install.pip_index_url',
+      'feature.binary.install.signature_verification.enabled',
+      'app.proxy.mode',
+      'app.proxy.url',
+      'app.proxy.bypass_rules'
+    ]
+
+    it('registers the invalidation for every atomic install preference at system-wide readiness', () => {
       const service = new BinaryManager()
 
-      await (service as any).onInit()
+      ;(service as any).onAllReady()
 
-      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledWith(
-        [
-          'feature.binary.install.github_mirror',
-          'feature.binary.install.github_token',
-          'feature.binary.install.npm_registry',
-          'feature.binary.install.pip_index_url',
-          'feature.binary.install.signature_verification.enabled',
-          'app.proxy.mode',
-          'app.proxy.url',
-          'app.proxy.bypass_rules'
-        ],
-        expect.any(Function)
-      )
+      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledWith(EXPECTED_KEYS, expect.any(Function))
     })
 
-    // Regression: the subscription used to be registered in onAllReady, which fires
-    // at most once per process while registerDisposable subscriptions are torn down
-    // on stop — so a stop/restart silently lost the invalidation. It now lives on
-    // onInit, which re-runs on every restart. Simulate stop (dispose + reset the
-    // disposables, as the framework does) then restart, and assert the subscription
-    // is re-established rather than lost.
-    it('re-establishes the subscription across a stop/restart', async () => {
+    // Timing safety: BinaryManager is Phase.Background, which is fire-and-forget and
+    // races BeforeReady (PreferenceService) — so an initial-bootstrap onInit MUST NOT
+    // reach PreferenceService. Prove it: on the first onInit (before onAllReady) the
+    // service never resolves PreferenceService and registers no subscription; the
+    // first registration only happens once onAllReady fires (all phases ready).
+    it('does not touch PreferenceService during the initial-bootstrap onInit', async () => {
       const service = new BinaryManager()
-      expect((service as any).onAllReady).toBeUndefined()
+      ;(application.get as unknown as ReturnType<typeof vi.fn>).mockClear()
 
       await (service as any).onInit()
+
+      expect(application.get).not.toHaveBeenCalledWith('PreferenceService')
+      expect(mockPreferenceService.subscribeMultipleChanges).not.toHaveBeenCalled()
+
+      // System-wide readiness → safe first registration.
+      ;(service as any).onAllReady()
+      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(1)
+    })
+
+    // Restart safety: onAllReady fires at most once per instance and does not re-run
+    // on restart, while registerDisposable subscriptions are torn down on stop — so a
+    // stop/restart would otherwise silently lose the invalidation. After the instance
+    // has reached onAllReady, a subsequent onInit (the restart path) re-establishes it.
+    it('re-establishes the subscription on restart after onAllReady has fired', async () => {
+      const service = new BinaryManager()
+
+      // Initial bootstrap: onInit (no subscription yet) then onAllReady (first registration).
+      await (service as any).onInit()
+      ;(service as any).onAllReady()
       expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(1)
 
       // Framework stop(): dispose every tracked disposable, then reset the array.
@@ -213,8 +231,13 @@ describe('BinaryManager', () => {
       }
       disposables.length = 0
 
+      // Restart re-runs onInit (but not onAllReady) — the subscription must return.
       await (service as any).onInit()
       expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(2)
+      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenLastCalledWith(
+        EXPECTED_KEYS,
+        expect.any(Function)
+      )
       expect(disposables).toHaveLength(1)
     })
   })

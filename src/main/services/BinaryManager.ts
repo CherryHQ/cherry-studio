@@ -157,16 +157,24 @@ export class BinaryManager extends BaseService {
   >()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
+  // Set the first time onAllReady fires (once per instance). Distinguishes an
+  // initial-bootstrap onInit (before onAllReady) from a post-restart onInit
+  // (after onAllReady already fired) — see registerPreferenceInvalidation.
+  private hasReachedAllReady = false
+
   protected async onInit() {
-    // Register the install-env invalidation here, not in onAllReady: onAllReady
-    // fires at most once per process (a restart does not re-trigger it), while
-    // registerDisposable's subscription is torn down on stop — so an onAllReady
-    // registration would be silently lost across a stop/restart, leaving the
-    // isolatedEnv cache stale after new install settings. onInit re-runs on
-    // restart, so the subscription is re-established every time. Safe in this
-    // Background-phase hook: PreferenceService is a BeforeReady service, already
-    // initialized before any Background onInit runs.
-    this.registerPreferenceInvalidation()
+    // Install-env invalidation subscription: this Background service depends on
+    // PreferenceService, a BeforeReady service. A Background onInit is fire-and-forget
+    // and races BeforeReady/WhenReady (Application.bootstrap sets isBootstrapped only
+    // after WhenReady but before awaiting Background), so PreferenceService is NOT
+    // guaranteed initialized here on initial bootstrap. So the FIRST registration
+    // happens in onAllReady (system-wide readiness, the sanctioned hook for a
+    // Background service to reach another phase). onAllReady fires at most once per
+    // instance and does not re-run on restart, while registerDisposable's subscription
+    // is torn down on stop — so onInit re-registers on restart, gated on
+    // hasReachedAllReady so it only touches PreferenceService once the app has fully
+    // bootstrapped (always true by the time any restart runs).
+    if (this.hasReachedAllReady) this.registerPreferenceInvalidation()
     await this.extractBundledBinaries()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
@@ -179,11 +187,18 @@ export class BinaryManager extends BaseService {
     // region lookup that nothing in the init path consumes.
   }
 
+  protected override onAllReady() {
+    // System-wide readiness: every phase (incl. BeforeReady's PreferenceService) is
+    // initialized, so this is the safe first registration for a Background service.
+    this.hasReachedAllReady = true
+    this.registerPreferenceInvalidation()
+  }
+
   /**
    * Subscribe to the install-affecting preferences (and proxy settings) so the
    * memoized isolated install env is rebuilt on the next mise invocation after a
-   * change. Registered via registerDisposable so it is cleaned up on stop and
-   * re-created by onInit on restart.
+   * change. Registered via registerDisposable so it is cleaned up on stop; the
+   * onInit/onAllReady split above re-creates it across a service restart.
    */
   private registerPreferenceInvalidation() {
     const prefService = application.get('PreferenceService')
