@@ -2,7 +2,7 @@
 title: PDF translation now preserves document layout
 category: changed
 severity: notice
-introduced_in_pr: "#TBD"
+introduced_in_pr: "#17007"
 date: 2026-07-13
 ---
 
