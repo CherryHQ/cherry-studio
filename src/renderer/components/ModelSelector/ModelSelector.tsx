@@ -25,7 +25,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellLayout } from '../SelectorShell'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
+import { SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -44,7 +44,7 @@ const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
-const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(DEFAULT_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
+const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']

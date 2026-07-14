@@ -13,6 +13,7 @@ import { getProviderDisplayName } from './utils'
 
 type HoverCardPortalContainer = ComponentPropsWithoutRef<typeof HoverCardContent>['portalContainer']
 type HoverCardSide = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['side']>
+type HorizontalHoverCardSide = Extract<HoverCardSide, 'left' | 'right'>
 type HoverCardAlign = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['align']>
 
 const NUMBER_FORMATTER = new Intl.NumberFormat(undefined)
@@ -57,7 +58,7 @@ function getViewportSize() {
 
 function getAvailableSpaceForSide(
   triggerRect: DOMRect,
-  side: HoverCardSide,
+  side: HorizontalHoverCardSide,
   viewport: { width: number; height: number }
 ) {
   switch (side) {
@@ -65,12 +66,10 @@ function getAvailableSpaceForSide(
       return viewport.width - triggerRect.right - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
     case 'left':
       return triggerRect.left - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
-    default:
-      return 0
   }
 }
 
-function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
+function getDetailCardSide(trigger: HTMLElement): HorizontalHoverCardSide {
   const triggerRect = trigger.getBoundingClientRect()
   const viewport = getViewportSize()
   const rightSpace = getAvailableSpaceForSide(triggerRect, 'right', viewport)
@@ -87,8 +86,8 @@ function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
   return rightSpace >= leftSpace ? 'right' : 'left'
 }
 
-function getDetailCardAlign(side: HoverCardSide): HoverCardAlign {
-  return side === 'left' || side === 'right' ? 'start' : 'center'
+function getDetailCardAlign(side: HorizontalHoverCardSide): HoverCardAlign {
+  return 'start'
 }
 
 function compactList(values: readonly string[] | undefined, limit = 3): string | undefined {
@@ -191,7 +190,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
 }) {
   const providerName = getProviderDisplayName(provider)
   const triggerRef = useRef<HTMLElement | null>(null)
-  const [side, setSide] = useState<HoverCardSide>('right')
+  const [side, setSide] = useState<HorizontalHoverCardSide>('right')
   const align = getDetailCardAlign(side)
   const setTriggerElement = useCallback((element: HTMLAnchorElement | null) => {
     triggerRef.current = element

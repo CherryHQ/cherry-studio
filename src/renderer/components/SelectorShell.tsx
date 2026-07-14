@@ -507,13 +507,13 @@ export function SelectorShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t('common.clear')}
-                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[18px] rounded-full p-0 text-foreground/45 hover:bg-accent/40 hover:text-foreground/65"
+                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground/55 hover:bg-accent/40 hover:text-foreground/75"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           search.onChange('')
                           internalSearchInputRef.current?.focus()
                         }}>
-                        <X size={9} aria-hidden="true" />
+                        <X className="size-2.5" aria-hidden="true" />
                       </Button>
                     ) : null}
                   </div>
