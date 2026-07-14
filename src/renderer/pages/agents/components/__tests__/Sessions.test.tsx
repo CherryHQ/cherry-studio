@@ -2,6 +2,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -297,6 +298,7 @@ const dataApiMocks = vi.hoisted(() => ({
 const topicStreamStatusMocks = vi.hoisted(() => ({
   useTopicStreamStatus: vi.fn(() => ({
     activeExecutions: [],
+    awaitingApprovalAnchors: [],
     isFulfilled: false,
     isPending: false,
     markSeen: vi.fn(),
@@ -312,12 +314,20 @@ const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: AgentSessionEntity }> | undefined
 }))
 
-const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPending?: boolean } = {}) => ({
+const createTopicStreamStatusMock = (
+  overrides: {
+    awaitingApprovalAnchors?: Array<{ executionId: string; anchorMessageId?: string }>
+    isFulfilled?: boolean
+    isPending?: boolean
+    status?: TopicStreamStatus
+  } = {}
+) => ({
   activeExecutions: [],
+  awaitingApprovalAnchors: overrides.awaitingApprovalAnchors ?? [],
   isFulfilled: overrides.isFulfilled ?? false,
   isPending: overrides.isPending ?? false,
   markSeen: vi.fn(),
-  status: undefined
+  status: overrides.status
 })
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
@@ -503,6 +513,7 @@ vi.mock('react-i18next', () => ({
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
+        'agent.toolPermission.pending': 'Waiting for approval',
         'agent.session.edit.title': 'Edit task name',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
@@ -2244,6 +2255,58 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animation-pulse')
+  })
+
+  it('shows an awaiting-approval badge that yields to hover actions', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'awaiting-approval' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
+    expect(badges).toHaveLength(1)
+    expect(badges[0]).toHaveTextContent('Waiting for approval')
+    // Fades out (keeping its space, so the title never reflows) while hover actions are visible
+    // (hover / focus-within / forced-active), like the stream dot swap.
+    expect(badges[0]).toHaveClass('group-hover:opacity-0')
+    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
+    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
+    // Warning tint matches the composer's approval pill.
+    expect(badges[0]).toHaveClass('text-warning')
+  })
+
+  it('shows the badge and hides the stream dot while a live stream pauses for approval', () => {
+    // claude-code runtime: stream stays 'streaming' during a permission pause;
+    // only the awaiting-approval anchors mark the pause.
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(
+        topicId === 'agent-session:session-b'
+          ? { status: 'streaming', isPending: true, awaitingApprovalAnchors: [{ executionId: 'exec-1' }] }
+          : {}
+      )
+    )
+
+    render(<SessionsForTest />)
+
+    expect(screen.getAllByTestId('agent-session-awaiting-approval-badge')).toHaveLength(1)
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+  })
+
+  it('suppresses the awaiting-approval badge on the selected session row', () => {
+    // session-a is the active session in the default fixture.
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'awaiting-approval' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    // Guard against a false negative: the row must be rendered and selected.
+    const selectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(selectedRow).toBeDefined()
+    expect(screen.queryByTestId('agent-session-awaiting-approval-badge')).not.toBeInTheDocument()
   })
 
   it('persists display mode selection from the header menu', async () => {

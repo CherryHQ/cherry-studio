@@ -6,6 +6,8 @@ import type {
 } from '@renderer/components/chat/actions/sessionItemActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
+  RESOURCE_LIST_TITLE_FADE_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
   ResourceList,
   useResourceListActions,
   useResourceListRowState
@@ -16,6 +18,7 @@ import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuAction
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { PinIcon, Trash2, XIcon } from 'lucide-react'
@@ -83,27 +86,27 @@ const SessionItem = ({
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
+  const {
+    status,
+    awaitingApprovalAnchors,
+    isFulfilled: isStreamFulfilled,
+    isPending: isStreamPending,
+    markSeen
+  } = useTopicStreamStatus(topicId)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
-  const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
+  // A live stream can pause for tool approval without a status transition
+  // (anchors set mid-stream), while the MCP needsApproval path ends the stream
+  // with the terminal 'awaiting-approval' status — the badge must cover both.
+  const showAwaitingApprovalBadge =
+    !isActive && (awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval)
+  const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled) && !showAwaitingApprovalBadge
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
-  const showDeleteOrStreamAction = hasStreamIndicator || !pinned
-  // Reserve right-padding so the title truncates before hover actions and stream state.
-  const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
-  const sessionTrailingActionPaddingClassName =
-    trailingActionCount >= 3
-      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-      : trailingActionCount === 2
-        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-        : trailingActionCount === 1
-          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-          : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const deleteConfirmationTimeoutRef = useRef<number | null>(null)
@@ -279,13 +282,28 @@ const SessionItem = ({
       {!rowState.renaming && (
         <ResourceList.ItemTitle
           title={sessionName}
-          className={cn(nameAnimationClassName, 'transition-[padding]', sessionTrailingActionPaddingClassName)}
+          className={cn(nameAnimationClassName, RESOURCE_LIST_TITLE_FADE_CLASS, RESOURCE_LIST_TITLE_FADE_YIELD_CLASS)}
           onDoubleClick={(event) => {
             event.stopPropagation()
             startInlineEdit()
           }}>
           {sessionName}
         </ResourceList.ItemTitle>
+      )}
+
+      {!rowState.renaming && showAwaitingApprovalBadge && (
+        <span
+          data-testid="agent-session-awaiting-approval-badge"
+          // Warning tint matches the composer's approval pill. Not StatusBadge:
+          // the pill must collapse via a max-width/padding transition (not a
+          // snap-unmount) so the title glides — never jumps — into the freed
+          // space, and that needs direct control of its box; a wrapped Badge
+          // keeps its own padding at max-w-0. max-w-28 fits the en label
+          // ("Waiting for approval"); even longer locales truncate rather than
+          // eat the title.
+          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full bg-warning/10 px-1.5 font-medium text-[10px] text-warning leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+          {t('agent.toolPermission.pending')}
+        </span>
       )}
 
       <ResourceList.ItemActions active={hasStreamIndicator || isConfirmingDeletion}>
