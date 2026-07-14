@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { describe, expect, it, vi } from 'vitest'
 
 const loaded = vi.hoisted(() => vi.fn())

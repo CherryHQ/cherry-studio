@@ -84,7 +84,6 @@ export default defineConfig({
           setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
           include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
           exclude: [
-            'src/renderer/utils/**',
             'src/renderer/components/icons/__tests__/iconCatalog.lazy.test.ts',
             'src/renderer/windows/quickAssistant/home/__tests__/HomeWindow.lazy.test.ts',
             'src/renderer/windows/selection/action/components/__tests__/actionResultContent.lazy.test.ts'
@@ -92,21 +91,6 @@ export default defineConfig({
           benchmark: {
             include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']
           }
-        }
-      },
-      // 纯工具测试默认不需要浏览器环境；确实依赖 DOM 的文件可用
-      // `@vitest-environment jsdom` 在文件级别显式启用。
-      {
-        extends: true,
-        plugins: rendererConfig.plugins.filter((plugin: any) => plugin.name !== 'tailwindcss'),
-        resolve: {
-          alias: rendererConfig.resolve.alias
-        },
-        test: {
-          name: 'renderer-utils',
-          environment: 'node',
-          setupFiles: ['tests/renderer.setup.ts'],
-          include: ['src/renderer/utils/**/*.{test,spec}.ts']
         }
       },
       // Lazy-boundary tests only inspect module evaluation. Keeping them out of
