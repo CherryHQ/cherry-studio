@@ -14,8 +14,8 @@ import { useTopicStats } from './useTopic'
 const RESOURCE_SEED_PAGE_SIZE = 50
 
 /**
- * Factual counts replace the former load-all visibility scan. Imperative lookups
- * deliberately fetch one bounded page for rail navigation and placeholder reuse.
+ * Factual counts drive group visibility. Imperative lookups fetch one bounded
+ * page for rail navigation and placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })

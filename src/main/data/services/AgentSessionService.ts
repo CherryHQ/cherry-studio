@@ -79,7 +79,7 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 /**
- * D6 search predicate for the flat list/stats paths. `name` matches the
+ * Search predicate for the flat list/stats paths. `name` matches the
  * session name only; `full` ORs in the description and the owning agent's
  * name (queries using `full` must LEFT JOIN the agent table).
  */
@@ -95,7 +95,7 @@ function buildScopedSearchPredicate(q: string | undefined, scope: 'name' | 'full
 }
 
 /**
- * Shared record filters for the flat list and stats paths (D1/D3 of #16890).
+ * Shared record filters for the flat list and stats paths.
  * `pinned` is NOT built here — it needs the pin subquery and only applies to
  * lists. Sessions are hard-deleted, so there is no deletedAt guard.
  */
@@ -422,7 +422,7 @@ export class AgentSessionService {
   }
 
   /**
-   * Flat single-stream page (D1 of #16890), mirroring
+   * Flat single-stream page, mirroring
    * `TopicService.listFlatByCursor`: `createdAt` → immutable creation order,
    * `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey` →
    * manual order (`ASC, id ASC`), with the shared `(sortValue, id)` cursor.
@@ -494,7 +494,7 @@ export class AgentSessionService {
   }
 
   /**
-   * Factual aggregation for `GET /agent-sessions/stats` (D3 of #16890),
+   * Factual aggregation for `GET /agent-sessions/stats`,
    * mirroring `TopicService.stats`: totals include pinned rows. Stats and list
    * use independent SQLite snapshots; a subsequent refetch reconciles transient drift.
    */

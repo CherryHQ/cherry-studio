@@ -58,7 +58,7 @@ export const TopicOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')]
 export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
 
 /**
- * Sort profiles for `GET /topics` (D1 of #16890). Direction is derived
+ * Sort profiles for `GET /topics`. Direction is derived
  * server-side from the profile — there is no caller-controlled `sortOrder`:
  * - `createdAt` → creation order (`createdAt DESC, id ASC`)
  * - `updatedAt` → activity order (`updatedAt DESC, id ASC`)
@@ -273,7 +273,7 @@ export type TopicSchemas = {
   }
 
   /**
-   * Factual aggregation over topics (D3 of #16890): totals, pinned counts, and
+   * Factual aggregation over topics: totals, pinned counts, and
    * per-assistant breakdowns under the same record filters as the list.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `stats` is never mistaken for a topic id.

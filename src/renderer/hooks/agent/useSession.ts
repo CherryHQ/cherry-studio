@@ -52,7 +52,7 @@ export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
   enabled?: boolean
-  /** Flat sort profile (D1 of #16890). Required for q/searchScope and the 'unlinked' owner scope. */
+  /** Flat sort profile. Required for q/searchScope and the 'unlinked' owner scope. */
   sortBy?: AgentSessionSortBy
   /** Literal substring search term (server-side, escaped LIKE). */
   q?: string
@@ -115,8 +115,8 @@ export function useLatestSession(opts?: { enabled?: boolean }) {
 }
 
 /**
- * Factual session aggregation from `GET /agent-sessions/stats` (D3 of
- * #16890): totals, pinned counts, and a per-agent breakdown whose
+ * Factual session aggregation from `GET /agent-sessions/stats`: totals,
+ * pinned counts, and a per-agent breakdown whose
  * `agentId: null` entry represents orphaned (unlinked) sessions. Local list
  * mutations that affect these facts list this path explicitly in their
  * refresh targets.

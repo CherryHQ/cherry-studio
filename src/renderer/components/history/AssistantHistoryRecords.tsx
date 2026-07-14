@@ -70,9 +70,8 @@ const AssistantHistoryRecords = ({
   const { t } = useTranslation()
   const conversationNav = useConversationNavigation('assistants')
 
-  // Search and source scope are server-side query filters (D1/D6 of #16890) —
-  // the wrapper owns the filter state so it can drive the paged query; the
-  // controller below only owns selection.
+  // The wrapper owns server-side search and source filters; the controller
+  // below only owns selection.
   const filters = useHistoryRecordsFilters()
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)

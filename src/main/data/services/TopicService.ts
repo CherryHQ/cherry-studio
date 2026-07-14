@@ -124,7 +124,7 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 /**
- * Shared record filters for flat list and stats paths (D1/D3 of #16890).
+ * Shared record filters for flat list and stats paths.
  * Callers join live assistants before applying these filters, so `unlinked`
  * covers both NULL owners and topics whose assistant is soft-deleted. `pinned`
  * is NOT built here — it needs the pin subquery and only applies to lists.
@@ -490,7 +490,7 @@ export class TopicService {
    * `pin.orderKey ASC, topic.id ASC`, independent of the topic sort profile.
    *
    * `sortBy` present → flat single-stream page with a `(sortValue, id)` keyset
-   * cursor and the D1 record filters (see `listFlatByCursor`).
+   * cursor and the record filters handled by `listFlatByCursor`.
    *
    * `sortBy` absent → legacy two-section page: pinned topics (via `pin` JOIN,
    * ordered by `pin.orderKey`) then unpinned (ordered by `topic.orderKey ASC,
@@ -626,7 +626,7 @@ export class TopicService {
   }
 
   /**
-   * Flat single-stream page (D1 of #16890): `createdAt` → immutable creation
+   * Flat single-stream page: `createdAt` → immutable creation
    * order, `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey`
    * → manual order (`ASC, id ASC`). Cursor is the shared `(sortValue, id)`
    * tuple codec; a value cursor stays valid when its anchor row is deleted.
@@ -685,7 +685,7 @@ export class TopicService {
   }
 
   /**
-   * Factual aggregation for `GET /topics/stats` (D3 of #16890). Counts include
+   * Factual aggregation for `GET /topics/stats`. Counts include
    * pinned rows; the renderer derives display counts (`count - pinnedCount`).
    * Runs separately from list reads, so a subsequent refetch reconciles any
    * transient disagreement between their independent SQLite snapshots.

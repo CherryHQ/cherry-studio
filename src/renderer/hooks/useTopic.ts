@@ -219,7 +219,7 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  * Backed by `useInfiniteQuery` cursor pagination. Without `sortBy`, `/topics`
  * returns the legacy server-composed view (pinned topics first via the `pin`
  * table, then unpinned ordered by `topic.orderKey`). `pinned=true` selects the
- * independent pin-owned stream. Otherwise `sortBy` (D1 of #16890) selects a
+ * independent pin-owned stream. Otherwise `sortBy` selects a
  * flat stream — `'createdAt'` for immutable creation order, `'updatedAt'` for
  * activity order, or `'orderKey'` for manual order. The `assistantId` owner
  * scope (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
@@ -279,7 +279,7 @@ export function useTopics(opts?: {
 }
 
 /**
- * Factual topic aggregation from `GET /topics/stats` (D3 of #16890): totals,
+ * Factual topic aggregation from `GET /topics/stats`: totals,
  * pinned counts, and a per-assistant breakdown whose `assistantId: null`
  * entry represents unlinked topics. Mutations that affect these facts list
  * this path explicitly in their refresh targets.

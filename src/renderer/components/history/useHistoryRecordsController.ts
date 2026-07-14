@@ -6,7 +6,7 @@ import { ALL_SOURCE_ID, findAdjacentHistoryRecordAfterBulkDelete } from './histo
 /**
  * Filter state owned by the mode wrapper (not this hook) because it drives the
  * wrapper's server-side query: search and source scope are applied by the
- * server (D1/D6 of #16890), so the state must exist before the data hook runs.
+ * server, so the state must exist before the data hook runs.
  */
 export interface HistoryRecordsFilterState {
   searchText: string
@@ -51,10 +51,9 @@ export interface HistoryRecordsController<T> {
  * The mode-specific data wiring lives in the descriptor and the wrapper's
  * server query; this hook stays entity-agnostic.
  *
- * Selection semantics (D7 of #16890): "select all" selects only the rows
- * displayed at that moment; pages loaded afterwards are not auto-selected;
- * and changing source or search clears the selection so rows
- * scrolled out of the new result set cannot be changed accidentally.
+ * "Select all" selects only the rows displayed at that moment; pages loaded
+ * afterwards are not auto-selected. Changing source or search clears the
+ * selection so rows outside the new result set cannot be changed accidentally.
  */
 export function useHistoryRecordsController<T>({
   descriptor,

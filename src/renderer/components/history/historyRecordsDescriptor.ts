@@ -38,8 +38,7 @@ export interface HistoryRecordDescriptor<T> {
   mode: HistoryRecordsMode
 
   // --- identity + filtering (consumed by useHistoryRecordsController) ---
-  // Search and source scope are query filters owned by the mode wrapper
-  // (D1/D6 of #16890).
+  // Search and source scope are query filters owned by the mode wrapper.
   getId: (item: T) => string
   isPinned: (id: string) => boolean
   /** Runs the mode's bulk-delete mutation; resolves to the deleted ids, or undefined on failure/no-op. */

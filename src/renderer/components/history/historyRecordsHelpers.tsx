@@ -12,9 +12,9 @@ export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
 export const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 
 /**
- * Map a history source-filter selection to the server-side owner scope
- * (D1 of #16890): the synthetic "unlinked" source ids become the literal
- * `'unlinked'` scope, `all` means no scope, and concrete ids pass through.
+ * Map a history source-filter selection to the server-side owner scope: the
+ * synthetic "unlinked" source ids become the literal `'unlinked'` scope,
+ * `all` means no scope, and concrete ids pass through.
  */
 export function toServerOwnerScope(selectedSourceId: string): string | undefined {
   if (selectedSourceId === ALL_SOURCE_ID) return undefined

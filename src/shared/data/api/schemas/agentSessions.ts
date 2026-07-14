@@ -152,7 +152,7 @@ export const AgentSessionWorkspaceScopeSchema = z.string().min(1)
 export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceScopeSchema>
 
 /**
- * Sort profiles for `GET /agent-sessions` (D1 of #16890). Direction is derived
+ * Sort profiles for `GET /agent-sessions`. Direction is derived
  * server-side: `createdAt` → creation order (`createdAt DESC, id ASC`),
  * `updatedAt` → activity (`updatedAt DESC, id ASC`), `orderKey` → manual drag
  * order (`orderKey ASC, id ASC`). A pinned-only query uses the independent
@@ -162,7 +162,7 @@ export const AgentSessionSortBySchema = z.enum(['createdAt', 'updatedAt', 'order
 export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 
 /**
- * Search scope (D6 of #16890): `name` is a literal substring over the session
+ * Search scope: `name` is a literal substring over the session
  * name (resource-list behavior); `full` additionally ORs the session
  * description and the owning agent's name (Agent History behavior).
  */
@@ -224,9 +224,9 @@ export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuery
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
 /**
- * Query for `GET /agent-sessions/stats`. Current consumers need owner scope
- * and name search only; pagination, pin state, ids, workspace filtering and
- * full-text scope remain list-only concerns.
+ * Query for `GET /agent-sessions/stats`. This endpoint accepts owner scope and
+ * name search; pagination, pin state, ids, workspace filtering and full-text
+ * scope remain list-only concerns.
  */
 export const AgentSessionStatsQuerySchema = z.strictObject({
   q: z.string().optional(),
@@ -319,7 +319,7 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Factual aggregation over sessions (D3 of #16890): totals, pinned counts,
+   * Factual aggregation over sessions: totals, pinned counts,
    * per-agent and per-workspace breakdowns under the same record filters as the
    * list. Declared before `/agent-sessions/:sessionId` and matched exactly by
    * the server router, so `stats` is never mistaken for a session id.
