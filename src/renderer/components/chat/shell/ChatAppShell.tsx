@@ -232,7 +232,7 @@ export function ChatAppShell({
               <div
                 data-chat-navbar-floating={immersive.floating ? '' : undefined}
                 className={cn(
-                  'z-10',
+                  'z-10 bg-background',
                   immersive.floating
                     ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
                     : 'relative shrink-0'

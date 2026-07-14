@@ -104,6 +104,7 @@ describe('ChatAppShell immersive navbar', () => {
 
     const wrapper = screen.getByTestId('navbar').parentElement as HTMLElement
     expect(wrapper).toHaveClass('absolute')
+    expect(wrapper).toHaveClass('bg-background')
     expect(wrapper).not.toHaveClass('relative')
     expect(wrapper).toHaveClass('[&_[data-conversation-shell-topbar]::after]:hidden')
     expect(wrapper).toHaveAttribute('data-chat-navbar-floating')
