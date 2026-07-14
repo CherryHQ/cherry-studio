@@ -69,7 +69,7 @@ const BINARY_INSTALL_PREFERENCE_KEYS = {
   githubToken: 'feature.binary.install.github_token',
   npmRegistry: 'feature.binary.install.npm_registry',
   pipIndexUrl: 'feature.binary.install.pip_index_url',
-  verifySignatures: 'feature.binary.install.verify_signatures'
+  verifySignatures: 'feature.binary.install.signature_verification.enabled'
 } as const
 
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
@@ -158,6 +158,15 @@ export class BinaryManager extends BaseService {
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
   protected async onInit() {
+    // Register the install-env invalidation here, not in onAllReady: onAllReady
+    // fires at most once per process (a restart does not re-trigger it), while
+    // registerDisposable's subscription is torn down on stop — so an onAllReady
+    // registration would be silently lost across a stop/restart, leaving the
+    // isolatedEnv cache stale after new install settings. onInit re-runs on
+    // restart, so the subscription is re-established every time. Safe in this
+    // Background-phase hook: PreferenceService is a BeforeReady service, already
+    // initialized before any Background onInit runs.
+    this.registerPreferenceInvalidation()
     await this.extractBundledBinaries()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
@@ -170,7 +179,13 @@ export class BinaryManager extends BaseService {
     // region lookup that nothing in the init path consumes.
   }
 
-  protected override onAllReady() {
+  /**
+   * Subscribe to the install-affecting preferences (and proxy settings) so the
+   * memoized isolated install env is rebuilt on the next mise invocation after a
+   * change. Registered via registerDisposable so it is cleaned up on stop and
+   * re-created by onInit on restart.
+   */
+  private registerPreferenceInvalidation() {
     const prefService = application.get('PreferenceService')
     this.registerDisposable(
       prefService.subscribeMultipleChanges(
@@ -329,7 +344,7 @@ export class BinaryManager extends BaseService {
         : name in bundled
           ? {
               source: 'bundled',
-              path: path.join(application.getPath('cherry.bin'), getBinaryName(name)),
+              path: application.getPath('cherry.bin', getBinaryName(name)),
               ...(bundled[name] ? { version: bundled[name] } : {})
             }
           : system[name]

@@ -119,7 +119,7 @@ const mockInstallPreferences = (values = DEFAULT_INSTALL_PREFERENCES) => {
     'feature.binary.install.github_token': values.githubToken,
     'feature.binary.install.npm_registry': values.npmRegistry,
     'feature.binary.install.pip_index_url': values.pipIndexUrl,
-    'feature.binary.install.verify_signatures': values.verifySignatures
+    'feature.binary.install.signature_verification.enabled': values.verifySignatures
   }
   mockPreferenceService.get.mockImplementation((key: string) =>
     key === 'feature.binary.tools' ? manifestRef.value : (preferenceValues[key as keyof typeof preferenceValues] ?? [])
@@ -173,10 +173,10 @@ describe('BinaryManager', () => {
   })
 
   describe('install preference subscriptions', () => {
-    it('invalidates the isolated environment for every atomic install preference', () => {
+    it('invalidates the isolated environment for every atomic install preference', async () => {
       const service = new BinaryManager()
 
-      ;(service as any).onAllReady()
+      await (service as any).onInit()
 
       expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledWith(
         [
@@ -184,13 +184,38 @@ describe('BinaryManager', () => {
           'feature.binary.install.github_token',
           'feature.binary.install.npm_registry',
           'feature.binary.install.pip_index_url',
-          'feature.binary.install.verify_signatures',
+          'feature.binary.install.signature_verification.enabled',
           'app.proxy.mode',
           'app.proxy.url',
           'app.proxy.bypass_rules'
         ],
         expect.any(Function)
       )
+    })
+
+    // Regression: the subscription used to be registered in onAllReady, which fires
+    // at most once per process while registerDisposable subscriptions are torn down
+    // on stop — so a stop/restart silently lost the invalidation. It now lives on
+    // onInit, which re-runs on every restart. Simulate stop (dispose + reset the
+    // disposables, as the framework does) then restart, and assert the subscription
+    // is re-established rather than lost.
+    it('re-establishes the subscription across a stop/restart', async () => {
+      const service = new BinaryManager()
+      expect((service as any).onAllReady).toBeUndefined()
+
+      await (service as any).onInit()
+      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(1)
+
+      // Framework stop(): dispose every tracked disposable, then reset the array.
+      const disposables = (service as any)._disposables as Array<{ dispose: () => void } | (() => void)>
+      for (const disposable of disposables) {
+        typeof disposable === 'function' ? disposable() : disposable.dispose()
+      }
+      disposables.length = 0
+
+      await (service as any).onInit()
+      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(2)
+      expect(disposables).toHaveLength(1)
     })
   })
 
@@ -355,7 +380,7 @@ describe('BinaryManager', () => {
     it('does not install managed tools during startup', async () => {
       manifestRef.value = [{ name: 'fd', tool: 'fd' }]
       const service = new BinaryManager()
-      ;(service as any).onAllReady()
+      await (service as any).onInit()
 
       expect(mockExecFileAsync).not.toHaveBeenCalled()
     })
@@ -1088,7 +1113,7 @@ describe('BinaryManager', () => {
         githubToken: 'feature.binary.install.github_token',
         npmRegistry: 'feature.binary.install.npm_registry',
         pipIndexUrl: 'feature.binary.install.pip_index_url',
-        verifySignatures: 'feature.binary.install.verify_signatures'
+        verifySignatures: 'feature.binary.install.signature_verification.enabled'
       })
       expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
       expect(env['PIP_INDEX_URL']).toBe('https://pypi.example/simple')

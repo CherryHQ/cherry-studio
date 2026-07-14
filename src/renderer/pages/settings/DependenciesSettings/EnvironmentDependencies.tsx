@@ -77,7 +77,7 @@ const BINARY_INSTALL_PREFERENCE_KEYS = {
   githubToken: 'feature.binary.install.github_token',
   npmRegistry: 'feature.binary.install.npm_registry',
   pipIndexUrl: 'feature.binary.install.pip_index_url',
-  verifySignatures: 'feature.binary.install.verify_signatures'
+  verifySignatures: 'feature.binary.install.signature_verification.enabled'
 } as const
 
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
@@ -997,7 +997,11 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
   onOpenChange
 }) => {
   const { t } = useTranslation()
-  const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS)
+  // Pessimistic updates: these carry a credential (github_token) and a security
+  // toggle (signature verification), so the UI must reflect the persisted value
+  // only after the write confirms — never an optimistic value that a failed
+  // write would silently roll back. The save() try/catch surfaces failures.
+  const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS, { optimistic: false })
   const [draft, setDraft] = useState(settings)
   const [showToken, setShowToken] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1035,7 +1039,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? onOpenChange(true) : close())}>
-      <DialogContent>
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{t('settings.dependencies.installSettings.title')}</DialogTitle>
           <DialogDescription>{t('settings.dependencies.installSettings.description')}</DialogDescription>
@@ -1112,7 +1116,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
           <Button variant="outline" onClick={close} disabled={saving}>
             {t('common.cancel')}
           </Button>
-          <Button disabled={!urlsValid || saving} loading={saving} onClick={() => void save()}>
+          <Button variant="emphasis" disabled={!urlsValid || saving} loading={saving} onClick={() => void save()}>
             {t('common.save')}
           </Button>
         </DialogFooter>

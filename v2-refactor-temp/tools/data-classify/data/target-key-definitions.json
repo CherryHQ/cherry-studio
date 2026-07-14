@@ -267,11 +267,11 @@
       "description": "pip index URL for BinaryManager's mise install environment"
     },
     {
-      "targetKey": "feature.binary.install.verify_signatures",
+      "targetKey": "feature.binary.install.signature_verification.enabled",
       "type": "boolean",
       "defaultValue": true,
       "status": "classified",
-      "description": "Signature verification for BinaryManager's mise install environment"
+      "description": "Whether signature verification is enabled for BinaryManager's mise install environment"
     },
     {
       "targetKey": "feature.binary.tools",
