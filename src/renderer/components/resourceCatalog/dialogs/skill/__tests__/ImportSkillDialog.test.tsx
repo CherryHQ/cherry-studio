@@ -140,6 +140,21 @@ describe('ImportSkillDialog', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('uses the marketplace success toast without a duplicate success banner', async () => {
+    const user = userEvent.setup()
+    installFromZip.mockResolvedValue({ id: 'agentic-engineering', name: 'agentic-engineering' })
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('settings.skills.installSuccess:agentic-engineering')
+    )
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('agentic-engineering')
+    expect(screen.queryByText('settings.skills.installSuccess:agentic-engineering')).not.toBeInTheDocument()
+  })
+
   it('installs every selected ZIP and keeps batch results visible', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
@@ -161,9 +176,10 @@ describe('ImportSkillDialog', () => {
     )
     expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
     expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
-    expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill One')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
+    expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
+    expect(screen.queryByText('settings.skills.batchInstallComplete:2')).not.toBeInTheDocument()
     expect(document.querySelectorAll('[data-slot="dialog-overlay"]')).toHaveLength(1)
     expect(onOpenChange).not.toHaveBeenCalled()
   })
@@ -188,9 +204,9 @@ describe('ImportSkillDialog', () => {
     )
     expect(installFromDirectory).toHaveBeenNthCalledWith(1, '/tmp/skill-one')
     expect(installFromDirectory).toHaveBeenNthCalledWith(2, '/tmp/skill-two')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
-    expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill One')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
+    expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
   })
 
   it('installs multiple dropped ZIP files through the dropzone', async () => {
@@ -214,9 +230,9 @@ describe('ImportSkillDialog', () => {
     expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
     expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
     expect(installFromDirectory).not.toHaveBeenCalled()
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
-    expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill One')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
+    expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
   })
 
   it('keeps per-file errors for invalid dropped files mixed with ZIPs and directories', async () => {
@@ -237,10 +253,8 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(installFromZip).toHaveBeenCalledWith('/tmp/plugin.zip'))
     expect(installFromZip).toHaveBeenCalledTimes(1)
     expect(installFromDirectory).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent(
-      'settings.skills.installSuccess:Directory Skill'
-    )
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Zip Skill')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Directory Skill')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Zip Skill')
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('readme.txt')
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.invalidFormat')
     expect(screen.getByText('settings.skills.batchInstallPartialFailed:2:3:1')).toBeInTheDocument()
