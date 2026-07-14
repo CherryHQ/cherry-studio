@@ -1467,7 +1467,14 @@
       },
       "toolbar": {
         "customize": "自定义工具栏",
-        "drag_handle": "拖动以重新排序",
+        "drag": {
+          "cancelled": "已取消对 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空格或回车拿起工具，用方向键移动，再按空格或回车放下，按 Esc 取消。",
+          "over": "{{name}} 移动到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖动以重新排序 {{name}}",
         "restore_default": "恢复默认"
       },
       "tools": {

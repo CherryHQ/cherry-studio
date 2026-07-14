@@ -178,7 +178,6 @@ describe('ThinkingToolRuntime', () => {
       id: 'thinking',
       kind: 'group',
       sources: ['popover'],
-      showInActiveControls: false,
       suffix: 'Low'
     })
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([

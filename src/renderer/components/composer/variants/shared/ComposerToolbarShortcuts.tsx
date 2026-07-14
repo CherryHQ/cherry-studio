@@ -7,8 +7,8 @@ import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useId, useMemo } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
@@ -28,6 +28,8 @@ interface ShortcutCandidate {
   active: boolean
   disabled: boolean
   disabledReason?: ReactNode | string
+  /** Hint shown even when clickable (e.g. Attachment "image not supported" in doc-only mode). */
+  tooltip?: ReactNode | string
   /**
    * Popup announced via `aria-haspopup`: `'menu'` opens the unified panel, `'dialog'`
    * opens a modal (e.g. the attachment picker). Absent for plain toggle commands.
@@ -98,6 +100,7 @@ export const ComposerToolbarShortcuts = ({
         active: Boolean(launcher.active),
         disabled: Boolean(launcher.disabled) || (opensPanel && panelUnavailable),
         disabledReason: launcher.disabledReason,
+        tooltip: launcher.tooltip,
         haspopup: opensPanel ? 'menu' : launcher.kind === 'dialog' ? 'dialog' : undefined,
         toggle: launcher.kind === 'command',
         select: opensPanel
@@ -149,13 +152,51 @@ export const ComposerToolbarShortcuts = ({
   const customizeLabel = t('chat.input.toolbar.customize')
   const customizeTitleId = useId()
 
+  // Toggling a switch moves the tool between the pinned list and the unpinned list, which
+  // unmounts/remounts its row and drops keyboard focus to <body>. Restore focus to the
+  // tool's switch in its new location, keyed by tool id, after the list re-renders.
+  const pendingFocusIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const id = pendingFocusIdRef.current
+    if (!id) return
+    pendingFocusIdRef.current = null
+    const target = document.querySelector(`[data-tool-toggle-id="${CSS.escape(id)}"]`)
+    if (target instanceof HTMLElement) target.focus()
+  }, [pinnedIds])
+
+  const togglePinned = (id: string, next: string[]) => {
+    pendingFocusIdRef.current = id
+    onPinnedIdsChange(next)
+  }
+
+  // Localized drag feedback so screen readers announce tool names, not internal ids (e.g. "web-search").
+  const dragAccessibility = useMemo(() => {
+    const nameOf = (id: string | number) => {
+      const label = candidateById.get(String(id))?.label
+      return typeof label === 'string' ? label : String(id)
+    }
+    return {
+      screenReaderInstructions: { draggable: t('chat.input.toolbar.drag.instructions') },
+      announcements: {
+        onDragStart: ({ active }) => t('chat.input.toolbar.drag.picked_up', { name: nameOf(active.id) }),
+        onDragOver: ({ active, over }) =>
+          over ? t('chat.input.toolbar.drag.over', { name: nameOf(active.id), over: nameOf(over.id) }) : undefined,
+        onDragEnd: ({ active }) => t('chat.input.toolbar.drag.dropped', { name: nameOf(active.id) }),
+        onDragCancel: ({ active }) => t('chat.input.toolbar.drag.cancelled', { name: nameOf(active.id) })
+      }
+    } satisfies ComponentProps<typeof ReorderableList<PinnedRow>>['accessibility']
+  }, [candidateById, t])
+
   return (
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
       <PopoverAnchor asChild>
         <div className="flex shrink-0 items-center gap-1.5">
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
-            const tooltip = shortcut.disabled && shortcut.disabledReason ? shortcut.disabledReason : shortcut.label
+            const tooltip =
+              shortcut.disabled && shortcut.disabledReason
+                ? shortcut.disabledReason
+                : (shortcut.tooltip ?? shortcut.label)
             return (
               <Tooltip key={shortcut.id} content={tooltip} placement="top">
                 <Button
@@ -201,6 +242,7 @@ export const ComposerToolbarShortcuts = ({
           // The drag activator lives on the grip handle (below), not the whole row,
           // so the row stays non-interactive and the Switch keeps its own control boundary.
           dragHandle
+          accessibility={dragAccessibility}
           itemStyle={{ cursor: 'default' }}
           renderItem={(row, _index, { dragging, dragHandleProps }) => {
             const candidate = row.candidate
@@ -214,8 +256,10 @@ export const ComposerToolbarShortcuts = ({
                   {...dragHandleProps?.attributes}
                   {...dragHandleProps?.listeners}
                   data-dragging={dragging ? 'true' : 'false'}
-                  aria-label={t('chat.input.toolbar.drag_handle')}
-                  className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+                  aria-label={t('chat.input.toolbar.drag_handle', { name: label ?? '' })}
+                  // touch-none: let the PointerSensor own touch gestures so a scroll doesn't
+                  // pointer-cancel the drag before the activation distance is met.
+                  className="flex shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 data-[dragging=true]:opacity-100">
                   <GripVertical className="size-4" />
                 </button>
                 <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
@@ -223,8 +267,14 @@ export const ComposerToolbarShortcuts = ({
                 <Switch
                   size="xs"
                   checked
+                  data-tool-toggle-id={row.id}
                   aria-label={label}
-                  onCheckedChange={() => onPinnedIdsChange(pinnedIds.filter((id) => id !== row.id))}
+                  onCheckedChange={() =>
+                    togglePinned(
+                      row.id,
+                      pinnedIds.filter((id) => id !== row.id)
+                    )
+                  }
                 />
               </div>
             )
@@ -241,8 +291,9 @@ export const ComposerToolbarShortcuts = ({
             <Switch
               size="xs"
               checked={false}
+              data-tool-toggle-id={candidate.id}
               aria-label={typeof candidate.label === 'string' ? candidate.label : undefined}
-              onCheckedChange={() => onPinnedIdsChange([...pinnedIds, candidate.id])}
+              onCheckedChange={() => togglePinned(candidate.id, [...pinnedIds, candidate.id])}
             />
           </div>
         ))}

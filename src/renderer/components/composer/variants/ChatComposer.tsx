@@ -8,6 +8,7 @@ import {
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
+  ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -1241,90 +1242,92 @@ const ChatComposerInner = ({
       {displayAssistant && runtimeModel && (
         <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       )}
-      <ComposerSurface
-        text={text}
-        onTextChange={handleTextChange}
-        tokens={tokens}
-        draftTokens={draftTokens}
-        managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
-        onTokensChange={handleTokensChange}
-        resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
-        placeholder={searching ? t('chat.input.translating') : placeholderText}
-        sendDisabled={
-          (text.trim().length === 0 && files.length === 0) ||
-          (loading && !canSteer) ||
-          sendDisabled ||
-          searching ||
-          runtimeModelPending ||
-          !!missingAssistantMessage ||
-          !!missingModelMessage ||
-          !!missingSelectedModelMessage
-        }
-        sendBlockedReason={
-          sendDisabled
-            ? t('common.loading')
-            : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
-        }
-        isLoading={loading}
-        onSendDraft={handleSendDraft}
-        editingState={
-          editingMessageForCurrentTopic
-            ? {
-                messageId: editingMessageForCurrentTopic.message.id,
-                highlightKey: editingMessageForCurrentTopic.editingSessionId,
-                onLocate: handleLocateEditingMessage,
-                onCancel: handleCancelEditing
-              }
-            : undefined
-        }
-        onPause={onPause}
-        queueContent={
-          queuedFollowups.length > 0 ? (
-            <QueuedFollowupsDock
-              items={queuedFollowups}
-              paused={followupPaused}
-              onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={async (id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                // Only drop the item once the send actually succeeds; a failed manual
-                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                const sent = await sendQueuedPayload(item.payload)
-                if (sent) removeFollowup(id)
-                else toast.error(t('chat.input.send_failed'))
-              }}
-              onEdit={(id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                restoreFollowupDraft(item)
-                removeFollowup(id)
-              }}
-              onRemove={removeFollowup}
-              onReorder={reorderFollowups}
-            />
-          ) : undefined
-        }
-        supportedExts={supportedExts}
-        setFiles={setFiles}
-        filesCount={files.length}
-        isExpanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableDragDrop={config.enableDragDrop ?? true}
-        enableSpellCheck={enableSpellCheck}
-        editable={!searching}
-        fontSize={fontSize}
-        narrowMode={forceNarrowLayout || narrowMode}
-        onFocus={() => setSearching(false)}
-        onActionsChange={handleSurfaceActionsChange}
-        onInputHistoryNavigate={handleInputHistoryNavigate}
-        getToolLaunchers={() => getLaunchers()}
-        toolLaunchersVersion={toolLaunchersVersion}
-        rootPanelLeadingItems={rootPanelLeadingItems}
-        rootPanelAdditionalItems={rootPanelCustomizeItems}
-        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        {...controlSlots}
-      />
+      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+        <ComposerSurface
+          text={text}
+          onTextChange={handleTextChange}
+          tokens={tokens}
+          draftTokens={draftTokens}
+          managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
+          onTokensChange={handleTokensChange}
+          resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
+          placeholder={searching ? t('chat.input.translating') : placeholderText}
+          sendDisabled={
+            (text.trim().length === 0 && files.length === 0) ||
+            (loading && !canSteer) ||
+            sendDisabled ||
+            searching ||
+            runtimeModelPending ||
+            !!missingAssistantMessage ||
+            !!missingModelMessage ||
+            !!missingSelectedModelMessage
+          }
+          sendBlockedReason={
+            sendDisabled
+              ? t('common.loading')
+              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+          }
+          isLoading={loading}
+          onSendDraft={handleSendDraft}
+          editingState={
+            editingMessageForCurrentTopic
+              ? {
+                  messageId: editingMessageForCurrentTopic.message.id,
+                  highlightKey: editingMessageForCurrentTopic.editingSessionId,
+                  onLocate: handleLocateEditingMessage,
+                  onCancel: handleCancelEditing
+                }
+              : undefined
+          }
+          onPause={onPause}
+          queueContent={
+            queuedFollowups.length > 0 ? (
+              <QueuedFollowupsDock
+                items={queuedFollowups}
+                paused={followupPaused}
+                onTogglePause={() => setFollowupPaused(!followupPaused)}
+                onSteer={async (id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  // Only drop the item once the send actually succeeds; a failed manual
+                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                  const sent = await sendQueuedPayload(item.payload)
+                  if (sent) removeFollowup(id)
+                  else toast.error(t('chat.input.send_failed'))
+                }}
+                onEdit={(id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  restoreFollowupDraft(item)
+                  removeFollowup(id)
+                }}
+                onRemove={removeFollowup}
+                onReorder={reorderFollowups}
+              />
+            ) : undefined
+          }
+          supportedExts={supportedExts}
+          setFiles={setFiles}
+          filesCount={files.length}
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          quickPanelEnabled={config.enableQuickPanel ?? true}
+          enableDragDrop={config.enableDragDrop ?? true}
+          enableSpellCheck={enableSpellCheck}
+          editable={!searching}
+          fontSize={fontSize}
+          narrowMode={forceNarrowLayout || narrowMode}
+          onFocus={() => setSearching(false)}
+          onActionsChange={handleSurfaceActionsChange}
+          onInputHistoryNavigate={handleInputHistoryNavigate}
+          getToolLaunchers={() => getLaunchers()}
+          toolLaunchersVersion={toolLaunchersVersion}
+          rootPanelLeadingItems={rootPanelLeadingItems}
+          rootPanelAdditionalItems={rootPanelCustomizeItems}
+          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          {...controlSlots}
+        />
+      </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )
 }

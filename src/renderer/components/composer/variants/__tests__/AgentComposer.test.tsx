@@ -267,6 +267,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],

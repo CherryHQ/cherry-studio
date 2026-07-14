@@ -1,7 +1,6 @@
-import { type CSSProperties, type ReactNode, useCallback, useMemo } from 'react'
+import { type ComponentProps, type CSSProperties, type ReactNode, useCallback, useMemo } from 'react'
 
-import { Sortable } from '../sortable'
-import type { SortableDragHandleProps } from '../sortable/types'
+import { Sortable, type SortableDragHandleProps } from '../sortable'
 import { reorderVisibleSubset } from './reorder-visible-subset'
 
 type ReorderableItemId = string | number
@@ -29,6 +28,8 @@ export interface ReorderableListProps<T> {
   showGhost?: boolean
   /** Route the drag activator to a handle (via renderItem's `dragHandleProps`). */
   dragHandle?: boolean
+  /** Forwarded to dnd-kit for localized drag announcements / screen-reader instructions. */
+  accessibility?: ComponentProps<typeof Sortable>['accessibility']
   restrictions?: {
     windowEdges?: boolean
     scrollableAncestor?: boolean
@@ -53,6 +54,7 @@ export function ReorderableList<T>({
   useDragOverlay = true,
   showGhost = true,
   dragHandle = false,
+  accessibility,
   restrictions,
   onDragStateChange,
   onReorderError
@@ -123,6 +125,7 @@ export function ReorderableList<T>({
       useDragOverlay={useDragOverlay}
       showGhost={showGhost}
       dragHandle={dragHandle}
+      accessibility={accessibility}
     />
   )
 }

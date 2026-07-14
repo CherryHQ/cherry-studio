@@ -1467,7 +1467,14 @@
       },
       "toolbar": {
         "customize": "Customize toolbar",
-        "drag_handle": "Drag to reorder",
+        "drag": {
+          "cancelled": "Reordering cancelled for {{name}}.",
+          "dropped": "{{name}} dropped.",
+          "instructions": "To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "{{name}} moved over {{over}}.",
+          "picked_up": "Picked up {{name}}."
+        },
+        "drag_handle": "Drag to reorder {{name}}",
         "restore_default": "Restore default"
       },
       "tools": {

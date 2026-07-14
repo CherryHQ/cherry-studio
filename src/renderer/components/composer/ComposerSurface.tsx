@@ -1802,7 +1802,14 @@ export default function ComposerSurface({
         const { quickPanel } = rootSuggestionStateRef.current
         const requestedSearchText = options?.searchText ?? ''
         const isButtonPanelVisible = quickPanel.isVisible && quickPanel.triggerInfo?.type === 'button'
-        const isSameLauncherPanel = Boolean(options?.launcherId && quickPanel.symbol === options.launcherId)
+        // A launcher's action may open a panel whose symbol differs from its id (e.g.
+        // Knowledge Base opens '#'); compare against the declared panelSymbol so a second
+        // activation of the same pinned launcher toggles its panel closed.
+        const targetLauncher = options?.launcherId
+          ? getToolLaunchers?.().find((launcher) => launcher.id === options.launcherId)
+          : undefined
+        const expectedPanelSymbol = targetLauncher?.panelSymbol ?? options?.launcherId
+        const isSameLauncherPanel = Boolean(options?.launcherId && quickPanel.symbol === expectedPanelSymbol)
         const isSameRootPanel =
           quickPanel.symbol === ComposerPanelSymbol.Root && (quickPanel.initialSearchText ?? '') === requestedSearchText
 
@@ -1839,7 +1846,13 @@ export default function ComposerSurface({
         inputAdapter?.focus()
       }
     }),
-    [inputAdapter, openUnifiedComposerLauncherSubmenu, openUnifiedComposerPanel, unifiedPanelAvailable]
+    [
+      getToolLaunchers,
+      inputAdapter,
+      openUnifiedComposerLauncherSubmenu,
+      openUnifiedComposerPanel,
+      unifiedPanelAvailable
+    ]
   )
 
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null

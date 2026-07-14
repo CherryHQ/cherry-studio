@@ -28,7 +28,8 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   return {
     Button: ({ children, ...props }: any) => React.createElement('button', props, children),
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+    Tooltip: ({ children, content }: any) =>
+      React.createElement('span', { 'data-tooltip': typeof content === 'string' ? content : undefined }, children),
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
@@ -244,5 +245,51 @@ describe('ComposerToolbarShortcuts', () => {
     expect(labelledBy).toBeTruthy()
     const title = document.getElementById(labelledBy!)
     expect(title).toHaveTextContent('chat.input.toolbar.customize')
+  })
+
+  it('keeps a launchers tooltip on the pinned button, falling back disabledReason -> tooltip -> label', () => {
+    // attachment stays clickable but carries a hint (e.g. "image not supported"); web-search has no tooltip.
+    mocks.launchers = [{ ...attachmentLauncher, tooltip: 'attachment-hint' }, webSearchLauncher]
+    renderShortcuts({ pinnedIds: ['attachment', 'web-search'] })
+
+    expect(screen.getByRole('button', { name: 'attachment-label' }).closest('[data-tooltip]')).toHaveAttribute(
+      'data-tooltip',
+      'attachment-hint'
+    )
+    // No tooltip -> falls back to the label.
+    expect(screen.getByRole('button', { name: 'web-search-label' }).closest('[data-tooltip]')).toHaveAttribute(
+      'data-tooltip',
+      'web-search-label'
+    )
+  })
+
+  it('shows a disabled launchers disabledReason ahead of its tooltip', () => {
+    mocks.launchers = [{ ...webSearchLauncher, disabled: true, disabledReason: 'ws-disabled', tooltip: 'ws-hint' }]
+    renderShortcuts({ pinnedIds: ['web-search'] })
+
+    expect(screen.getByRole('button', { name: 'web-search-label' }).closest('[data-tooltip]')).toHaveAttribute(
+      'data-tooltip',
+      'ws-disabled'
+    )
+  })
+
+  it('restores focus to a tools switch in its new list after toggling it', () => {
+    const onPinnedIdsChange = vi.fn()
+    const { rerender, props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: ['thinking', 'web-search'],
+      onPinnedIdsChange
+    })
+
+    // Unpin web-search from the pinned list.
+    fireEvent.click(within(screen.getByTestId('popover-content')).getByLabelText('web-search-label'))
+    expect(onPinnedIdsChange).toHaveBeenCalledWith(['thinking'])
+
+    // Parent applies the new pinned list; the effect should focus web-search's switch in its new (unpinned) row.
+    rerender(<ComposerToolbarShortcuts {...props} pinnedIds={['thinking']} />)
+
+    const movedSwitch = document.querySelector('[data-tool-toggle-id="web-search"]')
+    expect(movedSwitch).not.toBeNull()
+    expect(document.activeElement).toBe(movedSwitch)
   })
 })

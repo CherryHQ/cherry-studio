@@ -9,6 +9,7 @@ import {
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
+  ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -1339,69 +1340,71 @@ const AgentComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
-      <ComposerSurface
-        text={text}
-        onTextChange={handleTextChange}
-        tokens={tokens}
-        draftTokens={draftTokens}
-        managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
-        onTokensChange={handleTokensChange}
-        resolveSkillMarker={resolveSkillMarker}
-        placeholder={placeholderText}
-        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
-        sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
-        isLoading={isStreaming}
-        onSendDraft={handleSendDraft}
-        onPause={abortAgentSession}
-        queueContent={
-          queuedFollowups.length > 0 ? (
-            <QueuedFollowupsDock
-              items={queuedFollowups}
-              paused={followupPaused}
-              onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={async (id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                // Only drop the item once the send actually succeeds; a failed manual
-                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                const sent = await sendQueuedPayload(item.payload)
-                if (sent) removeFollowup(id)
-                else toast.error(t('chat.input.send_failed'))
-              }}
-              onEdit={(id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                restoreFollowupDraft(item)
-                removeFollowup(id)
-              }}
-              onRemove={removeFollowup}
-              onReorder={reorderFollowups}
-            />
-          ) : undefined
-        }
-        supportedExts={supportedExts}
-        setFiles={setFiles}
-        filesCount={files.length}
-        isExpanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableDragDrop={config.enableDragDrop ?? true}
-        enableSpellCheck={enableSpellCheck}
-        fontSize={fontSize}
-        narrowMode={forceNarrowLayout || narrowMode}
-        onActionsChange={handleSurfaceActionsChange}
-        onInputHistoryNavigate={handleInputHistoryNavigate}
-        getToolLaunchers={() => getLaunchers()}
-        toolLaunchersVersion={toolLaunchersVersion}
-        suggestionSources={[]}
-        resourceProvider={resourceProvider}
-        rootPanelLeadingItems={rootPanelNewSessionItems}
-        rootPanelAdditionalItems={rootPanelTrailingItems}
-        onRootPanelOpen={handleRootPanelOpen}
-        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        sendAccessory={sendAccessory}
-        {...controlSlots}
-      />
+      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+        <ComposerSurface
+          text={text}
+          onTextChange={handleTextChange}
+          tokens={tokens}
+          draftTokens={draftTokens}
+          managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
+          onTokensChange={handleTokensChange}
+          resolveSkillMarker={resolveSkillMarker}
+          placeholder={placeholderText}
+          sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
+          sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
+          isLoading={isStreaming}
+          onSendDraft={handleSendDraft}
+          onPause={abortAgentSession}
+          queueContent={
+            queuedFollowups.length > 0 ? (
+              <QueuedFollowupsDock
+                items={queuedFollowups}
+                paused={followupPaused}
+                onTogglePause={() => setFollowupPaused(!followupPaused)}
+                onSteer={async (id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  // Only drop the item once the send actually succeeds; a failed manual
+                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                  const sent = await sendQueuedPayload(item.payload)
+                  if (sent) removeFollowup(id)
+                  else toast.error(t('chat.input.send_failed'))
+                }}
+                onEdit={(id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  restoreFollowupDraft(item)
+                  removeFollowup(id)
+                }}
+                onRemove={removeFollowup}
+                onReorder={reorderFollowups}
+              />
+            ) : undefined
+          }
+          supportedExts={supportedExts}
+          setFiles={setFiles}
+          filesCount={files.length}
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          quickPanelEnabled={config.enableQuickPanel ?? true}
+          enableDragDrop={config.enableDragDrop ?? true}
+          enableSpellCheck={enableSpellCheck}
+          fontSize={fontSize}
+          narrowMode={forceNarrowLayout || narrowMode}
+          onActionsChange={handleSurfaceActionsChange}
+          onInputHistoryNavigate={handleInputHistoryNavigate}
+          getToolLaunchers={() => getLaunchers()}
+          toolLaunchersVersion={toolLaunchersVersion}
+          suggestionSources={[]}
+          resourceProvider={resourceProvider}
+          rootPanelLeadingItems={rootPanelNewSessionItems}
+          rootPanelAdditionalItems={rootPanelTrailingItems}
+          onRootPanelOpen={handleRootPanelOpen}
+          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          sendAccessory={sendAccessory}
+          {...controlSlots}
+        />
+      </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )
 }
