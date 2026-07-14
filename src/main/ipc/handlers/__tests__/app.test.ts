@@ -1,23 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, assertRequestMock, bootConfigPersistMock, bootConfigSetMock, inspectTargetMock } =
-  vi.hoisted(() => ({
-    appGetMock: vi.fn(),
-    appGetPathMock: vi.fn(),
-    assertRequestMock: vi.fn(),
-    bootConfigPersistMock: vi.fn(),
-    bootConfigSetMock: vi.fn(),
-    inspectTargetMock: vi.fn()
-  }))
+const {
+  appGetMock,
+  appGetPathMock,
+  assertRequestMock,
+  bootConfigGetMock,
+  bootConfigPersistMock,
+  bootConfigSetMock,
+  inspectTargetMock,
+  relaunchMock
+} = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  appGetPathMock: vi.fn(),
+  assertRequestMock: vi.fn(),
+  bootConfigGetMock: vi.fn(),
+  bootConfigPersistMock: vi.fn(),
+  bootConfigSetMock: vi.fn(),
+  inspectTargetMock: vi.fn(),
+  relaunchMock: vi.fn()
+}))
 
-vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
+vi.mock('@application', () => ({
+  application: { get: appGetMock, getPath: appGetPathMock, relaunch: relaunchMock }
+}))
 vi.mock('@main/core/preboot/userDataRelocationGate', () => ({
   assertUserDataRelocationRequest: assertRequestMock,
   inspectUserDataRelocationTarget: inspectTargetMock
 }))
 vi.mock('@main/core/preboot/userDataLocation', () => ({ canonicalizeUserDataPath: (value: string) => value }))
 vi.mock('@main/data/bootConfig', () => ({
-  bootConfigService: { persist: bootConfigPersistMock, set: bootConfigSetMock }
+  bootConfigService: { get: bootConfigGetMock, persist: bootConfigPersistMock, set: bootConfigSetMock }
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
@@ -36,10 +48,16 @@ const appUpdaterService = {
 const preferenceService = {
   get: vi.fn()
 }
+let relocationState: unknown
 
 beforeEach(() => {
   vi.clearAllMocks()
   ;(app as { isPackaged: boolean }).isPackaged = true
+  relocationState = null
+  bootConfigGetMock.mockImplementation(() => relocationState)
+  bootConfigSetMock.mockImplementation((_key: string, value: unknown) => {
+    relocationState = value
+  })
   appGetPathMock.mockImplementation((key: string) => (key === 'app.userdata' ? '/old/data' : '/mock/path'))
   inspectTargetMock.mockReturnValue({ valid: true, targetExists: true, targetEmpty: true })
   appGetMock.mockImplementation((name: string) => {
@@ -60,17 +78,14 @@ describe('appHandlers', () => {
   })
 
   it('persists relocation directly through BootConfigService before relaunch', async () => {
-    const result = await appHandlers['app.request_user_data_relocation'](
-      { path: '/new/data', copy: true, overwrite: false },
-      ctx
-    )
+    const result = await appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
 
     const pending = {
       status: 'pending',
+      taskId: expect.any(String),
       from: '/old/data',
       to: '/new/data',
-      copy: true,
-      overwrite: false
+      copy: true
     }
     expect(assertRequestMock).toHaveBeenCalledWith(pending)
     expect(bootConfigSetMock).toHaveBeenCalledWith('temp.user_data_relocation', pending)
@@ -84,17 +99,24 @@ describe('appHandlers', () => {
     })
 
     await expect(
-      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true, overwrite: false }, ctx)
+      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
     ).rejects.toThrow('disk full')
+    expect(relocationState).toBeNull()
+    expect(bootConfigSetMock).toHaveBeenLastCalledWith('temp.user_data_relocation', null)
   })
 
   it('rejects relocation requests from unpackaged development runs', async () => {
     ;(app as { isPackaged: boolean }).isPackaged = false
 
     await expect(
-      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true, overwrite: false }, ctx)
+      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
     ).rejects.toMatchObject({ code: 'USER_DATA_RELOCATION_UNAVAILABLE' })
     expect(bootConfigSetMock).not.toHaveBeenCalled()
+  })
+
+  it('relaunches through IpcApi', async () => {
+    await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
+    expect(relaunchMock).toHaveBeenCalledOnce()
   })
 
   it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {

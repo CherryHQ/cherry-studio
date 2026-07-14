@@ -15,7 +15,6 @@ export enum IpcChannel {
   App_IsPathInside = 'app:is-path-inside',
   Application_PreventQuit = 'application:prevent-quit',
   Application_AllowQuit = 'application:allow-quit',
-  App_IsNotEmptyDir = 'app:is-not-empty-dir',
   Application_Relaunch = 'application:relaunch',
   App_ResetData = 'app:reset-data',
   App_LogToMain = 'app:log-to-main',

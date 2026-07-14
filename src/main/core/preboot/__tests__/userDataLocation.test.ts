@@ -39,13 +39,13 @@ interface FsStubOptions {
 type BootConfigStore = {
   'app.user_data_path'?: Record<string, string>
   'temp.user_data_relocation'?:
-    | { status: 'pending'; from: string; to: string; copy: boolean; overwrite: boolean }
+    | { status: 'pending'; taskId: string; from: string; to: string; copy: boolean }
     | {
         status: 'failed'
+        taskId: string
         from: string
         to: string
         copy: boolean
-        overwrite: boolean
         error: string
         failedAt: string
       }
@@ -57,6 +57,7 @@ const cpSyncMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 const bootConfigSetMock = vi.fn()
 const bootConfigPersistMock = vi.fn()
+const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
 function stubElectron(opts: ElectronStubOptions = {}) {
   const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
@@ -437,10 +438,10 @@ describe('resolveUserDataLocation', () => {
         'app.user_data_path': { '/other/exe': '/other/data' },
         'temp.user_data_relocation': {
           status: 'pending',
+          taskId: TASK_ID,
           from: '/old/data',
           to: '/new/data',
-          copy: true,
-          overwrite: false
+          copy: true
         }
       })
       stubFs()
@@ -453,6 +454,32 @@ describe('resolveUserDataLocation', () => {
       expect(bootConfigPersistMock).toHaveBeenCalled()
     })
 
+    it('restores both BootConfig keys in memory when the relocation commit cannot be persisted', async () => {
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ exePath: '/mock/exe' })
+      const pendingRelocation = {
+        status: 'pending' as const,
+        taskId: TASK_ID,
+        from: '/old/data',
+        to: '/new/data',
+        copy: true
+      }
+      const store = stubBootConfig({
+        'app.user_data_path': { '/mock/exe': '/old/data', '/other/exe': '/other/data' },
+        'temp.user_data_relocation': pendingRelocation
+      })
+      bootConfigPersistMock.mockImplementationOnce(() => {
+        throw new Error('disk full')
+      })
+      stubFs()
+      const { commitUserDataRelocation } = await loadModule()
+
+      expect(() => commitUserDataRelocation('/new/data')).toThrow('disk full')
+
+      expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/old/data', '/other/exe': '/other/data' })
+      expect(store['temp.user_data_relocation']).toEqual(pendingRelocation)
+    })
+
     it('resolveUserDataLocation does not execute a pending relocation', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
@@ -460,10 +487,10 @@ describe('resolveUserDataLocation', () => {
         'app.user_data_path': { '/mock/exe': '/old/data' },
         'temp.user_data_relocation': {
           status: 'pending',
+          taskId: TASK_ID,
           from: '/old/data',
           to: '/new/data',
-          copy: true,
-          overwrite: false
+          copy: true
         }
       })
       stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
@@ -474,10 +501,10 @@ describe('resolveUserDataLocation', () => {
       expect(cpSyncMock).not.toHaveBeenCalled()
       expect(store['temp.user_data_relocation']).toEqual({
         status: 'pending',
+        taskId: TASK_ID,
         from: '/old/data',
         to: '/new/data',
-        copy: true,
-        overwrite: false
+        copy: true
       })
       expect(setPathMock).toHaveBeenCalledWith('userData', '/old/data')
     })
@@ -505,10 +532,10 @@ describe('resolveUserDataLocation', () => {
         'app.user_data_path': { '/mock/exe': '/old/data' },
         'temp.user_data_relocation': {
           status: 'failed',
+          taskId: TASK_ID,
           from: '/old/data',
           to: '/new/data',
           copy: true,
-          overwrite: false,
           error: 'EACCES',
           failedAt: '2026-04-07T00:00:00.000Z'
         }
@@ -531,10 +558,10 @@ describe('resolveUserDataLocation', () => {
         'app.user_data_path': {},
         'temp.user_data_relocation': {
           status: 'pending',
+          taskId: TASK_ID,
           from: '/old/data',
           to: '/new/data',
-          copy: true,
-          overwrite: false
+          copy: true
         }
       })
       stubFs({ existsSyncImpl: () => true })

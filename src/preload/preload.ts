@@ -72,7 +72,6 @@ const api = {
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
   resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),

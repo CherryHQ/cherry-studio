@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { arch } from 'node:os'
 
 import { application } from '@application'
@@ -34,26 +35,37 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   }),
   'app.inspect_user_data_relocation': async ({ path }) =>
     inspectUserDataRelocationTarget(application.getPath('app.userdata'), path),
-  'app.request_user_data_relocation': async ({ path, copy, overwrite }) => {
+  'app.request_user_data_relocation': async ({ path, copy }) => {
     if (!app.isPackaged) {
       throw new IpcError('USER_DATA_RELOCATION_UNAVAILABLE', 'userData relocation is available only in packaged builds')
     }
 
     const pending = {
       status: 'pending' as const,
+      taskId: randomUUID(),
       from: canonicalizeUserDataPath(application.getPath('app.userdata')),
       to: canonicalizeUserDataPath(path),
-      copy,
-      overwrite
+      copy
     }
     assertUserDataRelocationRequest(pending)
 
     // Temporary BootConfig values bypass PreferenceService. Persist immediately
     // because the request must be durable before Electron relaunches.
+    const previous = bootConfigService.get('temp.user_data_relocation')
     bootConfigService.set('temp.user_data_relocation', pending)
-    bootConfigService.persist()
+    try {
+      bootConfigService.persist()
+    } catch (error) {
+      // persist() intentionally retains dirty in-memory state for retry. This
+      // request was rejected, so restore the state a later flush may persist.
+      bootConfigService.set('temp.user_data_relocation', previous)
+      throw error
+    }
     logger.info('userData relocation requested; relaunch required', pending)
   },
+  'app.user_data_relocation.get_progress': async () => null,
+  'app.user_data_relocation.restart': async () => application.relaunch(),
+  'app.relaunch': async () => application.relaunch(),
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
     return application.get('PreferenceService').get('app.zoom_factor')

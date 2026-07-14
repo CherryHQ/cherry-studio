@@ -39,10 +39,20 @@ export function commitUserDataRelocation(targetPath: string): void {
   const canonicalTargetPath = canonicalizeUserDataPath(targetPath)
   const exe = getNormalizedExecutablePath()
   const current = bootConfigService.get('app.user_data_path') ?? {}
+  const relocation = bootConfigService.get('temp.user_data_relocation')
 
   bootConfigService.set('app.user_data_path', { ...current, [exe]: canonicalTargetPath })
   bootConfigService.set('temp.user_data_relocation', null)
-  bootConfigService.persist()
+  try {
+    bootConfigService.persist()
+  } catch (error) {
+    // The filesystem transaction rolls back outside this helper. Restore the
+    // matching in-memory BootConfig transaction before its failed state is
+    // recorded, otherwise a later flush can commit a path that was rolled back.
+    bootConfigService.set('app.user_data_path', current)
+    bootConfigService.set('temp.user_data_relocation', relocation)
+    throw error
+  }
 
   logger.info('userData relocation committed', { exe, targetPath: canonicalTargetPath })
 }

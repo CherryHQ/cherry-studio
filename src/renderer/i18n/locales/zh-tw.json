@@ -5494,14 +5494,15 @@
         "select": "變更目錄",
         "select_error": "變更資料目錄失敗",
         "select_error_in_app_path": "新路徑與應用安裝路徑相同，請選擇其他路徑",
+        "select_error_protected_path": "所選路徑受作業系統或 Cherry Studio 保護，請選擇其他資料夾",
         "select_error_root_path": "新路徑不能是根路徑",
         "select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
         "select_error_write_permission": "新路徑沒有寫入權限",
         "select_not_empty_dir": "新路徑不為空",
-        "select_not_empty_dir_content": "新路徑不為空，若選擇複製將覆寫新路徑中的資料，可能導致資料遺失或複製失敗。是否繼續？",
         "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
-        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉"
+        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉",
+        "switch_existing_notice": "將直接使用已識別的 Cherry Studio 資料目錄，不會覆寫其中的現有檔案。"
       },
       "app_logs": {
         "button": "開啟日誌",

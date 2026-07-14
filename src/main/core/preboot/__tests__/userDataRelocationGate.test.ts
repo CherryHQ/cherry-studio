@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetPathMock,
-  bootConfigPersistMock,
+  bootConfigFlushMock,
   bootConfigGetMock,
   bootConfigSetMock,
   commitMock,
@@ -20,11 +20,11 @@ const {
   windowOpenMock
 } = vi.hoisted(() => ({
   appGetPathMock: vi.fn(),
-  bootConfigPersistMock: vi.fn(),
+  bootConfigFlushMock: vi.fn(),
   bootConfigGetMock: vi.fn(),
   bootConfigSetMock: vi.fn(),
   commitMock: vi.fn(),
-  platformState: { isWin: false },
+  platformState: { isLinux: false, isMac: false, isWin: false },
   relaunchMock: vi.fn(),
   updateProgressMock: vi.fn(),
   windowCloseMock: vi.fn(),
@@ -35,14 +35,26 @@ const {
 
 let relocationState: Record<string, unknown>
 let restartFromWindow: (() => void) | undefined
+const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
 vi.mock('@application', () => ({
   application: {
-    getPath: (key: string) => (key === 'app.install' ? relocationState.installPath : '/mock/path'),
+    getPath: (key: string) => {
+      if (key === 'app.install') return relocationState.installPath
+      if (key === 'cherry.home') return relocationState.cherryHome
+      if (key in relocationState) return relocationState[key]
+      return path.join(String(relocationState.protectedRoot), key.replaceAll('.', '-'))
+    },
     relaunch: relaunchMock
   }
 }))
 vi.mock('@main/core/platform', () => ({
+  get isLinux() {
+    return platformState.isLinux
+  },
+  get isMac() {
+    return platformState.isMac
+  },
   get isWin() {
     return platformState.isWin
   }
@@ -52,7 +64,8 @@ vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: {
     get: bootConfigGetMock,
     set: bootConfigSetMock,
-    persist: bootConfigPersistMock
+    flush: bootConfigFlushMock,
+    persist: vi.fn()
   }
 }))
 vi.mock('@main/services/relocationWindowService', () => ({
@@ -74,8 +87,8 @@ function makeRoot(): string {
   return root
 }
 
-function pending(from: string, to: string, overwrite = false) {
-  return { status: 'pending' as const, from, to, copy: true, overwrite }
+function pending(from: string, to: string, copy = true, taskId = TASK_ID) {
+  return { status: 'pending' as const, taskId, from, to, copy }
 }
 
 type FsPromisesOverrides = Partial<{ copyFile: typeof copyFile; statfs: typeof statfs; symlink: typeof symlink }>
@@ -95,10 +108,17 @@ async function loadGate() {
 beforeEach(async () => {
   vi.resetModules()
   vi.clearAllMocks()
+  platformState.isLinux = false
+  platformState.isMac = false
   platformState.isWin = false
   await usePromises()
 
-  relocationState = { installPath: makeRoot(), 'temp.user_data_relocation': null }
+  relocationState = {
+    installPath: makeRoot(),
+    cherryHome: makeRoot(),
+    protectedRoot: makeRoot(),
+    'temp.user_data_relocation': null
+  }
   bootConfigGetMock.mockImplementation((key: string) => relocationState[key])
   bootConfigSetMock.mockImplementation((key: string, value: unknown) => {
     relocationState[key] = value
@@ -176,7 +196,7 @@ describe('userDataRelocationGate', () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(source, 'target')
-    const workPath = path.join(source, '.target.cherry-relocation-work')
+    const workPath = path.join(source, `.target.cherry-relocation-${TASK_ID}-work`)
     fs.mkdirSync(source)
     fs.mkdirSync(workPath)
     fs.writeFileSync(path.join(workPath, 'partial.txt'), 'keep')
@@ -208,12 +228,11 @@ describe('userDataRelocationGate', () => {
     expect(commitMock).not.toHaveBeenCalled()
     expect(relocationState['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
-      copy: true,
-      overwrite: true
+      copy: true
     })
   })
 
-  it('restores an overwritten target when the staged copy fails', async () => {
+  it('refuses to copy into an unknown non-empty target and preserves every existing file', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
@@ -221,19 +240,17 @@ describe('userDataRelocationGate', () => {
     fs.writeFileSync(path.join(source, 'new.txt'), 'new')
     fs.mkdirSync(target)
     fs.writeFileSync(path.join(target, 'old.txt'), 'old')
+    fs.mkdirSync(path.join(target, 'old-folder'))
+    fs.writeFileSync(path.join(target, 'old-folder', 'nested.txt'), 'nested')
     appGetPathMock.mockReturnValue(source)
-    relocationState['temp.user_data_relocation'] = pending(source, target, true)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
 
-    await usePromises({
-      copyFile: vi.fn().mockRejectedValue(Object.assign(new Error('disk full'), { code: 'ENOSPC' }))
-    })
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
 
     expect(fs.readFileSync(path.join(target, 'old.txt'), 'utf8')).toBe('old')
+    expect(fs.readFileSync(path.join(target, 'old-folder', 'nested.txt'), 'utf8')).toBe('nested')
     expect(fs.existsSync(path.join(target, 'new.txt'))).toBe(false)
-    expect(fs.existsSync(path.join(root, '.target.cherry-relocation-work'))).toBe(false)
-    expect(fs.existsSync(path.join(root, '.target.cherry-relocation-aside'))).toBe(false)
     expect(commitMock).not.toHaveBeenCalled()
   })
 
@@ -286,7 +303,9 @@ describe('userDataRelocationGate', () => {
     appGetPathMock.mockReturnValue(source)
     relocationState['temp.user_data_relocation'] = pending(source, target)
     platformState.isWin = true
-    const symlinkMock = vi.fn<typeof symlink>().mockResolvedValue(undefined)
+    const symlinkMock = vi.fn<typeof symlink>().mockImplementation(async (targetValue, linkPath) => {
+      fs.symlinkSync(targetValue, linkPath)
+    })
     await usePromises({ symlink: symlinkMock })
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -294,7 +313,7 @@ describe('userDataRelocationGate', () => {
 
     expect(symlinkMock).toHaveBeenCalledWith(
       path.join(fs.realpathSync(target), 'real'),
-      path.join(root, '.target.cherry-relocation-work', 'relative-link'),
+      path.join(root, `.target.cherry-relocation-${TASK_ID}-work`, 'relative-link'),
       'junction'
     )
     expect(commitMock).toHaveBeenCalledWith(target)
@@ -310,7 +329,10 @@ describe('userDataRelocationGate', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      copyFile: vi.fn().mockRejectedValue(Object.assign(new Error('vanished'), { code: 'ENOENT' }))
+      copyFile: vi.fn().mockImplementation(async (sourcePath) => {
+        fs.rmSync(sourcePath)
+        throw Object.assign(new Error('vanished'), { code: 'ENOENT' })
+      })
     })
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
@@ -319,7 +341,7 @@ describe('userDataRelocationGate', () => {
     expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
   })
 
-  it('fails the free-space precheck before moving or creating the target', async () => {
+  it('requires a 20 percent free-space margin before moving or creating the target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
@@ -328,7 +350,7 @@ describe('userDataRelocationGate', () => {
     appGetPathMock.mockReturnValue(source)
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
-    await usePromises({ statfs: vi.fn().mockResolvedValue({ bsize: 1, bavail: 0, blocks: 1 }) })
+    await usePromises({ statfs: vi.fn().mockResolvedValue({ bsize: 1, bavail: 4, blocks: 10 }) })
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
 
@@ -338,7 +360,7 @@ describe('userDataRelocationGate', () => {
       status: 'failed',
       error: expect.stringContaining('not enough free space')
     })
-    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+    expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps failed state until the recovery window explicitly continues on the old path', async () => {
@@ -349,10 +371,10 @@ describe('userDataRelocationGate', () => {
     appGetPathMock.mockReturnValue(source)
     relocationState['temp.user_data_relocation'] = {
       status: 'failed',
+      taskId: TASK_ID,
       from: source,
       to: target,
       copy: true,
-      overwrite: false,
       error: 'copy failed',
       failedAt: '2026-07-13T00:00:00.000Z'
     }
@@ -365,11 +387,323 @@ describe('userDataRelocationGate', () => {
 
     restartFromWindow?.()
     expect(relocationState['temp.user_data_relocation']).toBeNull()
-    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+    expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
     expect(relaunchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('allows an empty first-level target but rejects it once non-empty', async () => {
+  it('copies successfully into a new target and stamps it as an owned Cherry profile', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(JSON.parse(fs.readFileSync(path.join(target, '.cherry-user-data.json'), 'utf8'))).toMatchObject({
+      kind: 'cherry-studio-user-data'
+    })
+    expect(fs.existsSync(path.join(target, '.cherry-relocation-owner.json'))).toBe(false)
+    expect(commitMock).toHaveBeenCalledWith(target)
+  })
+
+  it('switches to a recognized existing profile without modifying its files', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(target, 'cherrystudio.sqlite'), 'existing-profile')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target, false)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'cherrystudio.sqlite'), 'utf8')).toBe('existing-profile')
+    expect(fs.readdirSync(target)).toEqual(['cherrystudio.sqlite'])
+    expect(commitMock).toHaveBeenCalledWith(target)
+  })
+
+  it('requires strong evidence before recognizing a legacy profile', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const versionOnly = path.join(root, 'version-only')
+    const configOnly = path.join(root, 'config-only')
+    const storageOnly = path.join(root, 'storage-only')
+    fs.mkdirSync(source)
+    fs.mkdirSync(versionOnly)
+    fs.writeFileSync(path.join(versionOnly, 'version.log'), 'unrelated log')
+    fs.mkdirSync(configOnly)
+    fs.writeFileSync(path.join(configOnly, 'config.json'), JSON.stringify({ theme: 'dark' }))
+    fs.mkdirSync(path.join(storageOnly, 'IndexedDB'), { recursive: true })
+    fs.mkdirSync(path.join(storageOnly, 'Local Storage'))
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    for (const target of [versionOnly, configOnly, storageOnly]) {
+      expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+        valid: false,
+        reason: 'target_not_profile'
+      })
+    }
+  })
+
+  it('recognizes validated version history or combined legacy profile evidence', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const versionProfile = path.join(root, 'version-profile')
+    const legacyProfile = path.join(root, 'legacy-profile')
+    fs.mkdirSync(source)
+    fs.mkdirSync(versionProfile)
+    fs.writeFileSync(
+      path.join(versionProfile, 'version.log'),
+      '1.9.12|darwin|production|true|normal|2025-03-01T00:00:00Z'
+    )
+    fs.mkdirSync(path.join(legacyProfile, 'IndexedDB'), { recursive: true })
+    fs.mkdirSync(path.join(legacyProfile, 'Local Storage'))
+    fs.writeFileSync(path.join(legacyProfile, 'config.json'), JSON.stringify({ theme: 'dark' }))
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    for (const target of [versionProfile, legacyProfile]) {
+      expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+        valid: true,
+        targetExists: true,
+        targetEmpty: false
+      })
+    }
+  })
+
+  it('allows a Windows user-home child while protecting the Users and AppData roots', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const usersRoot = path.join(root, 'Users')
+    const systemHome = path.join(usersRoot, 'alice')
+    const appData = path.join(systemHome, 'AppData', 'Roaming')
+    const target = path.join(systemHome, 'CherryData')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target, { recursive: true })
+    fs.mkdirSync(appData, { recursive: true })
+    relocationState['sys.home'] = systemHome
+    relocationState['sys.appdata'] = appData
+    platformState.isWin = true
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+      valid: true,
+      targetExists: true,
+      targetEmpty: true
+    })
+    expect(inspectUserDataRelocationTarget(source, usersRoot)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+    expect(inspectUserDataRelocationTarget(source, appData)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+  })
+
+  it('rejects source children, source parents, and protected application directories', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    fs.mkdirSync(source)
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, path.join(source, 'child'))).toEqual({
+      valid: false,
+      reason: 'target_inside_source'
+    })
+    expect(inspectUserDataRelocationTarget(source, root)).toEqual({
+      valid: false,
+      reason: 'target_contains_source'
+    })
+    expect(inspectUserDataRelocationTarget(source, String(relocationState.cherryHome))).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+    expect(
+      inspectUserDataRelocationTarget(source, path.join(String(relocationState.protectedRoot), 'sys-temp'))
+    ).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+  })
+
+  it('preserves a target populated while the source is being scanned', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    await usePromises({
+      statfs: vi.fn().mockImplementation(async () => {
+        fs.writeFileSync(path.join(target, 'arrived-during-scan.txt'), 'keep')
+        return { bsize: 1, bavail: 1_000_000, blocks: 1_000_000 }
+      })
+    })
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'arrived-during-scan.txt'), 'utf8')).toBe('keep')
+    expect(fs.existsSync(path.join(target, 'data.txt'))).toBe(false)
+    expect(commitMock).not.toHaveBeenCalled()
+  })
+
+  it('restores an empty claimed target when a locked source file aborts the copy', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'locked.db'), 'data')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    await usePromises({
+      copyFile: vi.fn().mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
+    })
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readdirSync(target)).toEqual([])
+    expect(commitMock).not.toHaveBeenCalled()
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed', taskId: TASK_ID })
+  })
+
+  it('rolls back when copied data fails the integrity verification', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'complete-data')
+    fs.mkdirSync(target)
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    await usePromises({
+      copyFile: vi.fn().mockImplementation(async (_sourcePath, targetPath) => {
+        fs.writeFileSync(targetPath, 'truncated')
+      })
+    })
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(source, 'data.txt'), 'utf8')).toBe('complete-data')
+    expect(fs.readdirSync(target)).toEqual([])
+    expect(commitMock).not.toHaveBeenCalled()
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('verification failed')
+    })
+  })
+
+  it('removes only the owned promoted target when BootConfig commit fails', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+    commitMock.mockImplementationOnce(() => {
+      throw new Error('boot config disk full')
+    })
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(source, 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(target)).toBe(false)
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: 'boot config disk full'
+    })
+  })
+
+  it('resumes after a power loss by deleting a matching owned work tree only', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const work = path.join(root, `.target.cherry-relocation-${TASK_ID}-work`)
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    fs.mkdirSync(work)
+    fs.writeFileSync(
+      path.join(work, '.cherry-relocation-owner.json'),
+      JSON.stringify({ kind: 'cherry-studio-user-data-relocation', taskId: TASK_ID })
+    )
+    fs.writeFileSync(path.join(work, 'partial.txt'), 'partial')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.existsSync(work)).toBe(false)
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(commitMock).toHaveBeenCalledWith(target)
+  })
+
+  it('recovers a power loss after promotion by removing only the owned promoted target', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const aside = path.join(root, `.target.cherry-relocation-${TASK_ID}-aside`)
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'fresh')
+    fs.mkdirSync(target)
+    fs.writeFileSync(
+      path.join(target, '.cherry-relocation-owner.json'),
+      JSON.stringify({ kind: 'cherry-studio-user-data-relocation', taskId: TASK_ID })
+    )
+    fs.writeFileSync(path.join(target, 'stale-promoted.txt'), 'stale')
+    fs.mkdirSync(aside)
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.existsSync(path.join(target, 'stale-promoted.txt'))).toBe(false)
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('fresh')
+    expect(fs.existsSync(aside)).toBe(false)
+    expect(commitMock).toHaveBeenCalledWith(target)
+  })
+
+  it('never deletes an unowned target found beside an interrupted aside', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const aside = path.join(root, `.target.cherry-relocation-${TASK_ID}-aside`)
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.mkdirSync(aside)
+    fs.writeFileSync(path.join(target, '.cherry-user-data.json'), JSON.stringify({ kind: 'cherry-studio-user-data' }))
+    fs.writeFileSync(path.join(target, 'new-after-crash.txt'), 'preserve')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'new-after-crash.txt'), 'utf8')).toBe('preserve')
+    expect(fs.existsSync(aside)).toBe(true)
+    expect(commitMock).not.toHaveBeenCalled()
+  })
+
+  it('allows an empty first-level target but rejects unknown content added to it', async () => {
     vi.resetModules()
     const entries: string[] = []
     const existing = new Set(['/home/alice/cherry', '/data', '/', String(relocationState.installPath)])
@@ -383,8 +717,14 @@ describe('userDataRelocationGate', () => {
           if (existing.has(value)) return { isDirectory: () => true }
           throw Object.assign(new Error('missing'), { code: 'ENOENT' })
         }),
-        statSync: vi.fn(() => ({ isDirectory: () => true })),
+        statSync: vi.fn((value: string) => {
+          if (existing.has(value)) return { isDirectory: () => true, isFile: () => false, size: 0 }
+          throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+        }),
         readdirSync: vi.fn((value: string) => (value === '/data' ? entries : [])),
+        readFileSync: vi.fn(() => {
+          throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+        }),
         realpathSync
       }
       return { ...mock, default: mock }
@@ -400,7 +740,7 @@ describe('userDataRelocationGate', () => {
     entries.push('unrelated.txt')
     expect(inspectUserDataRelocationTarget('/home/alice/cherry', '/data')).toEqual({
       valid: false,
-      reason: 'target_top_level_not_empty'
+      reason: 'target_not_profile'
     })
   })
 })

@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -128,10 +127,6 @@ export async function registerIpc() {
   // Check if a path is inside another path (proper parent-child relationship)
   ipcMain.handle(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
     return isPathInside(childPath, parentPath)
-  })
-
-  ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
-    return fs.readdirSync(path).length > 0
   })
 
   // Application_Relaunch is registered by Application.registerApplicationIpc()

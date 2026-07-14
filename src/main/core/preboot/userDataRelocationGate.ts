@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { commitUserDataRelocation } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { openUserDataRelocationWindow, type UserDataRelocationWindow } from '@main/services/relocationWindowService'
@@ -15,9 +15,21 @@ import type {
   UserDataRelocationValidationReason
 } from '@shared/types/relocation'
 import { app } from 'electron'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('UserDataRelocationGate')
 const ACTIVE_PROFILE_MARKERS = ['SingletonLock', 'SingletonSocket'] as const
+const PROFILE_MARKER = '.cherry-user-data.json'
+const RELOCATION_OWNER_MARKER = '.cherry-relocation-owner.json'
+const PROFILE_MARKER_KIND = 'cherry-studio-user-data'
+const FREE_SPACE_SAFETY_FACTOR = 1.2
+
+const relocationOwnerSchema = z.object({
+  kind: z.literal('cherry-studio-user-data-relocation'),
+  taskId: z.string()
+})
+const profileMarkerSchema = z.object({ kind: z.literal(PROFILE_MARKER_KIND) })
+const configFileSchema = z.record(z.string(), z.unknown())
 
 type RelocationState = NonNullable<BootConfigSchema['temp.user_data_relocation']>
 type PendingRelocation = Extract<RelocationState, { status: 'pending' }>
@@ -37,7 +49,8 @@ class RelocationValidationError extends Error {
 
 export function inspectUserDataRelocationTarget(from: string, to: string): UserDataRelocationInspection {
   try {
-    return { valid: true, ...assertRelocationPaths(from, to) }
+    const { targetExists, targetEmpty } = assertRelocationPaths(from, to)
+    return { valid: true, targetExists, targetEmpty }
   } catch (error) {
     if (error instanceof RelocationValidationError) {
       return { valid: false, reason: error.reason }
@@ -47,12 +60,15 @@ export function inspectUserDataRelocationTarget(from: string, to: string): UserD
 }
 
 export function assertUserDataRelocationRequest(pending: PendingRelocation): void {
-  const inspection = assertRelocationPaths(pending.from, pending.to)
+  const inspection = assertRelocationPaths(pending.from, pending.to, { taskId: pending.taskId })
   if (!pending.copy && !inspection.targetExists) {
     invalid('target_missing', `switch target does not exist: ${pending.to}`)
   }
-  if (pending.copy && !inspection.targetEmpty && !pending.overwrite) {
-    invalid('target_not_empty', `target directory is not empty: ${pending.to}`)
+  if (!pending.copy && !inspection.targetEmpty && !inspection.targetProfile) {
+    invalid('target_not_profile', `switch target is not a recognized Cherry Studio data directory: ${pending.to}`)
+  }
+  if (pending.copy && !inspection.targetEmpty) {
+    invalid('target_not_empty', `copy target must be empty: ${pending.to}`)
   }
 }
 
@@ -77,7 +93,6 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
   let currentProgress: RelocationProgress | null = null
   function restart() {
     if (currentProgress?.stage === 'failed') clearRelocationState()
-    relocationWindow.close()
     application.relaunch()
   }
   const relocationWindow: UserDataRelocationWindow = openUserDataRelocationWindow({
@@ -119,14 +134,16 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
     })
     bootConfigService.set('temp.user_data_relocation', {
       status: 'failed',
+      taskId: relocation.taskId,
       from: relocation.from,
       to: relocation.to,
       copy: relocation.copy,
-      overwrite: relocation.overwrite,
       error: message,
       failedAt: new Date().toISOString()
     })
-    bootConfigService.persist()
+    // The filesystem has already been rolled back. A BootConfig write failure
+    // must not crash preboot before the recovery window can explain the error.
+    bootConfigService.flush()
     publish(makeProgress('failed', relocation, 0, 0, message))
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
   }
@@ -140,8 +157,11 @@ async function executeRelocation(
   commit: () => void
 ): Promise<void> {
   if (pending.copy) {
-    assertRelocationPaths(pending.from, pending.to, { allowRelocationArtifacts: true })
-    await recoverInterruptedCopy(pending.to)
+    assertRelocationPaths(pending.from, pending.to, {
+      allowRelocationArtifacts: true,
+      taskId: pending.taskId
+    })
+    await recoverInterruptedCopy(pending)
   }
   assertUserDataRelocationRequest(pending)
 
@@ -154,20 +174,25 @@ async function executeRelocation(
   await assertEnoughFreeSpace(pending.to, total)
   publish(makeProgress('copying', pending, 0, total))
 
-  const { workPath, asidePath } = relocationArtifactPaths(pending.to)
-  const targetExisted = pathEntryExists(pending.to)
+  const { workPath, asidePath } = relocationArtifactPaths(pending.to, pending.taskId)
   let asideCreated = false
   let promoted = false
   let copied = 0
   let lastPercent = -1
 
   try {
+    // The source scan can take minutes. Revalidate immediately before claiming
+    // the target so a directory populated in the meantime cannot be replaced.
+    assertUserDataRelocationRequest(pending)
+    const targetExisted = pathEntryExists(pending.to)
     if (targetExisted) {
       await fsp.rename(pending.to, asidePath)
       asideCreated = true
+      assertEmptyDirectory(asidePath, 'target changed after validation')
     }
 
-    await fsp.mkdir(workPath, { recursive: true })
+    await fsp.mkdir(workPath)
+    await writeRelocationOwner(workPath, pending.taskId)
     assertEffectiveSeparation(pending.from, workPath)
 
     const sourceReal = realPath(pending.from)
@@ -186,6 +211,8 @@ async function executeRelocation(
       }
     })
 
+    await verifyCopiedTree(pending.from, workPath)
+    await writeProfileMarker(workPath)
     assertEffectiveSeparation(pending.from, workPath)
     await fsp.rename(workPath, pending.to)
     promoted = true
@@ -196,7 +223,8 @@ async function executeRelocation(
       workPath,
       asidePath,
       asideCreated,
-      promoted
+      promoted,
+      taskId: pending.taskId
     })
     if (rollbackError) {
       const original = error instanceof Error ? error.message : String(error)
@@ -205,9 +233,14 @@ async function executeRelocation(
     throw error
   }
 
+  await fsp.rm(path.join(pending.to, RELOCATION_OWNER_MARKER), { force: true }).catch((error) => {
+    logger.warn('Could not remove relocation ownership marker after commit', { target: pending.to, error })
+  })
   if (asideCreated) {
-    await fsp.rm(asidePath, { recursive: true, force: true }).catch((error) => {
-      logger.warn('Could not remove previous relocation target after commit', { asidePath, error })
+    // The pre-existing target was required to be empty. rmdir is deliberately
+    // non-recursive so files created after the claim are never deleted.
+    await fsp.rmdir(asidePath).catch((error) => {
+      logger.warn('Could not remove empty relocation aside after commit; preserving it', { asidePath, error })
     })
   }
 }
@@ -215,8 +248,8 @@ async function executeRelocation(
 function assertRelocationPaths(
   fromValue: string,
   toValue: string,
-  options: { allowRelocationArtifacts?: boolean } = {}
-): { targetExists: boolean; targetEmpty: boolean } {
+  options: { allowRelocationArtifacts?: boolean; taskId?: string } = {}
+): { targetExists: boolean; targetEmpty: boolean; targetProfile: boolean } {
   if (!path.isAbsolute(fromValue)) invalid('source_missing', `source must be an absolute path: ${fromValue}`)
   if (!path.isAbsolute(toValue)) invalid('target_not_absolute', `target must be an absolute path: ${toValue}`)
 
@@ -235,11 +268,6 @@ function assertRelocationPaths(
   if (!fs.statSync(targetAncestor.path).isDirectory()) {
     invalid('target_parent_unwritable', `target ancestor is not a directory: ${targetAncestor.path}`)
   }
-  try {
-    fs.accessSync(targetExists ? toValue : targetAncestor.path, fs.constants.W_OK)
-  } catch {
-    invalid('target_parent_unwritable', `target is not writable: ${toValue}`)
-  }
 
   const fromReal = normalizeForCompare(realPath(fromValue))
   const toEffective = normalizeForCompare(targetAncestor.effectivePath)
@@ -251,54 +279,62 @@ function assertRelocationPaths(
     invalid('target_contains_source', `target real path contains source: ${toValue}`)
   }
 
-  const installEffective = normalizeForCompare(resolveEffectivePath(application.getPath('app.install')))
-  if (toEffective === installEffective || isPathInside(toEffective, installEffective)) {
-    invalid('target_inside_install', `target must not be inside the app install path: ${toValue}`)
+  assertTargetIsNotProtected(toValue, toEffective)
+  try {
+    fs.accessSync(targetExists ? toValue : targetAncestor.path, fs.constants.W_OK)
+  } catch {
+    invalid('target_parent_unwritable', `target is not writable: ${toValue}`)
   }
 
   let targetEmpty = true
+  let targetProfile = false
   if (targetExists) {
     assertDirectory(toValue, 'target', 'target_not_directory')
     const entries = fs.readdirSync(toValue)
     targetEmpty = entries.length === 0
-    if (isTopLevelPath(toValue) && !targetEmpty) {
-      invalid('target_top_level_not_empty', `top-level target directory is not empty: ${toValue}`)
-    }
     if (ACTIVE_PROFILE_MARKERS.some((marker) => entries.includes(marker))) {
       invalid(
         'target_in_use',
         `target appears to be an active userData directory; close other Cherry Studio instances, or remove stale SingletonLock and SingletonSocket markers if none are running: ${toValue}`
       )
     }
+    targetProfile = !targetEmpty && isRecognizableUserDataDirectory(toValue)
+    if (!targetEmpty && !targetProfile && !isOwnedByRelocation(toValue, options.taskId)) {
+      invalid('target_not_profile', `non-empty target is not a recognized Cherry Studio data directory: ${toValue}`)
+    }
   }
 
-  const { workPath, asidePath } = relocationArtifactPaths(toValue)
-  if (!options.allowRelocationArtifacts && (pathEntryExists(workPath) || pathEntryExists(asidePath))) {
-    invalid('target_work_conflict', `relocation work paths already exist beside target: ${toValue}`)
+  if (options.taskId) {
+    const { workPath, asidePath } = relocationArtifactPaths(toValue, options.taskId)
+    if (!options.allowRelocationArtifacts && (pathEntryExists(workPath) || pathEntryExists(asidePath))) {
+      invalid('target_work_conflict', `relocation work paths already exist beside target: ${toValue}`)
+    }
   }
 
-  return { targetExists, targetEmpty }
+  return { targetExists, targetEmpty, targetProfile }
 }
 
-async function recoverInterruptedCopy(target: string): Promise<void> {
-  const { workPath, asidePath } = relocationArtifactPaths(target)
+async function recoverInterruptedCopy(pending: PendingRelocation): Promise<void> {
+  const target = pending.to
+  const { workPath, asidePath } = relocationArtifactPaths(target, pending.taskId)
   const hasWork = pathEntryExists(workPath)
   const hasAside = pathEntryExists(asidePath)
-  if (!hasWork && !hasAside) return
+  const targetOwned = isOwnedByRelocation(target, pending.taskId)
+  if (!hasWork && !hasAside && !targetOwned) return
 
-  logger.warn('Recovering interrupted userData relocation copy', { target, workPath, asidePath })
-  if (hasWork) await fsp.rm(workPath, { recursive: true, force: true })
+  logger.warn('Recovering interrupted userData relocation copy', {
+    taskId: pending.taskId,
+    target,
+    workPath,
+    asidePath
+  })
+  if (hasWork) await removeOwnedRelocationTree(workPath, pending.taskId)
+  if (targetOwned) await fsp.rm(target, { recursive: true, force: true })
+
   if (!hasAside) return
-
+  assertEmptyDirectory(asidePath, 'relocation aside is no longer empty')
   if (pathEntryExists(target)) {
-    const entries = fs.statSync(target).isDirectory() ? fs.readdirSync(target) : []
-    if (ACTIVE_PROFILE_MARKERS.some((marker) => entries.includes(marker))) {
-      invalid(
-        'target_in_use',
-        `target became active during relocation recovery; close other Cherry Studio instances, or remove stale SingletonLock and SingletonSocket markers if none are running: ${target}`
-      )
-    }
-    await fsp.rm(target, { recursive: true, force: true })
+    invalid('target_work_conflict', `target contains unowned data during relocation recovery: ${target}`)
   }
   await fsp.rename(asidePath, target)
 }
@@ -309,13 +345,23 @@ async function rollbackCopy(options: {
   asidePath: string
   asideCreated: boolean
   promoted: boolean
+  taskId: string
 }): Promise<Error | null> {
   try {
-    await fsp.rm(options.workPath, { recursive: true, force: true })
+    if (pathEntryExists(options.workPath)) {
+      await removeOwnedRelocationTree(options.workPath, options.taskId)
+    }
     if (options.promoted && pathEntryExists(options.target)) {
+      if (!isOwnedByRelocation(options.target, options.taskId)) {
+        throw new Error(`refusing to delete unowned promoted target: ${options.target}`)
+      }
       await fsp.rm(options.target, { recursive: true, force: true })
     }
     if (options.asideCreated && pathEntryExists(options.asidePath)) {
+      assertEmptyDirectory(options.asidePath, 'relocation aside is no longer empty')
+      if (pathEntryExists(options.target)) {
+        throw new Error(`cannot restore relocation aside because target exists: ${options.target}`)
+      }
       await fsp.rename(options.asidePath, options.target)
     }
     return null
@@ -368,6 +414,7 @@ async function copyTree(source: string, target: string, context: CopyContext, al
     const isSourceRoot = sourceReal === normalizeForCompare(context.sourceRootReal)
     for (const entry of entries) {
       if (isSourceRoot && entry.name.startsWith('Singleton')) continue
+      if (isSourceRoot && (entry.name === PROFILE_MARKER || entry.name === RELOCATION_OWNER_MARKER)) continue
       await copyTree(path.join(source, entry.name), path.join(target, entry.name), context, true)
     }
     return
@@ -415,6 +462,54 @@ async function copyTree(source: string, target: string, context: CopyContext, al
   }
 
   logger.warn('Skipping unsupported file system entry during userData relocation', { source })
+}
+
+async function verifyCopiedTree(source: string, target: string, isRoot = true): Promise<void> {
+  let entries: fs.Dirent<string>[]
+  try {
+    entries = await fsp.readdir(source, { withFileTypes: true })
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return
+    throw error
+  }
+
+  for (const entry of entries) {
+    if (isRoot && entry.name.startsWith('Singleton')) continue
+    if (isRoot && (entry.name === PROFILE_MARKER || entry.name === RELOCATION_OWNER_MARKER)) continue
+
+    const sourcePath = path.join(source, entry.name)
+    const targetPath = path.join(target, entry.name)
+    let sourceStat: Awaited<ReturnType<typeof fsp.lstat>>
+    try {
+      sourceStat = await fsp.lstat(sourcePath)
+    } catch (error) {
+      if (isErrno(error, 'ENOENT')) continue
+      throw error
+    }
+
+    let targetStat: Awaited<ReturnType<typeof fsp.lstat>>
+    try {
+      targetStat = await fsp.lstat(targetPath)
+    } catch (error) {
+      if (isErrno(error, 'ENOENT')) {
+        throw new Error(`relocation verification failed; destination entry is missing: ${targetPath}`)
+      }
+      throw error
+    }
+
+    if (sourceStat.isDirectory()) {
+      if (!targetStat.isDirectory()) {
+        throw new Error(`relocation verification failed; destination is not a directory: ${targetPath}`)
+      }
+      await verifyCopiedTree(sourcePath, targetPath, false)
+    } else if (sourceStat.isFile()) {
+      if (!targetStat.isFile() || targetStat.size !== sourceStat.size) {
+        throw new Error(`relocation verification failed; destination file size differs: ${targetPath}`)
+      }
+    } else if (sourceStat.isSymbolicLink() && !targetStat.isSymbolicLink()) {
+      throw new Error(`relocation verification failed; destination is not a symbolic link: ${targetPath}`)
+    }
+  }
 }
 
 async function rewriteSymlinkTarget(
@@ -476,8 +571,11 @@ async function assertEnoughFreeSpace(target: string, requiredBytes: number): Pro
   const { path: existingAncestor } = resolveExistingAncestor(target)
   const stats = await fsp.statfs(existingAncestor)
   const availableBytes = stats.bsize * stats.bavail
-  if (availableBytes < requiredBytes) {
-    throw new Error(`not enough free space for relocation: required ${requiredBytes}, available ${availableBytes}`)
+  const requiredWithSafetyMargin = Math.ceil(requiredBytes * FREE_SPACE_SAFETY_FACTOR)
+  if (availableBytes < requiredWithSafetyMargin) {
+    throw new Error(
+      `not enough free space for relocation: required ${requiredWithSafetyMargin} including safety margin, available ${availableBytes}`
+    )
   }
 }
 
@@ -532,12 +630,151 @@ function realPath(value: string): string {
   return fs.realpathSync.native?.(value) ?? fs.realpathSync(value)
 }
 
-function relocationArtifactPaths(target: string): { workPath: string; asidePath: string } {
+function relocationArtifactPaths(target: string, taskId: string): { workPath: string; asidePath: string } {
   const parent = path.dirname(target)
   const name = path.basename(target)
   return {
-    workPath: path.join(parent, `.${name}.cherry-relocation-work`),
-    asidePath: path.join(parent, `.${name}.cherry-relocation-aside`)
+    workPath: path.join(parent, `.${name}.cherry-relocation-${taskId}-work`),
+    asidePath: path.join(parent, `.${name}.cherry-relocation-${taskId}-aside`)
+  }
+}
+
+async function writeRelocationOwner(directory: string, taskId: string): Promise<void> {
+  await fsp.writeFile(
+    path.join(directory, RELOCATION_OWNER_MARKER),
+    JSON.stringify({ kind: 'cherry-studio-user-data-relocation', taskId })
+  )
+}
+
+async function writeProfileMarker(directory: string): Promise<void> {
+  await fsp.writeFile(path.join(directory, PROFILE_MARKER), JSON.stringify({ kind: PROFILE_MARKER_KIND, version: 1 }))
+}
+
+function isOwnedByRelocation(directory: string, taskId?: string): boolean {
+  if (!taskId || !pathEntryExists(directory)) return false
+  const marker = relocationOwnerSchema.safeParse(readJsonFile(path.join(directory, RELOCATION_OWNER_MARKER)))
+  return marker.success && marker.data.taskId === taskId
+}
+
+async function removeOwnedRelocationTree(directory: string, taskId: string): Promise<void> {
+  if (isOwnedByRelocation(directory, taskId)) {
+    await fsp.rm(directory, { recursive: true, force: true })
+    return
+  }
+  assertEmptyDirectory(directory, 'relocation artifact has no matching ownership marker')
+  await fsp.rmdir(directory)
+}
+
+function assertEmptyDirectory(directory: string, message: string): void {
+  assertDirectory(directory, 'relocation artifact', 'target_work_conflict')
+  if (fs.readdirSync(directory).length > 0) {
+    invalid('target_work_conflict', `${message}: ${directory}`)
+  }
+}
+
+function isRecognizableUserDataDirectory(directory: string): boolean {
+  if (profileMarkerSchema.safeParse(readJsonFile(path.join(directory, PROFILE_MARKER))).success) return true
+
+  const sqlite = statIfExists(path.join(directory, 'cherrystudio.sqlite'))
+  if (sqlite?.isFile() && sqlite.size > 0) return true
+
+  if (hasRecognizableVersionLog(path.join(directory, 'version.log'))) return true
+
+  const hasChromiumStorage =
+    pathEntryExists(path.join(directory, 'IndexedDB')) && pathEntryExists(path.join(directory, 'Local Storage'))
+  const config = configFileSchema.safeParse(readJsonFile(path.join(directory, 'config.json')))
+  return hasChromiumStorage && config.success && Object.keys(config.data).length > 0
+}
+
+function hasRecognizableVersionLog(file: string): boolean {
+  try {
+    return fs
+      .readFileSync(file, 'utf8')
+      .split(/\r?\n/)
+      .some((line) => {
+        const fields = line.trim().split('|')
+        if (fields.length !== 6) return false
+        const [version, , , , , timestamp] = fields
+        return (
+          /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version) &&
+          !Number.isNaN(Date.parse(timestamp))
+        )
+      })
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return false
+    throw error
+  }
+}
+
+function readJsonFile(file: string): unknown | null {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch (error) {
+    if (isErrno(error, 'ENOENT') || error instanceof SyntaxError) return null
+    throw error
+  }
+}
+
+function statIfExists(value: string): fs.Stats | null {
+  try {
+    return fs.statSync(value)
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return null
+    throw error
+  }
+}
+
+function assertTargetIsNotProtected(target: string, normalizedTarget: string): void {
+  const protectedTrees = [
+    application.getPath('app.install'),
+    application.getPath('app.root'),
+    application.getPath('app.extra_resources'),
+    application.getPath('cherry.home'),
+    application.getPath('sys.appdata'),
+    application.getPath('sys.temp')
+  ]
+  for (const protectedTree of protectedTrees) {
+    const normalizedProtected = normalizeForCompare(resolveEffectivePath(protectedTree))
+    if (
+      normalizedTarget === normalizedProtected ||
+      isPathInside(normalizedTarget, normalizedProtected) ||
+      isPathInside(normalizedProtected, normalizedTarget)
+    ) {
+      invalid('target_protected', `target overlaps a protected application or system directory: ${target}`)
+    }
+  }
+
+  const systemHome = application.getPath('sys.home')
+  const protectedExact = [
+    systemHome,
+    ...(isWin ? [path.dirname(systemHome)] : []),
+    application.getPath('sys.downloads'),
+    application.getPath('sys.documents'),
+    application.getPath('sys.desktop'),
+    application.getPath('sys.music'),
+    application.getPath('sys.pictures'),
+    application.getPath('sys.videos')
+  ]
+  if (protectedExact.some((value) => normalizeForCompare(resolveEffectivePath(value)) === normalizedTarget)) {
+    invalid('target_protected', `target is a protected user or system directory: ${target}`)
+  }
+
+  const resolved = path.resolve(target)
+  const relative = path.relative(path.parse(resolved).root, resolved)
+  const firstSegment = relative.split(path.sep).filter(Boolean)[0]?.toLowerCase()
+  const isWindowsSystemVolume =
+    isWin &&
+    normalizeForCompare(path.parse(resolved).root) ===
+      normalizeForCompare(path.parse(application.getPath('sys.appdata')).root)
+  const protectedTopLevel = isWindowsSystemVolume
+    ? ['windows', 'program files', 'program files (x86)', 'programdata', 'recovery', '$recycle.bin']
+    : isMac
+      ? ['system', 'library', 'applications', 'bin', 'sbin', 'usr', 'private']
+      : isLinux
+        ? ['bin', 'boot', 'dev', 'etc', 'lib', 'lib64', 'proc', 'root', 'run', 'sbin', 'sys', 'usr', 'var']
+        : []
+  if (firstSegment && protectedTopLevel.includes(firstSegment)) {
+    invalid('target_protected', `target is inside a protected operating-system directory: ${target}`)
   }
 }
 
@@ -565,15 +802,9 @@ function isRootPath(value: string): boolean {
   return normalizeForCompare(resolved) === normalizeForCompare(path.parse(resolved).root)
 }
 
-function isTopLevelPath(value: string): boolean {
-  const resolved = path.resolve(value)
-  const relative = path.relative(path.parse(resolved).root, resolved)
-  return relative.split(path.sep).filter(Boolean).length === 1
-}
-
 function normalizeForCompare(value: string): string {
   const resolved = path.resolve(value)
-  return isWin ? resolved.toLowerCase() : resolved
+  return isWin || isMac ? resolved.toLowerCase() : resolved
 }
 
 function isPathInside(child: string, parent: string): boolean {
@@ -583,7 +814,7 @@ function isPathInside(child: string, parent: string): boolean {
 
 function clearRelocationState(): void {
   bootConfigService.set('temp.user_data_relocation', null)
-  bootConfigService.persist()
+  bootConfigService.flush()
 }
 
 function invalid(reason: UserDataRelocationValidationReason, message: string): never {

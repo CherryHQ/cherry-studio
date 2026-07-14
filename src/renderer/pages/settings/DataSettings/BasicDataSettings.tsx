@@ -42,8 +42,7 @@ const BasicDataSettings: React.FC = () => {
       return
     }
 
-    const newAppDataPath = await window.api.select({
-      properties: ['openDirectory', 'createDirectory'],
+    const newAppDataPath = await ipcApi.request('file.select_directory', {
       title: t('settings.data.app_data.select_title')
     })
 
@@ -65,11 +64,11 @@ const BasicDataSettings: React.FC = () => {
       toast.error(t('settings.data.app_data.select_error_root_path'))
     } else if (reason === 'same_path' || reason === 'target_inside_source' || reason === 'target_contains_source') {
       toast.error(t('settings.data.app_data.select_error_same_path'))
-    } else if (reason === 'target_inside_install') {
-      toast.error(t('settings.data.app_data.select_error_in_app_path'))
+    } else if (reason === 'target_protected') {
+      toast.error(t('settings.data.app_data.select_error_protected_path'))
     } else if (reason === 'target_in_use') {
       toast.error(t('settings.data.app_data.select_error'))
-    } else if (reason === 'target_top_level_not_empty') {
+    } else if (reason === 'target_not_profile' || reason === 'target_not_empty') {
       toast.error(t('settings.data.app_data.select_not_empty_dir'))
     } else if (
       reason === 'target_parent_unwritable' ||
@@ -104,6 +103,7 @@ const BasicDataSettings: React.FC = () => {
           <Switch
             defaultChecked={shouldCopyData}
             onCheckedChange={(checked) => (shouldCopyData = checked)}
+            disabled={targetNotEmpty}
             className="mr-2"
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
@@ -125,7 +125,9 @@ const BasicDataSettings: React.FC = () => {
           <MigrationNotice>
             <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
             <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
-              {t('settings.data.app_data.copy_time_notice')}
+              {targetNotEmpty
+                ? t('settings.data.app_data.switch_existing_notice')
+                : t('settings.data.app_data.copy_time_notice')}
             </p>
           </MigrationNotice>
         </MigrationModalContent>
@@ -139,29 +141,17 @@ const BasicDataSettings: React.FC = () => {
     })
     if (!confirmed) return
 
-    if (shouldCopyData && targetNotEmpty) {
-      const overwriteConfirmed = await popup.confirm({
-        title: t('settings.data.app_data.select_not_empty_dir'),
-        content: t('settings.data.app_data.select_not_empty_dir_content'),
-        centered: true,
-        okText: t('common.confirm'),
-        cancelText: t('common.cancel')
-      })
-      if (!overwriteConfirmed) return
-    }
-
     try {
       await ipcApi.request('app.request_user_data_relocation', {
         path: newPath,
-        copy: shouldCopyData,
-        overwrite: shouldCopyData && targetNotEmpty
+        copy: shouldCopyData
       })
       toast.info({
         title: t('settings.data.app_data.restart_notice'),
         timeout: 2000
       })
       window.setTimeout(() => {
-        void window.api.application.relaunch()
+        void ipcApi.request('app.relaunch')
       }, 500)
     } catch {
       toast.error(t('settings.data.app_data.path_change_failed'))

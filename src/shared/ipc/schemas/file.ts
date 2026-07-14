@@ -64,6 +64,10 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  'file.select_directory': defineRoute({
+    input: z.strictObject({ title: z.string().optional() }),
+    output: z.string().nullable()
+  }),
   'file.batch_get_metadata': defineRoute({
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())

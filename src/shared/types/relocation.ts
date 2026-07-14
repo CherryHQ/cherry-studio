@@ -1,21 +1,15 @@
-export const RelocationIpcChannels = {
-  GetProgress: 'relocation:get-progress',
-  Progress: 'relocation:progress',
-  Restart: 'relocation:restart'
-} as const
-
 export const USER_DATA_RELOCATION_VALIDATION_REASONS = [
   'source_missing',
   'target_root',
   'same_path',
   'target_inside_source',
   'target_contains_source',
-  'target_inside_install',
+  'target_protected',
   'target_not_absolute',
   'target_parent_unwritable',
   'target_not_directory',
-  'target_top_level_not_empty',
   'target_in_use',
+  'target_not_profile',
   'target_not_empty',
   'target_missing',
   'target_work_conflict'

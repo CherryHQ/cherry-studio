@@ -102,6 +102,21 @@ copied the occupied dirs during the next startup's narrow "no renderer
 yet" window. v2 abandons that distinction entirely — the whole directory
 is copied at startup **after** the previous process has fully exited.
 
+### Relocation safety model
+
+Relocation never merges into or clears an arbitrary directory. Copy mode
+accepts only a missing or empty target. A non-empty target may be selected
+only in switch mode after it is recognized as an existing Cherry Studio
+userData directory. Files already present there are left unchanged.
+
+Each copy request has a unique task ID. Temporary work trees and promoted
+targets carry an ownership marker for that task, and recovery removes a tree
+recursively only when the marker matches. Unknown files, targets without the
+matching marker, and non-empty aside directories are preserved and make the
+operation fail safely. Source descendants, source ancestors, filesystem roots,
+and protected operating-system or application paths are rejected before any
+target mutation.
+
 ## Layout
 
 ```

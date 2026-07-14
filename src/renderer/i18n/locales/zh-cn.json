@@ -5494,14 +5494,15 @@
         "select": "修改目录",
         "select_error": "所选目录可能正被另一个 Cherry Studio 实例使用。请关闭其他实例后重试；若确认没有实例运行，请删除该目录中遗留的 SingletonLock 和 SingletonSocket 文件。",
         "select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
+        "select_error_protected_path": "所选路径受操作系统或 Cherry Studio 保护，请选择其他文件夹",
         "select_error_root_path": "新路径不能是根路径",
         "select_error_same_path": "新路径与旧路径相同，请选择其他路径",
         "select_error_write_permission": "新路径没有写入权限",
         "select_not_empty_dir": "新路径不为空",
-        "select_not_empty_dir_content": "新路径不为空，将覆盖新路径中的数据，有数据丢失和复制失败的风险，是否继续？",
         "select_success": "数据目录已更改，应用将重启以应用更改",
         "select_title": "更改应用数据目录",
-        "stop_quit_app_reason": "应用目前在迁移数据，不能退出"
+        "stop_quit_app_reason": "应用目前在迁移数据，不能退出",
+        "switch_existing_notice": "将直接使用已识别的 Cherry Studio 数据目录，不会覆盖其中的现有文件。"
       },
       "app_logs": {
         "button": "打开日志",

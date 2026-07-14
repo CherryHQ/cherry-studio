@@ -43,8 +43,8 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     originalKey: 'userDataRelocation',
     targetKey: 'temp.user_data_relocation',
     type:
-      "\n    | { status: 'pending'; from: string; to: string; copy: boolean; overwrite: boolean }" +
-      "\n    | { status: 'failed'; from: string; to: string; copy: boolean; overwrite: boolean; error: string; failedAt: string }" +
+      "\n    | { status: 'pending'; taskId: string; from: string; to: string; copy: boolean }" +
+      "\n    | { status: 'failed'; taskId: string; from: string; to: string; copy: boolean; error: string; failedAt: string }" +
       '\n    | null',
     defaultValue: null,
     jsdoc: [
@@ -59,9 +59,9 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Lifecycle:',
       '  - null: no relocation in progress (default).',
-      "  - { status: 'pending', from, to, copy, overwrite }: an IPC handler",
+      "  - { status: 'pending', taskId, from, to, copy }: an IPC handler",
       '    wrote this request and the next preboot should execute it.',
-      "  - { status: 'failed', from, to, copy, overwrite, error, failedAt }:",
+      "  - { status: 'failed', taskId, from, to, copy, error, failedAt }:",
       '    a previous preboot attempt failed. The record stays in BootConfig',
       '    until the dedicated relocation window shows the error and the user',
       '    explicitly abandons it by restarting on the previous userData path.',

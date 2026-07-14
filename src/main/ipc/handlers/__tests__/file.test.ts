@@ -1,13 +1,17 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  getMetadataByPathMock: vi.fn(),
-  safeOpenMock: vi.fn(),
-  showPathInFolderMock: vi.fn()
-}))
+const { appGetMock, getMetadataByPathMock, safeOpenMock, showOpenDialogMock, showPathInFolderMock } = vi.hoisted(
+  () => ({
+    appGetMock: vi.fn(),
+    getMetadataByPathMock: vi.fn(),
+    safeOpenMock: vi.fn(),
+    showOpenDialogMock: vi.fn(),
+    showPathInFolderMock: vi.fn()
+  })
+)
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('electron', () => ({ dialog: { showOpenDialog: showOpenDialogMock } }))
 vi.mock('@main/services/file', async () => {
   // The handler now reaches dispatchHandle / getMetadataByPath through the file
   // facade (previously deep-imported). dispatchHandle is exercised for real —
@@ -62,6 +66,19 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
+  it('returns the selected directory through IpcApi', async () => {
+    showOpenDialogMock.mockResolvedValue({ canceled: false, filePaths: ['/new/data'] })
+
+    await expect(fileHandlers['file.select_directory']({ title: 'Select directory' }, ctx)).resolves.toBe('/new/data')
+    expect(showOpenDialogMock).toHaveBeenCalledWith({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select directory'
+    })
+
+    showOpenDialogMock.mockResolvedValueOnce({ canceled: true, filePaths: [] })
+    await expect(fileHandlers['file.select_directory']({}, ctx)).resolves.toBeNull()
+  })
+
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },
