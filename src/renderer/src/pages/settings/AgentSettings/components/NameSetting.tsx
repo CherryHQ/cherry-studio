@@ -1,5 +1,10 @@
 import { EmojiAvatarWithPicker } from '@renderer/components/Avatar/EmojiAvatarWithPicker'
-import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
+import type {
+  AgentBaseWithId,
+  UpdateAgentBaseForm,
+  UpdateAgentFunctionUnion,
+  UpdateAgentSessionFunction
+} from '@renderer/types'
 import { AgentConfigurationSchema, isAgentEntity, isAgentType } from '@renderer/types'
 import { Input } from 'antd'
 import { useCallback, useState } from 'react'
@@ -18,7 +23,13 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
 
   const updateName = async (name: UpdateAgentBaseForm['name']) => {
     if (!base) return
-    return update({ id: base.id, name: name?.trim() })
+    const trimmed = name?.trim()
+    // A user-typed session name is a manual rename; flag it so the auto-namer
+    // won't overwrite it later. Agents have no such flag.
+    if (isAgentEntity(base)) {
+      return update({ id: base.id, name: trimmed })
+    }
+    return (update as UpdateAgentSessionFunction)({ id: base.id, name: trimmed, name_manually_edited: true })
   }
 
   // Avatar logic

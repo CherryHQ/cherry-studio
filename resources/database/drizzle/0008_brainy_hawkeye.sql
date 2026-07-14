@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `name_manually_edited` integer DEFAULT false NOT NULL;

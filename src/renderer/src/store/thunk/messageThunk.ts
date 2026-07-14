@@ -178,12 +178,6 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
-    const { text: summary } = await fetchMessagesSummary({ messages })
-    const summaryText = summary?.trim()
-    if (!summaryText) {
-      return
-    }
-
     const baseURL = buildAgentBaseURL(apiServer)
     const client = new AgentApiClient({
       baseURL,
@@ -202,8 +196,17 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
+    // Never overwrite a name the user set manually. The explicit "auto-rename"
+    // action passes `force` to re-generate it anyway.
+    if (!options.force && session.name_manually_edited) {
+      return
+    }
+
     const currentName = (session.name ?? '').trim()
-    if (currentName === summaryText) {
+
+    const { text: summary } = await fetchMessagesSummary({ messages })
+    const summaryText = summary?.trim()
+    if (!summaryText || currentName === summaryText) {
       return
     }
 
@@ -211,7 +214,9 @@ export const renameAgentSessionIfNeeded = async (
     try {
       updatedSession = await client.updateSession(agentSession.agentId, {
         id: agentSession.sessionId,
-        name: summaryText
+        name: summaryText,
+        // The name is auto-generated, so clear any manual flag (relevant when force-renaming).
+        name_manually_edited: false
       })
     } catch (error) {
       logger.warn('Failed to update agent session name', error as Error)
@@ -232,7 +237,8 @@ export const renameAgentSessionIfNeeded = async (
             sessionItem.id === updatedSession.id
               ? ({
                   ...sessionItem,
-                  name: updatedSession.name
+                  name: updatedSession.name,
+                  name_manually_edited: updatedSession.name_manually_edited
                 } as AgentSessionEntity)
               : sessionItem
           ) ?? prev,
