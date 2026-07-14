@@ -86,7 +86,7 @@ function getDetailCardSide(trigger: HTMLElement): HorizontalHoverCardSide {
   return rightSpace >= leftSpace ? 'right' : 'left'
 }
 
-function getDetailCardAlign(side: HorizontalHoverCardSide): HoverCardAlign {
+function getDetailCardAlign(): HoverCardAlign {
   return 'start'
 }
 
@@ -191,7 +191,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   const providerName = getProviderDisplayName(provider)
   const triggerRef = useRef<HTMLElement | null>(null)
   const [side, setSide] = useState<HorizontalHoverCardSide>('right')
-  const align = getDetailCardAlign(side)
+  const align = getDetailCardAlign()
   const setTriggerElement = useCallback((element: HTMLAnchorElement | null) => {
     triggerRef.current = element
   }, [])
