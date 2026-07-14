@@ -14,15 +14,8 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
-import {
-  getThinkModelType,
-  isDoubaoThinkingAutoModel,
-  isFixedReasoningModel,
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  isReasoningModel,
-  MODEL_SUPPORTED_OPTIONS
-} from '@renderer/utils/model'
+import { isGPT5SeriesReasoningModel, isOpenAIWebSearchModel, isReasoningModel } from '@renderer/utils/model'
+import { deriveThinkingOptions } from '@shared/ai/reasoningVocabulary'
 import type { Model } from '@shared/data/types/model'
 import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -53,22 +46,16 @@ const useThinkingToolController = ({
     return (stored ?? 'none') as ThinkingOption
   }, [isControlled, controlledEffort, assistant?.settings.reasoning_effort])
 
-  // 确定当前模型支持的选项类型
-  const modelType = useMemo(() => getThinkModelType(model), [model])
-
   const supportsReasoning = isReasoningModel(model)
-  const isFixedReasoning = isFixedReasoningModel(model)
 
-  // 获取当前模型支持的选项
-  const supportedOptions: ThinkingOption[] = useMemo(() => {
-    if (modelType === 'doubao') {
-      if (isDoubaoThinkingAutoModel(model)) {
-        return ['none', 'auto', 'high']
-      }
-      return ['none', 'high']
-    }
-    return MODEL_SUPPORTED_OPTIONS[modelType]
-  }, [model, modelType])
+  // Descriptor-driven vocabulary (#16598): the registry controls declaration
+  // decides the options — the same derivation the injector's contract test
+  // validates, so the UI can never offer an unserializable option.
+  const supportedOptions: ThinkingOption[] = useMemo(() => deriveThinkingOptions(model) ?? [], [model])
+
+  // Reasons but exposes no knob (fixed reasoning / a provider that ignores
+  // reasoning params).
+  const isFixedReasoning = supportsReasoning && supportedOptions.length === 0
 
   const onThinkingChange = useCallback(
     (option: ThinkingOption) => {

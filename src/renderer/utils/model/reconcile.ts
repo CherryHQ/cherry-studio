@@ -16,15 +16,9 @@
 import { cacheService } from '@renderer/data/CacheService'
 import type { AssistantSettings } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
+import { deriveThinkingOptions, nearestThinkingOption } from '@shared/ai/reasoningVocabulary'
 import type { Model } from '@shared/data/types/model'
 
-import {
-  getThinkModelType,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
-} from './reasoning'
 import { isFunctionCallingModel } from './tooluse'
 import { isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
 
@@ -47,9 +41,11 @@ export function reconcileReasoningEffortForModel(
 ): ReasoningEffortPatch | null {
   const cacheKey = `assistant.reasoning_effort_cache.${assistantId}` as const
 
-  if (isSupportedThinkingTokenModel(nextModel) || isSupportedReasoningEffortModel(nextModel)) {
-    const modelType = getThinkModelType(nextModel)
-    const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
+  // Descriptor-driven vocabulary (#16598) — the same derivation the
+  // ThinkingButton renders, so reconcile can never park an option the UI
+  // doesn't offer.
+  const supportedOptions = deriveThinkingOptions(nextModel)
+  if (supportedOptions && supportedOptions.some((option) => option !== 'default')) {
     if (supportedOptions.includes(currentEffort as ThinkingOption)) {
       return null // current value already supported — no PATCH needed
     }
@@ -58,8 +54,10 @@ export function reconcileReasoningEffortForModel(
       cached && supportedOptions.includes(cached)
         ? cached
         : currentEffort !== undefined
-          ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
-          : MODEL_SUPPORTED_OPTIONS[modelType][0]
+          ? // Out-of-vocabulary persisted value: nearest native tier along the
+            // intensity ladder (xhigh↔max aliasing, minimal→low, …).
+            (nearestThinkingOption(currentEffort, supportedOptions) ?? supportedOptions[0])
+          : supportedOptions[0]
     cacheService.set(cacheKey, fallback === 'none' ? undefined : fallback)
     return {
       reasoning_effort: fallback === 'none' ? undefined : fallback

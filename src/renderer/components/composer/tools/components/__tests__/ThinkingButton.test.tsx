@@ -2,16 +2,13 @@ import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
-import type { Model } from '@shared/data/types/model'
+import type { Model, RuntimeReasoning } from '@shared/data/types/model'
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThinkingToolRuntime } from '../ThinkingButton'
 
 const mocks = vi.hoisted(() => ({
-  getThinkModelType: vi.fn(),
-  isDoubaoThinkingAutoModel: vi.fn(),
-  isFixedReasoningModel: vi.fn(),
   isGPT5SeriesReasoningModel: vi.fn(),
   isOpenAIWebSearchModel: vi.fn(),
   isReasoningModel: vi.fn(),
@@ -26,6 +23,7 @@ vi.mock('react-i18next', () => ({
         'assistants.settings.reasoning_effort.high': 'High',
         'assistants.settings.reasoning_effort.label': 'Reasoning Effort',
         'assistants.settings.reasoning_effort.low': 'Low',
+        'assistants.settings.reasoning_effort.max': 'Max',
         'assistants.settings.reasoning_effort.medium': 'Medium',
         'assistants.settings.reasoning_effort.minimal': 'Minimal',
         'assistants.settings.reasoning_effort.off': 'Off',
@@ -51,18 +49,9 @@ vi.mock('@renderer/data/CacheService', () => ({
 }))
 
 vi.mock('@renderer/utils/model', () => ({
-  getThinkModelType: (...args: unknown[]) => mocks.getThinkModelType(...args),
-  isDoubaoThinkingAutoModel: (...args: unknown[]) => mocks.isDoubaoThinkingAutoModel(...args),
-  isFixedReasoningModel: (...args: unknown[]) => mocks.isFixedReasoningModel(...args),
   isGPT5SeriesReasoningModel: (...args: unknown[]) => mocks.isGPT5SeriesReasoningModel(...args),
   isOpenAIWebSearchModel: (...args: unknown[]) => mocks.isOpenAIWebSearchModel(...args),
-  isReasoningModel: (...args: unknown[]) => mocks.isReasoningModel(...args),
-  MODEL_SUPPORTED_OPTIONS: {
-    default: ['default', 'none', 'low', 'medium', 'high'],
-    doubao: ['default', 'none', 'auto', 'high'],
-    gpt5: ['default', 'minimal', 'low', 'medium', 'high'],
-    gpt5pro: ['default', 'high']
-  }
+  isReasoningModel: (...args: unknown[]) => mocks.isReasoningModel(...args)
 }))
 
 vi.mock('@renderer/components/icons/SvgIcon', () => ({
@@ -92,13 +81,21 @@ const DEFAULT_TEST_SETTINGS = {
   topP: 1
 }
 
+/** GPT-5-style effort control — the vocabulary the button derives options from. */
+const GPT5_REASONING: RuntimeReasoning = {
+  type: 'openai-responses',
+  controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }],
+  supportedEfforts: ['minimal', 'low', 'medium', 'high']
+}
+
 const createModel = (overrides: Record<string, unknown> = {}): Model =>
   ({
-    capabilities: [],
+    capabilities: ['reasoning'],
     group: 'openai',
     id: 'openai::gpt-5',
     name: 'GPT-5',
     providerId: 'openai',
+    reasoning: GPT5_REASONING,
     ...overrides
   }) as unknown as Model
 
@@ -126,31 +123,24 @@ const createLauncherApi = (): ToolLauncherApi => ({
 const renderRuntime = (
   options: {
     assistant?: Assistant
-    isFixedReasoning?: boolean
     isGPT5SeriesReasoningModel?: boolean
     isOpenAIWebSearchModel?: boolean
     isReasoningModel?: boolean
     launcher?: ToolLauncherApi
     model?: Model
-    modelType?: string
   } = {}
 ) => {
   const {
     assistant = createAssistant(),
-    isFixedReasoning = false,
     isGPT5SeriesReasoningModel = false,
     isOpenAIWebSearchModel = false,
     isReasoningModel = true,
     launcher = createLauncherApi(),
-    model = createModel(),
-    modelType = 'gpt5'
+    model = createModel()
   } = options
   const updateAssistantSettings = vi.fn()
 
   mocks.useAssistant.mockReturnValue({ assistant, updateAssistantSettings })
-  mocks.getThinkModelType.mockReturnValue(modelType)
-  mocks.isDoubaoThinkingAutoModel.mockReturnValue(false)
-  mocks.isFixedReasoningModel.mockReturnValue(isFixedReasoning)
   mocks.isGPT5SeriesReasoningModel.mockReturnValue(isGPT5SeriesReasoningModel)
   mocks.isOpenAIWebSearchModel.mockReturnValue(isOpenAIWebSearchModel)
   mocks.isReasoningModel.mockReturnValue(isReasoningModel)
@@ -210,8 +200,58 @@ describe('ThinkingToolRuntime', () => {
     })
   })
 
+  it('derives options per controls kind: toggle+budget → off + preset ladder', async () => {
+    const { launcher } = renderRuntime({
+      model: createModel({
+        id: 'anthropic::claude-sonnet-4-5',
+        reasoning: {
+          type: 'anthropic',
+          controls: [{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }],
+          supportedEfforts: ['none', 'auto'],
+          thinkingTokenLimits: { min: 1024, max: 64_000 }
+        } satisfies RuntimeReasoning
+      })
+    })
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
+      'thinking-none',
+      'thinking-low',
+      'thinking-medium',
+      'thinking-high'
+    ])
+  })
+
+  it("derives options per controls kind: native effort vocabulary rides verbatim (claude 4.6 'max')", async () => {
+    const { launcher } = renderRuntime({
+      model: createModel({
+        id: 'anthropic::claude-opus-4-6',
+        reasoning: {
+          type: 'anthropic',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }],
+          supportedEfforts: ['low', 'medium', 'high', 'max', 'none']
+        } satisfies RuntimeReasoning
+      })
+    })
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
+      'thinking-none',
+      'thinking-low',
+      'thinking-medium',
+      'thinking-high',
+      'thinking-max'
+    ])
+    expect(thinkingLauncher.submenu?.find((item) => item.id === 'thinking-max')).toMatchObject({ label: 'Max' })
+  })
+
   it('blocks unsupported and fixed reasoning models in launcher state', async () => {
-    const unsupported = renderRuntime({ isReasoningModel: false })
+    const unsupported = renderRuntime({
+      isReasoningModel: false,
+      model: createModel({ capabilities: [], reasoning: undefined })
+    })
     await waitFor(() => expect(unsupported.launcher.registerLaunchers).toHaveBeenCalled())
 
     const [unsupportedLauncher] = vi.mocked(unsupported.launcher.registerLaunchers).mock.calls[0][0]
@@ -222,7 +262,8 @@ describe('ThinkingToolRuntime', () => {
 
     vi.clearAllMocks()
 
-    const fixed = renderRuntime({ isFixedReasoning: true })
+    // Fixed reasoning: reasons (capability) but ships no descriptor knobs.
+    const fixed = renderRuntime({ model: createModel({ reasoning: undefined }) })
     await waitFor(() => expect(fixed.launcher.registerLaunchers).toHaveBeenCalled())
 
     const [fixedLauncher] = vi.mocked(fixed.launcher.registerLaunchers).mock.calls[0][0]

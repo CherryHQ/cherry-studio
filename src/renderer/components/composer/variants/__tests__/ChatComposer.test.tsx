@@ -374,7 +374,6 @@ vi.mock('@renderer/utils/model', () => ({
   // The first two predicates are stubbed to false here, so it reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  getThinkModelType: () => 'default',
   isAudioModel: () => false,
   isAudioModels: () => false,
   isEmbeddingModel: () => false,
@@ -390,9 +389,7 @@ vi.mock('@renderer/utils/model', () => ({
   isVideoModels: () => false,
   isVisionModel: () => false,
   isVisionModels: () => false,
-  isWebSearchModel: () => false,
-  MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
-  MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
+  isWebSearchModel: () => false
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({

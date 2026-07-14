@@ -12,19 +12,9 @@ export {
 export { isEmbeddingModel, isRerankModel } from './embedding'
 export { getModelLogoRef } from './logo'
 export { isGPT5SeriesReasoningModel } from './openai'
-export {
-  getModelSupportedReasoningEffortOptions,
-  getThinkModelType,
-  isDoubaoThinkingAutoModel,
-  isFixedReasoningModel,
-  isQwenReasoningModel,
-  isReasoningModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  isSupportedThinkingTokenQwenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
-} from './reasoning'
+// Reasoning checks are the descriptor-backed shared implementations — the
+// renderer's regex-table shadows were deleted with the #16598 migration
+// (vocabulary now comes from `@shared/ai/reasoningVocabulary`).
 export {
   canModelUseAssistantWebSearch,
   hasModelBuiltinWebSearch,
@@ -36,3 +26,13 @@ export { getSearchMatchScore } from './search'
 export { isFunctionCallingModel } from './tooluse'
 export { isGenerateImageModel, isVisionModel } from './vision'
 export { isOpenAIWebSearchModel, isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
+export {
+  getModelSupportedReasoningEffortOptions,
+  isDoubaoThinkingAutoModel,
+  isFixedReasoningModel,
+  isQwenReasoningModel,
+  isReasoningModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isSupportedThinkingTokenQwenModel
+} from '@shared/utils/model'
