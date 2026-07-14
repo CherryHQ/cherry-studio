@@ -8,7 +8,7 @@ date: 2026-07-13
 
 ## What changed
 
-Uploading a PDF on the Translate page now opens a layout-preserving bilingual PDF workflow instead of extracting the document into plain text. BabelDOC must be installed manually from Environment Dependencies; the first translation may then download its layout model assets. Translation progress is streamed to the PDF preview as BabelDOC parses, translates, typesets, and renders the document.
+Uploading a PDF on the Translate page now opens a layout-preserving translated PDF workflow instead of extracting the document into plain text. BabelDOC must be installed manually from Environment Dependencies; the first translation may then download its layout model assets. Translation progress is streamed to the PDF preview as BabelDOC parses, translates, typesets, and renders the document. The generated PDF contains translated pages only, without paired source-language pages.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ Translated PDFs retain their original page structure and can be previewed beside
 
 ## What the user should do
 
-Install BabelDOC 0.6.3 from Settings > Environment Dependencies, select a configured model supported by the API gateway, then start the translation and allow any initial model downloads to finish. Export the generated bilingual PDF when it is ready.
+Install BabelDOC 0.6.3 from Settings > Environment Dependencies, select a configured model supported by the API gateway, then start the translation and allow any initial model downloads to finish. Export the generated translated PDF when it is ready.
 
 ## Notes for release manager
 

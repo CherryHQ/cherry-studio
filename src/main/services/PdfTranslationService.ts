@@ -195,7 +195,7 @@ export class PdfTranslationService extends BaseService {
       await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
       this.throwIfCancelled(job)
 
-      const fileName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}.dual.pdf`
+      const fileName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
       const outputPath = path.join(outputDir, fileName)
       await fs.promises.access(outputPath, fs.constants.R_OK)
       this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
@@ -292,7 +292,7 @@ export class PdfTranslationService extends BaseService {
       normalizeLanguageCode(request.targetLangCode),
       '--report-interval',
       '0.2',
-      '--no-mono'
+      '--no-dual'
     ]
     const env = { ...(await this.buildSidecarEnv()), PYTHONPATH: progressAdapterDir }
 
