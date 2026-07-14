@@ -401,6 +401,7 @@ function AgentRightPaneFilesPanel() {
   return (
     <ArtifactPaneView
       workspacePath={state.workspacePath}
+      maximized={shellState.maximized}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
       pdfLayoutPending={shellState.pdfLayoutPending}

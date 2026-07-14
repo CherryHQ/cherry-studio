@@ -76,6 +76,7 @@ interface ArtifactFilePreviewProps {
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const MAXIMIZED_PANE_SAFE_BOTTOM_PADDING_CLASS = 'pb-[var(--chat-maximized-pane-safe-bottom,0px)]'
 
 // Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
 // not text-vs-binary classification. Text detection lives in `useIsTextFile`.
@@ -682,6 +683,7 @@ export function ArtifactPaneView({
         <div
           className={cn(
             'min-h-0 flex-1',
+            MAXIMIZED_PANE_SAFE_BOTTOM_PADDING_CLASS,
             isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
               ? 'overflow-hidden'
               : 'overflow-auto'
@@ -770,7 +772,12 @@ export function ArtifactPaneView({
       )}>
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            data-artifact-file-tree-scroll-region
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto overflow-x-hidden',
+              MAXIMIZED_PANE_SAFE_BOTTOM_PADDING_CLASS
+            )}>
             {renderFileTree()}
           </div>
         </aside>

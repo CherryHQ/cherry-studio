@@ -769,7 +769,7 @@ describe('Shell.TabList', () => {
 })
 
 describe('Shell.MaximizedOverlay', () => {
-  it('reserves the measured composer bottom inset while maximized', async () => {
+  it('keeps maximized content full-height and exposes the measured composer safe area', async () => {
     const { container } = render(
       <ChatMaximizedOverlayInsetProvider>
         <Shell defaultTab="files">
@@ -787,9 +787,9 @@ describe('Shell.MaximizedOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'toggle maximized' }))
 
     await waitFor(() => {
-      expect(container.querySelector('[data-shell-maximized-overlay-content]')).toHaveStyle({
-        height: 'max(0px, calc(100% - 128px))'
-      })
+      const content = container.querySelector<HTMLElement>('[data-shell-maximized-overlay-content]')
+      expect(content?.style.height).toBe('')
+      expect(content?.style.getPropertyValue('--chat-maximized-pane-safe-bottom')).toBe('128px')
     })
   })
 

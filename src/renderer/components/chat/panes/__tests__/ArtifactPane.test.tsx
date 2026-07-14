@@ -621,6 +621,17 @@ describe('ArtifactPane', () => {
     )
   })
 
+  it('keeps maximized file tree content above the composer safe area', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" maximized />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(container.querySelector('[data-artifact-file-tree-scroll-region]')).toHaveClass(
+      'pb-[var(--chat-maximized-pane-safe-bottom,0px)]'
+    )
+  })
+
   it('keeps a single workspace tree across a Host↔Overlay maximize swap', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
@@ -1182,7 +1193,7 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.fsReadText.mockResolvedValue('const value = "a very long line";')
 
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" maximized />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src/index.ts')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
@@ -1191,8 +1202,10 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
-    expect(screen.getByTestId('code-viewer').parentElement).toHaveClass('overflow-auto')
+    const overlay = screen.getByTestId('artifact-file-preview-overlay')
+    const previewContent = overlay.children.item(1)
+    expect(overlay).toHaveClass('overflow-hidden')
+    expect(previewContent).toHaveClass('overflow-auto', 'pb-[var(--chat-maximized-pane-safe-bottom,0px)]')
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {
@@ -1201,7 +1214,7 @@ describe('ArtifactPane', () => {
       '<!doctype html><html><head><title>Hello</title></head><body><a href="about.html">About</a></body></html>'
     )
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" maximized />)
     await waitFor(() => expect(screen.getByTestId('tree-node-index.html')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-index.html'))
@@ -1215,7 +1228,10 @@ describe('ArtifactPane', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'index.html')
     expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
+    const overlay = screen.getByTestId('artifact-file-preview-overlay')
+    const previewContent = overlay.children.item(1)
+    expect(overlay).toHaveClass('overflow-hidden')
+    expect(previewContent).toHaveClass('overflow-hidden', 'pb-[var(--chat-maximized-pane-safe-bottom,0px)]')
   })
 
   it('keeps empty HTML previews blank without showing the Popup empty text', async () => {
