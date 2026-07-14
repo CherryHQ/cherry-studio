@@ -116,9 +116,9 @@ describe('PpioTransport', () => {
       seed: undefined,
       files: undefined,
       mask: undefined,
+      modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
       providerParams: {
         model: 'jimeng-txt2img-v3.1',
-        modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
         size: '1328x1328',
         addWatermark: true
       }
@@ -149,9 +149,9 @@ describe('PpioTransport', () => {
       seed: undefined,
       files: undefined,
       mask: undefined,
+      modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
       providerParams: {
-        model: 'seedream-4.5-draw',
-        modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true }
+        model: 'seedream-4.5-draw'
       }
     })
 
@@ -181,9 +181,9 @@ describe('PpioTransport', () => {
         seed: undefined,
         files: undefined,
         mask: undefined,
+        modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
         providerParams: {
-          model: 'seedream-4.5-draw',
-          modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true }
+          model: 'seedream-4.5-draw'
         }
       })
       .catch((error) => error)
@@ -211,14 +211,14 @@ describe('PpioTransport', () => {
       seed: undefined,
       files: undefined,
       mask: undefined,
+      modelDescriptor: {
+        id: 'seedream-5.0-lite',
+        endpoint: '/v3/seedream-5.0-lite',
+        isSync: true,
+        mode: 'generate'
+      },
       providerParams: {
         model: 'seedream-5.0-lite',
-        modelDescriptor: {
-          id: 'seedream-5.0-lite',
-          endpoint: '/v3/seedream-5.0-lite',
-          isSync: true,
-          mode: 'ppio_draw'
-        },
         size: '2K',
         addWatermark: false
       }
@@ -251,14 +251,14 @@ describe('PpioTransport', () => {
       // (inputImages → options.files), not a providerOptions bag key.
       files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput['files'],
       mask: undefined,
+      modelDescriptor: {
+        id: 'seedream-4.0',
+        endpoint: '/v3/seedream-4.0',
+        isSync: true,
+        mode: 'edit'
+      },
       providerParams: {
         model: 'seedream-4.0',
-        modelDescriptor: {
-          id: 'seedream-4.0',
-          endpoint: '/v3/seedream-4.0',
-          isSync: true,
-          mode: 'edit'
-        },
         size: '2048x2048'
       }
     })
@@ -282,9 +282,9 @@ describe('PpioTransport', () => {
       seed: undefined,
       files: undefined,
       mask: undefined,
+      modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image', mode: 'generate' },
       providerParams: {
         model: 'glm-image',
-        modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image', mode: 'ppio_draw' },
         size: '1568x1056',
         addWatermark: false
       }

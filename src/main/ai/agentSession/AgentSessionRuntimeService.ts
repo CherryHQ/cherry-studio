@@ -22,8 +22,8 @@ import {
 } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -65,6 +65,8 @@ export interface BeginAgentSessionTurnInput {
   headless?: boolean
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
+  /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
+  messageSnapshot?: MessageSnapshot
 }
 
 export interface AgentSessionRuntimeHandle {
@@ -111,6 +113,8 @@ type AgentSessionRuntimeEntry = {
   agentId: string
   agentType: string
   modelId: UniqueModelId
+  /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
+  messageSnapshot?: MessageSnapshot
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
@@ -129,6 +133,9 @@ type AgentSessionRuntimeEntry = {
   steerMessageIds?: Set<string>
   /** Ids of queued follow-ups that must open a responder-less/headless turn. */
   headlessMessageIds?: Set<string>
+  /** Submit-time author snapshot per queued follow-up (keyed by user message id) so a mid-session
+   *  agent/model change can't stamp the queued reply with the prior turn's frozen snapshot. */
+  pendingSnapshots?: Map<string, MessageSnapshot>
   /** Roll in progress: a steer was injected mid-turn (`steer-boundary`), the current row was finalised
    *  as A1a, and the post-steer chunks are buffered until the continuation row (A2) opens its stream. */
   rolling?: boolean
@@ -238,6 +245,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
+      existing.messageSnapshot = input.messageSnapshot
       existing.status = 'active'
       existing.currentTurn = turn
 
@@ -261,6 +269,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
+      messageSnapshot: input.messageSnapshot,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -506,13 +515,20 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  enqueueUserMessage(sessionId: string, message: AgentSessionMessageEntity, opts: { headless?: boolean } = {}): void {
+  enqueueUserMessage(
+    sessionId: string,
+    message: AgentSessionMessageEntity,
+    opts: { headless?: boolean; messageSnapshot?: MessageSnapshot } = {}
+  ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
 
     entry.status = 'active'
     this.clearIdleTimer(entry)
     if (opts.headless === true) (entry.headlessMessageIds ??= new Set()).add(message.id)
+    // Store before the redirect check so a native-steer follow-up (redirect → steer-boundary/undelivered)
+    // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
+    if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
 
     const turn = entry.currentTurn
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
@@ -1035,7 +1051,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
-    if (!agentService.getAgent(entry.agentId)?.model) {
+    const liveAgent = agentService.getAgent(entry.agentId)
+    if (!liveAgent?.model) {
       application
         .get('AiStreamManager')
         .terminateHeldTopicStream(
@@ -1049,6 +1066,14 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const rootSpan = this.startRuntimeRootSpan(entry)
+    // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
+    // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
+    // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
+    // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
+    // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
+    const frozenSnapshot = entry.pendingSnapshots?.get(nextMessage.id) ?? entry.messageSnapshot
+    entry.pendingSnapshots?.delete(nextMessage.id)
+    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -1057,7 +1082,8 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: entry.modelId
+          modelId: entry.modelId,
+          messageSnapshot
         }
       })
     } catch (error) {
@@ -1145,6 +1171,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
+    // The continuation answers the steered follow-up — freeze its submit-time author, not the entry's.
+    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    entry.pendingSnapshots?.delete(steerMessage.id)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
@@ -1155,7 +1184,8 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId
+          modelId,
+          messageSnapshot
         }
       })
     } catch (error) {
@@ -1389,6 +1419,23 @@ function isAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
 }
 
+/**
+ * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
+ * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
+ * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
+ * stays frozen. No-op when the frozen model already is the running model.
+ */
+function reconcileSnapshotModel(
+  snapshot: MessageSnapshot | undefined,
+  modelId: UniqueModelId,
+  modelName: string | null | undefined
+): MessageSnapshot | undefined {
+  if (!snapshot) return undefined
+  if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+  return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+}
+
 function createRuntimeSeedMessages(
   userMessage: AgentSessionMessageEntity,
   assistantMessageId: string
@@ -1417,7 +1464,7 @@ function createSyntheticUserMessage(sessionId: string): AgentSessionMessageEntit
     status: 'success',
     searchableText: '',
     modelId: null,
-    modelSnapshot: null,
+    messageSnapshot: null,
     stats: null,
     runtimeResumeToken: null,
     createdAt: now,

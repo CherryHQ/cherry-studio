@@ -8,11 +8,13 @@ import {
   ResourcePaneTab,
   Shell,
   useResourcePane,
+  useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
@@ -126,6 +128,26 @@ function TopicRightPaneProvider({
   )
 }
 
+function TopicRightPaneKeyboardShortcut({ hasBranchPanel }: { hasBranchPanel: boolean }) {
+  const resourcePane = useResourcePane()
+  const { open } = useShellState()
+  const actions = useShellActions()
+  const isActiveTab = useIsActiveTab()
+  const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'branch'
+  const enabled = isActiveTab && Boolean(resourcePane || hasBranchPanel)
+  const handleToggle = useCallback(() => {
+    if (open) {
+      actions.close()
+      return
+    }
+    actions.openTab(targetTab)
+  }, [actions, open, targetTab])
+
+  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
+
+  return null
+}
+
 function TopicRightPaneSurface({
   topicId,
   topicName,
@@ -150,20 +172,19 @@ function TopicRightPaneSurface({
     },
     [onLocateMessage]
   )
+  const activeTitle =
+    shellState.activeTab === RESOURCE_PANE_TAB && resourcePane
+      ? resourcePane.label
+      : shellState.activeTab === 'trace'
+        ? t('trace.label')
+        : t('chat.message.flow.title')
 
-  // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
-  // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasBranchPanel) && <TopicRightPaneToggle />}
-    </>
-  )
+  // In sub-windows the topbar is hidden by the maximized overlay, so the header owns trailing controls then.
+  const tabListTrailing = isWindow && shellState.maximized ? chrome?.titleTrailing : null
 
   return (
     <Shell.Tabs>
-      <Shell.TabList extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
         <ResourcePaneTab />
         {hasBranchPanel && (
           <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
@@ -203,9 +224,12 @@ function TopicRightPaneSurface({
 
 function TopicRightPaneHost(props: TopicRightPaneSurfaceProps) {
   return (
-    <Shell.Host>
-      <TopicRightPaneSurface {...props} />
-    </Shell.Host>
+    <>
+      <TopicRightPaneKeyboardShortcut hasBranchPanel={Boolean(props.topicId)} />
+      <Shell.Host>
+        <TopicRightPaneSurface {...props} />
+      </Shell.Host>
+    </>
   )
 }
 
@@ -214,18 +238,6 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
     <Shell.MaximizedOverlay>
       <TopicRightPaneSurface {...props} />
     </Shell.MaximizedOverlay>
-  )
-}
-
-function TopicRightPaneToggle() {
-  const isActiveTab = useIsActiveTab()
-  const resourcePane = useResourcePane()
-  return (
-    <Shell.Toggle
-      tab={resourcePane ? RESOURCE_PANE_TAB : 'branch'}
-      command="topic.sidebar.toggle"
-      commandEnabled={isActiveTab}
-    />
   )
 }
 
@@ -241,10 +253,16 @@ function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
           tab="branch"
           label={t('chat.message.flow.title')}
           icon={<GitBranch className="size-3.5" />}
+          openBehavior="toggle-active"
         />
       )}
       {hasBranchPanel && enableDeveloperMode && (
-        <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+        <Shell.TabShortcut
+          tab="trace"
+          label={t('trace.label')}
+          icon={<Activity className="size-3.5" />}
+          openBehavior="toggle-active"
+        />
       )}
     </>
   )
@@ -253,6 +271,5 @@ function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
   Host: TopicRightPaneHost,
   MaximizedOverlay: TopicRightPaneMaximizedOverlay,
-  Toggle: TopicRightPaneToggle,
   Shortcuts: TopicRightPaneShortcuts
 })

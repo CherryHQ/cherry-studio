@@ -1,17 +1,21 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
-import { fireEvent, render, screen } from '@testing-library/react'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactElement, ReactNode } from 'react'
 import { cloneElement, isValidElement, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock } = vi.hoisted(() => ({
-  fileTreeModelState: {
-    hasLoaded: false,
-    nodeById: new Map<string, { kind: string }>()
-  },
-  resetLazyChildrenMock: vi.fn(),
-  useArtifactFileTreeModelMock: vi.fn()
-}))
+const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock, useCommandHandlerMock } = vi.hoisted(
+  () => ({
+    fileTreeModelState: {
+      hasLoaded: false,
+      nodeById: new Map<string, { kind: string }>()
+    },
+    resetLazyChildrenMock: vi.fn(),
+    useArtifactFileTreeModelMock: vi.fn(),
+    useCommandHandlerMock: vi.fn()
+  })
+)
 
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -156,7 +160,7 @@ vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: vi.fn()
+  useCommandHandler: useCommandHandlerMock
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
@@ -194,6 +198,15 @@ vi.mock('react-i18next', () => ({
 import { AgentRightPane } from '../AgentRightPane'
 
 describe('AgentRightPane', () => {
+  const triggerRightSidebarShortcut = () => {
+    const handler = useCommandHandlerMock.mock.calls
+      .filter(([command]) => command === 'topic.sidebar.toggle')
+      .at(-1)?.[1] as (() => void) | undefined
+
+    expect(handler).toBeDefined()
+    handler?.()
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     fileTreeModelState.hasLoaded = false
@@ -205,7 +218,7 @@ describe('AgentRightPane', () => {
     }))
   })
 
-  it('shows top shortcuts for stable right-pane tabs and keeps the status hover preview', () => {
+  it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
     render(
       <AgentRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
@@ -231,7 +244,60 @@ describe('AgentRightPane', () => {
     fireEvent.click(statusShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(document.querySelector('[data-shell-tab-shortcut="status"]')).toBeNull()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(document.querySelector('button[data-state="open"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
+    expect(screen.queryByTestId('status-shortcut-preview')).toBeNull()
+
+    const activeStatusShortcut = document.querySelector('[data-shell-tab-shortcut="status"]')
+    expect(activeStatusShortcut).toBeInTheDocument()
+    expect(activeStatusShortcut).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(activeStatusShortcut as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('registers the sidebar command independently and prioritizes the resource pane', () => {
+    render(
+      <AgentRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Host />
+      </AgentRightPane>
+    )
+
+    expect(useCommandHandlerMock).toHaveBeenCalledWith(
+      'topic.sidebar.toggle',
+      expect.any(Function),
+      expect.objectContaining({ enabled: true })
+    )
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('opens files from the sidebar command when no resource pane is available', () => {
+    render(
+      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Host />
+      </AgentRightPane>
+    )
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
   })
 
   it('hides file and status shortcuts when their matching tabs are disabled', () => {
@@ -252,6 +318,42 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeNull()
+  })
+
+  it('renders artifact status filenames with neutral text', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'artifacts-1',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: {
+          artifacts: [{ path: 'docs/report.md', description: 'Summary report' }]
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts,
+        metadata: {}
+      }
+    ] as CherryUIMessage[]
+
+    render(
+      <AgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+      </AgentRightPane>
+    )
+
+    const artifactButton = screen.getByRole('button', { name: 'report.md' })
+    expect(artifactButton).not.toHaveClass('text-primary')
+    expect(artifactButton).toHaveClass('text-foreground-secondary')
   })
 
   it('keeps the file-tree model closed while the shell is closed', () => {

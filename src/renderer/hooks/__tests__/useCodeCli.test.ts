@@ -180,6 +180,24 @@ describe('useCodeCli', () => {
       expect(updated.config).toEqual({ foo: 1 })
     })
 
+    it('should remove existing config when config is explicitly undefined', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
+      } as unknown as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5',
+          config: undefined
+        })
+      })
+
+      const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
+      expect(updated.modelId).toBe('anthropic::claude-5')
+      expect(updated).not.toHaveProperty('config')
+    })
+
     it('should preserve existing sortIndex when updating model/config', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg({ sortIndex: 2 }) }, 'anthropic')

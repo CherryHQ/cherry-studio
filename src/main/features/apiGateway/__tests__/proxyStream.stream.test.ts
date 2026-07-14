@@ -1,4 +1,5 @@
 import type { StreamListener } from '@main/ai/streamManager/types'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -8,9 +9,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * factories are stubbed; the real `SseListener` and `ReadableStream` glue run.
  */
 
-const { mockStreamPrompt, mockAbort, captured } = vi.hoisted(() => ({
+const { mockStreamPrompt, mockAbort, mockGetProvider, mockListModels, captured } = vi.hoisted(() => ({
   mockStreamPrompt: vi.fn(),
   mockAbort: vi.fn(),
+  mockGetProvider: vi.fn(),
+  mockListModels: vi.fn(),
   captured: { listener: undefined as StreamListener | undefined }
 }))
 
@@ -23,7 +26,11 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { getByProviderId: vi.fn(async () => undefined) }
+  providerService: { getByProviderId: mockGetProvider }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { list: mockListModels }
 }))
 
 vi.mock('@logger', () => ({
@@ -60,6 +67,15 @@ import { processMessage } from '../proxyStream'
 beforeEach(() => {
   vi.clearAllMocks()
   captured.listener = undefined
+  mockGetProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
+  mockListModels.mockReturnValue([
+    {
+      id: createUniqueModelId('openai', 'gpt-4'),
+      providerId: 'openai',
+      apiModelId: 'gpt-4',
+      capabilities: []
+    }
+  ])
   mockStreamPrompt.mockImplementation((opts: { listener: StreamListener }) => {
     captured.listener = opts.listener
   })

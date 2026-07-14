@@ -26,6 +26,7 @@ const CodeEditor = ({
   ref,
   value,
   placeholder,
+  autoFocus,
   language,
   languageConfig,
   onSave,
@@ -187,6 +188,7 @@ const CodeEditor = ({
       // Set to a stable value to avoid triggering CodeMirror reset
       value={initialContent.current}
       placeholder={placeholder}
+      autoFocus={autoFocus}
       width="100%"
       height={expanded ? undefined : height}
       maxHeight={expanded ? undefined : maxHeight}

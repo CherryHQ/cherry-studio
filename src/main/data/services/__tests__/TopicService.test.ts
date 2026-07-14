@@ -151,6 +151,47 @@ describe('TopicService', () => {
     })
   })
 
+  it('validates topic assistant updates against active assistants', async () => {
+    await dbh.db.insert(assistantTable).values([
+      {
+        id: 'assistant-active',
+        name: 'Active Assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      },
+      {
+        id: 'assistant-deleted',
+        name: 'Deleted Assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a1',
+        deletedAt: 100
+      }
+    ])
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-assistant-update',
+      name: 'Before assistant update',
+      orderKey: 'a0'
+    })
+
+    const moved = topicService.update('topic-assistant-update', { assistantId: 'assistant-active' })
+
+    expect(moved.assistantId).toBe('assistant-active')
+
+    let err: unknown
+    try {
+      topicService.update('topic-assistant-update', { assistantId: 'assistant-deleted' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(topicService.getById('topic-assistant-update').assistantId).toBe('assistant-active')
+
+    const unlinked = topicService.update('topic-assistant-update', { assistantId: null })
+    expect(unlinked.assistantId).toBeUndefined()
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
