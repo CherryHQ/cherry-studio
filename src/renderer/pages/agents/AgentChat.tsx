@@ -275,7 +275,6 @@ const AgentChat = ({
       resourcePaneRevealRequest={resourcePaneRevealRequest}
       sessionPaneOpen={sessionPaneOpen}
       onSessionPaneOpenChange={onSessionPaneOpenChange}
-      showWorkspaceSelector={Boolean(onSessionWorkspaceChange)}
       onWorkspaceChange={onSessionWorkspaceChange}
       workspaceChanging={replacingSessionWorkspace}
       onCreateEmptySession={
@@ -322,7 +321,6 @@ interface AgentChatSessionFrameProps {
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onCreateEmptySession?: () => void | Promise<unknown>
-  showWorkspaceSelector?: boolean
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
   resourcePane?: ResourcePaneConfig | null
@@ -354,7 +352,6 @@ const AgentChatSessionFrame = ({
   onPaneCollapse,
   onPaneAutoCollapseChange,
   onCreateEmptySession,
-  showWorkspaceSelector = false,
   onWorkspaceChange,
   workspaceChanging,
   resourcePane,
@@ -373,7 +370,6 @@ const AgentChatSessionFrame = ({
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const isEmptyConversation =
     !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
-  const canChangeAgent = sessionMessagesEnabled && isEmptyConversation
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
 
   useEffect(() => {
@@ -425,11 +421,10 @@ const AgentChatSessionFrame = ({
       isStreaming={runtime.isPending}
       sendDisabled={false}
       onCreateEmptySession={onCreateEmptySession}
-      canChangeAgent={canChangeAgent}
+      canChangeAgent={isEmptyConversation}
       workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}
-      showWorkspaceSelector={showWorkspaceSelector}
       composerContext={runtime.composerContext}
     />
   )
