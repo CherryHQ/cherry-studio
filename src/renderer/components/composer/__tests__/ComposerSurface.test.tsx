@@ -2323,7 +2323,8 @@ describe('ComposerSurface', () => {
     )
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('h-6', 'align-baseline')
+    expect(token).toHaveClass('h-6', 'align-middle')
+    expect(token).not.toHaveClass('align-baseline')
     expect(token).toHaveTextContent('preview.png')
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toHaveClass('size-4.5!', 'object-cover')
     expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')

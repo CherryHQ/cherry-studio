@@ -47,7 +47,7 @@ import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
+import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
@@ -124,12 +124,15 @@ const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Prom
     throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
   }
 
-  return {
-    type: 'file',
-    url: toFileUrl(filePath),
-    mediaType: metadata.mime,
-    filename: attachment.origin_name || attachment.name
-  }
+  return withComposerFilePartMeta(
+    {
+      type: 'file',
+      url: toFileUrl(filePath),
+      mediaType: metadata.mime,
+      filename: attachment.origin_name || attachment.name
+    },
+    attachment
+  )
 }
 
 const buildAgentFilePartsForAttachments = (

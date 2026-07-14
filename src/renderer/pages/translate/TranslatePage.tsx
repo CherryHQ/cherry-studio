@@ -774,7 +774,7 @@ const TranslatePage: FC = () => {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
             <TranslateInputPane
               ref={inputScrollRef}
@@ -798,7 +798,7 @@ const TranslatePage: FC = () => {
             />
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l">
+          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-l">
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}
