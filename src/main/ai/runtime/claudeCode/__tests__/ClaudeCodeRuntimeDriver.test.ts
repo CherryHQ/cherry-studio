@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
+  collectFileAttachments: vi.fn(),
+  prepareChatMessages: vi.fn(),
+  materializeNativeFilePart: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -20,6 +23,15 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeQueryRequestForAgentSession: mocks.buildRequest
+}))
+
+vi.mock('@main/ai/messages/attachmentRouting', () => ({
+  collectFileAttachments: mocks.collectFileAttachments,
+  prepareChatMessages: mocks.prepareChatMessages
+}))
+
+vi.mock('@main/ai/messages/fileProcessor', () => ({
+  materializeNativeFilePart: mocks.materializeNativeFilePart
 }))
 
 vi.mock('../streamAdapter', () => ({
@@ -71,7 +83,7 @@ vi.mock('../streamAdapter', () => ({
   }
 }))
 
-const { ClaudeCodeRuntimeDriver, buildAgentUserContent } = await import('../ClaudeCodeRuntimeDriver')
+const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -127,6 +139,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.prepareTrace.mockResolvedValue(undefined)
+    mocks.collectFileAttachments.mockReturnValue([])
+    mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
+    mocks.materializeNativeFilePart.mockResolvedValue(null)
     mocks.buildRequest.mockResolvedValue({
       key: 'warm-key',
       options: { model: 'sonnet' },
@@ -154,13 +169,353 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
 
     await expect(nextInput).resolves.toMatchObject({
       value: {
         type: 'user',
         session_id: 'resume-1',
         message: { role: 'user', content: 'hello' }
+      },
+      done: false
+    })
+    void connection.close()
+  })
+
+  it('sends supported image attachments as native Claude SDK image blocks', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
+            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/spec.pdf'
+            },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('reuses first-party image data URLs prepared by shared attachment routing', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => {
+      const image = message.parts.find((part) => part.type === 'file')
+      const materialized = await mocks.materializeNativeFilePart(image)
+      return [{ ...message, parts: [message.parts[0], materialized] }]
+    })
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png',
+      filename: 'pixel.png',
+      providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'describe this' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('keeps a visible fallback when an image attachment cannot be materialized or exposed as a local path', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce(null)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'https://example.com/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: 'describe this\n\nUnavailable attachments: pixel.png'
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
+      attachments: ['pixel.png']
+    })
+    void connection.close()
+  })
+
+  it('distinguishes unsupported images from unreadable or invalid image payloads', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: message.parts.map((part) =>
+          part.type === 'file' && part.filename === 'diagram.bmp'
+            ? { ...part, url: 'data:image/bmp;base64,Qk0=', mediaType: 'image/bmp' }
+            : part
+        )
+      }
+    ])
+    mocks.materializeNativeFilePart.mockImplementation(async (part) =>
+      part.filename === 'mislabelled.png'
+        ? { ...part, url: 'data:image/png;base64,QUJD', mediaType: 'image/png' }
+        : null
+    )
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect these images' },
+            {
+              type: 'file',
+              url: 'file:///tmp/diagram.bmp',
+              mediaType: 'image/bmp',
+              filename: 'diagram.bmp',
+              providerMetadata: { cherry: { fileEntryId: 'entry-bmp' } }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/missing.png',
+              mediaType: 'image/png',
+              filename: 'missing.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-missing' } }
+            },
+            { type: 'file', url: 'data:image/png;base64,', mediaType: 'image/png', filename: 'empty.png' },
+            { type: 'file', mediaType: 'image/png', filename: 'missing-url.png' },
+            {
+              type: 'file',
+              url: 'file:///tmp/mislabelled.png',
+              mediaType: 'application/x-custom-image',
+              filename: 'mislabelled.png'
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+            },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
+      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
+    void connection.close()
+  })
+
+  it('routes first-party non-image attachments to extracted text before sending', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.collectFileAttachments.mockReturnValueOnce([
+      { fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }
+    ])
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: [
+          { type: 'text', text: 'summarize this' },
+          { type: 'text', text: 'Attached file "spec.pdf":\nextracted PDF body' }
+        ]
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'summarize this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/spec.pdf',
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: 'summarize this\nAttached file "spec.pdf":\nextracted PDF body'
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
+      attachments: [{ fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('adds a steer reminder text part for image-only turns', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      systemReminder: true,
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: expect.stringContaining('<system-reminder>') },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
       },
       done: false
     })
@@ -202,7 +557,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: { type: 'resume-token', token: 'resume-init' }
     })
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
     })
@@ -493,7 +848,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
     await events.next() // resume-token
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await events.next() // response-metadata chunk
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-init' })
     await events.next() // buffered text-delta
@@ -525,7 +880,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
     await events.next()
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await events.next()
 
     queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
@@ -614,7 +969,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('redirect declines without a live turn and stashes the steer in the holder once a turn is active', async () => {
+  it('redirect only stashes text steers while a turn is active', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -637,12 +992,83 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(steerHolder.pending).toHaveLength(0)
 
     // A turn is now live → redirect stashes the steer in the shared holder for the PreToolUse hook.
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     expect(connection.redirect?.({ message: userMessage() })).toBe(true)
+    expect(steerHolder.pending).toHaveLength(1)
+
+    const attachmentSteer = {
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'look at this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      },
+      systemReminder: true
+    }
+    expect(connection.redirect?.(attachmentSteer)).toBe(false)
     expect(steerHolder.pending).toHaveLength(1)
 
     void connection.close()
     expect(steerHolder.dispose).toHaveBeenCalled()
+  })
+
+  it('emits pending text steers as undelivered before tearing down after a query error', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const steerHolder = { pending: [] as any[], dispose: vi.fn() }
+    steerHolder.dispose.mockImplementation(() => {
+      steerHolder.pending = []
+    })
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    const steer = {
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [{ type: 'text', text: 'change direction' }]
+        }
+      },
+      systemReminder: true
+    }
+
+    await connection.send({ message: userMessage() })
+    expect(connection.redirect?.(steer)).toBe(true)
+    queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-1', usage: {} })
+
+    const seen: any[] = []
+    for (;;) {
+      const { value, done } = await events.next()
+      if (done) break
+      seen.push(value)
+      if (value?.type === 'error') break
+    }
+
+    const undeliveredIndex = seen.findIndex((event) => event?.type === 'steer-undelivered')
+    const errorIndex = seen.findIndex((event) => event?.type === 'error')
+    expect(undeliveredIndex).toBeGreaterThanOrEqual(0)
+    expect(errorIndex).toBeGreaterThan(undeliveredIndex)
+    expect(seen[undeliveredIndex]).toEqual({ type: 'steer-undelivered', inputs: [steer] })
+    expect(steerHolder.pending).toHaveLength(0)
+    expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
+
+    void connection.close()
   })
 
   it('emits a steer-boundary at the first top-level message_start after a steer is injected', async () => {
@@ -669,7 +1095,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
     await events.next() // resume-token
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await events.next() // metadata chunk (init replayed on send)
 
     // A message_start BEFORE injection (the pre-steer assistant message) must NOT roll.
@@ -711,7 +1137,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     steerHolder.onInjected([{ message: userMessage() }])
 
     // Turn ends (result) with no following top-level message_start → no boundary, just a clean turn end.
@@ -750,7 +1176,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     approvalEmitter.emit({
       type: 'tool-approval-request',
       approvalId: 'approval-1',
@@ -792,7 +1218,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     // Turn 1 runs to completion.
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: { output_tokens: 1 } })
     let evt = await events.next()
     while (evt.value?.type !== 'turn-complete') evt = await events.next()
@@ -845,43 +1271,5 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
     expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
     expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('buildAgentUserContent', () => {
-  const messageWith = (parts: unknown[]) =>
-    ({ data: { parts } }) as unknown as Parameters<typeof buildAgentUserContent>[0]
-
-  it('returns plain text when there are no attachments', () => {
-    expect(buildAgentUserContent(messageWith([{ type: 'text', text: 'hello' }]))).toBe('hello')
-  })
-
-  it('appends absolute paths of file attachments below the text', () => {
-    const content = buildAgentUserContent(
-      messageWith([
-        { type: 'text', text: 'look at these' },
-        { type: 'file', url: 'file:///tmp/diagram.png', filename: 'diagram.png' },
-        { type: 'file', url: 'file:///tmp/spec.pdf', filename: 'spec.pdf' }
-      ])
-    )
-    expect(content).toBe(
-      'look at these\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.png\n- /tmp/spec.pdf'
-    )
-  })
-
-  it('emits only the attachment section when there is no text', () => {
-    const content = buildAgentUserContent(messageWith([{ type: 'file', url: 'file:///tmp/a.png' }]))
-    expect(content).toBe('Attached files (read them with your tools using these absolute paths):\n- /tmp/a.png')
-  })
-
-  it('ignores non-file parts and non-file:// urls', () => {
-    const content = buildAgentUserContent(
-      messageWith([
-        { type: 'text', text: 'hi' },
-        { type: 'file', url: 'https://example.com/x.png' },
-        { type: 'image', url: 'file:///tmp/nope.png' }
-      ])
-    )
-    expect(content).toBe('hi')
   })
 })
