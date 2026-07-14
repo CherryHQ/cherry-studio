@@ -48,15 +48,15 @@ Runtime dependencies have one extra rule. If an existing `node` or `python` shim
 
 ## IPC and events
 
-Current BinaryManager request routes are:
+The request routes and events are the IpcApi schema in `src/shared/ipc/schemas/binary.ts` — the `binaryRequestSchemas` keys (renderer→main routes) and the `BinaryEventSchemas` type (main→renderer events). Read them there rather than a hand-copied list here, which would drift. Their handlers live in `src/main/ipc/handlers/binary.ts`.
 
-- `binary.install_tool`
-- `binary.remove_tool`
-- `binary.get_tool_snapshots`
-- `binary.search_registry`
-- `binary.get_latest_versions`
+The side-effecting routes (`binary.install_tool` / `binary.remove_tool`) refuse a `senderId: null` caller — one that cleared the source-trust gate but is not a WindowManager-managed window — because `install_tool` can run arbitrary package postinstall code (see [IpcApi — Caller Identity](../ipc/ipc-overview.md#caller-identity--ipccontext)). The query routes have no such side effect and are ungated.
 
-`binary.availability_changed` is the sole BinaryManager event. It tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route and does not model ownership.
+`binary.availability_changed` tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route and does not model ownership.
+
+## Single-owner invariant
+
+The manifest enforces an exact-tool-spec single-owner rule, checked under the mutation lock before any install writes: a given name may be owned by exactly one tool spec (re-installing the same name with a different `tool` or `requestedVersion` is rejected as "already owned with a different specification"), and a given exact tool spec may be owned by exactly one name (a second name claiming the same `tool` is rejected as "already owned as `<owner>`"). This keeps ownership a bijection between managed names and tool specs, so a snapshot's `intent` is never ambiguous about which name owns a spec.
 
 ## GitHub rate-limit opt-in
 
