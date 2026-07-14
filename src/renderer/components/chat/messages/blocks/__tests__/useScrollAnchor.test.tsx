@@ -139,7 +139,9 @@ describe('useScrollAnchor', () => {
     act(() => result.current.withScrollAnchor(vi.fn(), { settleAfterMs: 220 }))
     expect(scrollTopWrites).toEqual([200])
 
-    act(() => vi.advanceTimersByTime(220))
+    act(() => {
+      vi.advanceTimersByTime(220)
+    })
     expect(scrollTopWrites).toEqual([200, 160])
   })
 

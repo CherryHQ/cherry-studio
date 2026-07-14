@@ -961,8 +961,7 @@ describe('MessagePartsRenderer', () => {
         msg({ status: 'pending' })
       )
 
-      expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
-      expandCollapsedLiveToolGroups()
+      expect(screen.queryByTestId('mock-tool-group-header')).not.toBeInTheDocument()
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'AskUserQuestion')
     })
 
