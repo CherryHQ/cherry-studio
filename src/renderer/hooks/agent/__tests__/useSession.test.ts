@@ -16,6 +16,7 @@ import {
   useAgentSessionAutoRenameSync,
   useAgentSessionsByIds,
   useLatestSession,
+  useSessionMutations,
   useSessions,
   useUpdateSession
 } from '../useSession'
@@ -61,7 +62,7 @@ vi.mock('../useSessionChanged', () => ({
 }))
 
 vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: vi.fn() }
+  dataApiService: { get: vi.fn(), post: vi.fn(), delete: vi.fn() }
 }))
 
 const workspace = {
@@ -673,8 +674,8 @@ describe('useUpdateSession', () => {
       })
     ).toEqual([
       { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/session-1',
-      '/agent-sessions/stats'
+      '/agent-sessions/stats',
+      '/agent-sessions/session-1'
     ])
   })
 
@@ -702,8 +703,8 @@ describe('useUpdateSession', () => {
     }) => unknown[]
     expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
       { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/session-1',
       '/agent-sessions/stats',
+      '/agent-sessions/session-1',
       '/agent-workspaces'
     ])
   })
@@ -738,6 +739,65 @@ describe('useUpdateSession', () => {
   })
 })
 
+describe('useSessionMutations', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('creates a session and refreshes list, stats, workspaces and the created detail cache', async () => {
+    const created = createSession({ id: 'session-created' })
+    vi.mocked(dataApiService.post).mockResolvedValue(created)
+    const invalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockReturnValue(invalidate)
+
+    const { result } = renderHook(() => useSessionMutations())
+    const session = await result.current.createSession({
+      agentId: 'agent-1',
+      name: '',
+      workspace: { type: 'system' }
+    } as never)
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/agent-sessions', {
+      body: { agentId: 'agent-1', name: '', workspace: { type: 'system' } }
+    })
+    expect(session).toBe(created)
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith([
+        { path: '/agent-sessions', strategy: 'reset-cursor' },
+        '/agent-sessions/stats',
+        '/agent-workspaces',
+        '/agent-sessions/session-created'
+      ])
+    )
+  })
+
+  it('deletes sessions, closes their tabs and refreshes list and detail caches', async () => {
+    vi.mocked(dataApiService.delete).mockResolvedValue(undefined as never)
+    const invalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockReturnValue(invalidate)
+
+    const { result } = renderHook(() => useSessionMutations())
+    await result.current.deleteSessions(['s1', 's2'])
+
+    expect(dataApiService.delete).toHaveBeenCalledWith('/agent-sessions', { query: { ids: 's1,s2' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', ['s1', 's2'])
+    expect(invalidate).toHaveBeenCalledWith([
+      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions/stats',
+      '/agent-workspaces',
+      '/agent-sessions/s1',
+      '/agent-sessions/s2'
+    ])
+  })
+
+  it('does not issue a delete for an empty id list', async () => {
+    const { result } = renderHook(() => useSessionMutations())
+    await result.current.deleteSessions([])
+    expect(dataApiService.delete).not.toHaveBeenCalled()
+  })
+})
+
 describe('useAgentSessionAutoRenameSync', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
@@ -761,8 +821,8 @@ describe('useAgentSessionAutoRenameSync', () => {
 
     expect(invalidate).toHaveBeenCalledWith([
       { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/session-1',
-      '/agent-sessions/stats'
+      '/agent-sessions/stats',
+      '/agent-sessions/session-1'
     ])
   })
 })

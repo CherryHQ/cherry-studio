@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -402,7 +403,10 @@ vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/agent/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', async (importOriginal) => ({
+  // Keep the real useDeleteAgent so it registers its mutation (and refresh
+  // contract) through the mocked useMutation below.
+  ...(await importOriginal<typeof UseAgentModule>()),
   useAgents: agentDataMocks.useAgents
 }))
 

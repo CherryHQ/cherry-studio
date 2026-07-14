@@ -32,7 +32,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -1314,16 +1314,7 @@ const Sessions = ({
       '/agent-channels'
     ]
   })
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: [
-      '/agents',
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/stats',
-      '/agent-workspaces',
-      '/pins',
-      '/agent-channels'
-    ]
-  })
+  const deleteAgent = useDeleteAgent()
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 

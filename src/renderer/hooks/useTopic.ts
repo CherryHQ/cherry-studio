@@ -15,6 +15,7 @@
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import type { DataApiRefreshTarget } from '@data/hooks/useDataApi'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -47,6 +48,9 @@ const logger = loggerService.withContext('useTopic')
 
 const EMPTY_TOPICS: readonly TopicListItem[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
+
+/** Canonical topic-list write refresh: reset the cursor chain and refresh stats. */
+const TOPIC_LIST_REFRESH: DataApiRefreshTarget[] = [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -339,31 +343,27 @@ export function useTopicMutations() {
   const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
-    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+    refresh: TOPIC_LIST_REFRESH
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
-    refresh: ({ args }) => [
-      { path: '/topics', strategy: 'reset-cursor' },
-      `/topics/${args!.params.id}`,
-      '/topics/stats'
-    ]
+    refresh: ({ args }) => [...TOPIC_LIST_REFRESH, `/topics/${args!.params.id}`]
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list — refreshing `/topics/:id` would
     // trigger a fetch that 404s and caches an error in SWR.
-    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+    refresh: TOPIC_LIST_REFRESH
   })
   const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
-    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats', '/pins']
+    refresh: [...TOPIC_LIST_REFRESH, '/pins']
   })
   const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
-    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats', '/pins']
+    refresh: [...TOPIC_LIST_REFRESH, '/pins']
+  })
+  const { trigger: duplicateTrigger } = useMutation('POST', '/topics/:id/duplicate', {
+    refresh: TOPIC_LIST_REFRESH
   })
 
-  const refreshTopics = useCallback(
-    () => invalidate([{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']),
-    [invalidate]
-  )
+  const refreshTopics = useCallback(() => invalidate(TOPIC_LIST_REFRESH), [invalidate])
 
   const createTopic = useCallback(
     async (dto: CreateTopicDto): Promise<Topic> => {
@@ -412,6 +412,15 @@ export function useTopicMutations() {
     [closeConversationTabs, deleteByAssistantTrigger]
   )
 
+  const duplicateTopicBranch = useCallback(
+    async (topicId: string, nodeId: string) => {
+      const topic = await duplicateTrigger({ params: { id: topicId }, body: { nodeId } })
+      logger.info('Duplicated topic branch into new topic', { topicId, nodeId })
+      return topic
+    },
+    [duplicateTrigger]
+  )
+
   const batchUpdateTopics = useCallback(
     async (topics: Array<{ id: string; dto: UpdateTopicDto }>) => {
       const results = await Promise.allSettled(
@@ -429,6 +438,7 @@ export function useTopicMutations() {
     deleteTopic,
     deleteTopics,
     deleteTopicsByAssistantId,
+    duplicateTopicBranch,
     batchUpdateTopics,
     refreshTopics,
     isCreating,
@@ -444,11 +454,7 @@ export function useTopicMutations() {
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn(
-    'ai.topic_auto_renamed',
-    ({ topicId }) =>
-      void invalidate([{ path: '/topics', strategy: 'reset-cursor' }, `/topics/${topicId}`, '/topics/stats'])
-  )
+  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate([...TOPIC_LIST_REFRESH, `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

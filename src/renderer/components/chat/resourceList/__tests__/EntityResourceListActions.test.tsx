@@ -1,5 +1,6 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
+import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -291,7 +292,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', async (importOriginal) => ({
+  // Keep the real useDeleteAgent so it registers its mutation (and refresh
+  // contract) through the mocked useMutation below.
+  ...(await importOriginal<typeof UseAgentModule>()),
   useAgents: () => ({
     agents: [
       {

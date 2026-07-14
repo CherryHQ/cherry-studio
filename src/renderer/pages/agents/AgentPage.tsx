@@ -17,18 +17,17 @@ import {
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
-import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import {
+  useActiveSession,
+  useLatestSession,
+  useSession,
+  useSessionMutations,
+  useUpdateSession
+} from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import {
-  useCloseConversationTabs,
-  useCurrentTab,
-  useCurrentTabId,
-  useIsActiveTab,
-  useTabSelfMetadata
-} from '@renderer/hooks/tab'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
   type ConversationCenterResourceDefinition,
@@ -228,8 +227,7 @@ const AgentPage = () => {
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const { t } = useTranslation()
-  const invalidateCache = useInvalidateCache()
-  const closeConversationTabs = useCloseConversationTabs()
+  const { createSession, deleteSessions } = useSessionMutations()
   const { setSessionWorkspace } = useUpdateSession()
   const {
     session: activeSession,
@@ -464,21 +462,12 @@ const AgentPage = () => {
       if (sessionIds.length === 0) return
 
       try {
-        await dataApiService.delete('/agent-sessions', {
-          query: { ids: sessionIds.join(',') }
-        })
-        closeConversationTabs('agents', sessionIds)
-        await invalidateCache([
-          { path: '/agent-sessions', strategy: 'reset-cursor' },
-          '/agent-sessions/stats',
-          '/agent-workspaces',
-          ...sessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
-        ])
+        await deleteSessions(sessionIds)
       } catch (err) {
         logger.warn('Failed to delete duplicate empty system agent sessions', err as Error, { sessionIds })
       }
     },
-    [closeConversationTabs, invalidateCache]
+    [deleteSessions]
   )
 
   const createAndActivateEmptySession = useCallback(
@@ -514,26 +503,14 @@ const AgentPage = () => {
             : []
         const session =
           reusableSession ??
-          (await dataApiService.post('/agent-sessions', {
-            body: {
-              agentId,
-              name: '',
-              workspace: workspaceSource
-            }
+          (await createSession({
+            agentId,
+            name: '',
+            workspace: workspaceSource
           }))
 
         activateSession(session, agentId)
         await deleteDuplicateEmptySystemSessions(duplicateEmptySystemSessionIds)
-        if (!reusableSession) {
-          void invalidateCache([
-            { path: '/agent-sessions', strategy: 'reset-cursor' },
-            '/agent-sessions/stats',
-            '/agent-workspaces',
-            `/agent-sessions/${session.id}`
-          ]).catch((err) => {
-            logger.warn('Failed to refresh session metadata after empty session create', err as Error)
-          })
-        }
 
         return session
       } catch (err) {
@@ -548,9 +525,9 @@ const AgentPage = () => {
       activateSession,
       clearActiveSession,
       closeSurface,
+      createSession,
       deleteDuplicateEmptySystemSessions,
       getSessionReuseCandidates,
-      invalidateCache,
       resolveCreateWorkspaceSource,
       t,
       visibleSession
@@ -637,27 +614,15 @@ const AgentPage = () => {
         let session = reusableSession
         if (!session) {
           const workspaceSource = await resolveCreateWorkspaceSource({ agentId })
-          session = await dataApiService.post('/agent-sessions', {
-            body: {
-              agentId,
-              name: '',
-              workspace: workspaceSource
-            }
+          session = await createSession({
+            agentId,
+            name: '',
+            workspace: workspaceSource
           })
         }
 
         activateSession(session, agentId)
         await deleteDuplicateEmptySystemSessions(duplicateEmptySystemSessionIds)
-        if (!reusableSession) {
-          void invalidateCache([
-            { path: '/agent-sessions', strategy: 'reset-cursor' },
-            '/agent-sessions/stats',
-            '/agent-workspaces',
-            `/agent-sessions/${session.id}`
-          ]).catch((err) => {
-            logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
-          })
-        }
       } catch (err) {
         logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -667,9 +632,9 @@ const AgentPage = () => {
     },
     [
       activateSession,
+      createSession,
       deleteDuplicateEmptySystemSessions,
       getSessionReuseCandidates,
-      invalidateCache,
       resolveCreateWorkspaceSource,
       t
     ]

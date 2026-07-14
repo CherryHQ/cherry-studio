@@ -7,7 +7,7 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
@@ -96,16 +96,7 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent')
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: [
-      '/agents',
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/stats',
-      '/agent-workspaces',
-      '/pins',
-      '/agent-channels'
-    ]
-  })
+  const deleteAgent = useDeleteAgent()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)

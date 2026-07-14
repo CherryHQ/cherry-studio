@@ -6,6 +6,7 @@
  * configuration) lives here, not on sessions.
  */
 
+import type { DataApiRefreshTarget } from '@renderer/data/hooks/useDataApi'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
@@ -21,6 +22,27 @@ import { useTranslation } from 'react-i18next'
 import { useAgentTools } from './useAgentTools'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
+
+/**
+ * Agent deletion cascades into sessions (list order + stats), pins,
+ * workspaces and channel bindings. Single owner of that refresh contract —
+ * do not declare `DELETE /agents/:agentId` with a hand-rolled `refresh`
+ * list elsewhere.
+ */
+const AGENT_DELETE_REFRESH: DataApiRefreshTarget[] = [
+  '/agents',
+  { path: '/agent-sessions', strategy: 'reset-cursor' },
+  '/agent-sessions/stats',
+  '/agent-workspaces',
+  '/pins',
+  '/agent-channels'
+]
+
+/** Raw agent-delete trigger; UX (confirm / toast / tab fixup) stays with the caller. */
+export const useDeleteAgent = () => {
+  const { trigger } = useMutation('DELETE', '/agents/:agentId', { refresh: AGENT_DELETE_REFRESH })
+  return trigger
+}
 
 export type AgentWithTools = AgentEntity & { tools: Tool[] }
 
@@ -84,9 +106,7 @@ export const useAgents = () => {
     [createTrigger, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats', '/pins']
-  })
+  const deleteTrigger = useDeleteAgent()
   const deleteAgent = useCallback(
     async (id: string) => {
       try {

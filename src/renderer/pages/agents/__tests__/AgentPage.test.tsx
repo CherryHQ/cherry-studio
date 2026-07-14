@@ -280,6 +280,17 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
       updateSession: agentPageMocks.updateSession,
       setSessionWorkspace: agentPageMocks.setSessionWorkspace
     }),
+    // Mirror the real hook (write → close tabs) through the mocked
+    // dataApiService so existing call-shape assertions on
+    // dataApiPost/dataApiDelete/closeConversationTabs keep observing it.
+    useSessionMutations: () => ({
+      createSession: (body: unknown) => agentPageMocks.dataApiPost('/agent-sessions', { body }),
+      deleteSessions: async (sessionIds: string[]) => {
+        if (sessionIds.length === 0) return
+        await agentPageMocks.dataApiDelete('/agent-sessions', { query: { ids: sessionIds.join(',') } })
+        agentPageMocks.closeConversationTabs('agents', sessionIds)
+      }
+    }),
     useActiveSession: (options: {
       activeSessionId: string | null
       setActiveSessionId: (id: string | null) => void
@@ -1556,7 +1567,6 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
-    expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
   })
 
   it('excludes the just-deleted session from reuse so the post-delete replacement creates a fresh one', async () => {
@@ -1783,12 +1793,6 @@ describe('AgentPage', () => {
     )
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-composer-empty')
-    expect(agentPageMocks.invalidateCache).toHaveBeenCalledWith([
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/stats',
-      '/agent-workspaces',
-      '/agent-sessions/session-composer-empty'
-    ])
   })
 
   it('bounds message probes for touched blank session reuse candidates', async () => {

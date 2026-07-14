@@ -7,7 +7,9 @@
  * with `session.agentId`.
  */
 
+import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type { DataApiRefreshTarget } from '@renderer/data/hooks/useDataApi'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -41,8 +43,15 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+const logger = loggerService.withContext('useSession')
+
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const AGENT_SESSION_IDS_PAGE_SIZE = 200
+
+/** Cursor-chain reset for the session list — include it in every membership/order-changing write. */
+const SESSION_LIST_RESET = { path: '/agent-sessions', strategy: 'reset-cursor' } as const
+/** Canonical session-list write refresh: reset the cursor chain and refresh stats. */
+const SESSION_LIST_REFRESH: DataApiRefreshTarget[] = [SESSION_LIST_RESET, '/agent-sessions/stats']
 const EMPTY_AGENT_SESSIONS: readonly AgentSessionListItem[] = Object.freeze([])
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
@@ -342,7 +351,7 @@ export const useSessions = (
   }, [hasMore, isLoadingMore, loadNext])
 
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
-    refresh: [{ path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats', '/agent-workspaces']
+    refresh: [...SESSION_LIST_REFRESH, '/agent-workspaces']
   })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
@@ -371,16 +380,10 @@ export const useSessions = (
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: [{ path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+    refresh: SESSION_LIST_REFRESH
   })
   const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: [
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/stats',
-      '/agent-workspaces',
-      '/pins',
-      '/agent-channels'
-    ]
+    refresh: [...SESSION_LIST_REFRESH, '/agent-workspaces', '/pins', '/agent-channels']
   })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
@@ -422,7 +425,7 @@ export const useSessions = (
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
-    refresh: [{ path: '/agent-sessions', strategy: 'reset-cursor' }]
+    refresh: [SESSION_LIST_RESET]
   })
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
@@ -478,6 +481,46 @@ export const useSessions = (
 }
 
 /**
+ * Raw session create/delete for surfaces that don't mount a session list
+ * (e.g. AgentPage's create/reuse flows). Owns the cache-refresh contract so
+ * callers never hand-roll invalidation; activation, toasts and error UX stay
+ * with the caller.
+ */
+export function useSessionMutations() {
+  const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
+
+  // Refresh is fired without awaiting so callers can activate the created
+  // session immediately; a failed refresh only delays list freshness.
+  const createSession = useCallback(
+    async (body: CreateAgentSessionDto): Promise<AgentSessionEntity> => {
+      const session = await dataApiService.post('/agent-sessions', { body })
+      void invalidate([...SESSION_LIST_REFRESH, '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
+        logger.warn('Failed to refresh session caches after create', err as Error, { sessionId: session.id })
+      })
+      return session
+    },
+    [invalidate]
+  )
+
+  const deleteSessions = useCallback(
+    async (sessionIds: string[]): Promise<void> => {
+      if (sessionIds.length === 0) return
+      await dataApiService.delete('/agent-sessions', { query: { ids: sessionIds.join(',') } })
+      closeConversationTabs('agents', sessionIds)
+      await invalidate([
+        ...SESSION_LIST_REFRESH,
+        '/agent-workspaces',
+        ...sessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
+      ])
+    },
+    [closeConversationTabs, invalidate]
+  )
+
+  return { createSession, deleteSessions }
+}
+
+/**
  * Patch session-level fields (`name`, `description`, `agentId`). Config fields
  * (model, instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
@@ -490,19 +533,14 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => [
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
-      '/agent-sessions/stats'
-    ]
+    refresh: ({ args }) => [...SESSION_LIST_REFRESH, `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
     refresh: ({ args }) => [
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      ...SESSION_LIST_REFRESH,
       `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
-      '/agent-sessions/stats',
       '/agent-workspaces'
     ]
   })
@@ -553,11 +591,6 @@ export function useAgentSessionAutoRenameSync() {
 
   useIpcOn(
     'ai.agent_session_auto_renamed',
-    ({ sessionId }) =>
-      void invalidate([
-        { path: '/agent-sessions', strategy: 'reset-cursor' },
-        `/agent-sessions/${sessionId}`,
-        '/agent-sessions/stats'
-      ])
+    ({ sessionId }) => void invalidate([...SESSION_LIST_REFRESH, `/agent-sessions/${sessionId}`])
   )
 }
