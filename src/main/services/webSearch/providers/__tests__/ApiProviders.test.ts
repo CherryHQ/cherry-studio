@@ -5,10 +5,18 @@ import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  applicationGet: vi.fn(),
+  extractReadableMarkdown: vi.fn(),
   fetch: vi.fn(),
   fetchRemoteText: vi.fn(),
   loggerWarn: vi.fn(),
   isInChina: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: mocks.applicationGet
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -162,6 +170,19 @@ describe('main web search API providers', () => {
   })
 
   beforeEach(() => {
+    mocks.applicationGet.mockReset()
+    mocks.extractReadableMarkdown.mockReset()
+    mocks.extractReadableMarkdown.mockImplementation(async (html: string) =>
+      html.includes('<div></div>')
+        ? { title: '', content: '' }
+        : { title: 'Resolved Page Title', content: 'Resolved content from the target page.' }
+    )
+    mocks.applicationGet.mockImplementation((serviceName: string) => {
+      if (serviceName === 'ReadableContentService') {
+        return { extractReadableMarkdown: mocks.extractReadableMarkdown }
+      }
+      throw new Error(`Unexpected service: ${serviceName}`)
+    })
     fetchMock.mockReset()
     fetchRemoteTextMock.mockReset()
     mocks.loggerWarn.mockReset()

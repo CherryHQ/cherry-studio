@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
-import { extractReadableMarkdown } from '@main/utils/readableContent'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
 
@@ -28,7 +28,9 @@ export async function fetchWebSearchContent(url: string, httpOptions: RequestIni
       signal: httpOptions.signal ?? undefined
     })
 
-    const article = await extractReadableMarkdown(html, { signal: httpOptions.signal ?? undefined })
+    const article = await application
+      .get('ReadableContentService')
+      .extractReadableMarkdown(html, { signal: httpOptions.signal ?? undefined })
 
     return {
       title: article.title || url,

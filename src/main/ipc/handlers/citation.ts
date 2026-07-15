@@ -4,6 +4,10 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const citationHandlers: IpcHandlersFor<typeof citationRequestSchemas> = {
   'citation.fetch_preview': async ({ url, requestId }, { senderId }) => {
+    if (senderId === null) {
+      return { content: '' }
+    }
+
     try {
       return {
         content: await application.get('CitationPreviewService').fetchPreview(url, { requestId, senderId })
@@ -13,6 +17,10 @@ export const citationHandlers: IpcHandlersFor<typeof citationRequestSchemas> = {
     }
   },
   'citation.cancel_previews': async ({ requestId }, { senderId }) => {
+    if (senderId === null) {
+      return
+    }
+
     application.get('CitationPreviewService').cancelPreviews({ requestId, senderId })
   }
 }

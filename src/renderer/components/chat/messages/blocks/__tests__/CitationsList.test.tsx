@@ -220,7 +220,41 @@ describe('CitationsList', () => {
     render(<CitationsPanelContent citations={citations} />, { wrapper })
 
     expect(await screen.findByText('@author: post text')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '@author' })).toBeInTheDocument()
     expect(fetchMocks.fetchXOEmbed).toHaveBeenCalledWith(xUrl)
+    expect(fetchMocks.fetchXOEmbed).toHaveBeenCalledTimes(1)
+    expect(ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('shares X oEmbed results across panels in the same SWR cache', async () => {
+    fetchMocks.isXPostUrl.mockReturnValue(true)
+    fetchMocks.fetchXOEmbed.mockResolvedValue({ author: 'author', text: 'post text' })
+    const xUrl = 'https://x.com/author/status/123'
+    const citation: Citation = { number: 1, url: xUrl, title: 'X post', type: 'websearch' }
+
+    render(
+      <>
+        <CitationsPanelContent citations={[citation]} />
+        <CitationsPanelContent citations={[citation]} />
+      </>,
+      { wrapper }
+    )
+
+    expect(await screen.findAllByText('@author: post text')).toHaveLength(2)
+    expect(fetchMocks.fetchXOEmbed).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the original X citation title when oEmbed returns no data', async () => {
+    fetchMocks.isXPostUrl.mockReturnValue(true)
+    fetchMocks.fetchXOEmbed.mockResolvedValue(null)
+    const xUrl = 'https://x.com/author/status/123'
+    const citations: Citation[] = [{ number: 1, url: xUrl, title: 'X post', type: 'websearch' }]
+
+    render(<CitationsPanelContent citations={citations} />, { wrapper })
+
+    await waitFor(() => expect(screen.queryByTestId('citation-preview-loading')).not.toBeInTheDocument())
+    expect(screen.getByRole('link', { name: 'X post' })).toBeInTheDocument()
+    expect(fetchMocks.fetchXOEmbed).toHaveBeenCalledTimes(1)
     expect(ipcRequest).not.toHaveBeenCalled()
   })
 
@@ -252,7 +286,7 @@ describe('CitationsList', () => {
     expect(await screen.findByText('check')).toBeInTheDocument()
   })
 
-  it('dedupes citation preview IPC requests for the same URL via the shared SWR cache', async () => {
+  it('dedupes citation preview IPC requests for the same URL within one panel', async () => {
     const a: Citation = { number: 1, url: 'https://dup.com', title: 'A', type: 'websearch' }
     const b: Citation = { number: 2, url: 'https://dup.com', title: 'B', type: 'websearch' }
 
@@ -278,5 +312,69 @@ describe('CitationsList', () => {
     unmount()
 
     expect(ipcRequest).toHaveBeenCalledWith('citation.cancel_previews', { requestId: fetchInput.requestId })
+  })
+
+  it('keeps identical URLs in separate panels isolated from each other', async () => {
+    const citation: Citation = { number: 1, url: 'https://isolated.com', title: 'Isolated', type: 'websearch' }
+
+    render(
+      <>
+        <CitationsPanelContent citations={[citation]} />
+        <CitationsPanelContent citations={[citation]} />
+      </>,
+      { wrapper }
+    )
+
+    expect(await screen.findAllByText('Fetched citation preview')).toHaveLength(2)
+    const fetchCalls = ipcRequest.mock.calls.filter(([route]) => route === 'citation.fetch_preview')
+    expect(fetchCalls).toHaveLength(2)
+    expect(fetchCalls[0]?.[1].requestId).not.toBe(fetchCalls[1]?.[1].requestId)
+  })
+
+  it('cancels only the unmounted panel while the other identical panel remains usable', async () => {
+    const citation: Citation = { number: 1, url: 'https://isolated.com', title: 'Isolated', type: 'websearch' }
+    const Panels = ({ showFirst }: { showFirst: boolean }) => (
+      <>
+        {showFirst && <CitationsPanelContent citations={[citation]} />}
+        <CitationsPanelContent citations={[citation]} />
+      </>
+    )
+    const { rerender } = render(<Panels showFirst />, { wrapper })
+
+    expect(await screen.findAllByText('Fetched citation preview')).toHaveLength(2)
+    const fetchCalls = ipcRequest.mock.calls.filter(([route]) => route === 'citation.fetch_preview')
+    const firstRequestId = fetchCalls[0]?.[1].requestId
+    const secondRequestId = fetchCalls[1]?.[1].requestId
+
+    rerender(<Panels showFirst={false} />)
+
+    await waitFor(() =>
+      expect(ipcRequest).toHaveBeenCalledWith('citation.cancel_previews', { requestId: firstRequestId })
+    )
+    expect(ipcRequest).not.toHaveBeenCalledWith('citation.cancel_previews', { requestId: secondRequestId })
+    expect(screen.getByText('Fetched citation preview')).toBeInTheDocument()
+  })
+
+  it('uses a fresh request group and cache when a panel remounts', async () => {
+    const citation: Citation = { number: 1, url: 'https://remount.com', title: 'Remount', type: 'websearch' }
+    const Panel = ({ visible }: { visible: boolean }) =>
+      visible ? <CitationsPanelContent citations={[citation]} /> : null
+    const { rerender } = render(<Panel visible />, { wrapper })
+
+    expect(await screen.findByText('Fetched citation preview')).toBeInTheDocument()
+    const firstFetch = ipcRequest.mock.calls.find(([route]) => route === 'citation.fetch_preview')
+    const firstRequestId = firstFetch?.[1].requestId
+
+    rerender(<Panel visible={false} />)
+    await waitFor(() =>
+      expect(ipcRequest).toHaveBeenCalledWith('citation.cancel_previews', { requestId: firstRequestId })
+    )
+    rerender(<Panel visible />)
+
+    await waitFor(() => {
+      const fetchCalls = ipcRequest.mock.calls.filter(([route]) => route === 'citation.fetch_preview')
+      expect(fetchCalls).toHaveLength(2)
+      expect(fetchCalls[1]?.[1].requestId).not.toBe(firstRequestId)
+    })
   })
 })

@@ -5,22 +5,21 @@ import type { CitationPreviewService as CitationPreviewServiceType } from '../Ci
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
 const extractPreviewTextMock = vi.hoisted(() => vi.fn())
+const applicationGet = vi.hoisted(() => vi.fn(() => ({ extractPreviewText: extractPreviewTextMock })))
 let mockMainLoggerService: MockMainLoggerService
 let service: CitationPreviewServiceType
 
+vi.mock('@application', () => ({ application: { get: applicationGet } }))
+
 vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: fetchRemoteTextMock
-}))
-
-vi.mock('@main/utils/readableContent', () => ({
-  extractPreviewText: extractPreviewTextMock
 }))
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 const MAX_RESPONSE_BYTES = 1024 * 1024
 
-const requestContext = (requestId: string, senderId: string | null = 'window-1') => ({ requestId, senderId })
+const requestContext = (requestId: string, senderId = 'window-1') => ({ requestId, senderId })
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -38,6 +37,7 @@ describe('CitationPreviewService', () => {
     vi.resetModules()
     fetchRemoteTextMock.mockReset()
     extractPreviewTextMock.mockReset()
+    applicationGet.mockClear()
     extractPreviewTextMock.mockImplementation(async (source: string) => source)
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
@@ -46,9 +46,11 @@ describe('CitationPreviewService', () => {
     BaseService.resetInstances()
     const citationPreviewModule = await import('../CitationPreviewService')
     service = new citationPreviewModule.CitationPreviewService()
+    await service._doInit()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await service._doStop()
     vi.restoreAllMocks()
   })
 
@@ -120,6 +122,29 @@ describe('CitationPreviewService', () => {
     await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual(['shared preview', 'shared preview'])
   })
 
+  it('drops URL fragments before identifying and fetching a shared preview job', async () => {
+    const deferredResponse = createDeferred<string>()
+    fetchRemoteTextMock.mockImplementationOnce(() => deferredResponse.promise)
+
+    const firstRequest = service.fetchPreview(
+      'https://example.com/article?lang=en#introduction',
+      requestContext('panel-a', 'window-a')
+    )
+    const secondRequest = service.fetchPreview(
+      'https://example.com/article?lang=en#details',
+      requestContext('panel-b', 'window-b')
+    )
+
+    expect(fetchRemoteTextMock).toHaveBeenCalledOnce()
+    expect(fetchRemoteTextMock).toHaveBeenCalledWith(
+      'https://example.com/article?lang=en',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+
+    deferredResponse.resolve('shared preview')
+    await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual(['shared preview', 'shared preview'])
+  })
+
   it('keeps a shared task alive when only one subscriber cancels', async () => {
     const deferredResponse = createDeferred<string>()
     let taskSignal: AbortSignal | undefined
@@ -178,10 +203,12 @@ describe('CitationPreviewService', () => {
 
     const freshRequest = service.fetchPreview('https://example.com/reopen', requestContext('panel-b'))
 
-    expect(fetchRemoteTextMock).toHaveBeenCalledTimes(2)
-    await expect(freshRequest).resolves.toBe('fresh preview')
-
-    rejectCancelledTask(Object.assign(new Error('cancelled'), { name: 'AbortError' }))
+    try {
+      await vi.waitFor(() => expect(fetchRemoteTextMock).toHaveBeenCalledTimes(2))
+      await expect(freshRequest).resolves.toBe('fresh preview')
+    } finally {
+      rejectCancelledTask(Object.assign(new Error('cancelled'), { name: 'AbortError' }))
+    }
   })
 
   it('removes a cancelled queued task before it starts', async () => {
@@ -238,6 +265,56 @@ describe('CitationPreviewService', () => {
 
     await expect(request).resolves.toBe('')
     expect(taskSignal?.aborted).toBe(true)
+  })
+
+  it('waits for an aborted underlying fetch to settle before stop completes', async () => {
+    let rejectFetch!: (reason?: unknown) => void
+    let taskSignal: AbortSignal | undefined
+    fetchRemoteTextMock.mockImplementation(
+      (_url, options) =>
+        new Promise((_resolve, reject) => {
+          taskSignal = options.signal
+          rejectFetch = reject
+        })
+    )
+    const request = service.fetchPreview('https://example.com/delayed-abort', requestContext('panel-a'))
+
+    await vi.waitFor(() => expect(fetchRemoteTextMock).toHaveBeenCalledOnce())
+    let stopCompleted = false
+    const stop = service._doStop().then(() => {
+      stopCompleted = true
+    })
+
+    await vi.waitFor(() => expect(taskSignal?.aborted).toBe(true))
+    await expect(request).resolves.toBe('')
+    expect(stopCompleted).toBe(false)
+
+    rejectFetch(taskSignal?.reason)
+    await stop
+    expect(stopCompleted).toBe(true)
+  })
+
+  it('does not start preview work after the service stops', async () => {
+    await service._doStop()
+    fetchRemoteTextMock.mockClear()
+
+    await expect(service.fetchPreview('https://example.com/stopped', requestContext('panel-a'))).resolves.toBe('')
+
+    expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+  })
+
+  it('supports idempotent teardown and starts accepting work again after re-initialization', async () => {
+    await Promise.all([service._doStop(), service._doStop()])
+    await service._doInit()
+    fetchRemoteTextMock.mockResolvedValue('preview after restart')
+
+    await expect(service.fetchPreview('https://example.com/restarted', requestContext('panel-a'))).resolves.toBe(
+      'preview after restart'
+    )
+
+    await service._doStop()
+    await service._doDestroy()
+    await service._doDestroy()
   })
 
   it('redacts URL path, query, and the original error message from network error logs', async () => {

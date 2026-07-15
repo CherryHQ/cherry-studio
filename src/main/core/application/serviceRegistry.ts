@@ -40,6 +40,7 @@ import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
+import { ReadableContentService } from '@main/services/readableContent'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
@@ -108,6 +109,7 @@ export const services = {
   OAuthRuntimeService,
   MainWindowService,
   QuickAssistantService,
+  ReadableContentService,
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,

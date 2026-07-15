@@ -185,25 +185,27 @@ const WebSearchCitation: React.FC<{
     openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
 
-  const { data: fetchedContent, isLoading } = useSWRImmutable(
-    citation.url ? (isXPost ? `webContent/${citation.url}` : `citationPreview/${requestId}/${citation.url}`) : null,
+  const { data: previewContent, isLoading: isPreviewLoading } = useSWRImmutable(
+    citation.url && !isXPost ? ['citationPreview', requestId, citation.url] : null,
     async () => {
-      if (isXPost) {
-        const oembed = await fetchXOEmbed(citation.url)
-        return oembed ? truncateText(`@${oembed.author}: ${oembed.text}`) : ''
-      }
       const { content } = await ipcApi.request('citation.fetch_preview', { url: citation.url, requestId })
       return content
     },
     { shouldRetryOnError: false }
   )
 
-  const { data: oembedData } = useSWRImmutable(
+  const { data: oembedData, isLoading: isOembedLoading } = useSWRImmutable(
     isXPost && citation.url ? xOembedKey(citation.url) : null,
     () => fetchXOEmbed(citation.url),
     { shouldRetryOnError: false }
   )
 
+  const fetchedContent = isXPost
+    ? oembedData
+      ? truncateText(`@${oembedData.author}: ${oembedData.text}`)
+      : ''
+    : previewContent
+  const isLoading = isXPost ? isOembedLoading : isPreviewLoading
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
   const titleContent = displayTitle || citation.hostname || citation.content || citation.url
 

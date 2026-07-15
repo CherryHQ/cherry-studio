@@ -1,7 +1,7 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { extractPreviewText } from '@main/utils/readableContent'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { WindowId } from '@shared/ipc/types'
@@ -17,7 +17,7 @@ const USER_AGENT =
 
 export type CitationPreviewRequestContext = {
   readonly requestId: string
-  readonly senderId: WindowId | null
+  readonly senderId: WindowId
 }
 
 type PreviewRequestState = {
@@ -53,6 +53,10 @@ function getRequestKey(context: CitationPreviewRequestContext): string {
 }
 
 async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise<string> {
+  if (signal.aborted) {
+    return ''
+  }
+
   try {
     const responseText = await fetchRemoteText(safeUrl, {
       headers: { 'User-Agent': USER_AGENT },
@@ -62,7 +66,7 @@ async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise
       maxRedirects: 5
     })
 
-    return await extractPreviewText(responseText, {
+    return await application.get('ReadableContentService').extractPreviewText(responseText, {
       inputKind: looksLikeHtml(responseText) ? 'html' : 'text',
       maxLength: MAX_PREVIEW_LENGTH,
       signal
@@ -77,15 +81,24 @@ async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise
 
 @Injectable('CitationPreviewService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ReadableContentService'])
 export class CitationPreviewService extends BaseService {
   private readonly queue = new PQueue({ concurrency: 3 })
   private readonly jobs = new Map<string, PreviewJob>()
   private readonly requests = new Map<string, PreviewRequestState>()
+  private acceptingRequests = false
+  private teardownPromise: Promise<void> | null = null
 
   fetchPreview(url: string, context: CitationPreviewRequestContext): Promise<string> {
+    if (!this.acceptingRequests) {
+      return Promise.resolve('')
+    }
+
     let safeUrl: string
     try {
-      safeUrl = sanitizeRemoteUrl(url)
+      const parsedUrl = new URL(sanitizeRemoteUrl(url))
+      parsedUrl.hash = ''
+      safeUrl = parsedUrl.toString()
     } catch {
       return Promise.resolve('')
     }
@@ -105,8 +118,26 @@ export class CitationPreviewService extends BaseService {
     this.cancelRequest(getRequestKey(context), createAbortError('Citation preview panel closed'))
   }
 
-  protected onStop(): void {
-    const error = createAbortError('Citation preview service stopped')
+  protected onInit(): void {
+    this.acceptingRequests = true
+    this.teardownPromise = null
+  }
+
+  protected onStop(): Promise<void> {
+    return this.teardown('Citation preview service stopped')
+  }
+
+  protected onDestroy(): Promise<void> {
+    return this.teardown('Citation preview service destroyed')
+  }
+
+  private teardown(reason: string): Promise<void> {
+    if (this.teardownPromise) {
+      return this.teardownPromise
+    }
+
+    this.acceptingRequests = false
+    const error = createAbortError(reason)
 
     for (const request of this.requests.values()) {
       request.controller.abort(error)
@@ -115,6 +146,12 @@ export class CitationPreviewService extends BaseService {
       job.controller.abort(error)
     }
 
+    this.teardownPromise = this.finishTeardown()
+    return this.teardownPromise
+  }
+
+  private async finishTeardown(): Promise<void> {
+    await this.queue.onIdle()
     this.requests.clear()
     this.jobs.clear()
   }
@@ -132,13 +169,13 @@ export class CitationPreviewService extends BaseService {
 
   private getOrCreateJob(safeUrl: string): PreviewJob {
     const existing = this.jobs.get(safeUrl)
-    if (existing) {
+    if (existing && !existing.controller.signal.aborted) {
       return existing
     }
 
     const controller = new AbortController()
     const promise = this.queue
-      .add(() => fetchQueuedPreview(safeUrl, controller.signal), { signal: controller.signal })
+      .add(() => fetchQueuedPreview(safeUrl, controller.signal))
       .then((preview) => preview ?? '')
       .catch((error) => {
         if (!isAbortError(error)) {
