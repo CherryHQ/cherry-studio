@@ -8,6 +8,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuItemContent,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
@@ -249,6 +250,33 @@ describe('ContextMenu primitive', () => {
       } finally {
         portalContainer.remove()
       }
+    })
+  })
+
+  describe('destructive variant icon color', () => {
+    // ContextMenuItemContent nests the icon two spans deep, so the destructive icon override
+    // must be a descendant selector (`[&_svg…]`). A direct-child selector (`*:[svg]`) never
+    // reaches the nested icon, letting the base `text-muted-foreground` rule win and rendering
+    // the icon gray. Pin the descendant form and guard against the broken direct-child form.
+    it('applies the destructive color to icons nested inside ContextMenuItemContent', () => {
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem variant="destructive">
+              <ContextMenuItemContent icon={<svg aria-label="trash" />}>Delete</ContextMenuItemContent>
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      openMenu(screen.getByText('Trigger'))
+
+      const item = screen.getByText('Delete').closest('[data-slot="context-menu-item"]')
+      expect(item).toHaveClass("data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!")
+      expect(item).not.toHaveClass('data-[variant=destructive]:*:[svg]:text-destructive!')
     })
   })
 })
