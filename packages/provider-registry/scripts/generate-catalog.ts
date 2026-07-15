@@ -17,9 +17,11 @@ import { fileURLToPath } from 'node:url'
 import type { ZodType } from 'zod'
 
 import { CREATORS } from '../src/creators'
-import { findHeuristicTokenLimits, inferReasoningControls } from '../src/patterns/reasoning-heuristics'
+import { matchReasoningControls, matchTokenLimits } from '../src/patterns/reasoning-families'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
+import type { ReasoningFamilyRule } from '../src/schemas/model'
+import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { canonOf, prefixHit } from './canonicalize'
@@ -39,6 +41,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODELS_PATH = process.env.MODELS_OUT || path.join(__dirname, '../data/models.json')
 const PROVIDERS_PATH = path.join(__dirname, '../data/providers.json')
 const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json')
+const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
@@ -48,6 +51,49 @@ const REPORT = process.argv.includes('--report')
 // OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to cache it during dev.
 const contentVersion = (body: unknown): string =>
   createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
+
+/**
+ * Collect + validate every creator-declared reasoning family rule, in
+ * CREATORS × declaration order (order IS the match priority — never sort).
+ * Fails generation on an invalid rule (uncompilable pattern / no knobs).
+ */
+function collectReasoningFamilies(): ReasoningFamilyRule[] {
+  const rules: ReasoningFamilyRule[] = []
+  for (const creator of CREATORS) {
+    for (const rule of creator.reasoningFamilies ?? []) {
+      const parsed = ReasoningFamilyRuleSchema.safeParse(rule)
+      if (!parsed.success) {
+        throw new Error(`invalid reasoningFamilies rule in creator '${creator.id}': ${parsed.error.message}`)
+      }
+      rules.push(parsed.data)
+    }
+  }
+  return rules
+}
+
+/** The reasoning-families runtime artifact: creator data compiled to a TS module. */
+function buildReasoningFamiliesGen(): string {
+  const lines = [
+    '/**',
+    ' * GENERATED FILE — DO NOT EDIT.',
+    ' *',
+    ' * Compiled from `Creator.reasoningFamilies` declarations (creators/*.ts)',
+    ' * by scripts/generate-catalog.ts — edit the creator and run `pnpm generate`.',
+    ' * Array order is match priority (CREATORS order × declaration order).',
+    ' */',
+    "import type { ReasoningFamilyRule } from '../schemas/model'",
+    '',
+    'export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = ['
+  ]
+  for (const creator of CREATORS) {
+    const rules = creator.reasoningFamilies ?? []
+    if (rules.length === 0) continue
+    lines.push(`  // ${creator.id}`)
+    for (const rule of rules) lines.push(`  ${JSON.stringify(rule)},`)
+  }
+  lines.push(']', '')
+  return lines.join('\n')
+}
 
 /** Key-sort `body`, stamp `version: contentVersion(body)`, and serialize — the single write shape. */
 const stampAndSerialize = (body: Record<string, unknown>): string => {
@@ -213,29 +259,30 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       models.set(id, { ...existing, ...lm, id, ownedBy: creator.id, metadata: existing.metadata ?? {} })
     }
   }
-  // Heuristic fill — reasoning-capable models with NO reasoning block at all
-  // (models.dev has no reasoning_options for them) get their controls from the
-  // ID-pattern heuristics (patterns/reasoning-heuristics.ts). Ingest-time only:
-  // the knowledge ships as data, never as a runtime capability source (#16598).
+  // Family fill — reasoning-capable models with NO reasoning block at all
+  // (models.dev has no reasoning_options for them) get their controls from
+  // the creator-declared family rules. Ingest-time only: the knowledge ships
+  // as data, never as a runtime capability source (#16598).
+  const familyRules = collectReasoningFamilies()
   for (const m of models.values()) {
     if (m.reasoning || !(m.capabilities ?? []).includes('reasoning')) continue
-    const controls = inferReasoningControls(m.id)
+    const controls = matchReasoningControls(m.id, familyRules)
     if (controls) m.reasoning = { controls }
   }
   // Completion passes — models.dev frequently reports only the on/off toggle
   // for models whose family has richer knobs (glm's budget, claude-5.x's
   // effort tiers, the -latest aliases). A missing knob makes the request path
-  // inert or budget-less, so merge the heuristic knowledge in when the
+  // inert or budget-less, so merge the family-rule knowledge in when the
   // declaration lacks that control KIND (declared kinds always win).
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
     if (!controls?.length) continue
     if (!controls.some((c: { kind: string }) => c.kind === 'budget')) {
-      const limits = findHeuristicTokenLimits(m.id)
+      const limits = matchTokenLimits(m.id, familyRules)
       if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
     }
     if (!controls.some((c: { kind: string }) => c.kind === 'effort')) {
-      const inferred = inferReasoningControls(m.id)?.find((c) => c.kind === 'effort')
+      const inferred = matchReasoningControls(m.id, familyRules)?.find((c) => c.kind === 'effort')
       if (inferred) controls.unshift(inferred)
     }
   }
@@ -386,4 +433,8 @@ void (async () => {
   const pm = buildProviderModels(md, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
+
+  const familiesGen = buildReasoningFamiliesGen()
+  fs.writeFileSync(REASONING_FAMILIES_GEN_PATH, familiesGen)
+  console.log(`WROTE ${REASONING_FAMILIES_GEN_PATH}.`)
 })()

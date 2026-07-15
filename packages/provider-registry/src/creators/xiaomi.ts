@@ -5,5 +5,10 @@ export default defineCreator({
   name: 'Xiaomi (MiMo)',
   modelsDevProviders: ['xiaomi'],
   families: ['mimo'],
-  idPrefixes: ['mimo']
+  idPrefixes: ['mimo'],
+  reasoningFamilies: [
+    { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
+    { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)', budget: { min: 0, max: 30720 } },
+    { pattern: 'mimo-v2-(?:flash|pro|omni)', budget: { min: 0, max: 30720 } }
+  ]
 })

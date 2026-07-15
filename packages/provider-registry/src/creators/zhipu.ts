@@ -8,6 +8,10 @@ export default defineCreator({
   modelsDevProviders: ['zhipuai', 'zai'],
   families: ['glm'],
   idPrefixes: ['glm', 'cogview', 'cogvideo', 'codegeex', 'chatglm'],
+  reasoningFamilies: [
+    // GLM-5 and GLM-4.5/4.6/4.7. Unanchored to handle provider-prefixed ids.
+    { pattern: 'glm-?5|glm-4[.-][567]', toggle: true, budget: { min: 0, max: 30720 } }
+  ],
   models: [
     { id: 'glm-4', name: 'GLM-4', capabilities: ['function-call'], contextWindow: 131072 },
     { id: 'glm-4-plus', name: 'GLM-4-Plus', capabilities: ['function-call'], contextWindow: 131072 },

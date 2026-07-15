@@ -6,5 +6,10 @@ export default defineCreator({
   name: 'DeepSeek',
   fetchModels: openaiCompatible('deepseek', 'DEEPSEEK_API_KEY'),
   modelsDevProviders: ['deepseek'],
-  idPrefixes: ['deepseek']
+  idPrefixes: ['deepseek'],
+  reasoningFamilies: [
+    { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'high', 'max'] },
+    // v3.x hybrid inference (thinking / non-thinking at one endpoint).
+    { pattern: 'deepseek-(?:chat|v3(?:\\.\\d|-\\d))', toggle: true }
+  ]
 })

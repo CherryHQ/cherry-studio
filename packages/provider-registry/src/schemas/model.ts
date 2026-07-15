@@ -72,6 +72,61 @@ export const ReasoningControlSchema = z.discriminatedUnion('kind', [
 ])
 export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
 
+/**
+ * A creator-declared reasoning FAMILY rule — ID-pattern knowledge as DATA
+ * (#16598). Creators declare these next to their models (`Creator.
+ * reasoningFamilies`); generation compiles them into per-model `controls`
+ * and the shipped `patterns/reasoning-families.gen.ts` artifact consumed by
+ * the zero-knowledge matcher.
+ *
+ * A rule carries MODEL KNOBS ONLY — never a reasoning format/wire field:
+ * open-weight models are served by many providers and the serialization
+ * dialect follows the SERVING provider's endpoint declaration
+ * (`resolveReasoningFormatType`), not the model family.
+ *
+ * Matching: `pattern` is a case-insensitive regex SOURCE tested against the
+ * lowercased, namespace-stripped id (vocabulary part) and the raw id string
+ * (budget part — token-limit callers pass `provider::model` unique ids, so
+ * budget-only rules should stay unanchored). Patterns must be
+ * vendor-specific (same discipline as `idPrefixes`). Within a creator,
+ * declaration order is match priority — first rule wins per part.
+ */
+export const ReasoningFamilyRuleSchema = z
+  .object({
+    /** Case-insensitive regex source. Must compile. */
+    pattern: z.string().refine(
+      (source) => {
+        try {
+          new RegExp(source, 'i')
+          return true
+        } catch {
+          return false
+        }
+      },
+      { message: 'pattern must be a valid regular expression' }
+    ),
+    /** Native effort vocabulary, in UI display order. */
+    effort: z.array(ReasoningEffortSchema).min(1).optional(),
+    /**
+     * Thinking on/off switch. `false` is an EXPLICIT "always-on, no switch"
+     * declaration that stops broader family rules below from applying
+     * (e.g. qwen3 `*-thinking` SKUs vs the generic qwen toggle).
+     */
+    toggle: z.boolean().optional(),
+    /** Thinking-token budget range. */
+    budget: z
+      .object({
+        min: z.number().nonnegative(),
+        max: z.number().positive()
+      })
+      .refine((b) => b.min <= b.max, { message: 'budget min must be <= max' })
+      .optional()
+  })
+  .refine((rule) => rule.effort !== undefined || rule.toggle !== undefined || rule.budget !== undefined, {
+    message: 'a family rule must declare at least one of effort / toggle / budget'
+  })
+export type ReasoningFamilyRule = z.infer<typeof ReasoningFamilyRuleSchema>
+
 // Common reasoning fields shared across all reasoning type variants
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {

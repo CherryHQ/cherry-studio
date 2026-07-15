@@ -5,7 +5,7 @@
  * LIST (from its own API and/or hand-written entries), and metadata is enriched from
  * models.dev/OpenRouter. You never edit `models.json` by hand — add/override in a creator here instead.
  */
-import type { ModelConfig } from '../schemas/model'
+import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
 
 /**
  * A model a creator declares by hand. It is a Partial `ModelConfig` — `ownedBy` comes from the creator and
@@ -38,6 +38,17 @@ export interface Creator {
    * as `idPrefixes`). e.g. anthropic `['claude-opus-4', 'claude-sonnet-4']`.
    */
   webSearch?: string[]
+  /**
+   * Curated reasoning-knob knowledge as DATA (no runtime regex module): family
+   * rules mapping THIS creator's id patterns to their native reasoning
+   * controls (effort vocabulary / thinking toggle / budget range). The
+   * generator uses them to fill/complete per-model `controls` when
+   * models.dev's `reasoning_options` are missing or partial, and compiles the
+   * full rule list into `patterns/reasoning-families.gen.ts` for custom-model
+   * inference at runtime. NEVER declare a reasoning format here — the wire
+   * dialect follows the serving provider, not the model family.
+   */
+  reasoningFamilies?: ReasoningFamilyRule[]
   /** Hand-written models — always merged in and winning over the API/sources. */
   models?: CreatorModel[]
   /**

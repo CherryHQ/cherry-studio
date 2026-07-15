@@ -6,6 +6,7 @@ export default defineCreator({
   name: 'Mistral AI',
   fetchModels: openaiCompatible('mistral', 'MISTRAL_API_KEY'),
   modelsDevProviders: ['mistral'],
+  reasoningFamilies: [{ pattern: '^mistral-small-2603', effort: ['none', 'high'] }],
   idPrefixes: [
     'mistral',
     'ministral',

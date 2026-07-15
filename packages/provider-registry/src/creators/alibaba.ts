@@ -6,6 +6,31 @@ export default defineCreator({
   modelsDevProviders: ['alibaba', 'alibaba-cn'],
   families: ['qwen', 'qvq'],
   idPrefixes: ['qwen', 'qvq', 'tongyi'],
+  reasoningFamilies: [
+    // Always-think SKUs: thinking cannot be disabled — the explicit
+    // `toggle: false` stops the generic qwen rule below; budget still applies.
+    { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
+    // QwQ/QVQ always-reasoning previews.
+    { pattern: '^qwq|^qvq', toggle: false },
+    { pattern: '^qwen', toggle: true },
+    { pattern: 'qwen3-235b-a22b-thinking-2507$', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen3-30b-a3b-thinking-2507$', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen3-vl-235b-a22b-thinking$', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen3-vl-30b-a3b-thinking$', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen-plus-2025-07-14$', budget: { min: 0, max: 38912 } },
+    { pattern: 'qwen-plus-2025-04-28$', budget: { min: 0, max: 38912 } },
+    { pattern: 'qwen3-1[.-]7b$', budget: { min: 0, max: 30720 } },
+    { pattern: 'qwen3-0[.-]6b$', budget: { min: 0, max: 30720 } },
+    { pattern: 'qwen-plus.*$', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen-turbo.*$', budget: { min: 0, max: 38912 } },
+    { pattern: 'qwen-flash.*$', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen3-max(-.*)?$', budget: { min: 0, max: 81920 } },
+    // `qwen-max-latest` is a distinct alias — the versioned SKU predates
+    // thinking-token support.
+    { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 } },
+    { pattern: '^qwen3[.-][5-9](?!\\d)', budget: { min: 0, max: 81920 } },
+    { pattern: 'qwen3-(?!max).*$', budget: { min: 1024, max: 38912 } }
+  ],
   models: [
     {
       id: 'qwen-image',

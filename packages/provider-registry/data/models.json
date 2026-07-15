@@ -3359,36 +3359,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 200000,
-      "family": "claude-haiku",
-      "id": "claude-3-5-haiku",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8192,
-      "metadata": {},
-      "name": "Claude 3.5 Haiku",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.08
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
@@ -4095,6 +4065,36 @@
       }
     },
     {
+      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
+      "contextWindow": 200000,
+      "family": "claude-haiku",
+      "id": "claude-3-5-haiku",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Claude Haiku 3.5",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.08
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        }
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "id": "claude-fable-latest",
@@ -4307,28 +4307,6 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high", "max", "none"]
-      }
-    },
-    {
-      "capabilities": ["function-call"],
-      "contextWindow": 131000,
-      "family": "trinity",
-      "id": "trinity-large-preview",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 131000,
-      "metadata": {},
-      "name": "Trinity Large Preview",
-      "outputModalities": ["text"],
-      "ownedBy": "arceeai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        }
       }
     },
     {
@@ -9661,38 +9639,6 @@
       "ownedBy": "luma"
     },
     {
-      "capabilities": ["reasoning"],
-      "contextWindow": 32768,
-      "family": "longcat",
-      "id": "longcat-flash",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "LongCat Flash Thinking 2601",
-      "outputModalities": ["text"],
-      "ownedBy": "meituan",
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"]
-      }
-    },
-    {
-      "capabilities": ["function-call"],
-      "contextWindow": 128000,
-      "family": "longcat",
-      "id": "longcat-flash-chat",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 100000,
-      "metadata": {},
-      "name": "LongCat Flash Chat",
-      "outputModalities": ["text"],
-      "ownedBy": "meituan"
-    },
-    {
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama-3-2-1b",
@@ -10802,29 +10748,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
-      "contextWindow": 256000,
-      "family": "devstral",
-      "id": "devstral-small",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 256000,
-      "metadata": {},
-      "name": "Devstral Small 1.1",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "mistral",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        }
-      }
-    },
-    {
       "capabilities": ["image-recognition", "file-input"],
       "contextWindow": 256000,
       "family": "mistral-large",
@@ -11077,29 +11000,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
-      "contextWindow": 128000,
-      "family": "pixtral",
-      "id": "pixtral-large",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "Pixtral Large (latest)",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "mistral",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 6
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "image-recognition", "structured-output"],
       "contextWindow": 131072,
       "family": "ministral",
@@ -11234,6 +11134,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.25
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 256000,
+      "family": "devstral",
+      "id": "devstral-small",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Devstral Small",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -11763,6 +11686,28 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 128000,
+      "family": "mistral",
+      "id": "pixtral-large",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Pixtral Large (25.02)",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
         }
       }
     },
@@ -13164,28 +13109,6 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["structured-output"],
-      "contextWindow": 8192,
-      "family": "gpt",
-      "id": "gpt-3-5-turbo-instruct",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 4096,
-      "metadata": {},
-      "name": "GPT-3.5 Turbo Instruct",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        }
       }
     },
     {
@@ -15650,6 +15573,26 @@
       }
     },
     {
+      "capabilities": ["structured-output"],
+      "contextWindow": 4095,
+      "id": "gpt-3-5-turbo-instruct",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "gpt-3-5-turbo-instruct",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      }
+    },
+    {
       "capabilities": ["function-call", "structured-output"],
       "contextWindow": 16385,
       "id": "gpt-3-5-turbo-16k",
@@ -17581,93 +17524,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 262144,
-      "family": "mimo",
-      "id": "mimo-v2-flash",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "MiMo V2 Flash",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "xiaomi",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 1048576,
-      "family": "mimo",
-      "id": "mimo-v2-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 131072,
-      "metadata": {},
-      "name": "MiMo V2 Pro",
-      "outputModalities": ["text"],
-      "ownedBy": "xiaomi",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "mimo-v2.5-pro",
@@ -17776,6 +17632,93 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.28
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "mimo",
+      "id": "mimo-v2-flash",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "MiMo-V2-Flash",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "mimo",
+      "id": "mimo-v2-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "MiMo-V2-Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
         }
       },
       "reasoning": {
@@ -19954,5 +19897,5 @@
       }
     }
   ],
-  "version": "d4b367a68af12933"
+  "version": "576eeb61fa7f0897"
 }

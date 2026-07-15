@@ -20,7 +20,9 @@ import { describe, expect, it } from 'vitest'
 
 import { canonOf } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
+import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import { PROVIDERS } from '../providers'
+import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
@@ -102,6 +104,25 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
         if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
         else if (stable(row) !== stable(expected)) problems.push(`stale ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
       }
+    expect(problems).toEqual([])
+  })
+
+  it('reasoning-families.gen.ts mirrors the creator reasoningFamilies declarations exactly', () => {
+    // The runtime artifact is 100% source-derived (no upstream), so a full
+    // ordered deep-compare is deterministic: a creator edit without
+    // `pnpm generate` — or a hand edit of the .gen file — both fail here.
+    const expected = CREATORS.flatMap((c) => c.reasoningFamilies ?? [])
+    expect(REASONING_FAMILY_RULES.map(stable)).toEqual(expected.map(stable))
+  })
+
+  it('every creator reasoningFamilies rule is schema-valid', () => {
+    const problems: string[] = []
+    for (const creator of CREATORS) {
+      for (const rule of creator.reasoningFamilies ?? []) {
+        const parsed = ReasoningFamilyRuleSchema.safeParse(rule)
+        if (!parsed.success) problems.push(`${creator.id}: ${rule.pattern}`)
+      }
+    }
     expect(problems).toEqual([])
   })
 })

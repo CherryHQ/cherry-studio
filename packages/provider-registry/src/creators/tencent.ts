@@ -10,6 +10,11 @@ export default defineCreator({
   name: 'Tencent (Hunyuan)',
   families: ['hunyuan'],
   idPrefixes: ['hunyuan', 'hy'],
+  reasoningFamilies: [
+    // Only hunyuan-a13b exposes the knob today.
+    { pattern: '^hunyuan-a13b', toggle: true },
+    { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 } }
+  ],
   // Web search is a per-request enhancement on Hunyuan's chat/reasoning models. `hunyuan` covers the
   // `hunyuan-*` chat ids; `hy3-preview` lives in a different namespace, so it's listed explicitly (the
   // `hy-*` MT/role/image and `tc-code` models are not chat models and stay out).
