@@ -29,6 +29,7 @@ import {
   useCommandShortcutPreferences,
   useResolvedCommandMenu
 } from '@renderer/hooks/command'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getCommandShortcutLabel } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type {
@@ -40,36 +41,9 @@ import type {
   SupportedPlatform
 } from '@shared/types/command'
 import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
-
-function usePostCloseAction(setMenuOpen: (open: boolean) => void): (action: () => void) => void {
-  const pendingFrameRef = useRef<number | null>(null)
-
-  useEffect(
-    () => () => {
-      if (pendingFrameRef.current !== null) {
-        window.cancelAnimationFrame(pendingFrameRef.current)
-      }
-    },
-    []
-  )
-
-  return useCallback(
-    (action: () => void) => {
-      setMenuOpen(false)
-      if (pendingFrameRef.current !== null) {
-        window.cancelAnimationFrame(pendingFrameRef.current)
-      }
-      pendingFrameRef.current = window.requestAnimationFrame(() => {
-        pendingFrameRef.current = null
-        action()
-      })
-    },
-    [setMenuOpen]
-  )
-}
 
 const logger = loggerService.withContext('CommandMenus')
 
@@ -490,7 +464,7 @@ export function CommandContextMenu({
     [getExtraItems, onOpenChange]
   )
 
-  const handleCherrySelectItem = usePostCloseAction(handleCherryOpenChange)
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
 
   const handleNativeContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -830,7 +804,7 @@ export function CommandPopupMenu({
     [onOpenChange, open]
   )
 
-  const handleCherrySelectItem = usePostCloseAction(handleCherryOpenChange)
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
 
   if (disabled || combinedItems.length === 0) {
     return <>{children}</>

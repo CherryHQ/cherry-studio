@@ -388,15 +388,14 @@ describe('CommandContextMenu', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
-  it('runs cherry menu actions on the next frame after closing and cancels pending actions on unmount', () => {
+  it('runs selected cherry menu actions after closing even if the menu unmounts', () => {
     const onOpenChange = vi.fn()
     const onSelect = vi.fn()
-    let deferredAction: FrameRequestCallback | undefined
+    const deferredActions: FrameRequestCallback[] = []
     const requestFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      deferredAction = callback
-      return 7
+      deferredActions.push(callback)
+      return deferredActions.length
     })
-    const cancelFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
     preferenceValues['menu.presentation_mode'] = 'cherry'
 
     const { unmount } = renderMenu({
@@ -411,14 +410,13 @@ describe('CommandContextMenu', () => {
     expect(requestFrameSpy).toHaveBeenCalledOnce()
     expect(onSelect).not.toHaveBeenCalled()
 
-    deferredAction?.(0)
-    expect(onSelect).toHaveBeenCalledOnce()
-
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
     unmount()
-    expect(cancelFrameSpy).toHaveBeenCalledWith(7)
+
+    deferredActions[0]?.(0)
+    deferredActions[1]?.(0)
+    expect(onSelect).toHaveBeenCalledTimes(2)
     requestFrameSpy.mockRestore()
-    cancelFrameSpy.mockRestore()
   })
 
   it('stops cherry context-menu events after an inner menu handles them', () => {
