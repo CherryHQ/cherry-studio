@@ -4,17 +4,51 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-11T04:47:13.147Z
- * Total icons: 35
+ * Generated at: 2026-07-15T10:44:58.450Z
+ * Total icons: 115
  */
 import { type CompoundIcon } from '../types'
+import { AceIcon } from './ace'
+import { AdobeIcon } from './adobe'
+import { Ai2Icon } from './ai2'
+import { Ai21Icon } from './ai21'
+import { Ai360Icon } from './ai360'
+import { AihubmixIcon } from './aihubmix'
+import { AimassIcon } from './aimass'
+import { AionlabsIcon } from './aionlabs'
+import { AnthropicIcon } from './anthropic'
+import { ArceeIcon } from './arcee'
+import { AssemblyaiIcon } from './assemblyai'
+import { AwsIcon } from './aws'
 import { AyaIcon } from './aya'
+import { BaaiIcon } from './baai'
+import { BaichuanIcon } from './baichuan'
+import { BaiducloudIcon } from './baiducloud'
+import { BilibiliIcon } from './bilibili'
+import { BilibiliindexIcon } from './bilibiliindex'
+import { BurncloudIcon } from './burncloud'
+import { BytedanceIcon } from './bytedance'
+import { ChatglmIcon } from './chatglm'
 import { ClaudeIcon } from './claude'
 import { CodegeexIcon } from './codegeex'
+import { CogviewIcon } from './cogview'
+import { CohereIcon } from './cohere'
+import { DalleIcon } from './dalle'
+import { DbrxIcon } from './dbrx'
+import { DeepcogitoIcon } from './deepcogito'
+import { DeepmindIcon } from './deepmind'
+import { DeepseekIcon } from './deepseek'
+import { DolphinIcon } from './dolphin'
 import { DoubaoIcon } from './doubao'
+import { EssentialaiIcon } from './essentialai'
+import { FireworksIcon } from './fireworks'
+import { FishaudioIcon } from './fishaudio'
+import { FluxIcon } from './flux'
 import { GeminiIcon } from './gemini'
 import { GemmaIcon } from './gemma'
 import { GlmIcon } from './glm'
+import { GlmvIcon } from './glmv'
+import { GoogleIcon } from './google'
 import { Gpt5Icon } from './gpt-5'
 import { Gpt51Icon } from './gpt-5-1'
 import { Gpt51ChatIcon } from './gpt-5-1-chat'
@@ -34,25 +68,105 @@ import { GrokIcon } from './grok'
 import { HailuoIcon } from './hailuo'
 import { HunyuanIcon } from './hunyuan'
 import { IbmIcon } from './ibm'
+import { IdeogramIcon } from './ideogram'
+import { InceptionIcon } from './inception'
+import { InflectionIcon } from './inflection'
+import { InternlmIcon } from './internlm'
+import { JimengIcon } from './jimeng'
+import { JinaIcon } from './jina'
 import { KimiIcon } from './kimi'
+import { KlingIcon } from './kling'
+import { KolorsIcon } from './kolors'
+import { KwaipilotIcon } from './kwaipilot'
+import { LgIcon } from './lg'
 import { LingIcon } from './ling'
+import { LiquidIcon } from './liquid'
+import { LlavaIcon } from './llava'
+import { LongcatIcon } from './longcat'
+import { MenloIcon } from './menlo'
+import { MetaIcon } from './meta'
 import { type ModelIconKey } from './meta-catalog'
+import { MicrosoftIcon } from './microsoft'
 import { MimoIcon } from './mimo'
+import { MinimaxIcon } from './minimax'
+import { MistralIcon } from './mistral'
+import { MoonshotIcon } from './moonshot'
+import { MorphIcon } from './morph'
+import { NanobananaIcon } from './nanobanana'
+import { NousresearchIcon } from './nousresearch'
 import { NovaIcon } from './nova'
+import { NvidiaIcon } from './nvidia'
+import { OpenaiIcon } from './openai'
+import { OpenchatIcon } from './openchat'
+import { OpenrouterIcon } from './openrouter'
 import { PalmIcon } from './palm'
+import { PerplexityIcon } from './perplexity'
+import { PhindIcon } from './phind'
+import { QiniuIcon } from './qiniu'
 import { QwenIcon } from './qwen'
+import { RelaceIcon } from './relace'
+import { RwkvIcon } from './rwkv'
 import { SensenovaIcon } from './sensenova'
+import { SkyworkIcon } from './skywork'
 import { SoraIcon } from './sora'
+import { SparkIcon } from './spark'
+import { StabilityIcon } from './stability'
+import { StepfunIcon } from './stepfun'
+import { SunoIcon } from './suno'
+import { TiiIcon } from './tii'
 import { TrinityIcon } from './trinity'
+import { UdioIcon } from './udio'
+import { UpstageIcon } from './upstage'
+import { V0Icon } from './v0'
+import { VertexaiIcon } from './vertexai'
+import { VoyageIcon } from './voyage'
+import { WenxinIcon } from './wenxin'
+import { XiaomimimoIcon } from './xiaomimimo'
+import { YiIcon } from './yi'
+import { ZaiIcon } from './zai'
 
 export const MODEL_ICON_CATALOG = {
+  ace: AceIcon,
+  adobe: AdobeIcon,
+  ai2: Ai2Icon,
+  ai21: Ai21Icon,
+  ai360: Ai360Icon,
+  aihubmix: AihubmixIcon,
+  aimass: AimassIcon,
+  aionlabs: AionlabsIcon,
+  anthropic: AnthropicIcon,
+  arcee: ArceeIcon,
+  assemblyai: AssemblyaiIcon,
+  aws: AwsIcon,
   aya: AyaIcon,
+  baai: BaaiIcon,
+  baichuan: BaichuanIcon,
+  baiducloud: BaiducloudIcon,
+  bilibili: BilibiliIcon,
+  bilibiliindex: BilibiliindexIcon,
+  burncloud: BurncloudIcon,
+  bytedance: BytedanceIcon,
+  chatglm: ChatglmIcon,
   claude: ClaudeIcon,
   codegeex: CodegeexIcon,
+  cogview: CogviewIcon,
+  cohere: CohereIcon,
+  dalle: DalleIcon,
+  dbrx: DbrxIcon,
+  deepcogito: DeepcogitoIcon,
+  deepmind: DeepmindIcon,
+  deepseek: DeepseekIcon,
+  dolphin: DolphinIcon,
   doubao: DoubaoIcon,
+  essentialai: EssentialaiIcon,
+  fireworks: FireworksIcon,
+  fishaudio: FishaudioIcon,
+  flux: FluxIcon,
   gemini: GeminiIcon,
   gemma: GemmaIcon,
   glm: GlmIcon,
+  glmv: GlmvIcon,
+  google: GoogleIcon,
   'gpt-5': Gpt5Icon,
   'gpt-5-1': Gpt51Icon,
   'gpt-5-1-chat': Gpt51ChatIcon,
@@ -72,13 +186,59 @@ export const MODEL_ICON_CATALOG = {
   hailuo: HailuoIcon,
   hunyuan: HunyuanIcon,
   ibm: IbmIcon,
+  ideogram: IdeogramIcon,
+  inception: InceptionIcon,
+  inflection: InflectionIcon,
+  internlm: InternlmIcon,
+  jimeng: JimengIcon,
+  jina: JinaIcon,
   kimi: KimiIcon,
+  kling: KlingIcon,
+  kolors: KolorsIcon,
+  kwaipilot: KwaipilotIcon,
+  lg: LgIcon,
   ling: LingIcon,
+  liquid: LiquidIcon,
+  llava: LlavaIcon,
+  longcat: LongcatIcon,
+  menlo: MenloIcon,
+  meta: MetaIcon,
+  microsoft: MicrosoftIcon,
   mimo: MimoIcon,
+  minimax: MinimaxIcon,
+  mistral: MistralIcon,
+  moonshot: MoonshotIcon,
+  morph: MorphIcon,
+  nanobanana: NanobananaIcon,
+  nousresearch: NousresearchIcon,
   nova: NovaIcon,
+  nvidia: NvidiaIcon,
+  openai: OpenaiIcon,
+  openchat: OpenchatIcon,
+  openrouter: OpenrouterIcon,
   palm: PalmIcon,
+  perplexity: PerplexityIcon,
+  phind: PhindIcon,
+  qiniu: QiniuIcon,
   qwen: QwenIcon,
+  relace: RelaceIcon,
+  rwkv: RwkvIcon,
   sensenova: SensenovaIcon,
+  skywork: SkyworkIcon,
   sora: SoraIcon,
-  trinity: TrinityIcon
+  spark: SparkIcon,
+  stability: StabilityIcon,
+  stepfun: StepfunIcon,
+  suno: SunoIcon,
+  tii: TiiIcon,
+  trinity: TrinityIcon,
+  udio: UdioIcon,
+  upstage: UpstageIcon,
+  v0: V0Icon,
+  vertexai: VertexaiIcon,
+  voyage: VoyageIcon,
+  wenxin: WenxinIcon,
+  xiaomimimo: XiaomimimoIcon,
+  yi: YiIcon,
+  zai: ZaiIcon
 } as const satisfies Record<ModelIconKey, CompoundIcon>
