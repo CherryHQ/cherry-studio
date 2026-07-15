@@ -72,7 +72,8 @@ export const createWebUiHttpClient = ({
     try {
       const response = await fetchImpl(`${baseUrl}${path}`, {
         headers: {
-          Accept: 'image/*',
+          Accept:
+            'image/*, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.openxmlformats-officedocument.presentationml.presentation',
           ...(authKey ? { 'X-Cherry-Webui-Key': authKey } : {})
         },
         signal: controller.signal
@@ -99,6 +100,10 @@ export const createWebUiHttpClient = ({
       requestJson<TResponse>(path, {
         body: JSON.stringify(body),
         method: 'PATCH'
+      }),
+    deleteJson: <TResponse>(path: string) =>
+      requestJson<TResponse>(path, {
+        method: 'DELETE'
       }),
     setAuthKey: (key: string) => {
       authKey = key.trim()

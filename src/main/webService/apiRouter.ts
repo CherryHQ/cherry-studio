@@ -27,7 +27,7 @@ import { app } from 'electron'
 import type { WebUiSseRelay } from './sseRelay'
 import {
   listWebUiWorkspaceFiles,
-  readWebUiWorkspaceImage,
+  readWebUiWorkspaceBinaryPreview,
   readWebUiWorkspaceTextFile,
   WebUiWorkspaceFileError
 } from './workspaceFiles'
@@ -142,7 +142,7 @@ const sessionSlashCommandsPath = /^\/api\/agent-sessions\/([^/]+)\/slash-command
 const sessionModelPath = /^\/api\/agent-sessions\/([^/]+)\/model$/
 const sessionWorkspaceFilesPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/files$/
 const sessionWorkspaceFilePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/file$/
-const sessionWorkspaceImagePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/image$/
+const sessionWorkspacePreviewPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/preview$/
 const readableDataApiPatterns = [
   /^\/agents$/,
   /^\/models$/,
@@ -151,6 +151,7 @@ const readableDataApiPatterns = [
   /^\/agent-sessions\/[^/]+$/,
   /^\/agent-sessions\/[^/]+\/messages$/
 ] as const
+const deletableDataApiMessagePath = /^\/agent-sessions\/([^/]+)\/messages\/[^/]+$/
 
 const toQueryRecord = (searchParams: URLSearchParams) => {
   const query: Record<string, string> = {}
@@ -345,8 +346,9 @@ const handleDataApiProxy = async (
   const method = request.method ?? 'GET'
   const isRead = method === 'GET' && isAllowedDataApiReadPath(dataPath)
   const isSessionCreate = method === 'POST' && dataPath === '/agent-sessions'
+  const sessionMessageDeleteMatch = method === 'DELETE' ? dataPath.match(deletableDataApiMessagePath) : null
 
-  if (!isRead && !isSessionCreate) {
+  if (!isRead && !isSessionCreate && !sessionMessageDeleteMatch) {
     return {
       status: 404,
       body: {
@@ -376,6 +378,12 @@ const handleDataApiProxy = async (
     }
     if (isSessionCreate && apiResponse.status >= 200 && apiResponse.status < 300) {
       sseRelay.broadcast({ event: 'sync', data: { reason: 'session-created' } })
+    }
+    if (sessionMessageDeleteMatch && apiResponse.status >= 200 && apiResponse.status < 300) {
+      sseRelay.broadcast({
+        event: 'sync',
+        data: { conversationId: decodeURIComponent(sessionMessageDeleteMatch[1] ?? ''), reason: 'message-deleted' }
+      })
     }
     return result
   } catch (error) {
@@ -408,7 +416,7 @@ export const createWebUiApiRouter = ({
     const sessionModelMatch = pathname.match(sessionModelPath)
     const workspaceFilesMatch = pathname.match(sessionWorkspaceFilesPath)
     const workspaceFileMatch = pathname.match(sessionWorkspaceFilePath)
-    const workspaceImageMatch = pathname.match(sessionWorkspaceImagePath)
+    const workspacePreviewMatch = pathname.match(sessionWorkspacePreviewPath)
 
     if (pathname === '/api/auth/status') {
       if (method !== 'GET') return methodNotAllowed(['GET'])
@@ -427,7 +435,7 @@ export const createWebUiApiRouter = ({
 
     if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
 
-    const workspaceMatch = workspaceFilesMatch ?? workspaceFileMatch ?? workspaceImageMatch
+    const workspaceMatch = workspaceFilesMatch ?? workspaceFileMatch ?? workspacePreviewMatch
     if (workspaceMatch) {
       if (method !== 'GET') return methodNotAllowed(['GET'])
       if (!normalizeAuthKey(getAuthKey())) {
@@ -460,13 +468,14 @@ export const createWebUiApiRouter = ({
           return { status: 200, body: await readWebUiWorkspaceTextFile(session.workspace.path, requestedPath) }
         }
 
-        const image = await readWebUiWorkspaceImage(session.workspace.path, requestedPath)
+        const preview = await readWebUiWorkspaceBinaryPreview(session.workspace.path, requestedPath)
         return {
           status: 200,
-          rawBody: image.bytes,
+          rawBody: preview.bytes,
           headers: {
-            'Content-Type': image.contentType,
-            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(image.name)}`
+            'Content-Type': preview.contentType,
+            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(preview.name)}`,
+            'X-Content-Type-Options': 'nosniff'
           }
         }
       } catch (error) {

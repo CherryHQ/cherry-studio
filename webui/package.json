@@ -10,6 +10,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "1.2.2",
+    "docx-preview": "0.3.7",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.0",
     "pinia": "^3.0.4",

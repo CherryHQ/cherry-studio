@@ -41,10 +41,15 @@ export const resolveWorkspaceRelativeArtifactPath = (workspacePath: string | und
   return candidate.slice(workspace.length + 1)
 }
 
-export const getWorkspaceFilePreviewKind = (filePath: string): 'image' | 'markdown' | 'text' => {
+export const getWorkspaceFilePreviewKind = (
+  filePath: string
+): 'docx' | 'image' | 'markdown' | 'pdf' | 'pptx' | 'text' => {
   const extension = filePath.split('.').at(-1)?.toLowerCase() ?? ''
   if (imageExtensions.has(extension)) return 'image'
   if (markdownExtensions.has(extension)) return 'markdown'
+  if (extension === 'pdf') return 'pdf'
+  if (extension === 'docx') return 'docx'
+  if (extension === 'pptx') return 'pptx'
   return 'text'
 }
 

@@ -5,7 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
-  readWebUiWorkspaceImage,
+  readWebUiWorkspaceBinaryPreview,
   readWebUiWorkspaceTextFile,
   resolveWebUiWorkspacePath,
   WebUiWorkspaceFileError
@@ -71,17 +71,32 @@ describe('WebUI workspace file boundary', () => {
     })
   })
 
-  it('allows only supported images through the binary preview endpoint', async () => {
+  it('allows only supported images, PDF, DOCX, and PPTX documents through the binary preview endpoint', async () => {
     await writeFile(path.join(workspacePath, 'pixel.png'), Buffer.from([137, 80, 78, 71]))
+    await writeFile(path.join(workspacePath, 'report.pdf'), Buffer.from('%PDF-1.7'))
+    await writeFile(path.join(workspacePath, 'report.docx'), Buffer.from([80, 75, 3, 4]))
+    await writeFile(path.join(workspacePath, 'slides.pptx'), Buffer.from([80, 75, 3, 4]))
     await writeFile(path.join(workspacePath, 'archive.zip'), Buffer.from([80, 75, 3, 4]))
 
-    await expect(readWebUiWorkspaceImage(workspacePath, 'pixel.png')).resolves.toMatchObject({
+    await expect(readWebUiWorkspaceBinaryPreview(workspacePath, 'pixel.png')).resolves.toMatchObject({
       contentType: 'image/png',
       name: 'pixel.png'
     })
-    await expect(readWebUiWorkspaceImage(workspacePath, 'archive.zip')).rejects.toMatchObject({
+    await expect(readWebUiWorkspaceBinaryPreview(workspacePath, 'report.pdf')).resolves.toMatchObject({
+      contentType: 'application/pdf',
+      name: 'report.pdf'
+    })
+    await expect(readWebUiWorkspaceBinaryPreview(workspacePath, 'report.docx')).resolves.toMatchObject({
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      name: 'report.docx'
+    })
+    await expect(readWebUiWorkspaceBinaryPreview(workspacePath, 'slides.pptx')).resolves.toMatchObject({
+      contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      name: 'slides.pptx'
+    })
+    await expect(readWebUiWorkspaceBinaryPreview(workspacePath, 'archive.zip')).rejects.toMatchObject({
       status: 415,
-      code: 'WEBUI_WORKSPACE_IMAGE_UNSUPPORTED'
+      code: 'WEBUI_WORKSPACE_PREVIEW_UNSUPPORTED'
     })
   })
 })

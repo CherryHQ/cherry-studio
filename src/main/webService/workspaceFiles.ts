@@ -8,9 +8,10 @@ import { isBinaryFile } from 'isbinaryfile'
 
 const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024
 const MAX_IMAGE_PREVIEW_BYTES = 10 * 1024 * 1024
+const MAX_DOCUMENT_PREVIEW_BYTES = 25 * 1024 * 1024
 const MAX_SEARCH_ENTRIES = 200
 
-const imageContentTypes: Readonly<Record<string, string>> = {
+const previewContentTypes: Readonly<Record<string, string>> = {
   '.avif': 'image/avif',
   '.bmp': 'image/bmp',
   '.gif': 'image/gif',
@@ -19,7 +20,10 @@ const imageContentTypes: Readonly<Record<string, string>> = {
   '.jpg': 'image/jpeg',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
-  '.webp': 'image/webp'
+  '.webp': 'image/webp',
+  '.pdf': 'application/pdf',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 }
 
 export class WebUiWorkspaceFileError extends Error {
@@ -54,7 +58,7 @@ export type WebUiWorkspaceTextPreview = {
   readonly content?: string
 }
 
-export type WebUiWorkspaceImagePreview = {
+export type WebUiWorkspaceBinaryPreview = {
   readonly bytes: Buffer
   readonly contentType: string
   readonly name: string
@@ -195,22 +199,27 @@ export async function readWebUiWorkspaceTextFile(
   }
 }
 
-export async function readWebUiWorkspaceImage(
+export async function readWebUiWorkspaceBinaryPreview(
   workspacePath: string,
   requestedPath: string
-): Promise<WebUiWorkspaceImagePreview> {
+): Promise<WebUiWorkspaceBinaryPreview> {
   const target = await resolveWebUiWorkspacePath(workspacePath, requestedPath)
   const fileStat = await stat(target.requestedRealPath)
-  const contentType = imageContentTypes[path.extname(target.requestedRealPath).toLowerCase()]
+  const contentType = previewContentTypes[path.extname(target.requestedRealPath).toLowerCase()]
   if (!fileStat.isFile() || !contentType) {
     throw new WebUiWorkspaceFileError(
       415,
-      'WEBUI_WORKSPACE_IMAGE_UNSUPPORTED',
-      'Workspace file is not a supported image'
+      'WEBUI_WORKSPACE_PREVIEW_UNSUPPORTED',
+      'Workspace file is not a supported preview format'
     )
   }
-  if (fileStat.size > MAX_IMAGE_PREVIEW_BYTES) {
-    throw new WebUiWorkspaceFileError(413, 'WEBUI_WORKSPACE_FILE_TOO_LARGE', 'Image preview is limited to 10 MB')
+  const maxPreviewBytes = contentType.startsWith('image/') ? MAX_IMAGE_PREVIEW_BYTES : MAX_DOCUMENT_PREVIEW_BYTES
+  if (fileStat.size > maxPreviewBytes) {
+    throw new WebUiWorkspaceFileError(
+      413,
+      'WEBUI_WORKSPACE_FILE_TOO_LARGE',
+      `Preview is limited to ${maxPreviewBytes / 1024 / 1024} MB`
+    )
   }
 
   return {

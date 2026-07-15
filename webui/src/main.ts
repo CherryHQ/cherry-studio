@@ -1,7 +1,5 @@
-import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type VNode } from 'vue'
 import { createPinia, storeToRefs } from 'pinia'
-
-import 'highlight.js/styles/github.css'
 
 import { createWebUiHttpClient, WebUiHttpError } from './service/httpClient'
 import { createWebUiSseClient } from './service/sseClient'
@@ -42,6 +40,8 @@ import {
   type WebUiAgentSubagent,
   type WebUiAgentTask
 } from './utils/agentStatus'
+import { renderDocxPreviewHtml } from './utils/docxPreview'
+import { mountPptxPreview } from './utils/pptxPreview'
 import { renderCode, renderMarkdown } from './utils/renderMarkdown'
 import {
   buildWorkspaceSearchTree,
@@ -69,6 +69,15 @@ type WorkspaceFilePreviewState =
   | { readonly status: 'binary'; readonly path: string; readonly name: string }
   | { readonly status: 'text'; readonly path: string; readonly name: string; readonly content: string }
   | { readonly status: 'image'; readonly path: string; readonly name: string; readonly url: string }
+  | { readonly status: 'pdf'; readonly path: string; readonly name: string; readonly url: string }
+  | {
+      readonly status: 'docx'
+      readonly path: string
+      readonly name: string
+      readonly bodyHtml: string
+      readonly styleHtml: string
+    }
+  | { readonly status: 'pptx'; readonly path: string; readonly name: string; readonly data: ArrayBuffer }
 
 const fallbackLanguage = 'en-US'
 const webUiLogoPath = './icon.png'
@@ -78,6 +87,10 @@ const messagePageSize = 50
 const maxAttachmentCount = 5
 const maxAttachmentBytes = 10 * 1024 * 1024
 const maxAttachmentsBytes = 25 * 1024 * 1024
+const composerDefaultHeight = 92
+const composerMinHeight = 76
+const composerMaxHeight = 220
+const composerKeyboardStep = 12
 const webUiLanguages = [
   { id: 'en-US', label: 'English' },
   { id: 'zh-CN', label: '中文' },
@@ -121,6 +134,10 @@ const textPacks = {
     connected: 'Win11 desktop bridge connected',
     context: 'Context',
     copy: 'Copy',
+    delete: 'Delete',
+    deleteMessage: 'Delete this message?',
+    deleteMessageDescription: 'This message will be removed from the desktop conversation and cannot be restored.',
+    deleting: 'Deleting...',
     create: 'Create',
     creating: 'Creating...',
     desktopSession: 'Desktop session',
@@ -225,6 +242,10 @@ const textPacks = {
     connected: 'Win11 桌面桥接已连接',
     context: '上下文',
     copy: '复制',
+    delete: '删除',
+    deleteMessage: '删除这条消息？',
+    deleteMessageDescription: '此消息将从桌面会话中删除，且无法恢复。',
+    deleting: '删除中...',
     create: '新建',
     creating: '创建中...',
     desktopSession: '桌面会话',
@@ -329,6 +350,10 @@ const textPacks = {
     connected: 'Win11 桌面橋接已連線',
     context: '上下文',
     copy: '複製',
+    delete: '刪除',
+    deleteMessage: '刪除這則訊息？',
+    deleteMessageDescription: '此訊息將從桌面會話中刪除，且無法復原。',
+    deleting: '刪除中...',
     create: '新增',
     creating: '建立中...',
     desktopSession: '桌面會話',
@@ -525,6 +550,34 @@ const renderLanguageIcon = () =>
     ]
   )
 
+const renderThemeIcon = (theme: 'light' | 'dark') => {
+  const props = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': 2,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true'
+  }
+
+  return theme === 'light'
+    ? h('svg', props, [
+        h('circle', { cx: 12, cy: 12, r: 4 }),
+        h('path', { d: 'M12 2v2' }),
+        h('path', { d: 'M12 20v2' }),
+        h('path', { d: 'm4.93 4.93 1.41 1.41' }),
+        h('path', { d: 'm17.66 17.66 1.41 1.41' }),
+        h('path', { d: 'M2 12h2' }),
+        h('path', { d: 'M20 12h2' }),
+        h('path', { d: 'm6.34 17.66-1.41 1.41' }),
+        h('path', { d: 'm19.07 4.93-1.41 1.41' })
+      ])
+    : h('svg', props, h('path', { d: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' }))
+}
+
 const renderGithubIcon = () =>
   h(
     'svg',
@@ -553,7 +606,7 @@ type ActionIconName =
   | 'back'
   | 'search'
 
-const renderActionIcon = (name: ActionIconName) => {
+const renderActionIcon = (name: ActionIconName, restore = false) => {
   const props = {
     width: 18,
     height: 18,
@@ -570,17 +623,28 @@ const renderActionIcon = (name: ActionIconName) => {
   if (name === 'stop') return h('svg', { ...props, fill: 'currentColor', stroke: 'none' }, h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 1.5 }))
   if (name === 'menu') return h('svg', props, [h('path', { d: 'M4 7h16' }), h('path', { d: 'M4 12h16' }), h('path', { d: 'M4 17h16' })])
   if (name === 'down') return h('svg', props, [h('path', { d: 'm6 9 6 6 6-6' })])
+  if (name === 'resize') {
+    return restore
+      ? h('svg', props, [
+          h('path', { d: 'm14 10 7-7' }),
+          h('path', { d: 'M20 10h-6V4' }),
+          h('path', { d: 'm3 21 7-7' }),
+          h('path', { d: 'M4 14v6h6' })
+        ])
+      : h('svg', props, [
+          h('path', { d: 'M15 3h6v6' }),
+          h('path', { d: 'm21 3-7 7' }),
+          h('path', { d: 'M9 21H3v-6' }),
+          h('path', { d: 'm3 21 7-7' })
+        ])
+  }
   if (name === 'activity') return h('svg', props, h('path', { d: 'M3 12h4l2.5-7 5 14 2.5-7h4' }))
   if (name === 'close') return h('svg', props, [h('path', { d: 'm6 6 12 12' }), h('path', { d: 'm18 6-12 12' })])
   if (name === 'folder') return h('svg', props, h('path', { d: 'M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' }))
   if (name === 'refresh') return h('svg', props, [h('path', { d: 'M20 6v5h-5' }), h('path', { d: 'M4 18v-5h5' }), h('path', { d: 'M6.1 9A7 7 0 0 1 18 6l2 5' }), h('path', { d: 'm4 13 2 5a7 7 0 0 0 11.9-3' })])
   if (name === 'back') return h('svg', props, [h('path', { d: 'm15 18-6-6 6-6' }), h('path', { d: 'M9 12h10' })])
   if (name === 'search') return h('svg', props, [h('circle', { cx: 11, cy: 11, r: 7 }), h('path', { d: 'm20 20-4-4' })])
-  return h('svg', props, [
-    h('path', { d: 'M5 19A14 14 0 0 0 19 5' }),
-    h('path', { d: 'M9 19A10 10 0 0 0 19 9' }),
-    h('path', { d: 'M13 19A6 6 0 0 0 19 13' })
-  ])
+  return h('svg', props)
 }
 
 type AgentStatusIconName = 'pending' | 'in_progress' | 'completed' | 'error' | 'subagent' | 'artifact'
@@ -806,7 +870,10 @@ const App = defineComponent({
     const olderMessagesCursor = ref<string>()
     const olderMessagesLoading = ref(false)
     const showScrollToBottom = ref(false)
-    const composerHeight = ref(92)
+    const composerHeight = ref(composerDefaultHeight)
+    const deleteMessageId = ref<string>()
+    const messageDeleteState = ref<'idle' | 'deleting' | 'error'>('idle')
+    const messageDeleteError = ref('')
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     const pendingChunkRetries = new Map<string, number>()
     let healthTimer: number | undefined
@@ -819,6 +886,8 @@ const App = defineComponent({
     let workspaceFileSearchTimer: number | undefined
     let workspaceFileRequestGeneration = 0
     let workspacePreviewRequestGeneration = 0
+    let workspacePptxPreviewController: AbortController | undefined
+    let workspacePptxPreviewDestroy: (() => void) | undefined
 
     const selectedConversation = computed(() =>
       conversations.value.find((conversation) => conversation.id === selectedConversationId.value)
@@ -952,8 +1021,10 @@ const App = defineComponent({
             ]),
             message.reasoning
               ? h('section', { class: 'process-section' }, [
-                  h('p', { class: 'process-section-title' }, text('reasoning')),
-                  h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
+                  h('details', { class: 'reasoning-block' }, [
+                    h('summary', text('reasoning')),
+                    h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
+                  ])
                 ])
               : undefined,
             message.toolCalls?.length
@@ -965,7 +1036,7 @@ const App = defineComponent({
           ])
         : undefined
 
-    const workspaceApiPath = (route: 'files' | 'file' | 'image', filePath = '', search = '') => {
+    const workspaceApiPath = (route: 'files' | 'file' | 'preview', filePath = '', search = '') => {
       const conversationId = selectedConversationId.value
       if (!conversationId) return undefined
       const query = new URLSearchParams()
@@ -979,14 +1050,48 @@ const App = defineComponent({
       if (error instanceof WebUiHttpError) {
         if (error.payload?.code === 'WEBUI_WORKSPACE_AUTH_REQUIRED') return text('fileAuthRequired')
         if (error.payload?.code === 'WEBUI_WORKSPACE_FILE_TOO_LARGE') return text('fileTooLarge')
-        if (error.payload?.code === 'WEBUI_WORKSPACE_IMAGE_UNSUPPORTED') return text('binaryUnavailable')
+        if (error.payload?.code === 'WEBUI_WORKSPACE_PREVIEW_UNSUPPORTED') return text('binaryUnavailable')
         if (error.payload?.code?.startsWith('WEBUI_WORKSPACE_')) return text('fileUnavailable')
       }
       return localizedErrorMessage(error)
     }
 
-    const releaseWorkspaceImagePreview = () => {
-      if (workspaceFilePreview.value.status === 'image') URL.revokeObjectURL(workspaceFilePreview.value.url)
+    const releaseWorkspacePptxPreview = () => {
+      workspacePptxPreviewController?.abort()
+      workspacePptxPreviewDestroy?.()
+      workspacePptxPreviewController = undefined
+      workspacePptxPreviewDestroy = undefined
+    }
+
+    const releaseWorkspacePreview = () => {
+      releaseWorkspacePptxPreview()
+      if (workspaceFilePreview.value.status === 'image' || workspaceFilePreview.value.status === 'pdf') {
+        URL.revokeObjectURL(workspaceFilePreview.value.url)
+      }
+    }
+
+    const mountWorkspacePptxPreview = async (container: HTMLElement, data: ArrayBuffer, filePath: string) => {
+      releaseWorkspacePptxPreview()
+      const controller = new AbortController()
+      workspacePptxPreviewController = controller
+      try {
+        const handle = await mountPptxPreview(container, data, controller.signal)
+        if (
+          controller.signal.aborted ||
+          workspacePptxPreviewController !== controller ||
+          workspaceFilePreview.value.status !== 'pptx' ||
+          workspaceFilePreview.value.path !== filePath
+        ) {
+          handle.destroy()
+          return
+        }
+        workspacePptxPreviewDestroy = handle.destroy
+      } catch (error) {
+        if (controller.signal.aborted || workspacePptxPreviewController !== controller) return
+        if (workspaceFilePreview.value.status === 'pptx' && workspaceFilePreview.value.path === filePath) {
+          workspaceFilePreview.value = { status: 'error', path: filePath, message: text('fileUnavailable') }
+        }
+      }
     }
 
     const resetWorkspaceFiles = () => {
@@ -994,7 +1099,7 @@ const App = defineComponent({
       workspacePreviewRequestGeneration += 1
       if (workspaceFileSearchTimer !== undefined) window.clearTimeout(workspaceFileSearchTimer)
       workspaceFileSearchTimer = undefined
-      releaseWorkspaceImagePreview()
+      releaseWorkspacePreview()
       workspaceDirectoryEntries.value = {}
       workspaceExpandedDirectories.value = new Set()
       workspaceFileSearch.value = ''
@@ -1085,27 +1190,51 @@ const App = defineComponent({
 
     const closeWorkspaceFilePreview = () => {
       workspacePreviewRequestGeneration += 1
-      releaseWorkspaceImagePreview()
+      releaseWorkspacePreview()
       selectedWorkspaceFile.value = ''
       workspaceFilePreview.value = { status: 'idle' }
     }
 
     const openWorkspaceFile = async (filePath: string) => {
       const previewKind = getWorkspaceFilePreviewKind(filePath)
-      const apiPath = workspaceApiPath(previewKind === 'image' ? 'image' : 'file', filePath)
+      const isBinaryPreview =
+        previewKind === 'image' || previewKind === 'pdf' || previewKind === 'docx' || previewKind === 'pptx'
+      const apiPath = workspaceApiPath(isBinaryPreview ? 'preview' : 'file', filePath)
       if (!apiPath) return
 
-      releaseWorkspaceImagePreview()
+      releaseWorkspacePreview()
       selectedWorkspaceFile.value = filePath
       workspaceFilePreview.value = { status: 'loading', path: filePath }
       const requestGeneration = ++workspacePreviewRequestGeneration
       const conversationId = selectedConversationId.value
       try {
-        if (previewKind === 'image') {
+        if (isBinaryPreview) {
           const blob = await httpClient.getBlob(apiPath)
           if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+          if (previewKind === 'docx') {
+            const rendered = await renderDocxPreviewHtml(blob)
+            if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+            workspaceFilePreview.value = {
+              status: 'docx',
+              path: filePath,
+              name: getWorkspacePathBasename(filePath),
+              ...rendered
+            }
+            return
+          }
+          if (previewKind === 'pptx') {
+            const data = await blob.arrayBuffer()
+            if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+            workspaceFilePreview.value = {
+              status: 'pptx',
+              path: filePath,
+              name: getWorkspacePathBasename(filePath),
+              data
+            }
+            return
+          }
           workspaceFilePreview.value = {
-            status: 'image',
+            status: previewKind,
             path: filePath,
             name: getWorkspacePathBasename(filePath),
             url: URL.createObjectURL(blob)
@@ -1352,27 +1481,59 @@ const App = defineComponent({
               ? h('p', { class: 'workspace-files-state workspace-files-state-error' }, preview.message)
               : preview.status === 'binary'
                 ? h('p', { class: 'workspace-files-state' }, text('binaryUnavailable'))
-                : preview.status === 'image'
-                  ? h('img', {
-                      class: 'workspace-image-preview',
-                      src: preview.url,
-                      alt: preview.name,
-                      onError: () => {
-                        URL.revokeObjectURL(preview.url)
-                        workspaceFilePreview.value = {
-                          status: 'error',
-                          path: preview.path,
-                          message: text('fileUnavailable')
-                        }
-                      }
-                    })
-                  : previewKind === 'markdown'
-                    ? h('div', { class: 'workspace-markdown-preview markdown-content', innerHTML: renderMarkdown(preview.content) })
-                    : h('pre', { class: 'workspace-code-preview hljs' },
-                        h('code', {
-                          innerHTML: renderCode(preview.content, getWorkspaceCodeLanguage(preview.path))
-                        })
+                : preview.status === 'pptx'
+                  ? h(
+                      'div',
+                      {
+                        class: 'workspace-pptx-preview-stage',
+                        role: 'document',
+                        tabindex: 0,
+                        'aria-label': preview.name,
+                        onVnodeMounted: (vnode: VNode) => {
+                          if (vnode.el instanceof HTMLElement) {
+                            void mountWorkspacePptxPreview(vnode.el, preview.data, preview.path)
+                          }
+                        },
+                        onVnodeBeforeUnmount: releaseWorkspacePptxPreview
+                      },
+                      h(
+                        'p',
+                        { class: 'workspace-pptx-preview-loading', 'data-pptx-preview-loading': '', role: 'status' },
+                        text('loadingFiles')
                       )
+                    )
+                : preview.status === 'docx'
+                  ? h('div', { class: 'workspace-docx-preview-scroll' }, [
+                      h('div', { class: 'workspace-docx-preview-style', innerHTML: preview.styleHtml }),
+                      h('div', { class: 'workspace-docx-preview', innerHTML: preview.bodyHtml })
+                    ])
+                : preview.status === 'pdf'
+                  ? h('iframe', {
+                      class: 'workspace-pdf-preview',
+                      src: preview.url,
+                      title: preview.name
+                    })
+                  : preview.status === 'image'
+                    ? h('img', {
+                        class: 'workspace-image-preview',
+                        src: preview.url,
+                        alt: preview.name,
+                        onError: () => {
+                          URL.revokeObjectURL(preview.url)
+                          workspaceFilePreview.value = {
+                            status: 'error',
+                            path: preview.path,
+                            message: text('fileUnavailable')
+                          }
+                        }
+                      })
+                    : previewKind === 'markdown'
+                      ? h('div', { class: 'workspace-markdown-preview markdown-content', innerHTML: renderMarkdown(preview.content) })
+                      : h('pre', { class: 'workspace-code-preview hljs' },
+                          h('code', {
+                            innerHTML: renderCode(preview.content, getWorkspaceCodeLanguage(preview.path))
+                          })
+                        )
         ])
       ])
     }
@@ -1755,7 +1916,7 @@ const App = defineComponent({
         void loadConversations()
         const selectedId = selectedConversationId.value
         if (selectedId && (!conversationId || conversationId === selectedId)) {
-          if (reason === 'stream-terminal' || reason === 'message-submitted') {
+          if (reason === 'stream-terminal' || reason === 'message-submitted' || reason === 'message-deleted') {
             void loadConversationMessages(selectedId, 'refresh')
           }
           refreshComposerInfo(selectedId)
@@ -1902,11 +2063,15 @@ const App = defineComponent({
     }
 
     const beginComposerResize = (event: PointerEvent) => {
+      if (event.button !== 0) return
       event.preventDefault()
       const startY = event.clientY
       const startHeight = composerHeight.value
       const onMove = (moveEvent: PointerEvent) => {
-        composerHeight.value = Math.max(76, Math.min(220, startHeight + startY - moveEvent.clientY))
+        composerHeight.value = Math.max(
+          composerMinHeight,
+          Math.min(composerMaxHeight, startHeight + startY - moveEvent.clientY)
+        )
       }
       const onEnd = () => {
         window.removeEventListener('pointermove', onMove)
@@ -1914,6 +2079,22 @@ const App = defineComponent({
       }
       window.addEventListener('pointermove', onMove)
       window.addEventListener('pointerup', onEnd, { once: true })
+    }
+
+    const handleComposerResizeKeydown = (event: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return
+      event.preventDefault()
+      if (event.key === 'Home') {
+        composerHeight.value = composerDefaultHeight
+        return
+      }
+      const delta = event.key === 'ArrowUp' ? composerKeyboardStep : -composerKeyboardStep
+      composerHeight.value = Math.max(composerMinHeight, Math.min(composerMaxHeight, composerHeight.value + delta))
+    }
+
+    const toggleComposerHeight = () => {
+      composerHeight.value =
+        composerHeight.value === composerDefaultHeight ? composerMaxHeight : composerDefaultHeight
     }
 
     const addAttachments = (selectedFiles: FileList | null) => {
@@ -2000,6 +2181,43 @@ const App = defineComponent({
         fallback.select()
         document.execCommand('copy')
         fallback.remove()
+      }
+    }
+
+    const openDeleteMessage = (messageId: string) => {
+      if (activeRunConversationId.value === selectedConversationId.value) return
+      deleteMessageId.value = messageId
+      messageDeleteState.value = 'idle'
+      messageDeleteError.value = ''
+    }
+
+    const closeDeleteMessage = () => {
+      if (messageDeleteState.value === 'deleting') return
+      deleteMessageId.value = undefined
+      messageDeleteState.value = 'idle'
+      messageDeleteError.value = ''
+    }
+
+    const confirmDeleteMessage = async () => {
+      const conversationId = selectedConversationId.value
+      const messageId = deleteMessageId.value
+      if (!conversationId || !messageId || messageDeleteState.value === 'deleting') return
+      if (activeRunConversationId.value === conversationId) return
+
+      messageDeleteState.value = 'deleting'
+      messageDeleteError.value = ''
+      try {
+        await httpClient.deleteJson(
+          `/api/data/agent-sessions/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`
+        )
+        messages.value = messages.value.filter((message) => message.id !== messageId)
+        deleteMessageId.value = undefined
+        messageDeleteState.value = 'idle'
+        messageLoadMessage.value = messages.value.length ? '' : text('emptyConversation')
+        await Promise.all([loadConversationMessages(conversationId, 'refresh'), loadConversations()])
+      } catch (error) {
+        messageDeleteState.value = 'error'
+        messageDeleteError.value = localizedErrorMessage(error)
       }
     }
 
@@ -2137,7 +2355,7 @@ const App = defineComponent({
     onBeforeUnmount(() => {
       clearStatusPreviewTimers()
       if (workspaceFileSearchTimer !== undefined) window.clearTimeout(workspaceFileSearchTimer)
-      releaseWorkspaceImagePreview()
+      releaseWorkspacePreview()
       if (healthTimer) window.clearInterval(healthTimer)
       if (contextUsageTimer) window.clearInterval(contextUsageTimer)
       if (syncTimer) window.clearTimeout(syncTimer)
@@ -2257,13 +2475,17 @@ const App = defineComponent({
                     )
                   : undefined
               ]),
-              h('button', {
-                class: ['panel-icon-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
-                type: 'button',
-                title: themeToggleLabel.value,
-                'aria-label': themeToggleLabel.value,
-                onClick: toggleThemeMode
-              })
+              h(
+                'button',
+                {
+                  class: ['panel-icon-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
+                  type: 'button',
+                  title: themeToggleLabel.value,
+                  'aria-label': themeToggleLabel.value,
+                  onClick: toggleThemeMode
+                },
+                renderThemeIcon(themeMode.value)
+              )
             ]),
             h(
               'button',
@@ -2348,6 +2570,29 @@ const App = defineComponent({
             ]),
             h('div', { class: 'mobile-chat-actions' }, [
               h(
+                'button',
+                {
+                  class: [
+                    'agent-status-shortcut',
+                    'workspace-files-shortcut',
+                    { 'agent-status-shortcut-active': statusPanelOpen.value && rightPanelTab.value === 'files' }
+                  ],
+                  type: 'button',
+                  disabled: !selectedConversation.value,
+                  title: text('files'),
+                  'aria-label': text('files'),
+                  'aria-expanded': statusPanelOpen.value && rightPanelTab.value === 'files',
+                  onClick: () => {
+                    if (statusPanelOpen.value && rightPanelTab.value === 'files') {
+                      statusPanelOpen.value = false
+                      return
+                    }
+                    openFilesPanel()
+                  }
+                },
+                renderActionIcon('folder')
+              ),
+              h(
                 'div',
                 {
                   class: 'agent-status-shortcut-wrap',
@@ -2392,29 +2637,6 @@ const App = defineComponent({
                     : undefined
                 ]
               ),
-              h(
-                'button',
-                {
-                  class: [
-                    'agent-status-shortcut',
-                    'workspace-files-shortcut',
-                    { 'agent-status-shortcut-active': statusPanelOpen.value && rightPanelTab.value === 'files' }
-                  ],
-                  type: 'button',
-                  disabled: !selectedConversation.value,
-                  title: text('files'),
-                  'aria-label': text('files'),
-                  'aria-expanded': statusPanelOpen.value && rightPanelTab.value === 'files',
-                  onClick: () => {
-                    if (statusPanelOpen.value && rightPanelTab.value === 'files') {
-                      statusPanelOpen.value = false
-                      return
-                    }
-                    openFilesPanel()
-                  }
-                },
-                renderActionIcon('folder')
-              ),
               h('span', {
                 class: ['mobile-bridge-indicator', `mobile-bridge-indicator-${bridgeState.value}`],
                 role: 'status',
@@ -2447,17 +2669,42 @@ const App = defineComponent({
                 [
                   h('header', { class: 'message-header' }, [
                     h('p', { class: 'message-role' }, messageAuthorName(message.role)),
-                    message.content
-                      ? h(
-                          'button',
-                          {
-                            class: 'copy-button',
-                            type: 'button',
-                            onClick: () => void copyText(message.content)
-                          },
-                          text('copy')
-                        )
-                      : undefined
+                    h('div', { class: 'message-actions' }, [
+                      message.content
+                        ? h(
+                            'button',
+                            {
+                              class: 'message-action-button',
+                              type: 'button',
+                              title: text('copy'),
+                              'aria-label': text('copy'),
+                              onClick: () => void copyText(message.content)
+                            },
+                            h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
+                              h('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
+                              h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
+                            ])
+                          )
+                        : undefined,
+                      h(
+                        'button',
+                        {
+                          class: ['message-action-button', 'message-delete-button'],
+                          type: 'button',
+                          disabled: activeRunConversationId.value === selectedConversationId.value,
+                          title: text('delete'),
+                          'aria-label': text('delete'),
+                          onClick: () => openDeleteMessage(message.id)
+                        },
+                        h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
+                          h('path', { d: 'M3 6h18' }),
+                          h('path', { d: 'M8 6V4h8v2' }),
+                          h('path', { d: 'm19 6-1 14H6L5 6' }),
+                          h('path', { d: 'M10 11v5' }),
+                          h('path', { d: 'M14 11v5' })
+                        ])
+                      )
+                    ])
                   ]),
                   renderProcessDetails(message),
                   message.attachments?.length
@@ -2546,19 +2793,33 @@ const App = defineComponent({
                   }
                 }
               }),
+              h('div', {
+                class: 'composer-resize-handle',
+                role: 'separator',
+                tabindex: 0,
+                title: text('resizeComposer'),
+                'aria-label': text('resizeComposer'),
+                'aria-orientation': 'horizontal',
+                'aria-valuemin': composerMinHeight,
+                'aria-valuemax': composerMaxHeight,
+                'aria-valuenow': composerHeight.value,
+                onPointerdown: beginComposerResize,
+                onKeydown: handleComposerResizeKeydown,
+                onDblclick: () => {
+                  composerHeight.value = composerDefaultHeight
+                }
+              }),
               h(
                 'button',
                 {
-                  class: 'composer-resize-handle',
+                  class: 'composer-expand-control',
                   type: 'button',
                   title: text('resizeComposer'),
                   'aria-label': text('resizeComposer'),
-                  onPointerdown: beginComposerResize,
-                  onDblclick: () => {
-                    composerHeight.value = 92
-                  }
+                  'aria-pressed': composerHeight.value !== composerDefaultHeight,
+                  onClick: toggleComposerHeight
                 },
-                renderActionIcon('resize')
+                renderActionIcon('resize', composerHeight.value !== composerDefaultHeight)
               ),
               h('div', { class: 'composer-toolbar' }, [
                 h('div', { class: 'composer-tools' }, [
@@ -2889,6 +3150,70 @@ const App = defineComponent({
                 ])
               ])
             ])
+          : undefined,
+        deleteMessageId.value
+          ? h('div', { class: 'modal-backdrop', onClick: closeDeleteMessage }, [
+              h(
+                'section',
+                {
+                  class: 'new-conversation-dialog delete-message-dialog',
+                  role: 'dialog',
+                  'aria-modal': 'true',
+                  'aria-labelledby': 'delete-message-title',
+                  'aria-describedby': 'delete-message-description',
+                  onClick: (event: MouseEvent) => event.stopPropagation(),
+                  onKeydown: (event: KeyboardEvent) => {
+                    if (event.key === 'Escape') closeDeleteMessage()
+                  }
+                },
+                [
+                  h('header', { class: 'dialog-header' }, [
+                    h('h2', { id: 'delete-message-title' }, text('deleteMessage')),
+                    h(
+                      'button',
+                      {
+                        class: 'icon-button',
+                        type: 'button',
+                        disabled: messageDeleteState.value === 'deleting',
+                        title: text('close'),
+                        'aria-label': text('close'),
+                        onClick: closeDeleteMessage
+                      },
+                      renderActionIcon('close')
+                    )
+                  ]),
+                  h('p', { id: 'delete-message-description', class: 'dialog-description' }, text('deleteMessageDescription')),
+                  messageDeleteError.value
+                    ? h('p', { class: 'composer-error', role: 'alert' }, messageDeleteError.value)
+                    : undefined,
+                  h('footer', { class: 'dialog-actions' }, [
+                    h(
+                      'button',
+                      {
+                        class: 'secondary-button',
+                        type: 'button',
+                        disabled: messageDeleteState.value === 'deleting',
+                        autofocus: true,
+                        onClick: closeDeleteMessage
+                      },
+                      text('cancel')
+                    ),
+                    h(
+                      'button',
+                      {
+                        class: 'primary-button danger-button',
+                        type: 'button',
+                        disabled:
+                          messageDeleteState.value === 'deleting' ||
+                          activeRunConversationId.value === selectedConversationId.value,
+                        onClick: () => void confirmDeleteMessage()
+                      },
+                      messageDeleteState.value === 'deleting' ? text('deleting') : text('delete')
+                    )
+                  ])
+                ]
+              )
+            ])
           : undefined
         ]
       )
@@ -2902,6 +3227,23 @@ style.textContent = `
     --webui-scrollbar-thumb: #cbd5e1;
     --webui-scrollbar-thumb-hover: #94a3b8;
     --webui-scrollbar-track: transparent;
+    --webui-code-bg: #f8fafc;
+    --webui-code-fg: #24292f;
+    --webui-code-border: #e5e7eb;
+    --webui-code-comment: #6a737d;
+    --webui-code-keyword: #a626a4;
+    --webui-code-entity: #4078f2;
+    --webui-code-literal: #986801;
+    --webui-code-string: #50a14f;
+    --webui-code-variable: #e45649;
+    --webui-code-meta: #383a42;
+    --webui-code-built-in: #c18401;
+    --webui-code-addition: #22863a;
+    --webui-code-addition-bg: #f0fff4;
+    --webui-code-deletion: #b31d28;
+    --webui-code-deletion-bg: #ffeef0;
+    --webui-inline-code-bg: #fff1f2;
+    --webui-inline-code-fg: #9f1239;
     color: #1f2937;
     background: #f6f7fb;
     font-family:
@@ -3086,14 +3428,10 @@ style.textContent = `
     outline: 0;
   }
 
-  .theme-toggle-button::after {
-    font-size: 17px;
-    line-height: 1;
-    content: '\\263c';
-  }
-
-  .theme-toggle-button-dark::after {
-    content: '\\263e';
+  .theme-toggle-button svg {
+    display: block;
+    width: 18px;
+    height: 18px;
   }
 
   .language-menu-wrap {
@@ -3184,6 +3522,13 @@ style.textContent = `
     width: 40px;
     padding: 0;
     font-size: 22px;
+  }
+
+  .icon-button svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin: auto;
   }
 
   button:disabled,
@@ -3331,12 +3676,12 @@ style.textContent = `
 
   .context-orb {
     display: grid;
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     flex: 0 0 auto;
     place-items: center;
     color: #334155;
-    font-size: 11px;
+    font-size: 10px;
     font-variant-numeric: tabular-nums;
     font-weight: 700;
     background: radial-gradient(circle at center, #ffffff 62%, transparent 64%),
@@ -3384,14 +3729,17 @@ style.textContent = `
   }
 
   .agent-status-context-shortcut {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
+    display: flex;
+    width: 52px;
+    height: 36px;
+    gap: 4px;
+    justify-content: center;
+    border-radius: 18px;
   }
 
   .agent-status-context-shortcut .context-orb {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
   }
 
   .agent-status-shortcut:hover,
@@ -3423,6 +3771,12 @@ style.textContent = `
     top: -4px;
     right: -5px;
     box-shadow: 0 0 0 2px #f6f7fb;
+  }
+
+  .agent-status-context-shortcut .agent-status-shortcut-badge {
+    position: static;
+    flex: 0 0 auto;
+    box-shadow: none;
   }
 
   .agent-status-hover-card {
@@ -3778,6 +4132,91 @@ style.textContent = `
     object-fit: contain;
   }
 
+  .workspace-file-preview-pdf {
+    overflow: hidden;
+  }
+
+  .workspace-file-preview-docx {
+    overflow: hidden;
+  }
+
+  .workspace-file-preview-pptx {
+    overflow: hidden;
+  }
+
+  .workspace-pdf-preview {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+    border: 0;
+  }
+
+  .workspace-docx-preview-scroll {
+    width: 100%;
+    height: 100%;
+    padding: 14px;
+    overflow: auto;
+    background: #e2e8f0;
+  }
+
+  .workspace-docx-preview-style {
+    display: none;
+  }
+
+  .workspace-docx-preview {
+    width: max-content;
+    min-width: 100%;
+    color: #111827;
+    transform-origin: top left;
+    zoom: 0.48;
+  }
+
+  .workspace-docx-preview .docx-preview-wrapper {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .workspace-docx-preview section.docx-preview {
+    margin: 0 auto 18px !important;
+    box-shadow: 0 10px 30px rgb(15 23 42 / 16%);
+  }
+
+  .workspace-pptx-preview-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 14px;
+    overflow: auto;
+    background: #e2e8f0;
+    outline: 0;
+  }
+
+  .workspace-pptx-preview-stage:focus-visible {
+    box-shadow: inset 0 0 0 2px rgb(37 99 235 / 40%);
+  }
+
+  .workspace-pptx-preview-loading {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 50%;
+    margin: 0;
+    padding: 8px 12px;
+    color: #475569;
+    font-size: 12px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+    transform: translate(-50%, -50%);
+  }
+
+  .workspace-pptx-viewer {
+    width: 100%;
+    min-height: 100%;
+  }
+
   .workspace-markdown-preview {
     padding: 16px;
     font-size: 13px;
@@ -3788,11 +4227,11 @@ style.textContent = `
     min-height: 100%;
     margin: 0;
     padding: 14px;
-    color: #334155;
+    color: var(--webui-code-fg);
     font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
     font-size: 11px;
     line-height: 1.65;
-    background: #f8fafc;
+    background: var(--webui-code-bg);
     white-space: pre;
     tab-size: 2;
   }
@@ -4095,14 +4534,65 @@ style.textContent = `
     justify-content: space-between;
   }
 
-  .copy-button {
-    padding: 2px 6px;
-    color: inherit;
-    font-size: 12px;
+  .message-actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+
+  .message:hover .message-actions,
+  .message:focus-within .message-actions {
+    opacity: 1;
+  }
+
+  .message-action-button {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    place-items: center;
+    color: currentColor;
     background: transparent;
     border: 0;
+    border-radius: 6px;
     cursor: pointer;
-    opacity: 0.72;
+    opacity: 0.62;
+    transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+  }
+
+  .message-action-button svg {
+    display: block;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .message-action-button:hover,
+  .message-action-button:focus-visible {
+    background: rgb(15 23 42 / 8%);
+    outline: 0;
+    opacity: 1;
+  }
+
+  .user-message .message-action-button:hover,
+  .user-message .message-action-button:focus-visible {
+    background: rgb(255 255 255 / 16%);
+  }
+
+  .message-delete-button:hover,
+  .message-delete-button:focus-visible {
+    color: #b42318;
+  }
+
+  .user-message .message-delete-button:hover,
+  .user-message .message-delete-button:focus-visible {
+    color: #fecaca;
   }
 
   .markdown-content {
@@ -4121,16 +4611,100 @@ style.textContent = `
     max-width: 100%;
     padding: 12px;
     overflow-x: auto;
-    color: #e5e7eb;
-    background: #17191f;
+    color: var(--webui-code-fg);
+    background: var(--webui-code-bg);
+    border: 1px solid var(--webui-code-border);
     border-radius: 6px;
+  }
+
+  .markdown-content pre code,
+  .hljs {
+    color: var(--webui-code-fg);
+    background: transparent;
   }
 
   .markdown-content code:not(pre code) {
     padding: 2px 5px;
-    color: #9f1239;
-    background: #fff1f2;
+    color: var(--webui-inline-code-fg);
+    background: var(--webui-inline-code-bg);
     border-radius: 4px;
+  }
+
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--webui-code-comment);
+    font-style: italic;
+  }
+
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-doctag,
+  .hljs-meta .hljs-keyword {
+    color: var(--webui-code-keyword);
+  }
+
+  .hljs-title,
+  .hljs-title.function_,
+  .hljs-section,
+  .hljs-selector-id {
+    color: var(--webui-code-entity);
+  }
+
+  .hljs-attribute,
+  .hljs-type,
+  .hljs-literal,
+  .hljs-number,
+  .hljs-symbol,
+  .hljs-bullet {
+    color: var(--webui-code-literal);
+  }
+
+  .hljs-string,
+  .hljs-regexp,
+  .hljs-link {
+    color: var(--webui-code-string);
+  }
+
+  .hljs-variable,
+  .hljs-template-variable,
+  .hljs-selector-class,
+  .hljs-selector-attr,
+  .hljs-selector-pseudo {
+    color: var(--webui-code-variable);
+  }
+
+  .hljs-subst,
+  .hljs-params {
+    color: var(--webui-code-fg);
+  }
+
+  .hljs-meta,
+  .hljs-built_in,
+  .hljs-code,
+  .hljs-formula {
+    color: var(--webui-code-meta);
+  }
+
+  .hljs-built_in {
+    color: var(--webui-code-built-in);
+  }
+
+  .hljs-addition {
+    color: var(--webui-code-addition);
+    background: var(--webui-code-addition-bg);
+  }
+
+  .hljs-deletion {
+    color: var(--webui-code-deletion);
+    background: var(--webui-code-deletion-bg);
+  }
+
+  .hljs-emphasis {
+    font-style: italic;
+  }
+
+  .hljs-strong {
+    font-weight: 700;
   }
 
   .markdown-content a {
@@ -4168,7 +4742,7 @@ style.textContent = `
     border-radius: 7px;
   }
 
-  .process-block summary {
+  .process-block > summary {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -4178,11 +4752,11 @@ style.textContent = `
     list-style: none;
   }
 
-  .process-block summary::-webkit-details-marker {
+  .process-block > summary::-webkit-details-marker {
     display: none;
   }
 
-  .process-block[open] summary {
+  .process-block[open] > summary {
     border-bottom: 1px solid #e5e7eb;
   }
 
@@ -4220,6 +4794,10 @@ style.textContent = `
     color: #6b7280;
     font-size: 12px;
     font-weight: 700;
+  }
+
+  .process-section .reasoning-block {
+    margin: 0;
   }
 
   .reasoning-block {
@@ -4424,7 +5002,7 @@ style.textContent = `
 
   .composer-surface textarea {
     display: block;
-    min-height: 100px;
+    min-height: 76px;
     padding: 14px 14px 8px;
     resize: none;
     border: 0;
@@ -4435,25 +5013,92 @@ style.textContent = `
   .composer-resize-handle {
     position: absolute;
     z-index: 2;
-    top: -1px;
-    right: -1px;
-    display: grid;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    place-items: start end;
-    color: #94a3b8;
-    background: transparent;
-    border: 0;
-    border-radius: 0 18px 0 0;
-    cursor: ns-resize;
+    top: 0;
+    right: 16px;
+    left: 16px;
+    height: 8px;
+    cursor: row-resize;
+    outline: 0;
     touch-action: none;
   }
 
-  .composer-resize-handle svg {
+  .composer-resize-handle::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 2px;
+    content: '';
+    background: rgb(37 99 235 / 20%);
+    border-radius: 999px;
+    opacity: 0;
+    transition: opacity 160ms ease, background 160ms ease;
+  }
+
+  .composer-resize-handle:hover::after,
+  .composer-resize-handle:focus-visible::after {
+    background: rgb(37 99 235 / 35%);
+    opacity: 1;
+  }
+
+  .composer-expand-control {
+    position: absolute;
+    z-index: 4;
+    top: 4px;
+    right: 4px;
+    display: grid;
     width: 24px;
     height: 24px;
-    stroke-width: 1.5;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 180ms ease, background 180ms ease;
+  }
+
+  .composer-expand-control::before {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 13px;
+    height: 13px;
+    content: '';
+    border-top: 1.5px solid currentColor;
+    border-right: 1.5px solid currentColor;
+    border-radius: 0 16px 0 0;
+    opacity: 0.7;
+    transform-origin: top right;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .composer-expand-control svg {
+    width: 12px;
+    height: 12px;
+    opacity: 0;
+    transform: translate(6px, -6px) rotate(-8deg) scale(0.8);
+    transition: opacity 180ms ease, transform 220ms ease;
+  }
+
+  .composer-expand-control:hover,
+  .composer-expand-control:focus-visible {
+    color: #0f172a;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .composer-expand-control:hover::before,
+  .composer-expand-control:focus-visible::before {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  .composer-expand-control:hover svg,
+  .composer-expand-control:focus-visible svg {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(1);
   }
 
   .composer-toolbar {
@@ -4766,6 +5411,13 @@ style.textContent = `
     margin-bottom: 0;
   }
 
+  .dialog-description {
+    margin: 14px 0 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
   .field-label {
     display: block;
     margin: 24px 0 8px;
@@ -4796,6 +5448,17 @@ style.textContent = `
     border: 0;
     border-radius: 8px;
     cursor: pointer;
+  }
+
+  .danger-button {
+    color: #ffffff;
+    background: #dc2626;
+  }
+
+  .danger-button:hover,
+  .danger-button:focus-visible {
+    background: #b91c1c;
+    outline: 0;
   }
 
   .status-row {
@@ -4913,8 +5576,18 @@ style.textContent = `
       color: #cbd5e1;
     }
 
+    .composer-expand-control {
+      color: #cbd5e1;
+    }
+
     .composer-tool-button:hover,
     .composer-tool-button:focus-visible {
+      color: #ffffff;
+      background: #334155;
+    }
+
+    .composer-expand-control:hover,
+    .composer-expand-control:focus-visible {
       color: #ffffff;
       background: #334155;
     }
@@ -4948,11 +5621,6 @@ style.textContent = `
     .markdown-content td,
     .markdown-content table {
       border-color: #475569;
-    }
-
-    .markdown-content code:not(pre code) {
-      color: #fecdd3;
-      background: #4c1d2b;
     }
 
     .markdown-content a {
@@ -5027,6 +5695,29 @@ style.textContent = `
     .context-orb-empty {
       background: radial-gradient(circle at center, #111827 62%, transparent 64%), #475569;
     }
+
+    .agent-status-hover-card .agent-status-section h3,
+    .agent-status-hover-card .agent-status-item-title,
+    .agent-status-hover-card .agent-status-item-state,
+    .agent-status-hover-card .agent-status-empty,
+    .agent-status-hover-card .context-usage-meta,
+    .agent-status-hover-card .context-category-list,
+    .agent-status-hover-card .context-category-list dd,
+    .status-panel .context-usage-meta,
+    .status-panel .context-category-list,
+    .status-panel .context-category-list dd {
+      color: #e5e7eb;
+    }
+
+    .workspace-pptx-preview-stage {
+      background: #0f172a;
+    }
+
+    .workspace-pptx-preview-loading {
+      color: #e5e7eb;
+      background: #1f2937;
+      border-color: #475569;
+    }
   }
 
   :root[data-webui-theme='dark'] {
@@ -5034,6 +5725,23 @@ style.textContent = `
     --webui-scrollbar-thumb: #64748b;
     --webui-scrollbar-thumb-hover: #94a3b8;
     --webui-scrollbar-track: transparent;
+    --webui-code-bg: #111827;
+    --webui-code-fg: #eeffff;
+    --webui-code-border: #334155;
+    --webui-code-comment: #6f7d9b;
+    --webui-code-keyword: #c792ea;
+    --webui-code-entity: #82aaff;
+    --webui-code-literal: #f78c6c;
+    --webui-code-string: #c3e88d;
+    --webui-code-variable: #ffcb6b;
+    --webui-code-meta: #89ddff;
+    --webui-code-built-in: #ffcb6b;
+    --webui-code-addition: #c3e88d;
+    --webui-code-addition-bg: #17351f;
+    --webui-code-deletion: #ff5370;
+    --webui-code-deletion-bg: #3f1823;
+    --webui-inline-code-bg: #331c33;
+    --webui-inline-code-fg: #ffcbf2;
     color: #e5e7eb;
     background: #111827;
     color-scheme: dark;
@@ -5065,6 +5773,16 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] .composer-toolbar::before {
+    background: #334155;
+  }
+
+  :root[data-webui-theme='dark'] .composer-expand-control {
+    color: #cbd5e1;
+  }
+
+  :root[data-webui-theme='dark'] .composer-expand-control:hover,
+  :root[data-webui-theme='dark'] .composer-expand-control:focus-visible {
+    color: #ffffff;
     background: #334155;
   }
 
@@ -5151,6 +5869,10 @@ style.textContent = `
 
   :root[data-webui-theme='dark'] .agent-status-section h3,
   :root[data-webui-theme='dark'] .agent-status-item-title,
+  :root[data-webui-theme='dark'] .agent-status-item-state,
+  :root[data-webui-theme='dark'] .agent-status-empty,
+  :root[data-webui-theme='dark'] .context-usage-meta,
+  :root[data-webui-theme='dark'] .context-category-list,
   :root[data-webui-theme='dark'] .context-category-list dd {
     color: #e5e7eb;
   }
@@ -5173,6 +5895,20 @@ style.textContent = `
   :root[data-webui-theme='dark'] .workspace-file-search,
   :root[data-webui-theme='dark'] .workspace-file-preview,
   :root[data-webui-theme='dark'] .workspace-code-preview {
+    color: #e5e7eb;
+    background: #1f2937;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-docx-preview-scroll {
+    background: #0f172a;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-pptx-preview-stage {
+    background: #0f172a;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-pptx-preview-loading {
     color: #e5e7eb;
     background: #1f2937;
     border-color: #475569;
@@ -5375,10 +6111,6 @@ style.textContent = `
       order: 1;
     }
 
-    .mobile-chat-actions .context-orb {
-      order: 2;
-    }
-
     .mobile-sidebar-button {
       display: grid;
       width: 36px;
@@ -5508,6 +6240,10 @@ style.textContent = `
 
     .message-header {
       gap: 8px;
+    }
+
+    .workspace-docx-preview {
+      zoom: 0.4;
     }
 
     .slash-command-menu {
