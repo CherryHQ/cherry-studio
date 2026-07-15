@@ -646,8 +646,9 @@
       }
     },
     "speed": {
+      "effort": "Effort",
       "fast": "Fast",
-      "fast_description": "Faster responses use more credits.",
+      "label": "Speed",
       "reasoning": "Reasoning effort",
       "title": "Response settings"
     },

@@ -1,14 +1,38 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Slider } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  Slider
+} from '@cherrystudio/ui'
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
 import type { Model } from '@shared/data/types/model'
-import { ChevronDown, ChevronLeft, ChevronRight, Gauge, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, Gauge, Zap } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const AGENT_EFFORTS = new Set<AgentReasoningEffort>(AGENT_REASONING_EFFORTS)
-const AGENT_SPEED_POPOVER_WIDTHS = ['w-64', 'w-64', 'w-56', 'w-64', 'w-72', 'w-80'] as const
+const AGENT_EFFORT_ORDER: readonly AgentReasoningEffort[] = [
+  'auto',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'ultra'
+]
 type DisplayReasoningEffort = AgentReasoningEffort | 'default'
-type ManualReasoningEffort = Exclude<AgentReasoningEffort, 'none' | 'auto'>
+type ManualReasoningEffort = Exclude<AgentReasoningEffort, 'auto' | 'none'>
 
 const EFFORT_LABEL_KEYS: Record<DisplayReasoningEffort, string> = {
   default: 'assistants.settings.reasoning_effort.default',
@@ -68,162 +92,199 @@ export function AgentSpeedControl({
   const { t } = useTranslation()
   const [showAdvanced, setShowAdvanced] = useState(false)
   const isSupported = supportsAgentSpeedControl(model)
-  const supportedEfforts = useMemo(() => getAgentReasoningEfforts(model), [model])
-  const sliderEfforts = useMemo(() => supportedEfforts.filter((effort) => effort !== 'auto'), [supportedEfforts])
-  const manualEfforts = useMemo(
-    () => sliderEfforts.filter((effort): effort is ManualReasoningEffort => effort !== 'none'),
-    [sliderEfforts]
+  const supportedEfforts = useMemo(() => {
+    const declaredEfforts = new Set(getAgentReasoningEfforts(model))
+    return AGENT_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
+  }, [model])
+  const automaticEfforts = supportedEfforts.filter((effort) => effort === 'auto' || effort === 'none')
+  const manualEfforts = supportedEfforts.filter(
+    (effort): effort is ManualReasoningEffort => effort !== 'auto' && effort !== 'none'
   )
-  const supportsAuto = supportedEfforts.includes('auto')
-  const isAutomatic = reasoningEffort === 'auto'
-  const showEffortSlider = sliderEfforts.length > 1
   const defaultManualEffort =
     manualEfforts.find((effort) => effort === model.reasoning?.defaultEffort) ??
     (manualEfforts.includes('medium') ? 'medium' : manualEfforts[Math.floor(manualEfforts.length / 2)])
   const currentManualEffort = manualEfforts.find((effort) => effort === reasoningEffort)
   const lastManualEffortRef = useRef<ManualReasoningEffort | undefined>(currentManualEffort ?? defaultManualEffort)
-  const selectedSliderEffort =
-    sliderEfforts.find((effort) => effort === reasoningEffort) ??
-    manualEfforts.find((effort) => effort === lastManualEffortRef.current) ??
-    defaultManualEffort ??
-    sliderEfforts[0]
+  const selectedManualEffort =
+    currentManualEffort ?? manualEfforts.find((effort) => effort === lastManualEffortRef.current) ?? defaultManualEffort
+  const showEffortSlider = manualEfforts.length > 1
   const currentIndex = Math.max(
     0,
-    sliderEfforts.findIndex((effort) => effort === selectedSliderEffort)
+    manualEfforts.findIndex((effort) => effort === selectedManualEffort)
   )
   const supportsFast = onFastModeChange !== undefined && supportsAgentFastMode(model)
-  const popoverWidthClass = AGENT_SPEED_POPOVER_WIDTHS[Math.min(sliderEfforts.length, 5)]
 
   if (!isSupported) return null
 
   const effortLabel = t(EFFORT_LABEL_KEYS[reasoningEffort])
   const selectReasoningEffort = (effort: AgentReasoningEffort) => {
-    if (effort !== 'none' && effort !== 'auto') lastManualEffortRef.current = effort
+    if (effort !== 'auto' && effort !== 'none') lastManualEffortRef.current = effort
     onReasoningEffortChange(effort)
-  }
-  const toggleAutomatic = () => {
-    const previousManualEffort = manualEfforts.find((effort) => effort === lastManualEffortRef.current)
-    const fallbackManualEffort = previousManualEffort ?? defaultManualEffort
-    if (isAutomatic && fallbackManualEffort) {
-      selectReasoningEffort(fallbackManualEffort)
-      return
-    }
-    if (isAutomatic && supportedEfforts.includes('none')) {
-      selectReasoningEffort('none')
-      return
-    }
-    selectReasoningEffort('auto')
   }
 
   return (
-    <Popover onOpenChange={(open) => !open && setShowAdvanced(false)}>
-      <PopoverTrigger asChild>
+    <DropdownMenu onOpenChange={(open) => !open && setShowAdvanced(false)}>
+      <DropdownMenuTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 rounded-full px-2 text-muted-foreground text-xs hover:text-foreground"
+          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
           aria-label={t('agent.speed.title')}>
-          <Gauge size={14} />
+          <Gauge size={14} className="shrink-0" />
           <span>{effortLabel}</span>
           {fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
-          <ChevronDown size={12} />
+          <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent side="top" align="end" className={`${popoverWidthClass} p-4`}>
-        {showAdvanced ? (
-          <>
-            <div className="flex items-center gap-1">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="w-56 overflow-hidden rounded-md border-frame-border p-1.5 text-xs shadow-xl">
+        <AnimatePresence initial={false} mode="wait">
+          {showAdvanced ? (
+            <motion.div
+              key="advanced"
+              initial={{ x: 10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 10, opacity: 0 }}
+              transition={{ duration: 0.14, ease: 'easeOut' }}>
+              <div className="flex h-10 items-center px-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1 px-0 text-muted-foreground text-xs hover:bg-transparent hover:text-foreground"
+                  aria-label={t('common.back')}
+                  onClick={() => setShowAdvanced(false)}>
+                  <span>{t('common.advanced_settings')}</span>
+                  <ChevronRight size={15} />
+                </Button>
+                {supportsFast ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className={`ml-auto rounded-full ${fastMode ? 'text-primary hover:text-primary' : ''}`}
+                    aria-label={t('agent.speed.fast')}
+                    aria-pressed={Boolean(fastMode)}
+                    onClick={() => onFastModeChange?.(!fastMode)}>
+                    <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
+                  </Button>
+                ) : null}
+              </div>
+              {showEffortSlider ? (
+                <div className="relative mx-2.5 mt-1 mb-2 h-8">
+                  <Slider
+                    thumbAriaLabel={t('agent.speed.reasoning')}
+                    getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[manualEfforts[index]])}
+                    value={[currentIndex]}
+                    min={0}
+                    max={manualEfforts.length - 1}
+                    step={1}
+                    size="lg"
+                    className="h-8 [&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-8 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]:hover]:ring-0 [&_[data-slot=slider-track]]:h-6 [&_[data-slot=slider-track]]:bg-muted-foreground/30"
+                    onValueChange={([index]) => {
+                      const effort = manualEfforts[index]
+                      if (effort) selectReasoningEffort(effort)
+                    }}
+                  />
+                  <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
+                    {manualEfforts.map((effort, index) => (
+                      <span
+                        key={effort}
+                        className={`absolute size-1 -translate-x-1/2 -translate-y-1/2 rounded-full ${
+                          index <= currentIndex ? 'bg-white/75' : 'bg-muted-foreground'
+                        }`}
+                        style={{ left: `${(index / (manualEfforts.length - 1)) * 100}%` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : manualEfforts.length === 1 ? (
+                <div className="px-2.5 py-2 text-xs">{t(EFFORT_LABEL_KEYS[manualEfforts[0]])}</div>
+              ) : null}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="settings"
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -10, opacity: 0 }}
+              transition={{ duration: 0.14, ease: 'easeOut' }}>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="h-8 rounded-sm px-2 text-xs [&>svg:last-child]:ml-1">
+                  <span>{t('agent.speed.effort')}</span>
+                  <span className="ml-auto text-muted-foreground">{effortLabel}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  data-testid="agent-effort-menu"
+                  className="w-52 rounded-md border-frame-border p-1.5 text-xs shadow-xl">
+                  <DropdownMenuLabel className="px-2 py-1 font-normal text-[11px] text-muted-foreground">
+                    {t('agent.speed.effort')}
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={reasoningEffort}
+                    onValueChange={(effort) => selectReasoningEffort(effort as AgentReasoningEffort)}>
+                    {automaticEfforts.map((effort) => (
+                      <DropdownMenuRadioItem key={effort} value={effort} className="h-8 rounded-sm pr-2 pl-8 text-xs">
+                        {t(EFFORT_LABEL_KEYS[effort])}
+                      </DropdownMenuRadioItem>
+                    ))}
+                    {automaticEfforts.length > 0 && manualEfforts.length > 0 ? (
+                      <DropdownMenuSeparator className="my-1" />
+                    ) : null}
+                    {manualEfforts.map((effort) => (
+                      <DropdownMenuRadioItem key={effort} value={effort} className="h-8 rounded-sm pr-2 pl-8 text-xs">
+                        {t(EFFORT_LABEL_KEYS[effort])}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              {supportsFast ? (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="h-8 rounded-sm px-2 text-xs [&>svg:last-child]:ml-1">
+                    <span>{t('agent.speed.label')}</span>
+                    <span className="ml-auto text-muted-foreground">
+                      {fastMode ? t('agent.speed.fast') : t('common.default')}
+                    </span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    data-testid="agent-speed-menu"
+                    className="w-52 rounded-md border-frame-border p-1.5 text-xs shadow-xl">
+                    <DropdownMenuLabel className="px-2 py-1 font-normal text-[11px] text-muted-foreground">
+                      {t('agent.speed.label')}
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={fastMode ? 'fast' : 'default'}
+                      onValueChange={(speed) => onFastModeChange?.(speed === 'fast')}>
+                      <DropdownMenuRadioItem value="default" className="h-8 rounded-sm pr-2 pl-8 text-xs">
+                        {t('common.default')}
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="fast" className="h-8 rounded-sm pr-2 pl-8 text-xs">
+                        {t('agent.speed.fast')}
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : null}
+
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.back')}
-                onClick={() => setShowAdvanced(false)}>
-                <ChevronLeft size={14} />
+                size="sm"
+                className="h-8 gap-1 rounded-sm px-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={() => setShowAdvanced(true)}>
+                <span>{t('common.advanced_settings')}</span>
+                <ChevronUp size={15} />
               </Button>
-              <div className="font-medium text-sm">{t('agent.speed.reasoning')}</div>
-            </div>
-            {showEffortSlider ? (
-              <div className="mt-3">
-                <Slider
-                  thumbAriaLabel={t('agent.speed.reasoning')}
-                  getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[sliderEfforts[index]])}
-                  value={[currentIndex]}
-                  min={0}
-                  max={sliderEfforts.length - 1}
-                  step={1}
-                  size="sm"
-                  disabled={isAutomatic}
-                  className={isAutomatic ? 'opacity-50' : undefined}
-                  marks={sliderEfforts.map((effort, index) => ({
-                    value: index,
-                    label: t(EFFORT_LABEL_KEYS[effort])
-                  }))}
-                  onValueChange={([index]) => {
-                    const effort = sliderEfforts[index]
-                    if (effort) selectReasoningEffort(effort)
-                  }}
-                />
-              </div>
-            ) : null}
-            {supportsAuto ? (
-              <div className="mt-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm">{t(EFFORT_LABEL_KEYS.auto)}</div>
-                  <div className="text-muted-foreground text-xs">
-                    {t('assistants.settings.reasoning_effort.auto_description')}
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant={isAutomatic ? 'default' : 'outline'}
-                  size="sm"
-                  className="rounded-full"
-                  aria-label={t(EFFORT_LABEL_KEYS.auto)}
-                  aria-pressed={isAutomatic}
-                  data-active={isAutomatic || undefined}
-                  disabled={isAutomatic && !defaultManualEffort && !supportedEfforts.includes('none')}
-                  onClick={toggleAutomatic}>
-                  {t(EFFORT_LABEL_KEYS.auto)}
-                </Button>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <div className="font-medium text-sm">{t('agent.speed.title')}</div>
-            {supportsFast ? (
-              <div className="mt-3 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm">{t('agent.speed.fast')}</div>
-                  <div className="text-muted-foreground text-xs">{t('agent.speed.fast_description')}</div>
-                </div>
-                <Button
-                  type="button"
-                  variant={fastMode ? 'default' : 'outline'}
-                  size="sm"
-                  className="rounded-full"
-                  aria-label={t('agent.speed.fast')}
-                  aria-pressed={fastMode}
-                  data-active={fastMode || undefined}
-                  onClick={() => onFastModeChange?.(!fastMode)}>
-                  <Zap fill={fastMode ? 'currentColor' : 'none'} size={14} />
-                  <span>{t('agent.speed.fast')}</span>
-                </Button>
-              </div>
-            ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-3 h-8 w-full justify-between rounded-md border-border-muted border-t px-2 pt-2 text-muted-foreground text-xs hover:text-foreground"
-              onClick={() => setShowAdvanced(true)}>
-              <span>{t('common.advanced_settings')}</span>
-              <ChevronRight size={14} />
-            </Button>
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -30,7 +30,7 @@ export default defineProvider({
       modelId: 'gpt-5-6-sol',
       apiModelId: 'gpt-5.6-sol',
       limits: { contextWindow: 372000 },
-      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], defaultEffort: 'low' },
+      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'], defaultEffort: 'low' },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
@@ -38,7 +38,10 @@ export default defineProvider({
       modelId: 'gpt-5-6-terra',
       apiModelId: 'gpt-5.6-terra',
       limits: { contextWindow: 372000 },
-      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], defaultEffort: 'medium' },
+      reasoning: {
+        supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        defaultEffort: 'medium'
+      },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
@@ -46,28 +49,28 @@ export default defineProvider({
       modelId: 'gpt-5-6-luna',
       apiModelId: 'gpt-5.6-luna',
       limits: { contextWindow: 372000 },
-      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'medium' },
+      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'medium' },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
     {
       modelId: 'gpt-5-5',
       apiModelId: 'gpt-5.5',
-      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
+      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
     {
       modelId: 'gpt-5-4',
       apiModelId: 'gpt-5.4',
-      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
+      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
     {
       modelId: 'gpt-5-4-mini',
       apiModelId: 'gpt-5.4-mini',
-      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
+      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
       endpointTypes: ['openai-responses']
     },
     { modelId: 'gpt-5-3-codex-spark', apiModelId: 'gpt-5.3-codex-spark', endpointTypes: ['openai-responses'] }

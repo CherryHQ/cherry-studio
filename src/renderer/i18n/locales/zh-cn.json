@@ -646,8 +646,9 @@
       }
     },
     "speed": {
+      "effort": "强度",
       "fast": "快速",
-      "fast_description": "响应更快，但会消耗更多额度。",
+      "label": "速度",
       "reasoning": "推理强度",
       "title": "响应设置"
     },

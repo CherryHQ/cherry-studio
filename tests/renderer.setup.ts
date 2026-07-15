@@ -168,6 +168,7 @@ vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   const DropdownMenuOpenContext = React.createContext(null)
+  const DropdownMenuRadioContext = React.createContext({ value: '', onValueChange: undefined })
   const AccordionContext = React.createContext({
     collapsible: false,
     onValueChange: undefined,
@@ -333,6 +334,23 @@ vi.mock('@cherrystudio/ui', () => {
       return React.createElement('span', { onClick: () => onOpenChange?.(true) }, children)
     },
     DropdownMenuContent: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuLabel: ({ children, ...props }) => React.createElement('div', props, children),
+    DropdownMenuRadioGroup: ({ children, value, onValueChange }) =>
+      React.createElement(DropdownMenuRadioContext.Provider, { value: { value, onValueChange } }, children),
+    DropdownMenuRadioItem: ({ children, value, ...props }) => {
+      const radioGroup = React.use(DropdownMenuRadioContext)
+      return React.createElement(
+        'button',
+        {
+          ...props,
+          type: 'button',
+          role: 'radio',
+          'aria-checked': radioGroup.value === value,
+          onClick: () => radioGroup.onValueChange?.(value)
+        },
+        children
+      )
+    },
     DropdownMenuSeparator: () => React.createElement('hr'),
     DropdownMenuSub: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSubContent: ({ children }) => React.createElement('div', null, children),
