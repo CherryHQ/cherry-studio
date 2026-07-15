@@ -291,6 +291,8 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      expect(scrollIntoView.mock.instances[0]).toBe(getRow('Gamma').closest('[data-option-row]'))
+      expect(screen.getByRole('listbox')).toHaveClass('scroll-pt-1.5')
     })
 
     it('keeps keyboard navigation scrolling to the nearest visible row', async () => {
@@ -316,6 +318,32 @@ describe('ResourceSelectorShell', () => {
       fireEvent.keyDown(screen.getByPlaceholderText('Search'), { key: 'ArrowDown' })
 
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }))
+    })
+
+    it('updates the active row on hover without moving the scrollbar', async () => {
+      const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value="1"
+          onChange={vi.fn()}
+          mountStrategy="lazy-keep"
+        />
+      )
+
+      openPopover()
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      scrollIntoView.mockClear()
+
+      fireEvent.mouseEnter(getRow('Beta').closest('[data-option-row]') as HTMLElement)
+
+      await waitFor(() => expect(getRow('Beta')).toHaveAttribute('data-active', 'true'))
+      expect(scrollIntoView).not.toHaveBeenCalled()
     })
   })
 
@@ -730,7 +758,7 @@ describe('ResourceSelectorShell', () => {
 
       const alphaOption = getRow('Alpha')
       const row = alphaOption.closest('[data-model-selector-row]')
-      expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-accent/70')
+      expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'py-1', 'bg-accent/70')
       expect(row).not.toHaveClass('bg-primary/10')
     })
 

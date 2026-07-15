@@ -25,7 +25,6 @@ async function renderSubWindowAppShell({
 } = {}) {
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
-  vi.doMock('@renderer/databases/db', () => ({}))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => null
   }))

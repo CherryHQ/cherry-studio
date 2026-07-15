@@ -36,7 +36,17 @@ export const MiniAppSchema = z.object({
   orderKey: z.string(),
   name: z.string(),
   url: z.string(),
+  /**
+   * Preset logo key (a `getMiniAppsLogo`-resolvable id). Absent for custom apps
+   * with an uploaded logo, which carry {@link logoSrc} instead.
+   */
   logo: z.string().optional(),
+  /**
+   * Ready-to-render URL for an uploaded logo, resolved main-side from the
+   * `file_entry` (`file://…`). Mutually exclusive with {@link logo}; the
+   * renderer renders it directly and never reconstructs a disk path.
+   */
+  logoSrc: z.string().optional(),
   bordered: z.boolean().optional(),
   background: z.string().optional(),
   supportedRegions: z.array(MiniAppRegionSchema).optional(),

@@ -1,6 +1,7 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -92,6 +93,9 @@ const homeMocks = vi.hoisted(() => ({
   topicPanelTopicsSource: undefined as unknown,
   isActiveTab: false
 }))
+
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcOn: vi.fn() }))
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: vi.fn(),
@@ -770,15 +774,7 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.tab.position', 'right')
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        window: {
-          resetMinimumSize: vi.fn().mockResolvedValue(undefined),
-          setMinimumSize: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
+    ipcMocks.request.mockClear()
   })
 
   it('renders the assistant resource list with the resource pane open by default', () => {
@@ -790,6 +786,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
+    expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('renders the classic assistant layout for the new-user display default', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', DefaultPreferences.default['topic.tab.display_mode'])
+
+    render(<HomePage />)
+
+    expect(DefaultPreferences.default['topic.tab.display_mode']).toBe('assistant')
+    expect(screen.getByTestId('assistant-resource-list')).toBeInTheDocument()
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
   })
@@ -1715,7 +1722,10 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+      expect(ipcMocks.request).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
     })
   })
 

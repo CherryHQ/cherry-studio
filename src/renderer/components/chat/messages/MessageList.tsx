@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { MessageEnterMotionProvider, useMessageEnterMotionIds } from '../motion/messageEnterMotion'
+import { usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
@@ -89,6 +90,7 @@ const MessageList = () => {
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
+  const partsByMessageId = usePartsMap()
   const { setForceWideLayout } = useChatLayoutMode()
   const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -189,6 +191,10 @@ const MessageList = () => {
     const groupKey =
       target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
     messageListRef.current?.scrollToKey(groupKey, 'start')
+  }, [])
+
+  const scrollToOutlineElement = useCallback((element: HTMLElement) => {
+    messageListRef.current?.scrollToElement(element)
   }, [])
 
   const updateActiveMessageOutline = useCallback(() => {
@@ -452,8 +458,12 @@ const MessageList = () => {
     ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
     : undefined
   const preserveScrollAnchor =
-    latestAssistantGroupMessages?.some((message) => message.role === 'assistant' && message.status === 'pending') ??
-    false
+    latestAssistantGroupMessages?.some(
+      (message) =>
+        message.role === 'assistant' &&
+        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
+    ) ?? false
+  const keepMountedKeys = preserveScrollAnchor && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   // The runtime now treats this key as the group to scroll to the viewport
   // top (rather than scrolling to the absolute bottom). User-message groups
   // are keyed by `user${msgId}` — see stableGroupedMessages.
@@ -493,6 +503,7 @@ const MessageList = () => {
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
               preserveScrollAnchor={preserveScrollAnchor}
+              keepMountedKeys={keepMountedKeys}
               showScrollToBottomButton
               scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
               topicId={topic.id}
@@ -507,6 +518,7 @@ const MessageList = () => {
                       isLatestAssistantGroup={key === latestAssistantGroupKey}
                       directAssistantModelsByUserId={directAssistantModelsByUserId}
                       messages={groupMessages}
+                      partsByMessageId={partsByMessageId}
                       topic={topic}
                       registerMessageElement={registerMessageElement}
                       onMultiModelMessageStyleChange={(style) => {
@@ -547,6 +559,7 @@ const MessageList = () => {
                 isLatestAssistantGroup={key === latestAssistantGroupKey}
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
+                partsByMessageId={partsByMessageId}
                 topic={topic}
               />
             </NarrowLayout>
@@ -561,7 +574,11 @@ const MessageList = () => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
+        <MessageOutline
+          message={activeOutlineMessage}
+          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+          onNavigateToElement={scrollToOutlineElement}
+        />
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation

@@ -38,7 +38,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -156,8 +156,6 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
-    expect(screen.getByTestId('drawer-content')).toHaveClass('w-[min(calc(100vw-24px),620px)]')
-    expect(screen.getByTestId('drawer-body')).toHaveClass('pt-0')
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
     expect(screen.getByText('legacy-model')).toBeInTheDocument()

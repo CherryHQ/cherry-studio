@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "Aucune compétence activée",
             "search_placeholder": "Outils ou serveurs de recherche...",
             "skills_coming_soon": "Associations de compétences à venir",
+            "skills_enable_all": "Tout activer",
             "skills_require_save": "Enregistrer avant d'activer les compétences",
             "tab": {
               "mcp": "Serveur MCP",
@@ -3594,6 +3595,7 @@
     },
     "empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
@@ -3615,6 +3617,7 @@
         "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
       },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Adresse API invalide",

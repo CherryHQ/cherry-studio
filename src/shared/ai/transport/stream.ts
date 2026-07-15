@@ -9,7 +9,7 @@ export interface AiChatRequestBody {
   topicId: string
   /** Explicit parent node — message id at the current branch tip, or null for first message. */
   parentAnchorId?: string
-  /** Models selected by the composer model selector (multi-model fan-out). */
+  /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
   mentionedModels?: UniqueModelId[]
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]
@@ -132,7 +132,7 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
+  /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
   /**
    * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by

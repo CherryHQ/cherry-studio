@@ -16,12 +16,13 @@ import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
   StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions
+  type StreamableHTTPClientTransportOptions,
+  StreamableHTTPError
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
@@ -38,9 +39,8 @@ import {
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
@@ -90,6 +90,31 @@ export interface McpToolListChangedEvent {
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
+
+// Order in which to attempt the URL-based transports for a given server. We try the
+// user-configured type first (no behavior change for correctly configured servers) and,
+// if that fails with a transport-level protocol error, retry with the other transport.
+// This bridges legacy SSE servers and modern Streamable HTTP servers (which reject the
+// SSE GET handshake with 405) without the user having to know the difference.
+function getTransportCandidates(server: McpServer): McpServerType[] | null {
+  if (!server.baseUrl) return null
+  if (server.type === 'sse') return ['sse', 'streamableHttp']
+  if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
+  return null
+}
+
+// A transport-level protocol error that indicates a *transport/protocol mismatch* (not an
+// auth, permission, or generic server error) and is worth retrying against the alternative
+// transport. The issue's 405 is the canonical signal: the SSE GET handshake is rejected
+// (server is actually Streamable HTTP) or the Streamable HTTP POST is rejected. A 404 on the
+// Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
+// streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
+// instead of being masked by a confusing fallback failure.
+function isTransportFallbackError(error: unknown): boolean {
+  if (error instanceof SseError) return error.code === 405
+  if (error instanceof StreamableHTTPError) return error.code === 405 || error.code === 404
+  return false
+}
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 export function redactSensitive(input: any): any {
@@ -189,7 +214,6 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
-    this.registerIpcHandlers()
   }
 
   protected async onStop(): Promise<void> {
@@ -200,29 +224,6 @@ export class McpRuntimeService extends BaseService {
     this.pendingClients.clear()
     this.clients.clear()
     this.serverLogs.clear()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, serverId: string) => this.removeServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, serverId: string) => this.restartServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, serverId: string) => this.stopServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, serverId: string) => {
-      await application.get('McpCatalogService').refreshTools(serverId)
-    })
-    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId) => this.listPrompts(NonEmptyStringSchema.parse(serverId)))
-    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId) =>
-      this.listResources(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId) =>
-      this.checkMcpConnectivity(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(NonEmptyStringSchema.parse(callId)))
-    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, serverId) =>
-      this.getServerVersion(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId) =>
-      this.getServerLogs(NonEmptyStringSchema.parse(serverId))
-    )
   }
 
   private getServerById(serverId: string): McpServer {
@@ -301,8 +302,8 @@ export class McpRuntimeService extends BaseService {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
     application
-      .get('WindowManager')
-      .broadcastToType(WindowType.Main, IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
+      .get('IpcApiService')
+      .broadcastToType(WindowType.Main, 'mcp.server.log', { ...entry, serverId: server.id })
   }
 
   public async getServerLogs(serverId: string): Promise<McpServerLogEntry[]> {
@@ -388,9 +389,9 @@ export class McpRuntimeService extends BaseService {
             .digest('hex')
         })
 
-        const initTransport = async (): Promise<
-          StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
-        > => {
+        const initTransport = async (
+          typeOverride?: McpServerType
+        ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
           // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
@@ -434,7 +435,8 @@ export class McpRuntimeService extends BaseService {
             // set the client transport to the client
             return clientTransport
           } else if (server.baseUrl) {
-            if (server.type === 'streamableHttp') {
+            const urlBasedType: McpServerType = typeOverride ?? server.type ?? 'sse'
+            if (urlBasedType === 'streamableHttp') {
               const options: StreamableHTTPClientTransportOptions = {
                 fetch: async (url, init) => {
                   return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -449,7 +451,7 @@ export class McpRuntimeService extends BaseService {
                 options: redactSensitive(options)
               })
               return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
-            } else if (server.type === 'sse') {
+            } else if (urlBasedType === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
                   fetch: async (url, init) => {
@@ -628,7 +630,11 @@ export class McpRuntimeService extends BaseService {
           }
         }
 
-        const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
+        const handleAuth = async (
+          client: Client,
+          transport: SSEClientTransport | StreamableHTTPClientTransport,
+          typeOverride?: McpServerType
+        ) => {
           getServerLogger(server).debug(`Starting OAuth flow`)
           // Create an event emitter for the OAuth callback
           const events = new EventEmitter()
@@ -656,7 +662,7 @@ export class McpRuntimeService extends BaseService {
 
             getServerLogger(server).debug(`OAuth flow completed`)
 
-            const newTransport = await initTransport()
+            const newTransport = await initTransport(typeOverride)
             // Try to connect again
             await client.connect(newTransport)
 
@@ -674,7 +680,6 @@ export class McpRuntimeService extends BaseService {
         }
 
         try {
-          const transport = await initTransport()
           // Bound the MCP `initialize` request so a non-responsive server fails fast via the
           // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
           // generous headroom is cheap) while still honoring larger `server.timeout` values
@@ -683,18 +688,57 @@ export class McpRuntimeService extends BaseService {
           const connectOptions: RequestOptions = {
             timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
           }
-          try {
-            await client.connect(transport, connectOptions)
-          } catch (error: any) {
-            if (
-              error instanceof Error &&
-              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-            ) {
-              logger.debug(`Authentication required for server: ${server.name}`)
-              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-            } else {
-              throw error
+
+          const candidates = getTransportCandidates(server)
+          // When no fallback candidates exist (stdio / in-memory / built-in), connect with the
+          // configured transport exactly once. Otherwise iterate the candidate transports,
+          // retrying with the alternative transport on a transport-level protocol error.
+          const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
+          let connected = false
+          let lastError: unknown
+
+          for (let i = 0; i < transportTypes.length; i++) {
+            const candidateType = transportTypes[i]
+            const transport = await initTransport(candidateType)
+            try {
+              await client.connect(transport, connectOptions)
+              connected = true
+              break
+            } catch (error: any) {
+              if (
+                error instanceof Error &&
+                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+              ) {
+                logger.debug(`Authentication required for server: ${server.name}`)
+                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport, candidateType)
+                connected = true
+                break
+              }
+              lastError = error
+              // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
+              // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
+              if (!candidates || !isTransportFallbackError(error)) {
+                break
+              }
+              // No alternative transport left to try.
+              if (i === candidates.length - 1) {
+                break
+              }
+              const fallbackType = candidates[i + 1]
+              getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
+                error: redactSensitive(error)
+              })
+              // Close the whole client (not just the transport) so the SDK resets its internal
+              // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
+              // re-auth path, which relies on client.close() clearing _transport first.
+              await client.close().catch(() => undefined)
             }
+          }
+
+          if (!connected) {
+            // Release the last (failed) transport/connection so it isn't leaked until GC.
+            await client.close().catch(() => undefined)
+            throw lastError ?? new Error('Failed to connect to MCP server')
           }
 
           this.emitServerLog(server, {
@@ -1058,10 +1102,10 @@ export class McpRuntimeService extends BaseService {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
               ratio: process.progress / (process.total || 1)
             })
-            application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_Progress, {
+            application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
-            } as McpProgressEvent)
+            })
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts

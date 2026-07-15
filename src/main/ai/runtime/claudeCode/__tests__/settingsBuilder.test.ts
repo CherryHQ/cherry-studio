@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
+  warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
+  findByIdOrName: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
@@ -61,7 +63,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
     list: vi.fn(() => ({ items: [] })),
-    findByIdOrName: vi.fn()
+    findByIdOrName: mocks.findByIdOrName
   }
 }))
 
@@ -79,6 +81,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   isProvisioned: vi.fn(() => true),
+  loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn()
 }))
 
@@ -158,23 +161,7 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, redactProxyUrlForAssistantContext } = await import(
-  '../settingsBuilder'
-)
-
-describe('redactProxyUrlForAssistantContext', () => {
-  it('redacts proxy credentials while keeping the host and port visible', () => {
-    expect(redactProxyUrlForAssistantContext('http://user:pass@proxy.example:8080')).toBe('http://proxy.example:8080/')
-  })
-
-  it('leaves plain proxy URLs unchanged', () => {
-    expect(redactProxyUrlForAssistantContext('http://proxy.example:8080')).toBe('http://proxy.example:8080')
-  })
-
-  it('redacts scheme-less proxy credentials', () => {
-    expect(redactProxyUrlForAssistantContext('user:pass@proxy.example:8080')).toBe('proxy.example:8080')
-  })
-})
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
@@ -205,12 +192,14 @@ describe('buildClaudeCodeSessionSettings', () => {
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
+    mocks.warmToolsCache.mockResolvedValue(undefined)
+    mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
       }
       if (name === 'McpCatalogService') {
-        return { listTools: vi.fn(async () => []) }
+        return { listTools: vi.fn(async () => []), warmToolsCache: mocks.warmToolsCache }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -239,6 +228,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+  })
+
+  it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.settingSources).toEqual(['user', 'project', 'local'])
   })
 
   it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
@@ -646,6 +647,61 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.mcpServers?.assistant).toBeDefined()
+    // Only navigate is pre-approved. diagnose reads local logs/source/config and must go through
+    // per-call approval — a namespace wildcard would silently re-include it.
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__*')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
+    expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+  })
+
+  it('excludes Assistant MCP capability for channel-linked sessions', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
+  })
+
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
     const session = {
       id: 'session-1',
@@ -727,15 +783,18 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.anything(),
       expect.objectContaining({
         autoAllowRuntimeNames: expect.arrayContaining(['mcp__cherry-tools__notify']),
-        autoAllowRuntimeNamePrefixes: [],
         autoAllowRuntimeNameExceptions: exceptions
       })
     )
+    // No prefix-based auto-approval anywhere: a namespace prefix would silently pre-approve
+    // future sensitive tools (e.g. assistant diagnose). Auto-approval is explicit names only.
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
-  it('redacts proxy credentials in the assembled assistant context', async () => {
+  it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
     const preferenceGet = vi.fn((key: string) => {
-      if (key === 'app.proxy.url') return 'user:pass@proxy.example:8080'
+      if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret#frag'
       return undefined
     })
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -760,8 +819,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.systemPrompt).toContain('- Proxy: proxy.example:8080')
-    expect(settings.systemPrompt).not.toContain('pass')
+    expect(typeof settings.systemPrompt).toBe('string')
+    const proxyLine = (settings.systemPrompt as string).split('\n').find((line) => line.startsWith('- Proxy:'))
+    expect(proxyLine).toBe('- Proxy: http://proxy.example:8080')
+    expect(proxyLine).not.toContain('user')
+    expect(proxyLine).not.toContain('pass')
+    expect(proxyLine).not.toContain('token=secret')
+    expect(proxyLine).not.toContain('/path')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so
@@ -877,6 +941,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
+    it('keeps the user setting source isolated when using the real CLI config', async () => {
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.settingSources).toEqual(['project', 'local'])
+    })
+
     it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
       mocks.getShellEnv.mockResolvedValue({
         ANTHROPIC_API_KEY: 'sk-shell',
@@ -973,6 +1046,136 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
 
       expect(settings.env!.ANTHROPIC_API_KEY).toBe('sk-shell')
+    })
+  })
+
+  describe('MCP tool cache warming', () => {
+    const sessionWithMcps = (mcps: string[]) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet',
+        mcps,
+        allowedTools: [],
+        configuration: {}
+      })
+      return {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      }
+    }
+
+    it('warms each configured MCP server once via warmToolsCache', async () => {
+      const session = sessionWithMcps(['srv-a', 'srv-b'])
+
+      await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+      expect(mocks.warmToolsCache).toHaveBeenCalledTimes(2)
+      expect(mocks.warmToolsCache).toHaveBeenCalledWith('srv-a')
+      expect(mocks.warmToolsCache).toHaveBeenCalledWith('srv-b')
+    })
+
+    it('does not stall the build when a server never responds (issue #16242 guard)', async () => {
+      // A dead/slow server returns a never-resolving warm promise. The bounded race must let the
+      // build finish; without the timeout race this build would hang forever.
+      mocks.warmToolsCache.mockReturnValue(new Promise<never>(() => {}))
+      const session = sessionWithMcps(['srv-dead'])
+
+      vi.useFakeTimers()
+      try {
+        const build = buildClaudeCodeSessionSettings(session as never, {} as never)
+        // Advance past MCP_WARM_TIMEOUT_MS (3_000ms) so the warm race resolves via timeout.
+        await vi.advanceTimersByTimeAsync(3_000)
+        await expect(build).resolves.toBeDefined()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('tolerates a rejecting server and still resolves', async () => {
+      mocks.warmToolsCache.mockImplementation((serverId: string) =>
+        serverId === 'srv-a' ? Promise.reject(new Error('boom')) : Promise.resolve()
+      )
+      const session = sessionWithMcps(['srv-a', 'srv-b'])
+
+      await expect(buildClaudeCodeSessionSettings(session as never, {} as never)).resolves.toBeDefined()
+    })
+
+    it('skips warming entirely when the agent has no MCP servers', async () => {
+      const session = sessionWithMcps([])
+
+      await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+      expect(mocks.warmToolsCache).not.toHaveBeenCalled()
+    })
+
+    it('reconciles the session snapshot and tool metadata once a timed-out warm completes', async () => {
+      // The refresh outlives the 3s cap; the cache-only listTools stays cold until it lands. Once it
+      // does, the SDK bridge may expose the tools, so the session snapshot + metadata must follow.
+      let resolveRefresh!: () => void
+      mocks.warmToolsCache.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveRefresh = resolve
+        })
+      )
+      let cachedTools: Array<Record<string, unknown>> = []
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') {
+          return { listTools: vi.fn(() => cachedTools), warmToolsCache: mocks.warmToolsCache }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const snapshot = {
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+      const session = sessionWithMcps(['srv-a'])
+
+      vi.useFakeTimers()
+      const build = buildClaudeCodeSessionSettings(session as never, {} as never)
+      try {
+        await vi.advanceTimersByTimeAsync(3_000)
+      } finally {
+        vi.useRealTimers()
+      }
+      const settings = await build
+
+      // Built from the cold cache: metadata is an empty (shared-by-reference) map, snapshot untouched.
+      expect(settings.mcpToolMetadata).toEqual({})
+      expect(snapshot.update).not.toHaveBeenCalled()
+
+      // The in-flight refresh lands: the reconciliation rebuilds the snapshot from the live agent
+      // and fills the same metadata object the settings (and stream adapter) hold.
+      cachedTools = [{ id: 'tool-x', name: 'tool_x', description: 'X' }]
+      resolveRefresh()
+      await vi.waitFor(() => {
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+        expect(settings.mcpToolMetadata).toMatchObject({
+          'mcp__srv-a__tool_x': expect.objectContaining({ name: 'tool_x', serverId: 'srv-a' })
+        })
+      })
+    })
+
+    it('registers no reconciliation when the warm completes within the cap', async () => {
+      const snapshot = {
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+      const session = sessionWithMcps(['srv-a'])
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(snapshot.update).not.toHaveBeenCalled()
+      expect(settings.mcpToolMetadata).toBeUndefined()
     })
   })
 })

@@ -300,6 +300,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.collapse') return 'Collapse conversations'
       if (key === 'chat.topics.group.collapse_all') return 'Collapse all'
       if (key === 'chat.topics.group.expand_all') return 'Expand all'
+      if (key === 'chat.topics.move_to') return 'Move to'
       if (key === 'chat.topics.search.placeholder') return 'Search conversations'
       if (key === 'chat.topics.search.title') return 'Search conversations'
       if (key === 'history.records.shortTitle') return 'History'
@@ -312,7 +313,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.topic.position.right') return 'Right'
       if (key === 'chat.topics.empty.description')
         return 'Create a chat and it will stay here so you can continue with its context later.'
-      if (key === 'chat.topics.empty.title') return 'No chats yet'
+      if (key === 'chat.topics.empty.title') return 'No conversations'
       if (key === 'assistants.edit.title') return 'Edit Assistant'
       if (key === 'assistants.pin.title') return 'Pin Assistant'
       if (key === 'assistants.unpin.title') return 'Unpin Assistant'
@@ -366,6 +367,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
       if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
       if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
+      if (key === 'chat.topics.manage.move.success') return `Moved ${options?.count ?? 0} conversation(s)`
       if (key === 'chat.add.topic.title') return 'New Conversation'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
@@ -946,10 +948,24 @@ describe('Topics', () => {
 
     const { onNewTopic } = renderTopicList()
 
-    expect(screen.getByText('No chats yet')).toBeInTheDocument()
+    const emptyStateText = screen.getByText('No conversations')
+
+    expect(emptyStateText).toHaveClass(
+      'h-full',
+      'w-full',
+      'max-w-sm',
+      'px-5',
+      'py-10',
+      'text-center',
+      'text-xs',
+      'text-muted-foreground',
+      'break-words'
+    )
+    expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
+    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(
-      screen.getByText('Create a chat and it will stay here so you can continue with its context later.')
-    ).toBeInTheDocument()
+      screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
     expect(onNewTopic).not.toHaveBeenCalled()
@@ -1049,14 +1065,11 @@ describe('Topics', () => {
 
   it('forces time grouping in the right panel even when the assistant display mode is stored', () => {
     // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
-    // switch and must ignore the stored display mode, grouping strictly by time. The observable
-    // consequence is that assistant grouping is never engaged, so the assistants list (only needed
-    // for assistant grouping) is not fetched. Reverting `isRightPanel ? 'time' : …` would flip
-    // isAssistantDisplayMode to true here and enable that query.
+    // switch and must ignore the stored display mode, grouping strictly by time.
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
-    const assistantsQueryCall = mockUseQuery.mock.calls.find(([path]) => path === '/assistants')
-    expect(assistantsQueryCall?.[1]).toMatchObject({ enabled: false })
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Alpha Assistant' })).not.toBeInTheDocument()
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {
@@ -1127,6 +1140,7 @@ describe('Topics', () => {
     expect(menuContent).toHaveTextContent('Pin Conversation')
     expect(menuContent).not.toHaveTextContent('Unpin Conversation')
     expect(menuContent).toHaveTextContent('Conversation position')
+    expect(menuContent).toHaveTextContent('Move to')
 
     fireEvent.click(within(menuContent as HTMLElement).getByText('Right'))
 
@@ -1161,6 +1175,88 @@ describe('Topics', () => {
 
     expect(menuContent ?? null).toBeInTheDocument()
     expect(menuContent).not.toHaveTextContent('Conversation position')
+    expect(menuContent).toHaveTextContent('Move to')
+  })
+
+  it('moves a topic to another assistant from the context menu', async () => {
+    const activeTopic = createRendererTopic({ messages: [{ id: 'message-a' } as Topic['messages'][number]] })
+    const { getByText, setActiveTopic } = renderTopicList({ activeTopic })
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(
+      within(menuContent as HTMLElement).queryByRole('button', { name: 'Alpha Assistant' })
+    ).not.toBeInTheDocument()
+
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Move to' })).toBeInTheDocument()
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: /Beta Assistant/ }))
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', { assistantId: 'assistant-2' })
+    )
+    expect(setActiveTopic).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'topic-a', assistantId: 'assistant-2', messages: activeTopic.messages })
+    )
+    expect(toast.success).toHaveBeenCalledWith('Moved 1 conversation(s)')
+  })
+
+  it('orders move-to-assistant targets with pinned assistants first', () => {
+    mockUseQuery.mockImplementation((path, options) => {
+      if (path === '/pins') {
+        const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+        return {
+          data:
+            entityType === 'assistant'
+              ? [{ id: 'pin-assistant-3', entityId: 'assistant-3', entityType: 'assistant', orderKey: 'a' }]
+              : [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              createAssistant(),
+              createAssistant({ id: 'assistant-2', name: 'Beta Assistant', emoji: '✍️', orderKey: 'b' }),
+              createAssistant({ id: 'assistant-3', name: 'Gamma Assistant', emoji: '🚀', orderKey: 'c' })
+            ],
+            total: 3
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    const targetButtons = within(menuContent as HTMLElement)
+      .getAllByRole('button')
+      .map((button) => button.textContent)
+      .filter((text): text is string => text?.includes('Assistant') ?? false)
+
+    expect(targetButtons[0]).toContain('Gamma Assistant')
+    expect(targetButtons[1]).toContain('Beta Assistant')
   })
 
   it('changes the right-panel topic list to the left side from the context menu', async () => {
@@ -1200,6 +1296,7 @@ describe('Topics', () => {
       'Generate conversation name',
       'Edit conversation name',
       'Pin Conversation',
+      expect.stringMatching(/^Move to/),
       'Open in New Window',
       'Conversation positionLeftRight',
       'Clear messages',
@@ -2793,13 +2890,13 @@ describe('Topics', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('keeps assistant pin reads disabled outside assistant display mode', () => {
+  it('keeps assistant pin reads enabled outside assistant display mode for move targets', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
 
     renderTopicList()
 
     expect(mockUseQuery).toHaveBeenCalledWith('/pins', {
-      enabled: false,
+      enabled: true,
       query: { entityType: 'assistant' }
     })
   })

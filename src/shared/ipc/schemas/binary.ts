@@ -48,7 +48,9 @@ export const binaryRequestSchemas = {
   'binary.get_tool_dir': defineRoute({ input: toolNameSchema, output: z.string() }),
   'binary.probe_bundled': defineRoute({ input: z.void(), output: z.record(z.string(), z.string().nullable()) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
-  'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) })
+  'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) }),
+  // Whether a CLI tool binary is resolvable (bundled or on PATH). Legacy App_IsBinaryExist.
+  'binary.is_installed': defineRoute({ input: z.string(), output: z.boolean() })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──

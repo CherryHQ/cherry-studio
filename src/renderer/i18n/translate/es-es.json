@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "Sin habilidades habilitadas",
             "search_placeholder": "Buscar herramientas o servidores...",
             "skills_coming_soon": "Asignaciones de habilidades próximamente",
+            "skills_enable_all": "Habilitar todo",
             "skills_require_save": "Guardar antes de habilitar habilidades",
             "tab": {
               "mcp": "Servidor MCP",
@@ -3594,6 +3595,7 @@
     },
     "empty_url": "No se puede descargar la imagen, es posible que la descripción contenga contenido sensible o palabras prohibidas",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "El solapamiento del fragmento no puede ser mayor que el tamaño del fragmento",
       "copy": "Fallo al copiar",
       "dimension_too_large": "La dimensión del contenido es demasiado grande",
@@ -3615,6 +3617,7 @@
         "text_extraction_failed": "Error al extraer el texto de {{name}}"
       },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Dirección API inválida",

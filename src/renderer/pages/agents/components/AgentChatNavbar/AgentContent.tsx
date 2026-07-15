@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { ReactNode } from 'react'
@@ -27,7 +28,7 @@ const AgentContent = ({
 
   return (
     <div className="flex w-full justify-between">
-      <div data-navbar-left-occupant className="flex min-w-0 shrink items-center">
+      <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center overflow-hidden">
         {showSidebarControls && (
           <ConversationSidebarToggleButton
             sidebarOpen={showSidebar}
@@ -38,8 +39,9 @@ const AgentContent = ({
         {mode === 'window' && chrome?.titleLeading ? (
           <div className={showSidebarControls ? 'ml-2 min-w-0' : 'min-w-0'}>{chrome.titleLeading}</div>
         ) : null}
+        <ConversationTopBarPortalHost />
       </div>
-      <div data-navbar-right-occupant className="flex items-center">
+      <div data-navbar-right-occupant className="flex shrink-0 items-center">
         {activeAgent && <Tools>{tools}</Tools>}
       </div>
     </div>

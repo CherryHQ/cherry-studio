@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "Keine Fähigkeiten aktiviert",
             "search_placeholder": "Suchwerkzeuge oder Server...",
             "skills_coming_soon": "Fertigkeitszuordnungen kommen bald",
+            "skills_enable_all": "Alle aktivieren",
             "skills_require_save": "Vor dem Aktivieren von Fähigkeiten speichern",
             "tab": {
               "mcp": "MCP-Server",
@@ -3594,6 +3595,7 @@
     },
     "empty_url": "Bild konnte nicht heruntergeladen werden. Möglicherweise enthält der Prompt sensible Inhalte oder verbotene Wörter",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Segmentüberlappung darf nicht größer als Segmentgröße sein",
       "copy": "Kopieren fehlgeschlagen",
       "dimension_too_large": "Inhaltsgröße zu groß",
@@ -3615,6 +3617,7 @@
         "text_extraction_failed": "Fehler beim Extrahieren von Text aus {{name}}"
       },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Ungültige API-Adresse",

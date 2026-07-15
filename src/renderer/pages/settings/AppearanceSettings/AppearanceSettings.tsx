@@ -30,6 +30,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -190,7 +191,7 @@ const AppearanceSettings: FC = () => {
   useEffect(() => {
     const loadSystemFonts = async () => {
       try {
-        const fonts = await window.api.getSystemFonts()
+        const fonts = await ipcApi.request('system.get_fonts')
         setFontList(fonts)
       } catch (error) {
         logger.error('Failed to get system fonts', error as Error)
@@ -199,7 +200,7 @@ const AppearanceSettings: FC = () => {
 
     const updateCurrentZoom = async () => {
       try {
-        const factor = await window.api.handleZoomFactor(0)
+        const factor = await ipcApi.request('app.adjust_zoom', { delta: 0 })
         setCurrentZoom(factor)
       } catch (error) {
         logger.error('Failed to get current zoom factor', error as Error)
@@ -280,7 +281,7 @@ const AppearanceSettings: FC = () => {
   }
 
   const handleZoomFactor = async (delta: number, reset: boolean = false) => {
-    const zoomFactor = await window.api.handleZoomFactor(delta, reset)
+    const zoomFactor = await ipcApi.request('app.adjust_zoom', { delta, reset })
     setCurrentZoom(zoomFactor)
   }
 
@@ -558,7 +559,7 @@ const AppearanceSettings: FC = () => {
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>
           {t('settings.display.custom.css.label')}
-          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
+          <TitleExtra onClick={() => ipcApi.request('system.shell.open_website', 'https://cherrycss.com/')}>
             {t('settings.display.custom.css.cherrycss')}
           </TitleExtra>
         </SettingTitle>

@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "Καμία ενεργοποιημένη δεξιότητα",
             "search_placeholder": "Εργαλεία ή διακομιστές αναζήτησης...",
             "skills_coming_soon": "Οι δεσμεύσεις δεξιοτήτων έρχονται σύντομα",
+            "skills_enable_all": "Ενεργοποίηση Όλων",
             "skills_require_save": "Αποθήκευσε πριν ενεργοποιήσεις τις ικανότητες",
             "tab": {
               "mcp": "Διακομιστής MCP",
@@ -3594,6 +3595,7 @@
     },
     "empty_url": "Αδυναμία λήψης της εικόνας, πιθανόν οι οδηγίες να περιέχουν ευαίσθητο περιεχόμενο ή απαγορευμένες λέξεις",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Η επικάλυψη μεριδίων δεν μπορεί να είναι μεγαλύτερη από το μέγεθος του μεριδίου",
       "copy": "Η αντιγραφή απέτυχε",
       "dimension_too_large": "Το μέγεθος του περιεχομένου είναι πολύ μεγάλο",
@@ -3615,6 +3617,7 @@
         "text_extraction_failed": "Αποτυχία εξαγωγής κειμένου από {{name}}"
       },
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Μη έγκυρη διεύθυνση API",

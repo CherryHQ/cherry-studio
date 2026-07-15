@@ -349,6 +349,7 @@ describe('OAuthRuntimeService', () => {
     const stored = h.providerStore.get('codex')
     expect(stored?.authConfig).toMatchObject({ accessToken: 'at' })
     expect(stored?.isEnabled).toBe(true)
+    expect(h.providerServiceMock.update).toHaveBeenCalledWith('codex', { isEnabled: true })
     expect(account).toEqual({ accountId: null })
     expect(h.transportMock.close).toHaveBeenCalled()
   })
@@ -373,6 +374,7 @@ describe('OAuthRuntimeService', () => {
     await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
 
     expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
+    expect(h.providerServiceMock.update).toHaveBeenCalledWith('cherryin', { isEnabled: true })
     expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { apiKeys: '' })
   })
 

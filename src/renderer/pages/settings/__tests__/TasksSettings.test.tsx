@@ -547,6 +547,11 @@ describe('TasksSettings task logs', () => {
 
     await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
 
+    // Drain any still-pending task-load/auto-select updates: `findBy` resolves as
+    // soon as the interval input mounts, but a late one could re-render (and briefly
+    // unmount) the detail panel right after the click, dropping the schedule input.
+    await act(async () => {})
+
     // Interval is the task's initial type.
     expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('agent.tasks.cronPlaceholder')).not.toBeInTheDocument()

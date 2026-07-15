@@ -86,7 +86,7 @@ const invalidRequest = (message: string) => ({
 export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(
     '/',
-    // `model` is "providerId:modelId"; ProxyStreamService resolves it.
+    // `model` is "providerId:apiModelId"; ProxyStreamService resolves it.
     ({ body, request }) =>
       processMessage({
         params: body,

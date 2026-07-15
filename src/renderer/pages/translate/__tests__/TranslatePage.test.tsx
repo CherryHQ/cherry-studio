@@ -66,7 +66,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveIcon: () => undefined
+  resolveIconRef: () => undefined,
+  useIcon: () => undefined
 }))
 
 vi.mock('@renderer/components/Navbar', () => ({
@@ -418,6 +419,17 @@ describe('TranslatePage', () => {
     render(<TranslatePage />)
 
     expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
+  })
+
+  it('keeps the input and output panes side by side', () => {
+    render(<TranslatePage />)
+
+    const inputSection = screen.getByTestId('translate-input-pane').parentElement
+    const outputSection = screen.getByTestId('translate-output-pane').parentElement
+
+    expect(inputSection?.parentElement).toHaveClass('grid-cols-2', 'grid-rows-1')
+    expect(outputSection).toHaveClass('border-l')
+    expect(outputSection).not.toHaveClass('border-t')
   })
 
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {

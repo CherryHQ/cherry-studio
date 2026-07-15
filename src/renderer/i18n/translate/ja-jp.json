@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "スキルが有効になっていません",
             "search_placeholder": "検索ツールまたはサーバー...",
             "skills_coming_soon": "スキルバインディング、近日公開",
+            "skills_enable_all": "すべて有効にする",
             "skills_require_save": "スキルを有効にする前に保存してください",
             "tab": {
               "mcp": "MCPサーバー",
@@ -3594,6 +3595,7 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
@@ -3615,6 +3617,7 @@
         "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",

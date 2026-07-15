@@ -37,6 +37,11 @@ export interface OrphanReportCounts {
  *       `fsSweepIssue` carries a short description
  *   Either way, counts cover the parts that did report; UI should surface
  *   the partial state so users don't read zero-orphans as a healthy signal.
+ * - `'aborted'` — the sweep deliberately stood aside because a staged
+ *   backup restore is pending promotion (`abortReason: 'pending-restore'`).
+ *   Nothing was scanned or deleted; counts are all zero. Distinct from
+ *   `'partial'` on purpose: standing aside is expected behavior, not a
+ *   degraded run the user should worry about.
  * - `'failed'` — the **DB** sweep collapsed before per-type aggregation.
  *   Counts are all zero (and meaningless); `errorMessage` carries the
  *   cause. (FS-sweep collapse alone degrades to `'partial'`, not
@@ -63,6 +68,11 @@ export type OrphanReport =
        * is driven purely by a DB-side partial report.
        */
       readonly fsSweepIssue?: string
+      readonly lastRunAt: number
+    })
+  | (OrphanReportCounts & {
+      readonly outcome: 'aborted'
+      readonly abortReason: 'pending-restore'
       readonly lastRunAt: number
     })
   | (OrphanReportCounts & {

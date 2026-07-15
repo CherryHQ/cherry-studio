@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -522,6 +522,31 @@ describe('Shell.TabShortcut', () => {
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
     expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
   })
+
+  it('can stay visible while open and close the active tab without changing its view label', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut
+          tab="files"
+          label="Files"
+          icon={<span data-testid="files-icon" />}
+          openBehavior="toggle-active"
+        />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'common.close_sidebar' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
+  })
 })
 
 describe('Shell.Host', () => {
@@ -644,6 +669,34 @@ describe('Shell.TabList', () => {
     expect(maximize.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('renders a title-mode header with pane-level maximize and close controls', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Tabs>
+          <Shell.TabList title="Files" showTabs={false}>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Files')
+    expect(screen.queryByTestId('shell-tab-scroll-container')).toBeNull()
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+
+    const closeButton = screen.getByRole('button', { name: 'common.close_sidebar' })
+    expect(closeButton).not.toHaveAttribute('data-shell-tab-shortcut')
+    expect(closeButton).toHaveAttribute('data-tone', 'conversation')
+    expect(closeButton).not.toHaveClass('[&_svg]:!size-3.5')
+    expect(within(closeButton).getByTestId('collapse-icon')).toBeInTheDocument()
+    expect(closeButton.querySelector('.lucide-x')).toBeNull()
+
+    fireEvent.click(closeButton)
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
   it('keeps the pane header below the detached-window title bar when maximized', () => {
     render(
       <WindowFrameProvider value={{ mode: 'window' }}>
@@ -665,6 +718,31 @@ describe('Shell.TabList', () => {
 
     expect(tabList).toHaveClass('[-webkit-app-region:no-drag]', 'pl-2')
     expect(tabList).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
+  })
+
+  it('keeps the title-mode pane header below the detached-window title bar when maximized', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <Shell defaultTab="files" defaultOpen>
+          <Shell.Tabs>
+            <Shell.TabList title="Files" showTabs={false}>
+              <Shell.Tab value="files">Files</Shell.Tab>
+            </Shell.TabList>
+          </Shell.Tabs>
+        </Shell>
+      </WindowFrameProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    const tabList = screen.getByTestId('shell-tab-list')
+    const title = screen.getByTestId('shell-tab-title')
+    const controls = title.nextElementSibling
+
+    expect(tabList).toHaveClass('[-webkit-app-region:no-drag]', 'pl-2')
+    expect(tabList).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
+    expect(title).toHaveClass('flex-1', 'select-none')
+    expect(controls).toHaveClass('[-webkit-app-region:no-drag]')
   })
 })
 

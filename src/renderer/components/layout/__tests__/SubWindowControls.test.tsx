@@ -1,5 +1,4 @@
 import type { Tab } from '@renderer/hooks/tab'
-import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,14 +25,12 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const setAlwaysOnTop = vi.fn<(pinned: boolean) => Promise<boolean>>().mockResolvedValue(true)
-const invoke = vi.fn().mockResolvedValue(true)
+// The controls talk to main only through the typed IpcApi facade.
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request }, useIpcOn: vi.fn() }))
 
 beforeEach(() => {
-  setAlwaysOnTop.mockClear().mockResolvedValue(true)
-  invoke.mockClear().mockResolvedValue(true)
-  ;(window.api as any).window = { setAlwaysOnTop }
-  ;(window.electron as any).ipcRenderer.invoke = invoke
+  mocks.request.mockReset().mockResolvedValue(true)
 })
 
 afterEach(() => {
@@ -50,7 +47,7 @@ describe('SubWindowControls', () => {
     await act(async () => {
       fireEvent.click(pinButton)
     })
-    expect(setAlwaysOnTop).toHaveBeenCalledWith(true)
+    expect(mocks.request).toHaveBeenCalledWith('window.sub.set_always_on_top', true)
 
     const unpinButton = screen.getByRole('button', { name: 'subWindow.unpin' })
     expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
@@ -58,27 +55,27 @@ describe('SubWindowControls', () => {
     await act(async () => {
       fireEvent.click(unpinButton)
     })
-    expect(setAlwaysOnTop).toHaveBeenLastCalledWith(false)
+    expect(mocks.request).toHaveBeenLastCalledWith('window.sub.set_always_on_top', false)
   })
 
   it('does not flip pressed state when the pin API fails', async () => {
-    setAlwaysOnTop.mockResolvedValueOnce(false)
+    mocks.request.mockResolvedValueOnce(false)
     render(<SubWindowControls />)
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'subWindow.pin' }))
     })
-    expect(setAlwaysOnTop).toHaveBeenCalledWith(true)
+    expect(mocks.request).toHaveBeenCalledWith('window.sub.set_always_on_top', true)
 
     // API returned false → button keeps the "pin" affordance, still not pressed.
     expect(screen.getByRole('button', { name: 'subWindow.pin' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('re-attaches the active tab to the main window via Tab_Attach', () => {
+  it('re-attaches the active tab to the main window via tab.attach', () => {
     render(<SubWindowControls />)
 
     fireEvent.click(screen.getByRole('button', { name: 'subWindow.back_to_main' }))
-    expect(invoke).toHaveBeenCalledWith(IpcChannel.Tab_Attach, {
+    expect(mocks.request).toHaveBeenCalledWith('tab.attach', {
       ...tab,
       url: '/app/chat?topicId=topic-current'
     })

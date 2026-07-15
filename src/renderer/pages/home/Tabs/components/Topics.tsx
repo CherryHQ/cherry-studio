@@ -6,7 +6,10 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import type { TopicExportMenuOptions } from '@renderer/components/chat/actions/topicContextMenuActions'
+import type {
+  TopicExportMenuOptions,
+  TopicMoveAssistantTarget
+} from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
@@ -323,7 +326,7 @@ export function Topics({
     isRefreshing: isAssistantPinsRefreshing,
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
-  } = usePins('assistant', { enabled: isAssistantDisplayMode })
+  } = usePins('assistant')
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = assistantTopicsSource
@@ -332,7 +335,7 @@ export function Topics({
     isLoading: isAssistantsLoading,
     error: assistantsError,
     refetch: refreshAssistants
-  } = useAssistantsApi({ enabled: isAssistantDisplayMode })
+  } = useAssistantsApi()
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const defaultAssistant = useMemo(() => ({ name: t('chat.default.name'), emoji: DEFAULT_ASSISTANT_EMOJI }), [t])
@@ -443,6 +446,29 @@ export function Topics({
 
     return ordered
   }, [assistants, optimisticAssistantOrderIds])
+  // Move destinations intentionally include only persisted assistants. The
+  // unlinked "Default Assistant" group is a display fallback for orphaned data,
+  // not a user-selectable target that clears topic ownership.
+  const assistantMoveTargets = useMemo<TopicMoveAssistantTarget[]>(() => {
+    const targets = orderedAssistants.map((assistant) => ({
+      id: assistant.id,
+      name: assistant.name,
+      icon: renderAssistantEntityIcon(
+        assistantIconType,
+        {
+          emoji: assistant.emoji,
+          modelId: assistant.modelId,
+          modelName: assistant.modelName
+        },
+        defaultModelId
+      )
+    }))
+
+    return [
+      ...targets.filter((assistant) => assistantPinnedIdSet.has(assistant.id)),
+      ...targets.filter((assistant) => !assistantPinnedIdSet.has(assistant.id))
+    ]
+  }, [assistantIconType, assistantPinnedIdSet, defaultModelId, orderedAssistants])
   const assistantById = useMemo(
     () => new Map(orderedAssistants.map((assistant) => [assistant.id, assistant])),
     [orderedAssistants]
@@ -504,6 +530,24 @@ export function Topics({
       }
     },
     [toggleTopicPinned]
+  )
+
+  const handleMoveTopicToAssistant = useCallback(
+    async (topic: Topic, assistantId: string) => {
+      if (topic.assistantId === assistantId) return
+
+      try {
+        await patchTopic(topic.id, { assistantId })
+        if (activeTopic?.id === topic.id) {
+          setActiveTopic({ ...activeTopic, assistantId })
+        }
+        toast.success(t('chat.topics.manage.move.success', { count: 1 }))
+      } catch (err) {
+        logger.error('Failed to move topic to assistant', { assistantId, err, topicId: topic.id })
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      }
+    },
+    [activeTopic, patchTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
@@ -1260,6 +1304,7 @@ export function Topics({
 
         <TopicListBody
           activeTopic={activeTopic}
+          assistantMoveTargets={assistantMoveTargets}
           deletingTopicId={deletingTopicId}
           displayMode={displayMode}
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
@@ -1275,6 +1320,7 @@ export function Topics({
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
+          onMoveToAssistant={handleMoveTopicToAssistant}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
@@ -1376,6 +1422,7 @@ const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
 
 interface TopicListBodyProps {
   activeTopic?: Topic
+  assistantMoveTargets: readonly TopicMoveAssistantTarget[]
   deletingTopicId: string | null
   displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions
@@ -1389,6 +1436,7 @@ interface TopicListBodyProps {
   onConfirmDelete: (topic: Topic, event?: MouseEvent) => Promise<void>
   onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
@@ -1406,6 +1454,7 @@ function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
   const {
     activeTopic,
+    assistantMoveTargets,
     deletingTopicId,
     displayMode,
     exportMenuOptions,
@@ -1419,6 +1468,7 @@ function TopicListBody(props: TopicListBodyProps) {
     onConfirmDelete,
     onDeleteClick,
     onDeleteFromMenu,
+    onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
@@ -1433,6 +1483,7 @@ function TopicListBody(props: TopicListBodyProps) {
   const rowProps = useMemo<TopicRowSharedProps>(
     () => ({
       activeTopic,
+      assistantMoveTargets,
       deletingTopicId,
       displayMode,
       exportMenuOptions,
@@ -1445,6 +1496,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onConfirmDelete,
       onDeleteClick,
       onDeleteFromMenu,
+      onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
@@ -1456,6 +1508,7 @@ function TopicListBody(props: TopicListBodyProps) {
     }),
     [
       activeTopic,
+      assistantMoveTargets,
       deletingTopicId,
       displayMode,
       exportMenuOptions,
@@ -1468,6 +1521,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onConfirmDelete,
       onDeleteClick,
       onDeleteFromMenu,
+      onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
@@ -1488,13 +1542,9 @@ function TopicListBody(props: TopicListBodyProps) {
       virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
-        <ResourceList.EmptyState
-          compact
-          preset="no-topic"
-          className="min-h-60 px-5 py-10"
-          title={t('chat.topics.empty.title')}
-          description={t('chat.topics.empty.description')}
-        />
+        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+          {t('chat.topics.empty.title')}
+        </div>
       }
       renderItem={renderItem}
     />
@@ -1509,6 +1559,7 @@ type TopicRowProps = TopicRowWithStatusProps
 
 function TopicRow({
   activeTopic,
+  assistantMoveTargets,
   deletingTopicId,
   displayMode,
   exportMenuOptions,
@@ -1521,6 +1572,7 @@ function TopicRow({
   onConfirmDelete,
   onDeleteClick,
   onDeleteFromMenu,
+  onMoveToAssistant,
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
@@ -1575,11 +1627,13 @@ function TopicRow({
     isActiveInCurrentTab: isActive,
     isRenaming: isRenaming(topic.id),
     notesPath,
+    assistantMoveTargets,
     onAutoRename,
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
+    onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,

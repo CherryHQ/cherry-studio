@@ -3145,6 +3145,7 @@
             "no_skills_enabled": "Навыки не включены",
             "search_placeholder": "Инструменты или серверы поиска...",
             "skills_coming_soon": "Привязки навыков скоро появятся",
+            "skills_enable_all": "Включить все",
             "skills_require_save": "Сохраните перед включением навыков",
             "tab": {
               "mcp": "MCP-сервер",
@@ -3594,6 +3595,7 @@
     },
     "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
       "copy": "Не удалось скопировать",
       "dimension_too_large": "Размер содержимого слишком велик",
@@ -3615,6 +3617,7 @@
         "text_extraction_failed": "Не удалось извлечь текст из {{name}}"
       },
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Неверный API адрес",

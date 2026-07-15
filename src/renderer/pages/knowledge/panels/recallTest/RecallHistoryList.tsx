@@ -2,14 +2,14 @@ import { Button } from '@cherrystudio/ui'
 import { History, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useRecallTest } from './RecallTestProvider'
+import { useRecallQuery } from './RecallTestProvider'
 
 const RecallHistoryList = () => {
   const { t } = useTranslation()
   const {
     state: { historyItems },
     actions: { selectHistory, removeHistory, clearHistory }
-  } = useRecallTest()
+  } = useRecallQuery()
 
   return (
     <div>
