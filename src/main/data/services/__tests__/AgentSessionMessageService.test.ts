@@ -765,7 +765,7 @@ describe('AgentSessionMessageService', () => {
     it('records assistant session messages with stats into the usage ledger', async () => {
       await seedModel()
 
-      await agentSessionMessageService.saveMessage({
+      agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: {
           id: LEDGER_MSG,
@@ -794,7 +794,7 @@ describe('AgentSessionMessageService', () => {
     it('does not record user messages or stats-less assistant messages', async () => {
       await seedModel()
 
-      await agentSessionMessageService.saveMessage({
+      agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: {
           id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302',
@@ -804,7 +804,7 @@ describe('AgentSessionMessageService', () => {
           stats: { inputTokens: 1, outputTokens: 1 }
         }
       })
-      await agentSessionMessageService.saveMessage({
+      agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: {
           id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d303',

@@ -436,7 +436,7 @@ export class UsageLedgerService {
    */
   async resolveKeyAttribution(providerId: string): Promise<KeyAttribution> {
     try {
-      const provider = await providerService.getByProviderId(providerId)
+      const provider = providerService.getByProviderId(providerId)
       const authType = provider.authType
       const allKeysCount = provider.apiKeys.length
       const providerName = provider.name
@@ -446,7 +446,7 @@ export class UsageLedgerService {
 
       let allKeys: Awaited<ReturnType<typeof providerService.getApiKeys>>
       try {
-        allKeys = allKeysCount > 0 ? await providerService.getApiKeys(providerId) : []
+        allKeys = allKeysCount > 0 ? providerService.getApiKeys(providerId) : []
       } catch (err) {
         // `provider` was already fetched above, so this is not the provider-gone
         // case — an unexpected key read/decrypt failure that degrades the row to

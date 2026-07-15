@@ -225,16 +225,16 @@ describe('TemporaryChatService', () => {
         orderKey: 'a0'
       })
 
-      const topic = await service.createTopic({ name: 'billed' })
-      await service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
-      const assistant = await service.appendMessage(topic.id, {
+      const topic = service.createTopic({ name: 'billed' })
+      service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+      const assistant = service.appendMessage(topic.id, {
         role: 'assistant',
         data: mainText('yo'),
         modelId: 'openai::gpt-4o',
         stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
       })
 
-      await service.persist(topic.id)
+      service.persist(topic.id)
 
       // The ledger write is post-commit fire-and-forget.
       await vi.waitFor(async () => {

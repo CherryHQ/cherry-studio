@@ -2293,7 +2293,7 @@ describe('MessageService', () => {
     it('records a ledger entry when an assistant message lands stats', async () => {
       await seedAssistantMessage()
 
-      await messageService.update('m-ledger', {
+      messageService.update('m-ledger', {
         status: 'success',
         stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, cost: 0.001, costCurrency: 'USD' }
       })
@@ -2317,10 +2317,10 @@ describe('MessageService', () => {
     it('does not record for updates without stats or for non-assistant roles', async () => {
       await seedAssistantMessage('user')
 
-      await messageService.update('m-ledger', {
+      messageService.update('m-ledger', {
         stats: { inputTokens: 10, outputTokens: 5 }
       })
-      await messageService.update('m-ledger', { status: 'success' })
+      messageService.update('m-ledger', { status: 'success' })
 
       // Give any (erroneous) async hook a tick to run before asserting.
       await new Promise((resolve) => setTimeout(resolve, 20))
