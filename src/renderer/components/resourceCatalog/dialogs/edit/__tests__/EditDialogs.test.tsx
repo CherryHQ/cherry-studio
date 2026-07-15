@@ -594,7 +594,8 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated assistant description' } })
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
-    expect(screen.getByText(/Old Model/)).toBeInTheDocument()
+    expect(modelTrigger).toHaveTextContent('Old Model')
+    expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     await waitFor(() =>
@@ -694,7 +695,10 @@ describe('edit dialogs', () => {
     })
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions' } })
     selectTab('Basic')
-    fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+    const modelTrigger = screen.getByRole('button', { name: 'Model' })
+    expect(modelTrigger).toHaveTextContent('Old Model')
+    expect(modelTrigger).not.toHaveTextContent('Provider')
+    fireEvent.click(modelTrigger)
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({

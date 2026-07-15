@@ -31,6 +31,11 @@
       "submit": "Gửi",
       "title": "Câu hỏi từ Đại lý"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cố vấn tích hợp Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, và tìm kiếm/tạo Kỹ năng"
+      }
+    },
     "channels": {
       "add": "Thêm",
       "bindAgent": "Ràng buộc Đại lý",
@@ -1911,7 +1916,8 @@
         "permissions_deny": "Từ chối (phân cách bằng dấu phẩy)",
         "permissions_hint": "Phê duyệt trước hoặc từ chối các mẫu công cụ. Hỗ trợ ký tự đại diện như Read(secrets-*/config.json).",
         "role_column": "Vai trò",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Đại lý phụ"
       },
       "codex": {
         "disable_response_storage": "Tắt Lưu Trữ Phản Hồi",
@@ -1969,6 +1975,11 @@
         "xhigh": "Cao đặc biệt"
       },
       "select_placeholder": "Chọn…"
+    },
+    "api_gateway": {
+      "description": "Bất kỳ CLI nào, mọi mô hình",
+      "requires_running": "Giữ Cherry Studio chạy sau khi bật — CLI bên ngoài kết nối với cổng mà nó lưu trữ.",
+      "title": "Cổng thống nhất"
     },
     "apply_failed": "Không thể ghi cấu hình CLI vào tệp hệ thống",
     "auto_update_to_latest": "Tự động cập nhật lên phiên bản mới nhất",
@@ -2049,6 +2060,7 @@
     "model_required": "Vui lòng chọn một mô hình",
     "model_selection": "Lựa chọn mô hình",
     "more": "Thêm",
+    "move_provider_to_top": "Di chuyển nhà cung cấp lên trên cùng",
     "no_matching_providers": "Không có nhà cung cấp phù hợp",
     "no_model_for_provider": "Không có mô hình nào khả dụng cho nhà cung cấp này",
     "no_providers_description": "Bật nhà cung cấp được hỗ trợ trong Cài đặt → Dịch vụ Mô hình",
@@ -3277,6 +3289,7 @@
       },
       "knowledge": {
         "add": "Thêm cơ sở kiến thức",
+        "create_first": "Kiến thức mở để tạo ra một",
         "desc": "Liên kết một hoặc nhiều cơ sở kiến thức; các đoạn trích liên quan sẽ được truy xuất trong quá trình trò chuyện",
         "doc_count": "{{count}} tài liệu",
         "empty_desc": "Sau khi được liên kết, trợ lý có thể trả lời dựa trên nội dung tài liệu",
@@ -3290,6 +3303,7 @@
         "title": "Cơ sở kiến thức"
       },
       "prompt": {
+        "copy_variable": "Sao chép {{variable}}",
         "create_title": "Lời Nhắc Mới",
         "dblclick_hint": "Nhấp đúp vào bản xem trước để quay lại chế độ chỉnh sửa",
         "desc": "Lời nhắc hệ thống được gửi như bối cảnh mở đầu của trợ lý",
@@ -3604,7 +3618,7 @@
     },
     "empty_url": "Không tải được hình ảnh, có thể do lời nhắc chứa nội dung nhạy cảm hoặc từ ngữ bị cấm",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Hình ảnh quá lớn (tối đa {{limit}})",
       "chunk_overlap_too_large": "Phần chồng chéo của khối không thể lớn hơn kích thước khối",
       "copy": "Sao chép thất bại",
       "dimension_too_large": "Kích thước nội dung quá lớn",
@@ -3626,7 +3640,7 @@
         "text_extraction_failed": "Không thể trích xuất văn bản từ {{name}}"
       },
       "get_embedding_dimensions": "Không thể lấy kích thước embedding",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Không thể xử lý hình ảnh, vui lòng thử lại",
       "invalid": {
         "api": {
           "host": "Máy chủ API không hợp lệ",
@@ -3791,6 +3805,8 @@
       "abort_failed": "Appel d'outil interrompu",
       "aborted": "Cuộc gọi công cụ đã bị hủy",
       "activity": {
+        "analyze": "Phân tích",
+        "analyzing": "Phân tích",
         "archive": "lưu trữ",
         "assistantTask": "nhiệm vụ",
         "availableFeatures": "tính năng có sẵn",
@@ -3798,24 +3814,28 @@
         "branch": "nhánh mã",
         "build": "Xây dựng",
         "building": "Xây dựng",
+        "calendar": "lịch",
         "check": "Kiểm tra",
         "checking": "Kiểm tra",
         "codeFiles": "tệp mã",
         "codeHostInfo": "thông tin lưu trữ mã",
-        "commandName": "lệnh {{name}}",
         "configFiles": "tài liệu dự án và các tệp cấu hình",
         "copy": "Sao chép",
         "copying": "Sao chép",
         "create": "Tạo",
         "creating": "Tạo",
         "currentFolder": "thư mục hiện tại",
+        "data": "dữ liệu",
         "delete": "Xóa",
         "deleting": "Đang xóa",
         "documentFiles": "tệp tài liệu",
         "download": "Tải xuống",
         "downloading": "Đang tải xuống",
+        "email": "email",
+        "environmentInfo": "thông tin môi trường",
         "executeCommand": "Chạy lệnh",
         "executingCommand": "Chạy lệnh",
+        "extensionFailed": "Tiện ích mở rộng không thành công",
         "extract": "Trích xuất",
         "extracting": "Trích xuất",
         "file": "tệp",
@@ -3844,6 +3864,10 @@
         "repository": "kho lưu trữ mã nguồn",
         "search": "Tìm",
         "searching": "Tìm kiếm",
+        "send": "Gửi",
+        "sending": "Đang gửi",
+        "start": "Bắt đầu",
+        "starting": "Bắt đầu",
         "switch": "Chuyển",
         "switching": "Chuyển đổi",
         "sync": "Đồng bộ",
@@ -3853,6 +3877,8 @@
         "translationFiles": "tệp dịch",
         "upload": "Tải lên",
         "uploading": "Tải lên",
+        "usedExtension": "Đã sử dụng một tiện ích mở rộng",
+        "usingExtension": "Sử dụng tiện ích mở rộng",
         "view": "Xem",
         "viewing": "Xem",
         "webPage": "trang web",
@@ -4046,6 +4072,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Cấu hình các mô hình tùy chỉnh",
       "pin": "Ghim mô hình này",
       "unpin": "Gỡ ghim mô hình"
     },
@@ -5545,75 +5572,6 @@
         "title": "Xuất Cài Đặt Menu",
         "yuque": "Xuất sang Yuque"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Chọn tệp sao lưu"
-        },
-        "content": "Xuất một số dữ liệu, bao gồm nhật ký trò chuyện và cài đặt. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian. Cảm ơn bạn đã kiên nhẫn.",
-        "file": {
-          "button": "Xuất ra tệp",
-          "content": "Xuất dữ liệu dưới dạng tệp sao lưu có thể được nhập vào thiết bị di động qua tệp.",
-          "export_failed": "Xuất không thành công",
-          "export_success": "Xuất thành công",
-          "title": "Xuất ra tệp tin"
-        },
-        "lan": {
-          "button": "Bắt đầu chuyển",
-          "connected": "Đã kết nối",
-          "connection_failed": "Kết nối thất bại",
-          "content": "Vui lòng đảm bảo máy tính và điện thoại của bạn cùng kết nối một mạng để chuyển tệp qua LAN.",
-          "device_list_title": "Thiết bị mạng cục bộ",
-          "discovered_devices": "Thiết bị đã được phát hiện",
-          "error": {
-            "file_too_large": "Tệp quá lớn, chỉ hỗ trợ tối đa 500MB",
-            "init_failed": "Khởi tạo thất bại",
-            "invalid_file_type": "Chỉ hỗ trợ tệp ZIP",
-            "no_file": "Chưa chọn tập tin",
-            "no_ip": "Không thể lấy địa chỉ IP",
-            "not_connected": "Vui lòng hoàn tất bắt tay trước",
-            "send_failed": "Không gửi được tệp"
-          },
-          "file_transfer": {
-            "cancelled": "Chuyển khoản đã bị hủy",
-            "failed": "Chuyển tập tin thất bại: {{message}}",
-            "progress": "Đang gửi... {{progress}}%",
-            "success": "Tệp đã được gửi thành công"
-          },
-          "handshake": {
-            "button": "Bắt tay",
-            "failed": "Lỗi bắt tay: {{message}}",
-            "in_progress": "Bắt tay...",
-            "success": "Bắt tay hoàn tất với {{device}}",
-            "test_message_received": "Đã nhận pong từ {{device}}",
-            "test_message_sent": "Gửi tải trọng kiểm tra hello world"
-          },
-          "idle_hint": "Quét đã tạm dừng. Bắt đầu quét để tìm các máy ngang hàng Cherry Studio trong mạng LAN của bạn.",
-          "ip_addresses": "Địa chỉ IP",
-          "last_seen": "Lần cuối thấy tại {{time}}",
-          "metadata": "Siêu dữ liệu",
-          "no_connection_warning": "Vui lòng mở LAN Transfer trên ứng dụng Cherry Studio di động",
-          "no_devices": "Chưa tìm thấy thiết bị LAN nào",
-          "scan_devices": "Quét thiết bị",
-          "scanning_hint": "Đang quét mạng cục bộ của bạn để tìm các máy ngang hàng Cherry Studio...",
-          "send_file": "Gửi tệp",
-          "status": {
-            "completed": "Chuyển khoản hoàn tất",
-            "connected": "Đã kết nối",
-            "connecting": "Đang kết nối...",
-            "disconnected": "Ngắt kết nối",
-            "error": "Lỗi kết nối",
-            "initializing": "Đang khởi tạo kết nối...",
-            "preparing": "Đang chuẩn bị chuyển giao...",
-            "sending": "{{progress}}% Übertragen"
-          },
-          "status_badge_idle": "Nhàn rỗi",
-          "status_badge_scanning": "Quét",
-          "stop_scan": "Dừng quét",
-          "title": "Truyền tải LAN",
-          "transfer_progress": "Tiến trình chuyển"
-        },
-        "title": "Xuất ra điện thoại"
-      },
       "hour_interval_one": "{{count}} ora",
       "hour_interval_other": "{{count}} giờ",
       "import_settings": {
@@ -6809,7 +6767,7 @@
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm tất cả mô hình"
         },
-        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
+        "add_success_enable_failed": "Đã thêm các mô hình, nhưng không thể bật nhà cung cấp.",
         "add_whole_group": "Thêm toàn bộ nhóm",
         "clean_stale_models": "Dọn dẹp mô hình không hợp lệ",
         "clean_stale_success": "Đã dọn dẹp {{count}} mô hình không hợp lệ",
@@ -7223,7 +7181,7 @@
         "fill_after_create": "Các trường xác thực có thể được điền sau khi tạo",
         "menu_label": "Thêm phiên bản"
       },
-      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
+      "enable_failed_after_connection": "Kết nối thành công, nhưng nhà cung cấp không thể được kích hoạt.",
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
         "all": "Tất cả nhà cung cấp",
