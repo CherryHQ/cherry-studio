@@ -685,8 +685,8 @@ vi.mock('react-i18next', () => ({
 
 import {
   SESSION_AGENT_SECTION_ID,
-  SESSION_NO_PROJECT_SECTION_ID,
   SESSION_PINNED_SECTION_ID,
+  SESSION_SYSTEM_WORKSPACE_SECTION_ID,
   SESSION_WORKDIR_SECTION_ID
 } from '@renderer/utils/chat/sessionListHelpers'
 
@@ -1356,8 +1356,8 @@ describe('Sessions', () => {
           id: `group:${SESSION_WORKDIR_SECTION_ID}`
         },
         over: {
-          data: sortableData(`group:${SESSION_NO_PROJECT_SECTION_ID}`),
-          id: `group:${SESSION_NO_PROJECT_SECTION_ID}`
+          data: sortableData(`group:${SESSION_SYSTEM_WORKSPACE_SECTION_ID}`),
+          id: `group:${SESSION_SYSTEM_WORKSPACE_SECTION_ID}`
         }
       })
     })
@@ -1404,8 +1404,8 @@ describe('Sessions', () => {
           id: `group:${SESSION_WORKDIR_SECTION_ID}`
         },
         over: {
-          data: sortableData(`group:${SESSION_NO_PROJECT_SECTION_ID}`),
-          id: `group:${SESSION_NO_PROJECT_SECTION_ID}`
+          data: sortableData(`group:${SESSION_SYSTEM_WORKSPACE_SECTION_ID}`),
+          id: `group:${SESSION_SYSTEM_WORKSPACE_SECTION_ID}`
         }
       })
     })

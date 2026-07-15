@@ -9,7 +9,7 @@ import type { HistorySourceOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
 export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
-export const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
+export const UNLINKED_AGENT_SOURCE_ID = '__unknown_agent__'
 
 /**
  * Map a history source-filter selection to the server-side owner scope: the
@@ -18,7 +18,7 @@ export const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
  */
 export function toServerOwnerScope(selectedSourceId: string): string | undefined {
   if (selectedSourceId === ALL_SOURCE_ID) return undefined
-  if (selectedSourceId === UNLINKED_ASSISTANT_SOURCE_ID || selectedSourceId === UNKNOWN_AGENT_SOURCE_ID) {
+  if (selectedSourceId === UNLINKED_ASSISTANT_SOURCE_ID || selectedSourceId === UNLINKED_AGENT_SOURCE_ID) {
     return 'unlinked'
   }
   return selectedSourceId
@@ -80,10 +80,10 @@ export function buildAssistantSources(
 }
 
 export function buildAgentSources(
-  hasUnknownAgent: boolean,
+  hasUnlinkedAgent: boolean,
   agentById: ReadonlyMap<string, AgentEntity>,
   agentRankById: ReadonlyMap<string, number>,
-  unknownAgentLabel: string,
+  unlinkedAgentLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
   return [
@@ -107,11 +107,11 @@ export function buildAgentSources(
           )
         }
       }),
-    ...(hasUnknownAgent
+    ...(hasUnlinkedAgent
       ? [
           {
-            id: UNKNOWN_AGENT_SOURCE_ID,
-            label: unknownAgentLabel,
+            id: UNLINKED_AGENT_SOURCE_ID,
+            label: unlinkedAgentLabel,
             icon: <Bot size={15} />
           }
         ]

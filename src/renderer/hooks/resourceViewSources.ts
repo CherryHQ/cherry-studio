@@ -11,7 +11,7 @@ import { useTopicStats } from './useTopic'
  * conversation pages, and their right-panel lists.
  */
 
-const RESOURCE_SEED_PAGE_SIZE = 50
+const RESOURCE_REUSE_CANDIDATE_PAGE_SIZE = 50
 
 /**
  * Factual counts drive group visibility. Imperative lookups use scoped latest
@@ -26,10 +26,10 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
         : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
     return result.topic
   }, [])
-  const loadTopicSeedCandidates = useCallback(async (assistantId: string | null): Promise<TopicListItem[]> => {
+  const loadTopicReuseCandidates = useCallback(async (assistantId: string | null): Promise<TopicListItem[]> => {
     const query = {
       assistantId: assistantId ?? 'unlinked',
-      limit: RESOURCE_SEED_PAGE_SIZE,
+      limit: RESOURCE_REUSE_CANDIDATE_PAGE_SIZE,
       sortBy: 'orderKey' as const
     }
     const [pinnedPage, ordinaryPage] = await Promise.all([
@@ -46,7 +46,7 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
     statsError: statsSource.error,
     refetchStats: statsSource.refetch,
     loadLatestTopic,
-    loadTopicSeedCandidates
+    loadTopicReuseCandidates
   }
 }
 
@@ -60,8 +60,8 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
         : await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
     return result.session
   }, [])
-  const loadSessionSeedCandidates = useCallback(async (agentId: string): Promise<AgentSessionListItem[]> => {
-    const query = { agentId, limit: RESOURCE_SEED_PAGE_SIZE, sortBy: 'orderKey' as const }
+  const loadSessionReuseCandidates = useCallback(async (agentId: string): Promise<AgentSessionListItem[]> => {
+    const query = { agentId, limit: RESOURCE_REUSE_CANDIDATE_PAGE_SIZE, sortBy: 'orderKey' as const }
     const [pinnedPage, ordinaryPage] = await Promise.all([
       dataApiService.get('/agent-sessions', { query: { ...query, pinned: true } }),
       dataApiService.get('/agent-sessions', { query: { ...query, pinned: false } })
@@ -76,7 +76,7 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
     statsError: statsSource.error,
     refetchStats: statsSource.refetch,
     loadLatestSession,
-    loadSessionSeedCandidates
+    loadSessionReuseCandidates
   }
 }
 

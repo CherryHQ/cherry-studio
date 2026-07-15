@@ -129,14 +129,14 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
 
-  const unknownAgentLabel = t('agent.session.group.unknown_agent')
-  const hasUnknownAgent = useMemo(
+  const unlinkedAgentLabel = t('agent.session.group.unknown_agent')
+  const hasUnlinkedAgent = useMemo(
     () => sessionStats?.byAgent.some((entry) => entry.agentId === null || !agentById.has(entry.agentId)) ?? false,
     [agentById, sessionStats]
   )
   const agentSources = useMemo(
-    () => buildAgentSources(hasUnknownAgent, agentById, agentRankById, unknownAgentLabel, t),
-    [agentById, agentRankById, hasUnknownAgent, t, unknownAgentLabel]
+    () => buildAgentSources(hasUnlinkedAgent, agentById, agentRankById, unlinkedAgentLabel, t),
+    [agentById, agentRankById, hasUnlinkedAgent, t, unlinkedAgentLabel]
   )
   const additionalAgentSourceItems = useMemo(
     () =>

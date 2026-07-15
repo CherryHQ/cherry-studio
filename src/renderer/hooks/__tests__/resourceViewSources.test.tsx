@@ -41,7 +41,7 @@ describe('resourceViewSources', () => {
   it('loads topic seed candidates across pinned and unpinned rows', async () => {
     const { result } = renderHook(() => useAssistantTopicsSource())
 
-    await result.current.loadTopicSeedCandidates('assistant-a')
+    await result.current.loadTopicReuseCandidates('assistant-a')
 
     expect(mocks.get).toHaveBeenCalledWith('/topics', {
       query: {
@@ -55,7 +55,7 @@ describe('resourceViewSources', () => {
   it('loads session seed candidates across pinned and unpinned rows', async () => {
     const { result } = renderHook(() => useAgentSessionsSource())
 
-    await result.current.loadSessionSeedCandidates('agent-a')
+    await result.current.loadSessionReuseCandidates('agent-a')
 
     expect(mocks.get).toHaveBeenCalledWith('/agent-sessions', {
       query: {

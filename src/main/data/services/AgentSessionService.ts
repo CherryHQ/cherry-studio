@@ -324,7 +324,7 @@ export class AgentSessionService {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    return this.listFlatByCursor(query, query.sortBy ?? 'createdAt')
+    return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
   }
 
   /**
@@ -370,13 +370,13 @@ export class AgentSessionService {
 
   /**
    * Flat single-stream page, mirroring
-   * `TopicService.listFlatByCursor`: `createdAt` → immutable creation order,
+   * `TopicService.listOrdinaryByCursor`: `createdAt` → immutable creation order,
    * `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey` →
    * manual order (`ASC, id ASC`), with the shared `(sortValue, id)` cursor.
    * Always LEFT JOINs live agents so owner-scope filters and name-or-owner
    * search share one join.
    */
-  private listFlatByCursor(
+  private listOrdinaryByCursor(
     query: ListAgentSessionsQuery,
     sortBy: AgentSessionSortBy
   ): CursorPaginationResponse<AgentSessionListItem> {

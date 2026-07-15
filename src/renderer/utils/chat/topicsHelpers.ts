@@ -56,7 +56,7 @@ export type TopicListItem = Topic & {
 }
 
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
-export const TOPIC_CREATED_GROUP_ID = 'topic:created'
+export const TOPIC_ORDINARY_GROUP_ID = 'topic:created'
 export const TOPIC_PINNED_SECTION_ID = 'topic:section:pinned'
 export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
@@ -187,7 +187,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
   })
 
   if (mode === 'time') {
-    return composeResourceListGroupResolvers(pinnedResolver, () => ({ id: TOPIC_CREATED_GROUP_ID, label: '' }))
+    return composeResourceListGroupResolvers(pinnedResolver, () => ({ id: TOPIC_ORDINARY_GROUP_ID, label: '' }))
   }
 
   return composeResourceListGroupResolvers(pinnedResolver, (topic) => {

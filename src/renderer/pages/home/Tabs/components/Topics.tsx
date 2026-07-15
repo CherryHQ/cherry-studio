@@ -68,7 +68,7 @@ import {
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_CREATED_GROUP_ID,
+  TOPIC_ORDINARY_GROUP_ID,
   TOPIC_PINNED_GROUP_ID,
   TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
@@ -128,9 +128,9 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
 const TOPIC_PAGE_SIZE = 50
 const TOPIC_SEARCH_DEBOUNCE_MS = 300
 
-type RemoteTopic = Topic & Pick<ApiTopicListItem, 'pinId'>
+type TopicResourceItem = Topic & Pick<ApiTopicListItem, 'pinId'>
 
-function mapTopicListItem(topic: ApiTopicListItem): RemoteTopic {
+function mapApiTopicListItem(topic: ApiTopicListItem): TopicResourceItem {
   return {
     ...mapApiTopicToRendererTopic(topic),
     pinned: topic.pinned,
@@ -301,7 +301,7 @@ export function Topics({
     q: debouncedRemoteQuery
   })
   const { loadNext: loadNextPinnedTopics, refetch: refetchPinnedTopics, topics: pinnedTopicRows } = pinnedTopicsSource
-  const createdTopicsSource = useTopics({
+  const ordinaryTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
     enabled: isTopicListEnabled && !isAssistantDisplayMode,
     pageSize: TOPIC_PAGE_SIZE,
@@ -310,13 +310,13 @@ export function Topics({
     sortBy: topicSortBy
   })
   const {
-    hasNext: hasMoreCreatedTopics,
-    isLoading: isCreatedTopicsLoading,
-    isRefreshing: isCreatedTopicsRefreshing,
-    loadNext: loadNextCreatedTopics,
-    refetch: refetchCreatedTopics,
-    topics: createdTopicRows
-  } = createdTopicsSource
+    hasNext: hasMoreOrdinaryTopics,
+    isLoading: isOrdinaryTopicsLoading,
+    isRefreshing: isOrdinaryTopicsRefreshing,
+    loadNext: loadNextOrdinaryTopics,
+    refetch: refetchOrdinaryTopics,
+    topics: ordinaryTopicRows
+  } = ordinaryTopicsSource
   const {
     stats: topicStats,
     isLoading: isTopicStatsLoading,
@@ -389,7 +389,7 @@ export function Topics({
     targetAssistantId: string | null
   } | null>(null)
   const activeTopicRef = useRef(activeTopic)
-  const [revealedTopic, setRevealedTopic] = useState<RemoteTopic | null>(null)
+  const [revealedTopic, setRevealedTopic] = useState<TopicResourceItem | null>(null)
 
   useEffect(() => {
     activeTopicRef.current = activeTopic
@@ -526,17 +526,17 @@ export function Topics({
           sortBy: topicSortBy
         }
       })
-      return { ...page, items: page.items.map(mapTopicListItem) }
+      return { ...page, items: page.items.map(mapApiTopicListItem) }
     },
     [debouncedRemoteQuery, topicSortBy]
   )
-  const getRemoteTopicId = useCallback((topic: RemoteTopic) => topic.id, [])
+  const getTopicResourceItemId = useCallback((topic: TopicResourceItem) => topic.id, [])
   const {
     items: assistantWindowTopics,
     loadGroup: loadAssistantTopicGroup,
     loadMoreGroup: loadMoreAssistantTopicGroup,
     windows: assistantTopicWindows
-  } = useCursorGroupWindows<RemoteTopic>({
+  } = useCursorGroupWindows<TopicResourceItem>({
     continuityKey: JSON.stringify({
       mode: 'assistant',
       ownerScope: rightPanelOwnerScope,
@@ -544,7 +544,7 @@ export function Topics({
     }),
     enabled: isTopicListEnabled && isAssistantDisplayMode,
     fetchPage: fetchAssistantTopicPage,
-    getItemId: getRemoteTopicId,
+    getItemId: getTopicResourceItemId,
     groupIds: orderedAssistantTopicGroupIds,
     initialGroupIds: initialAssistantTopicGroupIds,
     queryKey: JSON.stringify({
@@ -555,10 +555,10 @@ export function Topics({
     }),
     resourcePath: '/topics'
   })
-  const pinnedTopics = useMemo(() => pinnedTopicRows.map(mapTopicListItem), [pinnedTopicRows])
-  const createdTopics = useMemo(() => createdTopicRows.map(mapTopicListItem), [createdTopicRows])
+  const pinnedTopics = useMemo(() => pinnedTopicRows.map(mapApiTopicListItem), [pinnedTopicRows])
+  const ordinaryTopics = useMemo(() => ordinaryTopicRows.map(mapApiTopicListItem), [ordinaryTopicRows])
   const commitTopicPin = useCallback(
-    async (topic: RemoteTopic) => {
+    async (topic: TopicResourceItem) => {
       if (topic.pinId) {
         await unpinTopic(topic.pinId)
       } else {
@@ -568,14 +568,14 @@ export function Topics({
     [pinTopic, unpinTopic]
   )
   const sourceTopics = useMemo(() => {
-    const byId = new Map<string, RemoteTopic>()
-    for (const topic of isAssistantDisplayMode ? assistantWindowTopics : createdTopics) {
+    const byId = new Map<string, TopicResourceItem>()
+    for (const topic of isAssistantDisplayMode ? assistantWindowTopics : ordinaryTopics) {
       byId.set(topic.id, topic)
     }
     for (const topic of pinnedTopics) byId.set(topic.id, topic)
     if (revealedTopic && !byId.has(revealedTopic.id)) byId.set(revealedTopic.id, revealedTopic)
     return [...byId.values()]
-  }, [assistantWindowTopics, createdTopics, isAssistantDisplayMode, pinnedTopics, revealedTopic])
+  }, [assistantWindowTopics, ordinaryTopics, isAssistantDisplayMode, pinnedTopics, revealedTopic])
   const { items: topics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
     disabled: isPinsMutating,
     items: sourceTopics,
@@ -887,9 +887,9 @@ export function Topics({
     }
 
     if (!isAssistantDisplayMode) {
-      const createdCount = Math.max(0, (topicStats?.total ?? 0) - pinnedCount)
-      if (createdCount > 0 || createdTopicsSource.error) {
-        seeds.push({ id: TOPIC_CREATED_GROUP_ID, label: '', count: createdCount })
+      const ordinaryCount = Math.max(0, (topicStats?.total ?? 0) - pinnedCount)
+      if (ordinaryCount > 0 || ordinaryTopicsSource.error) {
+        seeds.push({ id: TOPIC_ORDINARY_GROUP_ID, label: '', count: ordinaryCount })
       }
       return seeds
     }
@@ -928,7 +928,7 @@ export function Topics({
     pinnedTopicsSource.error,
     t,
     topicStats,
-    createdTopicsSource.error
+    ordinaryTopicsSource.error
   ])
   const loadedTopicCountByGroupId = useMemo(() => {
     const result = new Map<string, number>()
@@ -938,7 +938,7 @@ export function Topics({
     }
     return result
   }, [topicGroupBy, topics])
-  const topicRemoteGroupStates = useMemo(() => {
+  const topicGroupStates = useMemo(() => {
     const result: Record<string, ResourceListRemoteGroupState> = {}
     for (const seed of topicGroupSeeds) {
       const loadedCount = loadedTopicCountByGroupId.get(seed.id) ?? 0
@@ -971,10 +971,10 @@ export function Topics({
 
       result[seed.id] = {
         totalCount,
-        hasMore: hasMoreCreatedTopics || !!createdTopicsSource.error,
-        status: createdTopicsSource.error
+        hasMore: hasMoreOrdinaryTopics || !!ordinaryTopicsSource.error,
+        status: ordinaryTopicsSource.error
           ? 'error'
-          : loadedCount === 0 && (isCreatedTopicsLoading || isCreatedTopicsRefreshing)
+          : loadedCount === 0 && (isOrdinaryTopicsLoading || isOrdinaryTopicsRefreshing)
             ? 'loading'
             : loadedCount === 0
               ? 'empty'
@@ -984,11 +984,11 @@ export function Topics({
     return result
   }, [
     assistantTopicWindows,
-    createdTopicsSource.error,
-    hasMoreCreatedTopics,
+    ordinaryTopicsSource.error,
+    hasMoreOrdinaryTopics,
     initialAssistantTopicGroupIds,
-    isCreatedTopicsLoading,
-    isCreatedTopicsRefreshing,
+    isOrdinaryTopicsLoading,
+    isOrdinaryTopicsRefreshing,
     isAssistantDisplayMode,
     loadedTopicCountByGroupId,
     pinnedTopicsSource.error,
@@ -1051,9 +1051,9 @@ export function Topics({
       if (groupId === TOPIC_PINNED_GROUP_ID) return pinnedTopics[0]?.id ?? null
       if (isAssistantDisplayMode) return loadAssistantTopicGroup(groupId)
 
-      return createdTopics[0]?.id ?? null
+      return ordinaryTopics[0]?.id ?? null
     },
-    [createdTopics, isAssistantDisplayMode, loadAssistantTopicGroup, pinnedTopics]
+    [ordinaryTopics, isAssistantDisplayMode, loadAssistantTopicGroup, pinnedTopics]
   )
   const loadMoreTopicGroup = useCallback(
     async (groupId: string) => {
@@ -1069,20 +1069,20 @@ export function Topics({
         await loadMoreAssistantTopicGroup(groupId)
         return
       }
-      if (createdTopicsSource.error) {
-        await refetchCreatedTopics()
+      if (ordinaryTopicsSource.error) {
+        await refetchOrdinaryTopics()
         return
       }
-      loadNextCreatedTopics()
+      loadNextOrdinaryTopics()
     },
     [
-      createdTopicsSource.error,
+      ordinaryTopicsSource.error,
       isAssistantDisplayMode,
       loadMoreAssistantTopicGroup,
-      loadNextCreatedTopics,
+      loadNextOrdinaryTopics,
       loadNextPinnedTopics,
       pinnedTopicsSource.error,
-      refetchCreatedTopics,
+      refetchOrdinaryTopics,
       refetchPinnedTopics
     ]
   )
@@ -1096,7 +1096,7 @@ export function Topics({
       const item = pinnedPage.items[0] ?? ordinaryPage.items[0]
       if (!item) return null
 
-      const topic = mapTopicListItem(item)
+      const topic = mapApiTopicListItem(item)
       setRevealedTopic(topic)
       const group = topicGroupBy(topic)
       const section = topicSectionBy?.(topic)
@@ -1104,16 +1104,16 @@ export function Topics({
     },
     [topicGroupBy, topicSectionBy]
   )
-  const topicRemoteData = useMemo<ResourceListRemoteData>(
+  const topicListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
-      groupStates: topicRemoteGroupStates,
+      groupStates: topicGroupStates,
       loadGroup: loadTopicGroup,
       loadMoreGroup: loadMoreTopicGroup,
       onQueryChange: setRemoteQuery,
       query: remoteQuery,
       revealItem: revealTopic
     }),
-    [loadMoreTopicGroup, loadTopicGroup, remoteQuery, revealTopic, topicRemoteGroupStates]
+    [loadMoreTopicGroup, loadTopicGroup, remoteQuery, revealTopic, topicGroupStates]
   )
   // Stream failures are recoverable at their remote group footer. Keeping them out of the
   // top-level status is what leaves that error group mounted even before any rows have loaded.
@@ -1122,7 +1122,7 @@ export function Topics({
     topics.length === 0 &&
     (isTopicStatsLoading ||
       pinnedTopicsSource.isLoading ||
-      (!isAssistantDisplayMode ? isCreatedTopicsLoading : isAssistantsLoading))
+      (!isAssistantDisplayMode ? isOrdinaryTopicsLoading : isAssistantsLoading))
   const visibleFilteredTopics = filteredTopics
   const listStatus =
     listError && topics.length === 0
@@ -1133,15 +1133,20 @@ export function Topics({
           ? 'empty'
           : 'idle'
   const handleTopicEndReached = useCallback(() => {
-    if (!isAssistantDisplayMode && !createdTopicsSource.error && hasMoreCreatedTopics && !isCreatedTopicsRefreshing) {
-      loadNextCreatedTopics()
+    if (
+      !isAssistantDisplayMode &&
+      !ordinaryTopicsSource.error &&
+      hasMoreOrdinaryTopics &&
+      !isOrdinaryTopicsRefreshing
+    ) {
+      loadNextOrdinaryTopics()
     }
   }, [
-    createdTopicsSource.error,
-    hasMoreCreatedTopics,
+    ordinaryTopicsSource.error,
+    hasMoreOrdinaryTopics,
     isAssistantDisplayMode,
-    isCreatedTopicsRefreshing,
-    loadNextCreatedTopics
+    isOrdinaryTopicsRefreshing,
+    loadNextOrdinaryTopics
   ])
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
@@ -1593,13 +1598,13 @@ export function Topics({
 
   return (
     <>
-      <TopicResourceList<RemoteTopic>
+      <TopicResourceList<TopicResourceItem>
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-sidebar'}
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
         groupSeeds={topicGroupSeeds}
-        remoteData={topicRemoteData}
+        remoteData={topicListRemoteData}
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}

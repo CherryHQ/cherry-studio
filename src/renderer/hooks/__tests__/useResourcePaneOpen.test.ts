@@ -7,9 +7,9 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   return MockUseCache
 })
 
-import { useClassicLayoutRightPaneOpen } from '../useClassicLayoutRightPaneOpen'
+import { useResourcePaneOpen } from '../useResourcePaneOpen'
 
-describe('useClassicLayoutRightPaneOpen', () => {
+describe('useResourcePaneOpen', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
   })
@@ -17,36 +17,36 @@ describe('useClassicLayoutRightPaneOpen', () => {
   it('uses the page default when chat has no explicit override', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open_override', null)
 
-    const right = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: true }))
-    const left = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: false }))
+    const right = renderHook(() => useResourcePaneOpen('chat', { enabled: true, defaultOpen: true }))
+    const left = renderHook(() => useResourcePaneOpen('chat', { enabled: true, defaultOpen: false }))
 
     expect(right.result.current[0]).toBe(true)
     expect(left.result.current[0]).toBe(false)
   })
 
   it('lets an explicit false override a right-side default across remounts', () => {
-    const first = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: true }))
+    const first = renderHook(() => useResourcePaneOpen('chat', { enabled: true, defaultOpen: true }))
 
     const setFirstOpen = first.result.current[1]
     act(() => setFirstOpen(false))
     expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open_override')).toBe(false)
     first.unmount()
 
-    const second = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: true }))
+    const second = renderHook(() => useResourcePaneOpen('chat', { enabled: true, defaultOpen: true }))
     expect(second.result.current[0]).toBe(false)
   })
 
   it('lets an explicit true override a left-side default', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open_override', true)
 
-    const { result } = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: false }))
+    const { result } = renderHook(() => useResourcePaneOpen('chat', { enabled: true, defaultOpen: false }))
 
     expect(result.current[0]).toBe(true)
   })
 
   it('stays closed and ignores normal writes outside classic layout', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open_override', true)
-    const { result } = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: false, defaultOpen: true }))
+    const { result } = renderHook(() => useResourcePaneOpen('chat', { enabled: false, defaultOpen: true }))
 
     expect(result.current[0]).toBe(false)
     const setOpen = result.current[1]
@@ -55,7 +55,7 @@ describe('useClassicLayoutRightPaneOpen', () => {
   })
 
   it('allows a forced write while the layout preference is changing', () => {
-    const { result } = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: false, defaultOpen: false }))
+    const { result } = renderHook(() => useResourcePaneOpen('chat', { enabled: false, defaultOpen: false }))
 
     const setOpen = result.current[1]
     act(() => setOpen(true, { force: true }))
@@ -64,8 +64,8 @@ describe('useClassicLayoutRightPaneOpen', () => {
   })
 
   it('keeps chat and agent overrides independent', () => {
-    const chat = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: true }))
-    const agent = renderHook(() => useClassicLayoutRightPaneOpen('agent', { enabled: true, defaultOpen: false }))
+    const chat = renderHook(() => useResourcePaneOpen('chat', { enabled: true, defaultOpen: true }))
+    const agent = renderHook(() => useResourcePaneOpen('agent', { enabled: true, defaultOpen: false }))
 
     const setChatOpen = chat.result.current[1]
     const setAgentOpen = agent.result.current[1]

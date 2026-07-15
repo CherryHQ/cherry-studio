@@ -17,15 +17,15 @@ import {
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
-  SESSION_CREATED_GROUP_ID,
-  SESSION_NO_PROJECT_GROUP_ID,
+  SESSION_ORDINARY_GROUP_ID,
+  SESSION_SYSTEM_WORKSPACE_GROUP_ID,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 
 const SESSION_GROUP_LABELS = {
   pinned: 'Pinned',
   agent: {
-    unknown: 'Unknown agent'
+    unlinked: 'Unknown agent'
   },
   workdir: {
     none: 'No work directory'
@@ -182,7 +182,7 @@ describe('SessionList helpers', () => {
       label: 'Pinned'
     })
     expect(groupSession(createSession({ id: 'regular' }))).toEqual({
-      id: SESSION_CREATED_GROUP_ID,
+      id: SESSION_ORDINARY_GROUP_ID,
       label: ''
     })
   })
@@ -226,7 +226,7 @@ describe('SessionList helpers', () => {
         })
       )
     ).toEqual({
-      id: SESSION_NO_PROJECT_GROUP_ID,
+      id: SESSION_SYSTEM_WORKSPACE_GROUP_ID,
       label: ''
     })
   })
@@ -252,7 +252,7 @@ describe('SessionList helpers', () => {
       workdirDisplay
     })
     expect(workdirGroup(session)).toEqual({
-      id: SESSION_NO_PROJECT_GROUP_ID,
+      id: SESSION_SYSTEM_WORKSPACE_GROUP_ID,
       label: ''
     })
 

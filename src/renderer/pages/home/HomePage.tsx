@@ -27,11 +27,11 @@ import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
-import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
   type ConversationCenterResourceDefinition,
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
+import { useResourcePaneOpen } from '@renderer/hooks/useResourcePaneOpen'
 import {
   mapApiTopicToRendererTopic,
   useActiveTopic,
@@ -145,7 +145,7 @@ const HomePage: FC = () => {
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
-  const [classicAssistantScopeId, setClassicAssistantScopeId] = useState<string | null | undefined>(undefined)
+  const [rightPaneAssistantScopeId, setRightPaneAssistantScopeId] = useState<string | null | undefined>(undefined)
   const [isSelectedAssistantScopeEmpty, setIsSelectedAssistantScopeEmpty] = useState(false)
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -154,7 +154,7 @@ const HomePage: FC = () => {
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
   const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
-  const isClassicTopicLayout = topicDisplayMode === 'assistant'
+  const isAssistantResourceLayout = topicDisplayMode === 'assistant'
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
@@ -166,13 +166,14 @@ const HomePage: FC = () => {
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', {
-    enabled: isClassicTopicLayout,
+  // Classic-layout right-pane open state, cached on the assistant surface's own key.
+  const [topicPaneOpen, setTopicPaneOpen] = useResourcePaneOpen('chat', {
+    enabled: isAssistantResourceLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
   // Shared topic facts plus bounded seed lookups for rails, restore, and empty-topic reuse.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
-  const { stats: topicStats, loadLatestTopic, loadTopicSeedCandidates } = assistantTopicsSource
+  const { stats: topicStats, loadLatestTopic, loadTopicReuseCandidates } = assistantTopicsSource
   // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
   // depends on either independently paged `/topics` stream or its visible ordering.
@@ -266,13 +267,13 @@ const HomePage: FC = () => {
   const visibleTopicAssistantId = visibleTopic?.assistantId
   useEffect(() => {
     if (!visibleTopicId) return
-    setClassicAssistantScopeId(visibleTopicAssistantId ?? null)
+    setRightPaneAssistantScopeId(visibleTopicAssistantId ?? null)
     setIsSelectedAssistantScopeEmpty(false)
   }, [visibleTopicAssistantId, visibleTopicId])
   const loadReusableTopicCandidates = useCallback(
     async (assistantId: string | null) =>
-      mergeReusableTopicCandidates(await loadTopicSeedCandidates(assistantId), visibleTopic),
-    [loadTopicSeedCandidates, visibleTopic]
+      mergeReusableTopicCandidates(await loadTopicReuseCandidates(assistantId), visibleTopic),
+    [loadTopicReuseCandidates, visibleTopic]
   )
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
@@ -370,24 +371,24 @@ const HomePage: FC = () => {
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const activeResourceAssistantId =
-    isClassicTopicLayout && panePosition === 'right' && classicAssistantScopeId !== undefined
-      ? classicAssistantScopeId
+    isAssistantResourceLayout && panePosition === 'right' && rightPaneAssistantScopeId !== undefined
+      ? rightPaneAssistantScopeId
       : (visibleTopic?.assistantId ?? null)
   const { assistant: visibleAssistant } = useAssistantApiById(activeResourceAssistantId ?? undefined)
   const topicListPosition: ChatPanePosition =
-    !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
+    !isWindowFrame && isAssistantResourceLayout && panePosition === 'right' ? 'right' : 'left'
   const topicCountByAssistantId = useMemo(
     () => new Map((topicStats?.byAssistant ?? []).map(({ assistantId, count }) => [assistantId, count])),
     [topicStats?.byAssistant]
   )
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
-    if (!isClassicTopicLayout || topicListPosition !== 'right' || !activeResourceAssistantId) return undefined
+    if (!isAssistantResourceLayout || topicListPosition !== 'right' || !activeResourceAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
       count: topicCountByAssistantId.get(activeResourceAssistantId) ?? 0
     }
-  }, [activeResourceAssistantId, isClassicTopicLayout, t, topicCountByAssistantId, topicListPosition])
+  }, [activeResourceAssistantId, isAssistantResourceLayout, t, topicCountByAssistantId, topicListPosition])
   const tabInstanceTopicId = !isMessageOnlyView
     ? (visibleTopic?.id ?? (!isSelectedAssistantScopeEmpty ? (routeActiveTopicId ?? undefined) : undefined))
     : undefined
@@ -451,7 +452,7 @@ const HomePage: FC = () => {
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
       closeSurface()
-      setClassicAssistantScopeId(topic.assistantId ?? null)
+      setRightPaneAssistantScopeId(topic.assistantId ?? null)
       setIsSelectedAssistantScopeEmpty(false)
       setActiveTopic(topic)
       return true
@@ -461,7 +462,7 @@ const HomePage: FC = () => {
   const clearActiveTopicInSelectedScope = useCallback(
     (assistantId?: string | null) => {
       closeSurface()
-      setClassicAssistantScopeId((current) =>
+      setRightPaneAssistantScopeId((current) =>
         assistantId !== undefined ? assistantId : current !== undefined ? current : (visibleTopic?.assistantId ?? null)
       )
       setIsSelectedAssistantScopeEmpty(true)
@@ -647,7 +648,7 @@ const HomePage: FC = () => {
   // a real empty topic with another available assistant.
   const handleActiveAssistantDeleted = useCallback(
     async (deletedAssistantId: string) => {
-      setClassicAssistantScopeId(undefined)
+      setRightPaneAssistantScopeId(undefined)
       setIsSelectedAssistantScopeEmpty(false)
       const nextTopic = await loadLatestTopic()
       if (lastUsedAssistantId === deletedAssistantId) {
@@ -856,7 +857,7 @@ const HomePage: FC = () => {
 
   // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
   const pane =
-    isClassicTopicLayout && topicListPosition === 'right' ? (
+    isAssistantResourceLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={activeResourceAssistantId}
         assistantTopicsSource={assistantTopicsSource}
@@ -899,7 +900,7 @@ const HomePage: FC = () => {
   // provider owns the RightPanel for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
   const resourcePane: ResourcePaneConfig | null =
-    isClassicTopicLayout && topicListPosition === 'right'
+    isAssistantResourceLayout && topicListPosition === 'right'
       ? {
           label: t('chat.topics.title'),
           node: (
@@ -922,12 +923,12 @@ const HomePage: FC = () => {
     <TopicRightPane
       resourcePane={resourcePane}
       defaultOpen={topicPaneOpen}
-      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      onOpenChange={isAssistantResourceLayout ? setTopicPaneOpen : undefined}
       revealRequest={topicRevealRequest}>
       {content}
     </TopicRightPane>
   )
-  const assistantPickerDialog = isClassicTopicLayout ? (
+  const assistantPickerDialog = isAssistantResourceLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
       onOpenChange={setAssistantPickerOpen}

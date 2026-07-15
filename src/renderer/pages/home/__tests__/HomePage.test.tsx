@@ -53,7 +53,7 @@ const homeMocks = vi.hoisted(() => ({
   cacheSetPersist: vi.fn(),
   addAssistant: vi.fn(),
   createTopic: vi.fn(),
-  classicLayoutTopics: [] as Array<{
+  resourceLayoutTopics: [] as Array<{
     id: string
     assistantId?: string
     name: string
@@ -65,7 +65,7 @@ const homeMocks = vi.hoisted(() => ({
   isTopicsFirstPageLoading: false,
   isTopicsLoadingAll: false,
   isLatestTopicLoading: false,
-  // `undefined` → derive the latest from `classicLayoutTopics`; `null` → empty; a topic → that exact topic
+  // `undefined` → derive the latest from `resourceLayoutTopics`; `null` → empty; a topic → that exact topic
   // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestTopicOverride: undefined as Topic | null | undefined,
   // Controls the imperative `/topics/latest` seed lookup (`assistantTopicsSource.loadLatestTopic`), which
@@ -292,7 +292,7 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
   return {
     useAssistantTopicsSource: (options: { enabled?: boolean } = {}) => {
       const source = React.useMemo(() => {
-        const topics = options.enabled === false ? [] : homeMocks.classicLayoutTopics
+        const topics = options.enabled === false ? [] : homeMocks.resourceLayoutTopics
         const byAssistant = Array.from(new Set(topics.map((topic) => topic.assistantId ?? null))).map(
           (assistantId) => ({
             assistantId,
@@ -313,7 +313,7 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
                 ? (topics[0] ?? null)
                 : homeMocks.loadLatestTopicOverride
           ),
-          loadTopicSeedCandidates: vi.fn(async (assistantId: string | null) =>
+          loadTopicReuseCandidates: vi.fn(async (assistantId: string | null) =>
             topics.filter((topic) => (topic.assistantId ?? null) === assistantId)
           )
         }
@@ -332,7 +332,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   return {
     mapApiTopicToRendererTopic: (topic: Topic) => topic,
     useLatestTopic: (options: { enabled?: boolean } = {}) => {
-      const derived = findLatestUpdated(homeMocks.classicLayoutTopics) as Topic | undefined
+      const derived = findLatestUpdated(homeMocks.resourceLayoutTopics) as Topic | undefined
       const latest =
         homeMocks.latestTopicOverride === undefined ? derived : (homeMocks.latestTopicOverride ?? undefined)
       return {
@@ -790,7 +790,7 @@ describe('HomePage', () => {
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }]
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
     homeMocks.isTopicsFirstPageLoading = false
     homeMocks.isTopicsLoadingAll = false
     homeMocks.isLatestTopicLoading = false
@@ -993,7 +993,7 @@ describe('HomePage', () => {
   it('expands only the active topic assistant when changing topic position to the left sidebar', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.preferenceValues.set('topic.tab.position', 'right')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1' },
       { ...historyTopic, id: 'topic-b', assistantId: 'assistant-2' },
       { ...historyTopic, id: 'topic-c', assistantId: 'assistant-3' },
@@ -1206,7 +1206,7 @@ describe('HomePage', () => {
 
   it('passes the current assistant topic count to the classic-layout top button', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a' },
       { ...historyTopic, id: 'topic-b' },
       { ...historyTopic, id: 'topic-other', assistantId: 'assistant-2' }
@@ -1222,7 +1222,7 @@ describe('HomePage', () => {
   it('selects the latest historical topic by default when entering classic layout without a route topic', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]
@@ -1236,7 +1236,7 @@ describe('HomePage', () => {
   it('selects the latest historical topic by default when entering modern layout without a route topic', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]
@@ -1253,7 +1253,7 @@ describe('HomePage', () => {
     // The paged history is still loading in the background; the dedicated latest query has resolved.
     homeMocks.isTopicsFirstPageLoading = true
     homeMocks.isTopicsLoadingAll = true
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]
@@ -1283,7 +1283,7 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     // The loaded page holds only other topics; the dedicated latest query surfaces the true latest,
     // proving first-entry restore reads the query, not `findLatestUpdated` over the paged list.
-    homeMocks.classicLayoutTopics = [{ ...historyTopic, id: 'topic-on-page', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    homeMocks.resourceLayoutTopics = [{ ...historyTopic, id: 'topic-on-page', updatedAt: '2026-01-01T00:00:00.000Z' }]
     homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-off-page', updatedAt: '2026-01-09T00:00:00.000Z' }
 
     render(<HomePage />)
@@ -1295,7 +1295,7 @@ describe('HomePage', () => {
   it('creates an empty topic on modern first entry only when the topic library is empty', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
 
     render(<HomePage />)
 
@@ -1306,7 +1306,7 @@ describe('HomePage', () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.isLatestTopicLoading = true
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
 
     render(<HomePage />)
 
@@ -1317,7 +1317,7 @@ describe('HomePage', () => {
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -1348,7 +1348,7 @@ describe('HomePage', () => {
     // matched and repeated "new topic" for it stacked duplicate blanks.
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       // Latest overall (has a conversation) → auto-selected on entry, never reusable.
       {
         ...historyTopic,
@@ -1382,7 +1382,7 @@ describe('HomePage', () => {
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
     // The deleted assistant owned the only topic, so `/topics/latest` is empty post-deletion → the handler
@@ -1403,7 +1403,7 @@ describe('HomePage', () => {
     // must not be left stranded on a topic belonging to the just-deleted assistant.
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
     // The deleted assistant's only topic is the active one; post-deletion `/topics/latest` is empty, so the
@@ -1473,7 +1473,7 @@ describe('HomePage', () => {
 
   it('reuses the assistant latest empty topic instead of creating another one in the classic-layout picker', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-latest',
         assistantId: 'assistant-2',
@@ -1503,7 +1503,7 @@ describe('HomePage', () => {
 
   it('reuses the latest empty topic when an older candidate has an invalid timestamp', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-invalid',
         assistantId: 'assistant-2',
@@ -1532,7 +1532,7 @@ describe('HomePage', () => {
   it('reuses the current assistant empty topic from the classic-layout composer button', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-latest',
         assistantId: 'assistant-1',
@@ -1554,7 +1554,7 @@ describe('HomePage', () => {
   it('creates and activates a fresh empty topic from the classic-layout composer button when no empty topic exists', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-real-latest',
         assistantId: 'assistant-1',
@@ -1585,7 +1585,7 @@ describe('HomePage', () => {
     // chatted-in conversation that must NOT be reopened as a reusable empty placeholder (#16434).
     // Timestamps are equal here on purpose: emptiness is decided by `activeNodeId`, not by them, so a
     // migrated row whose createdAt === updatedAt is still excluded when it carries messages.
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-chatted-blank',
         assistantId: 'assistant-2',
@@ -1609,7 +1609,7 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     // A non-message write (e.g. a group/trace update) can move updatedAt past createdAt while the topic
     // stays empty. Emptiness is decided by `activeNodeId`, not the timestamp, so this is still reused.
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-bumped',
         assistantId: 'assistant-2',
@@ -1631,7 +1631,7 @@ describe('HomePage', () => {
   it('ignores a rapid double-click on the classic-layout composer new-topic action', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
     // Never resolves: the first create stays in flight so the re-entry guard must drop the second click.
     homeMocks.createTopic.mockReturnValue(new Promise(() => {}))
 
@@ -1648,7 +1648,7 @@ describe('HomePage', () => {
 
   it('selects a reused topic in the current tab even when another tab may already show it', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-latest',
         assistantId: 'assistant-2',
@@ -1669,7 +1669,7 @@ describe('HomePage', () => {
 
   it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
 
     render(<HomePage />)
@@ -1685,7 +1685,7 @@ describe('HomePage', () => {
   it('toasts when the classic-layout composer empty-topic creation fails', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
 
     render(<HomePage />)
@@ -2021,7 +2021,7 @@ describe('HomePage', () => {
     homeMocks.locationState = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-first-launch',
         assistantId: 'assistant-2',
@@ -2051,7 +2051,7 @@ describe('HomePage', () => {
 
   it('reuses a modern-layout empty topic from the shared topic source', async () => {
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.classicLayoutTopics = [
+    homeMocks.resourceLayoutTopics = [
       {
         id: 'topic-empty-modern',
         assistantId: 'assistant-2',
@@ -2080,7 +2080,7 @@ describe('HomePage', () => {
         updatedAt: '2026-01-04T00:00:00.000Z'
       }
     }
-    homeMocks.classicLayoutTopics = []
+    homeMocks.resourceLayoutTopics = []
 
     render(<HomePage />)
 

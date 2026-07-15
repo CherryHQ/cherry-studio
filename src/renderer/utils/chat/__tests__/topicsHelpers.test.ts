@@ -15,7 +15,7 @@ import {
   moveTopicAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
-  TOPIC_CREATED_GROUP_ID,
+  TOPIC_ORDINARY_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../topicsHelpers'
 
@@ -194,7 +194,7 @@ describe('Topics helpers', () => {
       label: 'Pinned'
     })
     expect(groupTopic(createTopic({ id: 'regular' }))).toEqual({
-      id: TOPIC_CREATED_GROUP_ID,
+      id: TOPIC_ORDINARY_GROUP_ID,
       label: ''
     })
   })

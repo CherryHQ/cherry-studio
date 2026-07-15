@@ -574,7 +574,7 @@ export class TopicService {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    return this.listFlatByCursor(query, query.sortBy ?? 'createdAt')
+    return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
   }
 
   /**
@@ -619,7 +619,7 @@ export class TopicService {
    * across the boundary; callers restart pagination after local mutations that
    * affect either sort key.
    */
-  private listFlatByCursor(query: ListTopicsQuery, sortBy: TopicSortBy): CursorPaginationResponse<TopicListItem> {
+  private listOrdinaryByCursor(query: ListTopicsQuery, sortBy: TopicSortBy): CursorPaginationResponse<TopicListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
 
