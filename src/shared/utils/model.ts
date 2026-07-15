@@ -6,14 +6,14 @@
  * 1. **Runtime model checks** — query Model schema fields (capabilities, reasoning,
  *    parameterSupport). These are the primary API for callers.
  *
- * 2. **Model-ID inference helpers** — string-match raw model IDs to infer
- *    capabilities. Used by modelMerger at model-creation time to populate schema
- *    fields when preset metadata is missing. Not intended for runtime use.
+ * 2. **Model-ID utilities** — name normalization (`getLowerBaseModelName`)
+ *    and the legacy token-limit delegate. Capability inference from raw ids
+ *    lives in `@cherrystudio/provider-registry` (creator-declared data).
  */
 
 import { findHeuristicTokenLimits, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import type { Model, RuntimeReasoning, ThinkingTokenLimits } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -119,19 +119,6 @@ export const isGatewayRoutableModel = (model: Model): boolean => {
 // ---------------------------------------------------------------------------
 // Reasoning configuration
 // ---------------------------------------------------------------------------
-
-/** Get full reasoning config */
-export const getReasoningConfig = (model: Model): RuntimeReasoning | undefined => model.reasoning
-
-/** Get thinking token limits */
-export const getThinkingTokenLimits = (model: Model): ThinkingTokenLimits | undefined =>
-  model.reasoning?.thinkingTokenLimits
-
-/** Get supported reasoning effort levels */
-export const getSupportedEfforts = (model: Model): string[] | undefined => model.reasoning?.supportedEfforts
-
-/** Whether reasoning supports interleaved thinking */
-export const isInterleavedThinkingModel = (model: Model): boolean => model.reasoning?.interleaved === true
 
 /** Check if model supports thinking token control */
 export const isSupportedThinkingTokenModel = (model: Model): boolean => model.reasoning?.thinkingTokenLimits != null
@@ -246,26 +233,8 @@ export const isDeepSeekModel = (model?: Model): boolean => {
   return model.name ? VENDOR_PATTERNS.deepseek.test(model.name.toLowerCase()) : false
 }
 
-/** Check if model is a Perplexity (sonar family) model. */
-export const isPerplexityModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.perplexity.test(getLowerBaseModelName(getRawModelId(model), '/')) || model.providerId === 'perplexity'
-
-/** Check if model is a Baichuan model. */
-export const isBaichuanModel = vendorCheck(VENDOR_PATTERNS.baichuan)
-
 /** Check if model is a MiMo (Xiaomi) model. */
 export const isMiMoModel = vendorCheck(VENDOR_PATTERNS.mimo)
-
-/** Check if model is a Ling / Ring (Ant Group) model. */
-export const isLingModel = vendorCheck(VENDOR_PATTERNS.ling)
-
-/** Check if model is a MiniMax model. */
-export const isMiniMaxModel = vendorCheck(VENDOR_PATTERNS.minimax)
-
-/** Check if model is a Step (StepFun) model. */
-export const isStepModel = vendorCheck(VENDOR_PATTERNS.step)
-
-export const isMistralModel = vendorCheck(VENDOR_PATTERNS.mistral)
 
 /**
  * OpenAI reasoning model = OpenAI vendor + REASONING capability.
@@ -353,7 +322,6 @@ export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
  */
 export const isClaudeReasoningModel = (model: Model): boolean => isAnthropicModel(model) && isReasoningModel(model)
 
-export const isMistralReasoningModel = (model: Model): boolean => isMistralModel(model) && isReasoningModel(model)
 /**
  * Thinking-token support for Claude = Anthropic vendor + `thinkingTokenLimits`
  * populated. `THINKING_TOKEN_MAP` covers the same 3.7 / 4-series SKUs that
@@ -589,12 +557,9 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): (st
   return [undefined, null, 'low', 'medium', 'high']
 }
 
-// ═════════════════════════════════════════════��══════════════════════════════
-// Section 2 — Model-ID Inference Helpers (string matching)
-//
-// Used by modelMerger at model-creation time to populate schema fields when
-// preset metadata is unavailable. NOT intended for runtime queries.
-// ═══��═════════════════════════════════════════════════════���══════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// Section 2 — Model-ID Utilities (name normalization + legacy delegates)
+// ═════════════════════════════════════════════════════════════════════════════
 
 // ---------------------------------------------------------------------------
 // Name extraction utilities
@@ -641,133 +606,10 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
   }, {})
 }
 
-// ---------------------------------------------------------------------------
-// Regex constants (used by inference helpers)
-// ---------------------------------------------------------------------------
-
 export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
   /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-lite)?(?!-251015)(?:-\d+)?$/i
-
-// ---------------------------------------------------------------------------
-// Inference functions — populate model schema from raw ID
-// ---------------------------------------------------------------------------
-
-/** Infer whether a raw model ID represents a vision model */
-export function inferVisionFromModelId(rawModelId: string): boolean {
-  const id = getLowerBaseModelName(rawModelId)
-  if (/^qwen(?:3\.[5-9]-?max|[-]?max)(?:-|$)?/.test(id)) return false
-  return VISION_REGEX.test(id) || IMAGE_ENHANCEMENT_REGEX.test(id)
-}
-
-/** Infer whether a raw model ID represents an embedding model */
-export function inferEmbeddingFromModelId(rawModelId: string): boolean {
-  const id = getLowerBaseModelName(rawModelId)
-  if (RERANKING_REGEX.test(id)) return false
-  return EMBEDDING_REGEX.test(id)
-}
-
-/** Infer whether a raw model ID represents a reranking model */
-export function inferRerankFromModelId(rawModelId: string): boolean {
-  return RERANKING_REGEX.test(getLowerBaseModelName(rawModelId))
-}
-
-/**
- * Infer whether a raw model ID represents an image-generation-capable model.
- * Covers both the dedicated text-to-image list (`dall-e`, `flux`, …) and the
- * chat-oriented image variants (`gemini-*-flash-image`, `gpt-image-1`, …).
- */
-export function inferImageGenerationFromModelId(rawModelId: string): boolean {
-  const id = getLowerBaseModelName(rawModelId)
-  return DEDICATED_IMAGE_MODEL_REGEX.test(id) || IMAGE_ENHANCEMENT_REGEX.test(id)
-}
-
-/** Infer whether a raw model ID represents a web-search-capable model. */
-export function inferWebSearchFromModelId(rawModelId: string): boolean {
-  const id = getLowerBaseModelName(rawModelId, '/')
-  if (CLAUDE_WEBSEARCH_REGEX.test(id)) return true
-  if (inferOpenAIWebSearchFromId(id)) return true
-  if (GEMINI_SEARCH_REGEX.test(id)) return true
-  // Hunyuan: every SKU except hunyuan-lite ships with web search
-  if (id.startsWith('hunyuan') && id !== 'hunyuan-lite') return true
-  // Perplexity sonar family
-  if (/^sonar(?:-|$)/.test(id)) return true
-  return false
-}
-
-/**
- * Infer whether a raw model ID represents a function-calling-capable model.
- *
- * Precise by construction: rejects embedding / rerank / dedicated image-gen
- * SKUs up-front so the capability stays mutually exclusive with those
- * families. Callers shouldn't need to pre-exclude anything.
- */
-export function inferFunctionCallingFromModelId(rawModelId: string): boolean {
-  const id = getLowerBaseModelName(rawModelId)
-  if (EMBEDDING_REGEX.test(id)) return false
-  if (RERANKING_REGEX.test(id)) return false
-  if (DEDICATED_IMAGE_MODEL_REGEX.test(id)) return false
-  return FUNCTION_CALLING_REGEX.test(id)
-}
-
-const FUNCTION_CALLING_ALLOWED_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4',
-  'gpt-4.5',
-  'gpt-oss(?:-[\\w-]+)?',
-  'gpt-5(?:-[0-9-]+)?',
-  'o(1|3|4)(?:-[\\w-]+)?',
-  'claude',
-  'qwen',
-  'qwen3',
-  'hunyuan',
-  'deepseek',
-  'glm-4(?:-[\\w-]+)?',
-  'glm-4.5(?:-[\\w-]+)?',
-  'glm-4.7(?:-[\\w-]+)?',
-  'glm-5(?:-[\\w-]+)?',
-  'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?',
-  'gemma-?4(?:[-.\\w]+)?',
-  'grok-3(?:-[\\w-]+)?',
-  'grok-4(?:-[\\w-]+)?',
-  'doubao-seed-1[.-][68](?:-[\\w-]+)?',
-  'doubao-seed-2[.-]0(?:-[\\w-]+)?',
-  'doubao-seed-code(?:-[\\w-]+)?',
-  'kimi-k2(?:-[\\w-]+)?',
-  'ling-\\w+(?:-[\\w-]+)?',
-  'ring-\\w+(?:-[\\w-]+)?',
-  'minimax-m[23](?:\\.\\d+)?(?:-[\\w-]+)?',
-  'mimo-v2\\.5(?:-pro)?(?!-)',
-  'mimo-v2-flash',
-  'mimo-v2-pro',
-  'mimo-v2-omni',
-  'glm-5v-turbo'
-]
-
-const FUNCTION_CALLING_EXCLUDED_MODELS = [
-  'aqa(?:-[\\w-]+)?',
-  'imagen(?:-[\\w-]+)?',
-  'o1-mini',
-  'o1-preview',
-  'AIDC-AI/Marco-o1',
-  'gemini-1(?:\\.[\\w-]+)?',
-  'qwen-mt(?:-[\\w-]+)?',
-  'gpt-5-chat(?:-[\\w-]+)?',
-  'glm-4\\.5v',
-  'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
-  'deepseek-v3.2-speciale',
-  'deepseek-r1(?:[-:][\\w.-]+)?'
-]
-
-export const FUNCTION_CALLING_REGEX = new RegExp(
-  `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_ALLOWED_MODELS.join('|')})\\b`,
-  'i'
-)
 
 // ---------------------------------------------------------------------------
 // Token limit inference
@@ -780,152 +622,6 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
  * consumers read `model.reasoning.thinkingTokenLimits` instead.
  */
 export const findTokenLimit = findHeuristicTokenLimits
-
-// ---------------------------------------------------------------------------
-// Internal inference sub-functions
-// ---------------------------------------------------------------------------
-
-function inferOpenAIWebSearchFromId(id: string): boolean {
-  return (
-    id.includes('gpt-4o-search-preview') ||
-    id.includes('gpt-4o-mini-search-preview') ||
-    (id.includes('gpt-4.1') && !id.includes('gpt-4.1-nano')) ||
-    (id.includes('gpt-4o') && !id.includes('gpt-4o-image')) ||
-    id.includes('o3') ||
-    id.includes('o4') ||
-    (id.includes('gpt-5') && !id.includes('chat'))
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Internal regex constants for inference
-// ---------------------------------------------------------------------------
-
-export const EMBEDDING_REGEX =
-  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
-
-export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
-
-const DEDICATED_IMAGE_MODELS = [
-  'dall-e(?:-[\\w-]+)?',
-  'gpt-image(?:-[\\w-]+)?',
-  'grok-2-image(?:-[\\w-]+)?',
-  'imagen(?:-[\\w-]+)?',
-  'flux(?:-[\\w-]+)?',
-  'stable-?diffusion(?:-[\\w-]+)?',
-  'stabilityai(?:-[\\w-]+)?',
-  'sd-[\\w-]+',
-  'sdxl(?:-[\\w-]+)?',
-  'cogview(?:-[\\w-]+)?',
-  'qwen-image(?:-[\\w-]+)?',
-  'janus(?:-[\\w-]+)?',
-  'midjourney(?:-[\\w-]+)?',
-  'mj-[\\w-]+',
-  'z-image(?:-[\\w-]+)?',
-  'longcat-image(?:-[\\w-]+)?',
-  'hunyuanimage(?:-[\\w-]+)?',
-  'seedream(?:-[\\w-]+)?',
-  'kandinsky(?:-[\\w-]+)?'
-]
-
-const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
-
-const IMAGE_ENHANCEMENT_MODELS = [
-  'grok-2-image(?:-[\\w-]+)?',
-  'qwen-image-edit',
-  'gpt-image-1',
-  'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
-]
-
-const IMAGE_ENHANCEMENT_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
-
-const visionAllowedModels = [
-  'llava',
-  'moondream',
-  'minicpm',
-  'gemini-1\\.5',
-  'gemini-2\\.0',
-  'gemini-2\\.5',
-  'gemini-3(?:\\.\\d)?-(?:flash|pro)(?:-preview)?',
-  'gemini-(flash|pro|flash-lite)-latest',
-  'gemini-exp',
-  'claude-3',
-  'claude-haiku-4',
-  'claude-sonnet-4',
-  'claude-opus-4',
-  'vision',
-  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
-  'qwen-vl',
-  'qwen2-vl',
-  'qwen2.5-vl',
-  'qwen3-vl',
-  'qwen3\\.[5-9](?:-[\\w-]+)?',
-  'qwen2.5-omni',
-  'qwen3-omni(?:-[\\w-]+)?',
-  'qvq',
-  'internvl2',
-  'grok-vision-beta',
-  'grok-4(?:-[\\w-]+)?',
-  'pixtral',
-  'gpt-4(?:-[\\w-]+)',
-  'gpt-4.1(?:-[\\w-]+)?',
-  'gpt-4o(?:-[\\w-]+)?',
-  'gpt-4.5(?:-[\\w-]+)',
-  'gpt-5(?:-[\\w-]+)?',
-  'chatgpt-4o(?:-[\\w-]+)?',
-  'o1(?:-[\\w-]+)?',
-  'o3(?:-[\\w-]+)?',
-  'o4(?:-[\\w-]+)?',
-  'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2\\.[56](?:-[\\w-]+)?',
-  'kimi-latest',
-  'gemma-?[3-4](?:[-.\\w]+)?',
-  'doubao-seed-1[.-][68](?:-[\\w-]+)?',
-  'doubao-seed-2[.-]0(?:-[\\w-]+)?',
-  'doubao-seed-code(?:-[\\w-]+)?',
-  'kimi-thinking-preview',
-  'gemma3(?:[-:\\w]+)?',
-  'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
-  'llama-guard-4(?:-[\\w-]+)?',
-  'llama-4(?:-[\\w-]+)?',
-  'step-1o(?:.*vision)?',
-  'step-1v(?:-[\\w-]+)?',
-  'qwen-omni(?:-[\\w-]+)?',
-  'mistral-large-(2512|latest)',
-  'mistral-medium-(2508|latest)',
-  'mistral-small-(2506|2603|latest)',
-  'mimo-v2\\.5(?!-)',
-  'mimo-v2-omni(?:-[\\w-]+)?',
-  'glm-5v-turbo'
-]
-
-const visionExcludedModels = [
-  'gpt-4-\\d+-preview',
-  'gpt-4-turbo-preview',
-  'gpt-4-32k',
-  'gpt-4-\\d+',
-  'o1-mini',
-  'o3-mini',
-  'o1-preview',
-  'AIDC-AI/Marco-o1'
-]
-
-const VISION_REGEX = new RegExp(
-  `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
-  'i'
-)
-
-const CLAUDE_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
-  'i'
-)
-
-const GEMINI_SEARCH_REGEX = new RegExp(
-  'gemini-(?:2(?!.*-image-preview).*(?:-latest)?|3(?:\\.\\d+)?-(?:flash|pro)(?:-(?:image-)?preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
-  'i'
-)
 
 // ---------------------------------------------------------------------------
 // Internal helper: extract raw model ID from Model
@@ -954,50 +650,12 @@ function getRawModelId(model: Model): string {
 // so these functions read truth from the schema rather than duplicating
 // regex patterns here.
 
-export const isGeminiReasoningModel = (model: Model): boolean => isGeminiModel(model) && isReasoningModel(model)
-
-export const isGrokReasoningModel = (model: Model): boolean => isGrokModel(model) && isReasoningModel(model)
-
-export const isHunyuanReasoningModel = (model: Model): boolean => isHunyuanModel(model) && isReasoningModel(model)
-
-export const isZhipuReasoningModel = (model: Model): boolean => isZhipuModel(model) && isReasoningModel(model)
-
-/**
- * Kimi reasoning identifier. Kept stricter than `isKimiModel && isReasoningModel`:
- * the generic membership shapes match any id containing "thinking", overshooting onto
- * variants like `kimi-k2-thinking-extra` that are not official reasoning SKUs.
- * Pinning to the canonical IDs avoids that false positive.
- */
-export const isKimiReasoningModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2\.[5-9]\d*|[3-9]\d*(?:\.\d+)?)(?:-[\w-]+)?$/.test(id)
-}
-
-export const isBaichuanReasoningModel = (model: Model): boolean => isBaichuanModel(model) && isReasoningModel(model)
-
-export const isLingReasoningModel = (model: Model): boolean => isLingModel(model) && isReasoningModel(model)
-
-export const isMiniMaxReasoningModel = (model: Model): boolean => isMiniMaxModel(model) && isReasoningModel(model)
-
-export const isStepReasoningModel = (model: Model): boolean => isStepModel(model) && isReasoningModel(model)
-
-export const isPerplexityReasoningModel = (model: Model): boolean => isPerplexityModel(model) && isReasoningModel(model)
-
-export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean =>
-  isPerplexityModel(model) && isSupportedReasoningEffortModel(model)
-
 /**
  * GPT-5 series reasoning variants are identified by series membership plus
  * the REASONING capability — the `chat` SKU is carved out of the series
  * check by `isGPT5SeriesModel` already, so no extra ID filter is needed.
  */
 export const isGPT5SeriesReasoningModel = (model: Model): boolean => isGPT5SeriesModel(model) && isReasoningModel(model)
-
-/** Alias: MiMo reasoning support mirrors thinking-token support. */
-export const isMiMoReasoningModel = (model: Model): boolean => isMiMoModel(model) && isReasoningModel(model)
-
-/** Alias preserved for callers — DeepSeek's thinking-token support equals its hybrid inference flag. */
-export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
 
 // ---------------------------------------------------------------------------
 // Specific Gemini / GPT / Kimi variants
