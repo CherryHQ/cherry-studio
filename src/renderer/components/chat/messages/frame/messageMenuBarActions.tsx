@@ -290,11 +290,8 @@ registerToolbarAction({
   icon: <EditIcon size={15} />,
   availability: toolbarAvailability(
     'user-edit',
-    ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-      !isTranslating &&
-      (isUserMessage || (isAssistantMessage && isEditable)) &&
-      !!actions.editMessage &&
-      !!startEditingMessage
+    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
+      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
   )
 })
 

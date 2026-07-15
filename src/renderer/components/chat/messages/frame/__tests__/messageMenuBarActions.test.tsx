@@ -273,14 +273,14 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toContain('edit')
   })
 
-  it('keeps edit actions for editable assistant replies', () => {
+  it('keeps assistant reply editing in the menu without a redundant toolbar action', () => {
     const context = createActionContext({
       actions: {
         editMessage: vi.fn()
       } as MessageListActions
     })
 
-    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toContain('user-edit')
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
     expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).toContain('edit')
   })
 
