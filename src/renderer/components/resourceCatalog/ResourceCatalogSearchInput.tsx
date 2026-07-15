@@ -40,6 +40,7 @@ export function ResourceCatalogSearchInput({
       />
       {value ? (
         <Button
+          type="button"
           variant="ghost"
           size="icon-sm"
           aria-label={t('common.clear')}

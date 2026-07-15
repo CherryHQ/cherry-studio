@@ -1,4 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
@@ -61,7 +62,7 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
  * and a co-located test asserts they stay equal. Imperative popup hosts import this to delay
  * unmount until the close animation finishes (renderer services/popup POPUP_EXIT_MS).
  */
-export const DIALOG_CLOSE_DURATION_MS = 200
+export { DIALOG_CLOSE_DURATION_MS }
 
 function DialogContent({
   className,

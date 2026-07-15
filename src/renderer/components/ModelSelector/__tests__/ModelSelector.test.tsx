@@ -15,13 +15,11 @@ import type {
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const {
   mockUseModelSelectorData,
-  mockNavigate,
   mockOpenSettingsTab,
   mockScrollToIndex,
   mockLoggerError,
@@ -30,7 +28,6 @@ const {
   mockHoverCardContentProps
 } = vi.hoisted(() => ({
   mockUseModelSelectorData: vi.fn(),
-  mockNavigate: vi.fn().mockResolvedValue(undefined),
   mockOpenSettingsTab: vi.fn(),
   mockScrollToIndex: vi.fn(),
   mockLoggerError: vi.fn(),
@@ -51,10 +48,6 @@ vi.mock('@logger', () => ({
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
-}))
-
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => mockNavigate
 }))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
@@ -263,6 +256,8 @@ const PROVIDER: Provider = {
   isEnabled: true
 } as Provider
 
+const MODEL_SELECTOR_CONTENT_HEIGHT = 440
+
 function makeModel(modelId: UniqueModelId, name: string): Model {
   return {
     id: modelId,
@@ -390,14 +385,12 @@ function mockDeferredAnimationFrames() {
 describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
-    mockNavigate.mockReset()
     mockOpenSettingsTab.mockReset()
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
     mockHoverCardContentProps.length = 0
     mockAvailablePopoverHeight.value = undefined
-    mockNavigate.mockResolvedValue(undefined)
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
@@ -441,8 +434,9 @@ describe('ModelSelector', () => {
 
     const option = screen.getByTestId('model-selector-item-openai::gpt-4')
     const row = option.closest('[data-model-selector-row]')
-    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1.5', 'bg-accent/70')
+    expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1', 'bg-accent/70')
     expect(row).not.toHaveClass('bg-primary/10')
+    expect(row?.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-primary')
     expect(screen.getByLabelText('models.action.unpin')).toHaveClass(
       'size-4',
       'hover:bg-transparent',
@@ -451,7 +445,7 @@ describe('ModelSelector', () => {
     expect(screen.getByLabelText('models.action.unpin')).not.toHaveClass('text-primary!')
   })
 
-  it('renders filter tags as icon-only chips', () => {
+  it('renders filter tags as labeled chips without a filter title', () => {
     mockUseModelSelectorData.mockReturnValue(
       makeData({
         availableTags: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING, 'free'],
@@ -460,16 +454,12 @@ describe('ModelSelector', () => {
       })
     )
 
-    const { container } = render(
-      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
-    )
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByText('models.filter.by_tag')).toBeInTheDocument()
-    expect(screen.queryByText('models.type.vision')).not.toBeInTheDocument()
-    expect(screen.queryByText('models.type.reasoning')).not.toBeInTheDocument()
-    expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
-    const filterIcons = container.querySelectorAll('[data-selector-shell-chrome="filter"] button.transition-colors svg')
-    expect(filterIcons).toHaveLength(3)
+    expect(screen.queryByText('models.filter.by_tag')).not.toBeInTheDocument()
+    expect(screen.getByText('models.type.vision')).toBeInTheDocument()
+    expect(screen.getByText('models.type.reasoning')).toBeInTheDocument()
+    expect(screen.getByText('models.type.free')).toBeInTheDocument()
   })
 
   it('uses neutral color on the row action when the model row is selected', () => {
@@ -565,6 +555,14 @@ describe('ModelSelector', () => {
         onMultiSelectModeChange={onMultiSelectModeChange}
       />
     )
+
+    expect(screen.queryByTestId('model-selector-multi-select-row')).not.toBeInTheDocument()
+    expect(screen.getByTestId('model-selector-multi-select-switch')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('model-selector-multi-select-switch')).toHaveAttribute(
+      'aria-label',
+      'models.multi_select.label'
+    )
+    expect(screen.getByTestId('model-selector-multi-select-switch')).not.toHaveTextContent('models.multi_select.label')
 
     fireEvent.click(screen.getByTestId('model-selector-multi-select-switch'))
     fireEvent.click(screen.getByTestId(`model-selector-item-${secondModelId}`))
@@ -816,7 +814,6 @@ describe('ModelSelector', () => {
 
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    expect(mockNavigate).not.toHaveBeenCalled()
     expect(onSettingsNavigate).not.toHaveBeenCalled()
     expect(mockOpenSettingsTab).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
@@ -863,7 +860,6 @@ describe('ModelSelector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
 
-    expect(mockNavigate).not.toHaveBeenCalled()
     expect(onSettingsNavigate).not.toHaveBeenCalled()
     expect(mockOpenSettingsTab).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
@@ -958,12 +954,11 @@ describe('ModelSelector', () => {
     await user.keyboard('{Enter}')
 
     await waitFor(() => expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider'))
-    expect(mockNavigate).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('opens CherryAI provider settings from the group action without rendering a row navigation tag', async () => {
+  it('does not render a provider settings action for CherryAI', () => {
     const cherryProvider = { ...PROVIDER, id: 'cherryai', name: 'CherryAI' } as Provider
     const modelId = 'cherryai::Qwen/Qwen3-8B' as UniqueModelId
     const cherryModel = {
@@ -986,8 +981,7 @@ describe('ModelSelector', () => {
             title: 'CherryAI',
             groupKind: 'provider',
             provider: cherryProvider,
-            canNavigateToSettings: true,
-            settingsProviderId: 'cherryin'
+            canNavigateToSettings: false
           },
           cherryItem
         ],
@@ -1014,11 +1008,8 @@ describe('ModelSelector', () => {
 
     render(<ControlledSelector />)
 
-    expect(screen.queryByText('cherryin')).toBeNull()
-    fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
-
-    await waitFor(() => expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
-    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('navigate.provider_settings')).not.toBeInTheDocument()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -1096,8 +1087,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
-    expect(mockVirtualListSizes.at(-1)).toBe(DEFAULT_SELECTOR_CONTENT_HEIGHT - 8)
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${MODEL_SELECTOR_CONTENT_HEIGHT}px` })
+    expect(mockVirtualListSizes.at(-1)).toBe(MODEL_SELECTOR_CONTENT_HEIGHT - 8)
   })
 
   it('fills the unified popover content height for short model lists', () => {
@@ -1111,8 +1102,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
-    expect(mockVirtualListSizes.at(-1)).toBe(DEFAULT_SELECTOR_CONTENT_HEIGHT - 8)
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${MODEL_SELECTOR_CONTENT_HEIGHT}px` })
+    expect(mockVirtualListSizes.at(-1)).toBe(MODEL_SELECTOR_CONTENT_HEIGHT - 8)
   })
 
   it('clamps the visible model list height to the available popover space', async () => {

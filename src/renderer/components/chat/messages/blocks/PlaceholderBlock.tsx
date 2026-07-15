@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { PlaceholderShimmerText } from './PlaceholderShimmerText'
+import { BeatLoader } from 'react-spinners'
 
 interface PlaceholderBlockProps {
   isProcessing: boolean
@@ -56,24 +55,16 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, createdAt, status = 'preparing' }) => {
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
   const { t } = useTranslation()
-  const elapsedMs = usePlaceholderElapsedMs(isProcessing, createdAt)
 
   if (isProcessing) {
     return (
       <div
-        className="mt-1 mb-0.5 flex min-h-6 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
+        className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-muted leading-5"
         data-testid="message-status-placeholder">
-        <PlaceholderShimmerText data-testid="message-status-text">
-          {t(PLACEHOLDER_LABEL_KEYS[status])}
-        </PlaceholderShimmerText>
-        <span aria-hidden="true" className="text-muted-foreground/40">
-          ·
-        </span>
-        <span className="text-muted-foreground/55" data-testid="message-status-elapsed">
-          {formatPlaceholderElapsed(elapsedMs, t)}
-        </span>
+        <span data-testid="message-status-text">{t(PLACEHOLDER_LABEL_KEYS[status])}</span>
+        <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
       </div>
     )
   }

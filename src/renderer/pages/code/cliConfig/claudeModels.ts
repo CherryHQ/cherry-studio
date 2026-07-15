@@ -25,6 +25,14 @@ export const CLAUDE_DETAILED_MODEL_ROLES = [
   }
 ] as const
 
+export const CLAUDE_MODEL_ROLES = [
+  ...CLAUDE_DETAILED_MODEL_ROLES,
+  {
+    roleKey: 'subagent',
+    model: 'CLAUDE_CODE_SUBAGENT_MODEL'
+  }
+] as const
+
 export const CLAUDE_DETAILED_MODEL_ENV_KEYS = CLAUDE_DETAILED_MODEL_ROLES.flatMap((role) => [role.model, role.name])
 
 const ONE_M_MARKER = '[1M]'

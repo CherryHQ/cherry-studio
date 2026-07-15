@@ -5,7 +5,6 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
-import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -14,7 +13,6 @@ import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemType } from '@shared/data/types/knowledge'
 import {
   createContext,
-  type MouseEvent as ReactMouseEvent,
   type PropsWithChildren,
   type RefObject,
   use,
@@ -35,10 +33,6 @@ import {
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
 
-const NAVIGATOR_DEFAULT_WIDTH = 240
-const NAVIGATOR_MIN_WIDTH = 220
-const NAVIGATOR_MAX_WIDTH = 360
-
 type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
 type CreateKnowledgeBase = ReturnType<typeof useCreateKnowledgeBase>['createBase']
@@ -52,7 +46,6 @@ interface KnowledgePageContextValue {
   selectedBaseId: string
   selectedItemId: string | null
   activeTab: KnowledgeTabKey
-  navigatorWidth: number
   contentRef: RefObject<HTMLDivElement | null>
   editingBase: EditableKnowledgeBase | null
   editingGroup: EditableKnowledgeGroup | null
@@ -101,7 +94,6 @@ interface KnowledgePageContextValue {
   moveBase: (baseId: string, groupId: string | null) => Promise<void>
   deleteBase: (baseId: string) => Promise<void>
   deleteGroup: (groupId: string) => Promise<void>
-  startNavigatorResize: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
 const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(null)
@@ -122,7 +114,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const pendingSelectedBaseListRef = useRef<KnowledgeBase[] | null>(null)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
-  const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
   const [restoringBase, setRestoringBase] = useState<KnowledgeBase | null>(null)
@@ -141,7 +132,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   // freshly created group immediately adopts that base (create-and-move in one go).
   const [pendingGroupMoveBaseId, setPendingGroupMoveBaseId] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const contentLeftRef = useRef(0)
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
@@ -415,21 +405,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     [deleteGroup, t]
   )
 
-  const handleNavigatorResizeMove = useCallback((moveEvent: MouseEvent) => {
-    const nextWidth = moveEvent.clientX - contentLeftRef.current
-    setNavigatorWidth(Math.min(NAVIGATOR_MAX_WIDTH, Math.max(NAVIGATOR_MIN_WIDTH, nextWidth)))
-  }, [])
-
-  const { startResizing: startNavigatorResizeDrag } = useResizeDrag({ onMove: handleNavigatorResizeMove })
-
-  const startNavigatorResize = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      contentLeftRef.current = contentRef.current?.getBoundingClientRect().left ?? 0
-      startNavigatorResizeDrag(event)
-    },
-    [startNavigatorResizeDrag]
-  )
-
   const value = useMemo<KnowledgePageContextValue>(
     () => ({
       bases,
@@ -439,7 +414,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBaseId,
       selectedItemId,
       activeTab,
-      navigatorWidth,
       contentRef,
       editingBase,
       editingGroup,
@@ -487,8 +461,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       submitRenameGroup,
       moveBase,
       deleteBase: handleDeleteBase,
-      deleteGroup: handleDeleteGroup,
-      startNavigatorResize
+      deleteGroup: handleDeleteGroup
     }),
     [
       activeTab,
@@ -529,7 +502,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isUpdatingGroup,
       isRestoringBase,
       moveBase,
-      navigatorWidth,
       openAddSourceDialog,
       closeItemChunks,
       openItemChunks,
@@ -543,7 +515,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedItemId,
-      startNavigatorResize,
       submitCreateGroup,
       submitRenameBase,
       submitRenameGroup

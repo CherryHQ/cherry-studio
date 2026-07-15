@@ -38,7 +38,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
+import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
@@ -49,7 +49,6 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot, ChevronDown, Globe, Lightbulb } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -1102,7 +1101,7 @@ const ChatComposerInner = ({
           const tokenId = chatComposerTokenId.file(file)
           const originalFilePart = originalFilePartsByTokenId.get(tokenId)
           const filePart = originalFilePart
-            ? withCherryMeta(originalFilePart, { fileTokenSourceId: file.fileTokenSourceId })
+            ? withComposerFilePartMeta(originalFilePart, file)
             : rebuiltFileParts.get(tokenId)
           return filePart ? [filePart] : []
         })
@@ -1269,11 +1268,11 @@ const ChatComposerInner = ({
         type="button"
         variant="ghost"
         size="icon-sm"
-        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
         disabled={newTopicDisabled}
         aria-label={t('chat.conversation.new')}
         onClick={() => addNewTopic()}>
-        <NewConversationIcon size={18} aria-hidden />
+        <NewConversationIcon size={20} aria-hidden />
       </Button>
     </Tooltip>
   ) : undefined
