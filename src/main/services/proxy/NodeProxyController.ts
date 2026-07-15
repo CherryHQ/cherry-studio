@@ -8,8 +8,7 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 import { type NodeProxyLogger, ProxyBypassRuleMatcher } from './bypassRules'
 import {
   buildNodeProxyEnvironment,
-  CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
-  CHERRY_NODE_PROXY_RULES_ENV,
+  clearNodeProxyEnvironment,
   type NodeProxyConfig,
   normalizeProxyBypassRules
 } from './proxyEnv'
@@ -104,19 +103,7 @@ export class NodeProxyController {
   }
 
   private setEnvironment(url: string | undefined, normalizedByPassRules: string[]): void {
-    delete process.env[CHERRY_NODE_PROXY_RULES_ENV]
-    delete process.env[CHERRY_NODE_PROXY_BYPASS_RULES_ENV]
-    delete process.env.HTTP_PROXY
-    delete process.env.HTTPS_PROXY
-    delete process.env.grpc_proxy
-    delete process.env.http_proxy
-    delete process.env.https_proxy
-    delete process.env.NO_PROXY
-    delete process.env.no_proxy
-    delete process.env.SOCKS_PROXY
-    delete process.env.socks_proxy
-    delete process.env.ALL_PROXY
-    delete process.env.all_proxy
+    clearNodeProxyEnvironment()
 
     if (!url) {
       return

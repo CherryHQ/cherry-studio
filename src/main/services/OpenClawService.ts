@@ -26,8 +26,6 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
 
-import { vertexAiService } from './VertexAiService'
-
 const logger = loggerService.withContext('OpenClawService')
 
 const openclawConfigDir = () => application.getPath('external.openclaw.config')
@@ -735,6 +733,7 @@ export class OpenClawService extends BaseService {
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
+          const { vertexAiService } = await import('./VertexAiService')
           const vertexService = vertexAiService
           apiKey = await vertexService.getAccessToken({
             projectId: provider.project,

@@ -39,8 +39,7 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import { isToolUIPart } from 'ai'
+import { isToolMessagePart, readCherryMeta } from '@shared/data/types/uiParts'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -1270,13 +1269,13 @@ export class MessageService {
       const after = applyApprovalDecisions(parts, decisions)
       const requestedIds = new Set(
         parts
-          .filter((p) => isToolUIPart(p) && p.state === 'approval-requested')
+          .filter((p) => isToolMessagePart(p) && p.state === 'approval-requested')
           .map((p) => (p as { approval?: { id?: string } }).approval?.id)
           .filter((id): id is string => typeof id === 'string')
       )
       const settledIds = new Set(
         parts
-          .filter((p) => isToolUIPart(p) && p.state !== 'approval-requested')
+          .filter((p) => isToolMessagePart(p) && p.state !== 'approval-requested')
           .map((p) => (p as { approval?: { id?: string } }).approval?.id)
           .filter((id): id is string => typeof id === 'string')
       )

@@ -1,6 +1,6 @@
 import { read } from '@main/utils/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
-import { Document } from '@vectorstores/core'
+import type { Document } from '@vectorstores/core'
 
 import { stripOkfFrontmatter } from '../utils/sources/okfFrontmatter'
 import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
@@ -32,5 +32,6 @@ export async function loadSnapshotDocuments(
   const text = stripOkfFrontmatter(await read(filePath))
   const sourceMetadata: KnowledgeSourceMetadata = { source: item.data.source }
 
+  const { Document } = await import('@vectorstores/core')
   return [new Document({ text, metadata: { ...sourceMetadata } })]
 }

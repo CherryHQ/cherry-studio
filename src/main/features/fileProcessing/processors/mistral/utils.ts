@@ -35,7 +35,8 @@ export async function executeExtraction(
   document: MistralImageDocument | MistralDocumentUrlDocument,
   options: { tableFormat?: 'html' | 'markdown' } = {}
 ): Promise<MistralOcrResponse> {
-  return context.client.ocr.process(
+  const client = await context.client
+  return client.ocr.process(
     {
       model: context.model ?? null,
       document,
@@ -90,7 +91,8 @@ export function buildMarkdownConversionResult(response: MistralOcrResponse): Doc
 
 export async function uploadDocument(context: PreparedMistralContext): Promise<string> {
   const fileBuffer = await fs.readFile(context.file.path)
-  const uploadedFile = await context.client.files.upload(
+  const client = await context.client
+  const uploadedFile = await client.files.upload(
     {
       file: {
         fileName: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name,
@@ -107,7 +109,8 @@ export async function uploadDocument(context: PreparedMistralContext): Promise<s
 }
 
 export async function getUploadedDocumentSignedUrl(context: PreparedMistralContext, fileId: string): Promise<string> {
-  const signedUrl = await context.client.files.getSignedUrl(
+  const client = await context.client
+  const signedUrl = await client.files.getSignedUrl(
     {
       fileId
     },
@@ -120,7 +123,8 @@ export async function getUploadedDocumentSignedUrl(context: PreparedMistralConte
 }
 
 export async function deleteUploadedDocument(context: PreparedMistralContext, fileId: string): Promise<void> {
-  await context.client.files.delete(
+  const client = await context.client
+  await client.files.delete(
     {
       fileId
     },

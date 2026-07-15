@@ -2,7 +2,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/workspaceErrors'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
@@ -27,9 +27,12 @@ const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError 
 })
 
 vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => ({
-  AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
-  isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
   prepareClaudeCodeWorkspaceDirectory: mockPrepareClaudeCodeWorkspaceDirectory
+}))
+
+vi.mock('@main/ai/runtime/claudeCode/workspaceErrors', () => ({
+  AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
+  isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError
 }))
 
 vi.mock('@logger', () => ({

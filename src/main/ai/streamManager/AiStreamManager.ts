@@ -28,7 +28,6 @@ import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
-import { pipeStreamLoop } from './pipeStreamLoop'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -1085,6 +1084,7 @@ export class AiStreamManager extends BaseService {
     const accumulatorSeed: CherryUIMessage | undefined =
       lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
 
+    const { pipeStreamLoop } = await import('./pipeStreamLoop')
     const result = await pipeStreamLoop(stream, signal, {
       onChunk: (chunk) => {
         this.onChunk(topicId, modelId, chunk)

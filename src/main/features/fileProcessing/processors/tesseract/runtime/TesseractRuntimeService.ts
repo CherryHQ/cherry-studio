@@ -9,7 +9,6 @@ import { MB } from '@shared/utils/constants'
 import PQueue from 'p-queue'
 import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
-import { createWorker } from 'tesseract.js'
 
 import type { ImageToTextHandlerOutput } from '../../types'
 import type { PreparedTesseractContext } from '../types'
@@ -105,6 +104,7 @@ export class TesseractRuntimeService extends BaseService {
         langs
       })
 
+      const { createWorker } = await import('tesseract.js')
       const nextWorker = await createWorker(langs, undefined, {
         langPath: await this.getLangPath(),
         cachePath: await this.getCacheDir(),

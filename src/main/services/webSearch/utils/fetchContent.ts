@@ -1,13 +1,9 @@
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
-import { Readability } from '@mozilla/readability'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
-import { JSDOM } from 'jsdom'
-import TurndownService from 'turndown'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
-const turndownService = new TurndownService()
 const SAFE_JSDOM_URL = 'http://localhost/'
 
 function buildHeaders(headers?: HeadersInit) {
@@ -32,9 +28,14 @@ export async function fetchWebSearchContent(url: string, httpOptions: RequestIni
       signal: httpOptions.signal ?? undefined
     })
 
+    const [{ Readability }, { JSDOM }, { default: TurndownService }] = await Promise.all([
+      import('@mozilla/readability'),
+      import('jsdom'),
+      import('turndown')
+    ])
     const dom = new JSDOM(html, { url: SAFE_JSDOM_URL })
     const article = new Readability(dom.window.document).parse()
-    const markdown = turndownService.turndown(article?.content || '').trim()
+    const markdown = new TurndownService().turndown(article?.content || '').trim()
 
     return {
       title: article?.title || url,

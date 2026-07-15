@@ -1,4 +1,3 @@
-import { Mistral } from '@mistralai/mistralai'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
@@ -35,10 +34,13 @@ function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: Ab
 
   return {
     file,
-    client: new Mistral({
-      apiKey: getRequiredApiKey(config, 'mistral'),
-      serverURL: getRequiredApiHost(capability)
-    }),
+    client: import('@mistralai/mistralai').then(
+      ({ Mistral }) =>
+        new Mistral({
+          apiKey: getRequiredApiKey(config, 'mistral'),
+          serverURL: getRequiredApiHost(capability)
+        })
+    ),
     model: capability.modelId
   }
 }

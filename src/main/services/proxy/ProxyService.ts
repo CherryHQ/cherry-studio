@@ -7,7 +7,8 @@ import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
-import { NodeProxyController } from './NodeProxyController'
+import type { NodeProxyController } from './NodeProxyController'
+import { clearNodeProxyEnvironment } from './proxyEnv'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -54,7 +55,7 @@ export function resolveProxyConfig({
 export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
-  private nodeProxyController = new NodeProxyController(logger)
+  private nodeProxyController: NodeProxyController | null = null
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
   // into a single re-read + re-apply — single-flight and level-triggered, so a change landing
@@ -145,10 +146,20 @@ export class ProxyService extends BaseService {
   }
 
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
-    this.nodeProxyController.configure({
+    const nodeConfig = {
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
       proxyBypassRules: config.proxyBypassRules
-    })
+    }
+
+    if (nodeConfig.proxyRules || this.nodeProxyController) {
+      if (!this.nodeProxyController) {
+        const { NodeProxyController } = await import('./NodeProxyController')
+        this.nodeProxyController = new NodeProxyController(logger)
+      }
+      this.nodeProxyController.configure(nodeConfig)
+    } else {
+      clearNodeProxyEnvironment()
+    }
     await this.setSessionsProxy(config)
   }
 

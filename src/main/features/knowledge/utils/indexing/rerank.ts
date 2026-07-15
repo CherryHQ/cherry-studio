@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-import { APICallError } from 'ai'
 
 const logger = loggerService.withContext('KnowledgeRerank')
 
@@ -11,7 +10,8 @@ const logger = loggerService.withContext('KnowledgeRerank')
 // wrong model) rather than a transient blip — these will keep failing every search.
 const PERSISTENT_RERANK_STATUS_CODES = new Set([401, 403, 404])
 
-function isPersistentRerankMisconfig(error: unknown): boolean {
+async function isPersistentRerankMisconfig(error: unknown): Promise<boolean> {
+  const { APICallError } = await import('ai')
   return APICallError.isInstance(error) && PERSISTENT_RERANK_STATUS_CODES.has(error.statusCode ?? 0)
 }
 
@@ -73,7 +73,7 @@ async function rerankWithAiService(
     // Persistent misconfiguration (401/403/404) degrades every search forever, so escalate
     // to error; transient failures (network/timeout/429/5xx) stay at warn. Pass the Error
     // instance itself so the stack and cause survive into the log.
-    if (isPersistentRerankMisconfig(error)) {
+    if (await isPersistentRerankMisconfig(error)) {
       logger.error('Knowledge rerank failed, returning vector search results', normalizedError, context)
     } else {
       logger.warn('Knowledge rerank failed, returning vector search results', normalizedError, context)

@@ -181,6 +181,14 @@ export type CherryMetaForPartType<T extends string> = T extends 'text'
  */
 export type CherryProviderMetadata = CherryTextMeta & CherryReasoningMeta & CherryToolMeta & CherryFileMeta
 
+/** Lightweight equivalent of AI SDK's `isToolUIPart`, kept here so DB-only
+ * main-process paths do not load the full AI runtime just to inspect a part. */
+export function isToolMessagePart(
+  part: CherryMessagePart
+): part is CherryMessagePart & ({ type: `tool-${string}` } | { type: 'dynamic-tool' }) {
+  return part.type === 'dynamic-tool' || part.type.startsWith('tool-')
+}
+
 // ============================================================================
 // Zod schemas — runtime validation at the read boundary
 // ============================================================================

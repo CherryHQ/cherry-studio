@@ -2,7 +2,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
 import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
-import TurndownService from 'turndown'
+import type TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
@@ -18,12 +18,11 @@ export class CdpBrowserController {
   private windows: Map<string, WindowInfo> = new Map()
   private readonly maxWindows: number
   private readonly idleTimeoutMs: number
-  private readonly turndownService: TurndownService
+  private turndownService?: TurndownService
 
   constructor(options?: { maxWindows?: number; idleTimeoutMs?: number }) {
     this.maxWindows = options?.maxWindows ?? 5
     this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
-    this.turndownService = new TurndownService()
 
     // Listen for theme changes and update all tab bars
     nativeTheme.on('updated', () => {
@@ -838,6 +837,10 @@ export class CdpBrowserController {
 
       let content: string | object
       if (format === 'markdown') {
+        if (!this.turndownService) {
+          const { default: TurndownService } = await import('turndown')
+          this.turndownService = new TurndownService()
+        }
         content = this.turndownService.turndown(rawContent)
       } else if (format === 'json') {
         try {

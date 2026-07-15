@@ -263,6 +263,7 @@ describe('AiStreamManager', () => {
     })
 
     it('aborts the agent-session turn controller for a pre-stream stop request', async () => {
+      await import('../pipeStreamLoop')
       const turnAbortController = new AbortController()
       mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
         turnAbortController.abort(reason)
@@ -282,6 +283,7 @@ describe('AiStreamManager', () => {
       expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
       expect(snap.status).toBe('aborted')
 
+      await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(0)
       expect(listener.pausedResults).toHaveLength(1)
     })
@@ -599,6 +601,7 @@ describe('AiStreamManager', () => {
     // is the same reference the manager holds.
 
     it('maps paused status to aborted state', async () => {
+      await import('../pipeStreamLoop')
       const l = new FakeListener('l:a')
       startSingle(mgr, {
         topicId: 'a',
@@ -611,6 +614,7 @@ describe('AiStreamManager', () => {
       // Drain the microtask chain that follows the abort propagating through
       // the pipeStreamLoop, but stop short of the grace-period cleanup so
       // `inspect()` still returns the stream.
+      await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(0)
 
       expect(mgr.inspect('a')!.status).toBe('aborted')

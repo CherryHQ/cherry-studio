@@ -78,6 +78,9 @@ import type { AgentRuntimeUserInput } from '../types'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
+import { AgentSessionWorkspaceError } from './workspaceErrors'
+
+export { AgentSessionWorkspaceError, isAgentSessionWorkspaceError } from './workspaceErrors'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
@@ -377,17 +380,6 @@ export function resolveClaudeExecutablePath(): string {
   throw new Error(
     `Claude Code native binary not found for ${process.platform}-${process.arch}. Reinstall @anthropic-ai/claude-agent-sdk with optional dependencies.`
   )
-}
-
-export class AgentSessionWorkspaceError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'AgentSessionWorkspaceError'
-  }
-}
-
-export function isAgentSessionWorkspaceError(error: unknown): error is AgentSessionWorkspaceError {
-  return error instanceof AgentSessionWorkspaceError
 }
 
 export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {

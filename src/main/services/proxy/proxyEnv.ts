@@ -48,6 +48,12 @@ export const getProxyEnvironment = (env: NodeJS.ProcessEnv = process.env): Recor
   return proxyEnv
 }
 
+export const clearNodeProxyEnvironment = (env: NodeJS.ProcessEnv = process.env): void => {
+  for (const key of NODE_PROXY_ENV_KEYS) {
+    delete env[key]
+  }
+}
+
 export const getProxyProtocol = (proxyRules?: string): string | null => {
   if (!proxyRules) {
     return null

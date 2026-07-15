@@ -183,9 +183,7 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).not.toHaveBeenCalled()
     })
 
-    it('registers the full migrator list against the engine', async () => {
-      const migrators = [{ id: 'stub' }]
-      getAllMigratorsMock.mockReturnValue(migrators)
+    it('does not load migrators when migration is not needed', async () => {
       needsMigrationMock.mockResolvedValue(false)
       stubMigrationV2()
       stubElectron()
@@ -197,8 +195,8 @@ describe('runV2MigrationGate', () => {
       expect(initializeMock).toHaveBeenCalledTimes(1)
       // Now threads the gate-resolved legacyDataConfirmed flag into the engine.
       expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false)
-      expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
-      expect(registerMigratorsMock).toHaveBeenCalledWith(migrators)
+      expect(getAllMigratorsMock).not.toHaveBeenCalled()
+      expect(registerMigratorsMock).not.toHaveBeenCalled()
     })
   })
 
@@ -221,6 +219,8 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
+      expect(getAllMigratorsMock).toHaveBeenCalledTimes(1)
+      expect(registerMigratorsMock).toHaveBeenCalledWith([])
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)

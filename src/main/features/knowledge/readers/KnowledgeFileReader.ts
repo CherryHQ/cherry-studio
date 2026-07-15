@@ -1,44 +1,53 @@
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { FilePath } from '@shared/types/file'
-import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
-import { CSVReader } from '@vectorstores/readers/csv'
-import { DocxReader } from '@vectorstores/readers/docx'
-import { HTMLReader } from '@vectorstores/readers/html'
-import { JSONReader } from '@vectorstores/readers/json'
-import { MarkdownReader } from '@vectorstores/readers/markdown'
-import { PDFReader } from '@vectorstores/readers/pdf'
-import { TextFileReader } from '@vectorstores/readers/text'
+import type { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
 
 import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
-import { DraftsExportReader } from './files/DraftsExportReader'
-import { EpubReader } from './files/EpubReader'
 
-export function createSupportedFileReader(filePath: FilePath): VectorStoreFileReader<Document> {
+export async function createSupportedFileReader(filePath: FilePath): Promise<VectorStoreFileReader<Document>> {
   const extension = getFileExt(filePath).toLowerCase()
 
   switch (extension) {
-    case '.pdf':
+    case '.pdf': {
+      const { PDFReader } = await import('@vectorstores/readers/pdf')
       return new PDFReader()
-    case '.csv':
+    }
+    case '.csv': {
+      const { CSVReader } = await import('@vectorstores/readers/csv')
       return new CSVReader()
-    case '.docx':
+    }
+    case '.docx': {
+      const { DocxReader } = await import('@vectorstores/readers/docx')
       return new DocxReader()
-    case '.epub':
+    }
+    case '.epub': {
+      const { EpubReader } = await import('./files/EpubReader')
       return new EpubReader()
+    }
     case '.html':
-    case '.htm':
+    case '.htm': {
+      const { HTMLReader } = await import('@vectorstores/readers/html')
       return new HTMLReader()
-    case '.json':
+    }
+    case '.json': {
+      const { JSONReader } = await import('@vectorstores/readers/json')
       return new JSONReader()
+    }
     case '.markdown':
     case '.md':
-    case '.mdx':
+    case '.mdx': {
+      const { MarkdownReader } = await import('@vectorstores/readers/markdown')
       return new MarkdownReader()
-    case '.draftsexport':
+    }
+    case '.draftsexport': {
+      const { DraftsExportReader } = await import('./files/DraftsExportReader')
       return new DraftsExportReader()
-    default:
+    }
+    default: {
+      const { TextFileReader } = await import('@vectorstores/readers/text')
       return new TextFileReader()
+    }
   }
 }
 
@@ -53,7 +62,7 @@ export async function loadDocumentsFromKnowledgeBaseFile(
 ): Promise<Document[]> {
   const filePath = getKnowledgeBaseFilePath(baseId, relativePath)
 
-  const reader = createSupportedFileReader(filePath)
+  const [{ Document }, reader] = await Promise.all([import('@vectorstores/core'), createSupportedFileReader(filePath)])
   const documents = await reader.loadData(filePath)
   const sourceMetadata: KnowledgeSourceMetadata = { source }
 

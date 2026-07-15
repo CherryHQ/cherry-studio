@@ -115,9 +115,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
     startupMock.mockResolvedValueOnce(warm)
 
     manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
-    await Promise.resolve()
-    vi.advanceTimersByTime(5 * 60 * 1000)
-    await Promise.resolve()
+    await vi.waitFor(() => expect(startupMock).toHaveBeenCalledOnce())
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
 
     expect(warm.close).toHaveBeenCalledOnce()
   })

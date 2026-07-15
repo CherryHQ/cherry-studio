@@ -120,8 +120,8 @@ describe('FileMigrator metadata', () => {
 // ─── Registration ───────────────────────────────────────────────────────────
 
 describe('FileMigrator registration', () => {
-  it('is registered at order 2.7 in getAllMigrators()', () => {
-    const migrators = getAllMigrators()
+  it('is registered at order 2.7 in getAllMigrators()', async () => {
+    const migrators = await getAllMigrators()
     const fileMigrator = migrators.find((m) => m.id === 'file')
     expect(fileMigrator).toBeDefined()
     expect(fileMigrator?.order).toBe(2.7)

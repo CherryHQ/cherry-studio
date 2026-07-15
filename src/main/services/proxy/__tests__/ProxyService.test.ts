@@ -154,7 +154,7 @@ describe('ProxyService — preference wiring', () => {
 
     expect(sessionSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
     expect(appSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
-    expect(nodeProxyConfigureMock).toHaveBeenCalledWith({ proxyRules: undefined, proxyBypassRules: undefined })
+    expect(nodeProxyConfigureMock).not.toHaveBeenCalled()
   })
 
   it('re-applies when a proxy preference changes after ready', async () => {

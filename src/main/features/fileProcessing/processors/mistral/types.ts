@@ -5,7 +5,7 @@ import * as z from 'zod'
 export type PreparedMistralContext = {
   file: FileInfo
   signal?: AbortSignal
-  client: Mistral
+  client: Mistral | Promise<Mistral>
   model?: string
 }
 

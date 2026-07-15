@@ -136,8 +136,10 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   try {
     logger.info('Checking if data migration v2 is needed')
     migrationEngine.initialize(paths, legacyDataConfirmed)
-    migrationEngine.registerMigrators(getAllMigrators())
     needsMigration = await migrationEngine.needsMigration()
+    if (needsMigration) {
+      migrationEngine.registerMigrators(await getAllMigrators())
+    }
     logger.info('Migration status check result', { needsMigration })
   } catch (error) {
     logger.error('Migration status check failed', error as Error)

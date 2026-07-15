@@ -2,26 +2,44 @@
  * Migrator registration — assembles every migrator in execution order.
  */
 
-import { AgentsMigrator } from './AgentsMigrator'
-import { AssistantMigrator } from './AssistantMigrator'
-import { BootConfigMigrator } from './BootConfigMigrator'
-import { ChatMigrator } from './ChatMigrator'
-import { FileMigrator } from './FileMigrator'
-import { KnowledgeMigrator } from './KnowledgeMigrator'
-import { KnowledgeVectorMigrator } from './KnowledgeVectorMigrator'
-import { McpServerMigrator } from './McpServerMigrator'
-import { MiniAppMigrator } from './MiniAppMigrator'
-import { NoteMigrator } from './NoteMigrator'
-import { PaintingMigrator } from './PaintingMigrator'
-import { PreferencesMigrator } from './PreferencesMigrator'
-import { PromptMigrator } from './PromptMigrator'
-import { ProviderModelMigrator } from './ProviderModelMigrator'
-import { TranslateMigrator } from './TranslateMigrator'
-
 /**
  * Get all registered migrators in execution order
  */
-export function getAllMigrators() {
+export async function getAllMigrators() {
+  const [
+    { AgentsMigrator },
+    { AssistantMigrator },
+    { BootConfigMigrator },
+    { ChatMigrator },
+    { FileMigrator },
+    { KnowledgeMigrator },
+    { KnowledgeVectorMigrator },
+    { McpServerMigrator },
+    { MiniAppMigrator },
+    { NoteMigrator },
+    { PaintingMigrator },
+    { PreferencesMigrator },
+    { PromptMigrator },
+    { ProviderModelMigrator },
+    { TranslateMigrator }
+  ] = await Promise.all([
+    import('./AgentsMigrator'),
+    import('./AssistantMigrator'),
+    import('./BootConfigMigrator'),
+    import('./ChatMigrator'),
+    import('./FileMigrator'),
+    import('./KnowledgeMigrator'),
+    import('./KnowledgeVectorMigrator'),
+    import('./McpServerMigrator'),
+    import('./MiniAppMigrator'),
+    import('./NoteMigrator'),
+    import('./PaintingMigrator'),
+    import('./PreferencesMigrator'),
+    import('./PromptMigrator'),
+    import('./ProviderModelMigrator'),
+    import('./TranslateMigrator')
+  ])
+
   return [
     new BootConfigMigrator(),
     new PreferencesMigrator(),

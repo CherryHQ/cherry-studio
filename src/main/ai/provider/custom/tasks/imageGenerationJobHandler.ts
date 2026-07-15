@@ -8,13 +8,11 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import { providerToAiSdkConfig } from '../../config'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
   ImageTransportDescriptor
 } from '../imageGenerationModel'
-import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
 
@@ -51,6 +49,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
+      const [{ providerToAiSdkConfig }, { resolveImageTransport }] = await Promise.all([
+        import('../../config'),
+        import('../imageTransportRegistry')
+      ])
       const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
       const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
       if (!transport) {

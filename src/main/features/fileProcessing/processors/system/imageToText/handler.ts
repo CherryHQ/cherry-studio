@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
-import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
@@ -24,6 +23,7 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
           langs: context.langs
         })
 
+        const { OcrAccuracy, recognize } = await import('@napi-rs/system-ocr')
         const result = await recognize(
           context.file.path,
           OcrAccuracy.Accurate,

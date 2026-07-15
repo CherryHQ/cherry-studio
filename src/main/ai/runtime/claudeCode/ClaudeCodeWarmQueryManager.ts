@@ -1,10 +1,7 @@
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
-import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-
-import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -95,6 +92,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     try {
+      const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
       this.prewarm(warmRequest)
@@ -125,15 +123,15 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       this.closeEntry(existing)
     }
 
-    const promise = startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }).catch(
-      (error) => {
+    const promise = import('@anthropic-ai/claude-agent-sdk')
+      .then(({ startup }) => startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }))
+      .catch((error) => {
         if (this.entries.get(request.key)?.promise === promise) {
           this.entries.delete(request.key)
         }
         logger.warn('Claude warm query startup failed', { key: request.key, error })
         return undefined
-      }
-    )
+      })
 
     const entry: WarmQueryEntry = { signature, promise }
     this.entries.set(request.key, entry)

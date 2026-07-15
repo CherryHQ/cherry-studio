@@ -5,7 +5,6 @@ import path from 'node:path'
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
@@ -14,28 +13,16 @@ import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import {
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioClientTransport, StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type {
   StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions,
-  StreamableHTTPError
+  StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-// Import notification schemas from MCP SDK
-import {
-  CancelledNotificationSchema,
-  type GetPromptResult,
-  LoggingMessageNotificationSchema,
-  PromptListChangedNotificationSchema,
-  ResourceListChangedNotificationSchema,
-  ResourceUpdatedNotificationSchema,
-  ToolListChangedNotificationSchema
-} from '@modelcontextprotocol/sdk/types.js'
+import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -82,6 +69,39 @@ export const McpStringArgSchema = NonEmptyStringSchema
 const logger = loggerService.withContext('McpRuntimeService')
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
 
+async function createMcpClientRuntime() {
+  const [client, sse, stdio, streamableHttp, inMemory, types] = await Promise.all([
+    import('@modelcontextprotocol/sdk/client/index.js'),
+    import('@modelcontextprotocol/sdk/client/sse.js'),
+    import('@modelcontextprotocol/sdk/client/stdio.js'),
+    import('@modelcontextprotocol/sdk/client/streamableHttp'),
+    import('@modelcontextprotocol/sdk/inMemory'),
+    import('@modelcontextprotocol/sdk/types.js')
+  ])
+  return {
+    Client: client.Client,
+    SSEClientTransport: sse.SSEClientTransport,
+    SseError: sse.SseError,
+    StdioClientTransport: stdio.StdioClientTransport,
+    StreamableHTTPClientTransport: streamableHttp.StreamableHTTPClientTransport,
+    StreamableHTTPError: streamableHttp.StreamableHTTPError,
+    InMemoryTransport: inMemory.InMemoryTransport,
+    CancelledNotificationSchema: types.CancelledNotificationSchema,
+    LoggingMessageNotificationSchema: types.LoggingMessageNotificationSchema,
+    PromptListChangedNotificationSchema: types.PromptListChangedNotificationSchema,
+    ResourceListChangedNotificationSchema: types.ResourceListChangedNotificationSchema,
+    ResourceUpdatedNotificationSchema: types.ResourceUpdatedNotificationSchema,
+    ToolListChangedNotificationSchema: types.ToolListChangedNotificationSchema
+  }
+}
+
+type McpClientRuntime = Awaited<ReturnType<typeof createMcpClientRuntime>>
+let mcpClientRuntimePromise: Promise<McpClientRuntime> | undefined
+
+function loadMcpClientRuntime(): Promise<McpClientRuntime> {
+  return (mcpClientRuntimePromise ??= createMcpClientRuntime())
+}
+
 export interface McpToolListChangedEvent {
   serverId: string
 }
@@ -110,9 +130,12 @@ function getTransportCandidates(server: McpServer): McpServerType[] | null {
 // Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
 // streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
 // instead of being masked by a confusing fallback failure.
-function isTransportFallbackError(error: unknown): boolean {
-  if (error instanceof SseError) return error.code === 405
-  if (error instanceof StreamableHTTPError) return error.code === 405 || error.code === 404
+function isTransportFallbackError(error: unknown, runtime: McpClientRuntime): boolean {
+  if (error instanceof runtime.SseError) return (error as { code: number }).code === 405
+  if (error instanceof runtime.StreamableHTTPError) {
+    const { code } = error as { code: number }
+    return code === 405 || code === 404
+  }
   return false
 }
 
@@ -376,6 +399,9 @@ export class McpRuntimeService extends BaseService {
     // Create a promise for the initialization process
     const initPromise = (async () => {
       try {
+        const runtime = await loadMcpClientRuntime()
+        const { Client, InMemoryTransport, SSEClientTransport, StdioClientTransport, StreamableHTTPClientTransport } =
+          runtime
         // Create new client instance for each connection
         const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
@@ -424,6 +450,7 @@ export class McpRuntimeService extends BaseService {
             getServerLogger(server).debug(`Using in-memory transport`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
+            const { createInMemoryMcpServer } = await import('@main/ai/mcp/servers/factory')
             const inMemoryServer = createInMemoryMcpServer(server.name, args, server.env || {})
             try {
               await inMemoryServer.connect(serverTransport)
@@ -717,7 +744,7 @@ export class McpRuntimeService extends BaseService {
               lastError = error
               // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
               // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-              if (!candidates || !isTransportFallbackError(error)) {
+              if (!candidates || !isTransportFallbackError(error, runtime)) {
                 break
               }
               // No alternative transport left to try.
@@ -758,7 +785,7 @@ export class McpRuntimeService extends BaseService {
           this.setServerStatus(server.id, 'connected')
 
           // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
+          this.setupNotificationHandlers(client, server, runtime)
 
           // Clear existing cache to ensure fresh data
           this.clearServerCache(server)
@@ -798,9 +825,17 @@ export class McpRuntimeService extends BaseService {
   /**
    * Set up notification handlers for MCP client
    */
-  private setupNotificationHandlers(client: Client, server: McpServer) {
+  private setupNotificationHandlers(client: Client, server: McpServer, runtime: McpClientRuntime) {
     const serverKey = this.getServerKey(server)
     const cacheService = application.get('CacheService')
+    const {
+      CancelledNotificationSchema,
+      LoggingMessageNotificationSchema,
+      PromptListChangedNotificationSchema,
+      ResourceListChangedNotificationSchema,
+      ResourceUpdatedNotificationSchema,
+      ToolListChangedNotificationSchema
+    } = runtime
 
     try {
       // Set up tools list changed notification handler

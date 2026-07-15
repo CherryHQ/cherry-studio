@@ -7,8 +7,8 @@ import { PromptMigrator } from '../PromptMigrator'
 import { TranslateMigrator } from '../TranslateMigrator'
 
 describe('migrator reset contract', () => {
-  it('requires every registered migrator to define reset explicitly', () => {
-    const missingResetOverrides = getAllMigrators()
+  it('requires every registered migrator to define reset explicitly', async () => {
+    const missingResetOverrides = (await getAllMigrators())
       .filter((migrator) => !Object.prototype.hasOwnProperty.call(Object.getPrototypeOf(migrator), 'reset'))
       .map((migrator) => migrator.constructor.name)
 

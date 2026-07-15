@@ -1,5 +1,35 @@
-import { ClaudeCodeRuntimeDriver } from './claudeCode'
+import { loggerService } from '@logger'
+
 import { runtimeDriverRegistry } from './registry'
+import type { AgentSessionRuntimeDriver } from './types'
+
+const logger = loggerService.withContext('RuntimeDrivers')
+let claudeCodeDriverPromise: Promise<AgentSessionRuntimeDriver> | undefined
+
+function loadClaudeCodeDriver(): Promise<AgentSessionRuntimeDriver> {
+  return (claudeCodeDriverPromise ??= import('./claudeCode/ClaudeCodeRuntimeDriver').then(
+    ({ ClaudeCodeRuntimeDriver }) => new ClaudeCodeRuntimeDriver()
+  ))
+}
+
+const lazyClaudeCodeRuntimeDriver: AgentSessionRuntimeDriver = {
+  type: 'claude-code',
+  capabilities: ['agent-session'],
+  async validateSession(session) {
+    return (await loadClaudeCodeDriver()).validateSession(session)
+  },
+  async listAvailableTools(mcpIds) {
+    return (await loadClaudeCodeDriver()).listAvailableTools(mcpIds)
+  },
+  async connect(input) {
+    return (await loadClaudeCodeDriver()).connect(input)
+  },
+  onSessionIdle(sessionId) {
+    void loadClaudeCodeDriver()
+      .then((driver) => driver.onSessionIdle?.(sessionId))
+      .catch((error) => logger.warn('Failed to load Claude Code runtime for idle prewarm', { sessionId, error }))
+  }
+}
 
 /**
  * Register every built-in AI runtime driver into the shared registry.
@@ -10,5 +40,5 @@ import { runtimeDriverRegistry } from './registry'
  * deterministically and lets `runtime/index.ts` stay a pure re-export barrel.
  */
 export function registerRuntimeDrivers(): void {
-  runtimeDriverRegistry.register(new ClaudeCodeRuntimeDriver())
+  runtimeDriverRegistry.register(lazyClaudeCodeRuntimeDriver)
 }

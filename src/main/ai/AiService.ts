@@ -1,9 +1,4 @@
 import { application } from '@application'
-import {
-  embedMany as aiCoreEmbedMany,
-  generateImage as aiCoreGenerateImage,
-  rerank as aiCoreRerank
-} from '@cherrystudio/ai-core'
 import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -21,30 +16,17 @@ import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { isToolMessagePart } from '@shared/data/types/uiParts'
 import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
-import {
-  type EmbeddingModelUsage,
-  isToolUIPart,
-  type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
-} from 'ai'
+import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage, UIMessageChunk } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
-import { prepareChatMessages } from './messages/attachmentRouting'
-import { resolveMediaCapabilities } from './messages/messageCapabilities'
-import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
-import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { listModels as listModelsFromProvider } from './provider/listModels'
-import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
+import type { AgentLoopHooks, mergeUsage, RequestFeature, ZERO_USAGE } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
-import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
   AiBaseRequest,
   AiStreamRequest,
@@ -208,9 +190,9 @@ export class AiService extends BaseService {
   // TODO(abort-registry): collapse with MCP/stream/LAN registries once
   // the shared `ipcHandleWithAbort` helper lands.
   private readonly imageRequests = new Map<string, AbortController>()
+  private builtinToolsReady?: Promise<void>
 
   protected async onInit(): Promise<void> {
-    registerBuiltinTools()
     // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
@@ -320,7 +302,7 @@ export class AiService extends BaseService {
     // Only resume once every approval on this turn is decided — a turn can request several tools
     // at once; the not-yet-decided ones keep their cards. Reading the committed post-write parts
     // means concurrent responders agree on who fires the continuation.
-    const anyStillPending = committedParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
+    const anyStillPending = committedParts.some((p) => isToolMessagePart(p) && p.state === 'approval-requested')
     if (anyStillPending) {
       return { ok: true }
     }
@@ -392,6 +374,11 @@ export class AiService extends BaseService {
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file).
+    const [{ prepareChatMessages }, { resolveMediaCapabilities }, aiSdkRuntime] = await Promise.all([
+      import('./messages/attachmentRouting'),
+      import('./messages/messageCapabilities'),
+      import('./runtime/aiSdk')
+    ])
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
@@ -399,7 +386,7 @@ export class AiService extends BaseService {
       signal
     })
 
-    const agent = new Agent({
+    const agent = new aiSdkRuntime.Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -408,18 +395,21 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      hookParts: [this.analyticsHookPart(model, aiSdkRuntime), ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
     return agent.stream(preparedMessages, signal)
   }
 
-  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
-    let total: LanguageModelUsage = ZERO_USAGE
+  private analyticsHookPart(
+    model: Model,
+    usageRuntime: { mergeUsage: typeof mergeUsage; ZERO_USAGE: typeof ZERO_USAGE }
+  ): Partial<AgentLoopHooks> {
+    let total: LanguageModelUsage = usageRuntime.ZERO_USAGE
     return {
       onStepFinish: (step) => {
-        if (step.usage) total = mergeUsage(total, step.usage)
+        if (step.usage) total = usageRuntime.mergeUsage(total, step.usage)
       },
       onFinish: () => this.trackUsage(model, total)
     }
@@ -440,7 +430,8 @@ export class AiService extends BaseService {
       extraFeatures
     )
 
-    const agent = new Agent({
+    const aiSdkRuntime = await import('./runtime/aiSdk')
+    const agent = new aiSdkRuntime.Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -448,7 +439,7 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model, aiSdkRuntime), ...hookParts]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -498,6 +489,16 @@ export class AiService extends BaseService {
     // WireProfile engine forwards.
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
+
+    const [
+      { resolveImageTransport },
+      { buildVendorProviderOptions },
+      { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY }
+    ] = await Promise.all([
+      import('./provider/custom/imageTransportRegistry'),
+      import('./provider/custom/wire/buildImageRequest'),
+      import('./provider/custom/wire/wireProfile')
+    ])
 
     // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
     // canonical bag to each provider's wire — a registered profile for the
@@ -552,6 +553,7 @@ export class AiService extends BaseService {
       }
     }
 
+    const { generateImage: aiCoreGenerateImage } = await import('@cherrystudio/ai-core')
     const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
       sdkConfig.providerId,
       sdkConfig.providerSettings,
@@ -689,6 +691,7 @@ export class AiService extends BaseService {
 
     const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
 
+    const { embedMany: aiCoreEmbedMany } = await import('@cherrystudio/ai-core')
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
@@ -723,6 +726,7 @@ export class AiService extends BaseService {
       ...(signal ? { abortSignal: signal } : {})
     }
 
+    const { rerank: aiCoreRerank } = await import('@cherrystudio/ai-core')
     const result = await aiCoreRerank<AppProviderSettingsMap>(
       sdkConfig.providerId,
       sdkConfig.providerSettings,
@@ -764,6 +768,7 @@ export class AiService extends BaseService {
     // Union the live API list with the registry catalog so vendor-exclusive models
     // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
     // still surface for the user to enable.
+    const { listModels: listModelsFromProvider } = await import('./provider/listModels')
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
     const registryModels = providerRegistryService.listProviderRegistryModels({ providerId })
     return mergeProviderModelsWithRegistry(remoteModels, registryModels)
@@ -820,9 +825,17 @@ export class AiService extends BaseService {
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = []
   ) {
+    await this.ensureBuiltinTools()
     const { provider, model, assistant } = this.getProviderAndModel(request)
+    const { buildAgentParams } = await import('./runtime/aiSdk')
     const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
     return { ...built, provider, model, assistant }
+  }
+
+  private ensureBuiltinTools(): Promise<void> {
+    return (this.builtinToolsReady ??= import('./tools/adapters/aiSdk/builtin/registerBuiltinTools').then(
+      ({ registerBuiltinTools }) => registerBuiltinTools()
+    ))
   }
 
   // ── Token usage tracking ──

@@ -4,6 +4,7 @@ import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import type { Plugin } from 'vite'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
@@ -12,6 +13,35 @@ import pkg from './package.json'
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
+
+const mainEntryIsolationPlugin = (): Plugin => ({
+  name: 'main-entry-isolation',
+  generateBundle(_options, bundle) {
+    const mainEntry = Object.values(bundle).find(
+      (output) =>
+        output.type === 'chunk' &&
+        output.isEntry &&
+        output.facadeModuleId?.replaceAll('\\', '/').endsWith('/src/main/main.ts')
+    )
+
+    if (!mainEntry || mainEntry.type !== 'chunk') {
+      this.error('Unable to locate the Electron main-process entry chunk')
+    }
+
+    const backReferences = Object.values(bundle)
+      .filter(
+        (output) =>
+          output.type === 'chunk' &&
+          output.fileName !== mainEntry.fileName &&
+          [...output.imports, ...output.dynamicImports].includes(mainEntry.fileName)
+      )
+      .map((output) => output.fileName)
+
+    if (backReferences.length > 0) {
+      this.error(`Lazy chunks must not import the executable main entry: ${backReferences.join(', ')}`)
+    }
+  }
+})
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
@@ -33,7 +63,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main')],
+    plugins: [mainEntryIsolationPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -57,10 +87,10 @@ export default defineConfig({
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rollupOptions: {
         external: isMainExternalModule,
-        output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
-        },
+        // Keep the executable entry as a facade. Without this, Rollup may place
+        // shared exports in main.js and make lazy CommonJS chunks require the
+        // executable entry, which can run main-process startup a second time.
+        preserveEntrySignatures: 'strict',
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
           warn(warning)

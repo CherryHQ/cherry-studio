@@ -8,7 +8,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'
+import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/workspaceErrors'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
@@ -208,6 +208,7 @@ export class ChannelMessageHandler {
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
         try {
+          const { prepareClaudeCodeWorkspaceDirectory } = await import('@main/ai/runtime/claudeCode/settingsBuilder')
           await prepareClaudeCodeWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {

@@ -7,7 +7,7 @@
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 
-import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode'
+import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode/workspaceErrors'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'

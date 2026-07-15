@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildNodeProxyEnvironment, getProxyEnvironment, getProxyProtocol } from '../proxyEnv'
+import {
+  buildNodeProxyEnvironment,
+  clearNodeProxyEnvironment,
+  getProxyEnvironment,
+  getProxyProtocol
+} from '../proxyEnv'
 
 describe('proxyEnv', () => {
   it('exports standard HTTP proxy env vars for http proxies', () => {
@@ -64,5 +69,17 @@ describe('proxyEnv', () => {
       HTTP_PROXY: 'http://127.0.0.1:7890',
       NO_PROXY: 'localhost'
     })
+  })
+
+  it('clears proxy variables without touching unrelated environment entries', () => {
+    const env = {
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      CHERRY_STUDIO_NODE_PROXY_RULES: 'http://127.0.0.1:7890',
+      PATH: '/usr/bin'
+    }
+
+    clearNodeProxyEnvironment(env)
+
+    expect(env).toEqual({ PATH: '/usr/bin' })
   })
 })

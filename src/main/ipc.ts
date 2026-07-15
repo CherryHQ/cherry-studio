@@ -7,7 +7,7 @@ import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import { hasWritePermission, isPathInside, untildify } from '@main/utils/pathAccess'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
@@ -15,10 +15,7 @@ import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
 import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
-import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import LegacyBackupManager from './services/LegacyBackupManager'
-import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getDirectorySize } from './utils/fileOperations'
 import { getHostname } from './utils/system'
@@ -26,7 +23,38 @@ import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
-const backupManager = new LegacyBackupManager()
+const getLegacyFileManager = () => import('./services/FileStorage').then(({ fileStorage }) => fileStorage)
+type LegacyFileManager = Awaited<ReturnType<typeof getLegacyFileManager>>
+
+const callLegacyFileManager = async (method: keyof LegacyFileManager, args: unknown[]) => {
+  const manager = await getLegacyFileManager()
+  const handler = manager[method]
+  return (handler as (...handlerArgs: unknown[]) => unknown).apply(manager, args)
+}
+
+const legacyFileHandler =
+  (method: keyof LegacyFileManager) =>
+  (...args: unknown[]) =>
+    callLegacyFileManager(method, args)
+
+const getNutstoreService = () => import('./services/nutstore/NutstoreService')
+
+const createBackupManager = async () => {
+  const { default: LegacyBackupManager } = await import('./services/LegacyBackupManager')
+  return new LegacyBackupManager()
+}
+
+let backupManagerPromise: ReturnType<typeof createBackupManager> | undefined
+
+const getBackupManager = () => (backupManagerPromise ??= createBackupManager())
+
+type BackupManager = Awaited<ReturnType<typeof createBackupManager>>
+
+const callBackupManager = async (method: keyof BackupManager, args: unknown[]) => {
+  const manager = await getBackupManager()
+  const handler = manager[method]
+  return (handler as (...handlerArgs: unknown[]) => unknown).apply(manager, args)
+}
 
 export async function registerIpc() {
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
@@ -76,7 +104,7 @@ export async function registerIpc() {
           })
         })
       )
-      await fileManager.clearTemp()
+      await callLegacyFileManager('clearTemp', [])
       // do not clear logs for now
       // TODO clear logs
       // await fs.writeFileSync(log.transports.file.getFile().path, '')
@@ -193,7 +221,7 @@ export async function registerIpc() {
   // Application.registerApplicationIpc().
 
   // Reset all data (factory reset)
-  ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
+  ipcMain.handle(IpcChannel.App_ResetData, async (...args) => callBackupManager('resetData', args))
 
   // zip
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
@@ -204,55 +232,65 @@ export async function registerIpc() {
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_Backup, async (...args) => callBackupManager('backup', args))
+  ipcMain.handle(IpcChannel.Backup_Restore, async (...args) => callBackupManager('restore', args))
+  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, async (...args) => callBackupManager('backupToWebdav', args))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, async (...args) => callBackupManager('restoreFromWebdav', args))
+  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, async (...args) => callBackupManager('listWebdavFiles', args))
+  ipcMain.handle(IpcChannel.Backup_CheckConnection, async (...args) => callBackupManager('checkConnection', args))
+  ipcMain.handle(IpcChannel.Backup_CreateDirectory, async (...args) => callBackupManager('createDirectory', args))
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, async (...args) => callBackupManager('deleteWebdavFile', args))
+  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, async (...args) => callBackupManager('backupToLocalDir', args))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, async (...args) =>
+    callBackupManager('restoreFromLocalBackup', args)
+  )
+  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, async (...args) =>
+    callBackupManager('listLocalBackupFiles', args)
+  )
+  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, async (...args) =>
+    callBackupManager('deleteLocalBackupFile', args)
+  )
+  ipcMain.handle(IpcChannel.Backup_BackupToS3, async (...args) => callBackupManager('backupToS3', args))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, async (...args) => callBackupManager('restoreFromS3', args))
+  ipcMain.handle(IpcChannel.Backup_ListS3Files, async (...args) => callBackupManager('listS3Files', args))
+  ipcMain.handle(IpcChannel.Backup_DeleteS3File, async (...args) => callBackupManager('deleteS3File', args))
+  ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, async (...args) =>
+    callBackupManager('createLanTransferBackup', args)
+  )
+  ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, async (...args) =>
+    callBackupManager('deleteLanTransferBackup', args)
+  )
 
   // file
-  ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteExternalFile, fileManager.deleteExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_MoveDir, fileManager.moveDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Open, legacyFileHandler('open'))
+  ipcMain.handle(IpcChannel.File_OpenPath, legacyFileHandler('openPath'))
+  ipcMain.handle(IpcChannel.File_Save, legacyFileHandler('save'))
+  ipcMain.handle(IpcChannel.File_Select, legacyFileHandler('selectFile'))
+  ipcMain.handle(IpcChannel.File_ReadExternal, legacyFileHandler('readExternalFile'))
+  ipcMain.handle(IpcChannel.File_DeleteExternalFile, legacyFileHandler('deleteExternalFile'))
+  ipcMain.handle(IpcChannel.File_DeleteExternalDir, legacyFileHandler('deleteExternalDir'))
+  ipcMain.handle(IpcChannel.File_Move, legacyFileHandler('moveFile'))
+  ipcMain.handle(IpcChannel.File_MoveDir, legacyFileHandler('moveDir'))
+  ipcMain.handle(IpcChannel.File_Rename, legacyFileHandler('renameFile'))
+  ipcMain.handle(IpcChannel.File_RenameDir, legacyFileHandler('renameDir'))
+  ipcMain.handle(IpcChannel.File_Get, legacyFileHandler('getFile'))
+  ipcMain.handle(IpcChannel.File_SelectFolder, legacyFileHandler('selectFolder'))
+  ipcMain.handle(IpcChannel.File_CreateTempFile, legacyFileHandler('createTempFile'))
+  ipcMain.handle(IpcChannel.File_Mkdir, legacyFileHandler('mkdir'))
+  ipcMain.handle(IpcChannel.File_Write, legacyFileHandler('writeFile'))
+  ipcMain.handle(IpcChannel.File_SaveImage, legacyFileHandler('saveImage'))
+  ipcMain.handle(IpcChannel.File_SavePastedImage, legacyFileHandler('savePastedImage'))
+  ipcMain.handle(IpcChannel.File_BinaryImage, legacyFileHandler('binaryImage'))
+  ipcMain.handle(IpcChannel.File_IsTextFile, legacyFileHandler('isTextFile'))
+  ipcMain.handle(IpcChannel.File_IsDirectory, legacyFileHandler('isDirectory'))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
     searchListDirectoryEntries(dirPath, options)
   )
-  ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_CheckFileName, legacyFileHandler('fileNameGuard'))
+  ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, legacyFileHandler('validateNotesDirectory'))
+  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, legacyFileHandler('batchUploadMarkdownFiles'))
+  ipcMain.handle(IpcChannel.File_ShowInFolder, legacyFileHandler('showInFolder'))
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
@@ -272,10 +310,12 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
 
   // nutstore
-  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))
-  ipcMain.handle(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
-  ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
-    NutstoreService.getDirectoryContents(token, path)
+  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, async () => (await getNutstoreService()).getNutstoreSSOUrl())
+  ipcMain.handle(IpcChannel.Nutstore_DecryptToken, async (_, token: string) =>
+    (await getNutstoreService()).decryptToken(token)
+  )
+  ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, async (_, token: string, path: string) =>
+    (await getNutstoreService()).getDirectoryContents(token, path)
   )
 
   // ExternalApps

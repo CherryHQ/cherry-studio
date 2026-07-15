@@ -1,15 +1,14 @@
 import { fileURLToPath } from 'node:url'
 
-import {
-  type Options,
-  type Query,
-  query as createClaudeQuery,
-  type SDKCompactBoundaryMessage,
-  type SDKMessage,
-  type SDKResultMessage,
-  type SDKStatusMessage,
-  type SDKSystemMessage,
-  type SDKUserMessage
+import type {
+  Options,
+  Query,
+  SDKCompactBoundaryMessage,
+  SDKMessage,
+  SDKResultMessage,
+  SDKStatusMessage,
+  SDKSystemMessage,
+  SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -188,9 +187,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           initializeTimeoutMs: request.initializeTimeoutMs
         })
 
-    this.query = warmQuery
-      ? warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    if (warmQuery) {
+      this.query = warmQuery.query(this.sdkInputQueue)
+    } else {
+      const { query: createClaudeQuery } = await import('@anthropic-ai/claude-agent-sdk')
+      this.query = createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    }
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection

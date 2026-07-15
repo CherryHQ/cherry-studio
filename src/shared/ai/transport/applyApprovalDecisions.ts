@@ -1,5 +1,5 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { isToolUIPart } from 'ai'
+import { isToolMessagePart } from '@shared/data/types/uiParts'
 
 import type { ApprovalDecision } from './stream'
 
@@ -24,7 +24,7 @@ export function applyApprovalDecisions(
   for (const d of decisions) byApprovalId.set(d.approvalId, d)
 
   return parts.map((part) => {
-    if (!isToolUIPart(part)) return part
+    if (!isToolMessagePart(part)) return part
     const id = part.approval?.id
     if (!id) return part
     if (part.state !== 'approval-requested') return part

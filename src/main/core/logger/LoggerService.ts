@@ -7,10 +7,9 @@ import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/typ
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
 import { app, ipcMain } from 'electron'
 import os from 'os'
-import path from 'path'
-import winston from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
 import { isMainThread } from 'worker_threads'
+
+import { DailyLogWriter } from './DailyLogWriter'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -57,7 +56,9 @@ const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
 export class LoggerService {
-  private logger: winston.Logger
+  private generalWriter: DailyLogWriter
+  private errorWriter: DailyLogWriter
+  private level: LogLevel = DEFAULT_LEVEL
 
   // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
   private envLevel: LogLevel = LEVEL.NONE
@@ -106,49 +107,8 @@ export class LoggerService {
       }
     }
 
-    // Configure transports based on environment
-    const transports: winston.transport[] = []
-
-    // Daily rotate file transport for general logs
-    transports.push(
-      new DailyRotateFile({
-        filename: path.join(this.logsDir, 'app.%DATE%.log'),
-        datePattern: 'YYYY-MM-DD',
-        maxSize: '10m',
-        maxFiles: '30d'
-      })
-    )
-
-    // Daily rotate file transport for error logs
-    transports.push(
-      new DailyRotateFile({
-        level: 'warn',
-        filename: path.join(this.logsDir, 'app-error.%DATE%.log'),
-        datePattern: 'YYYY-MM-DD',
-        maxSize: '10m',
-        maxFiles: '60d'
-      })
-    )
-
-    // Configure Winston logger
-    this.logger = winston.createLogger({
-      // Development: all levels, Production: info and above
-      level: DEFAULT_LEVEL,
-      format: winston.format.combine(
-        winston.format.timestamp({
-          format: 'YYYY-MM-DD HH:mm:ss'
-        }),
-        winston.format.errors({ stack: true }),
-        winston.format.json()
-      ),
-      exitOnError: false,
-      transports
-    })
-
-    // Handle transport events
-    this.logger.on('error', (error) => {
-      console.error('LoggerService fatal error:', error)
-    })
+    this.generalWriter = new DailyLogWriter(this.logsDir, 'app', 30)
+    this.errorWriter = new DailyLogWriter(this.logsDir, 'app-error', 60)
 
     //register ipc handler, for renderer process to log to main process
     this.registerIpcHandler()
@@ -163,8 +123,9 @@ export class LoggerService {
   public withContext(module: string, context?: Record<string, any>): LoggerService {
     const newLogger = Object.create(this)
 
-    // Copy all properties from the base logger
-    newLogger.logger = this.logger
+    // Share file writers across contextual views.
+    newLogger.generalWriter = this.generalWriter
+    newLogger.errorWriter = this.errorWriter
     newLogger.module = module
     newLogger.context = { ...this.context, ...context }
 
@@ -175,7 +136,8 @@ export class LoggerService {
    * Finish logging and close all transports
    */
   public finish() {
-    this.logger.end()
+    this.generalWriter.finish()
+    this.errorWriter.finish()
   }
 
   /**
@@ -269,7 +231,11 @@ export class LoggerService {
       meta.push(extra)
     }
 
-    this.logger.log(level, message, ...meta)
+    if (this.shouldWrite(level)) {
+      const line = this.formatFileLine(level, message, meta)
+      this.generalWriter.write(line)
+      if (level === LEVEL.ERROR || level === LEVEL.WARN) this.errorWriter.write(line)
+    }
   }
 
   /**
@@ -340,7 +306,7 @@ export class LoggerService {
    * @param level - The log level to set
    */
   public setLevel(level: LogLevel): void {
-    this.logger.level = level
+    this.level = level
   }
 
   /**
@@ -348,7 +314,7 @@ export class LoggerService {
    * @returns The current log level
    */
   public getLevel(): LogLevel {
-    return this.logger.level as LogLevel
+    return this.level
   }
 
   /**
@@ -362,8 +328,8 @@ export class LoggerService {
    * Get the underlying Winston logger instance
    * @returns The Winston logger instance
    */
-  public getBaseLogger(): winston.Logger {
-    return this.logger
+  public getBaseLogger(): LoggerService {
+    return this
   }
 
   /**
@@ -385,6 +351,63 @@ export class LoggerService {
       }
     )
   }
+
+  private shouldWrite(level: LogLevel): boolean {
+    return this.level !== LEVEL.NONE && LEVEL_MAP[level] >= LEVEL_MAP[this.level]
+  }
+
+  private formatFileLine(level: LogLevel, message: string, meta: any[]): string {
+    const record: Record<string, unknown> = {
+      level,
+      message,
+      timestamp: formatTimestamp(new Date())
+    }
+    const data: unknown[] = []
+
+    for (const item of meta) {
+      if (item instanceof Error) {
+        record.stack = item.stack ?? `${item.name}: ${item.message}`
+      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
+        Object.assign(record, item)
+      } else if (item !== undefined) {
+        data.push(item)
+      }
+    }
+    if (data.length > 0) record.data = data
+
+    try {
+      const seen = new WeakSet<object>()
+      return `${JSON.stringify(record, (_key, value) => {
+        if (value instanceof Error) {
+          return { name: value.name, message: value.message, stack: value.stack, cause: value.cause }
+        }
+        if (typeof value === 'bigint') return value.toString()
+        if (value && typeof value === 'object') {
+          if (seen.has(value)) return '[Circular]'
+          seen.add(value)
+        }
+        return value
+      })}\n`
+    } catch (error) {
+      return `${JSON.stringify({
+        level: LEVEL.ERROR,
+        message: 'Failed to serialize log record',
+        originalMessage: message,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: formatTimestamp(new Date())
+      })}\n`
+    }
+  }
+}
+
+function formatTimestamp(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 export const loggerService = new LoggerService()
