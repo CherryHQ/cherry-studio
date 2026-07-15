@@ -18,12 +18,34 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PaintingMigrator } from '../PaintingMigrator'
+
+async function seedUserProvider(dbh: Dbh, providerId: string): Promise<void> {
+  await dbh.db.insert(userProviderTable).values({
+    providerId,
+    name: providerId,
+    orderKey: generateOrderKeyBetween(null, null)
+  })
+}
+
+async function seedUserModel(dbh: Dbh, id: string, providerId: string): Promise<void> {
+  await seedUserProvider(dbh, providerId)
+  await dbh.db.insert(userModelTable).values({
+    id,
+    providerId,
+    modelId: id.split('::')[1] ?? id,
+    name: id,
+    orderKey: generateOrderKeyBetween(null, null)
+  })
+}
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -302,5 +324,47 @@ describe('PaintingMigrator painting_file_ref integration', () => {
       success: true,
       stats: { sourceCount: 2, targetCount: 2, skippedCount: 0 }
     })
+  })
+
+  it('nulls modelId when it has no user_model row or matches a different provider', async () => {
+    // `ProviderModelMigrator` (order 1.75) runs before `PaintingMigrator`
+    // (order 4.5), so user_model is already populated. Seed two matching-id
+    // shapes:
+    //   - `aihubmix::gemini-imagen` belongs to provider `aihubmix`
+    //   - `gemini::imagen` belongs to provider `gemini`
+    await seedUserModel(dbh, 'aihubmix::gemini-imagen', 'aihubmix')
+    await seedUserModel(dbh, 'gemini::imagen', 'gemini')
+
+    const MATCHING_ID = '55555555-5555-4555-8555-555555555555'
+    const CROSS_PROVIDER_ID = '66666666-6666-4666-8666-666666666666'
+    const MISSING_ID = '77777777-7777-4777-8777-777777777777'
+
+    const migrator = new PaintingMigrator()
+    // All three paintings are under the `aihubmix` provider (via
+    // aihubmix_image_generate). Only a modelId whose user_model row has the
+    // same providerId is resolvable by the renderer.
+    const ctx = makeCtx(dbh, {
+      aihubmix_image_generate: [
+        { id: MATCHING_ID, prompt: 'matching provider', modelId: 'aihubmix::gemini-imagen' },
+        { id: CROSS_PROVIDER_ID, prompt: 'cross provider', modelId: 'gemini::imagen' },
+        { id: MISSING_ID, prompt: 'no user_model row', modelId: 'openai::dall-e-3' }
+      ]
+    })
+
+    const prepareResult = await migrator.prepare(ctx)
+    expect(prepareResult.success).toBe(true)
+    // Three reconciliation warnings collected (cross-provider + missing).
+    expect(prepareResult.warnings ?? []).toHaveLength(2)
+
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 3 })
+
+    const paintingRows = await dbh.db.select().from(paintingTable)
+    const byId = new Map(paintingRows.map((r) => [r.id, r]))
+    // Provider match is preserved.
+    expect(byId.get(MATCHING_ID)?.modelId).toBe('aihubmix::gemini-imagen')
+    // Cross-provider reference (existing id, wrong provider) is cleared.
+    expect(byId.get(CROSS_PROVIDER_ID)?.modelId).toBeNull()
+    // Non-existent user_model id is cleared.
+    expect(byId.get(MISSING_ID)?.modelId).toBeNull()
   })
 })

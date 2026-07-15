@@ -119,19 +119,33 @@ export class PaintingMigrator extends BaseMigrator {
       // would show a disabled send button with no way to fix it.
       // Null the modelId so the painting falls back to model selection.
       if (normalizedRows.length > 0) {
-        const existingModelIds = new Set(
-          ctx.db
-            .select({ id: userModelTable.id })
-            .from(userModelTable)
-            .all()
-            .map((r) => r.id)
-        )
+        // `user_model.id` is `providerId::modelId`. A painting's `modelId` can
+        // carry a provider prefix that differs from the painting's own
+        // `providerId` (e.g. legacy `aihubmix` painting referencing
+        // `gemini::imagen`). The renderer resolves the model against the
+        // painting's provider, so a cross-provider reference is just as
+        // dangling as a missing one — validate both `id` and `providerId`.
+        const existingModelProviders = new Map<string, string>()
+        for (const r of ctx.db
+          .select({ id: userModelTable.id, providerId: userModelTable.providerId })
+          .from(userModelTable)
+          .all()) {
+          existingModelProviders.set(r.id, r.providerId)
+        }
         for (const row of normalizedRows) {
-          if (row.modelId && !existingModelIds.has(row.modelId)) {
-            this.warnings.push(
-              `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — no matching user_model row exists for provider '${row.providerId}'`
-            )
-            row.modelId = null
+          if (row.modelId) {
+            const modelProviderId = existingModelProviders.get(row.modelId)
+            if (modelProviderId === undefined) {
+              this.warnings.push(
+                `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — no matching user_model row exists`
+              )
+              row.modelId = null
+            } else if (modelProviderId !== row.providerId) {
+              this.warnings.push(
+                `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — user_model row belongs to provider '${modelProviderId}', not painting provider '${row.providerId}'`
+              )
+              row.modelId = null
+            }
           }
         }
       }
