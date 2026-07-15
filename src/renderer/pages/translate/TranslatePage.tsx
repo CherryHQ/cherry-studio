@@ -40,7 +40,6 @@ import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing
 import {
   isUniqueModelId,
   type Model as SelectorModel,
-  MODEL_CAPABILITY,
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
@@ -49,7 +48,7 @@ import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
-import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -73,12 +72,6 @@ const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.IMAGE_GENERATION
-])
-
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -624,8 +617,7 @@ const TranslatePage: FC = () => {
 
   const modelSelectorFilter = useCallback(
     (model: SelectorModel) =>
-      !model.capabilities.some((capability) => EXCLUDED_TRANSLATE_MODEL_CAPABILITIES.has(capability)) &&
-      (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
+      !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
 
