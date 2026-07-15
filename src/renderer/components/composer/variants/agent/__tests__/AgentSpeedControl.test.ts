@@ -19,18 +19,18 @@ function model(overrides: Partial<Model>): Model {
 }
 
 describe('AgentSpeedControl model capabilities', () => {
-  it('exposes Off and all six Codex reasoning efforts for GPT-5.6', () => {
+  it('exposes the declared Codex reasoning efforts for GPT-5.6', () => {
     expect(
       getAgentReasoningEfforts(
         model({
           apiModelId: 'gpt-5.6-sol',
           reasoning: {
             type: 'openai-responses',
-            supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+            supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max']
           }
         })
       )
-    ).toEqual(['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+    ).toEqual(['none', 'low', 'medium', 'high', 'xhigh', 'max'])
   })
 
   it('preserves each model capability list instead of padding it to six efforts', () => {

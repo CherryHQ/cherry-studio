@@ -879,7 +879,7 @@ describe('ModelService.getByKey', () => {
       registryOverride: {
         supportsFastMode: true,
         reasoning: {
-          supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
           defaultEffort: 'low'
         }
       },
@@ -891,7 +891,7 @@ describe('ModelService.getByKey', () => {
 
     expect(model.reasoning).toEqual({
       type: 'openai-responses',
-      supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+      supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
       defaultEffort: 'low',
       thinkingTokenLimits: undefined
     })

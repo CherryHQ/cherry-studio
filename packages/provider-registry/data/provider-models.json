@@ -12033,7 +12033,7 @@
       "providerId": "openai-codex",
       "reasoning": {
         "defaultEffort": "low",
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max", "ultra"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       "supportsFastMode": true
     },
@@ -12047,7 +12047,7 @@
       "providerId": "openai-codex",
       "reasoning": {
         "defaultEffort": "medium",
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max", "ultra"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       "supportsFastMode": true
     },
@@ -20579,5 +20579,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0206758f27fbd931"
+  "version": "f06bc83d748a5ffd"
 }

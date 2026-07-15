@@ -74,6 +74,7 @@ vi.mock('@cherrystudio/ui', () => ({
     value,
     thumbAriaLabel,
     getThumbAriaValueText,
+    className,
     onValueChange
   }: {
     marks?: { value: number; label: string }[]
@@ -82,16 +83,22 @@ vi.mock('@cherrystudio/ui', () => ({
     value: number[]
     thumbAriaLabel: string
     getThumbAriaValueText: (value: number) => string
+    className?: string
     onValueChange: (value: number[]) => void
   }) => (
     <div
       data-testid="reasoning-slider"
+      className={className}
       data-mark-count={marks.length}
       data-max={max}
       data-disabled={String(Boolean(disabled))}
       data-value={value[0]}
       data-thumb-label={thumbAriaLabel}
-      data-thumb-value-text={getThumbAriaValueText(value[0])}>
+      data-thumb-value-text={getThumbAriaValueText(value[0])}
+      data-min-value-text={getThumbAriaValueText(0)}>
+      <button type="button" data-testid="select-slider-min" onClick={() => onValueChange([0])}>
+        select minimum
+      </button>
       {marks.map((mark) => (
         <button key={mark.value} type="button" disabled={disabled} onClick={() => onValueChange([mark.value])}>
           {mark.label}
@@ -113,7 +120,7 @@ const codexModel = {
   isHidden: false,
   reasoning: {
     type: 'openai-responses',
-    supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
     defaultEffort: 'low'
   }
 } as Model
@@ -142,15 +149,15 @@ describe('AgentSpeedControl UI', () => {
     ...codexModel,
     reasoning: {
       type: 'openai-responses',
-      supportedEfforts: ['high', 'auto', 'none', 'low']
+      supportedEfforts: ['max', 'auto', 'none', 'high']
     }
   } as Model
 
   it('keeps Auto first, then Off and the manual levels, without showing a model name', () => {
-    render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="low" />)
+    render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="high" />)
 
     const trigger = screen.getByRole('button', { name: 'agent.speed.title' })
-    expect(trigger).toHaveTextContent('assistants.settings.reasoning_effort.low')
+    expect(trigger).toHaveTextContent('assistants.settings.reasoning_effort.high')
     expect(trigger).not.toHaveTextContent('5.6 Sol')
 
     expect(
@@ -160,13 +167,13 @@ describe('AgentSpeedControl UI', () => {
     ).toEqual([
       'assistants.settings.reasoning_effort.auto',
       'assistants.settings.reasoning_effort.off',
-      'assistants.settings.reasoning_effort.low',
-      'assistants.settings.reasoning_effort.high'
+      'assistants.settings.reasoning_effort.high',
+      'assistants.settings.reasoning_effort.max'
     ])
   })
 
   it('opens the compact Advanced slider with the Fast lightning action', async () => {
-    render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="high" />)
+    render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="max" />)
 
     fireEvent.click(
       within(screen.getByTestId('agent-effort-menu')).getByRole('radio', {
@@ -175,9 +182,17 @@ describe('AgentSpeedControl UI', () => {
     )
     openAdvancedSettings()
     const slider = await screen.findByTestId('reasoning-slider')
-    expect(slider).toHaveAttribute('data-max', '1')
+    expect(slider).toHaveAttribute('data-max', '2')
     expect(slider).toHaveAttribute('data-mark-count', '0')
-    expect(slider).toHaveAttribute('data-value', '1')
+    expect(slider).toHaveAttribute('data-value', '2')
+    expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.off')
+    expect(slider).toHaveClass('[&_[data-slot=slider-thumb]]:shadow-sm')
+    expect(slider).not.toHaveClass('[&_[data-slot=slider-thumb]]:shadow-none')
+
+    fireEvent.click(screen.getByTestId('select-slider-min'))
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.off'
+    )
 
     const fastIconButton = screen.getByRole('button', { name: 'agent.speed.fast' })
     expect(fastIconButton.querySelector('.lucide-zap')).toBeInTheDocument()

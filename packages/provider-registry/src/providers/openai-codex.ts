@@ -30,7 +30,7 @@ export default defineProvider({
       modelId: 'gpt-5-6-sol',
       apiModelId: 'gpt-5.6-sol',
       limits: { contextWindow: 372000 },
-      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'], defaultEffort: 'low' },
+      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'low' },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
@@ -39,7 +39,7 @@ export default defineProvider({
       apiModelId: 'gpt-5.6-terra',
       limits: { contextWindow: 372000 },
       reasoning: {
-        supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
         defaultEffort: 'medium'
       },
       supportsFastMode: true,

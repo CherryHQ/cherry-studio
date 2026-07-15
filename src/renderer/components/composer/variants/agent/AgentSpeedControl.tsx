@@ -33,6 +33,7 @@ const AGENT_EFFORT_ORDER: readonly AgentReasoningEffort[] = [
 ]
 type DisplayReasoningEffort = AgentReasoningEffort | 'default'
 type ManualReasoningEffort = Exclude<AgentReasoningEffort, 'auto' | 'none'>
+type SliderReasoningEffort = Exclude<AgentReasoningEffort, 'auto'>
 
 const EFFORT_LABEL_KEYS: Record<DisplayReasoningEffort, string> = {
   default: 'assistants.settings.reasoning_effort.default',
@@ -97,6 +98,7 @@ export function AgentSpeedControl({
     return AGENT_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
   }, [model])
   const automaticEfforts = supportedEfforts.filter((effort) => effort === 'auto' || effort === 'none')
+  const sliderEfforts = supportedEfforts.filter((effort): effort is SliderReasoningEffort => effort !== 'auto')
   const manualEfforts = supportedEfforts.filter(
     (effort): effort is ManualReasoningEffort => effort !== 'auto' && effort !== 'none'
   )
@@ -107,10 +109,12 @@ export function AgentSpeedControl({
   const lastManualEffortRef = useRef<ManualReasoningEffort | undefined>(currentManualEffort ?? defaultManualEffort)
   const selectedManualEffort =
     currentManualEffort ?? manualEfforts.find((effort) => effort === lastManualEffortRef.current) ?? defaultManualEffort
-  const showEffortSlider = manualEfforts.length > 1
+  const selectedSliderEffort =
+    sliderEfforts.find((effort) => effort === reasoningEffort) ?? selectedManualEffort ?? sliderEfforts[0]
+  const showEffortSlider = sliderEfforts.length > 1
   const currentIndex = Math.max(
     0,
-    manualEfforts.findIndex((effort) => effort === selectedManualEffort)
+    sliderEfforts.findIndex((effort) => effort === selectedSliderEffort)
   )
   const supportsFast = onFastModeChange !== undefined && supportsAgentFastMode(model)
 
@@ -178,26 +182,26 @@ export function AgentSpeedControl({
                 <div className="relative mx-2.5 mt-1 mb-2 h-8">
                   <Slider
                     thumbAriaLabel={t('agent.speed.reasoning')}
-                    getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[manualEfforts[index]])}
+                    getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[sliderEfforts[index]])}
                     value={[currentIndex]}
                     min={0}
-                    max={manualEfforts.length - 1}
+                    max={sliderEfforts.length - 1}
                     step={1}
                     size="lg"
-                    className="h-8 [&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-8 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]:hover]:ring-0 [&_[data-slot=slider-track]]:h-6 [&_[data-slot=slider-track]]:bg-muted-foreground/30"
+                    className="h-8 [&_[data-slot=slider-thumb]:hover]:ring-0 [&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-8 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:shadow-sm [&_[data-slot=slider-track]]:h-6 [&_[data-slot=slider-track]]:bg-muted-foreground/30"
                     onValueChange={([index]) => {
-                      const effort = manualEfforts[index]
+                      const effort = sliderEfforts[index]
                       if (effort) selectReasoningEffort(effort)
                     }}
                   />
                   <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-                    {manualEfforts.map((effort, index) => (
+                    {sliderEfforts.map((effort, index) => (
                       <span
                         key={effort}
-                        className={`absolute size-1 -translate-x-1/2 -translate-y-1/2 rounded-full ${
+                        className={`-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full ${
                           index <= currentIndex ? 'bg-white/75' : 'bg-muted-foreground'
                         }`}
-                        style={{ left: `${(index / (manualEfforts.length - 1)) * 100}%` }}
+                        style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
                       />
                     ))}
                   </div>
