@@ -2712,7 +2712,7 @@ describe('Topics', () => {
         query: { deleteTopics: true }
       })
     )
-    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+    await vi.waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(toast.success).toHaveBeenCalledWith('Deleted')
   })
