@@ -487,6 +487,16 @@ const TranslatePage: FC = () => {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
       if (babelDoc.availability === 'available') {
         if (!isSelectedPdfModelRoutable || pdfStatus.running) return
+        // Layout-preserving translation is one-directional; guard against a same-language no-op
+        // (which still spawns BabelDOC and bills a full run) the same way the text path does.
+        // 'auto' source is naturally excepted (never equals a concrete target).
+        const targetResult = determineTargetLanguage(sourceLanguage, targetLanguage, false, bidirectionalPair)
+        if (!targetResult.success) {
+          toast.warning(
+            targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
+          )
+          return
+        }
         pdfHandleRef.current?.start(targetLanguage)
         return
       }
@@ -498,9 +508,12 @@ const TranslatePage: FC = () => {
   }, [
     babelDoc.availability,
     babelDoc.installing,
+    bidirectionalPair,
     isSelectedPdfModelRoutable,
     pdfFile,
     pdfStatus.running,
+    sourceLanguage,
+    t,
     targetLanguage,
     translateInput,
     translatePdfText,
