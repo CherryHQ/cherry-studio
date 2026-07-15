@@ -383,7 +383,7 @@ describe('ProviderList', () => {
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
-    expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
