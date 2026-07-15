@@ -59,7 +59,7 @@ overrides:
   '@ai-sdk/anthropic': '3.0.87'
 
 patchedDependencies:
-  '@napi-rs/system-ocr@1.0.2': patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
+  '@napi-rs/system-ocr@1.1.0': patches/@napi-rs-system-ocr-npm-1.1.0-59e7a78e8b.patch
   'tesseract.js@6.0.1': patches/tesseract.js-npm-6.0.1-2562a7e46d.patch
   'electron-updater@6.7.0': patches/electron-updater-npm-6.7.0-47b11bb0d4.patch
   'atomically@1.7.0': patches/atomically-npm-1.7.0-e742e5293b.patch
