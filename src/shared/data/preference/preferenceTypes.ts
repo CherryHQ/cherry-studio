@@ -90,6 +90,8 @@ export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
+export type AgentSessionWorkdirSection = 'workdir' | 'no-workdir'
+
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',

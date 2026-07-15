@@ -465,6 +465,28 @@ describe('AgentChat locate pending message', () => {
     expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
+  it('keeps the scoped resource pane mounted when the selected agent has no session', () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+
+    render(
+      <AgentChat
+        activeSession={undefined}
+        activeSessionLoading={false}
+        activeSessionSource="none"
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('session-resource-list')).toBeInTheDocument()
+  })
+
   it('keeps the classic-layout resource pane open across missing-agent selection → persistent session handoff', async () => {
     const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
 

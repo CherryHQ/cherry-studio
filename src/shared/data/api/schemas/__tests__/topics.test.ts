@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CreateTopicSchema,
   DuplicateTopicSchema,
+  LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
   SetActiveNodeSchema,
@@ -67,31 +68,43 @@ describe('MoveTopicSchema', () => {
 })
 
 describe('ListTopicsQuerySchema', () => {
-  it('accepts cursor/limit/q without sortBy (ordinary stream defaults to createdAt)', () => {
-    expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toEqual({ q: 'x', limit: 10 })
+  it('accepts cursor/limit/q without sortBy when the ordinary stream is explicit', () => {
+    expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10, pinned: false })).toEqual({
+      q: 'x',
+      limit: 10,
+      pinned: false
+    })
+    expect(() => ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toThrow()
   })
 
   it.each([{ assistantId: 'unlinked' }, { ids: ['t1'] }])('accepts record filter %j without sortBy', (filter) => {
-    expect(ListTopicsQuerySchema.parse(filter)).toMatchObject(filter)
-    expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
+    expect(ListTopicsQuerySchema.parse({ pinned: false, ...filter })).toMatchObject(filter)
+    expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
   })
 
   it('accepts immutable creation order and rejects an unknown sortBy value or non-uuid owner scope', () => {
-    expect(ListTopicsQuerySchema.parse({ sortBy: 'createdAt' })).toEqual({ sortBy: 'createdAt' })
-    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'name' })).toThrow()
-    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', assistantId: 'not-a-uuid' })).toThrow()
+    expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt' })).toEqual({
+      pinned: false,
+      sortBy: 'createdAt'
+    })
+    expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'name' })).toThrow()
+    expect(() =>
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'updatedAt', assistantId: 'not-a-uuid' })
+    ).toThrow()
   })
 
   it('accepts searchScope name/name-or-owner and rejects an unknown scope', () => {
-    expect(ListTopicsQuerySchema.parse({ q: 'x', searchScope: 'name' })).toMatchObject({ searchScope: 'name' })
-    expect(ListTopicsQuerySchema.parse({ q: 'x', searchScope: 'name-or-owner' })).toMatchObject({
+    expect(ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'name' })).toMatchObject({
+      searchScope: 'name'
+    })
+    expect(ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'name-or-owner' })).toMatchObject({
       searchScope: 'name-or-owner'
     })
-    expect(() => ListTopicsQuerySchema.parse({ q: 'x', searchScope: 'full' })).toThrow()
+    expect(() => ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'full' })).toThrow()
   })
 
   it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
-    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', [key]: 1 })).toThrow(/unrecognized/i)
+    expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'updatedAt', [key]: 1 })).toThrow(/unrecognized/i)
     expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
@@ -105,6 +118,20 @@ describe('ListTopicsQuerySchema', () => {
       pinned: true
     })
     expect(() => ListTopicsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
+  })
+})
+
+describe('LatestTopicQuerySchema', () => {
+  it('accepts global, concrete-owner, and unlinked scopes', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(LatestTopicQuerySchema.parse({})).toEqual({})
+    expect(LatestTopicQuerySchema.parse({ assistantId })).toEqual({ assistantId })
+    expect(LatestTopicQuerySchema.parse({ assistantId: 'unlinked' })).toEqual({ assistantId: 'unlinked' })
+  })
+
+  it('rejects pin and list-order dimensions', () => {
+    expect(() => LatestTopicQuerySchema.parse({ pinned: true })).toThrow(/unrecognized/i)
+    expect(() => LatestTopicQuerySchema.parse({ sortBy: 'createdAt' })).toThrow(/unrecognized/i)
   })
 })
 

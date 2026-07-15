@@ -781,7 +781,7 @@ describe('useInfiniteQuery integration', () => {
       ({ sortBy }: { sortBy: 'createdAt' | 'updatedAt' }) =>
         useInfiniteQuery('/topics', {
           continuityKey: 'topics:all',
-          query: { sortBy },
+          query: { pinned: false, sortBy },
           resetOnLocalWrite: '/topics'
         }),
       { initialProps: { sortBy: 'createdAt' as 'createdAt' | 'updatedAt' }, wrapper: Wrapper }
@@ -815,7 +815,7 @@ describe('useInfiniteQuery integration', () => {
       () =>
         useInfiniteQuery('/topics', {
           continuityKey: 'topics:all',
-          query: { sortBy: 'createdAt' },
+          query: { pinned: false, sortBy: 'createdAt' },
           resetOnLocalWrite: '/topics'
         }),
       { wrapper: Wrapper }
@@ -850,7 +850,7 @@ describe('useInfiniteQuery integration', () => {
       ({ q }: { q: string }) =>
         useInfiniteQuery('/topics', {
           continuityKey: `topics:${q}`,
-          query: { q, sortBy: 'createdAt' },
+          query: { pinned: false, q, sortBy: 'createdAt' },
           resetOnLocalWrite: '/topics'
         }),
       { initialProps: { q: 'alpha' }, wrapper: Wrapper }

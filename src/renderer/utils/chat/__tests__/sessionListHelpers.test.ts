@@ -84,7 +84,7 @@ describe('SessionList helpers', () => {
     expect(buildSessionDropAnchor({ ...payload, position: 'after' })).toEqual({ after: 'b' })
     expect(
       buildSessionDropAnchor({ ...payload, overId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a', overType: 'group' })
-    ).toEqual({ position: 'last' })
+    ).toBeUndefined()
   })
 
   it('builds workspace group order anchors from group drop direction', () => {

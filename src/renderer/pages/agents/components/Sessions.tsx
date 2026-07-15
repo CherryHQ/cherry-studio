@@ -77,6 +77,7 @@ import {
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
   getSessionAgentGroupId,
+  getSessionWorkdirGroupId,
   getWorkdirPathFromSessionGroupId,
   getWorkspaceIdFromSessionGroupId,
   getWorkspaceSessionGroupId,
@@ -106,7 +107,11 @@ import {
   type AgentSessionWorkspaceSource,
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import type {
+  AgentSessionWorkdirSection,
+  AssistantIconType,
+  TopicTabPosition
+} from '@shared/data/preference/preferenceTypes'
 import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -128,6 +133,7 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  activeSession?: AgentSessionEntity | null
   agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
   historyRecordsActive?: boolean
@@ -160,6 +166,24 @@ const IMAGE_CAPTURE_START_DELAY_MS = 160
 const DEFAULT_SESSION_GROUP_VISIBLE_COUNT = 5
 const SESSION_PAGE_SIZE = 50
 const SESSION_SEARCH_DEBOUNCE_MS = 300
+const DEFAULT_WORKDIR_SECTION_ORDER: readonly AgentSessionWorkdirSection[] = ['workdir', 'no-workdir']
+
+function normalizeWorkdirSectionOrder(
+  order: readonly AgentSessionWorkdirSection[] | undefined
+): AgentSessionWorkdirSection[] {
+  const source = order ?? DEFAULT_WORKDIR_SECTION_ORDER
+  const valid = new Set(DEFAULT_WORKDIR_SECTION_ORDER)
+  const normalized = source.filter(
+    (section, index): section is AgentSessionWorkdirSection => valid.has(section) && source.indexOf(section) === index
+  )
+  return [...normalized, ...DEFAULT_WORKDIR_SECTION_ORDER.filter((section) => !normalized.includes(section))]
+}
+
+function getWorkdirSectionFromId(sectionId: string): AgentSessionWorkdirSection | undefined {
+  if (sectionId === SESSION_WORKDIR_SECTION_ID) return 'workdir'
+  if (sectionId === SESSION_NO_PROJECT_SECTION_ID) return 'no-workdir'
+  return undefined
+}
 
 type CreateSessionSeed = {
   agentId: string
@@ -315,6 +339,7 @@ export function findLatestCreateSessionSeed(
 
 const Sessions = ({
   agentSessionsSource,
+  activeSession,
   activeSessionId,
   agentIdFilter,
   historyRecordsActive,
@@ -352,15 +377,24 @@ const Sessions = ({
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
+  const [storedWorkdirSectionOrder, setStoredWorkdirSectionOrder] = usePreference('agent.session.workdir_section_order')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const resolvedPanePosition = panePosition ?? storedPanePosition
   const setResolvedPanePosition =
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
+  const workdirSectionOrder = useMemo(
+    () => normalizeWorkdirSectionOrder(storedWorkdirSectionOrder),
+    [storedWorkdirSectionOrder]
+  )
+  const workdirSectionRank = useMemo(
+    () => new Map(workdirSectionOrder.map((section, index) => [section, index])),
+    [workdirSectionOrder]
+  )
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
-  const { loadFirstSession, loadLatestSession, stats: globalSessionStats } = agentSessionsSource
+  const { loadLatestSession, stats: globalSessionStats } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -600,16 +634,35 @@ const Sessions = ({
         }),
     [workdirDisplay.rankByGroupId, workdirSessionStatsByGroupId]
   )
+  const activeOrdinarySessionGroupId = useMemo(() => {
+    if (!activeSession || pinnedSessions.some((session) => session.id === activeSession.id)) return undefined
+    if (displayMode === 'agent') {
+      return activeSession.agentId && agentById.has(activeSession.agentId)
+        ? getSessionAgentGroupId(activeSession.agentId)
+        : SESSION_UNKNOWN_AGENT_GROUP_ID
+    }
+    if (displayMode !== 'workdir') return undefined
+    if (isSystemWorkspaceSession(activeSession)) return SESSION_NO_PROJECT_GROUP_ID
+    return getSessionWorkdirGroupId(activeSession, workdirDisplay)
+  }, [activeSession, agentById, displayMode, pinnedSessions, workdirDisplay])
   const collapsedRemoteSessionGroupIds = useMemo(() => {
-    if (displayMode === 'agent') return sessionExpansionAgent ?? orderedAgentSessionGroupIds
+    if (displayMode === 'agent') {
+      return (
+        sessionExpansionAgent ??
+        orderedAgentSessionGroupIds.filter((groupId) => groupId !== activeOrdinarySessionGroupId)
+      )
+    }
     if (displayMode !== 'workdir') return []
-    if (!sessionExpansionWorkdir) return orderedWorkdirSessionGroupIds
+    if (!sessionExpansionWorkdir) {
+      return orderedWorkdirSessionGroupIds.filter((groupId) => groupId !== activeOrdinarySessionGroupId)
+    }
     return remapResourceListCollapsedGroupIds(sessionExpansionWorkdir, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
   }, [
     displayMode,
+    activeOrdinarySessionGroupId,
     orderedAgentSessionGroupIds,
     orderedWorkdirSessionGroupIds,
     sessionExpansionAgent,
@@ -709,6 +762,20 @@ const Sessions = ({
   })
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
+  const previousRevealDisplayModeRef = useRef(displayMode)
+  const modeRevealRequestIdRef = useRef(0)
+  const incomingRevealRequestKey = revealRequest ? `${revealRequest.requestId}:${revealRequest.itemId}` : null
+  const [modeRevealRequest, setModeRevealRequest] = useState<{
+    incomingRequestKey: string | null
+    request: ResourceListRevealRequest
+  }>()
+  const activeSessionMatchesRemoteQuery =
+    !!activeSessionId &&
+    (!debouncedRemoteQuery ||
+      sessionItems.some((session) => session.id === activeSessionId) ||
+      !!activeSession?.name.toLocaleLowerCase().includes(debouncedRemoteQuery.toLocaleLowerCase()))
+  const effectiveRevealRequest =
+    modeRevealRequest?.incomingRequestKey === incomingRevealRequestKey ? modeRevealRequest.request : revealRequest
 
   useEffect(() => {
     sessionItemsRef.current = sessionItems
@@ -719,11 +786,35 @@ const Sessions = ({
   }, [activeSessionId])
 
   useEffect(() => {
+    if (previousRevealDisplayModeRef.current === displayMode) return
+    previousRevealDisplayModeRef.current = displayMode
+    const request =
+      revealRequest?.itemId === activeSessionId
+        ? revealRequest
+        : activeSessionId && activeSessionMatchesRemoteQuery
+          ? { itemId: activeSessionId, requestId: 0 }
+          : undefined
+    if (!request) {
+      setModeRevealRequest(undefined)
+      return
+    }
+
+    // A fresh request identity makes ResourceList re-locate the current result,
+    // expanding only its saved group while preserving every other collapse choice.
+    modeRevealRequestIdRef.current -= 1
+    setModeRevealRequest({
+      incomingRequestKey: incomingRevealRequestKey,
+      request: { ...request, requestId: modeRevealRequestIdRef.current }
+    })
+  }, [activeSessionId, activeSessionMatchesRemoteQuery, displayMode, incomingRevealRequestKey, revealRequest])
+
+  useEffect(() => {
     setRevealedSession(null)
   }, [debouncedRemoteQuery, displayMode, rightPanelAgentScope])
 
   const setActiveSessionId = useCallback(
     (id: string | null) => {
+      activeSessionIdRef.current = id
       const session = id ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null) : null
       setControlledActiveSessionId(id, session)
     },
@@ -757,16 +848,27 @@ const Sessions = ({
     [agents]
   )
 
-  const baseGroupedSessions = useMemo(
-    () =>
-      sortSessionsForDisplayGroups(sessionItems, {
-        agentRankById,
-        mode: displayMode,
-        sortBy: sessionSortBy,
-        workdirDisplay
-      }),
-    [agentRankById, displayMode, sessionItems, sessionSortBy, workdirDisplay]
-  )
+  const baseGroupedSessions = useMemo(() => {
+    const sorted = sortSessionsForDisplayGroups(sessionItems, {
+      agentRankById,
+      mode: displayMode,
+      sortBy: sessionSortBy,
+      workdirDisplay
+    })
+    if (displayMode !== 'workdir') return sorted
+
+    return sorted
+      .map((session, index) => ({ session, index }))
+      .sort((a, b) => {
+        const getRank = (session: SessionListItem) => {
+          if (session.pinned) return -1
+          const section = isSystemWorkspaceSession(session) ? 'no-workdir' : 'workdir'
+          return workdirSectionRank.get(section) ?? Number.MAX_SAFE_INTEGER
+        }
+        return getRank(a.session) - getRank(b.session) || a.index - b.index
+      })
+      .map(({ session }) => session)
+  }, [agentRankById, displayMode, sessionItems, sessionSortBy, workdirDisplay, workdirSectionRank])
 
   const groupedSessions = useMemo(
     () =>
@@ -900,6 +1002,16 @@ const Sessions = ({
           : { id: SESSION_WORKDIR_SECTION_ID, label: t(SESSION_DISPLAY_LABEL_KEYS.workdir) }
       })
     }
+    seeds.sort((a, b) => {
+      if (a.id === SESSION_PINNED_GROUP_ID) return -1
+      if (b.id === SESSION_PINNED_GROUP_ID) return 1
+      const aSection = a.section ? getWorkdirSectionFromId(a.section.id) : undefined
+      const bSection = b.section ? getWorkdirSectionFromId(b.section.id) : undefined
+      return (
+        (aSection ? (workdirSectionRank.get(aSection) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) -
+        (bSection ? (workdirSectionRank.get(bSection) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER)
+      )
+    })
     return seeds
   }, [
     agentById,
@@ -912,6 +1024,7 @@ const Sessions = ({
     t,
     createdSessionsSource.error,
     workdirDisplay.labelByGroupId,
+    workdirSectionRank,
     workdirSessionStatsByGroupId
   ])
   const loadedSessionCountByGroupId = useMemo(() => {
@@ -983,13 +1096,16 @@ const Sessions = ({
   const collapsedSessionState = useMemo(() => {
     if (displayMode === 'time') return undefined
     const resolvedSessionExpansion =
-      sessionExpansion ?? sessionGroupSeeds.filter((group) => group.label).map((group) => group.id)
+      sessionExpansion ??
+      sessionGroupSeeds
+        .filter((group) => group.label && group.id !== activeOrdinarySessionGroupId)
+        .map((group) => group.id)
     if (displayMode === 'agent') return resolvedSessionExpansion
     return remapResourceListCollapsedGroupIds(resolvedSessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
-  }, [displayMode, sessionExpansion, sessionGroupSeeds, workdirDisplay.groupIdByPath])
+  }, [activeOrdinarySessionGroupId, displayMode, sessionExpansion, sessionGroupSeeds, workdirDisplay.groupIdByPath])
 
   const handleSessionCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
@@ -1034,11 +1150,10 @@ const Sessions = ({
         sessionItemsRef.current.find((session) => session.id === id)
 
       const success = await deleteSession(id)
-      if (!success || activeSessionId !== id) return
+      if (!success || activeSessionIdRef.current !== id) return
 
-      // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
-      // never jump to an unrelated agent's session. When that agent has no other session left, open a
-      // fresh empty one for it instead of stranding the view.
+      // Deleting the active session selects a neighbour within the same agent.
+      // If that owner is now empty, keep it empty instead of creating implicitly.
       const agentScopedSessions = deletedSession
         ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
         : filteredGroupedSessions
@@ -1049,53 +1164,17 @@ const Sessions = ({
       }
 
       if (deletedSession?.agentId) {
-        const unloadedNext = await loadFirstSession(deletedSession.agentId)
+        const unloadedNext = await loadLatestSession(deletedSession.agentId)
+        if (activeSessionIdRef.current !== id) return
         if (unloadedNext && unloadedNext.id !== id) {
           setControlledActiveSessionId(unloadedNext.id, unloadedNext)
           return
         }
       }
 
-      const seed = deletedSession
-        ? buildCreateSessionSeed({
-            agentId: agentIdFilter ?? deletedSession.agentId,
-            workspace: deletedSession.workspace,
-            workspaceId: deletedSession.workspaceId
-          })
-        : agentIdFilter
-          ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-          : null
-      // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
-      // session create rejects (e.g. the user-workspace refetch fails) surface a toast and still
-      // clear the active id in `finally`, so we never strand the view on the just-deleted session.
-      let createdSession: AgentSessionEntity | null | void = null
-      try {
-        if (seed?.agentId && onCreateSession) {
-          createdSession = await onCreateSession({
-            agentId: seed.agentId,
-            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-            // Never let the fresh replacement reuse the session we just deleted (stale candidate list).
-            excludeReuseSessionId: id
-          })
-        }
-      } catch (err) {
-        logger.error('Failed to create session after deleting last session', { err, sessionId: id })
-        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
-      } finally {
-        if (!createdSession) setActiveSessionId(null)
-      }
+      setActiveSessionId(null)
     },
-    [
-      activeSessionId,
-      agentIdFilter,
-      deleteSession,
-      filteredGroupedSessions,
-      loadFirstSession,
-      onCreateSession,
-      setActiveSessionId,
-      setControlledActiveSessionId,
-      t
-    ]
+    [deleteSession, filteredGroupedSessions, loadLatestSession, setActiveSessionId, setControlledActiveSessionId]
   )
 
   const handleRenameSession = useCallback(
@@ -1581,7 +1660,7 @@ const Sessions = ({
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
-      displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
+      displayMode !== 'time' && group.id !== SESSION_PINNED_GROUP_ID ? 'expand-only' : 'toggle',
     [displayMode]
   )
   const loadSessionGroup = useCallback(
@@ -1626,10 +1705,12 @@ const Sessions = ({
   )
   const revealSession = useCallback(
     async (request: ResourceListRevealRequest) => {
-      const page = await dataApiService.get('/agent-sessions', {
-        query: { ids: [request.itemId], limit: 1, sortBy: 'createdAt' }
-      })
-      const session = page.items[0]
+      const query = { ids: [request.itemId], limit: 1, sortBy: 'createdAt' as const }
+      const [pinnedPage, ordinaryPage] = await Promise.all([
+        dataApiService.get('/agent-sessions', { query: { ...query, pinned: true } }),
+        dataApiService.get('/agent-sessions', { query: { ...query, pinned: false } })
+      ])
+      const session = pinnedPage.items[0] ?? ordinaryPage.items[0]
       if (!session) return null
 
       setRevealedSession(session)
@@ -1668,7 +1749,9 @@ const Sessions = ({
         return agentDragReady && !!agentId && agentById.has(agentId)
       }
 
-      return workdirDragReady && workdirDisplay.workspaceIdByGroupId.has(group.id)
+      return (
+        workdirDragReady && (!!getWorkdirSectionFromId(group.id) || workdirDisplay.workspaceIdByGroupId.has(group.id))
+      )
     },
     [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
   )
@@ -1687,6 +1770,12 @@ const Sessions = ({
           agentById.has(activeAgentId) &&
           agentById.has(overAgentId)
         )
+      }
+
+      const activeSection = getWorkdirSectionFromId(activeGroupId)
+      const overSection = getWorkdirSectionFromId(overGroupId)
+      if (activeSection || overSection) {
+        return workdirDragReady && !!activeSection && !!overSection && activeSection !== overSection
       }
 
       const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(activeGroupId)
@@ -1745,6 +1834,26 @@ const Sessions = ({
 
         if (!workdirDragReady) return
 
+        const activeSection = getWorkdirSectionFromId(payload.activeGroupId)
+        const overSection = getWorkdirSectionFromId(payload.overGroupId)
+        if (activeSection || overSection) {
+          if (!activeSection || !overSection || activeSection === overSection) return
+          const nextSectionOrder = [...workdirSectionOrder]
+          const activeIndex = nextSectionOrder.indexOf(activeSection)
+          const overIndex = nextSectionOrder.indexOf(overSection)
+          if (activeIndex < 0 || overIndex < 0) return
+          const activeValue = nextSectionOrder[activeIndex]!
+          nextSectionOrder[activeIndex] = nextSectionOrder[overIndex]!
+          nextSectionOrder[overIndex] = activeValue
+          try {
+            await setStoredWorkdirSectionOrder(nextSectionOrder)
+          } catch (err) {
+            logger.error('Failed to reorder workdir sections', { err })
+            toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+          }
+          return
+        }
+
         const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(payload.activeGroupId)
         const overWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(payload.overGroupId)
 
@@ -1802,6 +1911,7 @@ const Sessions = ({
 
       const normalizedPayload = normalizeSessionDropPayload(payload)
       const anchor = buildSessionDropAnchor(normalizedPayload)
+      if (!anchor) return
       setOptimisticMove(normalizedPayload)
 
       const reordered = await reorderSession(payload.activeId, anchor)
@@ -1822,8 +1932,10 @@ const Sessions = ({
       reorderWorkspace,
       sessionItems,
       t,
+      setStoredWorkdirSectionOrder,
       workdirDragReady,
       workdirDisplay,
+      workdirSectionOrder,
       workspaceRowsForDisplay
     ]
   )
@@ -2184,7 +2296,7 @@ const Sessions = ({
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
-      revealRequest={revealRequest}
+      revealRequest={effectiveRevealRequest}
       defaultGroupVisibleCount={defaultGroupVisibleCount}
       groupLoadStep={displayMode === 'time' ? Number.POSITIVE_INFINITY : DEFAULT_SESSION_GROUP_VISIBLE_COUNT}
       getSectionHeaderAction={getSectionHeaderAction}
@@ -2207,7 +2319,6 @@ const Sessions = ({
       groupShowMoreLabel={t('agent.session.group.show_more')}
       groupCollapseLabel={t('agent.session.group.collapse')}
       onRenameItem={handleRenameSession}
-      onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={displayMode === 'time' ? undefined : handleSessionCollapsedStateChange}>
       <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>

@@ -11,6 +11,7 @@ import Sessions from './components/Sessions'
 import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
+  activeSession?: AgentSessionEntity | null
   activeSessionId: string | null
   historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
@@ -29,6 +30,7 @@ interface AgentSidePanelProps {
 }
 
 const AgentSidePanel = ({
+  activeSession,
   activeSessionId,
   historyRecordsActive,
   agentSessionsSource,
@@ -54,6 +56,7 @@ const AgentSidePanel = ({
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions
+          activeSession={activeSession}
           agentSessionsSource={agentSessionsSource}
           activeSessionId={activeSessionId}
           historyRecordsActive={historyRecordsActive}

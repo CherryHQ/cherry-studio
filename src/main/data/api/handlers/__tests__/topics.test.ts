@@ -59,6 +59,16 @@ describe('topicHandlers', () => {
   })
 
   describe('/topics', () => {
+    it('requires and forwards an explicit list stream', async () => {
+      const response = { items: [], nextCursor: undefined }
+      listByCursorMock.mockReturnValueOnce(response)
+
+      await expect(topicHandlers['/topics'].GET({ query: { pinned: false, limit: '10' } } as never)).resolves.toBe(
+        response
+      )
+      expect(listByCursorMock).toHaveBeenCalledWith({ pinned: false, limit: 10 })
+    })
+
     it('delegates selected topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
       deleteByIdsMock.mockResolvedValueOnce(result)
@@ -103,6 +113,15 @@ describe('topicHandlers', () => {
       getLatestUpdatedMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
+      expect(getLatestUpdatedMock).toHaveBeenCalledWith({})
+    })
+
+    it('forwards an owner scope', async () => {
+      getLatestUpdatedMock.mockReturnValueOnce(null)
+
+      await topicHandlers['/topics/latest'].GET({ query: { assistantId: 'unlinked' } } as never)
+
+      expect(getLatestUpdatedMock).toHaveBeenCalledWith({ assistantId: 'unlinked' })
     })
 
     it('returns { topic: null } when the library is empty', async () => {

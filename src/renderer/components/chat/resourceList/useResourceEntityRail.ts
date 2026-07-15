@@ -8,7 +8,7 @@ import {
 } from './base'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
 
-export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceListItemDropAnchor>
+export type ResourceEntityRailReorderAnchor = NonNullable<ReturnType<typeof buildResourceListItemDropAnchor>>
 
 type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
   /** Every entity (already mapped to a rail item). The hook filters to those with resources and orders them. */
@@ -19,9 +19,10 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   isLoading: boolean
   isError: boolean
   onPickResource: (resource: TResource) => void
-  /** Load the entity's first resource before navigating. */
-  loadFirstResource: (entityId: string) => Promise<TResource | null>
-  onCreateResource: (entityId: string) => void | Promise<unknown>
+  /** Keep the selected owner scope visible when its latest lookup confirms no resource. */
+  onEmptyResource?: (entity: TEntity) => void
+  /** Load the entity's most-recently-updated resource before navigating. */
+  loadLatestResource: (entityId: string) => Promise<TResource | null>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
   onReorderError: (error: unknown) => void
@@ -38,7 +39,7 @@ type UseResourceEntityRailResult<TEntity> = {
 /**
  * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
  * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
- * first resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
+ * latest resource (or leaves the selected owner empty), and reordering persists the real `orderKey`. Data fetching,
  * pins, deletion, and context menus stay in the per-variant component.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
@@ -48,8 +49,8 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   isLoading,
   isError,
   onPickResource,
-  loadFirstResource,
-  onCreateResource,
+  onEmptyResource,
+  loadLatestResource,
   reorder,
   refetchEntities,
   onReorderError
@@ -104,13 +105,10 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     async (item: TEntity) => {
       const requestGeneration = ++selectRequestGenerationRef.current
       try {
-        const first = await loadFirstResource(item.id)
+        const latest = await loadLatestResource(item.id)
         if (requestGeneration !== selectRequestGenerationRef.current) return
-        if (first) {
-          onPickResource(first)
-          return
-        }
-        await onCreateResource(item.id)
+        if (latest) onPickResource(latest)
+        else onEmptyResource?.(item)
       } catch (error) {
         // Superseded requests are intentionally ignored: their result no longer represents
         // the entity the user most recently selected. The current request still rejects so
@@ -118,7 +116,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
         if (requestGeneration === selectRequestGenerationRef.current) throw error
       }
     },
-    [loadFirstResource, onCreateResource, onPickResource]
+    [loadLatestResource, onEmptyResource, onPickResource]
   )
 
   const handleReorder = useCallback(
@@ -126,6 +124,8 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       if (payload.type !== 'item') return
 
       const activeId = payload.activeId
+      const anchor = buildResourceListItemDropAnchor(payload)
+      if (!anchor) return
       const nextIds = items.map((item) => item.id)
       const activeIndex = nextIds.indexOf(activeId)
       const overIndex = nextIds.indexOf(payload.overId)
@@ -138,7 +138,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       setOptimisticOrderIds(nextIds)
 
       try {
-        await reorder(activeId, buildResourceListItemDropAnchor(payload))
+        await reorder(activeId, anchor)
       } catch (error) {
         setOptimisticOrderIds(null)
         onReorderError(error)

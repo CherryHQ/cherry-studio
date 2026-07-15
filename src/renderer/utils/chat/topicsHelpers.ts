@@ -123,7 +123,7 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   return next
 }
 
-export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
+export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest | undefined {
   return buildResourceListItemDropAnchor(payload)
 }
 

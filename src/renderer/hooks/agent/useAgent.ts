@@ -129,7 +129,11 @@ export const useAgents = () => {
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId', {
-    refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
+    refresh: ({ args }) => [
+      '/agents',
+      `/agents/${args?.params?.agentId}`,
+      ...(args?.body?.name !== undefined ? ([{ path: '/agent-sessions', strategy: 'reset-cursor' }] as const) : [])
+    ]
   })
 
   const updateAgent: UpdateAgentFunction = useCallback(

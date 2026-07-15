@@ -70,7 +70,7 @@ export type ResourceListGroupHeaderIconContext = {
   collapsed: boolean
 }
 
-export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'select-first-then-toggle' | 'none'
+export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'expand-only' | 'select-first-then-toggle' | 'none'
 
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string

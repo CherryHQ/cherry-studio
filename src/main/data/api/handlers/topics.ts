@@ -15,6 +15,7 @@ import {
   CreateTopicSchema,
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
+  LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
   SetActiveNodeSchema,
@@ -27,7 +28,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: async ({ query }) => {
-      const parsed = ListTopicsQuerySchema.parse(query ?? {})
+      const parsed = ListTopicsQuerySchema.parse(query)
       return topicService.listByCursor(parsed)
     },
 
@@ -43,8 +44,9 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   },
 
   '/topics/latest': {
-    GET: async () => {
-      return { topic: topicService.getLatestUpdated() }
+    GET: async ({ query }) => {
+      const parsed = LatestTopicQuerySchema.parse(query ?? {})
+      return { topic: topicService.getLatestUpdated(parsed) }
     }
   },
 

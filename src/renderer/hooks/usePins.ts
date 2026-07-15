@@ -18,11 +18,11 @@ const logger = loggerService.withContext('usePins')
  * this knowledge; do not declare `/pins` mutations with hand-rolled `refresh`
  * lists elsewhere.
  *
- * Topic and session lists are served pinned-first through a two-section
- * cursor (`listByCursor`), so pin-state changes reorder `/topics` /
- * `/agent-sessions` pages: those cursor chains must be reset and their stats
- * refreshed, not just `/pins` membership. Other entity types group pinned
- * rows client-side, so refreshing `/pins` alone is enough.
+ * Topic and session lists expose independent pinned and ordinary cursor
+ * streams, so pin-state changes move a row between `/topics` /
+ * `/agent-sessions` query families: both cursor chains must be reset and their
+ * stats refreshed, not just `/pins` membership. Other entity types group
+ * pinned rows client-side, so refreshing `/pins` alone is enough.
  */
 function pinRefreshTargets(entityType: EntityType): DataApiRefreshTarget[] {
   switch (entityType) {

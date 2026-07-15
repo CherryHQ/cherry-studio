@@ -14,34 +14,30 @@ import { useTopicStats } from './useTopic'
 const RESOURCE_SEED_PAGE_SIZE = 50
 
 /**
- * Factual counts drive group visibility. Imperative lookups fetch one bounded
- * page for rail navigation and placeholder reuse.
+ * Factual counts drive group visibility. Imperative lookups use scoped latest
+ * for rail navigation and bounded pages for placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })
-  const loadFirstTopic = useCallback(async (assistantId: string | null): Promise<TopicListItem | null> => {
-    const page = await dataApiService.get('/topics', {
-      query: {
-        assistantId: assistantId ?? 'unlinked',
-        limit: 1,
-        sortBy: 'updatedAt'
-      }
-    })
-    return page.items[0] ?? null
-  }, [])
-  const loadLatestTopic = useCallback(async () => {
-    const result = await dataApiService.get('/topics/latest')
+  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+    const result =
+      assistantId === undefined
+        ? await dataApiService.get('/topics/latest')
+        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
     return result.topic
   }, [])
   const loadTopicSeedCandidates = useCallback(async (assistantId: string | null): Promise<TopicListItem[]> => {
-    const page = await dataApiService.get('/topics', {
-      query: {
-        assistantId: assistantId ?? 'unlinked',
-        limit: RESOURCE_SEED_PAGE_SIZE,
-        sortBy: 'orderKey'
-      }
-    })
-    return page.items
+    const query = {
+      assistantId: assistantId ?? 'unlinked',
+      limit: RESOURCE_SEED_PAGE_SIZE,
+      sortBy: 'orderKey' as const
+    }
+    const [pinnedPage, ordinaryPage] = await Promise.all([
+      dataApiService.get('/topics', { query: { ...query, pinned: true } }),
+      dataApiService.get('/topics', { query: { ...query, pinned: false } })
+    ])
+    const pinnedIds = new Set(pinnedPage.items.map((topic) => topic.id))
+    return [...pinnedPage.items, ...ordinaryPage.items.filter((topic) => !pinnedIds.has(topic.id))]
   }, [])
 
   return {
@@ -49,7 +45,6 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
     isStatsLoading: statsSource.isLoading,
     statsError: statsSource.error,
     refetchStats: statsSource.refetch,
-    loadFirstTopic,
     loadLatestTopic,
     loadTopicSeedCandidates
   }
@@ -58,25 +53,21 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 /** Session counterpart to {@link useAssistantTopicsSource}. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useAgentSessionStats({ enabled })
-  const loadFirstSession = useCallback(async (agentId: string): Promise<AgentSessionListItem | null> => {
-    const page = await dataApiService.get('/agent-sessions', {
-      query: { agentId, limit: 1, sortBy: 'updatedAt' }
-    })
-    return page.items[0] ?? null
-  }, [])
-  const loadLatestSession = useCallback(async () => {
-    const result = await dataApiService.get('/agent-sessions/latest')
+  const loadLatestSession = useCallback(async (agentId?: string) => {
+    const result =
+      agentId === undefined
+        ? await dataApiService.get('/agent-sessions/latest')
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
     return result.session
   }, [])
   const loadSessionSeedCandidates = useCallback(async (agentId: string): Promise<AgentSessionListItem[]> => {
-    const page = await dataApiService.get('/agent-sessions', {
-      query: {
-        agentId,
-        limit: RESOURCE_SEED_PAGE_SIZE,
-        sortBy: 'orderKey'
-      }
-    })
-    return page.items
+    const query = { agentId, limit: RESOURCE_SEED_PAGE_SIZE, sortBy: 'orderKey' as const }
+    const [pinnedPage, ordinaryPage] = await Promise.all([
+      dataApiService.get('/agent-sessions', { query: { ...query, pinned: true } }),
+      dataApiService.get('/agent-sessions', { query: { ...query, pinned: false } })
+    ])
+    const pinnedIds = new Set(pinnedPage.items.map((session) => session.id))
+    return [...pinnedPage.items, ...ordinaryPage.items.filter((session) => !pinnedIds.has(session.id))]
   }, [])
 
   return {
@@ -84,7 +75,6 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
     isStatsLoading: statsSource.isLoading,
     statsError: statsSource.error,
     refetchStats: statsSource.refetch,
-    loadFirstSession,
     loadLatestSession,
     loadSessionSeedCandidates
   }

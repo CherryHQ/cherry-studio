@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { HistoryRecordDescriptor } from '../historyRecordsDescriptor'
+import { ALL_SOURCE_ID } from '../historyRecordsHelpers'
 import type { HistoryRecordsController } from '../useHistoryRecordsController'
 import { HistoryRecordList } from './HistoryRecordList'
 import HistoryTopBar from './HistoryTopBar'
@@ -31,6 +32,11 @@ export function HistoryRecordsContent<T>({
   onRetry
 }: HistoryRecordsContentProps<T>) {
   const { t } = useTranslation()
+  const hasActiveFilters = controller.searchText.trim().length > 0 || controller.selectedSourceId !== ALL_SOURCE_ID
+  const clearFilters = () => {
+    controller.setSearchText('')
+    controller.setSelectedSourceId(ALL_SOURCE_ID)
+  }
 
   return (
     <section
@@ -58,6 +64,7 @@ export function HistoryRecordsContent<T>({
         error={error}
         isLoading={isLoading}
         isLoadingMore={isLoadingMore}
+        hasActiveFilters={hasActiveFilters}
         isSelected={controller.isSelected}
         selectAllState={controller.selectAllState}
         selectionDisabled={controller.selectionDisabled}
@@ -65,6 +72,7 @@ export function HistoryRecordsContent<T>({
         onToggleSelectAll={controller.toggleSelectAll}
         onEndReached={onEndReached}
         onRetry={onRetry}
+        onClearFilters={clearFilters}
       />
     </section>
   )

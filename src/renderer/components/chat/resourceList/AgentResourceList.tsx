@@ -49,6 +49,7 @@ type AgentResourceListProps = {
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
+  onSelectEmptyAgent?: (agentId: string) => void
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => void | Promise<unknown>
   onShowMissingAgentSelection?: () => void | Promise<void>
@@ -68,6 +69,7 @@ export function AgentResourceList({
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
+  onSelectEmptyAgent,
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
@@ -86,7 +88,7 @@ export function AgentResourceList({
     isStatsLoading: isSessionStatsLoading,
     statsError: sessionsError,
     refetchStats: reload,
-    loadFirstSession
+    loadLatestSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -145,7 +147,11 @@ export function AgentResourceList({
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
   )
-  const loadFirstSessionForAgent = useCallback((agentId: string) => loadFirstSession(agentId), [loadFirstSession])
+  const handleEmptyAgentSelection = useCallback(
+    (agent: ResourceEntityRailItem) => onSelectEmptyAgent?.(agent.id),
+    [onSelectEmptyAgent]
+  )
+  const loadLatestSessionForAgent = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
       await reorderAgent({ params: { id: agentId }, body: anchor })
@@ -167,8 +173,8 @@ export function AgentResourceList({
     isLoading: isAgentsLoading || isSessionStatsLoading,
     isError: !!(agentsError || sessionsError),
     onPickResource: handlePickSession,
-    loadFirstResource: loadFirstSessionForAgent,
-    onCreateResource: onCreateSession,
+    onEmptyResource: handleEmptyAgentSelection,
+    loadLatestResource: loadLatestSessionForAgent,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError

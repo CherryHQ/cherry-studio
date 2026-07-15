@@ -59,9 +59,9 @@ describe('Topics helpers', () => {
 
     expect(buildTopicDropAnchor(basePayload)).toEqual({ before: 'b' })
     expect(buildTopicDropAnchor({ ...basePayload, position: 'after' })).toEqual({ after: 'b' })
-    expect(buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })).toEqual({
-      position: 'last'
-    })
+    expect(
+      buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })
+    ).toBeUndefined()
   })
 
   it('translates assistant group drops into persisted order anchors', () => {

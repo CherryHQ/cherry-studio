@@ -17,6 +17,7 @@ import {
   AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
@@ -31,7 +32,7 @@ const AgentSessionsParamsSchema = z.strictObject({
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
     GET: async ({ query }) => {
-      const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
+      const parsed = ListAgentSessionsQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.listByCursor(parsed.data)
     },
@@ -50,8 +51,10 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/latest': {
-    GET: async () => {
-      return { session: agentSessionService.getLatestUpdated() }
+    GET: async ({ query }) => {
+      const parsed = LatestAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return { session: agentSessionService.getLatestUpdated(parsed.data) }
     }
   },
 

@@ -59,7 +59,7 @@ type UseSessionsOptions = {
   /** 'name' (default) or 'name-or-owner' (session name OR live owning agent name). */
   searchScope?: AgentSessionSearchScope
   /** true selects the independent pin-owned stream; false filters the flat stream. */
-  pinned?: boolean
+  pinned: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope
 }
@@ -92,7 +92,7 @@ export const useSession = (sessionId: string | null) => {
  *
  * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
  * last-touched session without waiting for the full session history to paginate
- * in and without depending on the pinned-first `/agent-sessions` list order.
+ * in and without depending on either `/agent-sessions` list stream's order.
  *
  * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
  * cache coherent would mean every updatedAt-bumping write invalidating it (an
@@ -195,19 +195,16 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
  * explicitly with `loadMore()`; grouped sidebars own independent per-group
  * cursor windows.
  */
-export const useSessions = (
-  agentId?: string | null,
-  options: number | UseSessionsOptions = DEFAULT_SESSION_PAGE_SIZE
-) => {
+export const useSessions = (agentId: string | null | undefined, options: UseSessionsOptions) => {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
-  const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
-  const enabled = typeof options === 'number' ? undefined : options.enabled
-  const sortBy = typeof options === 'number' ? undefined : options.sortBy
-  const q = typeof options === 'number' ? undefined : options.q?.trim() || undefined
-  const searchScope = typeof options === 'number' ? undefined : options.searchScope
-  const pinned = typeof options === 'number' ? undefined : options.pinned
-  const workspaceId = typeof options === 'number' ? undefined : options.workspaceId
+  const pageSize = options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE
+  const enabled = options.enabled
+  const sortBy = options.sortBy
+  const q = options.q?.trim() || undefined
+  const searchScope = options.searchScope
+  const pinned = options.pinned
+  const workspaceId = options.workspaceId
   const isPinnedStream = pinned === true
   const effectiveSortBy = isPinnedStream ? undefined : sortBy
 
@@ -217,16 +214,15 @@ export const useSessions = (
       sortBy?: AgentSessionSortBy
       q?: string
       searchScope?: AgentSessionSearchScope
-      pinned?: boolean
+      pinned: boolean
       workspaceId?: AgentSessionWorkspaceScope
-    } = {}
+    } = { pinned }
     if (agentId) built.agentId = agentId
     if (effectiveSortBy) built.sortBy = effectiveSortBy
     if (q) built.q = q
     if (q && searchScope) built.searchScope = searchScope
-    if (pinned !== undefined) built.pinned = pinned
     if (workspaceId !== undefined) built.workspaceId = workspaceId
-    return Object.keys(built).length > 0 ? built : undefined
+    return built
   }, [agentId, effectiveSortBy, pinned, q, searchScope, workspaceId])
 
   const continuityKey = useMemo(

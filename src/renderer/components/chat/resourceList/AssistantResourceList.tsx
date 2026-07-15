@@ -50,7 +50,8 @@ type AssistantResourceListProps = {
   onAddAssistant?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
-  onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
+  onSelectEmptyAssistant?: (assistantId: string | null) => void
+  onClearActiveTopic?: (assistantId: string) => void
   onSelectedAssistantClick?: () => void | Promise<void>
   onCreateTopic: (assistantId: string | null) => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -69,7 +70,8 @@ export function AssistantResourceList({
   onAddAssistant,
   onOpenHistoryRecords,
   onSelectTopic,
-  onCreateTopicAfterClear,
+  onSelectEmptyAssistant,
+  onClearActiveTopic,
   onSelectedAssistantClick,
   onCreateTopic,
   resourceMenuItems,
@@ -94,7 +96,7 @@ export function AssistantResourceList({
     stats: topicStats,
     isStatsLoading: isTopicStatsLoading,
     statsError: topicsError,
-    loadFirstTopic
+    loadLatestTopic
   } = assistantTopicsSource
   const {
     isLoading: isAssistantPinsLoading,
@@ -200,12 +202,17 @@ export function AssistantResourceList({
     topicCountByAssistantId
   ])
 
-  const loadFirstTopicForEntity = useCallback(
+  const loadLatestTopicForEntity = useCallback(
     async (assistantId: string) => {
-      const topic = await loadFirstTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId)
-      return topic ? { ...mapApiTopicToRendererTopic(topic), pinned: topic.pinned } : null
+      const topic = await loadLatestTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId)
+      return topic ? mapApiTopicToRendererTopic(topic) : null
     },
-    [loadFirstTopic]
+    [loadLatestTopic]
+  )
+  const handleEmptyAssistantSelection = useCallback(
+    (assistant: ResourceEntityRailItem) =>
+      onSelectEmptyAssistant?.(assistant.id === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistant.id),
+    [onSelectEmptyAssistant]
   )
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
   const reorderAssistant = useCallback(
@@ -231,8 +238,8 @@ export function AssistantResourceList({
     isLoading: isAssistantsLoading || isTopicStatsLoading,
     isError: !!(assistantsError || topicsError),
     onPickResource: onSelectTopic,
-    loadFirstResource: loadFirstTopicForEntity,
-    onCreateResource: handleCreateTopic,
+    onEmptyResource: handleEmptyAssistantSelection,
+    loadLatestResource: loadLatestTopicForEntity,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
@@ -278,12 +285,12 @@ export function AssistantResourceList({
         if (!confirmed) return
 
         // The list may have drained while the confirm dialog was open — re-check
-        // the latest count so we don't clear (and recreate) an already-empty assistant.
+        // the latest count so we don't issue a redundant scoped delete.
         if ((topicCountByAssistantIdRef.current.get(assistantId) ?? 0) === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        await onCreateTopicAfterClear?.(assistantId)
+        if (activeAssistantId === assistantId) onClearActiveTopic?.(assistantId)
 
         toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
       } catch (err) {
@@ -295,9 +302,10 @@ export function AssistantResourceList({
     },
     [
       clearingTopicsAssistantId,
+      activeAssistantId,
       deleteTopicsByAssistantId,
       deletingAssistantId,
-      onCreateTopicAfterClear,
+      onClearActiveTopic,
       refreshTopics,
       t,
       topicCountByAssistantId

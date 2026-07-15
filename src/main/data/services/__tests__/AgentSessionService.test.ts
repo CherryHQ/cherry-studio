@@ -178,15 +178,11 @@ describe('AgentSessionService', () => {
       return workspace
     }
 
-    it('sortBy=updatedAt returns activity order with the workspace relation intact', async () => {
+    it('sortBy=updatedAt returns ordinary activity order with the workspace relation intact', async () => {
       await seedFlat()
-      const result = agentSessionService.listByCursor({ sortBy: 'updatedAt' })
-      expect(result.items.map((s) => s.id)).toEqual(['s4', 's3', 's2', 's1'])
+      const result = agentSessionService.listByCursor({ pinned: false, sortBy: 'updatedAt' })
+      expect(result.items.map((s) => s.id)).toEqual(['s4', 's3', 's1'])
       expect(result.items[0].workspace).toBeDefined()
-      expect(result.items.find((session) => session.id === 's2')).toMatchObject({
-        pinned: true,
-        pinId: '77777777-7777-4777-8777-777777777777'
-      })
       expect(result.items.find((session) => session.id === 's1')).toMatchObject({
         pinned: false,
         pinId: null
@@ -223,19 +219,29 @@ describe('AgentSessionService', () => {
         }
       ])
 
-      const first = agentSessionService.listByCursor({ sortBy: 'createdAt', limit: 2 })
-      const second = agentSessionService.listByCursor({ sortBy: 'createdAt', limit: 2, cursor: first.nextCursor })
+      const first = agentSessionService.listByCursor({ pinned: false, sortBy: 'createdAt', limit: 2 })
+      const second = agentSessionService.listByCursor({
+        pinned: false,
+        sortBy: 'createdAt',
+        limit: 2,
+        cursor: first.nextCursor
+      })
 
       expect(first.items.map((session) => session.id)).toEqual(['tie-a', 'tie-b'])
       expect(second.items.map((session) => session.id)).toEqual(['tie-c'])
       expect(second.nextCursor).toBeUndefined()
     })
 
-    it('sortBy=orderKey returns manual order including pinned rows, and paginates via cursor', async () => {
+    it('sortBy=orderKey returns ordinary manual order and paginates via cursor', async () => {
       await seedFlat()
-      const page1 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 3 })
-      expect(page1.items.map((s) => s.id)).toEqual(['s4', 's3', 's2'])
-      const page2 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 3, cursor: page1.nextCursor })
+      const page1 = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey', limit: 2 })
+      expect(page1.items.map((s) => s.id)).toEqual(['s4', 's3'])
+      const page2 = agentSessionService.listByCursor({
+        pinned: false,
+        sortBy: 'orderKey',
+        limit: 2,
+        cursor: page1.nextCursor
+      })
       expect(page2.items.map((s) => s.id)).toEqual(['s1'])
       expect(page2.nextCursor).toBeUndefined()
     })
@@ -268,9 +274,13 @@ describe('AgentSessionService', () => {
 
     it('filters by concrete agentId and by unlinked', async () => {
       await seedFlat()
-      const owned = agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'agent-session-test' })
-      expect(owned.items.map((s) => s.id)).toEqual(['s2', 's1'])
-      const unlinked = agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'unlinked' })
+      const owned = agentSessionService.listByCursor({
+        pinned: false,
+        sortBy: 'updatedAt',
+        agentId: 'agent-session-test'
+      })
+      expect(owned.items.map((s) => s.id)).toEqual(['s1'])
+      const unlinked = agentSessionService.listByCursor({ pinned: false, sortBy: 'updatedAt', agentId: 'unlinked' })
       expect(unlinked.items.map((s) => s.id)).toEqual(['s4', 's3'])
     })
 
@@ -297,10 +307,12 @@ describe('AgentSessionService', () => {
       })
 
       // Soft-deleted owner → appears under the unlinked scope alongside the null-agent rows.
-      const unlinked = agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'unlinked' })
+      const unlinked = agentSessionService.listByCursor({ pinned: false, sortBy: 'updatedAt', agentId: 'unlinked' })
       expect(unlinked.items.map((s) => s.id)).toEqual(['s-dead', 's4', 's3'])
       // ...and is never returned for the concrete (now dead) owner scope.
-      expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'agent-dead' }).items).toEqual([])
+      expect(
+        agentSessionService.listByCursor({ pinned: false, sortBy: 'updatedAt', agentId: 'agent-dead' }).items
+      ).toEqual([])
     })
 
     it('filters by pinned=true / pinned=false', async () => {
@@ -318,16 +330,21 @@ describe('AgentSessionService', () => {
     it('searchScope=name matches session name only; name-or-owner also matches the live agent name, never description', async () => {
       await seedFlat()
       // 'first' appears only in s1's description — descriptions are never searched under either scope.
-      expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', q: 'first' }).items).toEqual([])
+      expect(agentSessionService.listByCursor({ pinned: false, sortBy: 'updatedAt', q: 'first' }).items).toEqual([])
       expect(
-        agentSessionService.listByCursor({ sortBy: 'updatedAt', q: 'first', searchScope: 'name-or-owner' }).items
+        agentSessionService.listByCursor({
+          pinned: false,
+          sortBy: 'updatedAt',
+          q: 'first',
+          searchScope: 'name-or-owner'
+        }).items
       ).toEqual([])
       // 'Test Agent' matches via the owning agent's name — only linked sessions.
       expect(
         agentSessionService
-          .listByCursor({ sortBy: 'updatedAt', q: 'Test Agent', searchScope: 'name-or-owner' })
+          .listByCursor({ pinned: false, sortBy: 'updatedAt', q: 'Test Agent', searchScope: 'name-or-owner' })
           .items.map((s) => s.id)
-      ).toEqual(['s2', 's1'])
+      ).toEqual(['s1'])
     })
 
     it('treats LIKE wildcards in q as literals', async () => {
@@ -350,14 +367,16 @@ describe('AgentSessionService', () => {
           updatedAt: 200
         }
       ])
-      const result = agentSessionService.listByCursor({ sortBy: 'updatedAt', q: '100%' })
+      const result = agentSessionService.listByCursor({ pinned: false, sortBy: 'updatedAt', q: '100%' })
       expect(result.items.map((s) => s.id)).toEqual(['lit-1'])
     })
 
     it('filters by explicit ids', async () => {
       await seedFlat()
       expect(
-        agentSessionService.listByCursor({ sortBy: 'updatedAt', ids: ['s1', 's4'] }).items.map((s) => s.id)
+        agentSessionService
+          .listByCursor({ pinned: false, sortBy: 'updatedAt', ids: ['s1', 's4'] })
+          .items.map((s) => s.id)
       ).toEqual(['s4', 's1'])
     })
 
@@ -385,12 +404,15 @@ describe('AgentSessionService', () => {
       })
 
       const userSessions = agentSessionService.listByCursor({
+        pinned: false,
         sortBy: 'updatedAt',
         workspaceId: workspace.id
       })
-      expect(userSessions.items.map((session) => session.id)).toEqual(['s4', 's3', 's2', 's1'])
+      expect(userSessions.items.map((session) => session.id)).toEqual(['s4', 's3', 's1'])
       expect(
-        agentSessionService.listByCursor({ sortBy: 'updatedAt', workspaceId: 'system' }).items.map((s) => s.id)
+        agentSessionService
+          .listByCursor({ pinned: false, sortBy: 'updatedAt', workspaceId: 'system' })
+          .items.map((s) => s.id)
       ).toEqual([systemSession.id])
     })
   })
@@ -499,7 +521,7 @@ describe('AgentSessionService', () => {
   })
 
   describe('getLatestUpdated', () => {
-    it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
+    it('returns the globally most-recently-updated session, independent of pin/order', async () => {
       const workspace = await createWorkspace('latest')
       // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
       // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
@@ -529,15 +551,99 @@ describe('AgentSessionService', () => {
           updatedAt: 300
         }
       ])
+      await dbh.db.insert(pinTable).values([
+        {
+          id: 'pin-created-newest-latest-test',
+          entityType: 'session',
+          entityId: 'created-newest',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'pin-winner-latest-test',
+          entityType: 'session',
+          entityId: 'active-latest',
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
 
       const latest = agentSessionService.getLatestUpdated()
+      // Pin membership and pin order are a separate dimension: the newer row
+      // wins even though an older pin precedes it and the winner is itself pinned.
       expect(latest?.id).toBe('active-latest')
       // Fully hydrated (workspace joined), matching getById.
       expect(latest?.workspace.id).toBe(workspace.id)
     })
 
+    it('uses the composite updated-at index without a temporary order B-tree', () => {
+      const plan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT agent_session.id
+           FROM agent_session
+           INNER JOIN agent_workspace ON agent_session.workspace_id = agent_workspace.id
+           LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
+           ORDER BY agent_session.updated_at DESC, agent_session.id ASC
+           LIMIT 1`
+        )
+        .all() as Array<{ detail: string }>
+
+      expect(plan.some(({ detail }) => detail.includes('agent_session_updated_at_id_idx'))).toBe(true)
+      expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+    })
+
     it('returns null when there are no sessions', () => {
       expect(agentSessionService.getLatestUpdated()).toBeNull()
+    })
+
+    it('restricts latest lookup to one live agent', async () => {
+      const workspace = await createWorkspace('scoped-latest')
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-other',
+        type: 'claude-code',
+        name: 'Other Agent',
+        instructions: 'Other',
+        model: null,
+        orderKey: 'a1'
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'owned-latest',
+          agentId: 'agent-session-test',
+          name: 'Owned',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'other-latest',
+          agentId: 'agent-other',
+          name: 'Other',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 200
+        }
+      ])
+      await dbh.db.insert(pinTable).values([
+        {
+          id: 'pin-owned-scoped-latest-test',
+          entityType: 'session',
+          entityId: 'owned-latest',
+          orderKey: 'a0'
+        },
+        {
+          id: 'pin-other-scoped-latest-test',
+          entityType: 'session',
+          entityId: 'other-latest',
+          orderKey: 'a1'
+        }
+      ])
+
+      expect(agentSessionService.getLatestUpdated({ agentId: 'agent-session-test' })?.id).toBe('owned-latest')
+      expect(agentSessionService.getLatestUpdated({ agentId: 'agent-other' })?.id).toBe('other-latest')
     })
   })
 
@@ -1025,14 +1131,14 @@ describe('AgentSessionService', () => {
     const third = await createSession('Third')
 
     agentSessionService.reorder(first.id, { position: 'first' })
-    let list = agentSessionService.listByCursor({ sortBy: 'orderKey' })
+    let list = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey' })
     expect(list.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
 
     agentSessionService.reorderBatch([
       { id: second.id, anchor: { before: first.id } },
       { id: third.id, anchor: { position: 'last' } }
     ])
-    list = agentSessionService.listByCursor({ sortBy: 'orderKey' })
+    list = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey' })
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
   })
 
@@ -1041,11 +1147,16 @@ describe('AgentSessionService', () => {
     const second = await createSession('Second')
     const third = await createSession('Third')
 
-    const page1 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 2 })
+    const page1 = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey', limit: 2 })
     expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
     expect(page1.nextCursor).toBeTruthy()
 
-    const page2 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 2, cursor: page1.nextCursor })
+    const page2 = agentSessionService.listByCursor({
+      pinned: false,
+      sortBy: 'orderKey',
+      limit: 2,
+      cursor: page1.nextCursor
+    })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
   })

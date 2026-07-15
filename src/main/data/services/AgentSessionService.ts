@@ -23,6 +23,7 @@ import type {
   AgentSessionStatsQuery,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  LatestAgentSessionQuery,
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
@@ -124,8 +125,6 @@ function sessionCursorFamily(
     searchScope: query.searchScope ?? 'name',
     agentId: query.agentId,
     workspaceId: query.workspaceId,
-    // Only the ordinary stream distinguishes exclude-pinned (false) from all-rows (undefined).
-    pinned: stream === 'ordinary' ? query.pinned : undefined,
     ids: query.ids ? [...query.ids].sort() : undefined
   })
 }
@@ -268,20 +267,22 @@ export class AgentSessionService {
   }
 
   /**
-   * The single most-recently-updated session, or `null` when there are none.
+   * The single most-recently-updated session in the requested live-agent scope,
+   * or `null` when that scope is empty. Omitting the scope is global.
    *
    * First-entry restore resumes the last-touched session. It cannot read the
-   * regular first page of `listByCursor` for this: that pages pinned-first then
-   * by `orderKey ASC` (creation/manual order, newest-created first), so a
-   * recently-active session is not guaranteed to be on it. This
-   * `updatedAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
+   * regular first page of `listByCursor` for this because list order and pin
+   * membership are independent of latest activity.
    */
-  getLatestUpdated(): AgentSessionEntity | null {
+  getLatestUpdated(query: LatestAgentSessionQuery = {}): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()
+    const filters = buildSessionRecordFilters(query)
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
       .limit(1)
       .all()
@@ -312,15 +313,14 @@ export class AgentSessionService {
    *
    * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
    *   session.id ASC`, independent of `sortBy` (ignored on this path).
-   * - otherwise → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
+   * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
    *   (`createdAt`/`updatedAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
-   *   `pinned === false` excludes pinned rows (the flat view's ordinary band);
-   *   omitting `pinned` lists every row in the chosen order.
+   *   Pinned rows are excluded from this stream.
    *
    * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
    * pinned-then-ordinary view. Every paged caller selects one stream.
    */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionListItem> {
+  listByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
@@ -384,13 +384,8 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
 
     const filters = buildSessionRecordFilters(query)
-    if (query.pinned === false) {
-      const pinnedSubquery = db
-        .select({ id: pinTable.entityId })
-        .from(pinTable)
-        .where(eq(pinTable.entityType, 'session'))
-      filters.push(notInArray(sessionsTable.id, pinnedSubquery))
-    }
+    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
+    filters.push(notInArray(sessionsTable.id, pinnedSubquery))
 
     const family = sessionCursorFamily(query, 'ordinary', sortBy)
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'

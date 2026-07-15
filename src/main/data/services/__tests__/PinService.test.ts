@@ -73,7 +73,7 @@ describe('PinService', () => {
       expect(ids.size).toBe(3)
     })
 
-    it('should prepend fresh pins within independent entityType orderKey sequences', async () => {
+    it('should prepend topic/session pins while other entity types append', async () => {
       const topicFirst = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const assistantFirst = pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
@@ -83,6 +83,9 @@ describe('PinService', () => {
 
       const topicSecond = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       expect(topicSecond.orderKey < topicFirst.orderKey).toBe(true)
+
+      const assistantSecond = pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_2 })
+      expect(assistantSecond.orderKey > assistantFirst.orderKey).toBe(true)
     })
 
     it('should accept UniqueModelId values for model pins', async () => {

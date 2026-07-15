@@ -395,7 +395,7 @@ export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayl
   return payload
 }
 
-export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
+export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest | undefined {
   return buildResourceListItemDropAnchor(payload)
 }
 

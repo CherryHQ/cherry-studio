@@ -4,7 +4,7 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
+import { renderAssistantEntityIcon, useResourceListPinnedItems } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -75,6 +75,7 @@ const AssistantHistoryRecords = ({
   const filters = useHistoryRecordsFilters()
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
+  const bandContinuityKey = JSON.stringify({ ownerScope, q: debouncedSearch })
   const historySortBy = 'createdAt' as const
   const pinnedTopicsSource = useTopics({
     q: debouncedSearch,
@@ -90,7 +91,7 @@ const AssistantHistoryRecords = ({
     pinned: false
   })
   const {
-    items: bandTopics,
+    items: sourceBandTopics,
     error: topicsError,
     isLoading: isTopicsLoading,
     isLoadingMore: isBandLoadingMore,
@@ -114,7 +115,8 @@ const AssistantHistoryRecords = ({
       isLoadingMore: unpinnedTopicsSource.isRefreshing,
       loadNext: unpinnedTopicsSource.loadNext,
       reload: unpinnedTopicsSource.refetch
-    }
+    },
+    { continuityKey: bandContinuityKey }
   )
   const { stats: topicStats } = useTopicStats()
   const { assistants } = useAssistants()
@@ -136,21 +138,33 @@ const AssistantHistoryRecords = ({
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
-  const { pin: pinTopic, unpin: unpinTopic } = usePinMutations('topic')
+  const { pin: pinTopic, unpin: unpinTopic, isMutating: isPinsMutating } = usePinMutations('topic')
+  const commitTopicPin = useCallback(
+    async (topic: TopicListItem) => {
+      if (topic.pinId) await unpinTopic(topic.pinId)
+      else await pinTopic(topic.id)
+    },
+    [pinTopic, unpinTopic]
+  )
+  const { items: projectedBandTopics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
+    disabled: isPinsMutating,
+    items: sourceBandTopics,
+    onTogglePin: commitTopicPin,
+    resetKey: bandContinuityKey
+  })
   const renamingTopicIdSet = useMemo(
     () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
     [renamingTopics]
   )
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
 
-  const topics = useMemo<HistoryTopicItem[]>(
-    () =>
-      bandTopics.map((topic) => ({
-        ...topic,
-        assistantId: topic.assistantId
-      })),
-    [bandTopics]
-  )
+  const topics = useMemo<HistoryTopicItem[]>(() => {
+    const projected = projectedBandTopics.map((topic) => ({
+      ...topic,
+      assistantId: topic.assistantId
+    }))
+    return [...projected.filter((topic) => topic.pinned), ...projected.filter((topic) => !topic.pinned)]
+  }, [projectedBandTopics])
   const isTopicsLoadingMore = topics.length > 0 && isBandLoadingMore
   const topicById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics])
   const isTopicPinned = useCallback((topicId: string) => topicById.get(topicId)?.pinned === true, [topicById])
@@ -226,18 +240,15 @@ const AssistantHistoryRecords = ({
     async (topic: Pick<RendererTopic, 'id'>) => {
       try {
         const projectedTopic = topicById.get(topic.id)
-        if (projectedTopic?.pinId) {
-          await unpinTopic(projectedTopic.pinId)
-        } else {
-          await pinTopic(topic.id)
-        }
+        if (!projectedTopic) return false
+        await togglePinnedTopicItem(projectedTopic)
         return true
       } catch (err) {
         logger.error('Failed to toggle topic pin from history records', { topicId: topic.id, err })
         return false
       }
     },
-    [pinTopic, topicById, unpinTopic]
+    [togglePinnedTopicItem, topicById]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
@@ -405,7 +416,7 @@ const AssistantHistoryRecords = ({
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
+      getCreatedAt: (topic: HistoryTopicItem) => topic.createdAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {

@@ -14,6 +14,7 @@ interface HistoryRecordListProps<T> {
   error?: Error
   isLoading: boolean
   isLoadingMore?: boolean
+  hasActiveFilters: boolean
   isSelected: (id: string) => boolean
   selectAllState: SelectAllState
   selectionDisabled: boolean
@@ -22,6 +23,7 @@ interface HistoryRecordListProps<T> {
   /** Load the next cursor page when the scroller nears its bottom. */
   onEndReached?: () => void
   onRetry?: () => void
+  onClearFilters: () => void
 }
 
 export function HistoryRecordList<T>({
@@ -30,13 +32,15 @@ export function HistoryRecordList<T>({
   error,
   isLoading,
   isLoadingMore = false,
+  hasActiveFilters,
   isSelected,
   selectAllState,
   selectionDisabled,
   onToggleSelection,
   onToggleSelectAll,
   onEndReached,
-  onRetry
+  onRetry,
+  onClearFilters
 }: HistoryRecordListProps<T>) {
   const { t } = useTranslation()
   const list = useMemo(() => Array.from(items), [items])
@@ -48,7 +52,7 @@ export function HistoryRecordList<T>({
     getRowActions,
     getSelectLabel,
     getSourceLabel,
-    getUpdatedAt,
+    getCreatedAt,
     isPinned,
     onOpen,
     onRename,
@@ -71,16 +75,21 @@ export function HistoryRecordList<T>({
     if (!open) setRenameTarget(null)
   }, [])
 
+  const isNoResults = !error && !isLoading && hasActiveFilters
   const emptyTitle = error
     ? t('common.error')
     : isLoading
       ? descriptor.strings.loadingTitle
-      : descriptor.strings.emptyTitle
+      : isNoResults
+        ? t('common.no_results')
+        : descriptor.strings.emptyTitle
   const emptyDescription = error
     ? error.message
     : isLoading
       ? descriptor.strings.loadingDescription
-      : descriptor.strings.emptyDescription
+      : isNoResults
+        ? descriptor.strings.emptyDescription
+        : undefined
   const emptyContent = (
     <div className="flex min-h-[320px] items-center justify-center px-5 py-8">
       <EmptyState
@@ -88,8 +97,8 @@ export function HistoryRecordList<T>({
         icon={error ? AlertCircle : MessageSquareText}
         title={emptyTitle}
         description={emptyDescription}
-        actionLabel={error && onRetry ? t('common.retry') : undefined}
-        onAction={error ? onRetry : undefined}
+        actionLabel={error && onRetry ? t('common.retry') : isNoResults ? t('common.clear') : undefined}
+        onAction={error ? onRetry : isNoResults ? onClearFilters : undefined}
       />
     </div>
   )
@@ -125,7 +134,7 @@ export function HistoryRecordList<T>({
           selectLabel={getSelectLabel(item)}
           showFixedActionShadow={showFixedActionShadow}
           sourceLabel={getSourceLabel(item)}
-          timeLabel={formatHistoryTime(getUpdatedAt(item), t)}
+          timeLabel={formatHistoryTime(getCreatedAt(item), t)}
           title={getName(item)}
           unpinLabel={unpinLabel}
           onAction={rowActions.onAction}
@@ -151,7 +160,7 @@ export function HistoryRecordList<T>({
       getRowActions,
       getSelectLabel,
       getSourceLabel,
-      getUpdatedAt,
+      getCreatedAt,
       isPinned,
       isSelected,
       onOpen,

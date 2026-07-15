@@ -144,12 +144,16 @@ export function compareResourceOrderKey(a?: string, b?: string) {
   return 0
 }
 
-export function buildResourceListItemDropAnchor(payload: ResourceListItemReorderPayload): ResourceListOrderAnchor {
+export function buildResourceListItemDropAnchor(
+  payload: ResourceListItemReorderPayload
+): ResourceListOrderAnchor | undefined {
   if (payload.overType === 'item') {
     return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
   }
 
-  return { position: 'last' }
+  // A group header owns no record-order anchor. Callers may still move the
+  // record into that group while preserving its existing order key.
+  return undefined
 }
 
 export function buildResourceListGroupDropAnchor(

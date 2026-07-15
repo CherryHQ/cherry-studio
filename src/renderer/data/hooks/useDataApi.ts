@@ -16,7 +16,7 @@
  *
  * @example
  * // Basic data fetching
- * const { data, isLoading } = useQuery('/topics')
+ * const { data, isLoading } = useQuery('/topics', { query: { pinned: false } })
  *
  * @example
  * // Create with auto-refresh
@@ -338,7 +338,7 @@ export interface UsePaginatedQueryResult<T> {
  *
  * @example
  * // Basic usage
- * const { data, isLoading, error } = useQuery('/topics')
+ * const { data, isLoading, error } = useQuery('/topics', { query: { pinned: false } })
  *
  * @example
  * // With query parameters
@@ -350,7 +350,7 @@ export interface UsePaginatedQueryResult<T> {
  *
  * @example
  * // Manual cache update
- * const { data, mutate } = useQuery('/topics')
+ * const { data, mutate } = useQuery('/topics', { query: { pinned: false } })
  * mutate({ ...data, name: 'Updated' }, { revalidate: false })
  *
  * @example

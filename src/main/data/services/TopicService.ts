@@ -18,6 +18,7 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
+  LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
   TopicListItem,
@@ -167,8 +168,6 @@ function topicCursorFamily(query: ListTopicsQuery, stream: 'pinned' | 'ordinary'
     q: query.q?.trim() || undefined,
     searchScope: query.searchScope ?? 'name',
     assistantId: query.assistantId,
-    // Only the ordinary stream distinguishes exclude-pinned (false) from all-rows (undefined).
-    pinned: stream === 'ordinary' ? query.pinned : undefined,
     ids: query.ids ? [...query.ids].sort() : undefined
   })
 }
@@ -212,27 +211,27 @@ export class TopicService {
   }
 
   /**
-   * The single most-recently-updated non-deleted topic across all assistants, or
-   * `null` when the library is empty.
+   * The single most-recently-updated non-deleted topic in the requested owner
+   * scope, or `null` when that scope is empty. Omitting the scope is global.
    *
    * First-entry restore resumes the last-touched conversation. It cannot read the
-   * regular first page of `listByCursor` for this: that page is pinned-first then
-   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-updated
-   * topic is not guaranteed to be on it. This `updatedAt DESC LIMIT 1` proves global
-   * latest independent of how the rail happens to page.
+   * regular first page of `listByCursor` for this because list order and pin
+   * membership are independent of latest activity.
    */
-  getLatestUpdated(): Topic | null {
+  getLatestUpdated(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
+    const filters = buildRecordFilters(query)
 
     const [row] = db
-      .select()
+      .select({ topic: topicTable })
       .from(topicTable)
-      .where(isNull(topicTable.deletedAt))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
       .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(1)
       .all()
 
-    return row ? rowToTopic(row) : null
+    return row ? rowToTopic(row.topic) : null
   }
 
   ensureTraceId(topicId: string): string {
@@ -564,15 +563,14 @@ export class TopicService {
    *
    * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
    *   topic.id ASC`, independent of `sortBy` (ignored on this path).
-   * - otherwise → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
+   * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
    *   (`createdAt`/`updatedAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
-   *   `pinned === false` excludes pinned rows (the flat view's ordinary band);
-   *   omitting `pinned` lists every row in the chosen order.
+   *   Pinned rows are excluded from this stream.
    *
    * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
    * pinned-then-ordinary view. Every paged caller selects one stream.
    */
-  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<TopicListItem> {
+  listByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
@@ -626,10 +624,8 @@ export class TopicService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
 
     const filters = buildRecordFilters(query)
-    if (query.pinned === false) {
-      const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
-      filters.push(notInArray(topicTable.id, pinnedSubquery))
-    }
+    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
+    filters.push(notInArray(topicTable.id, pinnedSubquery))
 
     const family = topicCursorFamily(query, 'ordinary', sortBy)
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'

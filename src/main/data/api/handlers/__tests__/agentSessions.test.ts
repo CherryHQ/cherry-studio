@@ -77,13 +77,15 @@ describe('agentSessionHandlers', () => {
       const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
           agentId: AGENT_ID,
-          limit: '10'
+          limit: '10',
+          pinned: false
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
         agentId: AGENT_ID,
-        limit: 10
+        limit: 10,
+        pinned: false
       })
       expect(result).toBe(response)
     })
@@ -109,6 +111,16 @@ describe('agentSessionHandlers', () => {
       getLatestUpdatedMock.mockReturnValueOnce(session)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
+      expect(getLatestUpdatedMock).toHaveBeenCalledWith({})
+    })
+
+    it('forwards a concrete agent scope', async () => {
+      const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+      getLatestUpdatedMock.mockReturnValueOnce(null)
+
+      await agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId } } as never)
+
+      expect(getLatestUpdatedMock).toHaveBeenCalledWith({ agentId })
     })
 
     it('returns { session: null } when there are no sessions', async () => {

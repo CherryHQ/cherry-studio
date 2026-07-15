@@ -89,9 +89,8 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC`, independent
  *   of `sortBy` (ignored on this path).
- * - otherwise → ordinary keyset stream ordered by `sortBy` (defaulting to
- *   `createdAt`) with a `(sortValue, id)` cursor. `pinned=false` excludes pinned
- *   rows (the flat view's ordinary band); omitting `pinned` lists every row.
+ * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
+ *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
  * The record filters below apply on either path. Omitting `sortBy` means
  * `createdAt`, never a legacy composite pinned-then-ordinary view.
@@ -109,12 +108,18 @@ export const ListTopicsQuerySchema = z.strictObject({
   sortBy: TopicSortBySchema.optional(),
   /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */
   assistantId: TopicOwnerScopeSchema.optional(),
-  /** true → pin-owned stream; false → exclude pinned rows. Omitted → all rows. */
-  pinned: z.boolean().optional(),
+  /** true → pin-owned stream; false → ordinary stream excluding pinned rows. */
+  pinned: z.boolean(),
   /** Bounded explicit id filter for locating known topic rows. */
   ids: z.array(z.string().min(1)).min(1).max(200).optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
+export const LatestTopicQuerySchema = z.strictObject({
+  assistantId: TopicOwnerScopeSchema.optional()
+})
+export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
 
 /**
  * Query parameters for `GET /topics/stats`. Only filters used by current
@@ -196,7 +201,7 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+/** Response for `GET /topics/latest` — the most-recently-updated topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {
   topic: Topic | null
 }
@@ -230,8 +235,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 export type TopicSchemas = {
   /**
    * Topics collection endpoint
-   * @example GET /topics?limit=50
-   * @example GET /topics?cursor=...&q=search
+   * @example GET /topics?pinned=false&limit=50
+   * @example GET /topics?pinned=false&cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    * @example DELETE /topics?ids=topic_1,topic_2
    */
@@ -240,12 +245,12 @@ export type TopicSchemas = {
      * List topics with cursor pagination + optional name search.
      *
      * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
-     * pages the pin-owned band by `pin.orderKey ASC, id ASC`; otherwise the
-     * ordinary band pages by `sortBy` (default `createdAt`) with a
+     * pages the pin-owned band by `pin.orderKey ASC, id ASC`; `pinned=false`
+     * pages the ordinary band by `sortBy` (default `createdAt`) with a
      * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
      */
     GET: {
-      query?: ListTopicsQuery
+      query: ListTopicsQuery
       response: CursorPaginationResponse<TopicListItem>
     }
     /** Create a new topic. */
@@ -267,17 +272,18 @@ export type TopicSchemas = {
   }
 
   /**
-   * Most-recently-updated topic across all assistants.
+   * Most-recently-updated topic, globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
-   * `latest` is never mistaken for a topic id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `latest` is never mistaken for a topic id. Omitting `assistantId` proves
+   * global latest; a concrete id or `unlinked` restricts the lookup.
    *
    * @example GET /topics/latest
    */
   '/topics/latest': {
     GET: {
+      query?: LatestTopicQuery
       response: LatestTopicResponse
     }
   }

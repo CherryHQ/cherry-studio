@@ -218,60 +218,59 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  * List topics across all assistants from SQLite via DataApi.
  *
  * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
- * `pinned=true` selects the pin-owned stream (pin order). Otherwise `sortBy`
+ * `pinned=true` selects the pin-owned stream (pin order). `pinned=false`
  * selects the ordinary stream — `'createdAt'` (default) for creation order,
  * `'updatedAt'` for activity order, or `'orderKey'` for manual order — and
- * `pinned=false` excludes pinned rows. The `assistantId` owner scope
+ * excludes pinned rows. The `assistantId` owner scope
  * (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
  * `loadNext()`.
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useTopics(opts?: {
+export function useTopics(opts: {
   q?: string
   searchScope?: TopicSearchScope
   sortBy?: TopicSortBy
   assistantId?: string
-  pinned?: boolean
+  pinned: boolean
   pageSize?: number
   enabled?: boolean
 }) {
-  const q = opts?.q?.trim()
-  const searchScope = opts?.searchScope
-  const isPinnedStream = opts?.pinned === true
-  const sortBy = isPinnedStream ? undefined : opts?.sortBy
+  const q = opts.q?.trim()
+  const searchScope = opts.searchScope
+  const isPinnedStream = opts.pinned
+  const sortBy = isPinnedStream ? undefined : opts.sortBy
   const query = useMemo(() => {
     const built: {
       q?: string
       searchScope?: TopicSearchScope
       sortBy?: TopicSortBy
       assistantId?: string
-      pinned?: boolean
-    } = {}
+      pinned: boolean
+    } = { pinned: opts.pinned }
     if (q) built.q = q
     if (q && searchScope) built.searchScope = searchScope
     if (sortBy) built.sortBy = sortBy
-    if (opts?.assistantId) built.assistantId = opts.assistantId
-    if (opts?.pinned !== undefined) built.pinned = opts.pinned
-    return Object.keys(built).length > 0 ? built : undefined
-  }, [opts?.assistantId, opts?.pinned, q, searchScope, sortBy])
-  const pageSize = opts?.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
+    if (opts.assistantId) built.assistantId = opts.assistantId
+    return built
+  }, [opts.assistantId, opts.pinned, q, searchScope, sortBy])
+  const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
   const continuityKey = useMemo(
     () =>
       JSON.stringify({
-        assistantId: opts?.assistantId,
+        assistantId: opts.assistantId,
         mode: isPinnedStream ? 'pinned' : 'flat',
-        pinned: opts?.pinned,
+        pinned: opts.pinned,
         q,
         searchScope
       }),
-    [isPinnedStream, opts?.assistantId, opts?.pinned, q, searchScope]
+    [isPinnedStream, opts.assistantId, opts.pinned, q, searchScope]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     continuityKey,
     query,
     limit: pageSize,
-    enabled: opts?.enabled,
+    enabled: opts.enabled,
     resetOnLocalWrite: '/topics'
   })
   const topics = useInfiniteFlatItems(pages)
@@ -325,7 +324,7 @@ export function useTopicById(topicId: string | undefined) {
  *
  * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
  * last-touched conversation without waiting for the full topic history to
- * paginate in and without depending on the pinned-first `/topics` list order.
+ * paginate in and without depending on either `/topics` list stream's order.
  *
  * `/topics/latest` is a global MAX(updatedAt) aggregate, so keeping its cache
  * coherent would mean every updatedAt-bumping write invalidating it (an

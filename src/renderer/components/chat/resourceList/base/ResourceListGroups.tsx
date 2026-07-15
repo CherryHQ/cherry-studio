@@ -3,6 +3,7 @@ import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   type ResourceListGroup,
@@ -107,6 +108,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
 }
 
 export function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
+  const { t } = useTranslation()
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
   const view = useResourceListView()
@@ -134,6 +136,11 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   )
   const handleClick = useCallback(async () => {
     if (!isCollapsible) return
+
+    if (clickBehavior === 'expand-only') {
+      actions.expandGroups([group.id])
+      return
+    }
 
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
       const firstItem = groupItems[0]
@@ -192,27 +199,46 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           </div>
         )}
         {isCollapsible ? (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-current={selected ? 'true' : undefined}
-            className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
-            onClick={() => void handleClick().catch(() => undefined)}>
-            {groupHeaderIcon && (
-              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-                {groupHeaderIcon}
-              </ResourceListLeadingSlot>
+          <>
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              aria-current={selected ? 'true' : undefined}
+              className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
+              onClick={() => void handleClick().catch(() => undefined)}>
+              {groupHeaderIcon && (
+                <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+                  {groupHeaderIcon}
+                </ResourceListLeadingSlot>
+              )}
+              <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
+                {group.label}
+              </span>
+              {clickBehavior !== 'expand-only' && (
+                <ChevronRight
+                  aria-hidden="true"
+                  size={11}
+                  className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+                  style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+                />
+              )}
+            </button>
+            {clickBehavior === 'expand-only' && (
+              <button
+                type="button"
+                aria-expanded={!collapsed}
+                aria-label={`${t(collapsed ? 'common.expand' : 'common.collapse')}: ${group.label}`}
+                className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground/60 outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                onClick={() => actions.toggleGroup(group.id)}>
+                <ChevronRight
+                  aria-hidden="true"
+                  size={11}
+                  className="transition-transform duration-150"
+                  style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+                />
+              </button>
             )}
-            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-              {group.label}
-            </span>
-            <ChevronRight
-              aria-hidden="true"
-              size={11}
-              className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
-              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
-            />
-          </button>
+          </>
         ) : (
           <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
             {groupHeaderIcon && (

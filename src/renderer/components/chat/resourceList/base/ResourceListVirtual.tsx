@@ -683,7 +683,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   )
   const canDragGroup = useCallback(
     (group: ResourceListVirtualGroupData, groupIndex: number) =>
-      !isSectionVirtualGroup(group) && (canDragGroupMeta?.(group, groupIndex) ?? true),
+      canDragGroupMeta?.(group, groupIndex) ?? !isSectionVirtualGroup(group),
     [canDragGroupMeta]
   )
   const canDragVirtualItem = useCallback(
@@ -713,7 +713,10 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       sourceIndex?: number
       targetIndex?: number
     }) => {
-      if (isSectionVirtualGroup(payload.activeGroup) || isSectionVirtualGroup(payload.overGroup)) return false
+      const activeIsSection = isSectionVirtualGroup(payload.activeGroup)
+      const overIsSection = isSectionVirtualGroup(payload.overGroup)
+      if (activeIsSection !== overIsSection) return false
+      if (activeIsSection && !canDropGroupMeta) return false
 
       return (
         canDropGroupMeta?.({

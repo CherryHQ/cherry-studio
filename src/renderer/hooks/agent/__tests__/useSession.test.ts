@@ -192,7 +192,7 @@ describe('useSessions', () => {
   it('returns empty sessions when agentId is null', () => {
     mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
 
-    const { result } = renderHook(() => useSessions(null))
+    const { result } = renderHook(() => useSessions(null, { pinned: false }))
 
     expect(result.current.sessions).toEqual([])
     expect(result.current.isLoading).toBe(false)
@@ -205,7 +205,7 @@ describe('useSessions', () => {
     ]
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ pages: [{ items }] }) as never)
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     await act(async () => {})
 
     expect(result.current.sessions.map((s: any) => s.id)).toEqual(['s-1', 's-2'])
@@ -219,7 +219,7 @@ describe('useSessions', () => {
       buildInfiniteReturn({ pages: [{ items: page1, nextCursor: 'c1' }, { items: page2 }] }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     await act(async () => {})
 
     expect(result.current.sessions.map((s: any) => s.id)).toEqual(['s-1', 's-2'])
@@ -235,7 +235,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     await act(async () => {})
     expect(result.current.hasMore).toBe(true)
 
@@ -254,7 +254,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
 
     expect(result.current.isLoadingMore).toBe(true)
   })
@@ -273,7 +273,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     await act(async () => {})
 
     expect(result.current.pinIdBySessionId).toEqual(new Map([['s-1', 'pin-1']]))
@@ -289,7 +289,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    renderHook(() => useSessions('agent-1'))
+    renderHook(() => useSessions('agent-1', { pinned: false }))
     await act(async () => {})
 
     expect(loadNext).not.toHaveBeenCalled()
@@ -305,7 +305,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     await act(async () => {})
 
     act(() => {
@@ -322,7 +322,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
 
     expect(result.current.hasMore).toBe(true)
   })
@@ -406,7 +406,7 @@ describe('useSessions', () => {
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     const created = await act(async () =>
       result.current.createSession({
         name: 'New session',
@@ -431,7 +431,7 @@ describe('useSessions', () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions/:sessionId', deleteTrigger)
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     const deleted = await act(async () => result.current.deleteSession('session-a'))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { sessionId: 'session-a' } })
@@ -444,7 +444,7 @@ describe('useSessions', () => {
     const deleteTrigger = vi.fn().mockResolvedValue(response)
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions', deleteTrigger)
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     const deleted = await act(async () => result.current.deleteSessions(['session-a', 'session-b']))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'session-a,session-b' } })
@@ -457,7 +457,7 @@ describe('useSessions', () => {
     const createTrigger = vi.fn().mockRejectedValueOnce(new Error('create failed'))
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
-    const { result } = renderHook(() => useSessions('agent-1'))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
     const created = await act(async () =>
       result.current.createSession({ name: 'New session', workspace: { type: 'system' } })
     )

@@ -1,5 +1,7 @@
+import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
+import { useResourceListPinnedItems } from '@renderer/components/chat/resourceList/base'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
@@ -7,10 +9,11 @@ import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/h
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
+import { usePinMutations } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
 import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,6 +32,7 @@ import { usePinnedBandPagination } from './usePinnedBandPagination'
 
 const SEARCH_DEBOUNCE_MS = 300
 const HISTORY_PAGE_SIZE = 50
+const logger = loggerService.withContext('AgentHistoryRecords')
 
 interface AgentHistoryRecordsProps {
   activeRecordId?: string | null
@@ -44,6 +48,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const filters = useHistoryRecordsFilters()
   const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
   const ownerScope = toServerOwnerScope(filters.selectedSourceId)
+  const bandContinuityKey = JSON.stringify({ ownerScope, q: debouncedSearch })
   const historySortBy = 'createdAt' as const
 
   const pinnedSessionsSource = useSessions(ownerScope, {
@@ -59,9 +64,9 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     sortBy: historySortBy,
     pinned: false
   })
-  const { deleteSession, deleteSessions, togglePin } = unpinnedSessionsSource
+  const { deleteSession, deleteSessions } = unpinnedSessionsSource
   const {
-    items: sessions,
+    items: sourceBandSessions,
     error: sessionError,
     isLoading: isSessionsLoading,
     isLoadingMore: isSessionsLoadingMore,
@@ -86,11 +91,33 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       isLoadingMore: unpinnedSessionsSource.isLoadingMore,
       loadNext: unpinnedSessionsSource.loadMore,
       reload: unpinnedSessionsSource.reload
-    }
+    },
+    { continuityKey: bandContinuityKey }
   )
   const { agents } = useAgents()
   const { stats: sessionStats } = useAgentSessionStats()
   const { updateSession } = useUpdateSession()
+  const { pin: pinSession, unpin: unpinSession, isMutating: isPinMutating } = usePinMutations('session')
+  const commitSessionPin = useCallback(
+    async (session: AgentSessionListItem) => {
+      if (session.pinId) await unpinSession(session.pinId)
+      else await pinSession(session.id)
+    },
+    [pinSession, unpinSession]
+  )
+  const { items: projectedBandSessions, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
+    disabled: isPinMutating,
+    items: sourceBandSessions,
+    onTogglePin: commitSessionPin,
+    resetKey: bandContinuityKey
+  })
+  const sessions = useMemo(
+    () => [
+      ...projectedBandSessions.filter((session) => session.pinned),
+      ...projectedBandSessions.filter((session) => !session.pinned)
+    ],
+    [projectedBandSessions]
+  )
 
   const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   const isSessionPinned = useCallback((sessionId: string) => sessionById.get(sessionId)?.pinned === true, [sessionById])
@@ -174,8 +201,19 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   )
 
   const handleToggleSessionPin = useCallback(
-    (sessionId: string) => togglePin(sessionId, sessionById.get(sessionId)?.pinId),
-    [sessionById, togglePin]
+    async (sessionId: string) => {
+      const session = sessionById.get(sessionId)
+      if (!session) return false
+      try {
+        await togglePinnedSessionItem(session)
+        return true
+      } catch (err) {
+        logger.error('Failed to toggle session pin from history records', { err, sessionId })
+        toast.error(t('agent.session.pin.error.failed'))
+        return false
+      }
+    },
+    [sessionById, t, togglePinnedSessionItem]
   )
 
   const getSessionActionContext = useCallback(
@@ -205,7 +243,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const rowDescriptor = useMemo(
     () => ({
       getName: (session: SessionListItem) => session.name || t('common.unnamed'),
-      getUpdatedAt: (session: SessionListItem) => session.updatedAt,
+      getCreatedAt: (session: SessionListItem) => session.createdAt,
       getSourceLabel: (session: SessionListItem) =>
         (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? t('common.unknown'),
       renderAvatar: (session: SessionListItem) => {

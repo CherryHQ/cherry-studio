@@ -176,9 +176,8 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC`, independent
  *   of `sortBy` (ignored on this path).
- * - otherwise → ordinary keyset stream ordered by `sortBy` (defaulting to
- *   `createdAt`) with a `(sortValue, id)` cursor. `pinned=false` excludes pinned
- *   rows (the flat view's ordinary band); omitting `pinned` lists every row.
+ * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
+ *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
  * The record filters below apply on either path. Omitting `sortBy` means
  * `createdAt`, never a legacy composite view. Workspace grouping uses the
@@ -197,8 +196,8 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
   q: z.string().optional(),
   /** Search scope for `q`; defaults to `name` in the service. */
   searchScope: AgentSessionSearchScopeSchema.optional(),
-  /** true → pin-owned stream; false → exclude pinned rows. Omitted → all rows. */
-  pinned: z.boolean().optional(),
+  /** true → pin-owned stream; false → ordinary stream excluding pinned rows. */
+  pinned: z.boolean(),
   /** Bounded explicit id filter for locating known session rows. */
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
@@ -206,6 +205,12 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+/** Optional concrete owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
+export const LatestAgentSessionQuerySchema = z.strictObject({
+  agentId: z.uuidv4().optional()
+})
+export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 
 /**
  * Query for `GET /agent-sessions/stats`. This endpoint accepts owner scope and
@@ -237,7 +242,7 @@ export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
-/** Response for `GET /agent-sessions/latest` — the most-recently-updated session, or `null` when there are none. */
+/** Response for `GET /agent-sessions/latest` — the most-recently-updated session in the requested scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
@@ -266,7 +271,7 @@ export type DeleteAgentSessionsQueryParams = z.input<typeof DeleteAgentSessionsQ
 export type AgentSessionSchemas = {
   '/agent-sessions': {
     GET: {
-      query?: ListAgentSessionsQueryParams
+      query: ListAgentSessionsQueryParams
       response: CursorPaginationResponse<AgentSessionListItem>
     }
     POST: {
@@ -288,16 +293,17 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Most-recently-updated session across all agents.
+   * Most-recently-updated session, globally or within one live agent scope.
    *
    * First-entry restore reads this to resume the last-touched session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
-   * page.
+   * `updatedAt DESC LIMIT 1`; passing `agentId` restricts the lookup to that
+   * live agent.
    */
   '/agent-sessions/latest': {
     GET: {
+      query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
     }
   }

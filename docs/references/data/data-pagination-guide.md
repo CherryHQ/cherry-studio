@@ -194,11 +194,11 @@ cursor as "first page" (no warn) and a malformed cursor as a warn-and-fall-back
 to the first page. A server-issued opaque token going stale must never throw and
 lock the renderer. (Full-text search uses the opposite policy — see § 6.)
 
-**Multi-band cursors are not routable through `keysetOrdering`.** A cursor that
-encodes more than a single `(key, id)` tuple — e.g. `TopicService.listByCursor`,
-which pages a pinned section then an unpinned section with a first-page sentinel —
-cannot be expressed as one tuple and keeps its **own** codec. Do not force such
-endpoints through the shared helper.
+**Keep independent bands in independent cursor families.** Topic and session
+lists require callers to select either the pinned or ordinary stream. Each
+response therefore has one `(key, id)` tuple and uses `keysetOrdering`; the
+cursor family binds the token to its stream, sort profile, and filters so it
+cannot be reused against another band.
 
 **Determinism under ties.** `keysetOrdering` always appends the `id` tiebreaker
 (`[<major> keyCol, <tie> idCol]`), so page-walking stays deterministic even when

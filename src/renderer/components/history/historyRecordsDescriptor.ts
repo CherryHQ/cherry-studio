@@ -48,7 +48,7 @@ export interface HistoryRecordDescriptor<T> {
 
   // --- rendering (consumed by HistoryRecordList / HistoryRecordRow) ---
   getName: (item: T) => string
-  getUpdatedAt: (item: T) => string
+  getCreatedAt: (item: T) => string
   getSourceLabel: (item: T) => string
   renderAvatar: (item: T) => ReactNode
   rowHeight: number

@@ -161,6 +161,13 @@
       "when": 1784187722341,
       "tag": "0022_cold_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784087600756,
+      "tag": "0023_gray_madelyne_pryor",
+      "breakpoints": true
     }
   ],
   "version": "7"
