@@ -1,6 +1,6 @@
 // Unit tests for SqliteFileStager — blob staging from live DB + filesystem roots.
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -175,6 +175,45 @@ describe('SqliteFileStager', () => {
       expect((await readFile(join(dest, 'safe.md'))).toString()).toBe('# safe')
     } finally {
       await rm(parent, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageFiles aborts on an unreadable source dir (EACCES), not silently missing', async () => {
+    const filesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-dest-'))
+    try {
+      await dbh.db.insert(fileEntryTable).values([
+        { id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 1 }
+      ])
+      await writeFile(join(filesRoot, 'f1.txt'), 'x')
+      // Strip x permission on filesRoot so stat(<filesRoot>/f1.txt) raises EACCES.
+      // The file exists — this is NOT a missing source. Old code silently dropped it
+      // and pruneMissingRows deleted the row; it MUST now abort (#16683 P1 / F3).
+      await chmod(filesRoot, 0o000)
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), filesRoot, filesRoot)
+      await expect(stager.stageFiles(new Set(['f1']), dest)).rejects.toThrow()
+    } finally {
+      await chmod(filesRoot, 0o755).catch(() => {})
+      await rm(filesRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageKnowledge aborts on an unreadable base dir (EACCES), not silently missing', async () => {
+    const kbRoot = await mkdtemp(join(tmpdir(), 'cs-stager-kb-eacces-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-kb-eacces-dest-'))
+    try {
+      await mkdir(join(kbRoot, 'kb1'), { recursive: true })
+      // stat(<kbRoot>/kb1) raises EACCES — the base exists, it is NOT missing (#16683 P1 / F3).
+      await chmod(kbRoot, 0o000)
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', kbRoot)
+      await expect(stager.stageKnowledge(new Set(['kb1']), dest)).rejects.toThrow()
+    } finally {
+      await chmod(kbRoot, 0o755).catch(() => {})
+      await rm(kbRoot, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
     }
   })
