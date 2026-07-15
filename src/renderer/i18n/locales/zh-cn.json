@@ -850,7 +850,8 @@
       "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
-      "pending": "等待审批",
+      "pending": "等待确认",
+      "pendingBadge": "待确认",
       "permissionExpired": "权限请求已过期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要更高权限。",
       "suggestion": {

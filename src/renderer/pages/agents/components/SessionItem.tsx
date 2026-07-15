@@ -107,13 +107,14 @@ const SessionItem = ({
   const showAwaitingApprovalBadge = awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval
   const isStreamErrored = status === 'error'
   // The status overlay (spinner / red / green dot) sits at ONE fixed spot
-  // (right-1.5) on every row so the spinners line up. Running (spinner) and
+  // (right-1.5) on every row so the indicators line up. Running (spinner) and
   // errored (red) are ongoing states that stay on the selected row too — only
   // the completion dot (green) is a read-receipt that clears once the row is
-  // opened (`!isActive`). While a turn is still live behind an approval pause,
-  // the spinner shows in that same overlay slot, alongside (not inside) the
-  // pill. All of it yields to hover actions.
-  const hasStreamIndicator = isStreamPending || isStreamErrored || (!isActive && isStreamFulfilled)
+  // opened (`!isActive`). It yields to hover actions. While awaiting approval
+  // the pill alone is shown — no spinner: a paused turn is blocked, not
+  // running, so a spinner would send the opposite signal ("wait" vs "act").
+  const hasStreamIndicator =
+    (isStreamPending || isStreamErrored || (!isActive && isStreamFulfilled)) && !showAwaitingApprovalBadge
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -298,10 +299,10 @@ const SessionItem = ({
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
             // overlay fades out and the actions (pin + delete) take over via
-            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin. When
-            // the awaiting-approval pill is present it is an in-flow sibling the
-            // title fades against, and the pill reserves the overlay slot itself.
-            hasStreamIndicator && !showAwaitingApprovalBadge && 'mr-7'
+            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin. The
+            // awaiting-approval pill (mutually exclusive with the overlay) is an
+            // in-flow sibling the title simply fades against — no standing margin.
+            hasStreamIndicator && 'mr-7'
           )}
           onDoubleClick={(event) => {
             event.stopPropagation()
@@ -312,22 +313,16 @@ const SessionItem = ({
       )}
 
       {!rowState.renaming && showAwaitingApprovalBadge && (
-        // Paused-state label. In-flow so the title fades against it. The running
-        // spinner is NOT inside it — it lives in the shared overlay slot
-        // (right-1.5) so it lines up with every other row's spinner. When that
-        // spinner is showing (live pause), the pill reserves its slot with a
-        // right margin so it sits just left of it; the margin (like the pill)
-        // collapses on hover so the actions get the full width. Warning tint
-        // matches the composer's approval pill; max-w-28 fits the en label,
+        // Paused-state label, shown alone (no spinner): a turn paused on an
+        // approval is blocked, not running, and the pill already says "act". It
+        // is in-flow so the title fades against it, and collapses on hover /
+        // focus / delete-confirm so the pin + delete actions take over. Warning
+        // tint matches the composer's approval pill; max-w-28 fits the en label,
         // longer locales truncate rather than eat the title.
         <span
           data-testid="agent-session-awaiting-approval-badge"
-          className={cn(
-            'pointer-events-none max-w-28 shrink-0 truncate rounded-full bg-warning/10 px-1.5 font-medium text-[10px] text-warning leading-4 transition-[max-width,padding,margin,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0',
-            hasStreamIndicator &&
-              'mr-7 group-hover:mr-0 group-has-[[data-resource-list-item-actions]:focus-within]:mr-0 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-0'
-          )}>
-          {t('agent.toolPermission.pending')}
+          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full bg-warning/10 px-1.5 font-medium text-[10px] text-warning leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+          {t('agent.toolPermission.pendingBadge')}
         </span>
       )}
 

@@ -855,7 +855,8 @@
       "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
-      "pending": "等待審批",
+      "pending": "等待確認",
+      "pendingBadge": "待確認",
       "permissionExpired": "權限請求已過期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要提升的權限。",
       "suggestion": {

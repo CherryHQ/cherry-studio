@@ -513,7 +513,8 @@ vi.mock('react-i18next', () => ({
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
-        'agent.toolPermission.pending': 'Waiting for approval',
+        'agent.toolPermission.pending': 'Waiting for confirmation',
+        'agent.toolPermission.pendingBadge': 'Pending',
         'agent.session.edit.title': 'Edit task name',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
@@ -2324,7 +2325,7 @@ describe('Sessions', () => {
 
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
-    expect(badges[0]).toHaveTextContent('Waiting for approval')
+    expect(badges[0]).toHaveTextContent('Pending')
     // Warning tint matches the composer's approval pill.
     expect(badges[0]).toHaveClass('text-warning')
     // The pill collapses while hover actions are visible (hover / focus-within /
@@ -2338,7 +2339,7 @@ describe('Sessions', () => {
     expect(badges[0]).not.toHaveClass('mr-7')
   })
 
-  it('shows the badge alongside the aligned overlay spinner while a live stream pauses', () => {
+  it('shows only the pill (no spinner) while a live stream pauses for approval', () => {
     // claude-code runtime: stream stays 'streaming' during a permission pause;
     // only the awaiting-approval anchors mark the pause.
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
@@ -2353,15 +2354,11 @@ describe('Sessions', () => {
 
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
-    // The turn is still running behind the pause, so the spinner shows in the
-    // shared overlay slot (same position as every other row's spinner), NOT
-    // inside the pill.
-    const indicator = screen.getByTestId('agent-session-stream-indicator')
-    expect(indicator).toHaveClass('absolute', 'right-1.5')
-    expect(indicator.firstElementChild).toHaveClass('animate-spin')
+    // A turn paused on an approval is blocked, not running — the pill says "act"
+    // and a spinner would say "wait", so it is suppressed even though the
+    // underlying stream is still live.
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
     expect(badges[0].querySelector('.animate-spin')).toBeNull()
-    // The pill reserves the overlay slot so it sits just left of the spinner.
-    expect(badges[0]).toHaveClass('mr-7')
   })
 
   it('keeps the awaiting-approval badge on the selected session row', () => {
@@ -2380,7 +2377,7 @@ describe('Sessions', () => {
       .find((row) => row.getAttribute('data-selected') === 'true')
     expect(selectedRow).toBeDefined()
     const badge = within(selectedRow as HTMLElement).getByTestId('agent-session-awaiting-approval-badge')
-    expect(badge).toHaveTextContent('Waiting for approval')
+    expect(badge).toHaveTextContent('Pending')
   })
 
   it('persists display mode selection from the header menu', async () => {

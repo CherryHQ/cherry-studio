@@ -850,7 +850,8 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for approval",
+      "pending": "Waiting for confirmation",
+      "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
