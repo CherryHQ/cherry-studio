@@ -1,4 +1,4 @@
-import { FilePreviewPage } from '@renderer/pages/FilePreviewPage'
+import { FilePreviewPage } from '@renderer/pages/filePreview/FilePreviewPage'
 import { parseFilePreviewRouteSearch } from '@renderer/utils/filePreview'
 import { createFileRoute } from '@tanstack/react-router'
 
