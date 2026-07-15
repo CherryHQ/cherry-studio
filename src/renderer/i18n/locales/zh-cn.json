@@ -5521,7 +5521,7 @@
         "select_success": "数据目录已更改，应用将重启以应用更改",
         "select_title": "更改应用数据目录",
         "stop_quit_app_reason": "应用目前在迁移数据，不能退出",
-        "switch_existing_notice": "将直接使用已识别的 Cherry Studio 数据目录，不会覆盖其中的现有文件。"
+        "switch_existing_notice": "将直接使用这个非空目录，不会覆盖其中的现有文件。"
       },
       "app_logs": {
         "button": "打开日志",

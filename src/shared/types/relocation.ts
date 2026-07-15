@@ -9,7 +9,6 @@ export const USER_DATA_RELOCATION_VALIDATION_REASONS = [
   'target_parent_unwritable',
   'target_not_directory',
   'target_in_use',
-  'target_not_profile',
   'target_not_empty',
   'target_missing',
   'target_work_conflict'

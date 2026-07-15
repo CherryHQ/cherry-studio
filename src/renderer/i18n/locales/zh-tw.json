@@ -5521,7 +5521,7 @@
         "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
         "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉",
-        "switch_existing_notice": "將直接使用已識別的 Cherry Studio 資料目錄，不會覆寫其中的現有檔案。"
+        "switch_existing_notice": "將直接使用這個非空目錄，不會覆寫其中的現有檔案。"
       },
       "app_logs": {
         "button": "開啟日誌",

@@ -5521,7 +5521,7 @@
         "select_success": "Data directory changed, the app will restart to apply changes",
         "select_title": "Change App Data Directory",
         "stop_quit_app_reason": "The app is currently migrating data and cannot be exited",
-        "switch_existing_notice": "This recognized Cherry Studio data directory will be used as-is. Its existing files will not be overwritten."
+        "switch_existing_notice": "This non-empty directory will be used as-is. Its existing files will not be overwritten."
       },
       "app_logs": {
         "button": "Open Logs",

@@ -68,7 +68,7 @@ const BasicDataSettings: React.FC = () => {
       toast.error(t('settings.data.app_data.select_error_protected_path'))
     } else if (reason === 'target_in_use') {
       toast.error(t('settings.data.app_data.select_error'))
-    } else if (reason === 'target_not_profile' || reason === 'target_not_empty') {
+    } else if (reason === 'target_not_empty') {
       toast.error(t('settings.data.app_data.select_not_empty_dir'))
     } else if (
       reason === 'target_parent_unwritable' ||

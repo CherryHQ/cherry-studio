@@ -19,17 +19,13 @@ import * as z from 'zod'
 
 const logger = loggerService.withContext('UserDataRelocationGate')
 const ACTIVE_PROFILE_MARKERS = ['SingletonLock', 'SingletonSocket'] as const
-const PROFILE_MARKER = '.cherry-user-data.json'
 const RELOCATION_OWNER_MARKER = '.cherry-relocation-owner.json'
-const PROFILE_MARKER_KIND = 'cherry-studio-user-data'
 const FREE_SPACE_SAFETY_FACTOR = 1.2
 
 const relocationOwnerSchema = z.object({
   kind: z.literal('cherry-studio-user-data-relocation'),
   taskId: z.string()
 })
-const profileMarkerSchema = z.object({ kind: z.literal(PROFILE_MARKER_KIND) })
-const configFileSchema = z.record(z.string(), z.unknown())
 
 type RelocationState = NonNullable<BootConfigSchema['temp.user_data_relocation']>
 type PendingRelocation = Extract<RelocationState, { status: 'pending' }>
@@ -63,9 +59,6 @@ export function assertUserDataRelocationRequest(pending: PendingRelocation): voi
   const inspection = assertRelocationPaths(pending.from, pending.to, { taskId: pending.taskId })
   if (!pending.copy && !inspection.targetExists) {
     invalid('target_missing', `switch target does not exist: ${pending.to}`)
-  }
-  if (!pending.copy && !inspection.targetEmpty && !inspection.targetProfile) {
-    invalid('target_not_profile', `switch target is not a recognized Cherry Studio data directory: ${pending.to}`)
   }
   if (pending.copy && !inspection.targetEmpty) {
     invalid('target_not_empty', `copy target must be empty: ${pending.to}`)
@@ -212,7 +205,6 @@ async function executeRelocation(
     })
 
     await verifyCopiedTree(pending.from, workPath)
-    await writeProfileMarker(workPath)
     assertEffectiveSeparation(pending.from, workPath)
     await fsp.rename(workPath, pending.to)
     promoted = true
@@ -249,7 +241,7 @@ function assertRelocationPaths(
   fromValue: string,
   toValue: string,
   options: { allowRelocationArtifacts?: boolean; taskId?: string } = {}
-): { targetExists: boolean; targetEmpty: boolean; targetProfile: boolean } {
+): { targetExists: boolean; targetEmpty: boolean } {
   if (!path.isAbsolute(fromValue)) invalid('source_missing', `source must be an absolute path: ${fromValue}`)
   if (!path.isAbsolute(toValue)) invalid('target_not_absolute', `target must be an absolute path: ${toValue}`)
 
@@ -287,7 +279,6 @@ function assertRelocationPaths(
   }
 
   let targetEmpty = true
-  let targetProfile = false
   if (targetExists) {
     assertDirectory(toValue, 'target', 'target_not_directory')
     const entries = fs.readdirSync(toValue)
@@ -298,10 +289,6 @@ function assertRelocationPaths(
         `target appears to be an active userData directory; close other Cherry Studio instances, or remove stale SingletonLock and SingletonSocket markers if none are running: ${toValue}`
       )
     }
-    targetProfile = !targetEmpty && isRecognizableUserDataDirectory(toValue)
-    if (!targetEmpty && !targetProfile && !isOwnedByRelocation(toValue, options.taskId)) {
-      invalid('target_not_profile', `non-empty target is not a recognized Cherry Studio data directory: ${toValue}`)
-    }
   }
 
   if (options.taskId) {
@@ -311,7 +298,7 @@ function assertRelocationPaths(
     }
   }
 
-  return { targetExists, targetEmpty, targetProfile }
+  return { targetExists, targetEmpty }
 }
 
 async function recoverInterruptedCopy(pending: PendingRelocation): Promise<void> {
@@ -414,7 +401,7 @@ async function copyTree(source: string, target: string, context: CopyContext, al
     const isSourceRoot = sourceReal === normalizeForCompare(context.sourceRootReal)
     for (const entry of entries) {
       if (isSourceRoot && entry.name.startsWith('Singleton')) continue
-      if (isSourceRoot && (entry.name === PROFILE_MARKER || entry.name === RELOCATION_OWNER_MARKER)) continue
+      if (isSourceRoot && entry.name === RELOCATION_OWNER_MARKER) continue
       await copyTree(path.join(source, entry.name), path.join(target, entry.name), context, true)
     }
     return
@@ -475,7 +462,7 @@ async function verifyCopiedTree(source: string, target: string, isRoot = true): 
 
   for (const entry of entries) {
     if (isRoot && entry.name.startsWith('Singleton')) continue
-    if (isRoot && (entry.name === PROFILE_MARKER || entry.name === RELOCATION_OWNER_MARKER)) continue
+    if (isRoot && entry.name === RELOCATION_OWNER_MARKER) continue
 
     const sourcePath = path.join(source, entry.name)
     const targetPath = path.join(target, entry.name)
@@ -646,10 +633,6 @@ async function writeRelocationOwner(directory: string, taskId: string): Promise<
   )
 }
 
-async function writeProfileMarker(directory: string): Promise<void> {
-  await fsp.writeFile(path.join(directory, PROFILE_MARKER), JSON.stringify({ kind: PROFILE_MARKER_KIND, version: 1 }))
-}
-
 function isOwnedByRelocation(directory: string, taskId?: string): boolean {
   if (!taskId || !pathEntryExists(directory)) return false
   const marker = relocationOwnerSchema.safeParse(readJsonFile(path.join(directory, RELOCATION_OWNER_MARKER)))
@@ -672,40 +655,6 @@ function assertEmptyDirectory(directory: string, message: string): void {
   }
 }
 
-function isRecognizableUserDataDirectory(directory: string): boolean {
-  if (profileMarkerSchema.safeParse(readJsonFile(path.join(directory, PROFILE_MARKER))).success) return true
-
-  const sqlite = statIfExists(path.join(directory, 'cherrystudio.sqlite'))
-  if (sqlite?.isFile() && sqlite.size > 0) return true
-
-  if (hasRecognizableVersionLog(path.join(directory, 'version.log'))) return true
-
-  const hasChromiumStorage =
-    pathEntryExists(path.join(directory, 'IndexedDB')) && pathEntryExists(path.join(directory, 'Local Storage'))
-  const config = configFileSchema.safeParse(readJsonFile(path.join(directory, 'config.json')))
-  return hasChromiumStorage && config.success && Object.keys(config.data).length > 0
-}
-
-function hasRecognizableVersionLog(file: string): boolean {
-  try {
-    return fs
-      .readFileSync(file, 'utf8')
-      .split(/\r?\n/)
-      .some((line) => {
-        const fields = line.trim().split('|')
-        if (fields.length !== 6) return false
-        const [version, , , , , timestamp] = fields
-        return (
-          /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version) &&
-          !Number.isNaN(Date.parse(timestamp))
-        )
-      })
-  } catch (error) {
-    if (isErrno(error, 'ENOENT')) return false
-    throw error
-  }
-}
-
 function readJsonFile(file: string): unknown | null {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -715,25 +664,14 @@ function readJsonFile(file: string): unknown | null {
   }
 }
 
-function statIfExists(value: string): fs.Stats | null {
-  try {
-    return fs.statSync(value)
-  } catch (error) {
-    if (isErrno(error, 'ENOENT')) return null
-    throw error
-  }
-}
-
 function assertTargetIsNotProtected(target: string, normalizedTarget: string): void {
-  const protectedTrees = [
+  const protectedApplicationTrees = [
     application.getPath('app.install'),
     application.getPath('app.root'),
     application.getPath('app.extra_resources'),
-    application.getPath('cherry.home'),
-    application.getPath('sys.appdata'),
-    application.getPath('sys.temp')
+    application.getPath('cherry.home')
   ]
-  for (const protectedTree of protectedTrees) {
+  for (const protectedTree of protectedApplicationTrees) {
     const normalizedProtected = normalizeForCompare(resolveEffectivePath(protectedTree))
     if (
       normalizedTarget === normalizedProtected ||
@@ -748,6 +686,8 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
   const protectedExact = [
     systemHome,
     ...(isWin ? [path.dirname(systemHome)] : []),
+    application.getPath('sys.appdata'),
+    application.getPath('sys.temp'),
     application.getPath('sys.downloads'),
     application.getPath('sys.documents'),
     application.getPath('sys.desktop'),
@@ -761,7 +701,8 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
 
   const resolved = path.resolve(target)
   const relative = path.relative(path.parse(resolved).root, resolved)
-  const firstSegment = relative.split(path.sep).filter(Boolean)[0]?.toLowerCase()
+  const segments = relative.split(path.sep).filter(Boolean)
+  const firstSegment = segments[0]?.toLowerCase()
   const isWindowsSystemVolume =
     isWin &&
     normalizeForCompare(path.parse(resolved).root) ===
@@ -773,8 +714,8 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
       : isLinux
         ? ['bin', 'boot', 'dev', 'etc', 'lib', 'lib64', 'proc', 'root', 'run', 'sbin', 'sys', 'usr', 'var']
         : []
-  if (firstSegment && protectedTopLevel.includes(firstSegment)) {
-    invalid('target_protected', `target is inside a protected operating-system directory: ${target}`)
+  if (segments.length === 1 && firstSegment && protectedTopLevel.includes(firstSegment)) {
+    invalid('target_protected', `target is a protected operating-system directory: ${target}`)
   }
 }
 

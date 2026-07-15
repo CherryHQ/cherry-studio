@@ -106,8 +106,7 @@ is copied at startup **after** the previous process has fully exited.
 
 Relocation never merges into or clears an arbitrary directory. Copy mode
 accepts only a missing or empty target. A non-empty target may be selected
-only in switch mode after it is recognized as an existing Cherry Studio
-userData directory. Files already present there are left unchanged.
+only in switch mode; files already present there are left unchanged.
 
 Each copy request has a unique task ID. Temporary work trees and promoted
 targets carry an ownership marker for that task, and recovery removes a tree

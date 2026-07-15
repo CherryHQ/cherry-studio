@@ -391,7 +391,7 @@ describe('userDataRelocationGate', () => {
     expect(relaunchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('copies successfully into a new target and stamps it as an owned Cherry profile', async () => {
+  it('copies successfully into a new target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
@@ -404,88 +404,41 @@ describe('userDataRelocationGate', () => {
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
 
     expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
-    expect(JSON.parse(fs.readFileSync(path.join(target, '.cherry-user-data.json'), 'utf8'))).toMatchObject({
-      kind: 'cherry-studio-user-data'
-    })
     expect(fs.existsSync(path.join(target, '.cherry-relocation-owner.json'))).toBe(false)
     expect(commitMock).toHaveBeenCalledWith(target)
   })
 
-  it('switches to a recognized existing profile without modifying its files', async () => {
+  it('switches to any existing non-empty directory without modifying its files', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
     fs.mkdirSync(target)
-    fs.writeFileSync(path.join(target, 'cherrystudio.sqlite'), 'existing-profile')
+    fs.writeFileSync(path.join(target, 'arbitrary-document.xlsx'), 'existing file')
     appGetPathMock.mockReturnValue(source)
     relocationState['temp.user_data_relocation'] = pending(source, target, false)
 
-    const { runUserDataRelocationGate } = await loadGate()
+    const { inspectUserDataRelocationTarget, runUserDataRelocationGate } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+      valid: true,
+      targetExists: true,
+      targetEmpty: false
+    })
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
 
-    expect(fs.readFileSync(path.join(target, 'cherrystudio.sqlite'), 'utf8')).toBe('existing-profile')
-    expect(fs.readdirSync(target)).toEqual(['cherrystudio.sqlite'])
+    expect(fs.readFileSync(path.join(target, 'arbitrary-document.xlsx'), 'utf8')).toBe('existing file')
+    expect(fs.readdirSync(target)).toEqual(['arbitrary-document.xlsx'])
     expect(commitMock).toHaveBeenCalledWith(target)
   })
 
-  it('requires strong evidence before recognizing a legacy profile', async () => {
-    const root = makeRoot()
-    const source = path.join(root, 'source')
-    const versionOnly = path.join(root, 'version-only')
-    const configOnly = path.join(root, 'config-only')
-    const storageOnly = path.join(root, 'storage-only')
-    fs.mkdirSync(source)
-    fs.mkdirSync(versionOnly)
-    fs.writeFileSync(path.join(versionOnly, 'version.log'), 'unrelated log')
-    fs.mkdirSync(configOnly)
-    fs.writeFileSync(path.join(configOnly, 'config.json'), JSON.stringify({ theme: 'dark' }))
-    fs.mkdirSync(path.join(storageOnly, 'IndexedDB'), { recursive: true })
-    fs.mkdirSync(path.join(storageOnly, 'Local Storage'))
-
-    const { inspectUserDataRelocationTarget } = await loadGate()
-
-    for (const target of [versionOnly, configOnly, storageOnly]) {
-      expect(inspectUserDataRelocationTarget(source, target)).toEqual({
-        valid: false,
-        reason: 'target_not_profile'
-      })
-    }
-  })
-
-  it('recognizes validated version history or combined legacy profile evidence', async () => {
-    const root = makeRoot()
-    const source = path.join(root, 'source')
-    const versionProfile = path.join(root, 'version-profile')
-    const legacyProfile = path.join(root, 'legacy-profile')
-    fs.mkdirSync(source)
-    fs.mkdirSync(versionProfile)
-    fs.writeFileSync(
-      path.join(versionProfile, 'version.log'),
-      '1.9.12|darwin|production|true|normal|2025-03-01T00:00:00Z'
-    )
-    fs.mkdirSync(path.join(legacyProfile, 'IndexedDB'), { recursive: true })
-    fs.mkdirSync(path.join(legacyProfile, 'Local Storage'))
-    fs.writeFileSync(path.join(legacyProfile, 'config.json'), JSON.stringify({ theme: 'dark' }))
-
-    const { inspectUserDataRelocationTarget } = await loadGate()
-
-    for (const target of [versionProfile, legacyProfile]) {
-      expect(inspectUserDataRelocationTarget(source, target)).toEqual({
-        valid: true,
-        targetExists: true,
-        targetEmpty: false
-      })
-    }
-  })
-
-  it('allows a Windows user-home child while protecting the Users and AppData roots', async () => {
+  it('allows an app-specific directory below Windows AppData while protecting the Users and AppData roots', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const usersRoot = path.join(root, 'Users')
     const systemHome = path.join(usersRoot, 'alice')
     const appData = path.join(systemHome, 'AppData', 'Roaming')
-    const target = path.join(systemHome, 'CherryData')
+    const target = path.join(appData, 'Cherry Studio')
     fs.mkdirSync(source)
     fs.mkdirSync(target, { recursive: true })
     fs.mkdirSync(appData, { recursive: true })
@@ -505,6 +458,79 @@ describe('userDataRelocationGate', () => {
       reason: 'target_protected'
     })
     expect(inspectUserDataRelocationTarget(source, appData)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+  })
+
+  it('allows an app-specific directory below macOS Application Support while protecting the root', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const systemHome = path.join(root, 'Users', 'alice')
+    const appData = path.join(systemHome, 'Library', 'Application Support')
+    const target = path.join(appData, 'Cherry Studio')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target, { recursive: true })
+    relocationState['sys.home'] = systemHome
+    relocationState['sys.appdata'] = appData
+    platformState.isMac = true
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+      valid: true,
+      targetExists: true,
+      targetEmpty: true
+    })
+    expect(inspectUserDataRelocationTarget(source, appData)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+  })
+
+  it('allows an app-specific directory below the Linux config root while protecting the root', async () => {
+    const root = fs.mkdtempSync(path.join('/tmp', 'cherry-relocation-linux-'))
+    roots.push(root)
+    const source = path.join(root, 'source')
+    const systemHome = path.join(root, 'home', 'alice')
+    const appData = path.join(systemHome, '.config')
+    const target = path.join(appData, 'Cherry Studio')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target, { recursive: true })
+    relocationState['sys.home'] = systemHome
+    relocationState['sys.appdata'] = appData
+    platformState.isLinux = true
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+      valid: true,
+      targetExists: true,
+      targetEmpty: true
+    })
+    expect(inspectUserDataRelocationTarget(source, appData)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+  })
+
+  it('allows an app-specific directory below the system temp root while protecting the root', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const systemTemp = path.join(root, 'temp')
+    const target = path.join(systemTemp, 'Cherry Studio')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target, { recursive: true })
+    relocationState['sys.temp'] = systemTemp
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, target)).toEqual({
+      valid: true,
+      targetExists: true,
+      targetEmpty: true
+    })
+    expect(inspectUserDataRelocationTarget(source, systemTemp)).toEqual({
       valid: false,
       reason: 'target_protected'
     })
@@ -690,7 +716,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(source)
     fs.mkdirSync(target)
     fs.mkdirSync(aside)
-    fs.writeFileSync(path.join(target, '.cherry-user-data.json'), JSON.stringify({ kind: 'cherry-studio-user-data' }))
+    fs.writeFileSync(path.join(target, 'existing.txt'), 'existing')
     fs.writeFileSync(path.join(target, 'new-after-crash.txt'), 'preserve')
     appGetPathMock.mockReturnValue(source)
     relocationState['temp.user_data_relocation'] = pending(source, target)
@@ -703,10 +729,10 @@ describe('userDataRelocationGate', () => {
     expect(commitMock).not.toHaveBeenCalled()
   })
 
-  it('allows an empty first-level target but rejects unknown content added to it', async () => {
+  it('allows writable descendants of protected Linux top-level directories but not the directories themselves', async () => {
     vi.resetModules()
     const entries: string[] = []
-    const existing = new Set(['/home/alice/cherry', '/data', '/', String(relocationState.installPath)])
+    const existing = new Set(['/home/alice/cherry', '/var', '/var/cherry', '/', String(relocationState.installPath)])
     const realpathSync = vi.fn((value: string) => value)
     ;(realpathSync as typeof realpathSync & { native?: typeof realpathSync }).native = realpathSync
     vi.doMock('node:fs', () => {
@@ -721,7 +747,7 @@ describe('userDataRelocationGate', () => {
           if (existing.has(value)) return { isDirectory: () => true, isFile: () => false, size: 0 }
           throw Object.assign(new Error('missing'), { code: 'ENOENT' })
         }),
-        readdirSync: vi.fn((value: string) => (value === '/data' ? entries : [])),
+        readdirSync: vi.fn((value: string) => (value === '/var/cherry' ? entries : [])),
         readFileSync: vi.fn(() => {
           throw Object.assign(new Error('missing'), { code: 'ENOENT' })
         }),
@@ -729,18 +755,24 @@ describe('userDataRelocationGate', () => {
       }
       return { ...mock, default: mock }
     })
+    platformState.isLinux = true
 
     const { inspectUserDataRelocationTarget } = await loadGate()
 
-    expect(inspectUserDataRelocationTarget('/home/alice/cherry', '/data')).toEqual({
+    expect(inspectUserDataRelocationTarget('/home/alice/cherry', '/var/cherry')).toEqual({
       valid: true,
       targetExists: true,
       targetEmpty: true
     })
-    entries.push('unrelated.txt')
-    expect(inspectUserDataRelocationTarget('/home/alice/cherry', '/data')).toEqual({
+    expect(inspectUserDataRelocationTarget('/home/alice/cherry', '/var')).toEqual({
       valid: false,
-      reason: 'target_not_profile'
+      reason: 'target_protected'
+    })
+    entries.push('unrelated.txt')
+    expect(inspectUserDataRelocationTarget('/home/alice/cherry', '/var/cherry')).toEqual({
+      valid: true,
+      targetExists: true,
+      targetEmpty: false
     })
   })
 })
