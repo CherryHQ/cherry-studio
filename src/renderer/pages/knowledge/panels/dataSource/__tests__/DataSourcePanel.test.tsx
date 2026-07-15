@@ -179,6 +179,43 @@ vi.mock('@renderer/components/command', async () => {
           ) : null}
         </>
       )
+    },
+    // The row's hover "more" button opens the same item model on click. Stub it as a toggle on
+    // the trigger (mirroring the real asChild) so tests can open the menu and click an action.
+    CommandPopupMenu: ({ children, extraItems = [] }: { children: ReactNode; extraItems?: StubExtraItem[] }) => {
+      const [open, setOpen] = React.useState(false)
+      const trigger = React.isValidElement(children)
+        ? // eslint-disable-next-line @eslint-react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
+          React.cloneElement(children as React.ReactElement<{ onClick?: (event: unknown) => void }>, {
+            onClick: (event: unknown) => {
+              ;(children.props as { onClick?: (event: unknown) => void }).onClick?.(event)
+              setOpen((value) => !value)
+            }
+          })
+        : children
+
+      return (
+        <>
+          {trigger}
+          {open ? (
+            <div role="menu">
+              {extraItems
+                .filter((item) => item.type === 'item')
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      item.onSelect?.()
+                      setOpen(false)
+                    }}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </>
+      )
     }
   }
 })
@@ -190,6 +227,12 @@ vi.mock('@renderer/utils/time', () => ({
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (error: unknown, prefix: string) =>
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
+}))
+
+// Isolate the panel's activate dispatch from the real system-open hook (which touches window.api).
+const previewSourceMock = vi.hoisted(() => vi.fn())
+vi.mock('../../../hooks/usePreviewKnowledgeSource', () => ({
+  usePreviewKnowledgeSource: () => ({ previewSource: previewSourceMock })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -238,6 +281,8 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.table.select_all': '全选',
             'knowledge.data_source.table.select_row': '选择行',
             'knowledge.data_source.table.aria_label': '数据源列表',
+            'knowledge.data_source.back_to_parent': '返回上级',
+            'knowledge.data_source.empty_folder': '该文件夹为空',
             'knowledge.data_source.list.loading_more': '加载更多…',
             'knowledge.data_source.list.end_reached': '没有更多了',
             'common.add': '添加数据源',
@@ -560,7 +605,7 @@ describe('DataSourcePanel', () => {
     expect(onDelete).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
   })
 
-  it('forwards row clicks to the item chunk detail handler', () => {
+  it('opens the source with the system tool on a file row click instead of viewing chunks', () => {
     const onItemClick = vi.fn()
     const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
 
@@ -578,7 +623,139 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('季度报告.pdf'))
 
-    expect(onItemClick).toHaveBeenCalledWith('file-1')
+    expect(previewSourceMock).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
+  })
+
+  it('opens the source with the system tool on a url row click', () => {
+    const onItemClick = vi.fn()
+    const item = createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+    expect(previewSourceMock).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
+  })
+
+  it('views chunks in-app on a note row click', () => {
+    const onItemClick = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('会议纪要'))
+
+    expect(onItemClick).toHaveBeenCalledWith('note-1')
+    expect(previewSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('drills into a directory on a directory row click', () => {
+    const onItemClick = vi.fn()
+    const onDrillIntoDirectory = vi.fn()
+    const item = createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDrillIntoDirectory={onDrillIntoDirectory}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('本地资料夹'))
+
+    expect(onDrillIntoDirectory).toHaveBeenCalledWith(item)
+    expect(onItemClick).not.toHaveBeenCalled()
+    expect(previewSourceMock).not.toHaveBeenCalled()
+  })
+
+  it('shows a back-to-parent control inside a directory and navigates up on click', () => {
+    const onNavigateUp = vi.fn()
+    const directory = createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={directory}
+        onNavigateUp={onNavigateUp}
+      />
+    )
+
+    const backButton = screen.getByRole('button', { name: '返回上级' })
+    expect(backButton).toBeInTheDocument()
+    // The current folder's name is shown alongside the control.
+    expect(screen.getByText('本地资料夹')).toBeInTheDocument()
+
+    fireEvent.click(backButton)
+
+    expect(onNavigateUp).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the header add-source entry inside a directory so adding cannot silently target the root', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        onNavigateUp={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+  })
+
+  it('shows an empty-folder message instead of add shortcuts inside an empty directory', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        onNavigateUp={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('该文件夹为空')).toBeInTheDocument()
+    expect(screen.queryByText('上传第一个数据源')).not.toBeInTheDocument()
   })
 
   it('forwards view chunks menu actions to the item chunk detail handler', () => {

@@ -37,8 +37,12 @@ const menuItemVariants = cva(
     variants: {
       variant: {
         default: '',
+        // The icon selector is a descendant (`[&_svg]`), not a direct-child (`*:[svg]`) match:
+        // ContextMenuItemContent wraps the icon in extra spans, so a direct-child rule never
+        // reaches it and the base `text-muted-foreground` rule would win, leaving destructive
+        // icons gray. Mirror the base rule's `:not([class*='text-'])` so callers can still opt out.
         destructive:
-          'text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 data-[variant=destructive]:*:[svg]:text-destructive!'
+          "text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!"
       },
       inset: {
         true: 'pl-8',

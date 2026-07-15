@@ -33,7 +33,7 @@
     },
     "builtin": {
       "cherry_assistant": {
-        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "内蔵のCherry Studioアドバイザー。問題の診断、操作ガイド、FAQの収集、バグ/機能リクエストの提出、およびスキルの検索/作成を行います。"
       }
     },
     "channels": {
@@ -1996,7 +1996,7 @@
         "permissions_hint": "ツールパターンを事前承認または拒否します。ワイルドカード（例：Read(secrets-*/config.json)）をサポートします。",
         "role_column": "役割",
         "sonnet_model": "ソネット",
-        "subagent_model": "[to be translated]:Subagent"
+        "subagent_model": "サブエージェント"
       },
       "codex": {
         "disable_response_storage": "応答の保存を無効にする",
@@ -2056,9 +2056,9 @@
       "select_placeholder": "選択…"
     },
     "api_gateway": {
-      "description": "[to be translated]:Any CLI, every model",
-      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
-      "title": "[to be translated]:Unified Gateway"
+      "description": "あらゆるCLI、すべてのモデル",
+      "requires_running": "有効化後、Cherry Studio を実行し続けてください — 外部 CLI は、Cherry Studio がホストするゲートウェイに接続します。",
+      "title": "統合ゲートウェイ"
     },
     "apply_failed": "システムファイルへのCLI設定の書き込みに失敗しました",
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
@@ -2139,7 +2139,7 @@
     "model_required": "モデルを選択してください",
     "model_selection": "モデル選択",
     "more": "もっと",
-    "move_provider_to_top": "[to be translated]:Move provider to top",
+    "move_provider_to_top": "プロバイダーをトップに移動",
     "no_matching_providers": "一致するプロバイダーがありません",
     "no_model_for_provider": "このプロバイダーには利用可能なモデルがありません",
     "no_providers_description": "設定 → モデルサービスで対応しているプロバイダーを有効にする",
@@ -2886,6 +2886,7 @@
           "title": "単一のウェブページをインポート"
         }
       },
+      "back_to_parent": "[to be translated]:Back",
       "bulk": {
         "cancel": "[to be translated]:Cancel",
         "delete": "削除",
@@ -2914,6 +2915,7 @@
         "title": "最初のデータソースをアップロードしてください"
       },
       "empty_description": "まだデータソースがありません",
+      "empty_folder": "[to be translated]:This folder is empty",
       "filters": {
         "all": "すべて",
         "directory": "フォルダ",
@@ -2947,9 +2949,9 @@
           "type": "タイプ",
           "updated_at": "更新済み"
         },
+        "open_row": "[to be translated]:Open {{title}}",
         "select_all": "すべて選択",
-        "select_row": "行を選択",
-        "view_chunks_row": "{{title}}のチャンクを表示"
+        "select_row": "行を選択"
       },
       "toolbar": {
         "add": "データソースを追加",
@@ -2963,6 +2965,8 @@
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
+    "empty_action": "[to be translated]:Create Knowledge Base",
+    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
     "error": {
       "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
       "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
@@ -3393,7 +3397,7 @@
       },
       "knowledge": {
         "add": "ナレッジベースを追加",
-        "create_first": "[to be translated]:Open Knowledge to create one",
+        "create_first": "オープンな知識で一つを作る",
         "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",
         "doc_count": "{{count}} 件のドキュメント",
         "empty_desc": "リンクが完了すると、アシスタントはドキュメントの内容に基づいて回答できます",
@@ -3407,7 +3411,7 @@
         "title": "ナレッジベース"
       },
       "prompt": {
-        "copy_variable": "[to be translated]:Copy {{variable}}",
+        "copy_variable": "{{variable}}をコピー",
         "create_title": "新しいプロンプト",
         "dblclick_hint": "プレビューをダブルクリックすると編集に戻ります",
         "desc": "システムプロンプトはアシスタントの最初の文脈として送信されます",
@@ -3722,7 +3726,7 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "画像が大きすぎます（最大 {{limit}}）",
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
@@ -3744,7 +3748,7 @@
         "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "画像の処理に失敗しました。もう一度お試しください。",
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",
@@ -3909,8 +3913,8 @@
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
       "activity": {
-        "analyze": "[to be translated]:Analyze",
-        "analyzing": "[to be translated]:Analyzing",
+        "analyze": "分析",
+        "analyzing": "分析",
         "archive": "アーカイブ",
         "assistantTask": "タスク",
         "availableFeatures": "利用可能な機能",
@@ -3918,7 +3922,7 @@
         "branch": "コードブランチ",
         "build": "ビルド",
         "building": "建築",
-        "calendar": "[to be translated]:calendar",
+        "calendar": "カレンダー",
         "check": "確認",
         "checking": "確認中",
         "codeFiles": "コードファイル",
@@ -3929,17 +3933,17 @@
         "create": "作成",
         "creating": "作成",
         "currentFolder": "現在のフォルダ",
-        "data": "[to be translated]:data",
+        "data": "データ",
         "delete": "削除",
         "deleting": "削除",
         "documentFiles": "ドキュメントファイル",
         "download": "ダウンロード",
         "downloading": "ダウンロード中",
-        "email": "[to be translated]:email",
-        "environmentInfo": "[to be translated]:environment information",
+        "email": "メール",
+        "environmentInfo": "環境情報",
         "executeCommand": "コマンドを実行",
         "executingCommand": "コマンドを実行中",
-        "extensionFailed": "[to be translated]:Extension failed",
+        "extensionFailed": "拡張機能が失敗しました",
         "extract": "抽出",
         "extracting": "抽出",
         "file": "ファイル",
@@ -3968,10 +3972,10 @@
         "repository": "コードリポジトリ",
         "search": "見つける",
         "searching": "見つける",
-        "send": "[to be translated]:Send",
-        "sending": "[to be translated]:Sending",
-        "start": "[to be translated]:Start",
-        "starting": "[to be translated]:Starting",
+        "send": "送信",
+        "sending": "送信",
+        "start": "開始",
+        "starting": "開始",
         "switch": "スイッチ",
         "switching": "切り替え",
         "sync": "同期",
@@ -3981,8 +3985,8 @@
         "translationFiles": "翻訳ファイル",
         "upload": "アップロード",
         "uploading": "アップロード中",
-        "usedExtension": "[to be translated]:Used an extension",
-        "usingExtension": "[to be translated]:Using an extension",
+        "usedExtension": "拡張機能を使用しました",
+        "usingExtension": "拡張機能を使用する",
         "view": "表示",
         "viewing": "閲覧",
         "webPage": "ウェブページ",
@@ -4246,7 +4250,7 @@
   },
   "models": {
     "action": {
-      "configure_custom": "[to be translated]:Configure custom models",
+      "configure_custom": "カスタムモデルを設定",
       "pin": "このモデルをピン留め",
       "unpin": "モデルのピン留めを解除"
     },
@@ -7151,7 +7155,7 @@
           "confirm": "すべてのモデルをリストに追加しますか？",
           "label": "すべてのモデルを追加"
         },
-        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
+        "add_success_enable_failed": "モデルが追加されましたが、プロバイダーを有効化できませんでした。",
         "add_whole_group": "グループ全体を追加",
         "clean_stale_models": "無効なモデルをクリーンアップ",
         "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
@@ -7608,7 +7612,7 @@
         "fill_after_create": "認証フィールドは作成後に入力できます",
         "menu_label": "インスタンスを追加"
       },
-      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
+      "enable_failed_after_connection": "接続は成功しましたが、プロバイダーを有効にすることができませんでした。",
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",

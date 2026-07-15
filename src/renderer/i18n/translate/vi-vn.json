@@ -33,7 +33,7 @@
     },
     "builtin": {
       "cherry_assistant": {
-        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Cố vấn tích hợp Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, và tìm kiếm/tạo Kỹ năng"
       }
     },
     "channels": {
@@ -1996,7 +1996,7 @@
         "permissions_hint": "Phê duyệt trước hoặc từ chối các mẫu công cụ. Hỗ trợ ký tự đại diện như Read(secrets-*/config.json).",
         "role_column": "Vai trò",
         "sonnet_model": "Sonnet",
-        "subagent_model": "[to be translated]:Subagent"
+        "subagent_model": "Đại lý phụ"
       },
       "codex": {
         "disable_response_storage": "Tắt Lưu Trữ Phản Hồi",
@@ -2056,9 +2056,9 @@
       "select_placeholder": "Chọn…"
     },
     "api_gateway": {
-      "description": "[to be translated]:Any CLI, every model",
-      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
-      "title": "[to be translated]:Unified Gateway"
+      "description": "Bất kỳ CLI nào, mọi mô hình",
+      "requires_running": "Giữ Cherry Studio chạy sau khi bật — CLI bên ngoài kết nối với cổng mà nó lưu trữ.",
+      "title": "Cổng thống nhất"
     },
     "apply_failed": "Không thể ghi cấu hình CLI vào tệp hệ thống",
     "auto_update_to_latest": "Tự động cập nhật lên phiên bản mới nhất",
@@ -2139,7 +2139,7 @@
     "model_required": "Vui lòng chọn một mô hình",
     "model_selection": "Lựa chọn mô hình",
     "more": "Thêm",
-    "move_provider_to_top": "[to be translated]:Move provider to top",
+    "move_provider_to_top": "Di chuyển nhà cung cấp lên trên cùng",
     "no_matching_providers": "Không có nhà cung cấp phù hợp",
     "no_model_for_provider": "Không có mô hình nào khả dụng cho nhà cung cấp này",
     "no_providers_description": "Bật nhà cung cấp được hỗ trợ trong Cài đặt → Dịch vụ Mô hình",
@@ -2886,6 +2886,7 @@
           "title": "Nhập một trang web duy nhất"
         }
       },
+      "back_to_parent": "[to be translated]:Back",
       "bulk": {
         "cancel": "[to be translated]:Cancel",
         "delete": "Xóa",
@@ -2914,6 +2915,7 @@
         "title": "Tải lên Nguồn Dữ liệu Đầu tiên của Bạn"
       },
       "empty_description": "Chưa có nguồn dữ liệu nào",
+      "empty_folder": "[to be translated]:This folder is empty",
       "filters": {
         "all": "Tất cả",
         "directory": "Thư mục",
@@ -2947,9 +2949,9 @@
           "type": "Kiểu",
           "updated_at": "Đã cập nhật"
         },
+        "open_row": "[to be translated]:Open {{title}}",
         "select_all": "Chọn tất cả",
-        "select_row": "Chọn hàng",
-        "view_chunks_row": "Xem các phần cho {{title}}"
+        "select_row": "Chọn hàng"
       },
       "toolbar": {
         "add": "Thêm Nguồn Dữ Liệu",
@@ -2963,6 +2965,8 @@
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
+    "empty_action": "[to be translated]:Create Knowledge Base",
+    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
     "error": {
       "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",
       "failed_base_unknown": "Cơ sở kiến thức này đã thất bại trong quá trình di chuyển. Hãy xây dựng lại và chọn một mô hình embedding mới.",
@@ -3393,7 +3397,7 @@
       },
       "knowledge": {
         "add": "Thêm cơ sở kiến thức",
-        "create_first": "[to be translated]:Open Knowledge to create one",
+        "create_first": "Kiến thức mở để tạo ra một",
         "desc": "Liên kết một hoặc nhiều cơ sở kiến thức; các đoạn trích liên quan sẽ được truy xuất trong quá trình trò chuyện",
         "doc_count": "{{count}} tài liệu",
         "empty_desc": "Sau khi được liên kết, trợ lý có thể trả lời dựa trên nội dung tài liệu",
@@ -3407,7 +3411,7 @@
         "title": "Cơ sở kiến thức"
       },
       "prompt": {
-        "copy_variable": "[to be translated]:Copy {{variable}}",
+        "copy_variable": "Sao chép {{variable}}",
         "create_title": "Lời Nhắc Mới",
         "dblclick_hint": "Nhấp đúp vào bản xem trước để quay lại chế độ chỉnh sửa",
         "desc": "Lời nhắc hệ thống được gửi như bối cảnh mở đầu của trợ lý",
@@ -3722,7 +3726,7 @@
     },
     "empty_url": "Không tải được hình ảnh, có thể do lời nhắc chứa nội dung nhạy cảm hoặc từ ngữ bị cấm",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Hình ảnh quá lớn (tối đa {{limit}})",
       "chunk_overlap_too_large": "Phần chồng chéo của khối không thể lớn hơn kích thước khối",
       "copy": "Sao chép thất bại",
       "dimension_too_large": "Kích thước nội dung quá lớn",
@@ -3744,7 +3748,7 @@
         "text_extraction_failed": "Không thể trích xuất văn bản từ {{name}}"
       },
       "get_embedding_dimensions": "Không thể lấy kích thước embedding",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Không thể xử lý hình ảnh, vui lòng thử lại",
       "invalid": {
         "api": {
           "host": "Máy chủ API không hợp lệ",
@@ -3909,8 +3913,8 @@
       "abort_failed": "Appel d'outil interrompu",
       "aborted": "Cuộc gọi công cụ đã bị hủy",
       "activity": {
-        "analyze": "[to be translated]:Analyze",
-        "analyzing": "[to be translated]:Analyzing",
+        "analyze": "Phân tích",
+        "analyzing": "Phân tích",
         "archive": "lưu trữ",
         "assistantTask": "nhiệm vụ",
         "availableFeatures": "tính năng có sẵn",
@@ -3918,7 +3922,7 @@
         "branch": "nhánh mã",
         "build": "Xây dựng",
         "building": "Xây dựng",
-        "calendar": "[to be translated]:calendar",
+        "calendar": "lịch",
         "check": "Kiểm tra",
         "checking": "Kiểm tra",
         "codeFiles": "tệp mã",
@@ -3929,17 +3933,17 @@
         "create": "Tạo",
         "creating": "Tạo",
         "currentFolder": "thư mục hiện tại",
-        "data": "[to be translated]:data",
+        "data": "dữ liệu",
         "delete": "Xóa",
         "deleting": "Đang xóa",
         "documentFiles": "tệp tài liệu",
         "download": "Tải xuống",
         "downloading": "Đang tải xuống",
-        "email": "[to be translated]:email",
-        "environmentInfo": "[to be translated]:environment information",
+        "email": "email",
+        "environmentInfo": "thông tin môi trường",
         "executeCommand": "Chạy lệnh",
         "executingCommand": "Chạy lệnh",
-        "extensionFailed": "[to be translated]:Extension failed",
+        "extensionFailed": "Tiện ích mở rộng không thành công",
         "extract": "Trích xuất",
         "extracting": "Trích xuất",
         "file": "tệp",
@@ -3968,10 +3972,10 @@
         "repository": "kho lưu trữ mã nguồn",
         "search": "Tìm",
         "searching": "Tìm kiếm",
-        "send": "[to be translated]:Send",
-        "sending": "[to be translated]:Sending",
-        "start": "[to be translated]:Start",
-        "starting": "[to be translated]:Starting",
+        "send": "Gửi",
+        "sending": "Đang gửi",
+        "start": "Bắt đầu",
+        "starting": "Bắt đầu",
         "switch": "Chuyển",
         "switching": "Chuyển đổi",
         "sync": "Đồng bộ",
@@ -3981,8 +3985,8 @@
         "translationFiles": "tệp dịch",
         "upload": "Tải lên",
         "uploading": "Tải lên",
-        "usedExtension": "[to be translated]:Used an extension",
-        "usingExtension": "[to be translated]:Using an extension",
+        "usedExtension": "Đã sử dụng một tiện ích mở rộng",
+        "usingExtension": "Sử dụng tiện ích mở rộng",
         "view": "Xem",
         "viewing": "Xem",
         "webPage": "trang web",
@@ -4246,7 +4250,7 @@
   },
   "models": {
     "action": {
-      "configure_custom": "[to be translated]:Configure custom models",
+      "configure_custom": "Cấu hình các mô hình tùy chỉnh",
       "pin": "Ghim mô hình này",
       "unpin": "Gỡ ghim mô hình"
     },
@@ -7151,7 +7155,7 @@
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm tất cả mô hình"
         },
-        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
+        "add_success_enable_failed": "Đã thêm các mô hình, nhưng không thể bật nhà cung cấp.",
         "add_whole_group": "Thêm toàn bộ nhóm",
         "clean_stale_models": "Dọn dẹp mô hình không hợp lệ",
         "clean_stale_success": "Đã dọn dẹp {{count}} mô hình không hợp lệ",
@@ -7608,7 +7612,7 @@
         "fill_after_create": "Các trường xác thực có thể được điền sau khi tạo",
         "menu_label": "Thêm phiên bản"
       },
-      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
+      "enable_failed_after_connection": "Kết nối thành công, nhưng nhà cung cấp không thể được kích hoạt.",
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
         "all": "Tất cả nhà cung cấp",

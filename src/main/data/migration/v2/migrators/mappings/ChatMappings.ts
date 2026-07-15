@@ -971,6 +971,11 @@ function mediaTypeFromDataUrl(dataUrl: Base64String): string {
   return match?.[1] ?? 'image/png'
 }
 
+function base64PayloadKey(raw: string): string {
+  const match = BASE64_DATA_URL_RE.exec(raw)
+  return match?.[2] ?? raw
+}
+
 async function promoteBase64ToFileEntry(
   db: DbType,
   filesDataDir: string,
@@ -1054,6 +1059,7 @@ async function promoteBase64ToFileEntry(
  */
 async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDeps): Promise<FileUIPart[]> {
   const parts: FileUIPart[] = []
+  const promotedPayloads = new Set<string>()
 
   // (1) Disk-backed file (canonical for modern v1) — never has inline base64.
   if (block.file) {
@@ -1068,6 +1074,7 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     // (2)+(3) URL-only image (no disk file).
     if (isBase64DataUrl(block.url)) {
       // `block.url` is now narrowed to `Base64String`; no `as` cast.
+      promotedPayloads.add(base64PayloadKey(block.url))
       if (deps?.db) {
         const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, block.url, block.id)
         if (promoted) parts.push(promoted)
@@ -1089,6 +1096,9 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
   if (isBase64Mode && rawImages.length > 0) {
     if (deps?.db) {
       for (const raw of rawImages) {
+        const payloadKey = base64PayloadKey(raw)
+        if (promotedPayloads.has(payloadKey)) continue
+        promotedPayloads.add(payloadKey)
         const dataUrl = toBase64DataUrl(raw, 'image/png')
         const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, dataUrl, block.id)
         if (promoted) parts.push(promoted)

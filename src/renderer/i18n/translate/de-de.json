@@ -33,7 +33,7 @@
     },
     "builtin": {
       "cherry_assistant": {
-        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Integrierter Cherry Studio Berater. Diagnose von Problemen, Anleitung bei Bedienung, Sammlung von FAQs, Einreichung von Fehlern/Feature-Anfragen sowie Suche/Erstellung von Skills"
       }
     },
     "channels": {
@@ -1996,7 +1996,7 @@
         "permissions_hint": "Tool-Muster vorab genehmigen oder ablehnen. Unterstützt Wildcards wie Read(secrets-*/config.json).",
         "role_column": "Rolle",
         "sonnet_model": "Sonett",
-        "subagent_model": "[to be translated]:Subagent"
+        "subagent_model": "Unteragent"
       },
       "codex": {
         "disable_response_storage": "Antwortspeicher deaktivieren",
@@ -2056,9 +2056,9 @@
       "select_placeholder": "Auswählen…"
     },
     "api_gateway": {
-      "description": "[to be translated]:Any CLI, every model",
-      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
-      "title": "[to be translated]:Unified Gateway"
+      "description": "Jede CLI, jedes Modell",
+      "requires_running": "Lassen Sie Cherry Studio nach der Aktivierung weiterlaufen — die externe CLI verbindet sich mit dem von ihr gehosteten Gateway.",
+      "title": "Einheitliches Gateway"
     },
     "apply_failed": "Fehler beim Schreiben der CLI-Konfiguration in die Systemdatei",
     "auto_update_to_latest": "Updates prüfen und neueste Version installieren",
@@ -2139,7 +2139,7 @@
     "model_required": "Bitte Modell auswählen",
     "model_selection": "Modellauswahl",
     "more": "Mehr",
-    "move_provider_to_top": "[to be translated]:Move provider to top",
+    "move_provider_to_top": "Anbieter nach oben verschieben",
     "no_matching_providers": "Keine passenden Anbieter",
     "no_model_for_provider": "Kein Modell für diesen Anbieter verfügbar",
     "no_providers_description": "Aktiviere einen unterstützten Anbieter unter Einstellungen → Modell-Service",
@@ -2886,6 +2886,7 @@
           "title": "Importiere eine einzelne Webseite"
         }
       },
+      "back_to_parent": "[to be translated]:Back",
       "bulk": {
         "cancel": "[to be translated]:Cancel",
         "delete": "Löschen",
@@ -2914,6 +2915,7 @@
         "title": "Laden Sie Ihre erste Datenquelle hoch"
       },
       "empty_description": "Noch keine Datenquellen",
+      "empty_folder": "[to be translated]:This folder is empty",
       "filters": {
         "all": "Alle",
         "directory": "Ordner",
@@ -2947,9 +2949,9 @@
           "type": "Typ",
           "updated_at": "Aktualisiert"
         },
+        "open_row": "[to be translated]:Open {{title}}",
         "select_all": "Alle auswählen",
-        "select_row": "Zeile auswählen",
-        "view_chunks_row": "Abschnitte anzeigen für {{title}}"
+        "select_row": "Zeile auswählen"
       },
       "toolbar": {
         "add": "Datenquelle hinzufügen",
@@ -2963,6 +2965,8 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
+    "empty_action": "[to be translated]:Create Knowledge Base",
+    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
       "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
@@ -3393,7 +3397,7 @@
       },
       "knowledge": {
         "add": "Wissensbasis hinzufügen",
-        "create_first": "[to be translated]:Open Knowledge to create one",
+        "create_first": "Offenes Wissen zur Erstellung eines",
         "desc": "Verknüpfen Sie eine oder mehrere Wissensdatenbanken; relevante Auszüge werden während des Chats abgerufen",
         "doc_count": "{{count}} Dokumente",
         "empty_desc": "Sobald verknüpft, kann der Assistent auf Basis des Dokumenteninhalts antworten",
@@ -3407,7 +3411,7 @@
         "title": "Wissensdatenbanken"
       },
       "prompt": {
-        "copy_variable": "[to be translated]:Copy {{variable}}",
+        "copy_variable": "Kopiere {{variable}}",
         "create_title": "Neue Aufforderung",
         "dblclick_hint": "Doppelklicken Sie auf die Vorschau, um zum Bearbeiten zurückzukehren",
         "desc": "Die Systemaufforderung wird als eröffnender Kontext des Assistenten gesendet.",
@@ -3722,7 +3726,7 @@
     },
     "empty_url": "Bild konnte nicht heruntergeladen werden. Möglicherweise enthält der Prompt sensible Inhalte oder verbotene Wörter",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Das Bild ist zu groß (max. {{limit}})",
       "chunk_overlap_too_large": "Segmentüberlappung darf nicht größer als Segmentgröße sein",
       "copy": "Kopieren fehlgeschlagen",
       "dimension_too_large": "Inhaltsgröße zu groß",
@@ -3744,7 +3748,7 @@
         "text_extraction_failed": "Fehler beim Extrahieren von Text aus {{name}}"
       },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Die Bildverarbeitung ist fehlgeschlagen, bitte versuchen Sie es erneut",
       "invalid": {
         "api": {
           "host": "Ungültige API-Adresse",
@@ -3909,8 +3913,8 @@
       "abort_failed": "Tool-Aufruf abbrechen fehlgeschlagen",
       "aborted": "Tool-Aufruf abgebrochen",
       "activity": {
-        "analyze": "[to be translated]:Analyze",
-        "analyzing": "[to be translated]:Analyzing",
+        "analyze": "Analysieren",
+        "analyzing": "Analysieren",
         "archive": "Archiv",
         "assistantTask": "Aufgabe",
         "availableFeatures": "verfügbare Funktionen",
@@ -3918,7 +3922,7 @@
         "branch": "Code-Zweig",
         "build": "Erstellen",
         "building": "Gebäude",
-        "calendar": "[to be translated]:calendar",
+        "calendar": "Kalender",
         "check": "Prüfen",
         "checking": "Überprüfung",
         "codeFiles": "Code-Dateien",
@@ -3929,17 +3933,17 @@
         "create": "Erstellen",
         "creating": "Erstellen",
         "currentFolder": "aktueller Ordner",
-        "data": "[to be translated]:data",
+        "data": "Daten",
         "delete": "Löschen",
         "deleting": "Löschen",
         "documentFiles": "Dokumentdateien",
         "download": "Herunterladen",
         "downloading": "Herunterladen",
-        "email": "[to be translated]:email",
-        "environmentInfo": "[to be translated]:environment information",
+        "email": "E-Mail",
+        "environmentInfo": "Umgebungsinformationen",
         "executeCommand": "Befehl ausführen",
         "executingCommand": "Befehl ausführen",
-        "extensionFailed": "[to be translated]:Extension failed",
+        "extensionFailed": "Die Erweiterung ist fehlgeschlagen",
         "extract": "Extrahieren",
         "extracting": "Extrahieren",
         "file": "Datei",
@@ -3968,10 +3972,10 @@
         "repository": "Code-Repository",
         "search": "Finde",
         "searching": "Finden",
-        "send": "[to be translated]:Send",
-        "sending": "[to be translated]:Sending",
-        "start": "[to be translated]:Start",
-        "starting": "[to be translated]:Starting",
+        "send": "Senden",
+        "sending": "Senden",
+        "start": "Start",
+        "starting": "Beginn",
         "switch": "Schalter",
         "switching": "Umschalten",
         "sync": "Synchronisieren",
@@ -3981,8 +3985,8 @@
         "translationFiles": "Übersetzungsdateien",
         "upload": "Hochladen",
         "uploading": "Hochladen",
-        "usedExtension": "[to be translated]:Used an extension",
-        "usingExtension": "[to be translated]:Using an extension",
+        "usedExtension": "Hat eine Erweiterung verwendet",
+        "usingExtension": "Mit einer Erweiterung",
         "view": "Ansicht",
         "viewing": "Anzeigen",
         "webPage": "Webseite",
@@ -4246,7 +4250,7 @@
   },
   "models": {
     "action": {
-      "configure_custom": "[to be translated]:Configure custom models",
+      "configure_custom": "Benutzerdefinierte Modelle konfigurieren",
       "pin": "Dieses Modell anheften",
       "unpin": "Modell lösen"
     },
@@ -7151,7 +7155,7 @@
           "confirm": "Alle Modelle zur Liste hinzufügen?",
           "label": "Alle Modelle hinzufügen"
         },
-        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
+        "add_success_enable_failed": "Modelle wurden hinzugefügt, aber der Anbieter konnte nicht aktiviert werden.",
         "add_whole_group": "Gesamte Gruppe hinzufügen",
         "clean_stale_models": "Ungültige Modelle bereinigen",
         "clean_stale_success": "{{count}} ungültige(s) Modell(e) bereinigt",
@@ -7608,7 +7612,7 @@
         "fill_after_create": "Authentifizierungsfelder können nach der Erstellung ausgefüllt werden",
         "menu_label": "Instanz hinzufügen"
       },
-      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
+      "enable_failed_after_connection": "Verbindung erfolgreich, aber der Anbieter konnte nicht aktiviert werden.",
       "filter": {
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",

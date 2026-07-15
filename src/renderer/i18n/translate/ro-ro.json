@@ -33,7 +33,7 @@
     },
     "builtin": {
       "cherry_assistant": {
-        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Consilier integrat Cherry Studio. Diagnostică probleme, ghidează operațiuni, colectează întrebări frecvente, trimite rapoarte de erori/cereri de funcționalități și caută/crează Abilități (Skills)"
       }
     },
     "channels": {
@@ -1996,7 +1996,7 @@
         "permissions_hint": "Pre-aprobați sau refuzați modelele de instrumente. Suportă wildcard-uri precum Read(secrets-*/config.json).",
         "role_column": "Rol",
         "sonnet_model": "Sonet",
-        "subagent_model": "[to be translated]:Subagent"
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "Dezactivare stocare răspunsuri",
@@ -2056,9 +2056,9 @@
       "select_placeholder": "Selectare…"
     },
     "api_gateway": {
-      "description": "[to be translated]:Any CLI, every model",
-      "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
-      "title": "[to be translated]:Unified Gateway"
+      "description": "Orice CLI, fiecare model",
+      "requires_running": "Păstrează Cherry Studio rulând după activare — CLI-ul extern se conectează la gateway-ul pe care îl găzduiește.",
+      "title": "Gateway Unificat"
     },
     "apply_failed": "Nu s-a reușit scrierea configurației CLI în fișierul de sistem",
     "auto_update_to_latest": "Actualizează automat la cea mai recentă versiune",
@@ -2139,7 +2139,7 @@
     "model_required": "Te rugăm să selectezi un model",
     "model_selection": "Selecția modelului",
     "more": "Mai mult",
-    "move_provider_to_top": "[to be translated]:Move provider to top",
+    "move_provider_to_top": "Mută furnizorul în partea de sus",
     "no_matching_providers": "Niciun furnizor corespunzător",
     "no_model_for_provider": "Niciun model disponibil pentru acest furnizor",
     "no_providers_description": "Activați un furnizor acceptat în Setări → Serviciu Model",
@@ -2886,6 +2886,7 @@
           "title": "Importă o singură pagină web"
         }
       },
+      "back_to_parent": "[to be translated]:Back",
       "bulk": {
         "cancel": "[to be translated]:Cancel",
         "delete": "Șterge",
@@ -2914,6 +2915,7 @@
         "title": "Încarcă Prima Ta Sursă de Date"
       },
       "empty_description": "Nici o sursă de date încă",
+      "empty_folder": "[to be translated]:This folder is empty",
       "filters": {
         "all": "Toate",
         "directory": "Foldere",
@@ -2947,9 +2949,9 @@
           "type": "Tip",
           "updated_at": "Actualizat"
         },
+        "open_row": "[to be translated]:Open {{title}}",
         "select_all": "Selectează tot",
-        "select_row": "Selectați rândul",
-        "view_chunks_row": "Vezi fragmente pentru {{title}}"
+        "select_row": "Selectați rândul"
       },
       "toolbar": {
         "add": "Adaugă sursă de date",
@@ -2963,6 +2965,8 @@
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
+    "empty_action": "[to be translated]:Create Knowledge Base",
+    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
     "error": {
       "directory_not_migrated": "Migrarea folderului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
       "failed_base_unknown": "Această bază de cunoștințe a eșuat în timpul migrării. Reconstruiește-o și alege un nou model de încorporare.",
@@ -3393,7 +3397,7 @@
       },
       "knowledge": {
         "add": "Adaugă bază de cunoștințe",
-        "create_first": "[to be translated]:Open Knowledge to create one",
+        "create_first": "Cunoaștere Deschisă pentru a crea unul",
         "desc": "Conectează una sau mai multe baze de cunoștințe; fragmentele relevante vor fi recuperate în timpul conversației",
         "doc_count": "{{count}} documente",
         "empty_desc": "Odată conectat, asistentul poate răspunde pe baza conținutului documentului",
@@ -3407,7 +3411,7 @@
         "title": "Baze de cunoștințe"
       },
       "prompt": {
-        "copy_variable": "[to be translated]:Copy {{variable}}",
+        "copy_variable": "Copiază {{variable}}",
         "create_title": "Prompt Nou",
         "dblclick_hint": "Faceți dublu clic pe previzualizare pentru a reveni la editare",
         "desc": "Promptul sistemului este trimis ca context de deschidere al asistentului",
@@ -3722,7 +3726,7 @@
     },
     "empty_url": "Nu s-a putut descărca imaginea, posibil din cauza promptului care conține conținut sensibil sau cuvinte interzise",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Imaginea este prea mare (maxim {{limit}})",
       "chunk_overlap_too_large": "Suprapunerea fragmentelor nu poate fi mai mare decât dimensiunea fragmentului",
       "copy": "Copiere eșuată",
       "dimension_too_large": "Dimensiunea conținutului este prea mare",
@@ -3744,7 +3748,7 @@
         "text_extraction_failed": "Nu s-a reușit extragerea textului din {{name}}"
       },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Nu s-a putut procesa imaginea, vă rugăm să încercați din nou",
       "invalid": {
         "api": {
           "host": "Gazdă (Host) API invalidă",
@@ -3909,8 +3913,8 @@
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
       "activity": {
-        "analyze": "[to be translated]:Analyze",
-        "analyzing": "[to be translated]:Analyzing",
+        "analyze": "Analizați",
+        "analyzing": "Analizând",
         "archive": "arhivă",
         "assistantTask": "sarcină",
         "availableFeatures": "funcționalități disponibile",
@@ -3918,7 +3922,7 @@
         "branch": "ramură de cod",
         "build": "Construiește",
         "building": "Clădire",
-        "calendar": "[to be translated]:calendar",
+        "calendar": "calendar",
         "check": "Verifică",
         "checking": "Verificare",
         "codeFiles": "fișiere de cod",
@@ -3929,17 +3933,17 @@
         "create": "Creează",
         "creating": "Creare",
         "currentFolder": "folderul curent",
-        "data": "[to be translated]:data",
+        "data": "date",
         "delete": "Șterge",
         "deleting": "Ștergere",
         "documentFiles": "fișiere document",
         "download": "Descarcă",
         "downloading": "Descărcare",
-        "email": "[to be translated]:email",
-        "environmentInfo": "[to be translated]:environment information",
+        "email": "email",
+        "environmentInfo": "informații despre mediu",
         "executeCommand": "Rulează comanda",
         "executingCommand": "Executarea comenzii",
-        "extensionFailed": "[to be translated]:Extension failed",
+        "extensionFailed": "Extensia a eșuat",
         "extract": "Extrage",
         "extracting": "Extragere",
         "file": "fișier",
@@ -3968,10 +3972,10 @@
         "repository": "depozit de cod",
         "search": "Găsește",
         "searching": "Găsire",
-        "send": "[to be translated]:Send",
-        "sending": "[to be translated]:Sending",
-        "start": "[to be translated]:Start",
-        "starting": "[to be translated]:Starting",
+        "send": "Trimite",
+        "sending": "Trimitere",
+        "start": "Start",
+        "starting": "Începând",
         "switch": "Comutator",
         "switching": "Comutare",
         "sync": "Sincronizare",
@@ -3981,8 +3985,8 @@
         "translationFiles": "fișiere de traducere",
         "upload": "Încărcare",
         "uploading": "Încărcare",
-        "usedExtension": "[to be translated]:Used an extension",
-        "usingExtension": "[to be translated]:Using an extension",
+        "usedExtension": "A folosit o extensie",
+        "usingExtension": "Folosind o extensie",
         "view": "Vizualizare",
         "viewing": "Vizualizare",
         "webPage": "pagină web",
@@ -4246,7 +4250,7 @@
   },
   "models": {
     "action": {
-      "configure_custom": "[to be translated]:Configure custom models",
+      "configure_custom": "Configurați modele personalizate",
       "pin": "Fixează acest model",
       "unpin": "Dezactivează modelul"
     },
@@ -7151,7 +7155,7 @@
           "confirm": "Ești sigur că vrei să adaugi toate modelele la listă?",
           "label": "Adaugă toate modelele"
         },
-        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
+        "add_success_enable_failed": "Modelele au fost adăugate, dar furnizorul nu a putut fi activat.",
         "add_whole_group": "Adaugă întregul grup",
         "clean_stale_models": "Curăță modelele expirate",
         "clean_stale_success": "Au fost curățate {{count}} modele expirate",
@@ -7608,7 +7612,7 @@
         "fill_after_create": "Câmpurile de autentificare pot fi completate după creare",
         "menu_label": "Adaugă instanță"
       },
-      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
+      "enable_failed_after_connection": "Conexiunea a reușit, dar furnizorul nu a putut fi activat.",
       "filter": {
         "agent": "Asistat de agent",
         "all": "Toți furnizorii",
