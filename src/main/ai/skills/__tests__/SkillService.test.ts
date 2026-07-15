@@ -346,8 +346,7 @@ describe('SkillService', () => {
     })
 
     it('discovers direct children of known system roots without calculating directory size', async () => {
-      await seedAgent()
-      const result = await skillService.discoverSystem(AGENT_ID)
+      const result = await skillService.discoverSystem()
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -366,17 +365,15 @@ describe('SkillService', () => {
       )
     })
 
-    it('copies and enables a system skill in the managed library', async () => {
-      await seedAgent()
-
-      const result = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })
+    it('imports a system skill into the managed library without changing agent associations', async () => {
+      const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
 
       expect(result).toMatchObject({
         name: 'Large Skill',
         source: 'system',
         sourceUrl: expect.stringMatching(/^file:/),
         namespace: 'codex',
-        isEnabled: true
+        isEnabled: false
       })
       await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'large-skill', 'SKILL.md'), 'utf-8')).resolves.toBe(
         '# Large skill'
@@ -386,27 +383,23 @@ describe('SkillService', () => {
         await fs.promises.realpath(path.join(dataSkillsRoot, 'large-skill'))
       )
       expect(skillService.getInstalledSkillDirectory(result)).toBe(path.join(dataSkillsRoot, 'large-skill'))
-      const joins = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
-      expect(joins).toEqual([expect.objectContaining({ skillId: result.id, isEnabled: true })])
-    })
-
-    it('registers a system skill globally before a new agent is created', async () => {
-      const result = await skillService.registerSystem({ directoryPath: sourceSkillDir })
-
-      expect(result).toMatchObject({
-        name: 'Large Skill',
-        source: 'system',
-        isEnabled: false
-      })
-      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
-        await fs.promises.realpath(path.join(dataSkillsRoot, 'large-skill'))
-      )
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
     })
 
+    it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
+      const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
+      const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
+      await fs.promises.writeFile(managedSkillFile, '# Managed edit')
+
+      await expect(skillService.importSystem({ directoryPath: sourceSkillDir })).rejects.toThrow(
+        'System skill is already imported: large-skill'
+      )
+      await expect(fs.promises.readFile(managedSkillFile, 'utf-8')).resolves.toBe('# Managed edit')
+      await expect(skillService.getById(imported.id)).resolves.toMatchObject({ id: imported.id })
+    })
+
     it('uninstalls the managed copy without deleting the system source directory', async () => {
-      await seedAgent()
-      const registered = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })
+      const registered = await skillService.importSystem({ directoryPath: sourceSkillDir })
       const uninstallSpy = vi.spyOn(skillService['installer'], 'uninstall')
 
       await skillService.uninstall(registered.id)

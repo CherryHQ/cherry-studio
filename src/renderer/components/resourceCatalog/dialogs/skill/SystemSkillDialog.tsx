@@ -2,22 +2,26 @@ import { Button, Center, Dialog, DialogContent, DialogHeader, DialogTitle, Empty
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
-import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
+import type { SystemSkillCandidate } from '@shared/types/skill'
 import { Check, Download, FolderSearch, Loader2, TriangleAlert } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type Props = {
-  agentId?: string
+type BaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onRegistered?: (skill: InstalledSkill) => void
 }
 
-export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }: Props) {
+type Props = BaseProps &
+  (
+    | { mode: 'manage'; onEnabled?: never; selectedSkillIds?: never }
+    | { mode: 'agent-create'; onEnabled: (skillId: string) => void; selectedSkillIds: readonly string[] }
+  )
+
+export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selectedSkillIds }: Props) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
-  const { skills, loading, error, register, registering } = useSystemSkills(agentId, open)
+  const { skills, loading, error, importSkill, importing } = useSystemSkills(open)
   const visibleSkills = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return skills
@@ -27,14 +31,21 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
     )
   }, [query, skills])
 
-  const handleRegister = useCallback(
+  const handleImport = useCallback(
     async (skill: SystemSkillCandidate) => {
-      const installed = await register(skill)
-      if (!installed) return
-      toast.success(t('library.system_skill.import_success', { name: installed.name }))
-      onRegistered?.(installed)
+      const installed = await importSkill(skill)
+      if (installed) toast.success(t('library.system_skill.import_success', { name: skill.name }))
     },
-    [onRegistered, register, t]
+    [importSkill, t]
+  )
+
+  const handleEnable = useCallback(
+    (skill: SystemSkillCandidate) => {
+      if (mode !== 'agent-create' || !skill.registeredSkillId) return
+      onEnabled(skill.registeredSkillId)
+      toast.success(t('library.system_skill.enable_success', { name: skill.name }))
+    },
+    [mode, onEnabled, t]
   )
 
   return (
@@ -79,8 +90,11 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
                 <SystemSkillRow
                   key={skill.id}
                   skill={skill}
-                  registering={registering.has(skill.id)}
-                  onRegister={() => void handleRegister(skill)}
+                  mode={mode}
+                  importing={importing.has(skill.id)}
+                  selected={Boolean(skill.registeredSkillId && selectedSkillIds?.includes(skill.registeredSkillId))}
+                  onImport={() => void handleImport(skill)}
+                  onEnable={() => handleEnable(skill)}
                 />
               ))}
             </div>
@@ -93,22 +107,35 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
 
 function SystemSkillRow({
   skill,
-  registering,
-  onRegister
+  mode,
+  importing,
+  selected,
+  onImport,
+  onEnable
 }: {
   skill: SystemSkillCandidate
-  registering: boolean
-  onRegister: () => void
+  mode: 'manage' | 'agent-create'
+  importing: boolean
+  selected: boolean
+  onImport: () => void
+  onEnable: () => void
 }) {
   const { t } = useTranslation()
   const placementNames = Array.from(new Set(skill.placements.map((placement) => placement.sourceName))).join(', ')
-  const imported = skill.status === 'enabled'
-  const disabled = registering || imported || skill.status === 'conflict'
-  const buttonLabel = imported
-    ? t('library.system_skill.imported')
-    : skill.status === 'conflict'
+  const imported = skill.status === 'registered'
+  const enabled = mode === 'agent-create' && selected
+  const disabled = importing || skill.status === 'conflict' || (mode === 'manage' ? imported : enabled)
+  const buttonLabel =
+    skill.status === 'conflict'
       ? t('library.system_skill.conflict')
-      : t('library.system_skill.import')
+      : skill.status === 'available'
+        ? t('library.system_skill.import')
+        : mode === 'manage'
+          ? t('library.system_skill.imported')
+          : enabled
+            ? t('library.system_skill.enabled')
+            : t('library.action.enable')
+  const onClick = skill.status === 'available' ? onImport : onEnable
 
   return (
     <div
@@ -127,10 +154,10 @@ function SystemSkillRow({
         ) : null}
         <p className="mt-1 truncate font-mono text-[11px] text-foreground-muted">{skill.directoryPath}</p>
       </div>
-      <Button variant="outline" size="sm" disabled={disabled} onClick={onRegister} className="shrink-0">
-        {registering ? (
+      <Button variant="outline" size="sm" disabled={disabled} onClick={onClick} className="shrink-0">
+        {importing ? (
           <Loader2 className="size-3 animate-spin" />
-        ) : imported ? (
+        ) : imported || enabled ? (
           <Check className="size-3" />
         ) : (
           <Download className="size-3" />

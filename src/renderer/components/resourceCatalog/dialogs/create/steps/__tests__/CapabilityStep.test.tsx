@@ -37,7 +37,9 @@ const {
     current: null as null | {
       open: boolean
       onOpenChange: (open: boolean) => void
-      onRegistered?: (skill: InstalledSkill) => void
+      mode: 'manage' | 'agent-create'
+      onEnabled?: (skillId: string) => void
+      selectedSkillIds?: readonly string[]
     }
   },
   uninstallSkillMock: vi.fn()
@@ -73,7 +75,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill/SystemSkillDialog', 
   SystemSkillDialog: (props: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    onRegistered?: (skill: InstalledSkill) => void
+    mode: 'manage' | 'agent-create'
+    onEnabled?: (skillId: string) => void
+    selectedSkillIds?: readonly string[]
   }) => {
     systemSkillDialogState.current = props
     return props.open ? <div>System skill dialog</div> : null
@@ -187,16 +191,18 @@ describe('CapabilityStep', () => {
     expect(marketplaceDialogState.current?.open).toBe(true)
   })
 
-  it('registers a system skill globally and selects it for the new agent', async () => {
+  it('enables an imported system skill for the new agent selection', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
     await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
     await user.click(screen.getByRole('button', { name: 'library.skill_add.system_search' }))
     expect(systemSkillDialogState.current?.open).toBe(true)
+    expect(systemSkillDialogState.current?.mode).toBe('agent-create')
 
-    act(() => systemSkillDialogState.current?.onRegistered?.({ id: 'system-skill-id' } as InstalledSkill))
+    act(() => systemSkillDialogState.current?.onEnabled?.('system-skill-id'))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('system-skill-id')
+    expect(systemSkillDialogState.current?.selectedSkillIds).toEqual(['system-skill-id'])
   })
 
   it('uninstalls a system skill from the skill list', async () => {
@@ -207,7 +213,7 @@ describe('CapabilityStep', () => {
     ]
     render(<CapabilityStepHarness />)
 
-    act(() => systemSkillDialogState.current?.onRegistered?.({ id: 'system-skill-id' } as InstalledSkill))
+    act(() => systemSkillDialogState.current?.onEnabled?.('system-skill-id'))
     expect(screen.getByRole('checkbox', { name: 'System Skill' })).toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'library.action.uninstall' }))

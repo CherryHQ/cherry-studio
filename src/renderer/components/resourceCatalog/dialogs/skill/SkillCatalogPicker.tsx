@@ -181,9 +181,11 @@ export function SkillCatalogPicker({
       <SkillMarketplaceDialog open={marketplaceOpen} onOpenChange={setMarketplaceOpen} />
       <ImportSkillDialog open={importOpen} onOpenChange={setImportOpen} />
       <SystemSkillDialog
+        mode="agent-create"
         open={systemSkillOpen}
         onOpenChange={setSystemSkillOpen}
-        onRegistered={(skill) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skill.id])))}
+        selectedSkillIds={selectedIds}
+        onEnabled={(skillId) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skillId])))}
       />
       <ConfirmDialog
         open={Boolean(removeTarget)}

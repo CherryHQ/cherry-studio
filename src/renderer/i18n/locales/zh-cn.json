@@ -3508,9 +3508,11 @@
     "subtitle": "管理你的助手、智能体与技能",
     "system_skill": {
       "conflict": "名称冲突",
-      "description": "从这台设备上安装的其他编程工具中导入 Skill。",
+      "description": "导入系统中已经安装的 skill",
       "empty_description": "未在这台设备的其他编程工具中找到可导入的 Skill。",
       "empty_title": "没有可导入的 Skill",
+      "enable_success": "已启用 {{name}}",
+      "enabled": "已启用",
       "import": "导入",
       "import_success": "已导入 {{name}}",
       "imported": "已导入",

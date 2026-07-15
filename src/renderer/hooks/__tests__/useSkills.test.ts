@@ -9,7 +9,7 @@ const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
 const discoverSystemSkillsMock = vi.hoisted(() => vi.fn())
-const registerSystemSkillMock = vi.hoisted(() => vi.fn())
+const importSystemSkillMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -34,8 +34,8 @@ function stubSkillRoutes() {
         return installSkillFromDirectoryMock(input)
       case 'skill.discover_system':
         return discoverSystemSkillsMock(input)
-      case 'skill.register_system':
-        return registerSystemSkillMock(input)
+      case 'skill.import_system':
+        return importSystemSkillMock(input)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -334,7 +334,7 @@ describe('useSystemSkills', () => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)
     discoverSystemSkillsMock.mockResolvedValue([candidate])
-    registerSystemSkillMock.mockResolvedValue(
+    importSystemSkillMock.mockResolvedValue(
       createSkill({
         id: 'system-skill-id',
         name: candidate.name,
@@ -348,43 +348,41 @@ describe('useSystemSkills', () => {
     stubSkillRoutes()
   })
 
-  it('discovers system skills for the required agent', async () => {
-    const { result } = renderHook(() => useSystemSkills('agent-1'))
+  it('discovers system skills without an agent scope', async () => {
+    const { result } = renderHook(() => useSystemSkills())
 
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.skills).toEqual([candidate])
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', { agentId: 'agent-1' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', {})
   })
 
-  it('imports a system skill for the same agent', async () => {
-    const { result } = renderHook(() => useSystemSkills('agent-1'))
-    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
-
-    await act(async () => {
-      const installed = await result.current.register(candidate)
-      expect(installed).toMatchObject({ source: 'system', isEnabled: true })
-    })
-
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.register_system', {
-      directoryPath: candidate.directoryPath,
-      agentId: 'agent-1'
-    })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
-  })
-
-  it('registers globally when selecting a system skill for a new agent', async () => {
+  it('imports a system skill without enabling it for an agent', async () => {
     const { result } = renderHook(() => useSystemSkills())
     await waitFor(() => expect(result.current.skills).toEqual([candidate]))
 
     await act(async () => {
-      await result.current.register(candidate)
+      const installed = await result.current.importSkill(candidate)
+      expect(installed?.id).toBe('system-skill-id')
     })
 
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', {})
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.register_system', {
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.import_system', {
       directoryPath: candidate.directoryPath
     })
+    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+  })
+
+  it('does not re-import an already imported system skill', async () => {
+    const registered = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
+    discoverSystemSkillsMock.mockResolvedValue([registered])
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([registered]))
+
+    await act(async () => {
+      await expect(result.current.importSkill(registered)).resolves.toBeNull()
+    })
+
+    expect(importSystemSkillMock).not.toHaveBeenCalled()
   })
 })
 

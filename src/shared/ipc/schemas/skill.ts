@@ -35,11 +35,11 @@ export const skillRequestSchemas = {
     output: z.custom<SkillResult<LocalSkill[]>>()
   }),
   'skill.discover_system': defineRoute({
-    input: z.object({ agentId: z.string().min(1).optional() }),
+    input: z.object({}),
     output: z.custom<SystemSkillCandidate[]>()
   }),
-  'skill.register_system': defineRoute({
-    input: z.object({ directoryPath: z.string().min(1), agentId: z.string().min(1).optional() }),
+  'skill.import_system': defineRoute({
+    input: z.object({ directoryPath: z.string().min(1) }),
     output: z.custom<InstalledSkill>()
   })
 }

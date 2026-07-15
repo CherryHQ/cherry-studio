@@ -7,7 +7,7 @@ const {
   installFromDirectoryMock,
   listLocalMock,
   discoverSystemMock,
-  registerSystemMock
+  importSystemMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
@@ -15,7 +15,7 @@ const {
   installFromDirectoryMock: vi.fn(),
   listLocalMock: vi.fn(),
   discoverSystemMock: vi.fn(),
-  registerSystemMock: vi.fn()
+  importSystemMock: vi.fn()
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -26,7 +26,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     installFromDirectory: installFromDirectoryMock,
     listLocal: listLocalMock,
     discoverSystem: discoverSystemMock,
-    registerSystem: registerSystemMock
+    importSystem: importSystemMock
   }
 }))
 
@@ -83,28 +83,26 @@ describe('skillHandlers', () => {
   it('discover_system returns native IpcApi data without a nested SkillResult envelope', async () => {
     discoverSystemMock.mockResolvedValue([{ id: 'candidate-1' }])
 
-    await expect(skillHandlers['skill.discover_system']({ agentId: 'agent-1' }, ctx)).resolves.toEqual([
-      { id: 'candidate-1' }
-    ])
-    expect(discoverSystemMock).toHaveBeenCalledWith('agent-1')
+    await expect(skillHandlers['skill.discover_system']({}, ctx)).resolves.toEqual([{ id: 'candidate-1' }])
+    expect(discoverSystemMock).toHaveBeenCalledWith()
   })
 
-  it('system skill routes support registration before an agent exists', async () => {
+  it('system skill routes keep discovery and import separate from agent association', async () => {
     discoverSystemMock.mockResolvedValue([])
-    registerSystemMock.mockResolvedValue({ id: 'system-skill' })
+    importSystemMock.mockResolvedValue({ id: 'system-skill' })
 
     await skillHandlers['skill.discover_system']({}, ctx)
-    await skillHandlers['skill.register_system']({ directoryPath: '/skill' }, ctx)
+    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
 
-    expect(discoverSystemMock).toHaveBeenCalledWith(undefined)
-    expect(registerSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
+    expect(discoverSystemMock).toHaveBeenCalledWith()
+    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
   })
 
-  it('register_system lets errors propagate to IpcApi', async () => {
-    registerSystemMock.mockRejectedValue(new Error('registration failed'))
+  it('import_system lets errors propagate to IpcApi', async () => {
+    importSystemMock.mockRejectedValue(new Error('import failed'))
 
-    await expect(
-      skillHandlers['skill.register_system']({ directoryPath: '/skill', agentId: 'agent-1' }, ctx)
-    ).rejects.toThrow('registration failed')
+    await expect(skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)).rejects.toThrow(
+      'import failed'
+    )
   })
 })

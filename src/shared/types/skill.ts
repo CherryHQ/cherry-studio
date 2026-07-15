@@ -177,9 +177,8 @@ export interface SkillInstallFromDirectoryOptions {
   directoryPath: string
 }
 
-export interface SkillRegisterSystemOptions {
+export interface SkillImportSystemOptions {
   directoryPath: string
-  agentId?: string
 }
 
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
@@ -211,7 +210,7 @@ export interface SystemSkillPlacement {
   directoryPath: string
 }
 
-export type SystemSkillStatus = 'available' | 'registered' | 'enabled' | 'conflict'
+export type SystemSkillStatus = 'available' | 'registered' | 'conflict'
 
 /** A skill found in a known system-level CLI skill directory. */
 export interface SystemSkillCandidate {

@@ -170,13 +170,13 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
   }
 }
 
-/** Discover and install skills from known system-level CLI directories. */
-export function useSystemSkills(agentId?: string, enabled = true) {
+/** Discover and import skills from known system-level CLI directories. */
+export function useSystemSkills(enabled = true) {
   const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [registering, setRegistering] = useState<Set<string>>(() => new Set())
-  const registeringRef = useRef<Set<string>>(new Set())
+  const [importing, setImporting] = useState<Set<string>>(() => new Set())
+  const importingRef = useRef<Set<string>>(new Set())
   const invalidate = useInvalidateCache()
   const requestIdRef = useRef(0)
 
@@ -192,7 +192,7 @@ export function useSystemSkills(agentId?: string, enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const discovered = await ipcApi.request('skill.discover_system', agentId ? { agentId } : {})
+      const discovered = await ipcApi.request('skill.discover_system', {})
       if (requestId === requestIdRef.current) setSkills(discovered)
     } catch (cause) {
       if (requestId !== requestIdRef.current) return
@@ -203,7 +203,7 @@ export function useSystemSkills(agentId?: string, enabled = true) {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }
-  }, [agentId, enabled])
+  }, [enabled])
 
   useEffect(() => {
     void discover()
@@ -212,34 +212,34 @@ export function useSystemSkills(agentId?: string, enabled = true) {
     }
   }, [discover])
 
-  const register = useCallback(
+  const importSkill = useCallback(
     async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
-      if (registeringRef.current.has(skill.id)) return null
-      registeringRef.current.add(skill.id)
-      setRegistering((current) => new Set(current).add(skill.id))
+      if (skill.status !== 'available') return null
+      if (importingRef.current.has(skill.id)) return null
+      importingRef.current.add(skill.id)
+      setImporting((current) => new Set(current).add(skill.id))
       try {
-        const installed = await ipcApi.request(
-          'skill.register_system',
-          agentId ? { directoryPath: skill.directoryPath, agentId } : { directoryPath: skill.directoryPath }
-        )
-        await Promise.all([refreshSkillsBestEffort(invalidate), discover()])
+        const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
+        await refreshSkillsBestEffort(invalidate)
+        await discover()
         return installed
       } catch (cause) {
-        reportSkillMutationError('register system skill', cause)
+        await discover()
+        reportSkillMutationError('import system skill', cause)
         return null
       } finally {
-        registeringRef.current.delete(skill.id)
-        setRegistering((current) => {
+        importingRef.current.delete(skill.id)
+        setImporting((current) => {
           const next = new Set(current)
           next.delete(skill.id)
           return next
         })
       }
     },
-    [agentId, discover, invalidate]
+    [discover, invalidate]
   )
 
-  return { skills, loading, error, register, registering }
+  return { skills, loading, error, importSkill, importing }
 }
 
 /**

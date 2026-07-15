@@ -57,7 +57,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
   ImportSkillDialog: () => null,
   SkillMarketplaceDialog: () => null,
-  SystemSkillDialog: (props: { agentId: string }) => {
+  SystemSkillDialog: (props: { mode: 'manage' | 'agent-create' }) => {
     systemSkillDialogMock(props)
     return null
   }
@@ -173,10 +173,10 @@ describe('ResourceCatalogView', () => {
     expect(refetchMock).toHaveBeenCalledOnce()
   })
 
-  it('threads the current agent into system skill management', () => {
+  it('opens system skill management without agent enablement semantics', () => {
     render(<ResourceCatalogView resourceType="skill" skillAgentId="agent-1" />)
 
     expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ onOpenSystemSkills: expect.any(Function) }))
-    expect(systemSkillDialogMock).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-1' }))
+    expect(systemSkillDialogMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'manage' }))
   })
 })

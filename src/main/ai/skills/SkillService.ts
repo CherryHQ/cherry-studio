@@ -16,10 +16,10 @@ import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import type {
   SkillFileNode,
+  SkillImportSystemOptions,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
-  SkillRegisterSystemOptions,
   SkillToggleOptions,
   SystemSkillCandidate,
   SystemSkillPlacement
@@ -253,10 +253,10 @@ export class SkillService {
   }
 
   /** Discover skills in known system-level CLI directories without copying them. */
-  async discoverSystem(agentId?: string): Promise<SystemSkillCandidate[]> {
+  async discoverSystem(): Promise<SystemSkillCandidate[]> {
     const env = await getShellEnv()
     const sources = buildSystemSkillSources(application.getPath('sys.home'), env)
-    const installed = agentGlobalSkillService.list(agentId ? { agentId } : {})
+    const installed = agentGlobalSkillService.list()
     const installedByPath = new Map(
       installed.flatMap((skill) => {
         if (skill.source !== 'system' || !skill.sourceUrl?.startsWith('file:')) return []
@@ -318,13 +318,7 @@ export class SkillService {
           const folderName = this.sanitizeFolderName(metadata.filename)
           const registered = installedByPath.get(canonicalPath)
           const folderConflict = installedByFolder.get(folderName)
-          const status = registered
-            ? registered.isEnabled
-              ? 'enabled'
-              : 'registered'
-            : folderConflict
-              ? 'conflict'
-              : 'available'
+          const status = registered ? 'registered' : folderConflict ? 'conflict' : 'available'
 
           candidates.set(canonicalPath, {
             id: createHash('sha256').update(canonicalPath).digest('hex'),
@@ -349,28 +343,29 @@ export class SkillService {
     return Array.from(candidates.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  /** Copy a discovered system skill into the managed library, optionally enabling it for one agent. */
-  async registerSystem(options: SkillRegisterSystemOptions): Promise<InstalledSkill> {
+  /** Import a discovered system skill into the managed library. Agent enablement is a separate data mutation. */
+  async importSystem(options: SkillImportSystemOptions): Promise<InstalledSkill> {
     const canonicalPath = await fs.promises.realpath(options.directoryPath)
-    const candidates = await this.discoverSystem(options.agentId)
+    const candidates = await this.discoverSystem()
     const candidate = candidates.find((item) => item.directoryPath === canonicalPath)
     if (!candidate) {
       throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
+    }
+    if (candidate.registeredSkillId) {
+      throw new Error(`System skill is already imported: ${candidate.filename}`)
     }
     if (candidate.status === 'conflict') {
       throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
     }
 
     const installed = await this.installSkillDir(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
-      namespace: candidate.placements[0]?.sourceId ?? null,
-      agentId: options.agentId
+      namespace: candidate.placements[0]?.sourceId ?? null
     })
 
     logger.info('System skill installed from local CLI', {
       skillId: installed.id,
       folderName: installed.folderName,
-      directoryPath: canonicalPath,
-      agentId: options.agentId
+      directoryPath: canonicalPath
     })
     return installed
   }
@@ -525,7 +520,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    registration: { namespace?: string | null; agentId?: string } = {}
+    provenance: { namespace?: string | null } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -556,15 +551,12 @@ export class SkillService {
           author: metadata.author ?? null,
           tags,
           contentHash,
-          ...(source === 'system' ? { sourceUrl, namespace: registration.namespace ?? null } : {})
+          ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
-        if (registration.agentId) {
-          agentGlobalSkillService.upsertJoinTx(tx, registration.agentId, existing.id, true)
-        }
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
-      return { ...updated, isEnabled: registration.agentId ? true : updated.isEnabled }
+      return updated
     }
 
     const isBuiltin = source === 'builtin'
@@ -578,15 +570,12 @@ export class SkillService {
           folderName,
           source,
           sourceUrl,
-          namespace: registration.namespace ?? null,
+          namespace: provenance.namespace ?? null,
           author: metadata.author ?? null,
           tags,
           contentHash,
           isEnabled: false
         })
-        if (registration.agentId) {
-          agentGlobalSkillService.upsertJoinTx(tx, registration.agentId, insertedRow.id, true)
-        }
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
     } catch (error) {
@@ -611,7 +600,7 @@ export class SkillService {
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName, source })
-    return { ...inserted, isEnabled: registration.agentId ? true : inserted.isEnabled }
+    return inserted
   }
 
   // ===========================================================================

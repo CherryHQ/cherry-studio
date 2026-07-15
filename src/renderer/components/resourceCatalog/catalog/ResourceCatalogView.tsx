@@ -99,11 +99,7 @@ export function ResourceCatalogView({
       <ImportSkillDialog open={dialogs.skillImportOpen} onOpenChange={dialogs.setSkillImportOpen} />
       <SkillMarketplaceDialog open={dialogs.skillMarketplaceOpen} onOpenChange={dialogs.setSkillMarketplaceOpen} />
       {skillAgentId ? (
-        <SystemSkillDialog
-          agentId={skillAgentId}
-          open={dialogs.systemSkillOpen}
-          onOpenChange={dialogs.setSystemSkillOpen}
-        />
+        <SystemSkillDialog mode="manage" open={dialogs.systemSkillOpen} onOpenChange={dialogs.setSystemSkillOpen} />
       ) : null}
       <ResourceCreateWizard
         kind={dialogs.createDialogKind ?? 'assistant'}
