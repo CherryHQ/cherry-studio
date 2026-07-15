@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "77b3c8a2-276c-4db9-9c5d-04b824b0492e",
+  "id": "d11e9680-937d-40fc-a459-d0fe7b59e5a1",
   "prevId": "fb46843d-760a-443b-b30c-d09fd8d68a5c",
   "tables": {
     "agent": {
@@ -3804,6 +3804,15 @@
             "assistant_id"
           ],
           "isUnique": false
+        },
+        "topic_assistant_id_created_at_id_idx": {
+          "name": "topic_assistant_id_created_at_id_idx",
+          "columns": [
+            "assistant_id",
+            "\"created_at\" desc",
+            "id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -4402,6 +4411,13 @@
       "topic_updated_at_id_idx": {
         "columns": {
           "\"updated_at\" desc": {
+            "isExpression": true
+          }
+        }
+      },
+      "topic_assistant_id_created_at_id_idx": {
+        "columns": {
+          "\"created_at\" desc": {
             "isExpression": true
           }
         }

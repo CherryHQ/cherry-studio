@@ -218,6 +218,42 @@ describe('TopicService', () => {
       )
     })
 
+    it('uses created-at indexes for global and assistant-scoped default lists without a temporary sort', () => {
+      const globalPlan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT topic.id
+           FROM topic
+           LEFT JOIN pin ON pin.entity_type = 'topic' AND pin.entity_id = topic.id
+           LEFT JOIN assistant ON topic.assistant_id = assistant.id AND assistant.deleted_at IS NULL
+           WHERE topic.deleted_at IS NULL
+             AND topic.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'topic')
+           ORDER BY topic.created_at DESC, topic.id ASC
+           LIMIT 51`
+        )
+        .all() as Array<{ detail: string }>
+      const scopedPlan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT topic.id
+           FROM topic
+           LEFT JOIN pin ON pin.entity_type = 'topic' AND pin.entity_id = topic.id
+           LEFT JOIN assistant ON topic.assistant_id = assistant.id AND assistant.deleted_at IS NULL
+           WHERE topic.deleted_at IS NULL
+             AND assistant.id = 'asst-1'
+             AND topic.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'topic')
+           ORDER BY topic.created_at DESC, topic.id ASC
+           LIMIT 51`
+        )
+        .all() as Array<{ detail: string }>
+
+      expect(globalPlan.some(({ detail }) => detail.includes('topic_created_at_id_idx'))).toBe(true)
+      expect(scopedPlan.some(({ detail }) => detail.includes('topic_assistant_id_created_at_id_idx'))).toBe(true)
+      for (const plan of [globalPlan, scopedPlan]) {
+        expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+      }
+    })
+
     it('excludes soft-deleted topics and spans assistants', async () => {
       const service = new TopicService()
       await dbh.db.insert(assistantTable).values([

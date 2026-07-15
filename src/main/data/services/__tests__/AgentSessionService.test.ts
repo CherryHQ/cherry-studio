@@ -395,6 +395,41 @@ describe('AgentSessionService', () => {
       expect(second.nextCursor).toBeUndefined()
     })
 
+    it('uses the created-at index for global and agent-scoped default lists without a temporary sort', () => {
+      const globalPlan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT agent_session.id
+           FROM agent_session
+           INNER JOIN agent_workspace ON agent_session.workspace_id = agent_workspace.id
+           LEFT JOIN pin ON pin.entity_type = 'session' AND pin.entity_id = agent_session.id
+           LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
+           WHERE agent_session.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'session')
+           ORDER BY agent_session.created_at DESC, agent_session.id ASC
+           LIMIT 51`
+        )
+        .all() as Array<{ detail: string }>
+      const scopedPlan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT agent_session.id
+           FROM agent_session
+           INNER JOIN agent_workspace ON agent_session.workspace_id = agent_workspace.id
+           LEFT JOIN pin ON pin.entity_type = 'session' AND pin.entity_id = agent_session.id
+           LEFT JOIN agent ON agent_session.agent_id = agent.id AND agent.deleted_at IS NULL
+           WHERE agent.id = 'agent-session-test'
+             AND agent_session.id NOT IN (SELECT entity_id FROM pin WHERE entity_type = 'session')
+           ORDER BY agent_session.created_at DESC, agent_session.id ASC
+           LIMIT 51`
+        )
+        .all() as Array<{ detail: string }>
+
+      for (const plan of [globalPlan, scopedPlan]) {
+        expect(plan.some(({ detail }) => detail.includes('agent_session_created_at_id_idx'))).toBe(true)
+        expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+      }
+    })
+
     it('filters by stable user workspace id and explicit system scope', async () => {
       const workspace = await seedFlat()
       const systemSession = agentSessionService.create({
