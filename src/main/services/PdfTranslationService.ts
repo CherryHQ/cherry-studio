@@ -516,7 +516,7 @@ export class PdfTranslationService extends BaseService {
       if (SIDECAR_ENV_KEYS.has(key.toUpperCase())) allowedEnv[key] = value
     }
 
-    const runtimeHome = application.getPath('feature.pdf_translation.runtime')
+    const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
     return mergeBinaryExecutionEnv({
       ...allowedEnv,
       HOME: runtimeHome,

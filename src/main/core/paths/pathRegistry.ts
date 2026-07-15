@@ -96,7 +96,7 @@ export function buildPathRegistry() {
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
-    'feature.pdf_translation.runtime': path.join(appUserDataRuntime, 'babeldoc'),
+    'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),

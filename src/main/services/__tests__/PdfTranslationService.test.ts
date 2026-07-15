@@ -20,7 +20,7 @@ vi.mock('@application', () => ({
     get: mocks.appGet,
     getPath: vi.fn((key: string, filename?: string) => {
       if (key === 'feature.pdf_translation.temp') return filename ? path.join(TEST_ROOT, filename) : TEST_ROOT
-      if (key === 'feature.pdf_translation.runtime') return path.join(TEST_ROOT, 'runtime')
+      if (key === 'feature.pdf_translation.babeldoc') return path.join(TEST_ROOT, 'runtime')
       if (key === 'feature.binary.data') return path.join(TEST_ROOT, 'binary')
       throw new Error(`Unexpected path key: ${key}`)
     })
