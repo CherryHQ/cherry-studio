@@ -848,6 +848,7 @@ export function Topics({
     [t, updateTopic]
   )
 
+  const ordinaryTopicGroupLabel = isRightPanel ? '' : t('chat.topics.title')
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
@@ -856,13 +857,14 @@ export function Topics({
         mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
+          ordinary: ordinaryTopicGroupLabel,
           assistant: {
             unlinked: t('chat.topics.group.unknown_assistant')
           }
         },
         pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, defaultAssistant, displayMode, isAssistantDisplayMode, t]
+    [assistantById, defaultAssistant, displayMode, isAssistantDisplayMode, ordinaryTopicGroupLabel, t]
   )
 
   const topicSectionBy = useMemo(() => {
@@ -903,7 +905,7 @@ export function Topics({
     if (!isAssistantDisplayMode) {
       const ordinaryCount = Math.max(0, (topicStats?.total ?? 0) - pinnedCount)
       if (ordinaryCount > 0 || ordinaryTopicsSource.error) {
-        seeds.push({ id: TOPIC_ORDINARY_GROUP_ID, label: '', count: ordinaryCount })
+        seeds.push({ id: TOPIC_ORDINARY_GROUP_ID, label: ordinaryTopicGroupLabel, count: ordinaryCount })
       }
       return seeds
     }
@@ -938,6 +940,7 @@ export function Topics({
     defaultAssistant.name,
     isAssistantDisplayMode,
     isTagGrouping,
+    ordinaryTopicGroupLabel,
     orderedAssistantTopicGroupIds,
     pinnedTopicsSource.error,
     t,

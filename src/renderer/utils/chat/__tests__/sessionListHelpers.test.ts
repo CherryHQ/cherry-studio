@@ -24,6 +24,7 @@ import {
 
 const SESSION_GROUP_LABELS = {
   pinned: 'Pinned',
+  ordinary: 'Tasks',
   agent: {
     unlinked: 'Unknown agent'
   },
@@ -171,7 +172,7 @@ describe('SessionList helpers', () => {
     ).toBe(false)
   })
 
-  it('groups sessions into a flat creation stream with pinned sessions taking precedence', () => {
+  it('groups sessions into pinned and ordinary creation-time groups', () => {
     const groupSession = createSessionDisplayGroupResolver({
       labels: SESSION_GROUP_LABELS,
       mode: 'time'
@@ -183,7 +184,7 @@ describe('SessionList helpers', () => {
     })
     expect(groupSession(createSession({ id: 'regular' }))).toEqual({
       id: SESSION_ORDINARY_GROUP_ID,
-      label: ''
+      label: 'Tasks'
     })
   })
 

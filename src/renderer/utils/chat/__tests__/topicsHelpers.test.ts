@@ -21,6 +21,7 @@ import {
 
 const TOPIC_GROUP_LABELS = {
   pinned: 'Pinned',
+  ordinary: 'Conversations',
   assistant: {
     unlinked: 'Unlinked Assistant'
   }
@@ -186,7 +187,7 @@ describe('Topics helpers', () => {
     })
   })
 
-  it('builds a flat creation-time group with pinned topics taking precedence', () => {
+  it('builds pinned and ordinary creation-time groups', () => {
     const groupTopic = createTopicDisplayGroupResolver({ mode: 'time', labels: TOPIC_GROUP_LABELS })
 
     expect(groupTopic(createTopic({ id: 'pinned', pinned: true }))).toEqual({
@@ -195,7 +196,7 @@ describe('Topics helpers', () => {
     })
     expect(groupTopic(createTopic({ id: 'regular' }))).toEqual({
       id: TOPIC_ORDINARY_GROUP_ID,
-      label: ''
+      label: 'Conversations'
     })
   })
 

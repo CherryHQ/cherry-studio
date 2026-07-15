@@ -965,14 +965,16 @@ describe('Topics', () => {
     vi.useRealTimers()
   })
 
-  it('renders pinned and creation-ordered rows without date buckets and protects pinned rows from inline delete', () => {
+  it('separates pinned and ordinary conversations in time mode and protects pinned rows from inline delete', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const fixture = withPinnedTopics(createDefaultTopicFixture(), ['topic-b'])
     setTopicInfiniteQueryPages(fixture)
     applyTopicStats(fixture, ['topic-b'])
     const { getByText, setActiveTopic } = renderTopicList()
 
-    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    const pinnedGroup = screen.getByRole('button', { name: 'Pinned' })
+    const conversationGroup = screen.getByRole('button', { name: 'Conversations' })
+    expect(pinnedGroup.compareDocumentPosition(conversationGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
     expect(screen.queryByText('Yesterday')).not.toBeInTheDocument()
     expect(screen.queryByText('This week')).not.toBeInTheDocument()

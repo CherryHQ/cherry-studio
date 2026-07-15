@@ -928,12 +928,14 @@ const Sessions = ({
     setOptimisticAgentOrderIds(null)
   }, [agentOrderSignature])
 
+  const ordinarySessionGroupLabel = isRightPanel ? '' : t('agent.session.list.title')
   const sessionGroupBy = useMemo(
     () =>
       createSessionDisplayGroupResolver({
         agentById,
         labels: {
           pinned: t('selector.common.pinned_title'),
+          ordinary: ordinarySessionGroupLabel,
           agent: {
             unlinked: t('agent.session.group.unknown_agent')
           },
@@ -945,7 +947,7 @@ const Sessions = ({
         pinnedAsSection: displayMode !== 'time',
         workdirDisplay
       }),
-    [agentById, displayMode, t, workdirDisplay]
+    [agentById, displayMode, ordinarySessionGroupLabel, t, workdirDisplay]
   )
 
   const sessionSectionBy = useMemo(() => {
@@ -985,7 +987,7 @@ const Sessions = ({
     if (displayMode === 'time') {
       const ordinaryCount = Math.max(0, (sessionStats?.total ?? 0) - pinnedCount)
       if (ordinaryCount > 0 || ordinarySessionsSource.error) {
-        seeds.push({ id: SESSION_ORDINARY_GROUP_ID, label: '', count: ordinaryCount })
+        seeds.push({ id: SESSION_ORDINARY_GROUP_ID, label: ordinarySessionGroupLabel, count: ordinaryCount })
       }
       return seeds
     }
@@ -1035,6 +1037,7 @@ const Sessions = ({
     agentById,
     agentSessionStatsByGroupId,
     displayMode,
+    ordinarySessionGroupLabel,
     orderedAgentSessionGroupIds,
     orderedWorkdirSessionGroupIds,
     pinnedSessionsSource.error,

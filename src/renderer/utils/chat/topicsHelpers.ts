@@ -31,6 +31,7 @@ export type TopicDisplayAssistant = {
 
 export type TopicDisplayGroupLabels = {
   pinned: string
+  ordinary: string
   assistant: {
     unlinked: string
   }
@@ -187,7 +188,10 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
   })
 
   if (mode === 'time') {
-    return composeResourceListGroupResolvers(pinnedResolver, () => ({ id: TOPIC_ORDINARY_GROUP_ID, label: '' }))
+    return composeResourceListGroupResolvers(pinnedResolver, () => ({
+      id: TOPIC_ORDINARY_GROUP_ID,
+      label: labels.ordinary
+    }))
   }
 
   return composeResourceListGroupResolvers(pinnedResolver, (topic) => {

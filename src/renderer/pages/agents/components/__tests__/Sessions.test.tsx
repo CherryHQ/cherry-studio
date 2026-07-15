@@ -1041,7 +1041,7 @@ describe('Sessions', () => {
     expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
   })
 
-  it('shows every loaded session in the flat creation stream without group expansion controls', () => {
+  it('separates pinned and ordinary tasks while showing every loaded session', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     setupSessions({
       sessions: Array.from({ length: 56 }, (_, index) =>
@@ -1049,13 +1049,17 @@ describe('Sessions', () => {
           id: `session-${index + 1}`,
           name: `Session ${index + 1}`,
           orderKey: String(index + 1).padStart(3, '0'),
-          updatedAt: CURRENT_SESSION_ISO
+          updatedAt: CURRENT_SESSION_ISO,
+          ...(index === 0 ? { pinned: true, pinId: 'pin-session-1' } : {})
         })
       )
     })
 
     render(<SessionsForTest />)
 
+    const pinnedGroup = screen.getByRole('button', { name: 'Pinned' })
+    const taskGroup = screen.getByRole('button', { name: 'Tasks' })
+    expect(pinnedGroup.compareDocumentPosition(taskGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('Session 50')).toBeInTheDocument()
     expect(screen.getByText('Session 51')).toBeInTheDocument()
     expect(screen.getByText('Session 56')).toBeInTheDocument()

@@ -210,7 +210,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
               {group.label}
             </span>
-            <span className="hidden size-6 shrink-0 items-center justify-center text-foreground/70 group-focus-within/resource-list-group:flex group-hover/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex">
+            <span className="-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-foreground/70 group-focus-within/resource-list-group:flex group-hover/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex">
               <ChevronRight
                 aria-hidden="true"
                 className="size-3 transition-transform duration-150"

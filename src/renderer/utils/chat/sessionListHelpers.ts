@@ -31,6 +31,7 @@ export type SessionDisplayAgent = {
 
 export type SessionDisplayGroupLabels = {
   pinned: string
+  ordinary: string
   agent: {
     unlinked: string
   }
@@ -291,7 +292,10 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
       group: { id: SESSION_PINNED_GROUP_ID, label: pinnedGroupLabel } satisfies ResourceListGroup
     })
 
-    return composeResourceListGroupResolvers(pinnedResolver, () => ({ id: SESSION_ORDINARY_GROUP_ID, label: '' }))
+    return composeResourceListGroupResolvers(pinnedResolver, () => ({
+      id: SESSION_ORDINARY_GROUP_ID,
+      label: labels.ordinary
+    }))
   }
 
   if (mode === 'agent') {
