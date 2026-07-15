@@ -16,6 +16,7 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { UsageLedgerSourceType } from '@shared/data/types/usageLedger'
 import { maskApiKeyForSnapshot } from '@shared/utils/api'
 import { and, eq, isNotNull, or, sql } from 'drizzle-orm'
+import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -90,10 +91,10 @@ function resolveLedgerModel(source: UsageLedgerSourceRow): { providerId: string;
   }
 }
 
+const AgentConfigurationSchema = z.object({ avatar: z.string().optional().catch(undefined) })
+
 function getAgentAvatar(configuration: unknown): string | undefined {
-  if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) return undefined
-  const avatar = (configuration as { avatar?: unknown }).avatar
-  return typeof avatar === 'string' ? avatar : undefined
+  return AgentConfigurationSchema.safeParse(configuration).data?.avatar
 }
 
 function resolveSourceIcon(source: UsageLedgerSourceRow): string | null {

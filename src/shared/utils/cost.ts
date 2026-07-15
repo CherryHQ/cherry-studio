@@ -10,6 +10,7 @@
 
 import { CURRENCY, type Currency } from '@cherrystudio/provider-registry'
 import type { RuntimeModelPricing } from '@shared/data/types/model'
+import * as z from 'zod'
 
 const PER_MILLION = 1_000_000
 
@@ -109,27 +110,14 @@ export function computeImageCost(
   return { cost: imageCount * perImage.price, currency: pricing.input?.currency ?? CURRENCY.USD }
 }
 
-/**
- * Pull a provider-reported cost (USD) out of the raw usage blob
- * (`LanguageModelUsage.raw`). Probes the shapes seen in the wild
- * (`raw.cost`, `raw.usage.cost`, e.g. OpenRouter). Returns `undefined` when
- * absent or not a finite number.
- *
- * Whether this value is trusted is decided by the caller based on
- * `provider.apiFeatures.reportsActualCost` — never trust it blindly.
- *
- * The returned figure is assumed to be USD (the blob carries no currency);
- * callers persist it as `costCurrency: 'USD'`. Only flag a provider
- * `reportsActualCost` if it reports USD, else the per-currency rollups drift.
- */
+const finiteCost = z.number().refine(Number.isFinite)
+const ProviderCostSchema = z.union([
+  z.object({ cost: finiteCost }),
+  z.object({ usage: z.object({ cost: finiteCost }) })
+])
+
 export function extractProviderCost(raw: Record<string, unknown> | undefined): number | undefined {
-  if (!raw || typeof raw !== 'object') return undefined
-  const direct = raw.cost
-  if (typeof direct === 'number' && Number.isFinite(direct)) return direct
-  const usage = raw.usage
-  if (usage && typeof usage === 'object') {
-    const nested = (usage as Record<string, unknown>).cost
-    if (typeof nested === 'number' && Number.isFinite(nested)) return nested
-  }
-  return undefined
+  const parsed = ProviderCostSchema.safeParse(raw)
+  if (!parsed.success) return undefined
+  return 'cost' in parsed.data ? parsed.data.cost : parsed.data.usage.cost
 }

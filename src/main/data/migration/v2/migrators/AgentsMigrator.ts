@@ -10,6 +10,7 @@ import type { MessageData, MessageRole, MessageStats, MessageStatus, ModelSnapsh
 import { sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -810,26 +811,35 @@ function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
 
-function asLegacyModelRef(value: unknown): LegacyModelRef | null {
-  if (!value || typeof value !== 'object') return null
-  const model = value as { id?: unknown; provider?: unknown }
+// Legacy v1 model blobs are untrusted JSON. `.catch(undefined)` keeps a
+// malformed optional field from failing the whole parse (we still want id +
+// provider even if `name`/`group` are junk), matching the old lenient narrowing.
+const LegacyModelRefSchema = z.object({
+  id: z.string().optional().catch(undefined),
+  provider: z.string().optional().catch(undefined)
+})
+const LegacyModelSnapshotSchema = LegacyModelRefSchema.extend({
+  name: z.string().optional().catch(undefined),
+  group: z.string().optional().catch(undefined)
+})
 
-  return {
-    id: typeof model.id === 'string' ? model.id : undefined,
-    provider: typeof model.provider === 'string' ? model.provider : undefined
-  }
+function asLegacyModelRef(value: unknown): LegacyModelRef | null {
+  const parsed = LegacyModelRefSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
 }
 
 function buildModelSnapshot(value: unknown): ModelSnapshot | null {
-  const model = asLegacyModelRef(value)
-  if (!model?.id?.trim() || !model.provider?.trim()) return null
+  const parsed = LegacyModelSnapshotSchema.safeParse(value)
+  if (!parsed.success) return null
 
-  const source = value as { name?: unknown; group?: unknown }
+  const { id, provider, name, group } = parsed.data
+  if (!id?.trim() || !provider?.trim()) return null
+
   return {
-    id: model.id,
-    name: typeof source.name === 'string' && source.name.trim() ? source.name : model.id,
-    provider: model.provider,
-    group: typeof source.group === 'string' ? source.group : undefined
+    id,
+    name: name?.trim() ? name : id,
+    provider,
+    group
   }
 }
 
