@@ -25,6 +25,19 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    type = 'button',
+    ...props
+  }: {
+    children: ReactNode
+    type?: 'button' | 'submit' | 'reset'
+    [key: string]: unknown
+  }) => (
+    <button type={type} {...props}>
+      {children}
+    </button>
+  ),
   Checkbox: ({
     checked,
     onCheckedChange,
@@ -352,6 +365,25 @@ describe('KnowledgeItemRow', () => {
 
     fireEvent.keyDown(screen.getByRole('checkbox', { name: '选择行' }), { key: 'Enter' })
 
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('toggles selection without opening the row when the checkbox column is clicked', () => {
+    const handleClick = vi.fn()
+    const handleToggle = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+        onToggleSelect={handleToggle}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择行' }))
+
+    expect(handleToggle).toHaveBeenCalledWith(true)
     expect(handleClick).not.toHaveBeenCalled()
   })
 

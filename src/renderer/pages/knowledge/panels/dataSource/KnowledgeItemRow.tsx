@@ -186,22 +186,27 @@ const KnowledgeItemRow = ({
         onKeyDown={canActivate ? handleRowKeyDown : undefined}
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
-          'group/row min-h-12 rounded-lg transition-colors',
+          'group/row rounded-md px-2.5 py-1.5 transition-colors',
           canActivate &&
             'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-          // No hover highlight; only a checked row gets the solid accent background.
-          selected && 'bg-accent'
+          // Match the navigator base rows: hover highlight for any row, solid selected background
+          // for the checked one.
+          selected ? 'bg-secondary' : 'hover:bg-accent'
         )}>
-        <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
-          <Checkbox
-            size="sm"
-            className={knowledgeDataSourceCheckboxClassName}
-            aria-label={t('knowledge.data_source.table.select_row')}
-            checked={selected}
-            onCheckedChange={(next) => onToggleSelect(next === true)}
-          />
+        <div role="gridcell" className="flex items-center self-stretch" onClick={(event) => event.stopPropagation()}>
+          {/* The label fills the whole cell so a click anywhere in the checkbox column toggles
+              selection; the cell's stopPropagation keeps that click from also opening the row. */}
+          <label className="flex size-full cursor-pointer items-center">
+            <Checkbox
+              size="sm"
+              className={knowledgeDataSourceCheckboxClassName}
+              aria-label={t('knowledge.data_source.table.select_row')}
+              checked={selected}
+              onCheckedChange={(next) => onToggleSelect(next === true)}
+            />
+          </label>
         </div>
-        <div role="gridcell" className="flex min-w-0 items-center gap-2 py-3">
+        <div role="gridcell" className="flex min-w-0 items-center gap-2">
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>

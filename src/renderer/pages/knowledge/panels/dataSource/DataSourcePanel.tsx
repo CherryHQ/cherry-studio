@@ -198,15 +198,17 @@ const DataSourcePanel = ({
       <div className="flex min-h-0 flex-1 flex-col">
         {currentDirectory && onNavigateUp && (
           <div className="flex shrink-0 items-center gap-2 px-3 py-2">
-            {/* No button chrome: sits flush-left so the chevron lines up with the row checkboxes,
-                and hints interactivity with an opacity shift instead of a hover background. */}
-            <button
+            {/* Flat text button (no chrome): the `px-2.5` matches the row's own inset so the chevron
+                lines up with the checkboxes, and it hints interactivity with an opacity shift
+                instead of the ghost variant's hover background. */}
+            <Button
               type="button"
+              variant="ghost"
               onClick={onNavigateUp}
-              className="flex cursor-pointer items-center gap-1 text-foreground text-sm opacity-70 transition-opacity hover:opacity-100">
+              className="h-auto min-h-0 gap-1 px-2.5 py-0 text-foreground text-sm opacity-70 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}
-            </button>
+            </Button>
             <span className="min-w-0 truncate text-foreground-secondary text-sm" title={getItemTitle(currentDirectory)}>
               {getItemTitle(currentDirectory)}
             </span>

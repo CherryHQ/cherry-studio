@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { MoreHorizontal } from 'lucide-react'
@@ -19,17 +20,19 @@ const KnowledgeRowActionsMenu = ({ items, className }: KnowledgeRowActionsMenuPr
 
   return (
     <CommandPopupMenu location="webcontents.context" extraItems={items} align="end" side="bottom">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         aria-label={t('common.more')}
         // Keep the click from also activating the row (select base / open source / drill in).
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          'inline-flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/70 opacity-0 transition-[opacity,color,background-color] hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none group-hover/row:opacity-100 data-[state=open]:bg-muted data-[state=open]:text-foreground data-[state=open]:opacity-100',
+          'size-6 rounded-md text-foreground/70 opacity-0 transition-[opacity,color,background-color] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:bg-muted data-[state=open]:text-foreground data-[state=open]:opacity-100',
           className
         )}>
         <MoreHorizontal className="size-3.5" />
-      </button>
+      </Button>
     </CommandPopupMenu>
   )
 }
