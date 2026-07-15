@@ -1,6 +1,9 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { LanguageModelUsage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentLoopHooks } from '../runtime/aiSdk'
 
 const mockGenerateImage = vi.fn()
 const mockRerank = vi.fn()
@@ -99,6 +102,7 @@ vi.mock('@main/data/services/UsageLedgerService', () => ({
 
 const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
+const { createBillingHook } = await import('../hooks/billingHook')
 
 /**
  * Instantiate `AiService` directly (without going through the lifecycle
@@ -1152,21 +1156,25 @@ describe('AiService.listModels', () => {
 })
 
 // The billing funnel is one of the two converging ledger-write sources. These
-// tests pin the wiring (id threading, provider-cost extraction, zero-guard)
-// from this caller; `recordRequest` itself is covered by UsageLedgerService.test.
-describe('AiService.billingHookPart', () => {
+// tests pin the wiring (id threading, provider-cost extraction, zero-guard);
+// `recordRequest` itself is covered by UsageLedgerService.test.
+describe('createBillingHook', () => {
   const model = { id: 'test-provider::test-model', providerId: 'test-provider' } as any
+  // The hook only reads `step.usage`; build a minimal fake step (a full
+  // StepResult has 20+ fields we don't need here).
+  const fakeStep = (usage: Partial<LanguageModelUsage>) =>
+    ({ usage }) as unknown as Parameters<NonNullable<AgentLoopHooks['onStepFinish']>>[0]
 
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('records the accumulated usage with the request message id and provider-reported cost', () => {
-    const hook = (createService() as any).billingHookPart(model, 'assistant-1')
+    const hook = createBillingHook(model, 'assistant-1')
 
-    hook.onStepFinish({ usage: { inputTokens: 6, outputTokens: 3, totalTokens: 9 } })
-    hook.onStepFinish({ usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6, raw: { cost: 0.42 } } })
-    hook.onFinish()
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6, raw: { cost: 0.42 } }))
+    void hook.onFinish?.()
 
     expect(mockRecordRequest).toHaveBeenCalledTimes(1)
     expect(mockRecordRequest).toHaveBeenCalledWith(
@@ -1181,19 +1189,19 @@ describe('AiService.billingHookPart', () => {
   })
 
   it('skips recording when no tokens accumulated (zero-guard)', () => {
-    const hook = (createService() as any).billingHookPart(model, 'assistant-2')
+    const hook = createBillingHook(model, 'assistant-2')
 
     // A finish with no usage-bearing steps must not write an all-zero ledger row.
-    hook.onFinish()
+    void hook.onFinish?.()
 
     expect(mockRecordRequest).not.toHaveBeenCalled()
   })
 
   it('falls back to a generated per-request id when no requestMessageId is given', () => {
-    const hook = (createService() as any).billingHookPart(model)
+    const hook = createBillingHook(model)
 
-    hook.onStepFinish({ usage: { inputTokens: 1, outputTokens: 0, totalTokens: 1 } })
-    hook.onFinish()
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 1, outputTokens: 0, totalTokens: 1 }))
+    void hook.onFinish?.()
 
     expect(mockRecordRequest).toHaveBeenCalledTimes(1)
     const payload = mockRecordRequest.mock.calls[0][0]

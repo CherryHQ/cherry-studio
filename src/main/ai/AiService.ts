@@ -23,7 +23,7 @@ import type { FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String, UrlString } from '@shared/types/file'
-import { computeImageCost, extractProviderCost } from '@shared/utils/cost'
+import { computeImageCost } from '@shared/utils/cost'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -34,6 +34,8 @@ import {
 } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
+import { createAnalyticsHook } from './hooks/analyticsHook'
+import { createBillingHook } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -42,8 +44,8 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './prov
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, mergeUsage, usageToStats, ZERO_USAGE } from './runtime/aiSdk'
+import type { RequestFeature } from './runtime/aiSdk'
+import { Agent, buildAgentParams } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -410,56 +412,15 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), this.billingHookPart(model, request.messageId), ...hookParts],
+      hookParts: [
+        createAnalyticsHook(model, (m, usage) => this.trackUsage(m, usage)),
+        createBillingHook(model, request.messageId),
+        ...hookParts
+      ],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
     return agent.stream(preparedMessages, signal)
-  }
-
-  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
-    let total: LanguageModelUsage = ZERO_USAGE
-    return {
-      onStepFinish: (step) => {
-        if (step.usage) total = mergeUsage(total, step.usage)
-      },
-      onFinish: () => this.trackUsage(model, total)
-    }
-  }
-
-  /**
-   * Billing funnel — the single per-request capture point for the usage
-   * ledger, deliberately separate from {@link analyticsHookPart} (telemetry
-   * and billing are different concerns with different lifecycles).
-   *
-   * Every aiSdk request (chat, API gateway, translate, rename, …) flows
-   * through `streamText`/`generateText`, so this one hook covers them all.
-   * For chat, `requestMessageId` is the assistant message id — the ledger
-   * write converges with the message-persistence hook on the same row;
-   * stateless requests get a per-request id.
-   */
-  private billingHookPart(model: Model, requestMessageId?: string): Partial<AgentLoopHooks> {
-    let total: LanguageModelUsage = ZERO_USAGE
-    const id = requestMessageId ?? crypto.randomUUID()
-    return {
-      onStepFinish: (step) => {
-        if (step.usage) total = mergeUsage(total, step.usage)
-      },
-      onFinish: () => {
-        const stats = usageToStats(total)
-        if (!total.inputTokens && !total.outputTokens && !total.totalTokens) return
-        void usageLedgerService
-          .recordRequest({
-            id,
-            modelId: model.id,
-            stats,
-            providerCostUsd: extractProviderCost(total.raw)
-          })
-          .catch((err) => {
-            logger.warn('usage ledger record failed', { id, modelId: model.id, err })
-          })
-      }
-    }
   }
 
   // ── Non-streaming text generation (agent.generate) ──
@@ -485,7 +446,11 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), this.billingHookPart(model), ...hookParts]
+      hookParts: [
+        createAnalyticsHook(model, (m, usage) => this.trackUsage(m, usage)),
+        createBillingHook(model),
+        ...hookParts
+      ]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
