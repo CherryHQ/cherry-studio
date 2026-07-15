@@ -71,10 +71,9 @@ export function paintingModelOutput(output: PaintingResult): { type: 'text'; val
   return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
 }
 
-/** generate_image input shape shared by both callers: MCP omits size/n, AI-SDK strict passes null. */
+/** generate_image input shape shared by both callers: MCP omits n, AI-SDK strict passes null. */
 type GenerateImagePromptInput = {
   prompt: string
-  size?: string | null
   n?: number | null
 }
 
@@ -93,8 +92,7 @@ export async function generateImageFromPrompt(
       uniqueModelId,
       prompt: input.prompt,
       paramValues: {
-        ...(input.n != null ? { numImages: input.n } : {}),
-        ...(input.size != null ? { size: input.size } : {})
+        ...(input.n != null ? { numImages: input.n } : {})
       },
       requestOptions: signal ? { signal } : undefined
     })

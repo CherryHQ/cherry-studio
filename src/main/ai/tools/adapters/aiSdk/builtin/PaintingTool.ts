@@ -1,7 +1,7 @@
 /**
  * Image generation tool — agentic.
  *
- * The model supplies a prompt (and optional size / count) and may call this
+ * The model supplies a prompt (and optional count) and may call this
  * more than once. The actual generation (painting-model resolution, vendor
  * mapping, persistence) lives in the shared `painting` core so the Claude Code
  * MCP bridge runs the exact same logic; this file is just the AI-SDK `tool()`
@@ -32,8 +32,8 @@ const generateImageResultSchema = z.union([generateImageOutputSchema, paintingEr
 
 const generateImageTool = tool({
   description: GENERATE_IMAGE_DESCRIPTION,
-  // `strict: true` needs every field in `required`; the strict schema makes `size` / `n` nullable
-  // (not optional) so a strict OpenAI-compatible provider doesn't reject the whole tool schema.
+  // `strict: true` needs every field in `required`; the strict schema makes `n` nullable (not
+  // optional) so a strict OpenAI-compatible provider doesn't reject the whole tool schema.
   inputSchema: generateImageStrictInputSchema,
   outputSchema: generateImageResultSchema,
   // Provider-level constrained decoding where supported. Repair fallback

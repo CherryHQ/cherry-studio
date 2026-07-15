@@ -38,9 +38,9 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
   } as ToolExecutionOptions
 }
 
-function callExecute(args: { prompt: string; size?: string; n?: number }, abortSignal?: AbortSignal): Promise<unknown> {
+function callExecute(args: { prompt: string; n?: number }, abortSignal?: AbortSignal): Promise<unknown> {
   const execute = entry.tool.execute as (
-    args: { prompt: string; size?: string; n?: number },
+    args: { prompt: string; n?: number },
     options: ToolExecutionOptions
   ) => Promise<unknown>
   return execute(args, makeOptions(abortSignal))
@@ -93,15 +93,13 @@ describe('generate_image', () => {
     )
   })
 
-  it('maps tool image options into the canonical parameter bag', async () => {
+  it('maps the image count into the canonical parameter bag', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     generateImage.mockResolvedValue({ files: [] })
 
-    await callExecute({ prompt: 'a cat', n: 2, size: '1024x1024' })
+    await callExecute({ prompt: 'a cat', n: 2 })
 
-    expect(generateImage).toHaveBeenCalledWith(
-      expect.objectContaining({ paramValues: { numImages: 2, size: '1024x1024' } })
-    )
+    expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { numImages: 2 } }))
   })
 
   it('returns a configuration note (and skips generation) when no model is configured', async () => {
