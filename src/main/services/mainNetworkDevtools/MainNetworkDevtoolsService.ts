@@ -200,13 +200,25 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.patchNetFetch()
     this.patchHttpModules()
 
-    await this.installPanel()
-
     try {
       await this.startWebSocketServer()
     } catch (error) {
       logger.error('Failed to start Main Network DevTools websocket server', error as Error)
     }
+  }
+
+  /**
+   * Install the panel here rather than in onInit: this service runs in the Background
+   * phase, which Application.bootstrap starts *before* awaiting app.whenReady(), so
+   * onInit would hit `session.defaultSession` too early and throw "Session can only be
+   * received when app is ready". onAllReady fires after every phase completes, by which
+   * point the app is ready. Registering the panel only has to precede the user opening
+   * DevTools, so the extra wait costs nothing.
+   *
+   * Patching stays in onInit — it must cover requests made during early boot.
+   */
+  protected async onAllReady(): Promise<void> {
+    await this.installPanel()
   }
 
   /**

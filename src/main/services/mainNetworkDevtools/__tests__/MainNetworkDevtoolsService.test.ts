@@ -193,14 +193,15 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://other-id')).toBe(false)
   })
 
-  it('installs its own bundled panel and allowlists the resolved extension origin', async () => {
+  it('installs its own bundled panel once the app is ready and allowlists the resolved extension origin', async () => {
     vi.mocked(installBundledDevtools).mockImplementation(async (_directoryName, _displayName, onInstalled) => {
       onInstalled?.({ id: 'main-network-id', name: 'Main Network' })
     })
 
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as { installPanel: () => Promise<void> }
-    await serviceState.installPanel()
+    // Panel install must hang off onAllReady, not onInit: this service runs in the
+    // Background phase, which starts before app.whenReady() resolves.
+    await service._doAllReady()
 
     expect(installBundledDevtools).toHaveBeenCalledWith('main-network', 'Main Network', expect.any(Function))
     expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://main-network-id')).toBe(true)
