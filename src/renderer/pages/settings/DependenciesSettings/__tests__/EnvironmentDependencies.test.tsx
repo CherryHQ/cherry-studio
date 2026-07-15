@@ -85,8 +85,27 @@ vi.mock('@cherrystudio/ui', () => {
       void closeOnOverlayClick
       return React.createElement(tag, props, children)
     }
-  const dialog = ({ open, children }: { open?: boolean; children?: React.ReactNode }) =>
-    open ? React.createElement('div', { role: 'dialog' }, children) : null
+  const dialog = ({
+    open,
+    onOpenChange,
+    children
+  }: {
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    children?: React.ReactNode
+  }) =>
+    open
+      ? React.createElement(
+          'div',
+          { role: 'dialog' },
+          React.createElement(
+            'button',
+            { 'data-testid': 'dialog-close', onClick: () => onOpenChange?.(false) },
+            'close'
+          ),
+          children
+        )
+      : null
   return {
     Badge: passthrough('span'),
     Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
@@ -153,48 +172,39 @@ describe('EnvironmentDependencies', () => {
     setInstallSettingsMock.mockResolvedValue(undefined)
   })
 
-  it('writes advanced install settings to independent preferences', async () => {
+  it('auto-saves each advanced install field independently on blur or toggle', async () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
-    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder'), {
-      target: { value: 'https://ghfast.top' }
-    })
+    const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
+    fireEvent.change(mirror, { target: { value: 'https://ghfast.top' } })
+    fireEvent.blur(mirror)
     fireEvent.click(screen.getByText('settings.dependencies.installSettings.verifySignatures.label'))
-    fireEvent.click(screen.getByText('common.save'))
-    expect(setInstallSettingsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ githubMirror: 'https://ghfast.top', verifySignatures: false })
-    )
+
+    expect(setInstallSettingsMock).toHaveBeenCalledWith({ githubMirror: 'https://ghfast.top' })
+    expect(setInstallSettingsMock).toHaveBeenCalledWith({ verifySignatures: false })
   })
 
-  it('keeps install settings open and blocks duplicate saves when persistence fails', async () => {
-    let rejectSave!: (error: Error) => void
-    setInstallSettingsMock.mockReturnValueOnce(
-      new Promise<void>((_, reject) => {
-        rejectSave = reject
-      })
-    )
+  it('surfaces a failed field write as a toast without closing the dialog', async () => {
+    setInstallSettingsMock.mockRejectedValueOnce(new Error('preference write failed'))
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
-    const saveButton = screen.getByText('common.save').closest('button')!
+    const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
+    fireEvent.change(mirror, { target: { value: 'https://ghfast.top' } })
+    fireEvent.blur(mirror)
 
-    fireEvent.click(saveButton)
-    await waitFor(() => expect(saveButton).toBeDisabled())
-    fireEvent.click(saveButton)
-    expect(setInstallSettingsMock).toHaveBeenCalledTimes(1)
-
-    rejectSave(new Error('preference write failed'))
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('preference write failed'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(saveButton).not.toBeDisabled()
   })
 
   it('does not persist invalid install URLs', async () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
-    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder'), {
-      target: { value: 'javascript:alert(1)' }
-    })
-    expect(screen.getByText('common.save').closest('button')).toBeDisabled()
+    const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
+    fireEvent.change(mirror, { target: { value: 'javascript:alert(1)' } })
+    fireEvent.blur(mirror)
+
+    expect(setInstallSettingsMock).not.toHaveBeenCalled()
+    expect(mirror).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('renders all preset tools from snapshots', async () => {
@@ -472,9 +482,8 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
     fireEvent.click(screen.getAllByText('settings.dependencies.installSettings.presetLabels.default')[0])
-    fireEvent.click(screen.getByText('common.save'))
 
-    expect(setInstallSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ githubMirror: '' }))
+    expect(setInstallSettingsMock).toHaveBeenCalledWith({ githubMirror: '' })
   })
 
   it('masks the token again when the settings dialog is reopened', async () => {
@@ -484,7 +493,7 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(screen.getByLabelText('settings.dependencies.installSettings.githubToken.show'))
     expect(token).toHaveAttribute('type', 'text')
 
-    fireEvent.click(screen.getByText('common.cancel'))
+    fireEvent.click(screen.getByTestId('dialog-close'))
     fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
     expect(
       screen.getByPlaceholderText('settings.dependencies.installSettings.githubToken.placeholder')

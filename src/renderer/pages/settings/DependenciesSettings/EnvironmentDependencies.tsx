@@ -917,7 +917,8 @@ const UrlPresetField: FC<{
   value: string
   presets: readonly InstallSettingPreset[]
   onChange: (value: string) => void
-}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange }) => {
+  onCommit: (value: string) => void
+}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange, onCommit }) => {
   const { t } = useTranslation()
   const inputId = useId()
   const descriptionId = useId()
@@ -942,13 +943,18 @@ const UrlPresetField: FC<{
           aria-invalid={invalid}
           aria-describedby={descriptionId}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={(event) => onCommit(event.target.value)}
           className={cn('min-w-0 flex-1', invalid && 'border-destructive')}
         />
         <div className="w-44 shrink-0">
           <SelectDropdown
             items={items}
             selectedId={null}
-            onSelect={(id) => onChange(id === DEFAULT_ITEM_ID ? '' : id)}
+            onSelect={(id) => {
+              const next = id === DEFAULT_ITEM_ID ? '' : id
+              onChange(next)
+              onCommit(next)
+            }}
             placeholder={presetLabel}
             renderSelected={() => null}
             renderItem={(item) => (
@@ -973,47 +979,49 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
 }) => {
   const { t } = useTranslation()
   // Pessimistic updates: these carry a credential (github_token) and a security
-  // toggle (signature verification), so the UI must reflect the persisted value
-  // only after the write confirms — never an optimistic value that a failed
-  // write would silently roll back. The save() try/catch surfaces failures.
+  // toggle (signature verification), so persisted state must reflect a write only
+  // after it confirms — never an optimistic value a failed write would roll back.
+  // Auto-save (no save/cancel buttons): each field commits itself — URLs and the
+  // token on blur, the toggle on change — and commit() surfaces write failures.
   const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS, { optimistic: false })
+  // Local editing buffer for the text fields so pessimistic round-trips don't lag
+  // typing. Seeded from settings only on open (warm from preloadAll), never
+  // resynced mid-session, so one field's commit can't clobber another field's
+  // in-progress edit. // ceiling: a cold cache would show defaults until reopen.
   const [draft, setDraft] = useState(settings)
   const [showToken, setShowToken] = useState(false)
-  const [saving, setSaving] = useState(false)
   const tokenId = useId()
   const tokenDescriptionId = useId()
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
 
   useEffect(() => {
     if (open) {
-      setDraft(settings)
+      setDraft(settingsRef.current)
       setShowToken(false)
     }
-  }, [open, settings])
+  }, [open])
 
-  const close = () => {
-    if (saving) return
-    setShowToken(false)
-    onOpenChange(false)
+  const requestClose = (nextOpen: boolean) => {
+    if (!nextOpen) setShowToken(false)
+    onOpenChange(nextOpen)
   }
-  const save = async () => {
-    if (saving) return
-    setSaving(true)
+  const commit = async (updates: Partial<typeof settings>) => {
     try {
-      await setSettings(draft)
-      setShowToken(false)
-      onOpenChange(false)
+      await setSettings(updates)
     } catch (error) {
       toast.error(formatErrorMessage(error))
-    } finally {
-      setSaving(false)
     }
   }
-  const urlsValid = [draft.githubMirror, draft.npmRegistry, draft.pipIndexUrl].every(
-    (value) => !value.trim() || isValidUrl(value.trim())
-  )
+  const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {
+    const trimmed = value.trim()
+    if (trimmed && !isValidUrl(trimmed)) return // invalid stays in the draft, never persisted
+    setDraft((current) => ({ ...current, [key]: trimmed }))
+    if (trimmed !== settingsRef.current[key]) void commit({ [key]: trimmed })
+  }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? onOpenChange(true) : close())}>
+    <Dialog open={open} onOpenChange={requestClose}>
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{t('settings.dependencies.installSettings.title')}</DialogTitle>
@@ -1029,6 +1037,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             value={draft.githubMirror}
             presets={GITHUB_MIRROR_PRESETS}
             onChange={(githubMirror) => setDraft((current) => ({ ...current, githubMirror }))}
+            onCommit={(value) => commitUrl('githubMirror', value)}
           />
           <UrlPresetField
             label={t('settings.dependencies.installSettings.npmRegistry.label')}
@@ -1039,6 +1048,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             value={draft.npmRegistry}
             presets={NPM_REGISTRY_PRESETS}
             onChange={(npmRegistry) => setDraft((current) => ({ ...current, npmRegistry }))}
+            onCommit={(value) => commitUrl('npmRegistry', value)}
           />
           <UrlPresetField
             label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
@@ -1049,6 +1059,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             value={draft.pipIndexUrl}
             presets={PIP_INDEX_PRESETS}
             onChange={(pipIndexUrl) => setDraft((current) => ({ ...current, pipIndexUrl }))}
+            onCommit={(value) => commitUrl('pipIndexUrl', value)}
           />
           <Field>
             <FieldLabel htmlFor={tokenId}>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
@@ -1061,6 +1072,11 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
                 aria-describedby={tokenDescriptionId}
                 value={draft.githubToken}
                 onChange={(event) => setDraft((current) => ({ ...current, githubToken: event.target.value }))}
+                onBlur={() => {
+                  if (draft.githubToken !== settingsRef.current.githubToken) {
+                    void commit({ githubToken: draft.githubToken })
+                  }
+                }}
               />
               <InputGroupAddon align="inline-end">
                 <InputGroupButton
@@ -1083,18 +1099,10 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             size="sm"
             label={t('settings.dependencies.installSettings.verifySignatures.label')}
             description={t('settings.dependencies.installSettings.verifySignatures.help')}
-            checked={draft.verifySignatures}
-            onCheckedChange={(verifySignatures) => setDraft((current) => ({ ...current, verifySignatures }))}
+            checked={settings.verifySignatures}
+            onCheckedChange={(verifySignatures) => void commit({ verifySignatures })}
           />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={close} disabled={saving}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="emphasis" disabled={!urlsValid || saving} loading={saving} onClick={() => void save()}>
-            {t('common.save')}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
