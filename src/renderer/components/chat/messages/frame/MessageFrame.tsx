@@ -3,6 +3,7 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
@@ -88,21 +89,24 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
+  const isAssistantMessage = message.role === 'assistant'
+  const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
+  const canStartEditing =
+    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
-      if (canEditMessage && messageId === message.id) {
+      if (canStartEditing && messageId === message.id) {
         actions.startEditing?.(message, messageParts, {
           lockedMentionedModels:
             lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
         })
       }
     },
-    [actions, canEditMessage, lockedMentionedModels, message, messageParts]
+    [actions, canStartEditing, lockedMentionedModels, message, messageParts]
   )
 
   const isLastMessage = index === 0 || !!isGrouped
-  const isAssistantMessage = message.role === 'assistant'
 
   const activityState = messageUi.getMessageActivityState?.(message)
   const isProcessing = activityState?.isProcessing ?? false

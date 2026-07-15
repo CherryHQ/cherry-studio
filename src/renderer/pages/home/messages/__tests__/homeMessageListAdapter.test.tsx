@@ -1,6 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -222,6 +222,7 @@ import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
+import { translateText } from '@renderer/utils/translate'
 
 import { useHomeMessageListProviderValue } from '../homeMessageListAdapter'
 import {
@@ -467,6 +468,49 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
     expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('keeps a message translation active until its final update is persisted', async () => {
+    let finishPersistingTranslation: (() => void) | undefined
+    let value: MessageListProviderValue | undefined
+    const persistTranslationPromise = new Promise<void>((resolve) => {
+      finishPersistingTranslation = resolve
+    })
+    chatWriteMock.editMessage.mockResolvedValueOnce(undefined).mockReturnValueOnce(persistTranslationPromise)
+    vi.mocked(translateText).mockImplementationOnce(async (_text, _language, onResponse) => {
+      onResponse?.('translated reply', true)
+      return 'translated reply'
+    })
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={{ 'message-1': [{ type: 'text', text: 'reply' }] as CherryMessagePart[] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+
+    let translateAction: Promise<void> | undefined
+    act(() => {
+      translateAction = value?.actions.translateMessage?.(
+        'message-1',
+        { langCode: 'en-us' } as any,
+        'reply'
+      ) as Promise<void>
+    })
+
+    await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(true))
+    await waitFor(() => expect(chatWriteMock.editMessage).toHaveBeenCalledTimes(2))
+    expect(value?.state.isMessageTranslating?.('message-1')).toBe(true)
+
+    await act(async () => {
+      finishPersistingTranslation?.()
+      await translateAction
+    })
+
+    await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
 
   it('shows an error when saving code block edits through chat write fails', async () => {

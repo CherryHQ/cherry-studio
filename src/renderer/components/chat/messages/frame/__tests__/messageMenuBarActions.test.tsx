@@ -284,6 +284,18 @@ describe('messageMenuBarActions', () => {
     expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).toContain('edit')
   })
 
+  it('hides edit actions while an assistant reply is being translated', () => {
+    const context = createActionContext({
+      actions: {
+        editMessage: vi.fn()
+      } as MessageListActions,
+      isTranslating: true
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
+    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).not.toContain('edit')
+  })
+
   it('resolves assistant toolbar actions from capabilities', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({

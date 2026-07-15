@@ -55,6 +55,40 @@ export function hasTranslationParts(parts: CherryMessagePart[]): boolean {
 }
 
 /**
+ * Assistant edits rebuild text/file parts as one Composer draft. They are safe only when those
+ * editable parts form one contiguous run and already follow the order Composer writes back:
+ * text first, then files. Translation parts are derived and are removed when the edit is saved.
+ */
+export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolean {
+  let hasText = false
+  let hasEditablePart = false
+  let hasFile = false
+  let editableRunEnded = false
+
+  for (const part of parts) {
+    if (part.type === 'data-translation') continue
+
+    if (part.type === 'text') {
+      if (editableRunEnded || hasFile) return false
+      hasText ||= part.text.trim().length > 0
+      hasEditablePart = true
+      continue
+    }
+
+    if (part.type === 'file') {
+      if (editableRunEnded) return false
+      hasEditablePart = true
+      hasFile = true
+      continue
+    }
+
+    if (hasEditablePart) editableRunEnded = true
+  }
+
+  return hasText
+}
+
+/**
  * Extract translation content from data-translation parts.
  */
 export function getTranslationFromParts(parts: CherryMessagePart[]): TranslationPartData[] {

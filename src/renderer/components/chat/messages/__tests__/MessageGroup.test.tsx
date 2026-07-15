@@ -52,7 +52,8 @@ const mocks = vi.hoisted(() => ({
   MessageOutline: vi.fn(() => null),
   messageListActions: vi.fn(),
   messageListSelection: vi.fn(),
-  messageListEditingId: vi.fn()
+  messageListEditingId: vi.fn(),
+  messageListUiSelectors: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -200,7 +201,7 @@ vi.mock('../MessageListProvider', () => ({
     userProfile: { avatar: '' }
   }),
   useMessageListUi: () => ({}),
-  useMessageListUiSelectors: () => ({}),
+  useMessageListUiSelectors: () => mocks.messageListUiSelectors(),
   useMessageListUiStatic: () => ({})
 }))
 
@@ -269,6 +270,7 @@ describe('MessageGroup', () => {
     })
     mocks.messageListSelection.mockReturnValue(undefined)
     mocks.messageListEditingId.mockReturnValue(null)
+    mocks.messageListUiSelectors.mockReturnValue({})
   })
 
   it('does not apply horizontal padding on the message element itself', () => {
@@ -654,6 +656,38 @@ describe('MessageGroup', () => {
       })
     )
     expect(startEditing.mock.calls[0][2].lockedMentionedModels).toHaveLength(2)
+  })
+
+  it('does not start editing an assistant reply while its translation is active', async () => {
+    const startEditing = vi.fn()
+    let runtime: { startEditing: () => void } | undefined
+    mocks.messageListActions.mockReturnValue({
+      editMessage: vi.fn(),
+      startEditing,
+      bindMessageRuntime: vi.fn((_id, nextRuntime) => {
+        runtime = nextRuntime as { startEditing: () => void }
+        return vi.fn()
+      })
+    })
+    mocks.messageListUiSelectors.mockReturnValue({
+      isMessageTranslating: (messageId: string) => messageId === 'assistant-1'
+    })
+    const assistantMessage = createMessage('assistant-1', 0, 'vertical')
+
+    render(
+      <MessageGroup
+        messages={[assistantMessage]}
+        partsByMessageId={{ 'assistant-1': [{ type: 'text', text: 'answer' }] as CherryMessagePart[] }}
+        topic={{ id: 'topic-1' } as Topic}
+      />
+    )
+    await waitFor(() => expect(runtime).toBeDefined())
+
+    act(() => {
+      runtime?.startEditing()
+    })
+
+    expect(startEditing).not.toHaveBeenCalled()
   })
 
   it('wraps the edited bubble user message region with an editing outline', () => {

@@ -41,6 +41,7 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
@@ -136,6 +137,7 @@ const replaceComposerEditableMessageParts = (
   if (firstEditablePartIndex === -1) return editedParts
 
   return originalParts.flatMap((part, index) => {
+    if (part.type === 'data-translation') return []
     if (!isComposerEditableMessagePart(part)) return [part]
     return index === firstEditablePartIndex ? editedParts : []
   })
@@ -1131,6 +1133,11 @@ const ChatComposerInner = ({
         const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
         const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
         if (!saveEditedMessage) {
+          toast.error(t('message.error.operation_unavailable'))
+          return
+        }
+
+        if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
