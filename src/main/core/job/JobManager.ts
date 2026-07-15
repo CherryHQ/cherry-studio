@@ -74,6 +74,25 @@ class JobHandlerTimeoutError extends Error {
   }
 }
 
+/** Maximum `.cause` chain depth joined into a failed job's error message. Guards against cyclic causes. */
+const MAX_ERROR_CAUSE_DEPTH = 3
+
+/**
+ * Join an error with its `.cause` chain into one message — e.g. a bare "fetch failed"
+ * becomes "fetch failed: getaddrinfo ENOTFOUND api.example.com" — so the underlying
+ * network/provider detail survives into `JobError.message`, the only field of `JobError`
+ * that reaches the renderer (`JobErrorSchema` has no `cause` field).
+ */
+function formatErrorWithCause(err: unknown): string {
+  const messages: string[] = []
+  let current: unknown = err
+  for (let depth = 0; depth < MAX_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
+    messages.push(current.message || current.name)
+    current = current.cause
+  }
+  return messages.length > 0 ? messages.join(': ') : String(err)
+}
+
 interface FinishedResolver {
   resolve: (snapshot: JobSnapshot) => void
   promise: Promise<JobSnapshot>
@@ -1685,9 +1704,17 @@ export class JobManager extends BaseService {
               }
             : {
                 code: isTimeout ? JOB_ERROR_CODES.HANDLER_TIMEOUT : JOB_ERROR_CODES.HANDLER_THREW,
-                message: (err as Error).message || String(err),
+                message: formatErrorWithCause(err),
                 retryable: true
               }
+
+        // Skip user-initiated cancellations — expected and already benign. Genuine
+        // failures (including timeouts) are logged with the full `.cause` chain +
+        // stack so a diagnostic detail lost by `JobError.message`'s field limits
+        // (see `formatErrorWithCause`) is still recoverable from the log file.
+        if (error.code !== JOB_ERROR_CODES.CANCELLED) {
+          logger.error(`Job failed: ${row.type}`, err as Error, { jobId: row.id, code: error.code })
+        }
 
         const retryPolicy = handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
         const userCancel = isAbort && !isTimeout

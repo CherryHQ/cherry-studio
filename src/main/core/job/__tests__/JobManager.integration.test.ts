@@ -881,6 +881,56 @@ describe('JobManager integration', () => {
     })
   })
 
+  describe('handler-thrown error → JobError.message', () => {
+    it('joins the `.cause` chain into the message so network-layer detail survives', async () => {
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        defaultRetryPolicy: { maxAttempts: 1, backoff: 'fixed', baseDelayMs: 50, maxDelayMs: 50 },
+        async execute() {
+          throw new Error('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND api.example.com') })
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.fetch.fails', handler]]
+      })
+
+      const handle = jobManager.enqueue('task.fetch.fails' as never, { message: 'x' } as never)
+      const settled = await handle.finished
+
+      expect(settled.status).toBe('failed')
+      expect(settled.error?.message).toBe('fetch failed: getaddrinfo ENOTFOUND api.example.com')
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('falls back to the bare message when the error has no `.cause`', async () => {
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        defaultRetryPolicy: { maxAttempts: 1, backoff: 'fixed', baseDelayMs: 50, maxDelayMs: 50 },
+        async execute() {
+          throw new Error('handler-intentional-failure')
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.plain.fails', handler]]
+      })
+
+      const handle = jobManager.enqueue('task.plain.fails' as never, { message: 'x' } as never)
+      const settled = await handle.finished
+
+      expect(settled.status).toBe('failed')
+      expect(settled.error?.message).toBe('handler-intentional-failure')
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
   describe('settled event payload', () => {
     it('delivers input / parentId / final metadata to onSettled and exposes ctx.parentId', async () => {
       const settledEvents: JobSettledEvent<{ label: string }>[] = []
