@@ -161,6 +161,7 @@ async function findReusableEmptySessions(
 
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [detachedSidebarOpen, setDetachedSidebarOpen] = useState(false)
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
   const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
@@ -181,8 +182,8 @@ const AgentPage = () => {
   const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({ enabled: !isMessageOnlyView })
   const isLatestSessionReady = isMessageOnlyView || !isLatestSessionLoading
   const isWindowFrame = useWindowFrame().mode === 'window'
-  // Detached windows are single-conversation: no session list, so no sidebar at all.
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
+  const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -338,9 +339,13 @@ const AgentPage = () => {
   const setResourceListOpen = useCallback(
     (open: boolean) => {
       setAutoCollapsedResourceList(false)
+      if (isWindowFrame) {
+        setDetachedSidebarOpen(open)
+        return
+      }
       void setShowSidebar(open)
     },
-    [setShowSidebar]
+    [isWindowFrame, setShowSidebar]
   )
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
@@ -351,7 +356,7 @@ const AgentPage = () => {
   useCommandHandler(
     'app.sidebar.toggle',
     () => {
-      if (isMessageOnlyView || isWindowFrame) return
+      if (isMessageOnlyView) return
 
       toggleResourceListOpen()
     },
@@ -849,8 +854,10 @@ const AgentPage = () => {
 
   // Classic layout = entity rail + right session panel; modern layout = the single sidebar (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
+  const sessionListPosition: TopicTabPosition =
+    !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
-    isClassicSessionLayout && panePosition === 'right' && activeResourceAgentId
+    isClassicSessionLayout && sessionListPosition === 'right' && activeResourceAgentId
       ? {
           label: t('agent.session.list.title'),
           count: agentSessions.filter((session) => session.agentId === activeResourceAgentId).length
@@ -885,7 +892,6 @@ const AgentPage = () => {
       visibleSession?.agentId
     ]
   )
-  const sessionListPosition: TopicTabPosition = isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const shellPanePosition: TopicTabPosition = 'left'
   const pane =
     isClassicSessionLayout && sessionListPosition === 'right' ? (
@@ -896,7 +902,7 @@ const AgentPage = () => {
           setAgentCreateOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
-        onOpenHistoryRecords={openHistoryRecords}
+        onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onSelectSession={handleResourceSessionSelect}
         onSelectedAgentClick={() => {
           closeSurface()
@@ -917,10 +923,10 @@ const AgentPage = () => {
         }}
         historyRecordsActive={historyRecordsActive}
         revealRequest={sessionRevealRequest}
-        onOpenHistoryRecords={openHistoryRecords}
+        onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onCreateSession={createAndActivateEmptySession}
         onShowMissingAgentSelection={isMessageOnlyView ? undefined : showMissingAgentSelection}
-        onSetPanePosition={setSessionListPosition}
+        onSetPanePosition={isWindowFrame ? undefined : setSessionListPosition}
         panePosition="left"
         resourceMenuItems={resourceMenuItems}
         setActiveSessionId={setActiveSessionAndClearTransient}
@@ -1030,7 +1036,7 @@ const AgentPage = () => {
             panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-            showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+            showResourceListControls={!isMessageOnlyView}
             sidebarOpen={effectiveShowSidebar}
             onSidebarToggle={toggleResourceListOpen}
             missingAgentSelection={!isMessageOnlyView && missingAgentSelection && !visibleSession}
