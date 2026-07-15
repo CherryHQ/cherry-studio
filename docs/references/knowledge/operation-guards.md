@@ -30,16 +30,6 @@ Used by subtree id-based operations: `deleteItems` and `reindexItems`.
 
 This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
 
-### `KnowledgeService.getRootItemsInBase`
-
-Private helper used only by single-item chunk operations.
-
-- De-duplicates input item ids.
-- Loads each selected item.
-- Rejects items that do not belong to the requested `baseId`.
-
-Subtree operations do not use this helper; they use `KnowledgeItemService.getOutermostSelectedItemIds` instead.
-
 ### Subtree Status Reconciliation
 
 Any non-delete subtree status update must reconcile parent containers outside the updated subtree. For example, if a child subtree is marked `failed` after a scheduling failure, the parent directory must also be recalculated so it does not remain `processing` without active work.
