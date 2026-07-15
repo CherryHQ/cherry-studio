@@ -12,9 +12,9 @@ Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI
 
 ## Durable ownership and runtime facts
 
-`feature.binary.tools` is the sole durable ownership manifest. Each `BinaryManifestEntry` records the executable name, mise tool specification, and optional requested version. It means Cherry is allowed to update and remove that tool; it does **not** prove that an executable exists right now.
+`feature.binary.tools` is the sole durable ownership manifest. Each `BinaryManifestEntry` records the executable name, mise tool specification, and optional requested version. Backups restore it as management intent, not observed local installation state: it means Cherry is allowed to update and remove that tool; it does **not** prove that an executable exists right now.
 
-Only the main process writes this preference, through `BinaryManager.installTool()` and `BinaryManager.removeTool()`. The renderer sends commands and renders snapshots; it never writes manifest entries directly. There is no `state.json`, and startup never reinstalls manifest entries. A missing executable remains recoverable through the normal install path, while a manifest entry remains removable.
+Only the main process writes this preference, through `BinaryManager.installTool()` and `BinaryManager.removeTool()`. The renderer sends commands and renders snapshots; it never writes manifest entries directly. There is no `state.json` or startup reconcile, so restoring the manifest does not automatically mutate the filesystem. A missing executable remains recoverable through the normal install path, while a manifest entry remains removable.
 
 mise is an availability backend, not an ownership database. An executable visible to mise can be unowned; conversely, an owned manifest entry can be unavailable after external deletion. A failed manifest write after mise succeeds therefore leaves a runnable-but-unowned binary and a failed install operation, rather than silently claiming it.
 
