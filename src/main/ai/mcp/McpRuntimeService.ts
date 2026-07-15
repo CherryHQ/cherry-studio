@@ -593,9 +593,25 @@ export class McpRuntimeService extends BaseService {
               removeEnvProxy(loginShellEnv)
             }
 
+            // On Windows, .cmd/.bat files may not execute correctly via spawn()
+            // in all environments. Wrap with cmd.exe /c for reliability.
+            // Node.js usually handles this automatically, but explicit wrapping
+            // avoids edge cases with PATH resolution and argument quoting. (#12623)
+            let finalCommand = cmd
+            let finalArgs = args
+            if (isWin && /\.(cmd|bat)$/i.test(cmd)) {
+              finalCommand = 'cmd.exe'
+              finalArgs = ['/c', cmd, ...args]
+              getServerLogger(server).debug('Wrapped .cmd/.bat command with cmd.exe /c', {
+                original: cmd,
+                wrapped: finalCommand,
+                args: finalArgs
+              })
+            }
+
             const transportOptions: StdioServerParameters = {
-              command: cmd,
-              args,
+              command: finalCommand,
+              args: finalArgs,
               env: {
                 ...loginShellEnv,
                 ...connectEnv
