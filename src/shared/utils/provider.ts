@@ -152,10 +152,6 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
-export function isAgentSupportedProvider(provider: Provider): boolean {
-  return !isGeminiProvider(provider)
-}
-
 export function isSupportUrlContextProvider(provider: Provider): boolean {
   return (
     isGeminiProvider(provider) ||
