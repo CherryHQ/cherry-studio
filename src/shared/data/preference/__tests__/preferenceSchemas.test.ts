@@ -28,9 +28,28 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
   })
 
-  it('groups agent sessions by agent for new users', () => {
+  it('groups conversations and agent sessions by the assistant and agent defaults for new users', () => {
+    const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
     const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
 
+    expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
+  })
+
+  it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
+    const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+      { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
+      { id: 'translate', type: 'app' },
+      { id: 'paintings', type: 'app' },
+      { id: 'knowledge', type: 'app' }
+    ]
+
+    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+  })
+
+  it('does not keep legacy classic/modern layout preferences', () => {
+    expect('topic.layout' in DefaultPreferences.default).toBe(false)
+    expect('agent.layout' in DefaultPreferences.default).toBe(false)
   })
 })

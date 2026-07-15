@@ -1,16 +1,20 @@
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { application } from '@main/core/application'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost } from '@shared/utils/api'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import {
+  isExternalCliProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  OLLAMA_PLACEHOLDER_AUTH_TOKEN
+} from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -44,24 +48,40 @@ interface ClaudeCodeRuntimeRoute {
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
-  effectiveResume?: string
+  effectiveResume?: string,
+  /** Connection-scoped model override: a live turn runs on the model captured at its creation,
+   *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
+   *  agent's current model (prewarm and turn-less connections). */
+  connectionModelId?: UniqueModelId
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
-  const session = await agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
-  const agent = await agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
 
-  const uniqueModelId = agent.model
+  const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const provider = await providerService.getByProviderId(providerId)
-  const model = await modelService.getByKey(providerId, modelId)
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-  const route = await resolveClaudeCodeRuntimeRoute(agent, provider, model, modelId, baseUrl)
+  // A live turn's connection is pinned to the model captured at turn creation, which can already be an
+  // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
+  // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
+  // than read the possibly-edited-ahead latest sub-models — otherwise the captured turn would launch with
+  // the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be forced onto the gateway by a sub-model
+  // that now points at another provider. With no edit (or a turn-less connection) the latest sub-models
+  // still apply.
+  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
+  const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
+  const route = await resolveClaudeCodeRuntimeRoute(provider, model, modelId, baseUrl, planModel, smallModel)
   const resumeSessionId =
-    effectiveResume ?? (await agentSessionMessageService.getLastRuntimeResumeToken(session.id)) ?? undefined
+    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
-    await buildClaudeCodeSessionSettings(session, provider, { lastAgentSessionId: resumeSessionId }),
+    await buildClaudeCodeSessionSettings(session, provider, {
+      lastAgentSessionId: resumeSessionId
+    }),
     route
   )
   const sdkModelId = route.modelIds.primary
@@ -85,11 +105,12 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 }
 
 async function resolveClaudeCodeRuntimeRoute(
-  agent: AgentEntity,
   primaryProvider: Provider,
   primaryModel: Model,
   primaryModelId: string,
-  primaryBaseUrl: string
+  primaryBaseUrl: string,
+  planModel: UniqueModelId | null | undefined,
+  smallModel: UniqueModelId | null | undefined
 ): Promise<ClaudeCodeRuntimeRoute> {
   const primaryRef: RuntimeModelRef = {
     providerId: primaryProvider.id,
@@ -98,13 +119,37 @@ async function resolveClaudeCodeRuntimeRoute(
     provider: primaryProvider
   }
   const opusRef = primaryRef
-  const sonnetRef = await resolveRuntimeModelRef(agent.planModel ?? agent.model, primaryRef)
-  const haikuRef = await resolveRuntimeModelRef(agent.smallModel ?? agent.model, primaryRef)
+  // Unset plan/small models fall back to `primaryRef` (the effective connection model). The caller also
+  // passes them unset to pin a captured turn's route to its primary (see `pinSubModelsToPrimary`), so a
+  // mid-window sub-model edit can't mix into the captured connection — the whole route stays on the pinned
+  // model (consistent env values, no spurious gateway switch when the edit points at another provider).
+  const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
+  const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
   const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
   if (geminiRef) {
     throw new Error(`Gemini provider models are not supported by Claude Code agents: ${geminiRef.providerId}`)
+  }
+
+  // External-cli (e.g. claude-code) authenticates only through the SDK's
+  // subscription login, which can serve *only* this provider's own models. A
+  // plan/small model pointing at another provider can't run on that login — and
+  // must not fall through to the gateway branch below, which would inject an API
+  // key (abandoning the login) and ship an unresolvable `claude-code:*` id to
+  // the gateway, bricking the agent. Pin every sub-model back onto the primary
+  // so the agent still runs on the subscription login.
+  if (isExternalCliProvider(primaryProvider)) {
+    const pinToPrimary = (ref: RuntimeModelRef) =>
+      ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
+    return {
+      modelIds: {
+        primary: primaryRef.apiModelId,
+        opus: pinToPrimary(opusRef),
+        sonnet: pinToPrimary(sonnetRef),
+        haiku: pinToPrimary(haikuRef)
+      }
+    }
   }
 
   const shouldUseGateway = modelRefs.some(
@@ -126,9 +171,11 @@ async function resolveClaudeCodeRuntimeRoute(
   }
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
+  const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
+  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
   return {
     baseUrl: anthropicBaseUrl,
-    apiKey: await providerService.getRotatedApiKey(primaryProvider.id),
+    apiKey: runtimeApiKey,
     modelIds: {
       primary: withDeepSeek1mSuffix(primaryRef.apiModelId, anthropicBaseUrl),
       opus: withDeepSeek1mSuffix(opusRef.apiModelId, anthropicBaseUrl),
@@ -138,19 +185,27 @@ async function resolveClaudeCodeRuntimeRoute(
   }
 }
 
-async function resolveRuntimeModelRef(
+function resolveRuntimeModelRef(
   uniqueModelId: UniqueModelId | null | undefined,
   fallback: RuntimeModelRef
-): Promise<RuntimeModelRef> {
+): RuntimeModelRef {
   if (!uniqueModelId) return fallback
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   if (providerId === fallback.providerId && modelId === fallback.modelId) return fallback
 
   try {
-    const [provider, model] = await Promise.all([
-      providerService.getByProviderId(providerId).catch(() => undefined),
-      modelService.getByKey(providerId, modelId).catch(() => undefined)
-    ])
+    let provider: ReturnType<typeof providerService.getByProviderId> | undefined
+    try {
+      provider = providerService.getByProviderId(providerId)
+    } catch {
+      provider = undefined
+    }
+    let model: ReturnType<typeof modelService.getByKey> | undefined
+    try {
+      model = modelService.getByKey(providerId, modelId)
+    } catch {
+      model = undefined
+    }
     return {
       providerId,
       modelId,
@@ -184,17 +239,14 @@ async function resolveApiGatewayRuntime(): Promise<{ baseUrl: string; apiKey: st
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {
-  if (isManagedCherryAiDefaultModel(ref.providerId, ref.apiModelId)) {
-    throw new Error('CherryAI managed default model is not available through the API gateway')
-  }
-  return `${ref.providerId}:${ref.apiModelId}`
+  return formatGatewayModelId(ref.providerId, ref.apiModelId)
 }
 
 function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   // Claude SDK manages API versioning itself — ANTHROPIC_BASE_URL must not include /v1.
   const anthropicEndpointUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const rawBaseUrl = anthropicEndpointUrl || baseUrl
-  return rawBaseUrl ? formatApiHost(rawBaseUrl, false) : undefined
+  return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
 function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {

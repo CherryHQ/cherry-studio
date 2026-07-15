@@ -1,4 +1,6 @@
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import {
   normalizePaintingGenerateError,
   PaintingGenerateError,
@@ -8,7 +10,13 @@ import {
 // Re-export the presentation-free core (codes, class, create/normalize) so
 // paintings renderer code has a single import for painting errors. The
 // renderer layer adds the i18n translation + toast/modal presentation.
-export * from '@shared/ai/paintingGenerateError'
+export {
+  createPaintingGenerateError,
+  normalizePaintingGenerateError,
+  PaintingGenerateError,
+  type PaintingGenerateErrorCode,
+  type PaintingGenerateErrorOptions
+} from '@shared/ai/paintingGenerateError'
 
 export function translatePaintingGenerateError(error: Error): string {
   if (!(error instanceof PaintingGenerateError)) {
@@ -20,7 +28,6 @@ export function translatePaintingGenerateError(error: Error): string {
   }
 
   const keyMap: Record<Exclude<PaintingGenerateErrorCode, 'REMOTE_ERROR'>, string> = {
-    NO_API_KEY: 'error.no_api_key',
     PROVIDER_DISABLED: 'error.provider_disabled',
     PROMPT_REQUIRED: 'paintings.prompt_required',
     TEXT_DESC_REQUIRED: 'paintings.text_desc_required',
@@ -49,14 +56,14 @@ export function presentPaintingGenerateError(error: unknown) {
 
   if (normalized instanceof PaintingGenerateError && normalized.presentation === 'toast') {
     if (normalized.severity === 'warning') {
-      window.toast.warning(message)
+      toast.warning(message)
     } else {
-      window.toast.error(message)
+      toast.error(message)
     }
     return
   }
 
-  window.modal.error({
+  void popup.error({
     content: message,
     centered: true
   })

@@ -16,9 +16,19 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
@@ -28,8 +38,6 @@ import type React from 'react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
@@ -58,10 +66,10 @@ const QuickAssistantSettings: FC = () => {
   const handleEnableQuickAssistant = async (enable: boolean) => {
     await setEnableQuickAssistant(enable)
 
-    void (!enable && window.api.quickAssistant.close())
+    void (!enable && ipcApi.request('quick_assistant.close'))
 
     if (enable && !clickTrayToShowQuickAssistant) {
-      window.toast.info({
+      toast.info({
         title: t('settings.quickAssistant.use_shortcut_to_show'),
         timeout: 4000,
         icon: <Info size={16} />
@@ -80,7 +88,7 @@ const QuickAssistantSettings: FC = () => {
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     await setReadClipboardAtStartup(checked)
-    void window.api.quickAssistant.close()
+    void ipcApi.request('quick_assistant.close')
   }
 
   return (

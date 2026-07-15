@@ -4,7 +4,9 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
+  getLatestUpdatedMock,
   updateMock,
+  setWorkspaceMock,
   deleteMock,
   deleteByAgentIdMock,
   deleteByIdsMock,
@@ -16,7 +18,9 @@ const {
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
+  getLatestUpdatedMock: vi.fn(),
   updateMock: vi.fn(),
+  setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
@@ -31,7 +35,9 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
+    getLatestUpdated: getLatestUpdatedMock,
     update: updateMock,
+    setWorkspace: setWorkspaceMock,
     delete: deleteMock,
     deleteByAgentId: deleteByAgentIdMock,
     deleteByIds: deleteByIdsMock,
@@ -76,6 +82,21 @@ describe('agentSessionHandlers', () => {
     })
   })
 
+  describe('/agent-sessions/latest', () => {
+    it('wraps the latest session from AgentSessionService', async () => {
+      const session = { id: 'session-latest' }
+      getLatestUpdatedMock.mockReturnValueOnce(session)
+
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
+    })
+
+    it('returns { session: null } when there are no sessions', async () => {
+      getLatestUpdatedMock.mockReturnValueOnce(null)
+
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+    })
+  })
+
   describe('/agent-sessions/:sessionId', () => {
     it('forwards manual-name marker updates to AgentSessionService', async () => {
       const response = { id: 'session-1', name: 'Renamed session', isNameManuallyEdited: true }
@@ -94,6 +115,40 @@ describe('agentSessionHandlers', () => {
         isNameManuallyEdited: true
       })
       expect(result).toBe(response)
+    })
+  })
+
+  describe('/agent-sessions/:sessionId/workspace', () => {
+    it('forwards parsed workspace body to AgentSessionService', async () => {
+      const response = { id: 'session-1', workspaceId: 'workspace-1' }
+      setWorkspaceMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
+        params: { sessionId: 'session-1' },
+        body: {
+          type: 'user',
+          workspaceId: 'workspace-1'
+        }
+      } as never)
+
+      expect(setWorkspaceMock).toHaveBeenCalledWith('session-1', {
+        type: 'user',
+        workspaceId: 'workspace-1'
+      })
+      expect(result).toBe(response)
+    })
+
+    it('rejects invalid workspace body before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
+          params: { sessionId: 'session-1' },
+          body: {
+            type: 'user'
+          }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(setWorkspaceMock).not.toHaveBeenCalled()
     })
   })
 

@@ -402,9 +402,8 @@ export class UsageLedgerService {
     // resolution happened closest to request time and is the most accurate;
     // a later 'none' (pointer lost on restart) must not downgrade it.
     const keepStored = sql`${usageLedgerTable.apiKeyAttribution} <> 'none'`
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await tx
-        .insert(usageLedgerTable)
+    application.get('DbService').withWriteTx((tx) => {
+      tx.insert(usageLedgerTable)
         .values(values)
         .onConflictDoUpdate({
           target: usageLedgerTable.messageId,
@@ -427,6 +426,7 @@ export class UsageLedgerService {
             updatedAt: Date.now()
           }
         })
+        .run()
     })
   }
 
@@ -586,10 +586,10 @@ export class UsageLedgerService {
 
     let updatedCount = 0
     const CHUNK_SIZE = 100
-    await application.get('DbService').withWriteTx(async (tx) => {
+    application.get('DbService').withWriteTx((tx) => {
       for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
         for (const update of updates.slice(i, i + CHUNK_SIZE)) {
-          const updatedRows = await tx
+          const updatedRows = tx
             .update(usageLedgerTable)
             .set({
               cost: update.cost,
@@ -601,6 +601,7 @@ export class UsageLedgerService {
             })
             .where(and(eq(usageLedgerTable.id, update.id), isNull(usageLedgerTable.cost)))
             .returning({ id: usageLedgerTable.id })
+            .all()
 
           updatedCount += updatedRows.length
         }

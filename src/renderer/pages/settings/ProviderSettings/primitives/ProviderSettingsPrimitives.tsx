@@ -5,7 +5,21 @@ import type { ReactNode } from 'react'
 
 import { providerSettingsTypography } from './classNames'
 
-export * from './classNames'
+export {
+  actionClasses,
+  apiKeyListClasses,
+  authConnectionClasses,
+  customHeaderDrawerClasses,
+  drawerClasses,
+  fieldClasses,
+  modelListClasses,
+  modelSyncClasses,
+  oauthCardClasses,
+  providerDetailColumnClasses,
+  providerListClasses,
+  providerSettingsTypography,
+  sectionHeadingClasses
+} from './classNames'
 
 export function ProviderSettingsContainer({
   className,
@@ -43,11 +57,7 @@ export function ProviderHelpTextRow({ children, className }: { children: ReactNo
 export function ProviderHelpLink({ children, className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   return (
     <a
-      className={cn(
-        'mx-[5px] cursor-pointer text-(--color-primary) hover:underline',
-        providerSettingsTypography.label,
-        className
-      )}
+      className={cn('mx-[5px] cursor-pointer text-(--color-primary)', providerSettingsTypography.label, className)}
       {...props}>
       {children}
     </a>

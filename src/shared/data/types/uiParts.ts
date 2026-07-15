@@ -151,11 +151,13 @@ export interface CherryFileMeta {
    * FileEntryId for internal files (v1→v2 migrator preserves this from
    * `OldFileBlock.file.id` / `OldImageBlock.file.id`). External (user-path)
    * files have no fileEntryId. Consumed by `ChatMigrator` to backfill
-   * `file_ref` rows after migration.
+   * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
+  /** Safe composer-only source marker used to restore sent-message token previews. */
+  composerFileKind?: 'pasted-text'
 }
 
 /**
@@ -194,7 +196,7 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   id: z.string(),
-  kind: z.enum(['skill', 'file', 'command', 'knowledge', 'reference', 'quote']),
+  kind: z.enum(['skill', 'file', 'folder', 'command', 'knowledge', 'reference', 'quote']),
   label: z.string(),
   icon: z.string().optional(),
   description: z.string().optional(),
@@ -233,7 +235,8 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   fileEntryId: z.string().optional(),
-  fileTokenSourceId: z.string().optional()
+  fileTokenSourceId: z.string().optional(),
+  composerFileKind: z.literal('pasted-text').optional()
 })
 
 // Table-driven dispatch — part `type` → schema. First match wins.
@@ -255,7 +258,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
 
-export type ComposerMessageTokenKind = 'skill' | 'file' | 'command' | 'knowledge' | 'reference' | 'quote'
+export type ComposerMessageTokenKind = 'skill' | 'file' | 'folder' | 'command' | 'knowledge' | 'reference' | 'quote'
 
 export interface ComposerMessageFileTokenPayload {
   type?: FileType

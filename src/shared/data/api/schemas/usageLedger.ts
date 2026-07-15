@@ -17,7 +17,7 @@ import * as z from 'zod'
 
 import { UniqueModelIdSchema } from '../../types/model'
 import { type UsageLedgerAttribution, type UsageLedgerEntry } from '../../types/usageLedger'
-import type { OffsetPaginationParams, OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationParams, OffsetPaginationResponse } from '../types'
 
 // ============================================================================
 // Query schemas

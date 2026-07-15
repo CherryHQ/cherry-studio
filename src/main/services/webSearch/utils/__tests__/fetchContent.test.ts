@@ -1,7 +1,7 @@
 import type * as JsdomModule from 'jsdom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fetchMock = vi.hoisted(() => vi.fn())
+const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
 const jsdomConstructorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@logger', () => ({
@@ -15,10 +15,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('electron', () => ({
-  net: {
-    fetch: fetchMock
-  }
+vi.mock('@main/utils/remoteFetch', () => ({
+  fetchRemoteText: fetchRemoteTextMock
 }))
 
 vi.mock('jsdom', async () => {
@@ -37,23 +35,14 @@ vi.mock('jsdom', async () => {
 
 import { fetchWebSearchContent } from '../fetchContent'
 
-function createTextResponse(body: string, contentType: string, status = 200) {
-  return new Response(body, {
-    status,
-    headers: {
-      'content-type': contentType
-    }
-  })
-}
-
 describe('fetchWebSearchContent', () => {
   beforeEach(() => {
-    fetchMock.mockReset()
+    fetchRemoteTextMock.mockReset()
     jsdomConstructorMock.mockReset()
   })
 
   it('normalizes empty readability output to an empty string', async () => {
-    fetchMock.mockResolvedValue(createTextResponse('<html><body><div></div></body></html>', 'text/html'))
+    fetchRemoteTextMock.mockResolvedValue('<html><body><div></div></body></html>')
 
     const result = await fetchWebSearchContent('https://example.com/article')
 
@@ -67,22 +56,33 @@ describe('fetchWebSearchContent', () => {
 
   it('uses a safe synthetic URL for JSDOM instead of the remote document URL', async () => {
     const html = '<html><body><article><p>hello</p></article></body></html>'
-    fetchMock.mockResolvedValue(createTextResponse(html, 'text/html'))
+    fetchRemoteTextMock.mockResolvedValue(html)
 
     await fetchWebSearchContent('https://example.com/article')
 
     expect(jsdomConstructorMock).toHaveBeenCalledWith(html, { url: 'http://localhost/' })
   })
 
+  it('passes the default user-agent to the remote fetch helper', async () => {
+    fetchRemoteTextMock.mockResolvedValue('<html><body><article><p>hello</p></article></body></html>')
+
+    await fetchWebSearchContent('https://example.com/article')
+
+    const options = fetchRemoteTextMock.mock.calls[0]?.[1] as { headers: Headers }
+    expect(options.headers.get('User-Agent')).toBe(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    )
+  })
+
   it('throws when fetching content fails', async () => {
-    fetchMock.mockResolvedValue(createTextResponse('server error', 'text/plain', 500))
+    fetchRemoteTextMock.mockRejectedValue(new Error('HTTP error: 500'))
 
     await expect(fetchWebSearchContent('https://example.com/article')).rejects.toThrow('HTTP error: 500')
   })
 
-  it('rejects private/metadata addresses before fetching (SSRF guard)', async () => {
+  it('propagates remote fetch safety errors', async () => {
+    fetchRemoteTextMock.mockRejectedValue(new Error('Unsafe remote url: local or private addresses are not allowed'))
+
     await expect(fetchWebSearchContent('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/local or private/)
-    // Blocked before any network call.
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

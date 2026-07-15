@@ -17,7 +17,7 @@ vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
 
 import { collectFromFeatures } from '../../collectFromFeatures'
 import type { RequestScope } from '../../scope'
-import { INTERNAL_FEATURES } from '../index'
+import { INTERNAL_FEATURES } from '../internalFeatures'
 
 function makeScope(overrides: {
   provider: Partial<Provider>
@@ -86,14 +86,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('anthropic-cache activates only when endpoint is anthropic-messages AND cacheControl is enabled with a threshold', () => {
-    // Both conditions required after the endpoint-aware refactor: the
-    // request must be heading to an anthropic-messages endpoint, AND
-    // cacheControl must be opted in with a positive threshold.
+  it('anthropic-cache activates by default on anthropic-messages and respects explicit opt-out', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          provider: { id: 'anthropic', settings: {} } as never,
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -104,7 +101,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          provider: { id: 'anthropic', settings: {} } as never,
           model: {},
           endpointType: 'openai-chat-completions',
           aiSdkProviderId: 'openai-chat'
@@ -112,11 +109,10 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       )
     ).not.toContain('anthropic-cache')
 
-    // Threshold of 0 still disables, regardless of endpoint.
     expect(
       activeNames(
         makeScope({
-          provider: { settings: { cacheControl: { enabled: true, tokenThreshold: 0 } } } as never,
+          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } } as never,
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'

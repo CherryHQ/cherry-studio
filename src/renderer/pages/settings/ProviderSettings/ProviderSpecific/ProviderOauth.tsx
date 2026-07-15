@@ -1,11 +1,11 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
-import { providerBills, providerCharge } from '@renderer/utils/oauth'
+import { providerBills, providerCharge } from '@renderer/services/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
@@ -18,6 +18,8 @@ interface Props {
 const ProviderOauth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, addApiKey } = useProvider(providerId)
+  // Resolved before the early return below — hooks must run unconditionally.
+  const Icon = useIcon(resolveProviderIconRef(providerId))
 
   const setApiKey = async (newKey: string) => {
     await addApiKey(newKey, 'OAuth')
@@ -33,15 +35,11 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
   }
   const officialWebsite = provider.websites?.official
 
-  const Icon = resolveProviderIcon(provider.id)
-
   const serviceDescription = (
     <Trans
       i18nKey="settings.provider.oauth.description"
       components={{
-        website: (
-          <a className="text-inherit hover:underline" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
-        )
+        website: <a className="text-inherit" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
       }}
       values={{ provider: providerWebsite }}
     />

@@ -2,7 +2,7 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentModelFilter } from '../useAgentModelFilter'
+import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
 
 const providersMock = vi.hoisted(() => ({
   providers: [] as Array<Record<string, unknown>>
@@ -43,6 +43,12 @@ describe('useAgentModelFilter', () => {
         id: 'vertex',
         defaultChatEndpoint: 'google-generate-content',
         authType: 'iam-gcp'
+      },
+      {
+        id: 'cherryai',
+        presetProviderId: 'cherryai',
+        defaultChatEndpoint: 'openai-chat-completions',
+        authType: 'api-key'
       }
     ]
   })
@@ -61,6 +67,25 @@ describe('useAgentModelFilter', () => {
 
     expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(false)
     expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(false)
+  })
+
+  it('filters the managed CherryAI default model for Claude Code agents', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(
+      result.current({ ...model(), providerId: 'cherryai', id: 'cherryai::qwen', apiModelId: 'qwen', name: 'Qwen' })
+    ).toBe(false)
+  })
+
+  it('marks its predicate as an agent picker so selectors surface agent-only providers', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(modelFilterIncludesAgentOnlyProviders(result.current)).toBe(true)
+  })
+
+  it('treats an unmarked filter (or none) as a general selector', () => {
+    expect(modelFilterIncludesAgentOnlyProviders(() => true)).toBe(false)
+    expect(modelFilterIncludesAgentOnlyProviders(undefined)).toBe(false)
   })
 
   it('continues to reject non-chat model classes', () => {

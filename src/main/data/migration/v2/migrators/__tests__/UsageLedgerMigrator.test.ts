@@ -15,7 +15,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
-import { getAllMigrators } from '../index'
+import { getAllMigrators } from '../migratorRegistry'
 import { UsageLedgerMigrator } from '../UsageLedgerMigrator'
 
 describe('UsageLedgerMigrator', () => {
@@ -333,11 +333,15 @@ describe('UsageLedgerMigrator', () => {
       data: { parts: [] },
       status: 'success',
       modelId: null,
-      modelSnapshot: {
-        id: 'anthropic/claude-sonnet-4.5',
-        name: 'Claude Sonnet 4.5',
-        provider: 'cherryin',
-        group: 'anthropic'
+      messageSnapshot: {
+        id: 'agent-ledger',
+        name: 'Ledger Agent',
+        model: {
+          id: 'anthropic/claude-sonnet-4.5',
+          name: 'Claude Sonnet 4.5',
+          provider: 'cherryin',
+          group: 'anthropic'
+        }
       },
       stats: { inputTokens: 5, outputTokens: 8, totalTokens: 13 },
       createdAt: 3000,

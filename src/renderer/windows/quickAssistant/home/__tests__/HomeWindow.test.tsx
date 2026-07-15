@@ -25,6 +25,11 @@ const state = vi.hoisted(() => ({
 
 import HomeWindow from '../HomeWindow'
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  useIpcOn: vi.fn()
+}))
+
 vi.mock('@ai-sdk/react', () => ({
   useChat: () => ({
     messages: state.messages,
@@ -74,13 +79,13 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants, reset: state.resetExecutionMessages })
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: { changeLanguage: vi.fn() }
 }))
 
-// Stub the chat message barrel so this lightweight window (which only projects messages)
-// doesn't pull the whole message-rendering package into the test.
-vi.mock('@renderer/components/chat/messages', () => ({
+// Stub the message-list projection helper so this lightweight window (which only projects
+// messages) doesn't pull the whole message-rendering package into the test.
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 
@@ -130,14 +135,6 @@ describe('HomeWindow', () => {
     state.setMessages.mockClear()
     state.resetExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
-    ;(window.electron.ipcRenderer as any).removeAllListeners = vi.fn()
-    ;(window as any).api = {
-      ...window.api,
-      quickAssistant: {
-        setPin: vi.fn(),
-        hide: vi.fn()
-      }
-    }
   })
 
   it('renders the input surface in model-only quick assistant mode', () => {

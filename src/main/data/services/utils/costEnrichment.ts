@@ -80,23 +80,21 @@ export async function enrichStatsWithCost(
     return stats
   }
 
-  // Independent lookups — run concurrently to keep the persist path snappy.
-  const [pricing, reportsActualCost] = await Promise.all([
-    modelService
-      .getByKey(providerId, bareModelId)
-      .then((model) => model.pricing ?? undefined)
-      .catch((err) => {
-        logger.debug('cost enrichment: model pricing lookup failed', { modelId, err })
-        return undefined
-      }),
-    providerService
-      .getByProviderId(providerId)
-      .then((provider) => provider.apiFeatures.reportsActualCost === true)
-      .catch((err) => {
-        logger.debug('cost enrichment: provider lookup failed', { providerId, err })
-        return false
-      })
-  ])
+  // Independent synchronous lookups — best-effort, isolated so either failure
+  // still lets the other contribute.
+  let pricing: RuntimeModelPricing | undefined
+  try {
+    pricing = modelService.getByKey(providerId, bareModelId).pricing ?? undefined
+  } catch (err) {
+    logger.debug('cost enrichment: model pricing lookup failed', { modelId, err })
+  }
+
+  let reportsActualCost = false
+  try {
+    reportsActualCost = providerService.getByProviderId(providerId).apiFeatures.reportsActualCost === true
+  } catch (err) {
+    logger.debug('cost enrichment: provider lookup failed', { providerId, err })
+  }
 
   const computed = pricing ? computeStatsCostSnapshot(stats, pricing) : undefined
   const trustProvider = reportsActualCost && typeof providerCostUsd === 'number'

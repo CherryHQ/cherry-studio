@@ -208,6 +208,51 @@ describe('useExecutionOverlay', () => {
     expect(textOf(priorParts)).toBe('PRIOR ')
   })
 
+  it('structurally shares protocol-settled parts while the live frontier advances', async () => {
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
+
+    fake.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'settled text' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-end', id: 't1' } as CherryUIMessageChunk)
+    await waitFor(() => expect(result.current.overlay['anchor-a']?.[0]).toMatchObject({ state: 'done' }))
+    const settledText = result.current.overlay['anchor-a'][0]
+
+    fake.emit(A, {
+      type: 'tool-input-start',
+      toolCallId: 'tool-1',
+      toolName: 'search',
+      dynamic: true
+    } as CherryUIMessageChunk)
+    await waitFor(() => expect(result.current.overlay['anchor-a']).toHaveLength(2))
+    expect(result.current.overlay['anchor-a'][0]).toBe(settledText)
+
+    fake.emit(A, {
+      type: 'tool-output-available',
+      toolCallId: 'tool-1',
+      output: { phase: 'preliminary' },
+      preliminary: true
+    } as CherryUIMessageChunk)
+    await waitFor(() =>
+      expect(result.current.overlay['anchor-a'][1]).toMatchObject({ output: { phase: 'preliminary' } })
+    )
+    const preliminaryTool = result.current.overlay['anchor-a'][1]
+
+    fake.emit(A, {
+      type: 'tool-output-available',
+      toolCallId: 'tool-1',
+      output: { phase: 'final' }
+    } as CherryUIMessageChunk)
+    await waitFor(() => expect(result.current.overlay['anchor-a'][1]).toMatchObject({ output: { phase: 'final' } }))
+    const settledTool = result.current.overlay['anchor-a'][1]
+    expect(settledTool).not.toBe(preliminaryTool)
+
+    fake.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk)
+    await waitFor(() => expect(result.current.overlay['anchor-a']).toHaveLength(3))
+    expect(result.current.overlay['anchor-a'][0]).toBe(settledText)
+    expect(result.current.overlay['anchor-a'][1]).toBe(settledTool)
+  })
+
   it('keeps live message metadata from message-metadata chunks', async () => {
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))

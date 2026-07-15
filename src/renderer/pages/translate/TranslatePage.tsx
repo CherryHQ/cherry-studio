@@ -1,25 +1,27 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { Navbar } from '@renderer/components/app/Navbar'
 // Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
 // via a nested `export *`, which tsgo fails to resolve on main's program (it
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
-import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { Navbar } from '@renderer/components/Navbar'
+import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
 import { useModels } from '@renderer/hooks/useModel'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
+import { exportContentToNotes } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
@@ -32,6 +34,7 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
   isUniqueModelId,
@@ -44,7 +47,7 @@ import type { TranslateHistory } from '@shared/data/types/translate'
 import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
-import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
+import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -59,6 +62,7 @@ import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
 const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.RERANK,
@@ -68,6 +72,9 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
+
+const getTitleFromTranslationResult = (translationResult: string) =>
+  translationResult.trim().split(/\r?\n/, 1)[0].slice(0, TRANSLATION_RESULT_TITLE_MAX_LENGTH)
 
 type OcrJob = {
   jobId: string
@@ -101,7 +108,7 @@ const OcrJobWatcher: FC<{
     const rejectJob = (error: unknown, fallbackMessage: string) => {
       const normalizedError = normalizeError(error, fallbackMessage)
       const prefix = t('translate.files.error.ocr')
-      window.toast.error(formatErrorMessageWithPrefix(normalizedError, prefix))
+      toast.error(formatErrorMessageWithPrefix(normalizedError, prefix))
     }
 
     // Job became unobservable (post-GC 404 / DataApi fetch failure): surface it once
@@ -121,7 +128,7 @@ const OcrJobWatcher: FC<{
       const parsedOutput = FileProcessingJobOutputSchema.safeParse(snapshot.output)
       if (parsedOutput.success && parsedOutput.data.artifact.kind === 'text') {
         onCompleted(parsedOutput.data.artifact.text)
-        window.toast.success(t('translate.files.ocr_completed'))
+        toast.success(t('translate.files.ocr_completed'))
       } else {
         const failure = new Error('Image OCR completed without a text artifact')
         if (!parsedOutput.success) {
@@ -147,6 +154,7 @@ const TranslatePage: FC = () => {
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
   const { add: addHistory } = useTranslateHistory()
+  const { notesPath } = useNotesSettings()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
@@ -182,7 +190,7 @@ const TranslatePage: FC = () => {
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
   const isOcrRunning = ocrJob !== null
 
-  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const inputScrollRef = useRef<HTMLDivElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
@@ -193,9 +201,9 @@ const TranslatePage: FC = () => {
 
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
   const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
-  const selectedModelIcon = selectedModel
-    ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
-    : undefined
+  const selectedModelIcon = useIcon(
+    selectedModel ? resolveIconRef(getModelIdentifier(selectedModel), selectedModel.providerId) : undefined
+  )
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -203,7 +211,7 @@ const TranslatePage: FC = () => {
         await persistPromise
       } catch (error) {
         logger.error(`Failed to persist ${actionName}`, error as Error)
-        window.toast.error(t('common.save_failed'))
+        toast.error(t('common.save_failed'))
       }
     },
     [t]
@@ -243,7 +251,7 @@ const TranslatePage: FC = () => {
       await copy(translateInput)
     } catch (error) {
       logger.error('Failed to copy source text:', error as Error)
-      window.toast.error(t('common.copy_failed'))
+      toast.error(t('common.copy_failed'))
     }
   }, [copy, t, translateInput])
 
@@ -252,9 +260,20 @@ const TranslatePage: FC = () => {
       await copy(translateOutput)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
-      window.toast.error(t('common.copy_failed'))
+      toast.error(t('common.copy_failed'))
     }
   }, [copy, t, translateOutput])
+
+  const onExportOutputToNotes = useCallback(() => {
+    const translationResult = translateOutput.trim()
+    if (!translationResult) return
+
+    void exportContentToNotes(getTitleFromTranslationResult(translationResult), translationResult, notesPath).catch(
+      (error) => {
+        logger.error('Failed to export output to notes:', error as Error)
+      }
+    )
+  }, [notesPath, translateOutput])
 
   const translate = useCallback(
     async (
@@ -267,10 +286,9 @@ const TranslatePage: FC = () => {
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) {
-        smoothReset('')
         return
       }
-      window.toast.success(t('translate.complete'))
+      toast.success(t('translate.complete'))
 
       if (autoCopy) {
         setTimeoutTimer(
@@ -280,7 +298,7 @@ const TranslatePage: FC = () => {
               await copy(translated)
             } catch (error) {
               logger.error('Failed to auto copy translated text', error as Error)
-              window.toast.error(t('translate.error.auto_copy_failed'))
+              toast.error(t('translate.error.auto_copy_failed'))
             }
           },
           100
@@ -304,12 +322,10 @@ const TranslatePage: FC = () => {
     if (sourceLanguage === 'auto') {
       setIsDetecting(true)
       try {
-        actualSourceLanguage = await detectLanguage(translateInput)
+        actualSourceLanguage = await detectLanguageOrUnknown(translateInput, detectLanguage, (error) => {
+          logger.error('Failed to detect language', error as Error)
+        })
         setDetectedLanguage(actualSourceLanguage)
-      } catch (error) {
-        logger.error('Failed to detect language', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.detect.failed')))
-        return
       } finally {
         setIsDetecting(false)
       }
@@ -317,20 +333,17 @@ const TranslatePage: FC = () => {
       setDetectedLanguage(null)
     }
 
-    if (actualSourceLanguage === UNKNOWN_LANG_CODE) {
-      window.toast.error(t('translate.error.detect.unknown'))
-      return
-    }
+    const shouldUseBidirectionalTarget = isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
 
     const targetResult = determineTargetLanguage(
       actualSourceLanguage,
       targetLanguage,
-      isBidirectional,
+      shouldUseBidirectionalTarget,
       bidirectionalPair
     )
 
     if (!targetResult.success) {
-      window.toast.warning(
+      toast.warning(
         targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
       )
       return
@@ -355,7 +368,7 @@ const TranslatePage: FC = () => {
   const onAbort = useCallback(() => {
     if (!isTranslating) return
     cancel()
-    window.toast.info(t('translate.info.aborted'))
+    toast.info(t('translate.info.aborted'))
   }, [cancel, isTranslating, t])
 
   const handleExchange = useCallback(() => {
@@ -380,22 +393,26 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory) => {
+      const nextTargetLanguage =
+        history.targetLanguage ??
+        (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
+
       setTranslateInput(history.sourceText)
       setTranslateOutput(history.targetText)
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
-      void safePersist(setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE), 'translate target language')
+      void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
-    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput, targetLanguage]
   )
 
   const inputScrollHandler = useMemo(
-    () => createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
+    () => createInputScrollHandler(inputScrollRef, outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
 
   const outputScrollHandler = useMemo(
-    () => createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled),
+    () => createOutputScrollHandler(outputTextRef, inputScrollRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
 
@@ -442,20 +459,20 @@ const TranslatePage: FC = () => {
             isText = await isTextFile(file.path)
           } catch (error) {
             logger.error('Failed to check file type.', error as Error)
-            window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
+            toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
             return
           }
         }
 
         if (!isText && !isDocument) {
-          window.toast.error(t('common.file.not_supported', { type: fileExtension }))
+          toast.error(t('common.file.not_supported', { type: fileExtension }))
           logger.error('Unsupported file type.')
           return
         }
 
         const maxSize = isDocument ? 20 * MB : 5 * MB
         if (file.size > maxSize) {
-          window.toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
+          toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
           return
         }
 
@@ -466,12 +483,12 @@ const TranslatePage: FC = () => {
           appendTranslateInput(result)
         } catch (error) {
           logger.error('Failed to read file.', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+          toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
         }
       }
 
       const promise = read()
-      window.toast.loading({ title: t('translate.files.reading'), promise })
+      toast.loading({ title: t('translate.files.reading'), promise })
     },
     [appendTranslateInput, t]
   )
@@ -492,7 +509,7 @@ const TranslatePage: FC = () => {
         jobId = snapshot.id
       } catch (error) {
         logger.error('Failed to start image OCR.', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
+        toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
         return
       }
 
@@ -522,7 +539,7 @@ const TranslatePage: FC = () => {
       }
     } catch (error) {
       logger.error('Unknown error when selecting file.', error as Error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+      toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
     } finally {
       clearFiles()
       setIsProcessing(false)
@@ -533,7 +550,7 @@ const TranslatePage: FC = () => {
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
       if (files.length === 0) return null
       if (files.length > 1) {
-        window.toast.error(t('translate.files.error.multiple'))
+        toast.error(t('translate.files.error.multiple'))
         return null
       }
       return files[0]
@@ -550,7 +567,7 @@ const TranslatePage: FC = () => {
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
           logger.error('getTextFromDropEvent', error as Error)
-          window.toast.error(t('translate.files.error.unknown'))
+          toast.error(t('translate.files.error.unknown'))
           return null
         })
         if (data) {
@@ -559,7 +576,7 @@ const TranslatePage: FC = () => {
 
         const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
           logger.error('handleDrop:', error as Error)
-          window.toast.error(t('translate.files.error.unknown'))
+          toast.error(t('translate.files.error.unknown'))
           return null
         })
 
@@ -571,7 +588,7 @@ const TranslatePage: FC = () => {
         }
       } catch (error) {
         logger.error('Drop processing failed', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
+        toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
       } finally {
         setIsProcessing(false)
       }
@@ -600,7 +617,7 @@ const TranslatePage: FC = () => {
 
         if (!filePath) {
           if (!file.type.startsWith('image/')) {
-            window.toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
+            toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
             return
           }
           const tempFilePath = await window.api.file.createTempFile(file.name)
@@ -613,13 +630,13 @@ const TranslatePage: FC = () => {
         }
 
         if (!selectedFile) {
-          window.toast.error(t('translate.files.error.unknown'))
+          toast.error(t('translate.files.error.unknown'))
           return
         }
         await processFile(selectedFile)
       } catch (error) {
         logger.error('onPaste:', error as Error)
-        window.toast.error(t('chat.input.file_error'))
+        toast.error(t('chat.input.file_error'))
       } finally {
         setIsProcessing(false)
       }
@@ -757,10 +774,10 @@ const TranslatePage: FC = () => {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
             <TranslateInputPane
-              ref={textAreaRef}
+              ref={inputScrollRef}
               text={translateInput}
               onTextChange={handleInputChange}
               onKeyDown={(event) => {
@@ -781,7 +798,7 @@ const TranslatePage: FC = () => {
             />
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l">
+          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-l">
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}
@@ -790,6 +807,7 @@ const TranslatePage: FC = () => {
               translating={isTranslating || isDetecting}
               copied={copied}
               onCopy={onCopyOutput}
+              onExportToNotes={onExportOutputToNotes}
               onScroll={outputScrollHandler}
             />
           </section>

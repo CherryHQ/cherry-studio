@@ -8,8 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsTab: vi.fn(),
-    showSearchPopup: vi.fn(),
-    toggleTheme: vi.fn()
+    showSearchPopup: vi.fn()
   }
 }))
 
@@ -22,6 +21,21 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    type = 'button',
+    ...props
+  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => {
+    const { variant, size, ...buttonProps } = props
+    void variant
+    void size
+
+    return (
+      <button data-slot="button" type={type} {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
   Kbd: ({ children }: { children?: React.ReactNode }) => children
 }))
@@ -33,11 +47,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ settedTheme: 'light', toggleTheme: mocks.toggleTheme })
-}))
-
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }
@@ -45,10 +55,6 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
-}))
-
-vi.mock('@renderer/i18n/label', () => ({
-  getThemeModeLabelKey: () => 'Light'
 }))
 
 vi.mock('react-i18next', () => ({
@@ -62,7 +68,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../../WindowControls', () => ({
-  default: () => null
+  WindowControls: () => null
 }))
 
 import { ShellTabBarActions, SidebarShellActions } from '../ShellTabBarActions'
@@ -87,6 +93,7 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
+    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
@@ -97,14 +104,15 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
   })
 
-  it('toggles theme from the sidebar icon footer action', async () => {
-    const user = userEvent.setup()
-
+  it('does not render the theme toggle in the sidebar footer action', () => {
     render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
-    await user.click(screen.getByRole('button', { name: 'Light' }))
-
-    expect(mocks.toggleTheme).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
+      'text-muted-foreground',
+      'dark:text-muted-foreground'
+    )
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -120,7 +128,14 @@ describe('ShellTabBarActions', () => {
   it('renders sidebar full footer actions with visible labels', () => {
     render(<SidebarShellActions layout="full" onSettingsClick={mocks.openSettingsTab} />)
 
-    expect(screen.getByRole('button', { name: 'Light' })).toHaveTextContent('Light')
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
+      'justify-start',
+      'text-foreground',
+      'dark:text-foreground'
+    )
+    expect(screen.getByRole('button', { name: /settings/i })).not.toHaveClass('text-muted-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })
 })

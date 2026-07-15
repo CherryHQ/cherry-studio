@@ -1,23 +1,8 @@
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
-import { cn } from '@renderer/utils/style'
-import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -27,8 +12,23 @@ import {
   SettingRowTitle,
   SettingsContentColumn,
   SettingTitle
-} from '..'
-import { TopicNamingSettings } from './QuickModelPopup'
+} from '@renderer/components/SettingsPrimitives'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { isNonChatModel } from '@shared/utils/model'
+import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import type { ComponentProps, FC, ReactNode } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
 
@@ -61,7 +61,7 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, c
   </SettingRow>
 )
 
-interface ModelSelectorTriggerProps {
+interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Button>, 'children' | 'onSelect'> {
   model?: Model
   providers: Provider[]
   placeholder: string
@@ -85,17 +85,29 @@ const getModelIdentifier = (model: Model) => model.apiModelId ?? parseUniqueMode
 
 const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
 
-const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: ModelSelectorTriggerProps) => {
+const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
+  model,
+  providers,
+  placeholder,
+  compact,
+  className,
+  ...props
+}) => {
   const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
   const providerName = provider ? getProviderDisplayName(provider) : undefined
-  const icon = model ? resolveIcon(getModelIdentifier(model), model.providerId) : undefined
+  const icon = useIcon(model ? resolveIconRef(getModelIdentifier(model), model.providerId) : undefined)
 
   return (
     <Button
+      {...props}
       type="button"
       variant="outline"
       size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
+      className={cn(
+        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+        compact ? 'h-9' : 'h-7.5',
+        className
+      )}>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {model && icon ? (
           <icon.Avatar size={20} />
@@ -125,7 +137,9 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
-    trigger={renderModelSelectorTrigger({ model, providers, placeholder, compact })}
+    trigger={
+      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
+    }
   />
 )
 
@@ -150,7 +164,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       if (!selected) return
       void setDefaultModel(selected).catch((error) => {
         logger.error('Failed to set default model', { modelId: selected.id, error })
-        window.toast.error(t('settings.models.manage.operation_failed'))
+        toast.error(t('settings.models.manage.operation_failed'))
       })
     },
     [setDefaultModel, t]

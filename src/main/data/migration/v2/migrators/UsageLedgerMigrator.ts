@@ -113,7 +113,7 @@ async function countCandidateRows(db: DbType): Promise<number> {
         and(
           eq(messageTable.role, 'assistant'),
           isNotNull(messageTable.stats),
-          or(isNotNull(messageTable.modelId), isNotNull(messageTable.modelSnapshot))
+          or(isNotNull(messageTable.modelId), isNotNull(messageTable.messageSnapshot))
         )
       )
       .get(),
@@ -124,7 +124,7 @@ async function countCandidateRows(db: DbType): Promise<number> {
         and(
           eq(agentSessionMessageTable.role, 'assistant'),
           isNotNull(agentSessionMessageTable.stats),
-          or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.modelSnapshot))
+          or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.messageSnapshot))
         )
       )
       .get()
@@ -144,7 +144,7 @@ async function readCandidateRows(db: DbType): Promise<UsageLedgerSourceRow[]> {
         sourceName: assistantTable.name,
         sourceIcon: assistantTable.emoji,
         modelId: messageTable.modelId,
-        modelSnapshot: messageTable.modelSnapshot,
+        messageSnapshot: messageTable.messageSnapshot,
         stats: messageTable.stats,
         createdAt: messageTable.createdAt
       })
@@ -155,7 +155,7 @@ async function readCandidateRows(db: DbType): Promise<UsageLedgerSourceRow[]> {
         and(
           eq(messageTable.role, 'assistant'),
           isNotNull(messageTable.stats),
-          or(isNotNull(messageTable.modelId), isNotNull(messageTable.modelSnapshot))
+          or(isNotNull(messageTable.modelId), isNotNull(messageTable.messageSnapshot))
         )
       ),
     db
@@ -167,7 +167,7 @@ async function readCandidateRows(db: DbType): Promise<UsageLedgerSourceRow[]> {
         sourceName: agentTable.name,
         sourceIcon: agentTable.configuration,
         modelId: agentSessionMessageTable.modelId,
-        modelSnapshot: agentSessionMessageTable.modelSnapshot,
+        messageSnapshot: agentSessionMessageTable.messageSnapshot,
         stats: agentSessionMessageTable.stats,
         createdAt: agentSessionMessageTable.createdAt
       })
@@ -178,12 +178,17 @@ async function readCandidateRows(db: DbType): Promise<UsageLedgerSourceRow[]> {
         and(
           eq(agentSessionMessageTable.role, 'assistant'),
           isNotNull(agentSessionMessageTable.stats),
-          or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.modelSnapshot))
+          or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.messageSnapshot))
         )
       )
   ])
 
-  return [...chatRows, ...agentSessionRows]
+  // The producing author's snapshot now nests the model it ran; the ledger only
+  // needs that model identity, so project it back onto `modelSnapshot`.
+  return [...chatRows, ...agentSessionRows].map(({ messageSnapshot, ...rest }) => ({
+    ...rest,
+    modelSnapshot: messageSnapshot?.model ?? null
+  }))
 }
 
 function toApiKeySnapshot(apiKeys: ApiKeyEntry[] | null): ProviderSnapshot['apiKey'] {
@@ -344,12 +349,12 @@ export class UsageLedgerMigrator extends BaseMigrator {
     }
 
     const CHUNK_SIZE = 100
-    await ctx.db.transaction(async (tx) => {
+    ctx.db.transaction((tx) => {
       for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-        await tx
-          .insert(usageLedgerTable)
+        tx.insert(usageLedgerTable)
           .values(rows.slice(i, i + CHUNK_SIZE))
           .onConflictDoNothing({ target: usageLedgerTable.messageId })
+          .run()
       }
     })
 

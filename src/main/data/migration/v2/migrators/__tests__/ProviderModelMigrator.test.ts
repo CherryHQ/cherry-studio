@@ -1,23 +1,29 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
+import { existsSync, mkdtempSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
+const PNG_1X1 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
 import { ProviderModelMigrator } from '../ProviderModelMigrator'
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
 
 const registryFixtures = {
   models: new Map<string, unknown>(),
@@ -49,7 +55,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 function createContext(
   db: MigrationContext['db'],
   reduxState: Record<string, unknown> = {},
-  dexieSettings: Record<string, unknown> = {}
+  dexieSettings: Record<string, unknown> = {},
+  filesDataDir = ''
 ): MigrationContext {
   return {
     sources: {
@@ -61,11 +68,19 @@ function createContext(
       }
     },
     db,
-    sharedData: new Map()
+    sharedData: new Map(),
+    paths: { filesDataDir }
   } as unknown as MigrationContext
 }
 
-function makeProvider(id: string, models: Array<{ id: string }> = []) {
+function makeProvider(
+  id: string,
+  models: Array<{
+    id: string
+    supported_endpoint_types?: string[]
+    capabilities?: Array<{ type: 'rerank'; isUserSelected?: boolean }>
+  }> = []
+) {
   return {
     id,
     name: `Provider ${id}`,
@@ -434,6 +449,106 @@ describe('ProviderModelMigrator', () => {
       expect(providerRow.apiFeatures).toBeNull()
     })
 
+    it('promotes a v1 custom provider logo from dexie settings into a WebP file_entry', async () => {
+      const filesDataDir = mkdtempSync(path.join(os.tmpdir(), 'provider-logo-mig-'))
+      const migrationContext = createContext(
+        dbh.db,
+        { llm: { providers: [makeProvider('with-logo'), makeProvider('no-logo')] } },
+        { 'image://provider-with-logo': PNG_1X1 },
+        filesDataDir
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [withLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'with-logo'))
+      // Base64 upload becomes an on-disk WebP file_entry; logoKey stays null.
+      expect(withLogo.logoKey).toBeNull()
+
+      // The uploaded logo's file id lives ONLY in the ref row (single source of truth).
+      const refs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'with-logo'))
+      expect(refs).toHaveLength(1)
+      const logoFileId = refs[0].fileEntryId
+
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
+      expect(entry?.origin).toBe('internal')
+      expect(entry?.ext).toBe('webp')
+      expect(existsSync(path.join(filesDataDir, `${logoFileId}.webp`))).toBe(true)
+
+      const [withoutLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'no-logo'))
+      expect(withoutLogo.logoKey).toBeNull()
+      const noLogoRefs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'no-logo'))
+      expect(noLogoRefs).toHaveLength(0)
+    })
+
+    it('recovers a v1 built-in provider logo (non-data asset value) as an icon: ref, dropping unknowns', async () => {
+      // Released v1 stores a picked built-in logo as `PROVIDER_LOGO_MAP[id]` — a hashed
+      // build-asset URL (or the literal `'poe'`), NOT an `icon:<id>` ref. That value no
+      // longer resolves in v2. For a *custom* provider (random UUID id that doesn't
+      // resolve in the icon catalog) logoKey is the only logo it has, so the picked brand
+      // is recovered from the asset name and re-expressed as `icon:<catalogKey>`. An
+      // unrecognized value drops to null (no broken image). Never a file_entry / ref row.
+      const migrationContext = createContext(
+        dbh.db,
+        {
+          llm: {
+            providers: [
+              // Custom (UUID) providers — id won't resolve, so logoKey drives the avatar.
+              makeProvider('018f-uuid-openai'), // hashed bundled URL
+              makeProvider('018f-uuid-azure'), // asset named after a different brand (microsoft.png → azureai)
+              makeProvider('018f-uuid-poe'), // v1 literal 'poe'
+              makeProvider('018f-uuid-renamed') // unknown/renamed key → drops
+            ]
+          }
+        },
+        {
+          'image://provider-018f-uuid-openai': '/assets/openai-a1b2c3d4.png',
+          'image://provider-018f-uuid-azure': '/assets/microsoft-deadbeef.png',
+          'image://provider-018f-uuid-poe': 'poe',
+          'image://provider-018f-uuid-renamed': 'icon:aiStudio'
+        },
+        ''
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const expected: Record<string, string | null> = {
+        '018f-uuid-openai': 'icon:openai',
+        '018f-uuid-azure': 'icon:azureai',
+        '018f-uuid-poe': 'icon:poe',
+        '018f-uuid-renamed': null
+      }
+      for (const [providerId, logoKey] of Object.entries(expected)) {
+        const [provider] = await dbh.db
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+        expect(provider.logoKey).toBe(logoKey)
+
+        // A recovered icon ref lives on logoKey only — never a file_entry / ref row.
+        const refs = await dbh.db
+          .select()
+          .from(providerLogoFileRefTable)
+          .where(eq(providerLogoFileRefTable.sourceId, providerId))
+        expect(refs).toHaveLength(0)
+      }
+    })
+
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {
       // aihubmix's anthropic-messages endpoint routes through adapterFamily
       // 'aihubmix' (vendor-specific multi-provider relay), which is strictly
@@ -561,6 +676,104 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.contextWindow).toBeNull()
       expect(modelRow.inputModalities).toBeNull()
       expect(modelRow.outputModalities).toBeNull()
+    })
+
+    it('preserves an explicit rerank disable for matching model ids and registry presets', async () => {
+      registryFixtures.models.set('rerank-2', {
+        id: 'rerank-2',
+        name: 'Rerank 2',
+        capabilities: [MODEL_CAPABILITY.RERANK]
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('voyageai', [{ id: 'rerank-2', capabilities: [{ type: 'rerank', isUserSelected: false }] }])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
+      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.userOverrides).toEqual(['capabilities'])
+    })
+
+    it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('new-api', [{ id: 'opaque-model-id', supported_endpoint_types: [' JINA-RERANK '] }])
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
+    })
+
+    it('preserves an explicit rerank disable for opaque models with a primary Jina endpoint', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('new-api', [
+              {
+                id: 'opaque-model-id',
+                supported_endpoint_types: ['jina-rerank'],
+                capabilities: [{ type: 'rerank', isUserSelected: false }]
+              }
+            ])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.userOverrides).toEqual(['capabilities'])
+    })
+
+    it('does not infer rerank from a secondary Jina endpoint', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('new-api', [
+              { id: 'multi-endpoint-chat-model', supported_endpoint_types: ['openai', 'jina-rerank'] }
+            ])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::multi-endpoint-chat-model'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.capabilities).toEqual([])
     })
 
     it('tolerates a provider whose models field is null or undefined', async () => {

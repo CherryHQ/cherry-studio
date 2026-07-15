@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import { t } from 'i18next'
 import { useEffect } from 'react'
@@ -11,6 +12,11 @@ const logger = loggerService.withContext('useStorageMonitorNotification')
  * Detection and capacity-adaptive polling live in the main-process
  * StorageMonitorService; this hook is a thin subscriber that maps health
  * transitions onto a persistent toast, mirroring useAppUpdateHandler.
+ *
+ * Intentionally a React hook, not a service (mirroring useAppUpdateHandler):
+ * service-ification was considered and rejected — it depends on React-visible toast
+ * state and manages its own effect cleanup, and the renderer has no service lifecycle
+ * container, so a service would only add manual start/stop wiring for no gain.
  */
 export function useStorageMonitorNotification(): void {
   useEffect(() => {
@@ -25,7 +31,7 @@ export function useStorageMonitorNotification(): void {
       if (!active) return
       if (health.level === 'low' && !warningKey) {
         warningKey = `disk-warning-${Date.now()}`
-        window.toast.warning({
+        toast.warning({
           description: t('settings.data.limit.appDataDiskQuotaDescription'),
           key: warningKey,
           timeout: 0,
@@ -33,7 +39,7 @@ export function useStorageMonitorNotification(): void {
         })
         logger.info('Low disk space, showing warning notification')
       } else if (health.level === 'ok' && warningKey) {
-        window.toast.closeToast(warningKey)
+        toast.closeToast(warningKey)
         warningKey = null
         logger.info('Disk space recovered, dismissing warning notification')
       }

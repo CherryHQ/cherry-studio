@@ -6,15 +6,13 @@ import {
   Globe,
   Languages,
   LayoutGrid,
-  Library,
   MessageCircle,
   MousePointerClick,
   NotepadText,
   Palette,
+  Rocket,
   Settings
 } from 'lucide-react'
-
-import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
@@ -26,12 +24,11 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/paintings': Palette,
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,
+  '/app/launchpad': Rocket,
   '/app/knowledge': FileSearch,
-  '/app/library': Library,
   '/app/files': Folder,
   '/app/code': Code,
   '/app/notes': NotepadText,
-  '/app/openclaw': OpenClawSidebarIcon,
   '/settings': Settings
 }
 

@@ -8,7 +8,9 @@ import { BaseService } from '@main/core/lifecycle'
 import type { FileEntryId } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => ({
@@ -29,8 +31,16 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+// Both sweep branches consult hasPendingRestore before doing anything;
+// default false so every pre-existing scenario runs unguarded.
+const hasPendingRestoreMock = vi.fn((): boolean => false)
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: () => hasPendingRestoreMock()
+}))
+
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
+const { fileRefService } = await import('@data/services/FileRefService')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -40,6 +50,7 @@ describe('FileManager (integration)', () => {
 
   beforeEach(async () => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    MockMainCacheServiceUtils.resetMocks()
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-int-'))
     internalRoot = path.join(tmp, 'files-internal')
     await mkdir(internalRoot, { recursive: true })
@@ -56,6 +67,7 @@ describe('FileManager (integration)', () => {
     electronMocks.shell.showItemInFolder.mockReset()
     BaseService.resetInstances()
     danglingCache.clear()
+    hasPendingRestoreMock.mockReturnValue(false)
     fm = new FileManager()
   })
 
@@ -94,7 +106,7 @@ describe('FileManager (integration)', () => {
     expect(meta.kind).toBe('file')
     expect(meta.size).toBe('internal-payload'.length)
 
-    const url = await fm.getUrl(id)
+    const url = fm.getUrl(id)
     expect(url).toMatch(/^file:\/\//)
     expect(url).toContain(encodeURIComponent(`${id}.txt`).replace(/%2F/g, '/'))
   })
@@ -430,39 +442,44 @@ describe('FileManager (integration)', () => {
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
 
-  it('INT-12: runSweep removes orphan refs and reports orphan entries (DB sweep branch)', async () => {
-    // Seed an orphan temp_session ref pointing at a real file_entry.
-    const id = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
+  it('INT-12: runSweep prunes dangling temp refs and reports orphan entries (DB sweep branch)', async () => {
+    const danglingTempId = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
+    const orphanEntryId = '019606a0-0000-7000-8000-00000000ff32' as FileEntryId
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: 'k',
-      ext: 'txt',
-      size: 1,
-      externalPath: null,
-      deletedAt: null,
-      createdAt: now,
-      updatedAt: now
-    })
-    const { fileRefTable } = await import('@data/db/schemas/file')
-    await dbh.db.insert(fileRefTable).values({
-      id: '44444444-4444-4444-8444-000000000031',
-      fileEntryId: id,
-      sourceType: 'temp_session',
+    await dbh.db.insert(fileEntryTable).values([
+      {
+        id: danglingTempId,
+        origin: 'internal',
+        name: 'dangling-temp',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: orphanEntryId,
+        origin: 'internal',
+        name: 'orphan-entry',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now + 1,
+        updatedAt: now + 1
+      }
+    ])
+    fileRefService.createTempSessionRef({
+      fileEntryId: danglingTempId,
       sourceId: 'sess-orphan',
-      role: 'pending',
-      createdAt: now,
-      updatedAt: now
+      role: 'pending'
     })
+    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, danglingTempId))
 
     const report = await fm.runSweep()
 
-    // The orphan ref has been cleaned by runDbSweep (temp_session checker → empty Set).
-    const remaining = await dbh.db.select().from(fileRefTable)
-    expect(remaining.length).toBe(0)
-
-    // The entry — now without any ref — surfaces in the report counts.
+    expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'sess-orphan' })).toEqual([])
     expect(report.outcome).toBe('completed')
     expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
@@ -475,9 +492,9 @@ describe('FileManager (integration)', () => {
     // `scanOrphanEntries`'s downstream `findUnreferenced` call to throw.
     // Verifies the end-to-end propagation: runDbSweep → `'failed'` report
     // → `runSweep` returns the `'failed'` variant.
-    const spy = vi
-      .spyOn(fm['deps'].fileEntryService, 'findUnreferenced')
-      .mockRejectedValueOnce(new Error('db conn lost mid-sweep'))
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findUnreferenced').mockImplementationOnce(() => {
+      throw new Error('db conn lost mid-sweep')
+    })
 
     const report = await fm.runSweep()
 
@@ -496,21 +513,36 @@ describe('FileManager (integration)', () => {
     // Without the umbrella merge, the cleanup UI would see `outcome:
     // 'completed'` over an EACCES — the regression flagged in
     // PR #15067 thread PRRT_kwDOL_2xws6EeQI5.
-    const spy = vi
-      .spyOn(fm['deps'].fileEntryService, 'listAllIds')
-      .mockRejectedValueOnce(new Error('EACCES on Files dir'))
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'listAllIds').mockImplementationOnce(() => {
+      throw new Error('EACCES on Files dir')
+    })
 
     const report = await fm.runSweep()
 
     expect(report.outcome).toBe('partial')
     if (report.outcome === 'partial') {
-      // DB sweep was clean — no per-sourceType errors.
+      // DB sweep was clean; partial outcome is FS-driven.
       expect(report.errorsByType).toEqual({})
       // FS-driven degradation must surface via `fsSweepIssue`.
       expect(report.fsSweepIssue).toMatch(/FS sweep failed:.*EACCES/)
     }
     expect(typeof report.lastRunAt).toBe('number')
     spy.mockRestore()
+  })
+
+  it('INT-14c: a pending restore stands both sweeps aside — umbrella reports honest "aborted"', async () => {
+    // The deliberate stand-aside must surface as `aborted`, never disguised
+    // as `partial`/`completed` (a degraded-looking report over expected
+    // behavior, or an "all clear" over skipped work).
+    hasPendingRestoreMock.mockReturnValue(true)
+
+    const report = await fm.runSweep()
+
+    expect(report.outcome).toBe('aborted')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('pending-restore')
+    }
+    expect(typeof report.lastRunAt).toBe('number')
   })
 
   it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {

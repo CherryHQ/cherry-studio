@@ -1,11 +1,14 @@
 import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { DeleteIcon } from '@renderer/components/Icons'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
-import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
+import { getMcpTypeLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -18,15 +21,16 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import { useMcpServerTrust } from './useMcpServerTrust'
+
 const logger = loggerService.withContext('McpServerCard')
 
 interface McpServerCardProps {
   server: McpServer
-  isEditing?: boolean
   onEdit: () => void
 }
 
-const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEdit }) => {
+const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
@@ -41,7 +45,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
   const fetchServerVersion = useCallback(async (s: McpServer) => {
     if (!s.isActive) return
     try {
-      const v = await window.api.mcp.getServerVersion(s.id)
+      const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id })
       setVersion(v)
     } catch {
       setVersion(null)
@@ -73,9 +77,9 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           await updateMcpServer({ body: { isActive: true } })
           try {
             await fetchServerVersion({ ...serverForUpdate, isActive: true })
-            await window.api.mcp.refreshTools(serverForUpdate.id)
+            await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
           } catch (error: any) {
-            window.modal.error({
+            void popup.error({
               title: t('settings.mcp.startError'),
               content: formatMcpError(error),
               centered: true
@@ -83,11 +87,11 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           }
         } else {
           await updateMcpServer({ body: { isActive: false } })
-          await window.api.mcp.stopServer(serverForUpdate.id)
+          await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
           setVersion(null)
         }
       } catch (error: any) {
-        window.modal.error({
+        void popup.error({
           title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
           content: formatMcpError(error),
           centered: true
@@ -99,20 +103,20 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
     [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
   )
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     try {
-      window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('settings.mcp.deleteServer'),
         content: t('settings.mcp.deleteServerConfirm'),
-        centered: true,
-        onOk: async () => {
-          await window.api.mcp.removeServer(server.id)
-          await deleteMcpServer({})
-          window.toast.success(t('settings.mcp.deleteSuccess'))
-        }
+        centered: true
       })
+      if (!confirmed) return
+
+      await ipcApi.request('mcp.server.remove', { serverId: server.id })
+      await deleteMcpServer({})
+      toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
-      window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
   }, [server, deleteMcpServer, t])
 
@@ -127,8 +131,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
     [server.providerUrl]
   )
 
-  const sourceLabel = server.provider || (server.installSource === 'builtin' ? t('settings.mcp.builtinServers') : '')
-  const typeLabel = (server.type ?? 'stdio').toUpperCase()
+  const typeLabel = t(getMcpTypeLabelKey(server.type ?? 'stdio'))
 
   const getTypeBadgeClass = () => {
     switch (server.type) {
@@ -152,7 +155,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
   const handleDeleteClick = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation()
-      handleDelete()
+      void handleDelete()
     },
     [handleDelete]
   )
@@ -165,7 +168,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
       const errorDetails = formatErrorMessage(error)
 
       const onClickDetails = () => {
-        void GeneralPopup.show({
+        void ContentPopup.show({
           content: (
             <div
               style={{
@@ -229,18 +232,11 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 
         <MutedCell>{version || '—'}</MutedCell>
 
-        <div className="min-w-0 shrink-0">
+        <div className="flex w-24 shrink-0 justify-end">
           <MetaBadge className={getTypeBadgeClass()}>{typeLabel}</MetaBadge>
         </div>
 
         <SourceCell>
-          {sourceLabel ? (
-            <MetaBadge className={server.provider ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-              {sourceLabel}
-            </MetaBadge>
-          ) : (
-            <span className="text-muted-foreground/70">—</span>
-          )}
           {server.providerUrl && (
             <Button
               variant="ghost"
@@ -254,15 +250,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
         </SourceCell>
 
         <ToolbarWrapper onClick={handleToolbarClick}>
-          {isEditing && (
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              className="size-7 rounded-md text-muted-foreground shadow-none hover:text-destructive"
-              onClick={handleDeleteClick}>
-              <DeleteIcon size={14} className="lucide-custom" />
-            </Button>
-          )}
           <Switch
             checked={server.isActive}
             key={server.id}
@@ -302,13 +289,16 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-sm min-[1180px]:block', className)}
+    className={cn(
+      'hidden w-16 shrink-0 truncate text-right text-muted-foreground text-sm tabular-nums min-[1180px]:block',
+      className
+    )}
     {...props}
   />
 )
 
 const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('hidden min-w-0 shrink-0 items-center gap-1.5 min-[1320px]:flex', className)} {...props} />
+  <div className={cn('hidden w-7 shrink-0 items-center justify-end min-[1320px]:flex', className)} {...props} />
 )
 
 const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -322,10 +312,10 @@ const ActiveDot = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $state: 'disabled' | 'connecting' | 'connected' | 'error' }) => (
   <div
     className={cn(
-      'size-2 shrink-0 rounded-full',
-      $state === 'connected' && 'bg-success/85 ring-2 ring-success/15',
-      $state === 'connecting' && 'bg-warning/85 ring-2 ring-warning/15',
-      $state === 'error' && 'bg-destructive/85 ring-2 ring-destructive/15',
+      'size-1.5 shrink-0 rounded-full',
+      $state === 'connected' && 'bg-success/85',
+      $state === 'connecting' && 'bg-warning/85',
+      $state === 'error' && 'bg-destructive/85',
       $state === 'disabled' && 'bg-muted-foreground/30',
       className
     )}

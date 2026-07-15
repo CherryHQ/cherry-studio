@@ -53,7 +53,7 @@ vi.mock('@renderer/utils/fetch', () => ({
   xOembedKey: (url: string) => `xOembed/${url}`
 }))
 
-vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   default: ({ alt }: { alt?: string }) => <span>{alt}</span>
 }))
 

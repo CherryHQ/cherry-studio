@@ -1,3 +1,4 @@
+import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
@@ -6,6 +7,20 @@ import type { MigrationPaths } from '../MigrationPaths'
 
 vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
+}))
+
+// Let initialize() run without opening a real SQLite file: a bare fake DB whose
+// migration-status read returns no row (so needsMigration hits the fresh-install
+// branch we want to exercise).
+vi.mock('../MigrationDbService', () => ({
+  MigrationDbService: {
+    create: () => ({
+      getDb: () => ({
+        select: () => ({ from: () => ({ where: () => ({ get: () => undefined }) }) })
+      }),
+      close: () => {}
+    })
+  }
 }))
 
 const mockPaths: MigrationPaths = {
@@ -192,15 +207,39 @@ describe('MigrationEngine', () => {
     expect((engine as any).markFailed).not.toHaveBeenCalled()
   })
 
+  describe('needsMigration — legacyDataConfirmed flag', () => {
+    it('returns true without markCompleted when legacyDataConfirmed is true (no status row)', async () => {
+      const freshEngine = new MigrationEngine()
+      freshEngine.initialize(mockPaths, true)
+      // Isolate the flag: without the OR, an empty electron-store would markCompleted+false.
+      vi.spyOn(freshEngine as any, 'hasLegacyData').mockReturnValue(false)
+      const markSpy = vi.spyOn(freshEngine as any, 'markCompleted').mockResolvedValue(undefined)
+
+      expect(await freshEngine.needsMigration()).toBe(true)
+      expect(markSpy).not.toHaveBeenCalled()
+    })
+
+    it('markCompleted + returns false when not legacyDataConfirmed and no legacy data', async () => {
+      const freshEngine = new MigrationEngine()
+      freshEngine.initialize(mockPaths, false)
+      vi.spyOn(freshEngine as any, 'hasLegacyData').mockReturnValue(false)
+      const markSpy = vi.spyOn(freshEngine as any, 'markCompleted').mockResolvedValue(undefined)
+
+      expect(await freshEngine.needsMigration()).toBe(false)
+      expect(markSpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('clears new architecture tables inside one transaction', async () => {
-    const deleteFn = vi.fn().mockResolvedValue(undefined)
-    const transactionFn = vi.fn(async (fn: (tx: unknown) => Promise<void>) => {
-      await fn({ delete: deleteFn })
+    const runFn = vi.fn()
+    const deleteFn = vi.fn(() => ({ run: runFn }))
+    const transactionFn = vi.fn((fn: (tx: unknown) => void) => {
+      fn({ delete: deleteFn })
     })
     const db = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
-          get: vi.fn().mockResolvedValue({ count: 0 })
+          get: vi.fn(() => ({ count: 0 }))
         }))
       })),
       transaction: transactionFn
@@ -216,5 +255,30 @@ describe('MigrationEngine', () => {
     expect(transactionFn).toHaveBeenCalledTimes(1)
     expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
     expect(db).not.toHaveProperty('delete')
+  })
+
+  it('includes the provider/mini-app logo ref tables in the clear set (retry safety)', async () => {
+    // Migration runs with foreign_keys OFF, so clearing owner / file_entry rows does
+    // NOT cascade to the logo ref rows — they must be cleared explicitly, else a
+    // retry collides with the unique (source_id) index and can never recover.
+    const deletedTables: unknown[] = []
+    const db = {
+      select: vi.fn(() => ({ from: vi.fn(() => ({ get: vi.fn(() => ({ count: 0 })) })) })),
+      transaction: vi.fn((fn: (tx: unknown) => void) =>
+        fn({
+          delete: (table: unknown) => {
+            deletedTables.push(table)
+            return { run: vi.fn() }
+          }
+        })
+      )
+    }
+    ;(engine as any).migrationDb = { getDb: vi.fn(() => db), close: vi.fn() }
+    vi.mocked((engine as any).verifyAndClearNewTables).mockRestore()
+
+    await (engine as any).verifyAndClearNewTables()
+
+    expect(deletedTables).toContain(providerLogoFileRefTable)
+    expect(deletedTables).toContain(miniAppLogoFileRefTable)
   })
 })

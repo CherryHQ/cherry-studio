@@ -1,11 +1,14 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
-import { DeleteIcon } from '@renderer/components/Icons'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { ipcApi } from '@renderer/ipc'
 import { exportNote } from '@renderer/services/ExportService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
@@ -54,17 +57,17 @@ export const useNotesMenu = ({
     async (note: NotesTreeNode) => {
       try {
         if (bases.length === 0) {
-          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
+          toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
           return
         }
 
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
-          window.toast.success(t('notes.export_success', { count: result.savedCount }))
+          toast.success(t('notes.export_success', { count: result.savedCount }))
         }
       } catch (error) {
-        window.toast.error(t('notes.export_failed'))
+        toast.error(t('notes.export_failed'))
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
@@ -82,7 +85,7 @@ export const useNotesMenu = ({
         await exportNote({ node, platform })
       } catch (error) {
         logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
-        window.toast.error(t('common.copy_failed'))
+        toast.error(t('common.copy_failed'))
       }
     },
     [activeNode, onSelectNode, t]
@@ -94,7 +97,7 @@ export const useNotesMenu = ({
         await fn()
       } catch (error) {
         logger.error('note export failed', error as Error)
-        window.toast.error(t('notes.export_failed'))
+        toast.error(t('notes.export_failed'))
       }
     },
     [t]
@@ -106,21 +109,21 @@ export const useNotesMenu = ({
   }, [])
 
   const handleDeleteNodeWrapper = useCallback(
-    (node: NotesTreeNode) => {
+    async (node: NotesTreeNode) => {
       const confirmText =
         node.type === 'folder'
           ? t('notes.delete_folder_confirm', { name: node.name })
           : t('notes.delete_note_confirm', { name: node.name })
 
-      window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('notes.delete'),
         content: confirmText,
         centered: true,
-        okButtonProps: { danger: true },
-        onOk: () => {
-          onDeleteNode(node.id)
-        }
+        okButtonProps: { danger: true }
       })
+      if (!confirmed) return
+
+      onDeleteNode(node.id)
     },
     [onDeleteNode, t]
   )
@@ -174,7 +177,7 @@ export const useNotesMenu = ({
           id: 'notes.open-outside',
           label: t('notes.open_outside'),
           icon: <FolderOpen size={14} />,
-          onSelect: () => void window.api.openPath(node.externalPath)
+          onSelect: () => void ipcApi.request('system.shell.open_path', node.externalPath)
         }
       )
 

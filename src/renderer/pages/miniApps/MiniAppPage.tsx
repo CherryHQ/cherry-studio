@@ -1,12 +1,11 @@
 import { loggerService } from '@logger'
-import { LogoAvatar } from '@renderer/components/Icons'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
-import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
@@ -32,6 +31,7 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
+  const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive } = useMiniAppPopup()
@@ -54,25 +54,35 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     if (!app || !displayName || !currentTabId || !currentTab || !updateTab) return
     if (!isMiniAppTabUrl(currentTab.url, app.appId)) return
-    if (currentTab.title === displayName && currentTab.icon === app.logo) return
+    // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+    const tabIcon = app.logoSrc ?? app.logo
+    if (currentTab.title === displayName && currentTab.icon === tabIcon) return
 
     updateTab(currentTabId, {
       title: displayName,
-      icon: app.logo
+      icon: tabIcon
     })
   }, [app, currentTab, currentTabId, displayName, updateTab])
 
   useEffect(() => {
+    // Only the active tab drives the keep-alive pool. `openMiniAppKeepAlive`
+    // mutates *global* state — `currentMiniAppId` and the LRU order of the
+    // shared keep-alive list. Background mini-app pages stay mounted (React 19
+    // Activity keep-alive), so without this guard two mounted pages — e.g. a
+    // pinned mini-app tab plus the one just opened — would each keep claiming
+    // `currentMiniAppId` and reordering themselves to the tail, ping-ponging the
+    // shared state into an infinite render loop (Maximum update depth). Each app
+    // still registers itself when it becomes active and, being kept alive, stays
+    // in the pool afterward.
+    if (!isActiveTab) return
     if (isLoading) return
     if (error) {
       logger.error('Failed to load mini apps', error instanceof Error ? error : new Error(String(error)))
       return
     }
     if (!app) return
-    // Ensure the keep-alive pool picks up this app and currentMiniAppId stays
-    // in sync with the route-changed appId.
     openMiniAppKeepAlive(app)
-  }, [app, openMiniAppKeepAlive, isLoading, error])
+  }, [isActiveTab, app, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside
@@ -213,7 +223,7 @@ const MiniAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
+          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </div>
       )}

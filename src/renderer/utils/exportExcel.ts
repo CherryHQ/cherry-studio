@@ -1,4 +1,3 @@
-import * as XLSX from '@e965/xlsx'
 import dayjs from 'dayjs'
 
 /**
@@ -54,6 +53,9 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
   if (data.length === 0) {
     return false
   }
+
+  // 按需加载 xlsx（约 0.6 MB），避免进入窗口首屏静态图
+  const XLSX = await import('@e965/xlsx')
 
   // 创建工作表
   const worksheet = XLSX.utils.aoa_to_sheet(data)

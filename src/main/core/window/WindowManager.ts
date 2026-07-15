@@ -591,6 +591,11 @@ export class WindowManager extends BaseService {
     }
   }
 
+  /** Get a window's registered type by ID (O(1) lookup; undefined if unknown/closed). */
+  public getWindowType(windowId: string): WindowType | undefined {
+    return this.windows.get(windowId)?.type
+  }
+
   /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
   public getWindowsByType(type: WindowType): BrowserWindow[] {
     const windowIds = this.windowsByType.get(type)
@@ -1333,7 +1338,7 @@ export class WindowManager extends BaseService {
     // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
     // encoding: omitted → default file, non-empty string → that file, empty
     // string → no preload (for nodeIntegration:true cases).
-    const preloadName = metadata.preload ?? 'index.js'
+    const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
     // 1. Create BrowserWindow
@@ -1565,8 +1570,8 @@ export class WindowManager extends BaseService {
     //   treat FullscreenChanged as the source of truth (the green button defaults
     //   to native fullscreen, which fires reliably).
     // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
-    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
-    //   semantics is OS-level native fullscreen only.
+    //   intentionally NOT bridged here: the renderer's fullscreen handling
+    //   (useWindowRuntime) is OS-level native fullscreen only.
     window.on('maximize', () => {
       application.get('IpcApiService').send(windowId, 'window.maximized_changed', true)
     })

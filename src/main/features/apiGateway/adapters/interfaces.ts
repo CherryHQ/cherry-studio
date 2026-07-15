@@ -29,12 +29,12 @@ export interface GatewayUsageMetadata {
 /**
  * Supported output formats for stream adapters
  */
-export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses'
+export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
 
 /**
  * Supported input formats for message converters
  */
-export type InputFormat = 'anthropic' | 'openai' | 'openai-responses'
+export type InputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
 
 /**
  * Stream text options extracted from input params

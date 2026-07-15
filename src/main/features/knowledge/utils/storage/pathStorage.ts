@@ -3,9 +3,9 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { getFileExt } from '@main/utils/file'
-import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file/fs'
+import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
+import { getFileExt } from '@main/utils/legacyFile'
 import type { FilePath } from '@shared/types/file'
 import { knowledgeFileProcessingExts } from '@shared/utils/file'
 
@@ -43,12 +43,12 @@ export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
   return path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR) as FilePath
 }
 
-export async function getKnowledgeVectorStoreFilePath(baseId: string): Promise<FilePath> {
-  const metaDir = getKnowledgeBaseMetaDir(baseId)
-  await ensureDir(metaDir)
-  return getKnowledgeVectorStoreFilePathSync(baseId)
-}
-
+/**
+ * The base's index.sqlite path. No `ensureDir` here — `openBetterSqlite3IndexDriver`
+ * (BetterSqlite3Driver.ts) already `mkdirSync`s the parent `.cherry/` dir itself before
+ * opening, so a caller that only needs the path (not a guaranteed-existing directory)
+ * does not need to duplicate that work.
+ */
 export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
   const metaDir = getKnowledgeBaseMetaDir(baseId)
   return path.join(metaDir, VECTOR_STORE_FILE) as FilePath
@@ -131,12 +131,18 @@ export function reserveImportedFileRelativePath(
 export async function copyFileIntoKnowledgeBaseAt(
   baseId: string,
   sourcePath: string,
-  relativePath: string
+  relativePath: string,
+  options: { signal?: AbortSignal; overwrite?: boolean } = {}
 ): Promise<string> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
-  await assertTargetAvailable(destPath)
+  // `overwrite` lets directory expansion re-copy over its own orphans from a prior
+  // aborted attempt (the prefix is unique per container, so a same-named dest can
+  // only be that self-orphan). `copy` commits via tmp+rename, so overwrite is atomic.
+  if (!options.overwrite) {
+    await assertTargetAvailable(destPath)
+  }
   await ensureDir(path.dirname(destPath) as FilePath)
-  await copy(sourcePath as FilePath, destPath)
+  await copy(sourcePath as FilePath, destPath, options.signal)
   return relativePath
 }
 

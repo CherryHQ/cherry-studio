@@ -231,8 +231,8 @@ describe('DanglingCache.onDanglingStateChanged', () => {
 describe('DanglingCache.initFromDb', () => {
   it('populates reverse index from non-trashed external entries', async () => {
     const findMany = vi
-      .fn<(q: { origin: 'external' }) => Promise<FileEntry[]>>()
-      .mockResolvedValue([externalEntry('e-init-1', '/abs/init-a.txt'), externalEntry('e-init-2', '/abs/init-b.txt')])
+      .fn<(q: { origin: 'external' }) => FileEntry[]>()
+      .mockReturnValue([externalEntry('e-init-1', '/abs/init-a.txt'), externalEntry('e-init-2', '/abs/init-b.txt')])
     const cache = createDanglingCacheImpl({
       fileEntryService: { findMany },
       statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')

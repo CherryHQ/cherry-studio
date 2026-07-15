@@ -2,12 +2,14 @@ import { ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
+import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { toast } from '@renderer/services/toast'
+import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
 import { useState } from 'react'
@@ -37,10 +39,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
+  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
+  const isSidebarFavorite = miniAppFavoriteIds.includes(app.appId)
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
@@ -54,7 +58,11 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     if (onOpen) {
       onOpen(app, displayName)
     } else {
-      openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      openTab(`/app/mini-app/${app.appId}`, {
+        title: displayName,
+        icon: app.logoSrc ?? app.logo
+      })
     }
     onClick?.()
   }
@@ -78,10 +86,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      window.toast.error(e.message || t(fallbackKey))
+      toast.error(e.message || t(fallbackKey))
     } else {
       logger.error('mutation failed', err as Error)
-      window.toast.error(t(fallbackKey))
+      toast.error(t(fallbackKey))
     }
   }
 
@@ -92,6 +100,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     updateAppStatus(app.appId, nextStatus).catch(
       reportFailure(isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed')
     )
+  }
+
+  const handleToggleSidebarFavorite = () => {
+    toggleMiniApp(app.appId)
   }
 
   const handleHide = () => {
@@ -108,12 +120,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     setRemovingCustom(true)
     try {
       await removeCustomMiniApp(app.appId)
-      window.toast.success(t('settings.miniApps.custom.remove_success'))
+      toast.success(t('settings.miniApps.custom.remove_success'))
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        window.toast.warning(t('miniApp.error.not_found'))
+        toast.warning(t('miniApp.error.not_found'))
       } else {
-        window.toast.error(t('settings.miniApps.custom.remove_error'))
+        toast.error(t('settings.miniApps.custom.remove_error'))
       }
       logger.error('Failed to remove custom mini app:', error as Error)
     } finally {
@@ -129,6 +141,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
 
   const contextMenuItems: CommandContextMenuExtraItem[] = [
     { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
+    {
+      type: 'item',
+      id: 'mini-app.toggle-sidebar-favorite',
+      label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+      onSelect: handleToggleSidebarFavorite
+    },
     ...(!isPinned
       ? ([
           { type: 'item', id: 'mini-app.hide', label: t('miniApp.sidebar.hide.title'), onSelect: handleHide }

@@ -6,6 +6,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -57,20 +58,22 @@ function resolveRealOrNearestExistingPath(targetPath: string): string {
 
 // Allowed route prefixes to prevent arbitrary navigation
 const ALLOWED_ROUTES = [
-  '/settings/',
-  '/agents',
-  '/knowledge',
-  '/openclaw',
-  '/paintings',
-  '/translate',
-  '/files',
-  '/notes',
-  '/apps',
-  '/code',
-  '/store',
-  '/launchpad',
-  '/'
+  '/settings',
+  '/app/agents',
+  '/app/knowledge',
+  '/app/paintings',
+  '/app/translate',
+  '/app/files',
+  '/app/notes',
+  '/app/mini-app',
+  '/app/code',
+  '/app/launchpad',
+  '/app/chat'
 ]
+
+export function isAllowedAssistantNavigationPath(path: string): boolean {
+  return ALLOWED_ROUTES.some((route) => path === route || path.startsWith(`${route}/`))
+}
 
 const NAVIGATE_TOOL: Tool = {
   name: 'navigate',
@@ -180,7 +183,7 @@ class AssistantServer {
 
     const normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
 
-    if (!ALLOWED_ROUTES.some((route) => normalizedPath === route || normalizedPath.startsWith(route))) {
+    if (!isAllowedAssistantNavigationPath(normalizedPath)) {
       throw new McpError(ErrorCode.InvalidParams, `Blocked navigation to disallowed route: ${normalizedPath}`)
     }
 
@@ -216,7 +219,7 @@ class AssistantServer {
       case 'info':
         return this.diagnoseInfo()
       case 'providers':
-        return await this.diagnoseProviders()
+        return this.diagnoseProviders()
       case 'health':
         return await this.diagnoseHealth(args.provider_id as string | undefined)
       case 'logs':
@@ -224,7 +227,7 @@ class AssistantServer {
       case 'errors':
         return this.diagnoseErrors(args.lines as number | undefined)
       case 'mcp_status':
-        return await this.diagnoseMcpStatus()
+        return this.diagnoseMcpStatus()
       case 'read_source':
         return this.readSource(args.file_path as string | undefined, args.lines as number | undefined)
       case 'config':
@@ -271,9 +274,9 @@ class AssistantServer {
     }
   }
 
-  private async diagnoseProviders() {
+  private diagnoseProviders() {
     try {
-      const providers = await providerService.list({})
+      const providers = providerService.list({})
 
       const summary = providers.map((p) => ({
         id: p.id,
@@ -318,7 +321,12 @@ class AssistantServer {
     }
 
     try {
-      const provider = await providerService.getByProviderId(providerId).catch(() => null)
+      let provider: ReturnType<typeof providerService.getByProviderId> | null = null
+      try {
+        provider = providerService.getByProviderId(providerId)
+      } catch {
+        provider = null
+      }
 
       if (!provider) {
         return {
@@ -356,15 +364,16 @@ class AssistantServer {
 
       // Simple connectivity test — try to reach the API host
       const startTime = Date.now()
+      const host = redactUrlToOrigin(apiHost)
+      let timeout: ReturnType<typeof setTimeout> | undefined
       try {
         const testUrl = apiHost.startsWith('http') ? apiHost : `https://${apiHost}`
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000)
+        timeout = setTimeout(() => controller.abort(), 10000)
         const response = await fetch(testUrl, {
           method: 'HEAD',
           signal: controller.signal
         })
-        clearTimeout(timeout)
         const latency = Date.now() - startTime
 
         const result = {
@@ -377,7 +386,7 @@ class AssistantServer {
                   status: response.ok || response.status === 401 || response.status === 403 ? 'reachable' : 'error',
                   httpStatus: response.status,
                   latencyMs: latency,
-                  host: testUrl
+                  host
                 },
                 null,
                 2
@@ -397,9 +406,10 @@ class AssistantServer {
                 {
                   providerId,
                   status: 'unreachable',
-                  error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+                  error:
+                    fetchError instanceof Error && fetchError.name === 'AbortError' ? 'timeout' : 'connection failure',
                   latencyMs: latency,
-                  host: apiHost || '(no host configured)'
+                  host
                 },
                 null,
                 2
@@ -409,6 +419,8 @@ class AssistantServer {
         }
         healthCache.set(providerId, { result, timestamp: Date.now() })
         return result
+      } finally {
+        if (timeout !== undefined) clearTimeout(timeout)
       }
     } catch (error) {
       return {
@@ -540,9 +552,9 @@ class AssistantServer {
     }
   }
 
-  private async diagnoseMcpStatus() {
+  private diagnoseMcpStatus() {
     try {
-      const { items: mcpServers } = await mcpServerService.list({})
+      const { items: mcpServers } = mcpServerService.list({})
 
       const summary = mcpServers.map((s) => ({
         id: s.id,
@@ -550,7 +562,7 @@ class AssistantServer {
         type: s.type ?? 'stdio',
         isActive: s.isActive,
         command: s.command,
-        baseUrl: s.baseUrl
+        baseUrl: s.baseUrl ? redactUrlToOrigin(s.baseUrl) : undefined
       }))
 
       return {
@@ -589,10 +601,11 @@ class AssistantServer {
     try {
       const preferenceService = application.get('PreferenceService')
 
+      const proxy = preferenceService.get('app.proxy.url')
       const settings = {
         language: preferenceService.get('app.language'),
         theme: preferenceService.get('ui.theme_mode'),
-        proxy: preferenceService.get('app.proxy.url'),
+        proxy: proxy ? redactUrlToOrigin(proxy) : proxy,
         zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: this.describeModelId(preferenceService.get('chat.default_model_id')),
         topicNamingModel: this.describeModelId(preferenceService.get('topic.naming.model_id')),

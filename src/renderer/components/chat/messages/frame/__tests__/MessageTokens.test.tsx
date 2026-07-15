@@ -1,3 +1,5 @@
+import '@testing-library/jest-dom/vitest'
+
 import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -9,6 +11,11 @@ import MessageTokens from '../MessageTokens'
 
 vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+
+vi.mock('i18next', () => ({
+  t: (_key: string, values?: Record<string, string | number>) =>
+    String(values?.defaultValue ?? '').replace(/{{(\w+)}}/g, (_, key: string) => String(values?.[key] ?? ''))
 }))
 
 const topic = {
@@ -71,8 +78,13 @@ function renderWithProvider(message: MessageListItem) {
 describe('MessageTokens', () => {
   it('formats user message token usage in K units', () => {
     const { container } = renderWithProvider(createMessage('user', { totalTokens: 42 }))
+    const tokenStats = container.querySelector('.message-tokens')
 
-    expect(container.querySelector('.message-tokens')?.textContent).toBe('Tokens: 0.0K')
+    expect(tokenStats?.textContent).toBe('Tokens: 0.0K')
+    expect(tokenStats).toHaveClass('text-(length:--font-size-body-xs)')
+    expect(tokenStats).toHaveClass('leading-(--line-height-body-xs)')
+    expect(tokenStats).toHaveClass('text-foreground-secondary')
+    expect(tokenStats).not.toHaveClass('text-foreground-muted')
   })
 
   it('formats assistant message token usage in K units', () => {
@@ -83,7 +95,38 @@ describe('MessageTokens', () => {
         totalTokens: 3282
       })
     )
+    const tokenStats = container.querySelector('.message-tokens')
 
-    expect(container.querySelector('.message-tokens')?.textContent).toBe('Tokens:3.3K↑1.2K↓2.0K')
+    expect(tokenStats?.textContent).toBe('Tokens:3.3K↑1.2K↓2.0K')
+    expect(tokenStats).toHaveClass('text-(length:--font-size-body-xs)')
+    expect(tokenStats).toHaveClass('leading-(--line-height-body-xs)')
+    expect(tokenStats).toHaveClass('text-foreground-secondary')
+    expect(tokenStats).not.toHaveClass('text-foreground-muted')
+  })
+
+  it('shows prompt cache hit rate when cache stats exist', () => {
+    const { container } = renderWithProvider(
+      createMessage('assistant', {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 }
+      })
+    )
+
+    expect(container.querySelector('.message-tokens')?.textContent).toBe('Tokens:0.1K↑0.1K↓0.0KCache 70%')
+  })
+
+  it('does not show cache hit rate when only non-cache input tokens exist', () => {
+    const { container } = renderWithProvider(
+      createMessage('assistant', {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        inputTokenDetails: { noCacheTokens: 100 }
+      })
+    )
+
+    expect(container.querySelector('.message-tokens')?.textContent).toBe('Tokens:0.1K↑0.1K↓0.0K')
   })
 })

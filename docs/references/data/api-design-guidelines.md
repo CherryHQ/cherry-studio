@@ -188,6 +188,8 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 > For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
 
+Provider enablement is a narrow exception: `PATCH /providers/:providerId` atomically moves that provider to the first position only when `isEnabled` transitions from `false` to `true`. This provider-specific invariant does not establish a general permission for resource updates to mutate ordering. Redundant provider `true` updates preserve the user's existing order, and explicit reorder requests still use the canonical order routes.
+
 
 ```typescript
 // Search
@@ -250,7 +252,7 @@ Use standard HTTP status codes consistently:
 Use the `SuccessStatus` constants to avoid magic numbers:
 
 ```typescript
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 
 SuccessStatus.OK          // 200 - Request succeeded
 SuccessStatus.CREATED     // 201 - Resource created
@@ -296,7 +298,7 @@ The API server automatically infers status codes based on HTTP method:
 Override the default by returning `{ data, status }`:
 
 ```typescript
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 
 '/async-tasks': {
   POST: async ({ body }) => {
@@ -391,7 +393,7 @@ interface SerializedDataApiError {
 Use `DataApiErrorFactory` utilities to create consistent errors:
 
 ```typescript
-import { DataApiErrorFactory, DataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, DataApiError } from '@shared/data/api/errors'
 
 // Using factory methods (recommended)
 throw DataApiErrorFactory.notFound('Topic', id)

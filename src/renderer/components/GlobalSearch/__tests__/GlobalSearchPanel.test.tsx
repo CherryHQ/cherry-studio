@@ -30,7 +30,11 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+    'ui.sidebar.favorites': [
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'translate' }
+    ],
     'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
   persistCacheValues: {
@@ -50,7 +54,6 @@ const mocks = vi.hoisted(() => ({
   eventEmit: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
   loggerError: vi.fn(),
-  toastError: vi.fn(),
   activeTab: {
     id: 'chat',
     type: 'route',
@@ -212,17 +215,17 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/resource/dialogs', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   OpenClawIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
 
-vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
+vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 
@@ -312,10 +315,9 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 // Instance navigation goes through the conversation-nav boundary; route it to the same
-// openTab spy so the existing focus-or-open assertions keep verifying the target url.
+// openTab spy so assertions keep verifying the target url.
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   useConversationNavigator: () => ({
-    focusExistingTab: () => false,
     openConversationTab: (appId: string, key: string, title?: string) => {
       const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
       const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
@@ -330,7 +332,6 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
     const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
     const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
     return {
-      focusExistingTab: () => false,
       openConversationTab: (key: string, title?: string) =>
         mocks.openTab(routePrefix, {
           forceNew: true,
@@ -539,6 +540,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { toast } from '@renderer/services/toast'
+
 import { GlobalSearchPanel, testOnlyClearRefreshHistory } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
@@ -550,6 +553,11 @@ afterEach(() => {
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
     testOnlyClearRefreshHistory()
+    mocks.openTab.mockImplementation((route: string) => {
+      if (route === '/app/agents') return 'opened-agent-tab'
+      if (route === '/app/chat') return 'opened-chat-tab'
+      return 'opened-route-tab'
+    })
     mocks.recentItems = [
       {
         kind: 'topic',
@@ -566,7 +574,11 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+      'ui.sidebar.favorites': [
+        { type: 'app', id: 'assistants' },
+        { type: 'app', id: 'agents' },
+        { type: 'app', id: 'translate' }
+      ],
       'feature.paintings.default_provider': 'zhipu'
     }
     mocks.persistCacheValues = {
@@ -581,7 +593,6 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
-    window.toast = { error: mocks.toastError } as unknown as typeof window.toast
     mocks.useQuery.mockImplementation(
       (
         path: string,
@@ -920,6 +931,48 @@ describe('GlobalSearchPanel', () => {
         })
       )
     })
+  })
+
+  it('does not emit a topic selection when no target tab is opened', async () => {
+    const user = userEvent.setup()
+    mocks.recentItems = []
+    mocks.openTab.mockImplementationOnce(() => undefined)
+    mocks.dataApiGet.mockResolvedValueOnce({
+      id: 'topic-1',
+      name: 'Topic A',
+      assistantId: 'assistant-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as never)
+    mocks.queryResult = {
+      query: 'topic',
+      groups: [
+        {
+          type: 'topic',
+          items: [
+            {
+              type: 'topic',
+              id: 'topic-1',
+              title: 'Topic A',
+              target: { topicId: 'topic-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'topic')
+    await user.click(await screen.findByRole('option', { name: /Topic A/ }))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
+    })
+    expect(mocks.eventEmit).not.toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_TOPIC', expect.anything())
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('caps topic and work groups in all search and expands them on demand', async () => {
@@ -1469,6 +1522,7 @@ describe('GlobalSearchPanel', () => {
         'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
         expect.objectContaining({
           messageId: 'message-1',
+          targetTabId: 'opened-chat-tab',
           topic: expect.objectContaining({ activeNodeId: 'message-leaf', id: 'topic-1' })
         })
       )
@@ -1532,6 +1586,7 @@ describe('GlobalSearchPanel', () => {
         'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
         expect.objectContaining({
           messageId: 'message-1',
+          targetTabId: 'opened-chat-tab',
           topic: expect.objectContaining({ activeNodeId: 'message-leaf', id: 'topic-1' })
         })
       )
@@ -1585,7 +1640,7 @@ describe('GlobalSearchPanel', () => {
       })
       expect(mocks.eventEmit).toHaveBeenCalledWith(
         'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
-        expect.objectContaining({ messageId: 'preview-message-other' })
+        expect.objectContaining({ messageId: 'preview-message-other', targetTabId: 'opened-chat-tab' })
       )
     })
     expect(mocks.eventEmit).not.toHaveBeenCalledWith(
@@ -1641,7 +1696,8 @@ describe('GlobalSearchPanel', () => {
       })
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
         sessionId: 'session-1',
-        messageId: 'session-message-1'
+        messageId: 'session-message-1',
+        targetTabId: 'opened-agent-tab'
       })
     })
     expect(mocks.dataApiGet.mock.invocationCallOrder[0]).toBeLessThan(mocks.invalidateCache.mock.invocationCallOrder[0])
@@ -1693,7 +1749,8 @@ describe('GlobalSearchPanel', () => {
       })
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
         sessionId: 'session-1',
-        messageId: 'session-message-1'
+        messageId: 'session-message-1',
+        targetTabId: 'opened-agent-tab'
       })
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
@@ -1738,7 +1795,7 @@ describe('GlobalSearchPanel', () => {
         sessionId: 'session-1',
         messageId: 'session-message-1'
       })
-      expect(mocks.toastError).toHaveBeenCalledWith('Failed to open search result')
+      expect(toast.error).toHaveBeenCalledWith('Failed to open search result')
     })
     expect(mocks.onClose).not.toHaveBeenCalled()
   })
@@ -1809,7 +1866,8 @@ describe('GlobalSearchPanel', () => {
     await waitFor(() => {
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
         sessionId: 'session-1',
-        messageId: 'session-message-1'
+        messageId: 'session-message-1',
+        targetTabId: 'opened-agent-tab'
       })
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
@@ -2143,6 +2201,43 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ])
+  })
+
+  it('cleans legacy assistant library route recents on open', async () => {
+    const user = userEvent.setup()
+    const settingsRecent = {
+      kind: 'route' as const,
+      url: '/app/settings',
+      title: 'Settings',
+      icon: 'settings',
+      lastAccessTime: 20
+    }
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/app/library?resourceType=assistant',
+        title: 'Library',
+        icon: 'library',
+        lastAccessTime: 30
+      },
+      settingsRecent
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    expect(screen.queryByRole('option', { name: /Library/ })).not.toBeInTheDocument()
+    const settingsOption = screen.getByRole('option', { name: /Settings/ })
+    await waitFor(() => {
+      expect(mocks.recentItems).toEqual([settingsRecent])
+    })
+
+    await user.click(settingsOption)
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/settings', { title: 'Settings', icon: 'settings' })
+    expect(mocks.openTab).not.toHaveBeenCalledWith(
+      '/app/library?resourceType=assistant',
+      expect.objectContaining({ title: 'Library' })
+    )
   })
 
   it('only refreshes up to the display limit items ordered by lastAccessTime', async () => {

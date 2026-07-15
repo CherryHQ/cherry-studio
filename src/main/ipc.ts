@@ -1,49 +1,34 @@
 import fs from 'node:fs'
-import { arch } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { generateSignature } from '@main/ai/provider/cherryai'
-import { isMac, isWin } from '@main/core/platform'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
-import { regionService } from '@main/services/RegionService'
-import { extractPdfText } from '@main/utils/pdf'
-import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
-import { handleZoomFactor } from '@main/utils/zoom'
+import {
+  listDirectory as searchListDirectory,
+  listDirectoryEntries as searchListDirectoryEntries
+} from '@main/services/file'
+import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Notification } from '@shared/types/notification'
-import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
-import fontList from 'font-list'
+import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
 import { copilotService } from './services/CopilotService'
-import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import LegacyBackupManager from './services/LegacyBackupManager'
-import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
-import ObsidianVaultService from './services/ObsidianVaultService'
-import { vertexAiService } from './services/VertexAiService'
-import { decrypt, encrypt } from './utils/aes'
-import { isSafeExternalUrl } from './utils/externalUrlSafety'
-import { hasWritePermission, isPathInside, untildify } from './utils/file'
+import { decrypt } from './utils/aes'
 import { getDirectorySize } from './utils/fileOperations'
-import { getCpuName, getDeviceType, getHostname } from './utils/system'
-import { compress, decompress } from './utils/zip'
+import { getHostname } from './utils/system'
+import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
 const backupManager = new LegacyBackupManager()
-const exportService = new ExportService()
-const obsidianVaultService = new ObsidianVaultService()
 
 export async function registerIpc() {
-  const notificationService = new NotificationService()
-
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerService = application.get('PowerService')
   // powerService.registerShutdownHandler(() => {
@@ -53,39 +38,8 @@ export async function registerIpc() {
   //   }
   // })
 
-  ipcMain.handle(IpcChannel.App_Info, () => ({
-    version: app.getVersion(),
-    isPackaged: app.isPackaged,
-    appPath: application.getPath('app.root'),
-    homePath: application.getPath('sys.home'),
-    notesPath: application.getPath('feature.notes.data'),
-    configPath: application.getPath('cherry.config'),
-    appDataPath: application.getPath('app.userdata'),
-    resourcesPath: application.getPath('app.root.resources'),
-    logsPath: logger.getLogsDir(),
-    arch: arch(),
-    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
-    installPath: application.getPath('app.install')
-  }))
-
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
-    if (!isSafeExternalUrl(url)) {
-      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
-      return
-    }
-    return shell.openExternal(url)
-  })
-
-  // spell check
-  ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
-    // disable spell check for all webviews
-    const webviews = webContents.getAllWebContents()
-    webviews.forEach((webview) => {
-      webview.session.setSpellCheckerEnabled(isEnable)
-    })
-  })
 
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
@@ -104,49 +58,10 @@ export async function registerIpc() {
     await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
-  //only for mac
-  if (isMac) {
-    ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
-      return systemPreferences.isTrustedAccessibilityClient(false)
-    })
-
-    //return is only the current state, not the new state
-    ipcMain.handle(IpcChannel.App_MacRequestProcessTrust, (): boolean => {
-      return systemPreferences.isTrustedAccessibilityClient(true)
-    })
-  }
-
-  // Get System Fonts
-  ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
-    try {
-      const fonts = await fontList.getFonts()
-      return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
-    } catch (error) {
-      logger.error('Failed to get system fonts:', error as Error)
-      return []
-    }
-  })
-
-  // Get IP Country
-  ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
-    return regionService.getCountry()
-  })
-
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string) => {
-    // Legacy config handler - will be deprecated
-    logger.warn(`Legacy Config_Set called for key: ${key}`)
-  })
-
   // // theme
   // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
   //   themeService.setTheme(theme)
   // })
-
-  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
-    const windows = BrowserWindow.getAllWindows()
-    handleZoomFactor(windows, delta, reset)
-    return application.get('PreferenceService').get('app.zoom_factor')
-  })
 
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
@@ -274,32 +189,19 @@ export async function registerIpc() {
     }
   })
 
-  // Application_Relaunch is registered by Application.registerApplicationIpc()
+  // Application_Relaunch migrated to IpcApi (`app.relaunch`); preventQuit/allowQuit stay on
+  // Application.registerApplicationIpc().
 
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
 
-  // notification
-  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
-    await notificationService.sendNotification(notification)
-  })
-  // Notification_OnClick handler moved into MainWindowService (uses wm.broadcastToType).
-
   // zip
-  ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 
   // system
-  ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
   ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
-  ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
   // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
-
-  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    win && win.webContents.toggleDevTools()
-  })
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
@@ -318,7 +220,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
@@ -327,12 +228,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Clear, fileManager.clear.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Read, fileManager.readFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_DeleteDir, fileManager.deleteDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_DeleteExternalFile, fileManager.deleteExternalFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
@@ -344,72 +240,28 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
+  ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
+    searchListDirectoryEntries(dirPath, options)
+  )
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
-  // pdf
-  ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
-
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
   ipcMain.handle(IpcChannel.Fs_ReadText, FileService.readTextFileWithAutoEncoding.bind(FileService))
 
-  // export
-  ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord.bind(exportService))
-
-  // open path
-  ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
-    await shell.openPath(path)
-  })
-
-  // memory
-  // VertexAI
-  ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
-    return vertexAiService.getAuthHeaders(params)
-  })
-
-  ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
-    return vertexAiService.getAccessToken(params)
-  })
-
-  ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
-    vertexAiService.clearAuthCache(projectId, clientEmail)
-  })
-
   // aes
-  ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
-    encrypt(text, secretKey, iv)
-  )
   ipcMain.handle(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
-
-  // Channel logs & status
-  ipcMain.handle(IpcChannel.Channel_GetLogs, (_event, channelId: string) =>
-    application.get('ChannelManager').getChannelLogs(channelId)
-  )
-
-  ipcMain.handle(IpcChannel.Channel_GetStatuses, () => application.get('ChannelManager').getAllStatuses())
-
-  ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
-  ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
-  ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
 
   //copilot
   ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, copilotService.getAuthMessage.bind(copilotService))
@@ -418,15 +270,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
-
-  // Obsidian service
-  ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
-    return obsidianVaultService.getVaults()
-  })
-
-  ipcMain.handle(IpcChannel.Obsidian_GetFiles, (_event, vaultName) => {
-    return obsidianVaultService.getFilesByVaultName(vaultName)
-  })
 
   // nutstore
   ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))
@@ -438,84 +281,8 @@ export async function registerIpc() {
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
-  // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
-  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
-  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
-
-  // CherryAI
-  ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
-
-  // Global Skills
-  ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
-    try {
-      const data = await skillService.list(agentId ? { agentId } : {})
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to list skills', { error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Skill_Install, async (_, options) => {
-    try {
-      const data = await skillService.install(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install skill', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Skill_Uninstall, async (_, skillId: string) => {
-    try {
-      await skillService.uninstall(skillId)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to uninstall skill', { skillId, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
-    try {
-      if (
-        !options ||
-        typeof options.skillId !== 'string' ||
-        !options.skillId ||
-        typeof options.agentId !== 'string' ||
-        !options.agentId ||
-        typeof options.isEnabled !== 'boolean'
-      ) {
-        return { success: false, error: 'Invalid toggle options' }
-      }
-      const data = await skillService.toggle(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to toggle skill', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Skill_InstallFromZip, async (_, options) => {
-    try {
-      const data = await skillService.installFromZip(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install skill from ZIP', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Skill_InstallFromDirectory, async (_, options) => {
-    try {
-      const data = await skillService.installFromDirectory(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install skill from directory', { options, error })
-      return { success: false, error }
-    }
-  })
-
+  // Global Skills: install / uninstall / install-from-zip / install-from-directory / list-local
+  // migrated to IpcApi (skill.*). read-file / list-files stay on legacy IPC (roadmap placeholders).
   ipcMain.handle(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
     try {
       const data = await skillService.readFile(skillId, filename)
@@ -536,30 +303,5 @@ export async function registerIpc() {
     }
   })
 
-  ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
-    try {
-      if (!workdir || typeof workdir !== 'string') {
-        return { success: false, error: 'Invalid workdir' }
-      }
-      const data = await skillService.listLocal(workdir)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to list local plugins', { workdir, error })
-      return { success: false, error }
-    }
-  })
-
   // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
-
-  // WeChat
-  ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
-    const tokenPath = application.getPath('feature.agents.channels', `weixin_bot_${channelId}.json`)
-    try {
-      const raw = await fs.promises.readFile(tokenPath, 'utf8')
-      const parsed = JSON.parse(raw)
-      return { exists: true, userId: parsed.userId as string | undefined }
-    } catch {
-      return { exists: false }
-    }
-  })
 }

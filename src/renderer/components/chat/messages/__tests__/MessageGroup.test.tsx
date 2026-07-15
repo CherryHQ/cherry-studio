@@ -1,5 +1,6 @@
 import type { Topic } from '@renderer/types/topic'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -30,7 +31,14 @@ const mocks = vi.hoisted(() => ({
   },
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
-  MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
+  MessageContent: vi.fn(({ parts }: { parts: CherryMessagePart[] }) => (
+    <div
+      data-testid="message-parts-content"
+      data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
+      style={{ minHeight: 600 }}>
+      Long message content
+    </div>
+  )),
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
   MessageHeader: vi.fn(({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode }) => (
     <div className="message-header">
@@ -130,10 +138,6 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: mocks.EventEmitter
 }))
 
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageModelId: () => 'model-id'
-}))
-
 vi.mock('@renderer/services/TokenService', () => ({
   estimateMessageUsage: vi.fn().mockResolvedValue(0)
 }))
@@ -148,9 +152,18 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../frame/MessageContent', () => ({
-  default: mocks.MessageContent
-}))
+vi.mock('../frame/MessageContent', async () => {
+  const { useMessageParts } = await import('../blocks/MessagePartsContext')
+
+  function MessageContentMock({ message }: { message: MessageListItem }) {
+    const parts = useMessageParts(message.id)
+    return mocks.MessageContent({ parts })
+  }
+
+  return {
+    default: MessageContentMock
+  }
+})
 
 vi.mock('../frame/MessageErrorBoundary', () => ({
   default: mocks.MessageErrorBoundary
@@ -266,6 +279,23 @@ describe('MessageGroup', () => {
     const messageElement = container.querySelector('#message-msg-1 .message')
 
     expect(messageElement).not.toHaveClass('px-4')
+  })
+
+  it('passes updated parts when only the parts map changes', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+    const initialParts = [{ type: 'text', text: 'initial' }] as CherryMessagePart[]
+    const updatedParts = [{ type: 'text', text: 'updated' }] as CherryMessagePart[]
+
+    const { getByTestId, rerender } = render(
+      <MessageGroup messages={messages} partsByMessageId={{ 'msg-1': initialParts }} topic={topic} />
+    )
+
+    expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'initial')
+
+    rerender(<MessageGroup messages={messages} partsByMessageId={{ 'msg-1': updatedParts }} topic={topic} />)
+
+    expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
   it('adds padding to grouped grid message cards', () => {
@@ -472,6 +502,26 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
+  })
+
+  it('does not update message UI state from capture mode renders', async () => {
+    const updateMessageUiState = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      regenerateMessage: vi.fn(),
+      updateMessageUiState
+    })
+    const topic = { id: 'topic-1' } as Topic
+    const firstMessage = createMessage('msg-1', 0, 'fold')
+    const secondMessage = createMessage('msg-2', 1, 'fold')
+
+    const { rerender } = render(<MessageGroup captureMode messages={[firstMessage]} topic={topic} />)
+    rerender(<MessageGroup captureMode messages={[firstMessage, secondMessage]} topic={topic} />)
+
+    await waitFor(() => {
+      expect(updateMessageUiState).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps user message footer actions hidden by default without a divider', () => {

@@ -1,18 +1,18 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
-import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
-import { LoadingIcon } from '@renderer/components/Icons'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
+import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { MessageEnterMotionProvider, useMessageEnterMotionIds } from '../motion/messageEnterMotion'
+import { usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
@@ -89,6 +89,7 @@ const MessageList = () => {
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
+  const partsByMessageId = usePartsMap()
   const { setForceWideLayout } = useChatLayoutMode()
   const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -97,8 +98,6 @@ const MessageList = () => {
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
   const bottomOverlayInsets = useChatBottomOverlayInset()
-  const { insetHeight: topOverlayInset } = useImmersiveNavbar()
-  const reportImmersiveNarrow = useReportImmersiveNarrow()
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -147,15 +146,6 @@ const MessageList = () => {
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
 
-  // Declare whether the message column is rendered narrow (centered) so the shell can decide
-  // whether the navbar may float over it. The shell owns the geometry (it measures the center
-  // width); we only publish this boolean — no probe, no layout read, so loading/mount timing
-  // can't desync it.
-  useEffect(() => {
-    reportImmersiveNarrow(messageListNarrowMode)
-    return () => reportImmersiveNarrow(false)
-  }, [messageListNarrowMode, reportImmersiveNarrow])
-
   const enteringMessageIds = useMessageEnterMotionIds({
     messages,
     scopeKey: data.listKey ?? topic.id
@@ -173,12 +163,26 @@ const MessageList = () => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
 
+  // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
+  // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
+  const navigateToTop = useCallback(() => {
+    messageListRef.current?.scrollToTop('smooth')
+  }, [])
+
+  const navigateToBottom = useCallback(() => {
+    messageListRef.current?.scrollToBottom('smooth')
+  }, [])
+
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
     const groupKey =
       target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
     messageListRef.current?.scrollToKey(groupKey, 'start')
+  }, [])
+
+  const scrollToOutlineElement = useCallback((element: HTMLElement) => {
+    messageListRef.current?.scrollToElement(element)
   }, [])
 
   const updateActiveMessageOutline = useCallback(() => {
@@ -286,7 +290,7 @@ const MessageList = () => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataURL(captureRef)
+      const imageData = await captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -430,7 +434,7 @@ const MessageList = () => {
     })
   }, [bindRuntime])
 
-  if (data.isInitialLoading) {
+  if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
 
@@ -442,8 +446,12 @@ const MessageList = () => {
     ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
     : undefined
   const preserveScrollAnchor =
-    latestAssistantGroupMessages?.some((message) => message.role === 'assistant' && message.status === 'pending') ??
-    false
+    latestAssistantGroupMessages?.some(
+      (message) =>
+        message.role === 'assistant' &&
+        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
+    ) ?? false
+  const keepMountedKeys = preserveScrollAnchor && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   // The runtime now treats this key as the group to scroll to the viewport
   // top (rather than scrolling to the absolute bottom). User-message groups
   // are keyed by `user${msgId}` — see stableGroupedMessages.
@@ -456,7 +464,7 @@ const MessageList = () => {
       ? defaultBottomPadding
       : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
   const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
-  const topPadding = topOverlayInset || MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
+  const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth =
     scrollContainerRef.current?.clientWidth || scrollContainerRef.current?.getBoundingClientRect().width || undefined
 
@@ -483,6 +491,7 @@ const MessageList = () => {
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
               preserveScrollAnchor={preserveScrollAnchor}
+              keepMountedKeys={keepMountedKeys}
               showScrollToBottomButton
               scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
               topicId={topic.id}
@@ -497,6 +506,7 @@ const MessageList = () => {
                       isLatestAssistantGroup={key === latestAssistantGroupKey}
                       directAssistantModelsByUserId={directAssistantModelsByUserId}
                       messages={groupMessages}
+                      partsByMessageId={partsByMessageId}
                       topic={topic}
                       registerMessageElement={registerMessageElement}
                       onMultiModelMessageStyleChange={(style) => {
@@ -537,12 +547,8 @@ const MessageList = () => {
                 isLatestAssistantGroup={key === latestAssistantGroupKey}
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
+                partsByMessageId={partsByMessageId}
                 topic={topic}
-                onMultiModelMessageStyleChange={(style) => {
-                  setGroupLayoutOverrides((current) =>
-                    current[key] === style ? current : { ...current, [key]: style }
-                  )
-                }}
               />
             </NarrowLayout>
           ))}
@@ -556,10 +562,20 @@ const MessageList = () => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
+        <MessageOutline
+          message={activeOutlineMessage}
+          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+          onNavigateToElement={scrollToOutlineElement}
+        />
       )}
       {messageNavigation === 'buttons' && (
-        <MessageNavigation containerId="messages" messages={messages} scrollToMessageId={scrollToMessageById} />
+        <MessageNavigation
+          containerId="messages"
+          messages={messages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToTop={navigateToTop}
+          scrollToBottom={navigateToBottom}
+        />
       )}
       {meta.selectionLayer && (
         <SelectionBox

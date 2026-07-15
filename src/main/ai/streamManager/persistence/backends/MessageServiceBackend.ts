@@ -2,7 +2,7 @@
 
 import { messageService } from '@main/data/services/MessageService'
 import { enrichStatsWithCost } from '@main/data/services/utils/costEnrichment'
-import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 
 import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
 
@@ -10,8 +10,6 @@ export interface MessageServiceBackendOptions {
   assistantMessageId: string
   /** Wins over `input.stats` — only set by callers replaying pre-computed stats. */
   stats?: MessageStats
-  /** Parity with the listener signature; unused by the write. */
-  modelSnapshot?: ModelSnapshot
   /** Post-success hook (topic auto-rename, usage reporting, …). */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -29,7 +27,7 @@ export class MessageServiceBackend implements PersistenceBackend {
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     const baseStats = this.opts.stats ?? stats
     const enrichedStats = await enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
-    await messageService.update(this.opts.assistantMessageId, {
+    messageService.update(this.opts.assistantMessageId, {
       data: { parts },
       status,
       stats: enrichedStats
@@ -37,7 +35,7 @@ export class MessageServiceBackend implements PersistenceBackend {
   }
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */
-  async markTerminalError(): Promise<void> {
-    await messageService.update(this.opts.assistantMessageId, { status: 'error' })
+  markTerminalError(): void {
+    messageService.update(this.opts.assistantMessageId, { status: 'error' })
   }
 }

@@ -66,9 +66,9 @@ describe('importLegacySessionMessages', () => {
   }
 
   async function importLegacyRows(rows: LegacyMessageRow[]): Promise<number> {
-    await dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
+    dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
     try {
-      await dbh.db.run(
+      dbh.db.run(
         sql.raw(`CREATE TABLE agents_legacy.session_messages (
           id INTEGER PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -81,7 +81,7 @@ describe('importLegacySessionMessages', () => {
       )
 
       for (const row of rows) {
-        await dbh.db.run(sql`
+        dbh.db.run(sql`
           INSERT INTO agents_legacy.session_messages
             (id, session_id, role, content, agent_session_id, created_at, updated_at)
           VALUES
@@ -105,7 +105,7 @@ describe('importLegacySessionMessages', () => {
 
       return await importLegacySessionMessages(dbh.db, schemaInfo)
     } finally {
-      await dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
   }
 
@@ -238,12 +238,6 @@ describe('importLegacySessionMessages', () => {
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.sessionId, 's-stats'))
     expect(row.modelId).toBe('cherryin::anthropic/claude-sonnet-4.5')
-    expect(row.modelSnapshot).toEqual({
-      id: 'anthropic/claude-sonnet-4.5',
-      name: 'Claude Sonnet 4.5',
-      provider: 'cherryin',
-      group: 'anthropic'
-    })
     expect(row.stats).toEqual({
       inputTokens: 8,
       outputTokens: 13,

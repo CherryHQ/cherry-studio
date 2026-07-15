@@ -100,7 +100,13 @@ const AuthConfigOAuth = z.object({
   clientId: z.string(),
   refreshToken: z.string().optional(),
   accessToken: z.string().optional(),
-  expiresAt: z.number().optional()
+  expiresAt: z.number().optional(),
+  /**
+   * Provider account identifier extracted from the OAuth access token, when the
+   * provider needs it as a request header (e.g. OpenAI Codex's
+   * `chatgpt-account-id`). Not every OAuth provider populates this.
+   */
+  accountId: z.string().optional()
 })
 
 const AuthConfigIamAws = z.object({
@@ -143,6 +149,8 @@ export const AuthConfigSchema = z.discriminatedUnion('type', [
   AuthConfigIamAzure
 ])
 export type AuthConfig = z.infer<typeof AuthConfigSchema>
+/** The OAuth variant of {@link AuthConfig}, narrowed for token-bearing providers. */
+export type OAuthAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
 
 export const ApiFeaturesSchema = CatalogApiFeaturesSchema
 export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
@@ -256,6 +264,19 @@ export const ProviderSchema = z.object({
   presetProviderId: z.string().optional(),
   /** Display name */
   name: z.string(),
+  /**
+   * Preset logo key — a `icon:<providerId>` brand-icon ref. Absent for preset
+   * providers rendered by id, and for custom providers with an uploaded logo
+   * (those carry {@link logoSrc} instead). Never a URL or data URL.
+   */
+  logo: z.string().optional(),
+  /**
+   * Ready-to-render URL for an uploaded logo, resolved main-side from the
+   * `file_entry` (`file://…`). Mutually exclusive with {@link logo}. The
+   * renderer renders it directly and never reconstructs a disk path — the file
+   * storage layout stays a main-process detail.
+   */
+  logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
   /** Preset provider website links */
@@ -266,6 +287,27 @@ export const ProviderSchema = z.object({
   >,
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
+  /**
+   * Where the model list comes from. `'registry'` providers cannot enumerate
+   * models over an API; the shipped catalog is returned instead. Carried from
+   * the registry; absent/`'api'` for normal providers.
+   */
+  modelListSource: z.enum(['api', 'registry']).optional(),
+  /**
+   * Which credential kinds this provider accepts (`'api-key'` / `'oauth'` /
+   * `'external-cli'`) — a set, since a provider can offer more than one (CherryIN
+   * takes both a user key and an OAuth login). Carried from the registry; absent
+   * ⇒ `['api-key']`. "Login-based" is the derived `!includes('api-key')`. See
+   * {@link isLoginBasedProvider}.
+   */
+  authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
+  /**
+   * Registry capability: the provider serves requests without any credential
+   * (local server — ollama / lmstudio / gpustack / ovms), so the missing-API-key
+   * guards (model sync, painting/OpenClaw gating) skip the key check. Carried
+   * from the registry; absent ⇒ false.
+   */
+  authOptional: z.boolean().optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */

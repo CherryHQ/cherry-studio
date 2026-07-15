@@ -28,7 +28,6 @@ import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell } from 'electron'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -122,7 +121,6 @@ export class QuickAssistantService extends BaseService implements Activatable {
   private mainWindowRef: BrowserWindow | null = null
 
   protected async onInit() {
-    this.registerIpcHandlers()
     this.subscribeMainWindowLifecycle()
 
     // Attach per-instance behavior to each fresh QuickAssistant window. Fires exactly
@@ -199,14 +197,6 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.isPinnedQuickAssistant = false
     this.hasBlurredSinceShow = false
     this.stopPostUnpinFocusPoll()
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.QuickAssistant_Show, () => this.showQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Hide, () => this.hideQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Close, () => this.closeQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Toggle, () => this.toggleQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_SetPin, (_, isPinned: boolean) => this.setPinQuickAssistant(isPinned))
   }
 
   /**
@@ -333,8 +323,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // any post-unpin focus poll from a previous lifetime is irrelevant.
       this.hasBlurredSinceShow = false
       this.stopPostUnpinFocusPoll()
-      if (!window.isDestroyed()) {
-        window.webContents.send(IpcChannel.QuickAssistant_Shown)
+      if (this.windowId && !window.isDestroyed()) {
+        application.get('IpcApiService').send(this.windowId, 'quick_assistant.shown', undefined)
       }
     }
     const onHide = () => {

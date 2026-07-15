@@ -1,6 +1,43 @@
 import type { Metrics, Usage } from '@renderer/types/message'
 import type { MessageStats } from '@shared/data/types/message'
 
+export interface CacheTokenStats {
+  noCacheTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalInputTokens: number
+  hitRate: number
+  savedInputTokens: number
+}
+
+function buildCacheTokenStats(
+  noCacheTokens: number,
+  cacheReadTokens: number,
+  cacheWriteTokens: number
+): CacheTokenStats | undefined {
+  if (cacheReadTokens === 0 && cacheWriteTokens === 0) return undefined
+
+  const totalInputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+
+  return {
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalInputTokens,
+    hitRate: cacheReadTokens / totalInputTokens,
+    // Anthropic cache reads are discounted rather than free; this is token-volume saved from re-sending.
+    savedInputTokens: cacheReadTokens
+  }
+}
+
+export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
+  return buildCacheTokenStats(
+    stats.inputTokenDetails?.noCacheTokens ?? 0,
+    stats.inputTokenDetails?.cacheReadTokens ?? 0,
+    stats.inputTokenDetails?.cacheWriteTokens ?? 0
+  )
+}
+
 /**
  * Project `MessageStats` onto the OpenAI-shaped `Usage` the renderer
  * UI reads. Required OpenAI fields (`prompt_tokens` / `completion_tokens`

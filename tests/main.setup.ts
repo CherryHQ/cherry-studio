@@ -65,7 +65,9 @@ vi.mock('electron', () => {
             return '/mock/unknown'
         }
       }),
-      getVersion: vi.fn(() => '1.0.0')
+      getVersion: vi.fn(() => '1.0.0'),
+      getLocale: vi.fn(() => 'en-US'),
+      getPreferredSystemLanguages: vi.fn(() => ['en-US'])
     },
     ipcMain: {
       handle: vi.fn(),
@@ -84,7 +86,8 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
-      showItemInFolder: vi.fn()
+      showItemInFolder: vi.fn(),
+      trashItem: vi.fn()
     },
     session: {
       defaultSession: {
@@ -172,7 +175,7 @@ vi.mock('electron-store', () => {
 //
 // The fs/os/path modules are passed through to their real implementations
 // (`...await vi.importActual(...)`) so that third-party libraries such as
-// `drizzle-orm/libsql/migrator` can read files from disk. Historically these
+// `drizzle-orm/better-sqlite3/migrator` can read files from disk. Historically these
 // modules were replaced wholesale with vi.fn() stubs, which caused any code
 // reading migration files, tmp directories, or real paths to silently break.
 //

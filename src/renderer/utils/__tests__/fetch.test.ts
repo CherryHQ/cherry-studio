@@ -51,11 +51,7 @@ global.DOMParser = vi.fn().mockImplementation(() => ({
 })) as any
 
 global.window = {
-  api: {
-    searchService: {
-      openUrlInSearchWindow: vi.fn()
-    }
-  }
+  api: {}
 } as any
 
 // 辅助函数
@@ -125,17 +121,6 @@ describe('fetch', () => {
         content: '# Test content'
       })
       expect(global.fetch).toHaveBeenCalledWith('https://example.com', expect.any(Object))
-    })
-
-    it('should use browser mode when specified', async () => {
-      vi.mocked(window.api.searchService.openUrlInSearchWindow).mockResolvedValueOnce(
-        '<html><body>Browser content</body></html>'
-      )
-
-      const result = await fetchWebContent('https://example.com', 'markdown', true)
-
-      expect(result.content).toBe('# Test content')
-      expect(window.api.searchService.openUrlInSearchWindow).toHaveBeenCalled()
     })
 
     it('should handle errors gracefully', async () => {
@@ -208,7 +193,7 @@ describe('fetch', () => {
 
       vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
 
-      await fetchWebContent('https://example.com', 'markdown', false, {
+      await fetchWebContent('https://example.com', 'markdown', {
         signal: userController.signal
       })
 

@@ -16,7 +16,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
@@ -68,7 +68,7 @@ export class TemporaryChatService {
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
 
-  async createTopic(dto: CreateTopicDto): Promise<Topic> {
+  createTopic(dto: CreateTopicDto): Topic {
     const now = Date.now()
     const row: TemporaryTopicRow = {
       id: uuidv4(),
@@ -89,7 +89,7 @@ export class TemporaryChatService {
     return rowToTopic(row)
   }
 
-  async deleteTopic(id: string): Promise<void> {
+  deleteTopic(id: string): void {
     if (!this.topics.has(id)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', id)
     }
@@ -98,7 +98,7 @@ export class TemporaryChatService {
     logger.info('Deleted temporary topic', { id })
   }
 
-  async appendMessage(topicId: string, dto: CreateMessageDto): Promise<Message> {
+  appendMessage(topicId: string, dto: CreateMessageDto): Message {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
@@ -119,7 +119,7 @@ export class TemporaryChatService {
       status: dto.status ?? 'success',
       siblingsGroupId: 0,
       modelId: dto.modelId ?? null,
-      modelSnapshot: dto.modelSnapshot ?? null,
+      messageSnapshot: dto.messageSnapshot ?? null,
       stats: dto.stats ?? null,
       createdAt: now,
       updatedAt: now
@@ -152,7 +152,7 @@ export class TemporaryChatService {
     return row ? rowToTopic(row) : null
   }
 
-  async listMessages(topicId: string): Promise<Message[]> {
+  listMessages(topicId: string): Message[] {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
@@ -161,7 +161,7 @@ export class TemporaryChatService {
     return structuredClone(rows).map(rowToMessage)
   }
 
-  async persist(topicId: string): Promise<{ topicId: string; messageCount: number }> {
+  persist(topicId: string): { topicId: string; messageCount: number } {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
     // concurrent handlers can't mutate it while the DB transaction is awaiting.
     const topic = this.topics.get(topicId)
@@ -174,7 +174,7 @@ export class TemporaryChatService {
 
     try {
       const db = application.get('DbService').getDb()
-      await db.transaction(async (tx) => {
+      db.transaction((tx) => {
         // 2. Insert topic with the same id. Timestamps / defaults are filled by
         // Drizzle's $defaultFn; we do not pass createdAt / updatedAt manually
         // because the TS-side ISO strings don't match the DB's integer column.
@@ -186,7 +186,7 @@ export class TemporaryChatService {
         // so Drizzle omits the column entirely, letting the DB default apply.
         const groupIdForScope = topic.groupId ?? null
         const assistantId = topic.assistantId ?? undefined
-        await insertWithOrderKey(
+        insertWithOrderKey(
           tx,
           topicTable,
           {
@@ -203,27 +203,29 @@ export class TemporaryChatService {
 
         // 3. Create the topic's virtual root, then linearize buffered messages under it:
         // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
-        const rootId = await messageService.createRootMessageTx(tx, topic.id)
+        const rootId = messageService.createRootMessageTx(tx, topic.id)
         let prevId: string = rootId
         for (const m of msgs) {
-          await tx.insert(messageTable).values({
-            id: m.id,
-            topicId: topic.id,
-            parentId: prevId,
-            role: m.role,
-            data: m.data,
-            status: m.status,
-            siblingsGroupId: 0,
-            modelId: m.modelId ?? undefined,
-            modelSnapshot: m.modelSnapshot ?? undefined,
-            stats: m.stats ?? undefined
-          })
+          tx.insert(messageTable)
+            .values({
+              id: m.id,
+              topicId: topic.id,
+              parentId: prevId,
+              role: m.role,
+              data: m.data,
+              status: m.status,
+              siblingsGroupId: 0,
+              modelId: m.modelId ?? undefined,
+              messageSnapshot: m.messageSnapshot ?? undefined,
+              stats: m.stats ?? undefined
+            })
+            .run()
           prevId = m.id
         }
 
         // 4. Set activeNodeId to the last real message (still the root → no messages, leave null).
         if (prevId !== rootId) {
-          await tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, topic.id))
+          tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, topic.id)).run()
         }
       })
     } catch (err) {

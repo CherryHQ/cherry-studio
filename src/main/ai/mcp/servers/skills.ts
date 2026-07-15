@@ -76,7 +76,7 @@ const SKILLS_TOOL: Tool = {
 }
 
 /**
- * MCP server exposing skill management to any agent (not gated on Soul Mode).
+ * MCP server exposing skill management to any agent.
  *
  * Skills are a generally useful capability — searching the marketplace,
  * installing, listing, and authoring skills via init/register applies to
@@ -200,7 +200,7 @@ class SkillsServer {
     })
     // Enable the freshly-installed skill for the CURRENT agent only. Other
     // agents remain untouched — skill enablement is per-agent.
-    const enabled = await skillService.toggle({
+    const enabled = skillService.toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true
@@ -346,7 +346,7 @@ class SkillsServer {
     const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
     // Same per-agent scope as installSkill above — register only enables the
     // skill for the current agent, not globally.
-    const enabled = await skillService.toggle({
+    const enabled = skillService.toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true

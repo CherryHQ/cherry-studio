@@ -1,7 +1,7 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FilePath } from '@shared/types/file'
-import { toSafeFileUrl } from '@shared/utils/file/url'
+import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 
@@ -110,9 +110,20 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined) {
-  if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
-  return toSafeFileUrl(file.path as FilePath, file.ext || null)
+function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, previewUrl?: string) {
+  if (file?.type !== FILE_TYPE.IMAGE) return undefined
+  const extension = getNormalizedFileExtension(file, fallbackLabel)
+
+  if (previewUrl) {
+    try {
+      const url = new URL(previewUrl)
+      return url.protocol === 'file:' ? toSafeFileUrl(fileUrlToPath(url) as FilePath, extension || null) : previewUrl
+    } catch {
+      return undefined
+    }
+  }
+  if (!file.path) return undefined
+  return toSafeFileUrl(file.path as FilePath, extension || null)
 }
 
 function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {
@@ -129,7 +140,8 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
 
 export function getFileTokenPresentation(
   file: ComposerAttachment | undefined,
-  fallbackLabel: string
+  fallbackLabel: string,
+  previewUrl?: string
 ): FileTokenPresentation {
   const extensionLabel = getFileExtensionLabel(file, fallbackLabel)
   const variant = getFileTokenVariant(file, fallbackLabel)
@@ -143,6 +155,6 @@ export function getFileTokenPresentation(
     containerClassName: fileTokenContainerClassName,
     iconClassName: preset.iconClassName,
     typeLabel: extensionLabel || preset.defaultTypeLabel,
-    previewUrl: variant === 'image' ? getFilePreviewUrl(file) : undefined
+    previewUrl: variant === 'image' ? getFilePreviewUrl(file, fallbackLabel, previewUrl) : undefined
   }
 }

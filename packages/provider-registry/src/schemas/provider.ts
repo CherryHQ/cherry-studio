@@ -234,6 +234,37 @@ export const ProviderConfigSchema = z
       .optional(),
     /** Default endpoint type for chat requests — null for providers not bound by this (e.g. AWS, Vertex) */
     defaultChatEndpoint: EndpointTypeSchema.nullable().default(null),
+    /**
+     * Where this provider's model list comes from. `'registry'` means it cannot
+     * be enumerated over an API (login-based subscription providers); the shipped
+     * registry catalog is returned by the model-list chokepoint instead. Defaults
+     * to `'api'` (the provider exposes a `/models` endpoint).
+     */
+    modelListSource: z.enum(['api', 'registry']).default('api'),
+    /**
+     * Which credential kinds the provider accepts — the auth UIs to surface and
+     * the runtime credential semantics. A *set*, because a provider can offer
+     * more than one (CherryIN takes both a user API key and an app-managed OAuth
+     * login). Members:
+     * - `'api-key'` — user-entered key (the api-key/host inputs).
+     * - `'oauth'` — app-managed OAuth session the app holds and refreshes.
+     * - `'external-cli'` — credential lives in an external CLI's store and only
+     *   works through that CLI's runtime (e.g. `claude-code`); drives env
+     *   stripping and chat-picker hiding.
+     *
+     * Absent ⇒ the default `['api-key']`. "Login-based" (suppress the api-key
+     * inputs) is the derived `!includes('api-key')`, not a value of its own.
+     */
+    authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
+    /**
+     * The provider serves requests without any credential — a local server
+     * (ollama / lmstudio / gpustack / ovms) reachable over a baseUrl with no API
+     * key or login. Drives the "no API key required" guards: model sync, painting
+     * and OpenClaw gating skip the missing-key check. Distinct from login-based
+     * (`authMethods` without `'api-key'`), which also suppresses the host UI — a
+     * local provider still needs its baseUrl input. Defaults false.
+     */
+    authOptional: z.boolean().default(false),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */

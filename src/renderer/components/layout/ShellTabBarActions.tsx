@@ -1,15 +1,13 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandTooltip } from '@renderer/components/command'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import type { SidebarVisibleLayout } from '@renderer/components/Sidebar/types'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { getThemeModeLabelKey } from '@renderer/i18n/label'
+import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
+import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { isLinux, isWin } from '@renderer/utils/platform'
-import { Monitor, Moon, Search, Settings, Sun } from 'lucide-react'
+import { Search, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import WindowControls from '../WindowControls'
+import { WindowControls } from '../WindowControls'
 
 export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
@@ -23,20 +21,12 @@ export function useShellTabBarLayout() {
   }
 }
 
-function useShellActionHandlers(onSettingsClick: () => void) {
-  const { t } = useTranslation()
-  const { settedTheme, toggleTheme } = useTheme()
-  const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
-
-  return { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick: onSettingsClick }
-}
-
 export function ShellTabBarActions() {
   const { t } = useTranslation()
   const { hasWindowControls } = useShellTabBarLayout()
 
   const handleSearchClick = () => {
-    void SearchPopup.show()
+    void GlobalSearchPopup.show()
   }
 
   return (
@@ -44,13 +34,15 @@ export function ShellTabBarActions() {
       <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
         <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
           <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               aria-label={t('globalSearch.open')}
               onClick={handleSearchClick}
               className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
               <Search size={16} strokeWidth={1.8} />
-            </button>
+            </Button>
           </CommandTooltip>
         </div>
       </div>
@@ -67,51 +59,33 @@ export function SidebarShellActions({
   layout: SidebarVisibleLayout
   onSettingsClick: () => void
 }) {
-  const { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick } = useShellActionHandlers(onSettingsClick)
+  const { t } = useTranslation()
 
   if (layout === 'icon') {
     return (
-      <>
-        <Tooltip placement="right" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
-          <button
-            type="button"
-            aria-label={t(getThemeModeLabelKey(settedTheme))}
-            onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <ThemeIcon size={18} strokeWidth={1.6} />
-          </button>
-        </Tooltip>
-        <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
-          <button
-            type="button"
-            aria-label={t('settings.title')}
-            onClick={handleSettingsClick}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <Settings size={18} strokeWidth={1.6} />
-          </button>
-        </CommandTooltip>
-      </>
+      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('settings.title')}
+          onClick={onSettingsClick}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground">
+          <Settings size={18} strokeWidth={1.6} />
+        </Button>
+      </CommandTooltip>
     )
   }
 
   return (
-    <>
-      <button
-        type="button"
-        aria-label={t(getThemeModeLabelKey(settedTheme))}
-        onClick={toggleTheme}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-        <ThemeIcon size={16} strokeWidth={1.6} />
-        <span>{t(getThemeModeLabelKey(settedTheme))}</span>
-      </button>
-      <button
-        type="button"
-        aria-label={t('settings.title')}
-        onClick={handleSettingsClick}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-        <Settings size={16} strokeWidth={1.6} />
-        <span>{t('settings.title')}</span>
-      </button>
-    </>
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={t('settings.title')}
+      onClick={onSettingsClick}
+      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60 dark:text-foreground">
+      <Settings size={16} strokeWidth={1.6} />
+      <span>{t('settings.title')}</span>
+    </Button>
   )
 }

@@ -1,7 +1,7 @@
 import type { MessageStats } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { statsToMetrics, statsToUsage } from '../messageStats'
+import { getCacheTokenStats, statsToMetrics, statsToUsage } from '../messageStats'
 
 describe('statsToUsage', () => {
   it('projects all token fields and keeps required fields defaulted to 0 when missing', () => {
@@ -65,6 +65,29 @@ describe('statsToUsage', () => {
     // by accident — OpenRouter's free-tier calls report cost: 0 and
     // swallowing that would hide a real value.
     expect(statsToUsage({ cost: 0 })).toMatchObject({ cost: 0 })
+  })
+})
+
+describe('getCacheTokenStats', () => {
+  it('computes cache hit rate and saved input tokens for one message', () => {
+    expect(
+      getCacheTokenStats({ inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 } })
+    ).toEqual({
+      noCacheTokens: 10,
+      cacheReadTokens: 70,
+      cacheWriteTokens: 20,
+      totalInputTokens: 100,
+      hitRate: 0.7,
+      savedInputTokens: 70
+    })
+  })
+
+  it('returns undefined when no cache counters exist', () => {
+    expect(getCacheTokenStats({ inputTokens: 10 })).toBeUndefined()
+  })
+
+  it('returns undefined when only non-cache input tokens exist', () => {
+    expect(getCacheTokenStats({ inputTokenDetails: { noCacheTokens: 100 } })).toBeUndefined()
   })
 })
 

@@ -1,5 +1,7 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -122,7 +124,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         target.findInPage(text, options)
       } catch (error) {
         logger.error('findInPage failed', { error })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [getUsableWebview, resetSearchState, stopSearch, t]
@@ -179,53 +181,36 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     }
   }, [activeWebview, handleFoundInPage, stopFindOnWebview])
 
-  useEffect(() => {
-    if (!activeWebview) return
-    if (!isWebviewReady) return
-    const onFindShortcut = window.api?.webview?.onFindShortcut
-    if (!onFindShortcut) return
-
+  useIpcOn('webview.search_hotkey_pressed', ({ webviewId, key, control, meta, shift }) => {
     let webContentsId: number | undefined
     try {
-      webContentsId = activeWebview.getWebContentsId?.()
+      webContentsId = activeWebview?.getWebContentsId?.()
     } catch (error) {
       logger.debug('WebviewSearch: getWebContentsId failed', { appId, error })
       return
     }
+    if (!webContentsId || webviewId !== webContentsId) return
 
-    if (!webContentsId) {
-      logger.warn('WebviewSearch: missing webContentsId', { appId })
+    if ((control || meta) && key === 'f') {
+      openSearch()
       return
     }
 
-    const unsubscribe = onFindShortcut(({ webviewId, key, control, meta, shift }) => {
-      if (webviewId !== webContentsId) return
+    if (!isVisible) return
 
-      if ((control || meta) && key === 'f') {
-        openSearch()
-        return
-      }
-
-      if (!isVisible) return
-
-      if (key === 'escape') {
-        closeSearch()
-        return
-      }
-
-      if (key === 'enter') {
-        if (shift) {
-          goToPrevious()
-        } else {
-          goToNext()
-        }
-      }
-    })
-
-    return () => {
-      unsubscribe?.()
+    if (key === 'escape') {
+      closeSearch()
+      return
     }
-  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, isWebviewReady, openSearch])
+
+    if (key === 'enter') {
+      if (shift) {
+        goToPrevious()
+      } else {
+        goToNext()
+      }
+    }
+  })
 
   useEffect(() => {
     if (!isVisible) return

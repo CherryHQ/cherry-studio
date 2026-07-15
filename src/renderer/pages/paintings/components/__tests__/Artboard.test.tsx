@@ -5,7 +5,13 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { PaintingData } from '../../model/types/paintingData'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string) => (key === 'paintings.generating' ? '绘图进行中，请不要离开页面' : key)
+  })
+}))
+
+vi.mock('@renderer/utils/image', () => ({
+  convertImageToPng: vi.fn()
 }))
 
 const { default: Artboard } = await import('../Artboard')
@@ -49,6 +55,31 @@ describe('Artboard', () => {
     HTMLElement.prototype.hasPointerCapture ??= vi.fn(() => true)
   })
 
+  it('renders an inline loading bar and cancel action while generating', () => {
+    const onCancel = vi.fn()
+
+    render(<Artboard painting={makePainting()} isLoading={true} onCancel={onCancel} />)
+
+    const loadingStatus = screen.getByRole('status')
+    expect(loadingStatus).toHaveTextContent('绘图进行中，请不要离开页面')
+    expect(loadingStatus.className).not.toContain('border')
+
+    const loadingBar = screen.getByRole('progressbar', { name: '绘图进行中，请不要离开页面' })
+    expect(loadingBar).toBeInTheDocument()
+    expect(loadingBar.firstElementChild).toHaveClass('animation-migration-backup-progress-indeterminate')
+    expect(loadingBar.firstElementChild).toHaveClass('bg-linear-to-r')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render the loading bar when idle', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
+
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
   it('resets image transform when switching generated images', () => {
     render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
 
@@ -65,6 +96,18 @@ describe('Artboard', () => {
 
     expect(image).toHaveAttribute('src', 'file:///tmp/image-2.png')
     expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+  })
+
+  it('shows copy and download actions from the generated image context menu', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
+
+    const image = document.querySelector('img') as HTMLImageElement
+
+    fireEvent.contextMenu(image)
+
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'preview.copy.src' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.download' })).toBeInTheDocument()
   })
 
   it('ignores non-left-button image drag attempts', () => {

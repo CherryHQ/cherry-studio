@@ -93,7 +93,13 @@ export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
 
-  persistAssistant(input: PersistAssistantInput): Promise<void>
+  /**
+   * True for backends that finalize a pre-created placeholder row. They must
+   * still write terminal status when a stream is paused before producing chunks.
+   */
+  readonly canPersistEmptyTerminal?: boolean
+
+  persistAssistant(input: PersistAssistantInput): void | Promise<void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
@@ -101,7 +107,7 @@ export interface PersistenceBackend {
    * bubble instead of a frozen `pending` one. Only backends that finalize a
    * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
    */
-  markTerminalError?(): Promise<void>
+  markTerminalError?(): void
 
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>

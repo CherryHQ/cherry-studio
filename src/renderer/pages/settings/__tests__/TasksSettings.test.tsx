@@ -37,7 +37,7 @@ const taskDataMock = vi.hoisted(() => {
     trigger: { kind: 'interval', ms: 60000 },
     timeoutMinutes: 10,
     workspace: { type: 'system' },
-    channelIds: [],
+    channelIds: [] as string[],
     nextRun: null,
     lastRun: null,
     enabled: true,
@@ -63,12 +63,24 @@ const navigationMocks = vi.hoisted(() => ({
   openConversation: vi.fn()
 }))
 
+const channelDataMock = vi.hoisted(() => ({
+  channels: [] as Array<Record<string, unknown>>
+}))
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
 
 vi.mock('@renderer/hooks/agent/useChannels', () => ({
-  useChannels: () => ({ channels: [] })
+  useChannels: () => ({ channels: channelDataMock.channels })
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: () => ({ data: [] })
+}))
+
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
 vi.mock('@renderer/hooks/agent/useTasks', () => ({
@@ -115,13 +127,19 @@ vi.mock('@renderer/components/ListItem', () => ({
   )
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    i18n: { language: 'en-US' },
-    t: (key: string) => key
-  })
-}))
+vi.mock('react-i18next', () => {
+  // Stable `t` reference (matches real i18next) so callbacks/effects depending
+  // on `t` don't churn — an unstable `t` re-runs TasksSettings' loadData effect
+  // on every render, causing a refetch storm that flakes waitFor under CI load.
+  const t = (key: string) => key
+  return {
+    initReactI18next: { type: '3rdParty', init: vi.fn() },
+    useTranslation: () => ({
+      i18n: { language: 'en-US' },
+      t
+    })
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext<{
@@ -131,8 +149,10 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement(tag, props, children)
+    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return React.createElement(tag, props, children)
+    }
 
   return {
     Badge: passthrough('span'),
@@ -148,7 +168,42 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </button>
     ),
-    Combobox: passthrough('div'),
+    Combobox: ({
+      multiple,
+      onChange,
+      options,
+      placeholder,
+      value
+    }: {
+      multiple?: boolean
+      onChange?: (value: string | string[]) => void
+      options?: Array<{ value: string; label: React.ReactNode }>
+      placeholder?: React.ReactNode
+      value?: string | string[]
+    }) => (
+      <div>
+        {placeholder && <span>{placeholder}</span>}
+        {options?.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              if (!multiple) {
+                onChange?.(option.value)
+                return
+              }
+              const current = Array.isArray(value) ? value : []
+              onChange?.(
+                current.includes(option.value)
+                  ? current.filter((currentValue) => currentValue !== option.value)
+                  : [...current, option.value]
+              )
+            }}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
     ConfirmDialog: ({
       cancelText,
       confirmText,
@@ -270,6 +325,7 @@ vi.mock('@cherrystudio/ui', () => {
       const context = React.use(PopoverContext)
 
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)
@@ -353,10 +409,11 @@ describe('TasksSettings task logs', () => {
     vi.clearAllMocks()
     taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
     taskDataMock.task = { ...taskDataMock.defaultTask }
+    channelDataMock.channels = []
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
         return Promise.resolve({
-          items: [{ id: 'agent-1', name: 'Agent One', configuration: { soul_enabled: true } }]
+          items: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
         })
       }
 
@@ -371,7 +428,7 @@ describe('TasksSettings task logs', () => {
   })
 
   async function clickTaskLogSessionButton() {
-    const viewSessionTooltip = await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    const viewSessionTooltip = await screen.findByText('agent.tasks.logs.viewSession')
     const button = within(viewSessionTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
 
     fireEvent.click(button)
@@ -412,21 +469,78 @@ describe('TasksSettings task logs', () => {
     expect(dataTableScroll).not.toHaveStyle({ maxHeight: '300px' })
   })
 
+  it('only offers channels owned by the selected task agent', async () => {
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      },
+      {
+        id: 'channel-agent-2',
+        agentId: 'agent-2',
+        name: 'Agent Two Slack',
+        isActive: true,
+        activeChatIds: ['chat-2']
+      }
+    ]
+
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.tasks.logs.viewSession')
+
+    expect(screen.getByText('Agent One Telegram')).toBeInTheDocument()
+    expect(screen.queryByText('Agent Two Slack')).not.toBeInTheDocument()
+  })
+
+  it('drops stale channel ids from the update payload when channel selection changes', async () => {
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      channelIds: ['channel-agent-1', 'channel-agent-2']
+    }
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      },
+      {
+        id: 'channel-agent-2',
+        agentId: 'agent-2',
+        name: 'Agent Two Slack',
+        isActive: true,
+        activeChatIds: ['chat-2']
+      }
+    ]
+
+    render(<TasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
+    )
+  })
+
   it('renders the segmented schedule type selector for the selected task', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.interval' })).toHaveAttribute(
+    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.interval' })).toHaveAttribute(
       'aria-checked',
       'true'
     )
-    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.once' })).toHaveAttribute(
+    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.once' })).toHaveAttribute(
       'aria-checked',
       'false'
     )
-    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' })).toHaveAttribute(
+    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' })).toHaveAttribute(
       'aria-checked',
       'false'
     )
@@ -435,34 +549,40 @@ describe('TasksSettings task logs', () => {
   it('swaps the schedule input when the segmented selector changes type', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
+
+    // Drain any still-pending task-load/auto-select updates: `findBy` resolves as
+    // soon as the interval input mounts, but a late one could re-render (and briefly
+    // unmount) the detail panel right after the click, dropping the schedule input.
+    await act(async () => {})
 
     // Interval is the task's initial type.
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('agent.tasks.cronPlaceholder')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    act(() => {
+      fireEvent.click(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' }))
+    })
 
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('agent.tasks.cronPlaceholder')).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('agent.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    })
   })
 
   it('moves run and delete into the task detail more menu', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
-    expect(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.status.active' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
-    expect(screen.queryByTitle('agent.cherryClaw.tasks.run')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.pause' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'agent.tasks.status.active' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByTitle('agent.tasks.run')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.tasks.pause' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    expect(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.delete.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
 
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
   })
@@ -470,9 +590,9 @@ describe('TasksSettings task logs', () => {
   it('toggles the selected task status from the header switch', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.status.active' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
 
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
@@ -488,7 +608,7 @@ describe('TasksSettings task logs', () => {
 
     render(<TasksSettings />)
 
-    const completedBadge = await screen.findByText('agent.cherryClaw.tasks.status.completed')
+    const completedBadge = await screen.findByText('agent.tasks.status.completed')
 
     expect(completedBadge).toHaveClass('border-blue-500/30', 'bg-blue-500/10', 'text-blue-500')
     expect(completedBadge).not.toHaveClass('border-info/30', 'bg-info/10', 'text-info')
@@ -503,7 +623,7 @@ describe('TasksSettings task logs', () => {
 
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
 
@@ -511,11 +631,11 @@ describe('TasksSettings task logs', () => {
       fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     })
 
-    expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.run' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
     act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.delete.label' }))
+      fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.delete.label' }))
     })
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.cherryClaw.tasks.delete.confirm')
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.tasks.delete.confirm')
   })
 })

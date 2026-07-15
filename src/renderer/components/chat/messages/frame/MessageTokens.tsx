@@ -1,6 +1,6 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
 import { Tooltip } from '@cherrystudio/ui'
-import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
+import { getCacheTokenStats, statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import { t } from 'i18next'
 import { useMemo } from 'react'
 
@@ -23,6 +23,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   }
   const usage = useMemo(() => (message.stats ? statsToUsage(message.stats) : undefined), [message.stats])
   const metrics = useMemo(() => (message.stats ? statsToMetrics(message.stats) : undefined), [message.stats])
+  const cacheStats = useMemo(() => (message.stats ? getCacheTokenStats(message.stats) : undefined), [message.stats])
   const model = useMemo(() => getMessageListItemModel(message), [message])
 
   const getPrice = () => {
@@ -63,7 +64,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   if (message.role === 'user') {
     return (
       <div
-        className="message-tokens cursor-pointer select-text text-right text-[10px] text-foreground-muted"
+        className="message-tokens text-(length:--font-size-body-xs) cursor-pointer select-text text-right text-foreground-secondary leading-(--line-height-body-xs) hover:text-foreground"
         onClick={locateMessage}>
         {`Tokens: ${formatTokenCountK(usage.total_tokens)}`}
       </div>
@@ -85,8 +86,24 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       })
     }
 
-    const cacheReadTokens = usage.cache_read_tokens
-    const reasoningTokens = usage.thoughts_tokens
+    const cacheHitRate = cacheStats ? Math.round(cacheStats.hitRate * 100) : undefined
+    const cacheInfo = cacheStats
+      ? t('chat.message.cache_stats.inline', {
+          hit_rate: cacheHitRate,
+          defaultValue: 'Cache {{hit_rate}}%'
+        })
+      : undefined
+    const cacheTooltip = cacheStats
+      ? t('chat.message.cache_stats.tooltip', {
+          cache_read: cacheStats.cacheReadTokens,
+          cache_write: cacheStats.cacheWriteTokens,
+          no_cache: cacheStats.noCacheTokens,
+          saved: cacheStats.savedInputTokens,
+          defaultValue:
+            'Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens'
+        })
+      : undefined
+    const tooltipContent = [metrixs, cacheTooltip].filter(Boolean).join(' | ')
 
     const tokensInfo = (
       <span className="tokens inline-flex items-center">
@@ -94,26 +111,17 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
         <span className="px-0.5">{formatTokenCountK(usage.total_tokens)}</span>
         <span className="px-0.5">↑{formatTokenCountK(usage.prompt_tokens)}</span>
         <span className="px-0.5">↓{formatTokenCountK(usage.completion_tokens)}</span>
-        {cacheReadTokens ? (
-          <Tooltip content={t('settings.messages.cache_read_tokens')} placement="top">
-            <span className="px-0.5">⚡{cacheReadTokens}</span>
-          </Tooltip>
-        ) : null}
-        {reasoningTokens ? (
-          <Tooltip content={t('settings.messages.reasoning_tokens')} placement="top">
-            <span className="px-0.5">🧠{reasoningTokens}</span>
-          </Tooltip>
-        ) : null}
+        {cacheInfo && <span className="px-0.5">{cacheInfo}</span>}
         <span className="px-0.5">{getPriceString()}</span>
       </span>
     )
 
     return (
       <div
-        className="message-tokens cursor-pointer select-text text-right text-[10px] text-foreground-muted"
+        className="message-tokens text-(length:--font-size-body-xs) cursor-pointer select-text text-right text-foreground-secondary leading-(--line-height-body-xs) hover:text-foreground"
         onClick={locateMessage}>
-        {hasMetrics ? (
-          <Tooltip content={metrixs} placement="top" classNames={{ content: 'text-[11px]' }}>
+        {hasMetrics || cacheTooltip ? (
+          <Tooltip content={tooltipContent} placement="top" classNames={{ content: 'text-[11px]' }}>
             {tokensInfo}
           </Tooltip>
         ) : (

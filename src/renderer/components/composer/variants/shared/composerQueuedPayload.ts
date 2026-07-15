@@ -31,10 +31,11 @@ export function buildComposerQueuedPayload(
   { files, fileTokenId, requireText = false, extra }: BuildComposerQueuedPayloadOptions
 ): ComposerQueuedMessagePayload | null {
   const text = draft.text.trim()
-  if (requireText ? !text : !text && files.length === 0) return null
-
   const tokenIds = getComposerTokenIds(draft.tokens)
   const attachedFiles = files.filter((file) => tokenIds.has(fileTokenId(file)))
+  if (hasUnsyncedComposerAttachments(files, attachedFiles)) return null
+  if (requireText ? !text : !text && attachedFiles.length === 0) return null
+
   const userMessageParts = createComposerUserMessageParts(draft)
 
   return {
@@ -43,4 +44,8 @@ export function buildComposerQueuedPayload(
     userMessageParts,
     ...extra?.(tokenIds, attachedFiles)
   }
+}
+
+export function hasUnsyncedComposerAttachments(files: ComposerAttachment[], attachedFiles: ComposerAttachment[]) {
+  return attachedFiles.length !== files.length
 }

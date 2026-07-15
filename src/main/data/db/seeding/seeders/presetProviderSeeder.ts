@@ -96,7 +96,7 @@ export class PresetProviderSeeder implements ISeeder {
     return this.getLoader().getProvidersVersion()
   }
 
-  async run(db: DbType): Promise<void> {
+  run(db: DbType): void {
     let rawProviders: ProtoProviderConfig[]
     try {
       rawProviders = this.getLoader().loadProviders()
@@ -108,6 +108,6 @@ export class PresetProviderSeeder implements ISeeder {
 
     const rows = rawProviders.map(toDbRow)
 
-    await db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
+    db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
   }
 }

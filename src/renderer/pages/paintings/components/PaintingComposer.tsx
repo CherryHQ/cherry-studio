@@ -8,6 +8,7 @@ import {
   useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolLauncherActions,
+  useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
@@ -19,9 +20,9 @@ import {
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
-import { imageExts } from '@shared/utils/file/fileExtensions'
+import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo, useState } from 'react'
@@ -119,10 +120,14 @@ const PaintingParamsButton: FC<{
 }> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
-  const summary = useMemo(() => {
-    const items = imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) })
-    return paramsSummary(painting.params, items, t)
-  }, [registrySupport, painting.mode, painting.params, t])
+  const configItems = useMemo(
+    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
+    [registrySupport, painting.mode]
+  )
+  const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
+
+  if (configItems.length === 0) return null
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -175,6 +180,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [text, setText] = useState(() => painting.prompt ?? '')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -231,10 +237,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         fontSize={fontSize}
         narrowMode
         getToolLaunchers={() => getLaunchers()}
+        toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderLeftControls={(inputAdapter) => (
+        renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}
+            unifiedPanelControl={unifiedPanelControl}
             renderContextControls={() => (
               <>
                 <PaintingModelSelector

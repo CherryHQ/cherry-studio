@@ -478,6 +478,96 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
+  it('keeps JSON text MCP tool results parsed for dedicated tool cards', () => {
+    const { adapter, parts } = createAdapter()
+    const results = [{ id: 1, title: 'Cherry Studio', url: 'https://example.com', content: 'result' }]
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'mcp_tool_use',
+          id: 'mcp-search',
+          name: 'web_search',
+          server_name: 'cherry-tools',
+          input: { query: 'Cherry Studio' }
+        }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'mcp-search',
+          is_error: false,
+          content: [{ type: 'text', text: JSON.stringify(results) }]
+        }
+      })
+    )
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'mcp-search',
+      output: {
+        content: results,
+        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+      }
+    })
+  })
+
+  it('normalizes Claude MCP image tool results to MCP content blocks', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'mcp_tool_use',
+          id: 'mcp-image',
+          name: 'config',
+          server_name: 'cherry-tools',
+          input: {}
+        }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'mcp-image',
+          is_error: false,
+          content: [
+            { type: 'text', text: 'QR code generated' },
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo=' }
+            }
+          ]
+        }
+      })
+    )
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'mcp-image',
+      output: {
+        content: [
+          { type: 'text', text: 'QR code generated' },
+          { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }
+        ],
+        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+      }
+    })
+  })
+
   it('uses MCP display metadata for Claude Code MCP tool ids', () => {
     const { adapter, parts } = createAdapter({
       mcpToolMetadata: {

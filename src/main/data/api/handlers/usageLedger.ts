@@ -8,7 +8,6 @@
  */
 
 import { usageLedgerService } from '@data/services/UsageLedgerService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { UsageLedgerSchemas } from '@shared/data/api/schemas/usageLedger'
 import {
   UsageLedgerCostBackfillQuerySchema,
@@ -16,6 +15,7 @@ import {
   UsageLedgerStatsQuerySchema,
   UsageLedgerTimelineQuerySchema
 } from '@shared/data/api/schemas/usageLedger'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const usageLedgerHandlers: HandlersFor<UsageLedgerSchemas> = {
   '/usage-ledger/entries': {

@@ -14,7 +14,12 @@ interface AgentComposerSlotProps {
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
-  onNewSessionDraft?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
+  canChangeAgent?: boolean
+  workspaceId?: string | null
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  workspaceChanging?: boolean
+  canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
 
@@ -27,7 +32,12 @@ export default function AgentComposerSlot({
   stop,
   isStreaming,
   sendDisabled,
-  onNewSessionDraft,
+  onCreateEmptySession,
+  canChangeAgent,
+  workspaceId,
+  onWorkspaceChange,
+  workspaceChanging,
+  canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
   const fallback =
@@ -40,7 +50,12 @@ export default function AgentComposerSlot({
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
-        onNewSessionDraft={onNewSessionDraft}
+        onCreateEmptySession={onCreateEmptySession}
+        canChangeAgent={canChangeAgent}
+        workspaceId={workspaceId}
+        onWorkspaceChange={onWorkspaceChange}
+        workspaceChanging={workspaceChanging}
+        canChangeModel={canChangeModel}
       />
     ) : undefined
 

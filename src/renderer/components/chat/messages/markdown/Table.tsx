@@ -1,6 +1,6 @@
 import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { CopyIcon } from '@renderer/components/Icons'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
@@ -75,8 +75,14 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
         {/* min-w-160 (640px): keep wide tables on one page within the ~800px reading column; the viewport scrolls only when narrower. */}
         <table
-          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:overflow-visible [&&]:rounded-none [&&]:border-0 [&&]:bg-transparent [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody>tr]:border-0 [&&_tbody]:bg-transparent [&&_td]:border-0 [&&_td]:bg-muted [&&_td]:px-3 [&&_td]:py-2 [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th]:border-0 [&&_th]:bg-muted [&&_th]:px-3 [&&_th]:py-2 [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead>tr]:border-0 [&&_thead]:bg-transparent [&&_tr:hover]:bg-transparent [&&_tr:hover_td]:bg-accent [&&_tr:hover_th]:bg-accent [&&_tr]:bg-transparent [&_td]:rounded-md [&_th]:rounded-md"
-          style={{ border: 0, borderRadius: 0, borderSpacing: 'var(--cs-size-5xs)', margin: 0, overflow: 'visible' }}>
+          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-muted [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-muted [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:hover]:bg-accent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
+          style={{
+            border: '0.5px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            borderSpacing: 0,
+            margin: 0,
+            overflow: 'hidden'
+          }}>
           {children}
         </table>
       </div>

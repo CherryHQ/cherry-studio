@@ -64,10 +64,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
-  fetchMcpTools: vi.fn(async () => [])
-}))
-
 vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
 }))
@@ -174,7 +170,7 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
   RefreshProvider: ({ children }: { children: ReactNode }) => children,
   TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
@@ -721,7 +717,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 17,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:03.000Z',
@@ -850,7 +846,7 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(2)
+      expect(refresh).toHaveBeenCalledTimes(1)
       expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
     })
   })
@@ -875,7 +871,12 @@ describe('ChatContent', () => {
       metadata: {
         parentId: 'history-user',
         modelId: 'legacy-model-b',
-        modelSnapshot: { id: 'model-b', name: 'Model B', provider: 'provider-b' },
+        messageSnapshot: {
+          id: 'a1',
+          name: 'A',
+          emoji: '',
+          model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
+        },
         status: 'success',
         createdAt: '2026-01-01T00:00:02.000Z'
       }
@@ -903,7 +904,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 19,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:05.000Z',
@@ -953,6 +954,81 @@ describe('ChatContent', () => {
     )
   })
 
+  it('preserves a single reply model when editing an assistant-less conversation', async () => {
+    const editedParts = [{ type: 'text', text: 'edited single-model prompt' } as CherryMessagePart]
+    const unlinkedTopic = { ...topic, assistantId: null }
+    const historyUser = {
+      ...createUiMessage('history-user', 'user'),
+      metadata: { parentId: 'branch-a', createdAt: '2026-01-01T00:00:00.000Z' }
+    } as CherryUIMessage
+    const singleModelReply = {
+      ...createUiMessage('reply-model-a', 'assistant'),
+      metadata: {
+        parentId: 'history-user',
+        modelId: 'provider-a::model-a',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
+    } as CherryUIMessage
+    const createSiblingTrigger = vi.fn().mockResolvedValue({
+      id: 'forked-user',
+      topicId: 'topic-1',
+      parentId: 'branch-a',
+      role: 'user',
+      data: { parts: editedParts },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 20,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:02.000Z',
+      updatedAt: '2026-01-01T00:00:02.000Z'
+    })
+
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [historyUser, singleModelReply],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'reply-model-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={unlinkedTopic} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+    })
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'forked-user',
+        mentionedModelIds: ['provider-a::model-a']
+      })
+    )
+  })
+
   it('resends an edited root user message by creating a root sibling', async () => {
     const editedParts = [{ type: 'text', text: 'edited root prompt' } as CherryMessagePart]
     const createSiblingTrigger = vi.fn().mockResolvedValue({
@@ -965,7 +1041,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 23,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:03.000Z',
@@ -1168,6 +1244,8 @@ describe('ChatContent', () => {
       executionId: string,
       event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
     ) => void
+    const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
+    refresh.mockClear()
 
     act(() => {
       finish('provider::model-a', {
@@ -1175,6 +1253,16 @@ describe('ChatContent', () => {
         isAbort: false,
         isError: false
       })
+    })
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(1)
+      expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
+      expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
+    })
+    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(disposeOverlay.mock.invocationCallOrder[0])
+
+    act(() => {
       finish('provider::model-b', {
         message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
         isAbort: false,

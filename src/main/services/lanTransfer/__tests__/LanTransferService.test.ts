@@ -131,8 +131,8 @@ describe('LanTransferService - Discovery', () => {
       const service = createService()
       await (service as any).onInit()
 
-      // 3 discovery + 4 transfer = 7 IPC handlers
-      expect((service as any).ipcHandle).toHaveBeenCalledTimes(7)
+      // 2 discovery (start/stop scan; list-services was a dead channel, removed) + 4 transfer = 6
+      expect((service as any).ipcHandle).toHaveBeenCalledTimes(6)
       // Discovery should NOT start automatically (lazy start)
       expect(mocks.bonjour!.find).not.toHaveBeenCalled()
       expect(service.getState().isScanning).toBe(false)
