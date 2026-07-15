@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
-import { TextFilePreviewToolbar } from './TextFilePreviewToolbar'
 
 const logger = loggerService.withContext('TextFilePreview')
 const TEXT_PREVIEW_MAX_SIZE_MIB = 2
@@ -83,10 +82,9 @@ function TextPreviewError({ error }: { error: Error }) {
 interface TextPreviewContentProps {
   filePath: string
   loadState: TextFileLoadState
-  wrapped: boolean
 }
 
-function TextPreviewContent({ filePath, loadState, wrapped }: TextPreviewContentProps): ReactNode {
+function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
@@ -97,7 +95,7 @@ function TextPreviewContent({ filePath, loadState, wrapped }: TextPreviewContent
       <CodeViewer
         value={loadState.content}
         language={getLanguageByFilePath(filePath)}
-        wrapped={wrapped}
+        wrapped={false}
         className="min-h-full w-full"
       />
     </div>
@@ -106,7 +104,6 @@ function TextPreviewContent({ filePath, loadState, wrapped }: TextPreviewContent
 
 export default function TextFilePreview({ filePath }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
-  const [wrapped, setWrapped] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -144,9 +141,8 @@ export default function TextFilePreview({ filePath }: FilePreviewPluginProps) {
 
   return (
     <FilePreviewLayout.Frame>
-      <TextFilePreviewToolbar disabled={loadState.status !== 'ready'} wrapped={wrapped} onWrappedChange={setWrapped} />
       <FilePreviewLayout.Content>
-        <TextPreviewContent filePath={filePath} loadState={loadState} wrapped={wrapped} />
+        <TextPreviewContent filePath={filePath} loadState={loadState} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

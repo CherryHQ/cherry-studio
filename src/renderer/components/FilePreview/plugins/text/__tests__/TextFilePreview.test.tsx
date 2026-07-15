@@ -1,7 +1,6 @@
 import type { FilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef, PropsWithChildren } from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TextFilePreview from '../TextFilePreview'
@@ -21,18 +20,12 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: PropsWithChildren<ComponentPropsWithoutRef<'button'>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
       <span>{description}</span>
     </div>
-  ),
-  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -55,7 +48,7 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders highlighted source and toggles local line wrapping from its toolbar', async () => {
+  it('renders highlighted source without line wrapping', async () => {
     render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
@@ -65,14 +58,6 @@ describe('TextFilePreview', () => {
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'TypeScript', value: 'const answer = 42', wrapped: false })
     )
-
-    const wrapButton = screen.getByRole('button', { name: 'code_block.wrap.on' })
-    expect(wrapButton).toHaveAttribute('aria-pressed', 'false')
-
-    fireEvent.click(wrapButton)
-
-    expect(screen.getByRole('button', { name: 'code_block.wrap.off' })).toHaveAttribute('aria-pressed', 'true')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ wrapped: true }))
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
@@ -82,7 +67,6 @@ describe('TextFilePreview', () => {
 
     await screen.findByText('file_preview.text.empty.title')
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.text.empty.title')
-    expect(screen.getByRole('button', { name: 'code_block.wrap.on' })).toBeDisabled()
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
@@ -130,7 +114,7 @@ describe('TextFilePreview', () => {
     )
   })
 
-  it('keeps the toolbar disabled while file metadata is pending', async () => {
+  it('keeps the loading state while file metadata is pending', async () => {
     let resolveMetadata: ((value: { kind: 'file'; size: number }) => void) | undefined
     mocks.getMetadata.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -141,7 +125,6 @@ describe('TextFilePreview', () => {
     render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
-    expect(screen.getByRole('button', { name: 'code_block.wrap.on' })).toBeDisabled()
 
     resolveMetadata?.({ kind: 'file', size: 24 })
     await waitFor(() => expect(screen.getByTestId('code-viewer')).toBeInTheDocument())
