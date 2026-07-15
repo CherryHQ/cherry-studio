@@ -2469,6 +2469,19 @@
         "title": "檔案過大"
       }
     },
+    "text": {
+      "empty": {
+        "description": "此文字檔案沒有內容。",
+        "title": "檔案為空"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "無法預覽大於 {{limit}} MiB 的文字檔案。",
+        "title": "檔案過大"
+      }
+    },
     "unsupported": {
       "description": "此檔案類型暫不支援預覽。",
       "title": "暫不支援預覽"

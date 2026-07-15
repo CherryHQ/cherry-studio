@@ -2469,6 +2469,19 @@
         "title": "File is too large"
       }
     },
+    "text": {
+      "empty": {
+        "description": "This text file has no content.",
+        "title": "Empty file"
+      },
+      "read_error": {
+        "title": "Couldn't read this file"
+      },
+      "too_large": {
+        "description": "Text files larger than {{limit}} MiB cannot be previewed.",
+        "title": "File is too large"
+      }
+    },
     "unsupported": {
       "description": "This file type cannot be previewed yet.",
       "title": "Preview unavailable"
