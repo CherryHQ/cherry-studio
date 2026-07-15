@@ -457,6 +457,7 @@ describe('Knowledge base schemas', () => {
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
 
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', error: null }).success).toBe(true)
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', error: null }).success).toBe(true)
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', error: null }).success).toBe(true)
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'reading', error: null }).success).toBe(true)
@@ -464,10 +465,9 @@ describe('Knowledge base schemas', () => {
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', error: 'read failed' }).success).toBe(true)
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'deleting', error: null }).success).toBe(true)
 
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', error: null }).success).toBe(false)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: 'reading', error: null }).success
-    ).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', phase: 'reading', error: null }).success).toBe(
+      false
+    )
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', error: 'stale' }).success).toBe(false)
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', error: 'stale' }).success).toBe(false)
     expect(

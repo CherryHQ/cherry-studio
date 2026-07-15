@@ -135,6 +135,7 @@ Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispat
 
 Current item statuses are:
 
+- `idle`
 - `preparing`
 - `processing`
 - `reading`

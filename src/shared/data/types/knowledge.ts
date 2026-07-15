@@ -26,18 +26,19 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  *
  * ```text
  * file/url/note:
- *   processing -> reading -> embedding -> completed
- *        \             \          \
- *         +-------------+-----------> failed
- *        \---------------------------------------------> deleting
+ *   idle -> processing -> reading -> embedding -> completed
+ *      \                    \             \          \
+ *       +--------------------+-------------+-----------> failed
+ *      \---------------------------------------------> deleting
  *
  * directory:
- *   preparing -> processing -> completed
- *        \             \          \
- *         +-------------+-----------> failed
- *        \---------------------------------> deleting
+ *   idle -> preparing -> processing -> completed
+ *      \        \             \          \
+ *       +--------+-------------+-----------> failed
+ *      \---------------------------------> deleting
  * ```
  *
+ * - `idle`: item row exists but indexing has not started.
  * - `preparing`: container expansion is running; only `directory` items may use it.
  * - `processing`: work has been queued or is running before a more specific phase is known.
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
@@ -49,6 +50,7 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
  */
 export const KNOWLEDGE_ITEM_STATUSES = [
+  'idle',
   'preparing',
   'processing',
   'reading',
@@ -361,6 +363,11 @@ const KnowledgeItemEntityBaseSchema = z.strictObject({
   updatedAt: z.iso.datetime().describe('ISO timestamp when the item row was last updated.')
 })
 
+const IdleKnowledgeItemLifecycleSchema = {
+  status: z.literal('idle').describe('Item row exists but indexing has not started.'),
+  error: z.null().describe('No error is stored for non-failed lifecycle states.')
+} as const
+
 const PreparingKnowledgeItemLifecycleSchema = {
   status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
   error: z.null().describe('No error is stored for non-failed lifecycle states.')
@@ -406,6 +413,11 @@ const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, T
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
       data,
+      ...IdleKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
       ...ProcessingKnowledgeItemLifecycleSchema
     }),
     KnowledgeItemEntityBaseSchema.extend({
@@ -440,6 +452,11 @@ const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemTy
   data: TData
 ) =>
   [
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...IdleKnowledgeItemLifecycleSchema
+    }),
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
       data,

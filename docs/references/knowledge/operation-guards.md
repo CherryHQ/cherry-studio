@@ -59,7 +59,7 @@ Used only by `reindexItems`.
 - Runs after selected item ids have been collapsed to top-level roots.
 - Loads each selected root subtree with roots included.
 - Allows reindex only when every item in every selected subtree is terminal: `completed` or `failed`.
-- Rejects active or deleting subtree state: `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
+- Rejects active or deleting subtree state: `idle`, `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
 
 This is the backend authority for user-triggered reindex. UI may hide the reindex action for non-terminal rows, but the service guard must still reject stale or direct calls.
 

@@ -558,7 +558,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it.each(['processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
+  it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
     'hides view chunks for %s leaf items',
     (status) => {
       render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
@@ -660,12 +660,15 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
   })
 
-  it.each(['processing', 'reading', 'embedding', 'deleting'] as const)('hides reindex for %s leaf items', (status) => {
-    render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+  it.each(['idle', 'processing', 'reading', 'embedding', 'deleting'] as const)(
+    'hides reindex for %s leaf items',
+    (status) => {
+      render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
 
-    fireEvent.contextMenu(screen.getByRole('row'))
+      fireEvent.contextMenu(screen.getByRole('row'))
 
-    expect(screen.queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
-  })
+      expect(screen.queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+    }
+  )
 })

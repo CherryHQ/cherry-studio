@@ -105,7 +105,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     }
   }
 
-  if (status === 'preparing') {
+  if (status === 'idle' || status === 'preparing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',

@@ -855,9 +855,9 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(statusByLegacyId.get('i-no-unique-id')).toBe('failed')
+    expect(statusByLegacyId.get('i-no-unique-id')).toBe('idle')
     expect(statusByLegacyId.get('i-with-unique-id')).toBe('completed')
-    expect(statusByLegacyId.get('i-with-empty-unique-id')).toBe('failed')
+    expect(statusByLegacyId.get('i-with-empty-unique-id')).toBe('idle')
     expect(statusByLegacyId.get('i-processing-but-no-unique-id')).toBe('failed')
     expect(statusByLegacyId.get('i-failed-with-unique-id')).toBe('failed')
   })
@@ -1462,10 +1462,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
   })
 
-  it('keeps a never-indexed directory (loader ids but no completed marker) as failed without expanding it', async () => {
+  it('keeps an idle directory (loader ids but no completed marker) as idle without expanding it', async () => {
     // Expansion keys off the `completed` marker (singular `uniqueId`), not the mere presence of
-    // child loader ids (plural `uniqueIds`). A folder with loader ids but no completed marker never
-    // started indexing, so the gate must NOT expand it even when the loader sources resolve.
+    // child loader ids (plural `uniqueIds`). A folder with loader ids but no completed marker is
+    // `idle`, so the gate must NOT expand it even when the loader sources resolve.
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
@@ -1506,12 +1506,12 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.success).toBe(true)
 
     const migratedId = migrator.legacyItemIdRemap.get('item-directory')
-    // Not expanded: a single never-indexed directory item, no synthesized children, no loader remap.
+    // Not expanded: a single idle directory item, no synthesized children, no loader remap.
     expect(migrator.preparedItems.filter((i: any) => i.groupId === migratedId)).toHaveLength(0)
     expect(migrator.preparedItems.find((i: any) => i.id === migratedId)).toMatchObject({
       type: 'directory',
-      status: 'failed',
-      error: 'Legacy knowledge item failed without an error message.'
+      status: 'idle',
+      error: null
     })
     expect(migrator.directoryChildLoaderRemap.size).toBe(0)
   })

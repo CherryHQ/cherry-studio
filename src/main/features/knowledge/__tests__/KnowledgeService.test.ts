@@ -2486,7 +2486,7 @@ describe('KnowledgeService', () => {
     expect(listMaterialUnitsMock).not.toHaveBeenCalled()
   })
 
-  it.each(['processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
+  it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
     'rejects chunk operations for %s leaf items',
     async (status) => {
       const service = new KnowledgeService()
