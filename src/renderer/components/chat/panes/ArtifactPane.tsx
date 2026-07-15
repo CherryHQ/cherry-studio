@@ -1,4 +1,4 @@
-import { Button, CodeEditor, ConfirmDialog, Markdown, Tooltip } from '@cherrystudio/ui'
+import { Button, CodeEditor, Markdown, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import ImagePreviewPanel from '@renderer/components/ArtifactPreview/image/ImagePreviewPanel'
@@ -20,10 +20,7 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FilePath } from '@shared/types/file'
-import { TEXT_FILE_EDIT_MAX_BYTES } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 import { AlertCircle, Eye, FileText, FolderOpen, RotateCw, Save, Sparkles, SquarePen, Undo2, X } from 'lucide-react'
 import {
@@ -80,7 +77,7 @@ interface ArtifactFilePreviewProps {
 }
 
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
-export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = TEXT_FILE_EDIT_MAX_BYTES
+export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 
 // Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
@@ -479,7 +476,6 @@ export function ArtifactPaneView({
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
-  const [editConflictOpen, setEditConflictOpen] = useState(false)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
   const { refresh, reloadExpandedDirectories } = model
@@ -540,7 +536,6 @@ export function ArtifactPaneView({
     if (previousPreviewKeyRef.current === previewKey) return
     previousPreviewKeyRef.current = previewKey
     setContentRefreshToken(0)
-    setEditConflictOpen(false)
   }, [previewKey])
 
   useEffect(() => {
@@ -700,10 +695,6 @@ export function ArtifactPaneView({
       if (!fileEditor || !overlaySelection) return
       void fileEditor.setMode(overlaySelection, mode).catch((error: unknown) => {
         logger.error('Failed to open text file editor', error as Error)
-        if (error instanceof IpcError && error.code === fileErrorCodes.TEXT_EDIT_UNSUPPORTED) {
-          toast.error(t('agent.preview_pane.edit.unsupported'))
-          return
-        }
         toast.error(t('agent.preview_pane.edit.open_failed'))
       })
     },
@@ -712,46 +703,19 @@ export function ArtifactPaneView({
 
   const handleSaveEdit = useCallback(async () => {
     if (!fileEditor || !overlaySelection) return
-    if (editSession?.status === 'conflict') {
-      setEditConflictOpen(true)
-      return
-    }
     try {
       await fileEditor.save(overlaySelection)
       setContentRefreshToken((value) => value + 1)
     } catch (error) {
       logger.error('Failed to save edited artifact file', error as Error)
-      if (error instanceof IpcError && error.code === fileErrorCodes.TEXT_EDIT_STALE) {
-        setEditConflictOpen(true)
-        return
-      }
-      if (error instanceof IpcError && error.code === fileErrorCodes.TEXT_EDIT_UNSUPPORTED) {
-        toast.error(t('agent.preview_pane.edit.unsupported'))
-        return
-      }
       toast.error(t('agent.preview_pane.edit.save_failed'))
     }
-  }, [editSession?.status, fileEditor, overlaySelection, t])
+  }, [fileEditor, overlaySelection, t])
 
   const handleDiscardEdit = useCallback(() => {
     if (!fileEditor || !overlaySelection) return
-    if (editSession?.status === 'conflict') {
-      setEditConflictOpen(true)
-      return
-    }
     fileEditor.discard(overlaySelection)
-  }, [editSession?.status, fileEditor, overlaySelection])
-
-  const handleReloadConflict = useCallback(async () => {
-    if (!fileEditor || !overlaySelection) return
-    try {
-      await fileEditor.reload(overlaySelection)
-      setContentRefreshToken((value) => value + 1)
-    } catch (error) {
-      logger.error('Failed to reload artifact after an edit conflict', error as Error)
-      toast.error(t('agent.preview_pane.edit.refresh_failed'))
-    }
-  }, [fileEditor, overlaySelection, t])
+  }, [fileEditor, overlaySelection])
 
   const previewContent = overlaySelection ? (
     <ArtifactFilePreview
@@ -867,9 +831,7 @@ export function ArtifactPaneView({
         </div>
         <div className={cn('min-h-0 flex-1', contentClassName)}>
           {canEditSelection && fileEditor && editorMode === 'edit' ? (
-            editSession?.status === 'ready' ||
-            editSession?.status === 'saving' ||
-            editSession?.status === 'conflict' ? (
+            editSession?.status === 'ready' || editSession?.status === 'saving' ? (
               <CodeEditor
                 key={previewKey}
                 value={editSession.draft}
@@ -893,16 +855,6 @@ export function ArtifactPaneView({
             previewContent
           )}
         </div>
-        <ConfirmDialog
-          open={editConflictOpen}
-          onOpenChange={setEditConflictOpen}
-          title={t('agent.preview_pane.edit.conflict.title')}
-          description={t('agent.preview_pane.edit.conflict.description')}
-          confirmText={t('agent.preview_pane.edit.conflict.reload')}
-          cancelText={t('common.cancel')}
-          destructive
-          onConfirm={handleReloadConflict}
-        />
       </div>
     )
   }

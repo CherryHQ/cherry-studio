@@ -197,35 +197,6 @@ vi.mock('@cherrystudio/ui', async () => {
       return <div {...domProps}>{children}</div>
     },
     CodeEditor: ({ value }: { value: string }) => <div data-testid="code-editor">{value}</div>,
-    ConfirmDialog: ({
-      cancelText,
-      confirmText,
-      description,
-      onConfirm,
-      onOpenChange,
-      open,
-      title
-    }: {
-      cancelText: string
-      confirmText: string
-      description: string
-      onConfirm: () => void
-      onOpenChange: (open: boolean) => void
-      open: boolean
-      title: string
-    }) =>
-      open ? (
-        <div role="dialog">
-          <div>{title}</div>
-          <div>{description}</div>
-          <button type="button" onClick={() => onOpenChange(false)}>
-            {cancelText}
-          </button>
-          <button type="button" onClick={onConfirm}>
-            {confirmText}
-          </button>
-        </div>
-      ) : null,
     MenuItem: ({
       label,
       icon,

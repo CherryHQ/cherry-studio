@@ -30,7 +30,6 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
-  lstat as fsLstat,
   mkdir as fsMkdirPromise,
   open as fsOpen,
   readFile,
@@ -204,31 +203,6 @@ export class PathStaleVersionError extends Error {
     )
     this.name = 'PathStaleVersionError'
   }
-}
-
-export type PathKind = 'file' | 'directory' | 'symbolic-link' | 'other'
-
-/**
- * Atomic replacement cannot safely target symlinks: renaming the temporary
- * file would replace the link itself rather than update its destination.
- */
-export class PathUnsupportedAtomicWriteTargetError extends Error {
-  constructor(
-    public readonly target: FilePath,
-    public readonly kind: Exclude<PathKind, 'file'>
-  ) {
-    super(`Path ${target} is not a supported atomic-write target (${kind})`)
-    this.name = 'PathUnsupportedAtomicWriteTargetError'
-  }
-}
-
-/** Inspect a path without following symbolic links. */
-export async function getPathKind(target: FilePath): Promise<PathKind> {
-  const s = await fsLstat(target)
-  if (s.isSymbolicLink()) return 'symbolic-link'
-  if (s.isFile()) return 'file'
-  if (s.isDirectory()) return 'directory'
-  return 'other'
 }
 
 /**
@@ -424,17 +398,7 @@ export async function atomicWriteIfUnchanged(
   expected: PathVersion,
   expectedContentHash?: string
 ): Promise<PathVersion> {
-  const s = await fsLstat(target)
-  const kind: PathKind = s.isSymbolicLink()
-    ? 'symbolic-link'
-    : s.isFile()
-      ? 'file'
-      : s.isDirectory()
-        ? 'directory'
-        : 'other'
-  if (kind !== 'file') {
-    throw new PathUnsupportedAtomicWriteTargetError(target, kind)
-  }
+  const s = await fsStat(target)
   const current: PathVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
   const sizeMatch = current.size === expected.size
   const mtimeMatch = current.mtime === expected.mtime
@@ -462,7 +426,7 @@ export async function atomicWriteIfUnchanged(
       { target }
     )
   }
-  await atomicWriteFile(target, data, { mode: s.mode & 0o7777 })
+  await atomicWriteFile(target, data)
   const s2 = await fsStat(target)
   return { mtime: Math.floor(s2.mtimeMs), size: s2.size }
 }
@@ -630,13 +594,5 @@ export async function hash(path: FilePath): Promise<string> {
   for await (const chunk of stream) {
     hasher.update(new Uint8Array(chunk as Buffer))
   }
-  return hasher.digest().toString(16).padStart(16, '0')
-}
-
-/** Compute the same xxhash-h64 used by {@link hash} over in-memory bytes. */
-export async function hashData(data: string | Uint8Array): Promise<string> {
-  const api = await getXxhash()
-  const hasher = api.create64()
-  hasher.update(typeof data === 'string' ? new Uint8Array(Buffer.from(data)) : data)
   return hasher.digest().toString(16).padStart(16, '0')
 }

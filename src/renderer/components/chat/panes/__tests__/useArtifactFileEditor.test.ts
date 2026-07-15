@@ -1,15 +1,10 @@
 // @vitest-environment jsdom
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { act, cleanup, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const ipcMocks = vi.hoisted(() => ({
-  request: vi.fn()
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: ipcMocks
+const fileMocks = vi.hoisted(() => ({
+  readExternal: vi.fn(),
+  write: vi.fn()
 }))
 
 import { useArtifactFileEditor } from '../useArtifactFileEditor'
@@ -17,13 +12,14 @@ import { useArtifactFileEditor } from '../useArtifactFileEditor'
 const selection = { workspacePath: '/ws', filePath: 'notes.txt' }
 const otherSelection = { workspacePath: '/ws', filePath: 'other.txt' }
 
-const snapshot = {
-  content: 'hello\n',
-  version: { mtime: 1_000, size: 6 },
-  contentHash: '0123456789abcdef',
-  lineEnding: 'lf' as const,
-  hasBom: false
-}
+const initialContent = 'hello\n'
+
+beforeEach(() => {
+  Object.defineProperty(window, 'api', {
+    configurable: true,
+    value: { file: fileMocks }
+  })
+})
 
 afterEach(() => {
   cleanup()
@@ -31,15 +27,15 @@ afterEach(() => {
 })
 
 describe('useArtifactFileEditor', () => {
-  it('enters edit mode by loading an editable snapshot', async () => {
-    ipcMocks.request.mockResolvedValueOnce(snapshot)
+  it('enters edit mode by loading the file content', async () => {
+    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
 
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.read_text_snapshot', { kind: 'path', path: '/ws/notes.txt' })
+    expect(fileMocks.readExternal).toHaveBeenCalledWith('/ws/notes.txt')
     expect(result.current.getSession(selection)).toMatchObject({
       mode: 'edit',
       status: 'ready',
@@ -49,28 +45,20 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
-  it('saves a dirty draft with the snapshot version and records the new one', async () => {
-    ipcMocks.request.mockResolvedValueOnce(snapshot)
+  it('saves a dirty draft through the existing file writer and records the new content', async () => {
+    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
     act(() => result.current.updateDraft(selection, 'changed\n'))
 
-    const saved = { version: { mtime: 2_000, size: 8 }, contentHash: 'fedcba9876543210' }
-    ipcMocks.request.mockResolvedValueOnce(saved)
+    fileMocks.write.mockResolvedValueOnce(undefined)
     await act(async () => {
       await result.current.save(selection)
     })
 
-    expect(ipcMocks.request).toHaveBeenLastCalledWith('file.write_text_if_unchanged', {
-      handle: { kind: 'path', path: '/ws/notes.txt' },
-      content: 'changed\n',
-      lineEnding: 'lf',
-      hasBom: false,
-      expectedVersion: snapshot.version,
-      expectedContentHash: snapshot.contentHash
-    })
+    expect(fileMocks.write).toHaveBeenCalledWith('/ws/notes.txt', 'changed\n')
     expect(result.current.getSession(selection)).toMatchObject({
       status: 'ready',
       draft: 'changed\n',
@@ -79,24 +67,24 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
-  it('keeps the dirty draft in conflict state when the file changed on disk', async () => {
-    ipcMocks.request.mockResolvedValueOnce(snapshot)
+  it('keeps the dirty draft ready for retry when saving fails', async () => {
+    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
     act(() => result.current.updateDraft(selection, 'draft'))
 
-    const stale = new IpcError(fileErrorCodes.TEXT_EDIT_STALE, 'stale')
-    ipcMocks.request.mockRejectedValueOnce(stale)
+    const writeError = new Error('write failed')
+    fileMocks.write.mockRejectedValueOnce(writeError)
     await expect(
       act(async () => {
         await result.current.save(selection)
       })
-    ).rejects.toBe(stale)
+    ).rejects.toBe(writeError)
 
     expect(result.current.getSession(selection)).toMatchObject({
-      status: 'conflict',
+      status: 'ready',
       draft: 'draft',
       savedContent: 'hello\n'
     })
@@ -104,7 +92,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('discard restores the last saved content', async () => {
-    ipcMocks.request.mockResolvedValueOnce(snapshot)
+    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -116,36 +104,29 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.getSession(selection)).toMatchObject({ draft: 'hello\n', savedContent: 'hello\n' })
   })
 
-  it('reload replaces the draft with a fresh snapshot', async () => {
-    ipcMocks.request.mockResolvedValueOnce(snapshot)
+  it('reload replaces the draft with fresh file content', async () => {
+    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
     act(() => result.current.updateDraft(selection, 'draft'))
 
-    const newer = {
-      ...snapshot,
-      content: 'newer\n',
-      version: { mtime: 3_000, size: 6 },
-      contentHash: '1111111111111111'
-    }
-    ipcMocks.request.mockResolvedValueOnce(newer)
+    const newer = 'newer\n'
+    fileMocks.readExternal.mockResolvedValueOnce(newer)
     await act(async () => {
       await result.current.reload(selection)
     })
 
     expect(result.current.getSession(selection)).toMatchObject({
       status: 'ready',
-      draft: 'newer\n',
-      savedContent: 'newer\n',
-      version: newer.version,
-      contentHash: newer.contentHash
+      draft: newer,
+      savedContent: newer
     })
   })
 
   it('replaces the active session when another file loads', async () => {
-    ipcMocks.request.mockResolvedValue(snapshot)
+    fileMocks.readExternal.mockResolvedValue(initialContent)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -166,8 +147,8 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('clears the active session and invalidates an outstanding load', async () => {
-    let resolveLoad!: (value: typeof snapshot) => void
-    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
+    let resolveLoad!: (value: string) => void
+    fileMocks.readExternal.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     let load: Promise<void> | undefined
@@ -176,7 +157,7 @@ describe('useArtifactFileEditor', () => {
     })
     act(() => result.current.clear())
     await act(async () => {
-      resolveLoad(snapshot)
+      resolveLoad(initialContent)
       await load
     })
 
@@ -184,21 +165,21 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
-  it('ignores a stale snapshot response after a newer load starts', async () => {
-    let resolveFirst!: (value: typeof snapshot) => void
-    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+  it('ignores a stale read response after a newer load starts', async () => {
+    let resolveFirst!: (value: string) => void
+    fileMocks.readExternal.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     let first: Promise<void> | undefined
     act(() => {
       first = result.current.setMode(selection, 'edit')
     })
-    ipcMocks.request.mockResolvedValueOnce({ ...snapshot, content: 'second\n' })
+    fileMocks.readExternal.mockResolvedValueOnce('second\n')
     await act(async () => {
       await result.current.reload(selection)
     })
     await act(async () => {
-      resolveFirst({ ...snapshot, content: 'first\n' })
+      resolveFirst('first\n')
       await first
     })
 
@@ -206,15 +187,15 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('drops the session and rethrows when the initial load fails', async () => {
-    const unsupported = new IpcError(fileErrorCodes.TEXT_EDIT_UNSUPPORTED, 'unsupported')
-    ipcMocks.request.mockRejectedValueOnce(unsupported)
+    const readError = new Error('read failed')
+    fileMocks.readExternal.mockRejectedValueOnce(readError)
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await expect(
       act(async () => {
         await result.current.setMode(selection, 'edit')
       })
-    ).rejects.toBe(unsupported)
+    ).rejects.toBe(readError)
 
     expect(result.current.getSession(selection)).toBeUndefined()
   })

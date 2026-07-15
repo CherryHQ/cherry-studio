@@ -87,19 +87,6 @@ export { dispatchHandle } from './internal/dispatch'
 // IPC batch-metadata handler.
 export { getMetadataByPath } from './utils/metadata'
 
-// UTF-8 text editing primitives. The renderer-facing IPC adapter composes
-// these with FileHandle dispatch and FileManager's entry-aware write path.
-export {
-  readTextEditSnapshotByPath,
-  type TextEditSnapshot,
-  TextEditSnapshotChangedError,
-  TextEditUnsupportedError,
-  type TextEditUnsupportedReason,
-  type TextFileLineEnding,
-  writeTextEdit,
-  writeTextEditIfUnchangedByPath
-} from './utils/textEdit'
-
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'

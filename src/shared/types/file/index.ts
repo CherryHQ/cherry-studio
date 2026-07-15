@@ -11,7 +11,6 @@ export {
   type PhysicalFileMetadata,
   PhysicalFileMetadataSchema,
   SafeExtSchema,
-  TEXT_FILE_EDIT_MAX_BYTES,
   type UrlString
 } from './common'
 export { type FileInfo, FileInfoSchema } from './info'
