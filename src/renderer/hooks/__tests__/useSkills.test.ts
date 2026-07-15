@@ -372,6 +372,20 @@ describe('useSystemSkills', () => {
     })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
+
+  it('registers globally when selecting a system skill for a new agent', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
+
+    await act(async () => {
+      await result.current.register(candidate)
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', {})
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.register_system', {
+      directoryPath: candidate.directoryPath
+    })
+  })
 })
 
 describe('useSkillSearch', () => {

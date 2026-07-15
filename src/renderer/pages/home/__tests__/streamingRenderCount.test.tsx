@@ -2,21 +2,20 @@
  * Regression net for PR 2 identity stability work.
  *
  * The structural-sharing producer (`useStablePartsByMessageId`) preserves the
- * inner array ref for any message whose parts didn't change. PartsContext
- * propagation still wakes every direct subscriber (that's how React context
- * works), but **memoized downstream renderers receiving the parts as a prop**
- * bail out — they're the components that do the expensive work in production
- * (markdown, code blocks, etc.). This test asserts that exact downstream
- * bailout: across 10 streaming chunks, the memoized downstream renderer for
- * non-streaming messages must be invoked exactly once (initial mount), and
- * the streaming one must be invoked 11 times (mount + 10 chunks).
+ * inner array ref for any message whose parts didn't change. A message-scoped
+ * provider then changes context only for the message whose array changed.
+ * Across 10 streaming chunks, non-streaming consumers must render exactly once
+ * (initial mount), and the streaming one 11 times.
  *
  * If `useStablePartsByMessageId` regresses (e.g. someone re-introduces
  * `Object.entries` + array spread inside the producer), the per-id ref breaks
  * and this test catches it.
  */
 
-import { PartsContext, useMessageParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import {
+  MessagePartsScopeProvider,
+  useMessageParts
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, render, renderHook } from '@testing-library/react'
 import { memo, type ReactNode } from 'react'
@@ -30,35 +29,30 @@ function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
 
 const text = (s: string): CherryMessagePart => ({ type: 'text', text: s }) as CherryMessagePart
 
-/**
- * Downstream-renderer mock — receives `parts` as a prop and is wrapped in
- * React.memo with default shallow comparison. The render count is incremented
- * inside the render body (test-only abuse of side effects during render —
- * deterministic enough in this non-strict-mode harness). When parts ref is
- * stable, this memo bails out and the body does not run, so the count stays
- * flat. That is the load-bearing assertion of this test.
- */
 const renderCount: Record<string, number> = {}
-const DownstreamRenderer = memo(function DownstreamRenderer({ parts, id }: { parts: CherryMessagePart[]; id: string }) {
-  renderCount[id] = (renderCount[id] ?? 0) + 1
-  return <span>{parts.length}</span>
+const observedPartCounts: Record<string, number[]> = {}
+const PartsConsumer = memo(function PartsConsumer({
+  messageId,
+  renderVersion
+}: {
+  messageId: string
+  renderVersion: number
+}) {
+  const parts = useMessageParts(messageId)
+  renderCount[messageId] = (renderCount[messageId] ?? 0) + 1
+  observedPartCounts[messageId] ??= []
+  observedPartCounts[messageId].push(parts.length)
+  return <span data-render-version={renderVersion}>{parts.length}</span>
 })
 
-/**
- * Leaf consumer subscribed to PartsContext via the production hook. Always
- * re-renders on context change (that's intrinsic to React context); the
- * memoized DownstreamRenderer below is what we measure.
- */
-function PartsConsumer({ messageId }: { messageId: string }) {
-  const parts = useMessageParts(messageId)
-  return <DownstreamRenderer parts={parts} id={messageId} />
-}
-
 describe('streaming render count (PR 2 regression net)', () => {
-  it('keeps memoized downstream renderers stable for non-streaming messages across 10 chunks', () => {
+  it('only rerenders the message-scoped consumer whose parts change across 10 chunks', () => {
     const STREAMING_ID = 'm5'
     const ids = ['m1', 'm2', 'm3', 'm4', STREAMING_ID]
-    for (const id of ids) renderCount[id] = 0
+    for (const id of ids) {
+      renderCount[id] = 0
+      observedPartCounts[id] = []
+    }
 
     // Derive partsByMessageId via the production hook in a controlled rerender
     // loop. Non-streaming messages keep the same `CherryUIMessage` ref across
@@ -73,15 +67,23 @@ describe('streaming render count (PR 2 regression net)', () => {
       { initialProps: { messages: initialMessages } }
     )
 
-    const Tree = ({ partsByMessageId }: { partsByMessageId: Record<string, CherryMessagePart[]> }): ReactNode => (
-      <PartsContext value={partsByMessageId}>
+    const Tree = ({
+      partsByMessageId,
+      streamingVersion
+    }: {
+      partsByMessageId: Record<string, CherryMessagePart[]>
+      streamingVersion: number
+    }): ReactNode => (
+      <>
         {ids.map((id) => (
-          <PartsConsumer key={id} messageId={id} />
+          <MessagePartsScopeProvider key={id} messageId={id} parts={partsByMessageId[id]}>
+            <PartsConsumer messageId={id} renderVersion={id === STREAMING_ID ? streamingVersion : 0} />
+          </MessagePartsScopeProvider>
         ))}
-      </PartsContext>
+      </>
     )
 
-    const view = render(<Tree partsByMessageId={result.current} />)
+    const view = render(<Tree partsByMessageId={result.current} streamingVersion={0} />)
 
     // Initial mount — every id rendered once.
     for (const id of ids) {
@@ -99,13 +101,13 @@ describe('streaming render count (PR 2 regression net)', () => {
         rerender({ messages: nextMessages })
       })
 
-      view.rerender(<Tree partsByMessageId={result.current} />)
+      view.rerender(<Tree partsByMessageId={result.current} streamingVersion={chunk} />)
     }
 
     expect(renderCount[STREAMING_ID]).toBe(11)
+    expect(observedPartCounts[STREAMING_ID]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
     for (const id of ['m1', 'm2', 'm3', 'm4']) {
-      // Non-streaming downstream renderers must stay at 1 (no extra commits
-      // despite 10 PartsContext value changes upstream).
+      // Non-streaming consumers must stay at 1 despite 10 updates for m5.
       expect(renderCount[id]).toBe(1)
     }
   })

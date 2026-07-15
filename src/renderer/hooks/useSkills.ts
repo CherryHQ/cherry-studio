@@ -171,7 +171,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
 }
 
 /** Discover and register zero-copy skills from known system-level CLI directories. */
-export function useSystemSkills(agentId: string, enabled = true) {
+export function useSystemSkills(agentId?: string, enabled = true) {
   const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -192,7 +192,7 @@ export function useSystemSkills(agentId: string, enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const discovered = await ipcApi.request('skill.discover_system', { agentId })
+      const discovered = await ipcApi.request('skill.discover_system', agentId ? { agentId } : {})
       if (requestId === requestIdRef.current) setSkills(discovered)
     } catch (cause) {
       if (requestId !== requestIdRef.current) return
@@ -218,10 +218,10 @@ export function useSystemSkills(agentId: string, enabled = true) {
       registeringRef.current.add(skill.id)
       setRegistering((current) => new Set(current).add(skill.id))
       try {
-        const installed = await ipcApi.request('skill.register_system', {
-          directoryPath: skill.directoryPath,
-          agentId
-        })
+        const installed = await ipcApi.request(
+          'skill.register_system',
+          agentId ? { directoryPath: skill.directoryPath, agentId } : { directoryPath: skill.directoryPath }
+        )
         await Promise.all([refreshSkillsBestEffort(invalidate), refresh()])
         return installed
       } catch (cause) {

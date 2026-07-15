@@ -1911,7 +1911,12 @@ describe('AgentComposer', () => {
               type: 'file',
               url: 'file:///workspace/docs/notes.md',
               mediaType: 'text/markdown',
-              filename: 'notes.md'
+              filename: 'notes.md',
+              providerMetadata: {
+                cherry: {
+                  fileTokenSourceId: 'source-workspace-file-1'
+                }
+              }
             }
           ])
         }
@@ -1973,7 +1978,12 @@ describe('AgentComposer', () => {
               type: 'file',
               url: 'file:///C:/workspace/docs/notes.md',
               mediaType: 'text/markdown',
-              filename: 'notes.md'
+              filename: 'notes.md',
+              providerMetadata: {
+                cherry: {
+                  fileTokenSourceId: 'source-workspace-file-1'
+                }
+              }
             }
           ])
         }
@@ -2525,6 +2535,25 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.draftTokens).toEqual([])
     expect(mocks.runtimeProviderMounts).toBe(2)
     expect(mocks.runtimeProviderUnmounts).toBe(1)
+  })
+
+  it('restores composer focus after closing the active session agent edit dialog', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Agent').closest('button')!)
+    await screen.findByTestId('resource-edit-dialog-host')
+
+    fireEvent.click(screen.getByText('close edit dialog'))
+
+    expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the active session agent control visible in classic layout', () => {

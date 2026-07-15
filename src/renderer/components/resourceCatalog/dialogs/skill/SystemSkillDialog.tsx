@@ -1,19 +1,20 @@
 import { Button, Center, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Spinner } from '@cherrystudio/ui'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
-import type { SystemSkillCandidate } from '@shared/types/skill'
+import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 import { Check, FolderSearch, Link2, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {
-  agentId: string
+  agentId?: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  onRegistered?: () => void
+  onRegistered?: (skill: InstalledSkill) => void
+  selectedIds?: readonly string[]
 }
 
-export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }: Props) {
+export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, selectedIds = [] }: Props) {
   const { t } = useTranslation()
   const { skills, loading, error, refresh, register, registering } = useSystemSkills(agentId, open)
 
@@ -21,10 +22,14 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
     async (skill: SystemSkillCandidate) => {
       const installed = await register(skill)
       if (!installed) return
-      toast.success(t('library.system_skill.reference_enable_success', { name: installed.name }))
-      onRegistered?.()
+      toast.success(
+        t(agentId ? 'library.system_skill.reference_enable_success' : 'library.system_skill.reference_select_success', {
+          name: installed.name
+        })
+      )
+      onRegistered?.(installed)
     },
-    [onRegistered, register, t]
+    [agentId, onRegistered, register, t]
   )
 
   return (
@@ -70,6 +75,8 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
                 <SystemSkillRow
                   key={skill.id}
                   skill={skill}
+                  selecting={!agentId}
+                  selected={Boolean(skill.registeredSkillId && selectedIds.includes(skill.registeredSkillId))}
                   registering={registering.has(skill.id)}
                   onRegister={() => void handleRegister(skill)}
                 />
@@ -84,24 +91,29 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
 
 function SystemSkillRow({
   skill,
+  selecting,
+  selected,
   registering,
   onRegister
 }: {
   skill: SystemSkillCandidate
+  selecting: boolean
+  selected: boolean
   registering: boolean
   onRegister: () => void
 }) {
   const { t } = useTranslation()
   const placementNames = Array.from(new Set(skill.placements.map((placement) => placement.sourceName))).join(', ')
-  const disabled = registering || skill.status === 'enabled' || skill.status === 'conflict'
-  const buttonLabel =
-    skill.status === 'enabled'
+  const disabled = registering || selected || skill.status === 'enabled' || skill.status === 'conflict'
+  const buttonLabel = selected
+    ? t('common.selected')
+    : skill.status === 'enabled'
       ? t('library.system_skill.enabled')
       : skill.status === 'conflict'
         ? t('library.system_skill.conflict')
         : skill.status === 'registered'
-          ? t('library.system_skill.enable')
-          : t('library.system_skill.reference_enable')
+          ? t(selecting ? 'common.select' : 'library.system_skill.enable')
+          : t(selecting ? 'library.system_skill.reference_select' : 'library.system_skill.reference_enable')
 
   return (
     <div
@@ -123,7 +135,7 @@ function SystemSkillRow({
       <Button variant="outline" size="sm" disabled={disabled} onClick={onRegister} className="shrink-0">
         {registering ? (
           <Loader2 className="size-3 animate-spin" />
-        ) : skill.status === 'enabled' ? (
+        ) : selected || skill.status === 'enabled' ? (
           <Check className="size-3" />
         ) : (
           <Link2 className="size-3" />

@@ -1,0 +1,140 @@
+import { Button, Switch } from '@cherrystudio/ui'
+import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
+import type { InstalledSkill } from '@shared/data/types/agent'
+import { Download, FolderSearch, Search, Sparkles } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
+import { ImportSkillDialog } from './ImportSkillDialog'
+import { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
+import { SystemSkillDialog } from './SystemSkillDialog'
+
+type SkillCatalogPickerProps = {
+  mode: 'create' | 'edit'
+  skills: InstalledSkill[]
+  loading: boolean
+  selectedIds: readonly string[]
+  onSelectedIdsChange: (ids: string[]) => void
+  emptyLabel: ReactNode
+  portalContainer: HTMLElement | null
+  disabled?: boolean
+}
+
+/** Shared Skill search, bulk-selection, and installation surface for Agent forms. */
+export function SkillCatalogPicker({
+  mode,
+  skills,
+  loading,
+  selectedIds,
+  onSelectedIdsChange,
+  emptyLabel,
+  portalContainer,
+  disabled = false
+}: SkillCatalogPickerProps) {
+  const { t } = useTranslation()
+  const [query, setQuery] = useState('')
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [systemSkillOpen, setSystemSkillOpen] = useState(false)
+
+  const builtinIds = useMemo(
+    () => (mode === 'create' ? skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : []),
+    [mode, skills]
+  )
+  const selectableIds = useMemo(
+    () => skills.filter((skill) => mode === 'edit' || skill.source !== 'builtin').map((skill) => skill.id),
+    [mode, skills]
+  )
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const enabledIds = useMemo(() => new Set([...selectedIds, ...builtinIds]), [builtinIds, selectedIds])
+  const catalog = useMemo<CatalogItem[]>(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+
+    return skills
+      .filter((skill) => !normalizedQuery || skill.name.toLowerCase().includes(normalizedQuery))
+      .map((skill) => {
+        if (mode === 'create' && skill.source === 'builtin') {
+          return {
+            id: skill.id,
+            name: skill.name,
+            disableToggle: true,
+            inactiveBadge: t('library.config.dialogs.create.capability.builtin_badge')
+          }
+        }
+
+        return {
+          id: skill.id,
+          name: skill.name,
+          description: mode === 'edit' ? skill.description : undefined,
+          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" /> : undefined
+        }
+      })
+  }, [mode, query, skills, t])
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id))
+
+  const setSelected = (id: string, enabled: boolean) => {
+    onSelectedIdsChange(
+      enabled ? Array.from(new Set([...selectedIds, id])) : selectedIds.filter((selectedId) => selectedId !== id)
+    )
+  }
+
+  return (
+    <div className={mode === 'create' ? 'flex flex-col gap-3' : 'grid gap-4'}>
+      <div className="flex flex-wrap items-center gap-2">
+        <ResourceCatalogSearchInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder={t('library.config.dialogs.create.capability.search')}
+          className="min-w-48 flex-1"
+        />
+        <Button type="button" size="sm" className="shrink-0" onClick={() => setMarketplaceOpen(true)}>
+          <Search size={13} />
+          {t('library.skill_add.online_search')}
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setImportOpen(true)}>
+          <Download size={13} />
+          {t('library.config.dialogs.create.capability.import')}
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setSystemSkillOpen(true)}>
+          <FolderSearch size={13} />
+          {t('library.system_skill.title')}
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium text-foreground text-sm">
+          {t('library.config.agent.section.tools.skills_enable_all')}
+        </span>
+        <Switch
+          size="sm"
+          checked={allSelected}
+          disabled={loading || disabled || selectableIds.length === 0}
+          onCheckedChange={(selected) => onSelectedIdsChange(selected ? selectableIds : [])}
+          aria-label={t('library.config.agent.section.tools.skills_enable_all')}
+        />
+      </div>
+
+      <CatalogToggleGrid
+        items={catalog}
+        enabledIds={enabledIds}
+        loading={loading}
+        disabled={disabled}
+        onToggle={setSelected}
+        emptyLabel={emptyLabel}
+        portalContainer={portalContainer}
+        variant={mode === 'create' ? 'checkbox' : 'switch'}
+      />
+
+      <SkillMarketplaceDialog open={marketplaceOpen} onOpenChange={setMarketplaceOpen} />
+      <ImportSkillDialog open={importOpen} onOpenChange={setImportOpen} />
+      <SystemSkillDialog
+        open={systemSkillOpen}
+        onOpenChange={setSystemSkillOpen}
+        selectedIds={selectedIds}
+        onRegistered={(skill) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skill.id])))}
+      />
+    </div>
+  )
+}

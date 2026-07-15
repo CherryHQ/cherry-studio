@@ -179,7 +179,7 @@ export interface SkillInstallFromDirectoryOptions {
 
 export interface SkillRegisterSystemOptions {
   directoryPath: string
-  agentId: string
+  agentId?: string
 }
 
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }

@@ -264,10 +264,10 @@ export class SkillService {
   }
 
   /** Discover skills in known system-level CLI directories without copying them. */
-  async discoverSystem(agentId: string): Promise<SystemSkillCandidate[]> {
+  async discoverSystem(agentId?: string): Promise<SystemSkillCandidate[]> {
     const env = await getShellEnv()
     const sources = buildSystemSkillSources(application.getPath('sys.home'), env)
-    const installed = agentGlobalSkillService.list({ agentId })
+    const installed = agentGlobalSkillService.list(agentId ? { agentId } : {})
     const installedByPath = new Map(
       installed.flatMap((skill) => {
         if (skill.source !== 'system' || !skill.sourceUrl?.startsWith('file:')) return []
@@ -360,7 +360,7 @@ export class SkillService {
     return Array.from(candidates.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  /** Register a discovered system skill by reference and enable it for one agent. */
+  /** Register a discovered system skill by reference, optionally enabling it for one agent. */
   async registerSystem(options: SkillRegisterSystemOptions): Promise<InstalledSkill> {
     const canonicalPath = await fs.promises.realpath(options.directoryPath)
     const candidates = await this.discoverSystem(options.agentId)
@@ -375,8 +375,8 @@ export class SkillService {
     const existing = candidate.registeredSkillId ? agentGlobalSkillService.getById(candidate.registeredSkillId) : null
     if (existing) {
       await this.linkExternalMirror(existing.folderName, canonicalPath)
-      agentGlobalSkillService.upsertJoin(options.agentId, existing.id, true)
-      return { ...existing, isEnabled: true }
+      if (options.agentId) agentGlobalSkillService.upsertJoin(options.agentId, existing.id, true)
+      return { ...existing, isEnabled: Boolean(options.agentId) }
     }
 
     const metadata = await parseSkillMetadata(canonicalPath, candidate.filename, 'skills', { calculateSize: false })
@@ -398,7 +398,7 @@ export class SkillService {
           isEnabled: false
         })
         insertedId = inserted.id
-        agentGlobalSkillService.upsertJoinTx(tx, options.agentId, inserted.id, true)
+        if (options.agentId) agentGlobalSkillService.upsertJoinTx(tx, options.agentId, inserted.id, true)
       })
     } catch (error) {
       if (mirrorCreated) await this.unlinkMirror(candidate.filename)
@@ -417,7 +417,7 @@ export class SkillService {
       directoryPath: canonicalPath,
       agentId: options.agentId
     })
-    return { ...inserted, isEnabled: true }
+    return { ...inserted, isEnabled: Boolean(options.agentId) }
   }
 
   /**

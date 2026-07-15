@@ -438,6 +438,26 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.resultEntries)).toEqual([3])
   })
 
+  it('does not let AskUserQuestion split adjacent main text', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'PR review result' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'ask',
+          toolName: 'AskUserQuestion',
+          state: 'output-available'
+        },
+        { type: 'reasoning', text: 'Waiting for input', state: 'done' },
+        { type: 'text', text: 'Waiting for your choice' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0, 2, 3])
+    expect(indexes(layout.resultEntries)).toEqual([1, 4])
+  })
+
   it('extracts report_artifacts without letting it split the final answer result', () => {
     const layout = projectCompletedMessageParts(
       entries([

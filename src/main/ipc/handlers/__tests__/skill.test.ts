@@ -89,6 +89,17 @@ describe('skillHandlers', () => {
     expect(discoverSystemMock).toHaveBeenCalledWith('agent-1')
   })
 
+  it('system skill routes support registration before an agent exists', async () => {
+    discoverSystemMock.mockResolvedValue([])
+    registerSystemMock.mockResolvedValue({ id: 'system-skill' })
+
+    await skillHandlers['skill.discover_system']({}, ctx)
+    await skillHandlers['skill.register_system']({ directoryPath: '/skill' }, ctx)
+
+    expect(discoverSystemMock).toHaveBeenCalledWith(undefined)
+    expect(registerSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
+  })
+
   it('register_system lets errors propagate to IpcApi', async () => {
     registerSystemMock.mockRejectedValue(new Error('registration failed'))
 

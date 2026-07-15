@@ -31,5 +31,6 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
   'skill.list_local': ({ workdir }) =>
     toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
   'skill.discover_system': ({ agentId }) => skillService.discoverSystem(agentId),
-  'skill.register_system': ({ directoryPath, agentId }) => skillService.registerSystem({ directoryPath, agentId })
+  'skill.register_system': ({ directoryPath, agentId }) =>
+    skillService.registerSystem(agentId ? { directoryPath, agentId } : { directoryPath })
 }

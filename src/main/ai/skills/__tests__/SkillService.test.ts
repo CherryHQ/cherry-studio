@@ -386,6 +386,20 @@ describe('SkillService', () => {
       expect(joins).toEqual([expect.objectContaining({ skillId: result.id, isEnabled: true })])
     })
 
+    it('registers a system skill globally before a new agent is created', async () => {
+      const result = await skillService.registerSystem({ directoryPath: sourceSkillDir })
+
+      expect(result).toMatchObject({
+        name: 'Large Skill',
+        source: 'system',
+        isEnabled: false
+      })
+      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
+        await fs.promises.realpath(sourceSkillDir)
+      )
+      expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
+    })
+
     it('unregisters an external skill without deleting its source directory', async () => {
       await seedAgent()
       const registered = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })

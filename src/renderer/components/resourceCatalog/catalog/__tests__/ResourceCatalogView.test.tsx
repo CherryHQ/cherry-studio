@@ -52,8 +52,15 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   AssistantEditDialog: () => null
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
-  ImportAssistantDialog: () => null,
-  ImportSkillDialog: () => null
+  ImportAssistantDialog: () => null
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
+  ImportSkillDialog: () => null,
+  SkillMarketplaceDialog: () => null,
+  SystemSkillDialog: (props: { agentId: string }) => {
+    systemSkillDialogMock(props)
+    return null
+  }
 }))
 
 vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
@@ -77,17 +84,6 @@ vi.mock('../ResourceGrid', () => ({
     resourceGridMock(props)
 
     return <div data-testid="resource-grid">{props.toolbarLeading}</div>
-  }
-}))
-
-vi.mock('../SkillMarketplaceDialog', () => ({
-  SkillMarketplaceDialog: () => null
-}))
-
-vi.mock('../SystemSkillDialog', () => ({
-  SystemSkillDialog: (props: { agentId: string }) => {
-    systemSkillDialogMock(props)
-    return null
   }
 }))
 
