@@ -1,34 +1,27 @@
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageSelectionController } from '../useMessageSelectionController'
 
-const cacheValues = vi.hoisted(
-  () =>
-    ({
-      'chat.multi_select_mode': false,
-      'chat.selected_message_ids': []
-    }) as Record<string, unknown>
-)
-const setCacheValue = vi.hoisted(() =>
-  vi.fn((key: string, value: unknown) => {
-    cacheValues[key] = value
-  })
-)
+const cacheValues = {
+  'chat.multi_select_mode': false,
+  'chat.selected_message_ids': []
+} as Record<string, unknown>
+const cacheSetters = new Map<string, (value: unknown) => void>()
+const setCacheValue = vi.fn((key: string, value: unknown) => {
+  const previous = cacheValues[key]
+  const next = typeof value === 'function' ? (value as (current: unknown) => unknown)(previous) : value
+  const isEqualArray =
+    Array.isArray(previous) &&
+    Array.isArray(next) &&
+    previous.length === next.length &&
+    previous.every((item, index) => Object.is(item, next[index]))
 
-vi.mock('@data/hooks/useCache', () => {
-  const setters = new Map<string, (value: unknown) => void>()
-  return {
-    useCache: (key: string) => {
-      let setter = setters.get(key)
-      if (!setter) {
-        setter = (value: unknown) => setCacheValue(key, value)
-        setters.set(key, setter)
-      }
-      return [cacheValues[key], setter]
-    }
+  if (!Object.is(previous, next) && !isEqualArray) {
+    cacheValues[key] = next
   }
 })
 
@@ -59,6 +52,14 @@ describe('useMessageSelectionController', () => {
     vi.clearAllMocks()
     cacheValues['chat.multi_select_mode'] = false
     cacheValues['chat.selected_message_ids'] = []
+    MockUseCache.useCache.mockImplementation((key) => {
+      let setter = cacheSetters.get(key)
+      if (!setter) {
+        setter = (value: unknown) => setCacheValue(key, value)
+        cacheSetters.set(key, setter)
+      }
+      return [cacheValues[key], setter] as never
+    })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }

@@ -114,7 +114,6 @@ vi.mock('../list/MessageAnchorLine', () => ({
 
 vi.mock('../list/MessageGroup', async () => {
   const { useMessageEnterMotionActive } = await import('../../motion/messageEnterMotion')
-  const { usePartsMap } = await import('../blocks/MessagePartsContext')
 
   const MessageEnterProbe = ({ messageId }: { messageId: string }) => {
     const active = useMessageEnterMotionActive(messageId)
@@ -128,7 +127,6 @@ vi.mock('../list/MessageGroup', async () => {
     messages: MessageListItem[]
     registerMessageElement?: (id: string, element: HTMLElement | null) => void
   }) => {
-    usePartsMap()
     const groupId = messages.map((message) => message.id).join(',')
     messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
 
@@ -295,6 +293,7 @@ describe('MessageList', () => {
       'user-history': [{ type: 'text', text: 'question' }],
       'assistant-history': [{ type: 'text', text: 'sealed answer' }]
     } as MessageListProviderValue['state']['partsByMessageId']
+    const liveMessageIds = ['assistant-live'] as const
     const actions: Partial<MessageListActions> = {}
     const buildValue = (text: string) =>
       createValue(
@@ -302,7 +301,7 @@ describe('MessageList', () => {
         {
           topic,
           historyPartsByMessageId: historyParts,
-          liveMessageIds: ['assistant-live'],
+          liveMessageIds,
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text }]
