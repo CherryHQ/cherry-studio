@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-07-15T11:45:33.261Z
- * Total icons: 165
+ * Generated at: 2026-07-15T12:08:11.614Z
+ * Total icons: 167
  */
 export { AceIcon as Ace } from './ace'
 export { AdobeIcon as Adobe } from './adobe'
@@ -149,6 +149,7 @@ export { OpenrouterIcon as Openrouter } from './openrouter'
 export { PalmIcon as Palm } from './palm'
 export { PerplexityIcon as Perplexity } from './perplexity'
 export { PhindIcon as Phind } from './phind'
+export { PoolsideIcon as Poolside } from './poolside'
 export { QiniuIcon as Qiniu } from './qiniu'
 export { QwenIcon as Qwen } from './qwen'
 export { RelaceIcon as Relace } from './relace'
@@ -160,6 +161,7 @@ export { SparkIcon as Spark } from './spark'
 export { StabilityIcon as Stability } from './stability'
 export { StepfunIcon as Stepfun } from './stepfun'
 export { SunoIcon as Suno } from './suno'
+export { TencentIcon as Tencent } from './tencent'
 export { TiiIcon as Tii } from './tii'
 export { TrinityIcon as Trinity } from './trinity'
 export { UdioIcon as Udio } from './udio'

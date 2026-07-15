@@ -4,8 +4,8 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-15T11:45:33.372Z
- * Total icons: 165
+ * Generated at: 2026-07-15T12:08:11.722Z
+ * Total icons: 167
  */
 import { type CompoundIcon } from '../types'
 import { AceIcon } from './ace'
@@ -152,6 +152,7 @@ import { OpenrouterIcon } from './openrouter'
 import { PalmIcon } from './palm'
 import { PerplexityIcon } from './perplexity'
 import { PhindIcon } from './phind'
+import { PoolsideIcon } from './poolside'
 import { QiniuIcon } from './qiniu'
 import { QwenIcon } from './qwen'
 import { RelaceIcon } from './relace'
@@ -163,6 +164,7 @@ import { SparkIcon } from './spark'
 import { StabilityIcon } from './stability'
 import { StepfunIcon } from './stepfun'
 import { SunoIcon } from './suno'
+import { TencentIcon } from './tencent'
 import { TiiIcon } from './tii'
 import { TrinityIcon } from './trinity'
 import { UdioIcon } from './udio'
@@ -319,6 +321,7 @@ export const MODEL_ICON_CATALOG = {
   palm: PalmIcon,
   perplexity: PerplexityIcon,
   phind: PhindIcon,
+  poolside: PoolsideIcon,
   qiniu: QiniuIcon,
   qwen: QwenIcon,
   relace: RelaceIcon,
@@ -330,6 +333,7 @@ export const MODEL_ICON_CATALOG = {
   stability: StabilityIcon,
   stepfun: StepfunIcon,
   suno: SunoIcon,
+  tencent: TencentIcon,
   tii: TiiIcon,
   trinity: TrinityIcon,
   udio: UdioIcon,
