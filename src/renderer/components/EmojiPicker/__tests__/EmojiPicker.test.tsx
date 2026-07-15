@@ -129,12 +129,20 @@ describe('EmojiPicker', () => {
       '--epr-highlight-color': 'var(--color-primary)',
       '--epr-hover-bg-color-reduced-opacity': 'var(--color-accent)',
       '--epr-category-label-text-color': 'var(--color-card-foreground)',
-      '--epr-category-navigation-button-size': '24px',
-      '--epr-emoji-size': '24px',
       '--epr-emoji-hover-color': 'var(--color-accent)',
       '--epr-emoji-variation-indicator-color': 'var(--color-border)',
       '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
     })
+
+    for (const property of [
+      '--epr-horizontal-padding',
+      '--epr-header-padding',
+      '--epr-category-navigation-button-size',
+      '--epr-emoji-size',
+      '--epr-emoji-padding'
+    ]) {
+      expect(emojiPickerPropsMock.value.style).not.toHaveProperty(property)
+    }
   })
 
   it('passes category icons through the public categories configuration', () => {
@@ -144,22 +152,32 @@ describe('EmojiPicker', () => {
     expect(emojiPickerPropsMock.value.categoryIcons).toBeUndefined()
   })
 
-  it('keeps custom category icons and focus rings centered', () => {
+  it('leaves category label layout to emoji-picker-react', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
 
-    expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn')
-    expect(css).toContain('display: flex')
-    expect(css).toContain('align-items: center')
-    expect(css).toContain('justify-content: center')
-    expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn > svg')
-    expect(css).toContain('display: block')
-    expect(css).toContain('.cherry-emoji-picker-react .epr-cat-btn:focus::before')
-    expect(css).toContain('--cherry-emoji-category-focus-size: 30px')
-    expect(css).toContain('top: 50%')
-    expect(css).toContain('left: 50%')
-    expect(css).toContain('width: var(--cherry-emoji-category-focus-size)')
-    expect(css).toContain('height: var(--cherry-emoji-category-focus-size)')
-    expect(css).toContain('transform: translate(-50%, -50%)')
+    expect(css).not.toContain('.cherry-emoji-picker-react .epr-emoji-category-label')
+  })
+
+  it('centers custom category icons inside their buttons', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
+    const categoryButtonRule = css.match(/\.cherry-emoji-picker-react \.epr-cat-btn\s*\{([^}]*)\}/)?.[1]
+
+    expect(categoryButtonRule).toContain('display: flex')
+    expect(categoryButtonRule).toContain('align-items: center')
+    expect(categoryButtonRule).toContain('justify-content: center')
+  })
+
+  it('centers the category selection ring on the custom icon', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
+    const selectionRingRule = css.match(/\.cherry-emoji-picker-react \.epr-cat-btn:focus::before\s*\{([^}]*)\}/)?.[1]
+
+    expect(selectionRingRule).toContain('top: 50%')
+    expect(selectionRingRule).toContain('right: auto')
+    expect(selectionRingRule).toContain('bottom: auto')
+    expect(selectionRingRule).toContain('left: 50%')
+    expect(selectionRingRule).toContain('width: var(--epr-category-navigation-button-size)')
+    expect(selectionRingRule).toContain('height: var(--epr-category-navigation-button-size)')
+    expect(selectionRingRule).toContain('transform: translate(-50%, -50%)')
   })
 
   it('uses the bundled country flag font for native emojis on Windows', () => {

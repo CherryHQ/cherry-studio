@@ -31,11 +31,6 @@ const CHERRY_PICKER_STYLE = {
   '--epr-category-label-bg-color': 'var(--color-card)',
   '--epr-category-label-text-color': 'var(--color-card-foreground)',
   '--epr-category-icon-active-color': 'var(--color-primary)',
-  '--epr-horizontal-padding': '10px',
-  '--epr-header-padding': '10px var(--epr-horizontal-padding) 8px',
-  '--epr-category-navigation-button-size': '24px',
-  '--epr-emoji-size': '24px',
-  '--epr-emoji-padding': '6px',
   '--epr-emoji-hover-color': 'var(--color-accent)',
   '--epr-emoji-variation-indicator-color': 'var(--color-border)',
   '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'

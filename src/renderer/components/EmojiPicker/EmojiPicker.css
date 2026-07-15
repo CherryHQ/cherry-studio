@@ -1,19 +1,8 @@
-.cherry-emoji-picker-react {
-  --cherry-emoji-category-focus-size: 30px;
-}
-
 /* emoji-picker-react forces its native emoji font stack with !important. */
 body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
   font-family:
     'Twemoji Country Flags', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Segoe UI', 'Apple Color Emoji', 'Twemoji Mozilla',
     'Noto Color Emoji', 'EmojiOne Color', 'Android Emoji' !important;
-}
-
-.cherry-emoji-picker-react .epr-emoji-category-label {
-  font-size: 14px;
-  font-weight: var(--font-weight-regular);
-  line-height: 22px;
-  padding-left: calc(var(--epr-horizontal-padding) + var(--epr-emoji-padding));
 }
 
 .cherry-emoji-picker-react .epr-cat-btn {
@@ -22,16 +11,12 @@ body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
   justify-content: center;
 }
 
-.cherry-emoji-picker-react .epr-cat-btn > svg {
-  display: block;
-}
-
 .cherry-emoji-picker-react .epr-cat-btn:focus::before {
   top: 50%;
   right: auto;
   bottom: auto;
   left: 50%;
-  width: var(--cherry-emoji-category-focus-size);
-  height: var(--cherry-emoji-category-focus-size);
+  width: var(--epr-category-navigation-button-size);
+  height: var(--epr-category-navigation-button-size);
   transform: translate(-50%, -50%);
 }
