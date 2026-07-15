@@ -105,6 +105,11 @@ export async function enrichStatsWithCost(
   if (trustProvider) {
     enriched.cost = providerCostUsd
     enriched.costSource = 'provider'
+    // INVARIANT: a `reportsActualCost` provider reports USD. `providerCostUsd`
+    // is extracted from an opaque provider blob with no currency field, so this
+    // hard-code is the contract callers must uphold (OpenRouter is USD today).
+    // A future non-USD `reportsActualCost` provider must extend this to carry a
+    // currency, or its cost will mislabel and corrupt the per-currency stats().
     enriched.costCurrency = 'USD'
     // Cross-check breakdown + rate snapshot, but only when same currency to
     // avoid mixing a USD provider total with non-USD computed figures.

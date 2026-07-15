@@ -71,7 +71,10 @@ export function computeLanguageCost(
   let priced = false
 
   const add = (key: keyof LanguageCostBreakdown, tokens: number | undefined, rate: number | null): void => {
-    if (tokens == null || rate == null) return
+    // Reject NaN/Infinity too (a corrupt/partially-parsed pricing snapshot): a
+    // NaN rate would flip `priced` true and poison every SUM(cost) aggregate
+    // (SQLite propagates NaN). Mirrors extractProviderCost's Number.isFinite guard.
+    if (tokens == null || rate == null || !Number.isFinite(tokens) || !Number.isFinite(rate)) return
     const value = (tokens * rate) / PER_MILLION
     breakdown[key] = value
     cost += value
@@ -114,6 +117,10 @@ export function computeImageCost(
  *
  * Whether this value is trusted is decided by the caller based on
  * `provider.apiFeatures.reportsActualCost` — never trust it blindly.
+ *
+ * The returned figure is assumed to be USD (the blob carries no currency);
+ * callers persist it as `costCurrency: 'USD'`. Only flag a provider
+ * `reportsActualCost` if it reports USD, else the per-currency rollups drift.
  */
 export function extractProviderCost(raw: Record<string, unknown> | undefined): number | undefined {
   if (!raw || typeof raw !== 'object') return undefined

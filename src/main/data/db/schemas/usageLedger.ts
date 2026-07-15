@@ -89,7 +89,11 @@ export const usageLedgerTable = sqliteTable(
     ),
     // NULL passes a CHECK in SQLite, so nullable columns need no IS NULL branch.
     check('usage_ledger_cost_source_check', sql`${t.costSource} IN ('provider', 'computed')`),
-    check('usage_ledger_modality_check', sql`${t.modality} IN ('language', 'embedding', 'image')`)
+    check('usage_ledger_modality_check', sql`${t.modality} IN ('language', 'embedding', 'image')`),
+    // Constrain to the CURRENCY enum (keep in sync with provider-registry
+    // `CURRENCY`) so stats() can safely GROUP BY costCurrency without 'USD' vs
+    // 'usd' silently splitting buckets — matches MessageStats.costCurrency's enum.
+    check('usage_ledger_cost_currency_check', sql`${t.costCurrency} IN ('USD', 'CNY')`)
   ]
 )
 

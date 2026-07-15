@@ -56,6 +56,26 @@ describe('computeLanguageCost', () => {
     expect(result).toBeUndefined()
   })
 
+  it('skips a non-finite (NaN) rate instead of poisoning cost with NaN', () => {
+    const result = computeLanguageCost(
+      { inputTokens: 1000, outputTokens: 1000 },
+      { input: { perMillionTokens: NaN }, output: { perMillionTokens: 15, currency: 'USD' } }
+    )
+    // A corrupt NaN input rate must not price the input bucket as NaN; only the
+    // finite output rate contributes, and the aggregate stays finite.
+    expect(result?.breakdown).not.toHaveProperty('input')
+    expect(result?.cost).toBeCloseTo((1000 * 15) / 1_000_000, 10)
+    expect(Number.isFinite(result?.cost)).toBe(true)
+  })
+
+  it('returns undefined when every rate is non-finite (no priced bucket)', () => {
+    const result = computeLanguageCost(
+      { inputTokens: 1000, outputTokens: 1000 },
+      { input: { perMillionTokens: NaN }, output: { perMillionTokens: NaN } }
+    )
+    expect(result).toBeUndefined()
+  })
+
   it('returns undefined when there is no usable token data', () => {
     expect(computeLanguageCost({}, pricing())).toBeUndefined()
   })

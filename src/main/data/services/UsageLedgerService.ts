@@ -447,7 +447,12 @@ export class UsageLedgerService {
       let allKeys: Awaited<ReturnType<typeof providerService.getApiKeys>>
       try {
         allKeys = allKeysCount > 0 ? await providerService.getApiKeys(providerId) : []
-      } catch {
+      } catch (err) {
+        // `provider` was already fetched above, so this is not the provider-gone
+        // case — an unexpected key read/decrypt failure that degrades the row to
+        // `none`. Log it: the earliest non-`none` attribution wins the upsert, so
+        // a transient throw here can permanently strip key identity.
+        logger.warn('resolveKeyAttribution: getApiKeys failed', { providerId, err })
         return { attribution: 'none', providerName }
       }
       const enabled = allKeys.filter((k) => k.isEnabled)
@@ -482,8 +487,11 @@ export class UsageLedgerService {
         }
       }
       return { attribution: 'none', providerName }
-    } catch {
-      // Provider deleted between request and persist.
+    } catch (err) {
+      // Expected case: provider deleted between request and persist. Logged at
+      // debug so an *unexpected* failure here is still visible in logs rather
+      // than indistinguishable from the provider-gone case.
+      logger.debug('resolveKeyAttribution: provider lookup failed', { providerId, err })
       return { attribution: 'none' }
     }
   }

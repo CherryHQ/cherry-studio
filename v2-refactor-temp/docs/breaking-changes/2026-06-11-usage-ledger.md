@@ -24,13 +24,15 @@ queryable (which key produced which cost), with an explicit confidence label —
 `auth` (provider-level credential), or `none`.
 
 Known boundaries:
-- Migrated v1 history IS backfilled on the first ledger read (reconciliation):
-  rows carry the message's original timestamp; providers with exactly one
-  configured key are attributed to it with the explicit `backfill` confidence,
-  everything else is `none` (the serving key was never recorded).
-- The same reconciliation heals chat ledger rows lost to crashes/quits (the
-  live write is fire-and-forget). Stateless rows (gateway/translate/rename)
-  cannot be re-derived and stay lost in that window.
+- Migrated v1 history IS backfilled once, at migration time (the one-shot
+  `UsageLedgerMigrator` — not a read-time pass): rows carry the message's
+  original timestamp; providers with exactly one configured key are attributed
+  to it with the explicit `backfill` confidence, everything else is `none` (the
+  serving key was never recorded).
+- Chat ledger rows lost to a crash/quit are NOT self-healed on read: the live
+  write is fire-and-forget and `list()`/`stats()` are pure reads with no
+  backfill pass, so a lost row stays lost. Stateless rows
+  (gateway/translate/rename) cannot be re-derived either.
 - A billing funnel at the AI request chokepoint records every aiSdk request,
   including API Gateway traffic, translation, topic auto-rename, and
   ephemeral temporary chats (real spend even when the chat is discarded).

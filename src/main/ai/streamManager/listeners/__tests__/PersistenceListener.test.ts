@@ -15,6 +15,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
+// Cost enrichment is the seam between persistAssistant and the DB write; mock it
+// to assert the success-path wiring (args in, enriched stats out) without
+// re-testing its internals (covered by costEnrichment.test.ts). Default is a
+// pass-through so the other backends' tests see stats unchanged.
+const enrichStatsWithCostMock = vi.fn((...args: unknown[]) => Promise.resolve(args[0]))
+
+vi.mock('@main/data/services/utils/costEnrichment', () => ({
+  enrichStatsWithCost: (...args: unknown[]) => enrichStatsWithCostMock(...args)
+}))
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -441,6 +450,59 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(onPersistFailed).toHaveBeenCalledTimes(1)
     expect(onPersistFailed).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('write failed') })
+    )
+  })
+})
+
+describe('PersistenceListener + MessageServiceBackend — success-path cost enrichment', () => {
+  beforeEach(() => {
+    messageUpdateMock.mockReset()
+    messageUpdateMock.mockReturnValue({ id: 'assistant-1' })
+    enrichStatsWithCostMock.mockClear()
+    enrichStatsWithCostMock.mockImplementation(async (stats: unknown) => stats)
+  })
+
+  it('enriches persisted stats with cost and threads providerCostUsd into the DB update', async () => {
+    const enriched = {
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      cost: 0.42,
+      costSource: 'provider',
+      costCurrency: 'USD'
+    }
+    enrichStatsWithCostMock.mockResolvedValue(enriched)
+
+    const finalMessage = {
+      id: 'msg-x',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hi' }],
+      // token snapshot rides in metadata.stats; providerCostUsd is the transient
+      // provider-reported candidate the backend must thread into enrichment.
+      metadata: {
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        providerCostUsd: 0.42
+      }
+    } as unknown as CherryUIMessage
+
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      modelId: 'openrouter::x' as UniqueModelId,
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+    })
+
+    await listener.onDone({ finalMessage, status: 'success', modelId: 'openrouter::x' as UniqueModelId })
+
+    // Wiring in: base stats (from metadata.stats) + modelId + providerCostUsd.
+    expect(enrichStatsWithCostMock).toHaveBeenCalledWith(
+      expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
+      'openrouter::x',
+      0.42
+    )
+    // Wiring out: the enriched result (with cost) is exactly what the DB row gets.
+    expect(messageUpdateMock).toHaveBeenCalledWith(
+      'assistant-1',
+      expect.objectContaining({ status: 'success', stats: enriched })
     )
   })
 })

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d914856f-033c-4910-9094-32644307861e",
+  "id": "783dfa53-8881-4ee2-a084-256688ac9d53",
   "prevId": "de20ceb8-028b-4922-a729-cbd3f8dabfaa",
   "tables": {
     "agent": {
@@ -3907,6 +3907,10 @@
         "usage_ledger_modality_check": {
           "name": "usage_ledger_modality_check",
           "value": "\"usage_ledger\".\"modality\" IN ('language', 'embedding', 'image')"
+        },
+        "usage_ledger_cost_currency_check": {
+          "name": "usage_ledger_cost_currency_check",
+          "value": "\"usage_ledger\".\"cost_currency\" IN ('USD', 'CNY')"
         }
       }
     },

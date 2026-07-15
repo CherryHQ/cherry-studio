@@ -34,7 +34,8 @@ CREATE TABLE `usage_ledger` (
 	`updated_at` integer NOT NULL,
 	CONSTRAINT "usage_ledger_attribution_check" CHECK("usage_ledger"."api_key_attribution" IN ('exact', 'rotation', 'backfill', 'auth', 'none')),
 	CONSTRAINT "usage_ledger_cost_source_check" CHECK("usage_ledger"."cost_source" IN ('provider', 'computed')),
-	CONSTRAINT "usage_ledger_modality_check" CHECK("usage_ledger"."modality" IN ('language', 'embedding', 'image'))
+	CONSTRAINT "usage_ledger_modality_check" CHECK("usage_ledger"."modality" IN ('language', 'embedding', 'image')),
+	CONSTRAINT "usage_ledger_cost_currency_check" CHECK("usage_ledger"."cost_currency" IN ('USD', 'CNY'))
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `usage_ledger_message_id_idx` ON `usage_ledger` (`message_id`);--> statement-breakpoint
