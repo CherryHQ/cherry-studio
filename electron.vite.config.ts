@@ -108,7 +108,6 @@ export default defineConfig({
         target: 'react',
         autoCodeSplitting: true,
         routesDirectory: resolve('src/renderer/routes'),
-        routeFileIgnorePattern: '\\.test\\.[jt]sx?$',
         generatedRouteTree: resolve('src/renderer/routeTree.gen.ts')
       }),
       (async () => (await import('@tailwindcss/vite')).default())(),
