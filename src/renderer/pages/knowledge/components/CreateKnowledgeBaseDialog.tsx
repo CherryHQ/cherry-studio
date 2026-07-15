@@ -188,7 +188,6 @@ const CreateKnowledgeBaseDialogRoot = ({
                 id="knowledge-create-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
-                placeholder={t('common.name')}
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (
