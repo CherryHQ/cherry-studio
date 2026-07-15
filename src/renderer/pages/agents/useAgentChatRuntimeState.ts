@@ -12,6 +12,7 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -20,7 +21,7 @@ import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -116,20 +117,6 @@ interface UseAgentChatRuntimeStateParams {
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
-}
-
-function stringArraysEqual(previous: readonly string[], next: readonly string[]): boolean {
-  if (previous === next) return true
-  if (previous.length !== next.length) return false
-  return previous.every((value, index) => value === next[index])
-}
-
-function useStableStringArray(values: readonly string[]): readonly string[] {
-  const stableRef = useRef<readonly string[]>(values)
-  if (!stringArraysEqual(stableRef.current, values)) {
-    stableRef.current = values
-  }
-  return stableRef.current
 }
 
 export function useAgentChatRuntimeState({

@@ -13,6 +13,7 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
 import type { Topic } from '@renderer/types/topic'
@@ -86,20 +87,6 @@ function getReservedActiveExecutions(messages: CherryUIMessage[]): ActiveExecuti
   }
 
   return executions
-}
-
-function stringArraysEqual(previous: readonly string[], next: readonly string[]): boolean {
-  if (previous === next) return true
-  if (previous.length !== next.length) return false
-  return previous.every((value, index) => value === next[index])
-}
-
-function useStableStringArray(values: readonly string[]): readonly string[] {
-  const stableRef = useRef<readonly string[]>(values)
-  if (!stringArraysEqual(stableRef.current, values)) {
-    stableRef.current = values
-  }
-  return stableRef.current
 }
 
 export function useChatRuntimeState({
