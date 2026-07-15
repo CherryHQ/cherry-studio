@@ -68,6 +68,27 @@ describe('check-file-processing-result job handler', () => {
     expect(handler.defaultTimeoutMs).toBe(2 * 60 * 1000)
   })
 
+  it('fails the item for a legacy payload missing processedRelativePath instead of indexing at an undefined path', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+
+    // A payload persisted before processedRelativePath was required — still claimable in
+    // the startup quiet window before recovery abandons it.
+    const legacyPayload = createCheckPayload()
+    delete (legacyPayload as { processedRelativePath?: string }).processedRelativePath
+    const ctx = createCtx(legacyPayload)
+    await handler.execute(ctx)
+
+    // The orphaned, retry-recoverable file-processing job is reaped so it stops polling.
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-legacy-payload')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: expect.stringContaining('processedRelativePath')
+    })
+    expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
+  })
+
   it('reschedules delayed polling while file processing is active', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())

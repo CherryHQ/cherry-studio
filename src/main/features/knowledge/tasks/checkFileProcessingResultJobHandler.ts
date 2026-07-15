@@ -54,6 +54,25 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
+      // A job persisted before `processedRelativePath` became a required payload field
+      // (see jobInput.ts) can still be claimed inside the startup quiet window before
+      // recovery abandons it. Its indexed path is unrecoverable — deriving it from the
+      // completed file-processing artifact would give the processor's OUTPUT path, not
+      // the KB raw path this item is addressed by — so fail the item loudly instead of
+      // indexing at an `undefined` path. Cancel the linked file-processing job first
+      // (recovery: 'retry', so it is live again after restart and keeps polling/paying);
+      // this handler is its only consumer, and the cancel helpers can't reap it either
+      // (jobInput.ts rejects the legacy payload, so getLinkedFileProcessingJobIds drops it).
+      if (typeof ctx.input.processedRelativePath !== 'string' || ctx.input.processedRelativePath.length === 0) {
+        await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-legacy-payload')
+        markItemFailed(
+          itemId,
+          `Knowledge file-processing check for '${itemId}' has no processedRelativePath (legacy job payload)`
+        )
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
+        return
+      }
+
       const jobManager = application.get('JobManager')
       const snapshot = await jobManager.get(fileProcessingJobId)
 
