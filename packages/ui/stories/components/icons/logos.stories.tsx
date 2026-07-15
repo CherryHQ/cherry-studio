@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
+import { useEffect, useState } from 'react'
 
 import * as Models from '../../../src/components/icons/models'
 import * as Providers from '../../../src/components/icons/providers'
@@ -102,9 +103,33 @@ const AvatarGrid = ({ icons, size, shape }: { icons: IconEntry[]; size: number; 
   </div>
 )
 
-const AvatarShowcase = ({ fontSize = 32, shape = 'circle' }: AvatarShowcaseProps) => {
+const ShapeToggle = ({ value, onChange }: { value: AvatarShape; onChange: (s: AvatarShape) => void }) => (
+  <div className="inline-flex rounded-lg border border-border p-0.5">
+    {(['circle', 'rounded'] as const).map((s) => (
+      <button
+        key={s}
+        type="button"
+        onClick={() => onChange(s)}
+        className={`rounded-md px-3 py-1 text-sm capitalize transition-colors ${
+          value === s ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+        }`}>
+        {s}
+      </button>
+    ))}
+  </div>
+)
+
+const AvatarShowcase = ({ fontSize = 32, shape: shapeArg = 'circle' }: AvatarShowcaseProps) => {
+  const [shape, setShape] = useState<AvatarShape>(shapeArg)
+  // keep the in-story toggle in sync when the Controls-panel arg changes
+  useEffect(() => setShape(shapeArg), [shapeArg])
+
   return (
     <div className="flex flex-col gap-8 p-4">
+      <div className="sticky top-0 z-10 -mx-4 flex items-center gap-3 border-border border-b bg-background/80 px-4 py-3 backdrop-blur">
+        <span className="font-medium text-sm">Shape:</span>
+        <ShapeToggle value={shape} onChange={setShape} />
+      </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
         <AvatarGrid icons={providerIcons} size={fontSize} shape={shape} />
