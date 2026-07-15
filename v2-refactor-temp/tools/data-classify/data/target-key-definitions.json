@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.onboarding.completed",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the main-window first-run onboarding flow has been completed or skipped"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,

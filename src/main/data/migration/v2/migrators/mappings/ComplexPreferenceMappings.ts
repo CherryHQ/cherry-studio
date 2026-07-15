@@ -137,6 +137,19 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: flattenCompressionConfig
   },
 
+  {
+    id: 'onboarding_completed_migrate',
+    description: 'Convert legacy localStorage onboarding-completed string into the v2 boolean preference',
+    sources: {
+      completed: { source: 'localStorage', key: 'onboarding-completed' }
+    },
+    targetKeys: ['app.onboarding.completed'],
+    transform: (sources) => {
+      if (sources.completed === undefined || sources.completed === null) return {}
+      return { 'app.onboarding.completed': sources.completed === true || sources.completed === 'true' }
+    }
+  },
+
   // CodeCLI: no migration — feature.code_cli.configs is a fresh v2 key (v1 codeTools is throwaway).
 
   // Shortcut preferences (legacy array → per-key PreferenceShortcutType)

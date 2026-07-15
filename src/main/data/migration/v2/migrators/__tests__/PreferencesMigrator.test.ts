@@ -191,6 +191,17 @@ describe('PreferencesMigrator', () => {
       expect(await selectByKey(dbh.db, 'chat.web_search.compression.cutoff_unit')).toHaveLength(0)
     })
 
+    it('migrates legacy localStorage onboarding-completed to app.onboarding.completed', async () => {
+      const ctx = createTestContext({ localStorage: [{ key: 'onboarding-completed', value: 'true' }] }, dbh.db)
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await selectByKey(dbh.db, 'app.onboarding.completed')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toBe(true)
+    })
+
     it('merges preprocess + ocr providers through complex mapping (N → 1 merge)', async () => {
       const ctx = createTestContext(
         {

@@ -4317,11 +4317,16 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "next": "Next",
+      "subtitle": "Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "Choose a Provider"
+    },
     "select_model": {
       "change_later": "You can change this anytime in settings",
       "start": "Get Started",
       "subtitle": "Select default model for each scenario",
-      "title": "Choose Your Default Models"
+      "title": "Choose Default Model"
     },
     "skip": "Skip",
     "toast": {

@@ -35,7 +35,9 @@ const logger = loggerService.withContext('ModelSettings')
 interface ModelSettingsProps {
   showSettingsButton?: boolean
   showDescription?: boolean
+  showDividers?: boolean
   compact?: boolean
+  className?: string
 }
 
 interface ModelSettingRowProps {
@@ -146,7 +148,9 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
-  compact = false
+  showDividers = true,
+  compact = false,
+  className
 }) => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
@@ -200,9 +204,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const containerProps = compact ? { style: { padding: 0, background: 'transparent' } } : {}
 
   return (
-    <div className="relative flex min-h-0 flex-1">
+    <div className={cn('relative flex min-h-0 flex-1', className)}>
       <ContainerComponent theme={theme} {...containerProps}>
-        <SettingGroup theme={theme} style={groupStyle}>
+        <SettingGroup theme={theme} style={groupStyle} className={compact ? 'space-y-3' : undefined}>
           {!compact && (
             <>
               <SettingTitle>{t('settings.model')}</SettingTitle>
@@ -223,7 +227,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               placeholder={t('settings.models.empty')}
             />
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -253,7 +257,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </Button>
             )}
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}

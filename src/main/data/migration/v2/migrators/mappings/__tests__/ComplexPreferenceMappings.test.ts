@@ -95,6 +95,16 @@ describe('ComplexPreferenceMappings', () => {
       expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
     })
 
+    it('should migrate legacy onboarding completion into a boolean preference', () => {
+      const onboardingMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'onboarding_completed_migrate')
+
+      expect(onboardingMapping).toBeDefined()
+      expect(onboardingMapping?.targetKeys).toEqual(['app.onboarding.completed'])
+      expect(onboardingMapping?.transform({ completed: 'true' })).toEqual({ 'app.onboarding.completed': true })
+      expect(onboardingMapping?.transform({ completed: 'false' })).toEqual({ 'app.onboarding.completed': false })
+      expect(onboardingMapping?.transform({ completed: undefined })).toEqual({})
+    })
+
     it('should NOT migrate code_cli (fresh v2 key, v1 throwaway)', () => {
       const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
       expect(codeToolsMapping).toBeUndefined()

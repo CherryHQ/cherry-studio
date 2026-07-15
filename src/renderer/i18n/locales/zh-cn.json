@@ -4317,11 +4317,16 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "next": "下一步",
+      "subtitle": "添加 API Key 或登录 CherryIN，然后启用一个服务商。",
+      "title": "选择服务商"
+    },
     "select_model": {
       "change_later": "您可以随时在设置中更改",
       "start": "开始使用",
       "subtitle": "为每个场景选择默认模型",
-      "title": "选择你的默认模型"
+      "title": "选择默认模型"
     },
     "skip": "跳过引导",
     "toast": {
