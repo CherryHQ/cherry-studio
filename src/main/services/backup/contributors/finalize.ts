@@ -24,6 +24,7 @@ import {
   type DbTableName
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
+import { deepFreeze } from '@main/data/db/backup/freeze'
 import {
   ALWAYS_STRIP_TABLES,
   INFRASTRUCTURE_TABLES,
@@ -501,7 +502,7 @@ export function finalize(
   for (const c of contributors) {
     finalizedAggregatesByDomain.set(
       c.domain,
-      c.schema.aggregates.map((agg) => finalizeAggregate(agg, c))
+      deepFreeze(c.schema.aggregates.map((agg) => finalizeAggregate(agg, c)))
     )
   }
 
@@ -509,7 +510,7 @@ export function finalize(
   const data: FinalizedRegistryData = {
     contributors: byDomain,
     tableOwner,
-    domainDependencies: new Map([...domainDependencies.entries()].map(([d, deps]) => [d, [...deps]] as const)),
+    domainDependencies: new Map([...domainDependencies.entries()].map(([d, deps]) => [d, deepFreeze([...deps])] as const)),
     finalizedAggregatesByDomain,
     finalizedAt: meta.finalizedAt,
   }
@@ -525,22 +526,25 @@ export function finalize(
  */
 function finalizeAggregate(agg: AggregateBoundary, c: BackupContributor): AggregateBoundary {
   const rootPk = c.schema.primaryKeys.find((fact) => fact.table === agg.root)
-  const identityKey = agg.identityKey ?? rootPk?.columns ?? []
+  // Copy identityKey before freezing — rootPk.columns is a shared generated-code array
+  // (DB_PRIMARY_KEYS); freezing it by reference would mutate a global (#16683 P1).
+  const identityKey = [...(agg.identityKey ?? rootPk?.columns ?? [])]
   const identityClass =
     agg.identityClass ?? (rootPk?.kind === 'uuid-v4' || rootPk?.kind === 'uuid-v7' ? 'uuid-entity' : 'natural-key')
   const conflictDefault = agg.conflictDefault ?? (identityClass === 'uuid-entity' ? 'SKIP' : 'FIELD_MERGE')
   // members: explicit if provided, else derived from in-domain OWNING references
   // whose generated FK targets the root (finalize invariant #14 derivation rule).
-  const members =
-    agg.members ??
-    c.schema.references
-      .filter((r) => r.kind === 'owning' && r.table !== agg.root)
-      .filter((r) => {
-        const fk = DB_FOREIGN_KEYS[r.table].find((f) => f.columns.some((col) => col === r.column))
-        return fk?.targetTable === agg.root
-      })
-      .map((r) => ({ table: r.table, viaColumn: r.column, cascade: 'include' as const }))
-  return { ...agg, identityKey, identityClass, conflictDefault, members }
+  const derivedMembers = c.schema.references
+    .filter((r) => r.kind === 'owning' && r.table !== agg.root)
+    .filter((r) => {
+      const fk = DB_FOREIGN_KEYS[r.table].find((f) => f.columns.some((col) => col === r.column))
+      return fk?.targetTable === agg.root
+    })
+    .map((r) => ({ table: r.table, viaColumn: r.column, cascade: 'include' as const }))
+  // Copy each member so the frozen aggregate owns its values (explicit agg.members may
+  // alias the deep-frozen contributor constant; derived members are already fresh).
+  const members = (agg.members ?? derivedMembers).map((m) => ({ ...m }))
+  return deepFreeze({ ...agg, identityKey, identityClass, conflictDefault, members })
 }
 
 /** Kahn's-algorithm cycle detection over the domain dependency graph (#10). */
