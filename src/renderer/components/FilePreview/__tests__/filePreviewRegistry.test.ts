@@ -23,6 +23,10 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin('/tmp/image.svg', filePreviewRegistry)).toBeNull()
   })
 
+  it.each(['pdf', 'PDF'])('registers the PDF plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('pdf')
+  })
+
   it('matches file extensions case-insensitively', () => {
     const pdf = plugin('pdf', ['pdf'])
     const registry = createFilePreviewRegistry({ extensionPlugins: [pdf] })

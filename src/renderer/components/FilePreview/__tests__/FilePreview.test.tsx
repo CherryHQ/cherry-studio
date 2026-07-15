@@ -36,7 +36,7 @@ afterEach(() => {
 
 describe('FilePreview', () => {
   it('shows unsupported state without reading the file when the registry is empty', () => {
-    render(<FilePreview filePath={'/tmp/report.pdf' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/report.zip' as FilePath} />)
 
     expect(screen.getByText('file_preview.unsupported.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.unsupported.description')).toBeInTheDocument()
