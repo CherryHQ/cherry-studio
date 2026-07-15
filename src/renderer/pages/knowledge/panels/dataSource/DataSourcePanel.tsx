@@ -192,6 +192,7 @@ const DataSourcePanel = ({
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onAdd={handleAddSource}
+            canAddSource={!currentDirectory}
           />
         </div>
       }>

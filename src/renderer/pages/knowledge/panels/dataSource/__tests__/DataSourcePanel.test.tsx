@@ -723,6 +723,23 @@ describe('DataSourcePanel', () => {
     expect(onNavigateUp).toHaveBeenCalledTimes(1)
   })
 
+  it('hides the header add-source entry inside a directory so adding cannot silently target the root', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        onNavigateUp={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+  })
+
   it('shows an empty-folder message instead of add shortcuts inside an empty directory', () => {
     render(
       <DataSourcePanel
