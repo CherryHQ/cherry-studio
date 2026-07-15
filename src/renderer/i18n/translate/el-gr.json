@@ -37,88 +37,88 @@
       }
     },
     "channels": {
-      "add": "[to be translated]:Add",
-      "bindAgent": "[to be translated]:Bind Agent",
-      "chatIdsAutoTrackHint": "[to be translated]:When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
-      "comingSoon": "[to be translated]:Coming soon",
-      "connected": "[to be translated]:Connected",
-      "connecting": "[to be translated]:Connecting",
-      "createError": "[to be translated]:Failed to create channel",
-      "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
-      "deleteError": "[to be translated]:Failed to delete channel",
-      "description": "[to be translated]:Connect your agent to messaging platforms.",
-      "disconnected": "[to be translated]:Disconnected",
+      "add": "Προσθήκη",
+      "bindAgent": "Δέσμευση Πράκτορα",
+      "chatIdsAutoTrackHint": "Όταν μείνει κενό, το σύστημα θα παρακολουθεί αυτόματα: πρέπει πρώτα να στείλετε ένα μήνυμα στο Bot στην πλατφόρμα, τότε το σύστημα θα καταγράψει το Chat ID για μελλοντικές ειδοποιήσεις.",
+      "comingSoon": "Σύντομα διαθέσιμο",
+      "connected": "Συνδεδεμένος",
+      "connecting": "Σύνδεση",
+      "createError": "Αποτυχία δημιουργίας καναλιού",
+      "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
+      "deleteError": "Αποτυχία διαγραφής καναλιού",
+      "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
+      "disconnected": "Αποσυνδέθηκε",
       "discord": {
-        "botToken": "[to be translated]:Bot Token",
-        "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
-        "channelIds": "[to be translated]:Allowed Channel IDs",
-        "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
-        "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
-        "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
-        "title": "[to be translated]:Discord",
-        "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+        "botToken": "Διακριτικό Bot",
+        "botTokenPlaceholder": "Εισάγετε το διακριτικό του bot σας στο Discord",
+        "channelIds": "Επιτρεπόμενα Αναγνωριστικά Καναλιών",
+        "channelIdsHint": "Μορφή: channel:id ή dm:id. Αφήστε κενό για να επιτρέψετε όλα.",
+        "channelIdsPlaceholder": "κανάλι:123456789, dm:987654321",
+        "description": "Λάβετε και απαντήστε σε μηνύματα μέσω ενός bot Discord χρησιμοποιώντας την πύλη WebSocket.",
+        "title": "Discord",
+        "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID του καναλιού σας στη σωστή μορφή."
       },
-      "error": "[to be translated]:Error",
+      "error": "Σφάλμα",
       "feishu": {
-        "appId": "[to be translated]:App ID",
-        "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
-        "appSecret": "[to be translated]:App Secret",
-        "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
-        "chatIds": "[to be translated]:Allowed Chat IDs",
-        "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
-        "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
-        "connected": "[to be translated]:Connected",
-        "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-        "domain": "[to be translated]:Domain",
-        "domainFeishu": "[to be translated]:Feishu (China)",
-        "domainLark": "[to be translated]:Lark (International)",
-        "encryptKey": "[to be translated]:Encrypt Key",
-        "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
-        "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-        "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-        "qrHint": "[to be translated]:Waiting for QR code scan...",
-        "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-        "qrTitle": "[to be translated]:Feishu QR Registration",
-        "title": "[to be translated]:Feishu",
-        "verificationToken": "[to be translated]:Verification Token",
-        "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+        "appId": "App ID",
+        "appIdPlaceholder": "Εισαγάγετε το App ID της εφαρμογής Feishu",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "Εισαγάγετε το App Secret της εφαρμογής Feishu",
+        "chatIds": "Επιτρεπόμενα Chat IDs",
+        "chatIdsHint": "Chat IDs διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+        "connected": "Συνδεδεμένος",
+        "description": "Λήψη και απάντηση μηνυμάτων μέσω bot Feishu/Lark χρησιμοποιώντας WebSocket.",
+        "domain": "Τομέας",
+        "domainFeishu": "Feishu (Κίνα)",
+        "domainLark": "Lark (Διεθνές)",
+        "encryptKey": "Κλειδί κρυπτογράφησης",
+        "encryptKeyPlaceholder": "Εισαγάγετε το κλειδί κρυπτογράφησης της εφαρμογής Feishu",
+        "loginHint": "Δεν έχουν διαμορφωθεί διαπιστευτήρια. Ενεργοποιήστε το κανάλι για να ξεκινήσει η εγγραφή μέσω κωδικού QR ή εισάγετε χειροκίνητα το App ID και το App Secret.",
+        "qrExpired": "Ο κωδικός QR έληξε. Προσπαθήστε ξανά εναλλάσσοντας το κανάλι.",
+        "qrHint": "Αναμονή για σάρωση κωδικού QR...",
+        "qrScanHint": "Άνοιξε το Feishu στο κινητό σου και σάρωσε τον κωδικό QR για να δημιουργήσεις μια εφαρμογή bot.",
+        "qrTitle": "Εγγραφή μέσω QR Feishu",
+        "title": "Feishu",
+        "verificationToken": "Token επαλήθευσης",
+        "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
       },
-      "logs": "[to be translated]:Logs",
-      "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
-      "noLogs": "[to be translated]:No logs yet",
-      "notifyReceiver": "[to be translated]:Receive task notifications",
-      "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+      "logs": "Κούτσουρα",
+      "noInstances": "Δεν έχουν διαμορφωθεί κανάλια {{type}}. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα.",
+      "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
+      "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
+      "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
       "qq": {
-        "appId": "[to be translated]:App ID",
-        "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
-        "chatIds": "[to be translated]:Allowed Chat IDs",
-        "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-        "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
-        "clientSecret": "[to be translated]:Client Secret",
-        "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
-        "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-        "title": "[to be translated]:QQ",
-        "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+        "appId": "App ID",
+        "appIdPlaceholder": "Εισάγετε το App ID του QQ Bot σας",
+        "chatIds": "Επιτρεπόμενα ID συνομιλίας",
+        "chatIdsHint": "Μορφή: c2c:openid, group:groupid, channel:channelid. Αφήστε κενό για να επιτρέψετε όλα.",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Εισάγετε το Client Secret του QQ Bot σας",
+        "description": "Λήψη και απάντηση μηνυμάτων μέσω του επίσημου API του QQ Bot.",
+        "title": "QQ",
+        "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID συνομιλίας σας στη σωστή μορφή."
       },
       "security": {
-        "inheritFromAgent": "[to be translated]:Inherit from agent",
-        "permissionMode": "[to be translated]:Channel Permission Mode",
-        "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+        "inheritFromAgent": "Κληρονομήστε από τον πράκτορα",
+        "permissionMode": "Λειτουργία Αδειών Καναλιού",
+        "permissionModeHint": "Παράκαμψη της λειτουργίας αδειών του πράκτορα για μηνύματα από αυτό το κανάλι. Η επιλογή «Κληρονόμηση» χρησιμοποιεί την προεπιλογή του πράκτορα."
       },
-      "selectAgent": "[to be translated]:Select an agent to bind",
+      "selectAgent": "Επιλέξτε έναν πράκτορα για σύνδεση",
       "slack": {
-        "appToken": "[to be translated]:App-Level Token",
-        "appTokenPlaceholder": "[to be translated]:xapp-...",
-        "botToken": "[to be translated]:Bot Token",
-        "botTokenPlaceholder": "[to be translated]:xoxb-...",
-        "channelIds": "[to be translated]:Allowed Channel IDs",
-        "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-        "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-        "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-        "title": "[to be translated]:Slack",
-        "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+        "appToken": "Διακριτικό Επιπέδου Εφαρμογής",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Διακριτικό Bot",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "Επιτρεπόμενα Αναγνωριστικά Καναλιών",
+        "channelIdsHint": "Αναγνωριστικά καναλιών του Slack. Αφήστε κενό για να επιτρέπονται όλα.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Λάβετε και απαντήστε σε μηνύματα μέσω ενός bot του Slack χρησιμοποιώντας τη λειτουργία Socket.",
+        "title": "Slack",
+        "whoamiTip": "💡 Συμβουλή: Στείλε /whoami στο bot για να πάρεις το ID του καναλιού."
       },
-      "tab": "[to be translated]:Channels",
+      "tab": "Κανάλια",
       "tasks": {
         "add": "[to be translated]:Add Task",
         "cancel": "[to be translated]:Cancel",
@@ -205,32 +205,32 @@
         "title": "[to be translated]:Scheduled Tasks"
       },
       "telegram": {
-        "botToken": "[to be translated]:Bot Token",
-        "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-        "chatIds": "[to be translated]:Allowed Chat IDs",
-        "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-        "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-        "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-        "title": "[to be translated]:Telegram"
+        "botToken": "Token Bot",
+        "botTokenPlaceholder": "Εισάγετε το token του Telegram bot σας",
+        "chatIds": "Επιτρεπόμενα ID συνομιλίας",
+        "chatIdsHint": "Διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Λήψη και απάντηση μηνυμάτων μέσω Telegram bot χρησιμοποιώντας long polling.",
+        "title": "Telegram"
       },
-      "title": "[to be translated]:Channels",
-      "updateError": "[to be translated]:Failed to update channel",
+      "title": "Κανάλια",
+      "updateError": "Αποτυχία ενημέρωσης καναλιού",
       "warning": {
         "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       },
       "wechat": {
-        "addAccount": "[to be translated]:Add WeChat Account",
-        "chatIds": "[to be translated]:Allowed User IDs",
-        "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
-        "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
-        "connected": "[to be translated]:Logged in",
-        "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-        "disconnected": "[to be translated]:Not logged in",
-        "loginHint": "[to be translated]:First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
-        "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-        "qrTitle": "[to be translated]:WeChat QR Login",
-        "title": "[to be translated]:WeChat",
-        "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+        "addAccount": "Προσθέστε λογαριασμό WeChat",
+        "chatIds": "Επιτρεπόμενα Αναγνωριστικά Χρηστών",
+        "chatIdsHint": "Διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέπονται όλοι οι χρήστες.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Συνδεδεμένος",
+        "description": "Λάβετε και απαντήστε σε μηνύματα μέσω WeChat χρησιμοποιώντας το iLink Bot API.",
+        "disconnected": "Αποσυνδέθηκε",
+        "loginHint": "Η πρώτη σύνδεση απαιτεί σάρωση κωδικού QR. Ελέγξτε τα αρχεία καταγραφής της εφαρμογής για τη διεύθυνση URL σύνδεσης.",
+        "qrHint": "Άνοιξε το WeChat στο κινητό σου και σάρωσε τον κωδικό QR για να συνδεθείς.",
+        "qrTitle": "Σύνδεση με QR code στο WeChat",
+        "title": "WeChat",
+        "whoamiTip": "Συμβουλή: Στείλτε /whoami στο WeChat για να λάβετε το αναγνωριστικό ενός χρήστη."
       }
     },
     "delete": {
@@ -284,7 +284,7 @@
       "welcome_title": "Τι θα συζητήσουμε σήμερα;"
     },
     "icon": {
-      "type": "[to be translated]:Agent Icon"
+      "type": "Εικονίδιο Πράκτορα"
     },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
@@ -295,7 +295,7 @@
       }
     },
     "manage": {
-      "title": "[to be translated]:Manage Agents"
+      "title": "Διαχείριση Πρακτόρων"
     },
     "pin": {
       "title": "Προσάρτησε Πράκτορα"
@@ -448,7 +448,7 @@
         "label": "Προεγκεκριμένα εργαλεία",
         "placeholder": "Επιλέξτε προεγκεκριμένα εργαλεία"
       },
-      "auto_rename": "[to be translated]:Generate task name",
+      "auto_rename": "Δημιούργησε όνομα εργασίας",
       "create": {
         "error": {
           "failed": "Αποτυχία προσθήκης συνεδρίας"
@@ -506,7 +506,7 @@
       "list": {
         "title": "Εργασίες"
       },
-      "new": "[to be translated]:New task",
+      "new": "Νέα εργασία",
       "pin": {
         "title": "Καρφίτσωμα εργασίας"
       },
@@ -517,7 +517,7 @@
       },
       "search": {
         "placeholder": "Αναζήτηση εργασιών",
-        "title": "[to be translated]:Search tasks"
+        "title": "Αναζήτηση εργασιών"
       },
       "unpin": {
         "title": "Ξεκαρφίτσωσε την εργασία"
@@ -730,91 +730,91 @@
     "sidebar_title": "Πράκτορες",
     "skill": {
       "manage": {
-        "title": "[to be translated]:Manage skills"
+        "title": "Διαχείριση δεξιοτήτων"
       }
     },
     "tasks": {
-      "add": "[to be translated]:Add Task",
-      "cancel": "[to be translated]:Cancel",
+      "add": "Προσθήκη εργασίας",
+      "cancel": "Ακύρωση",
       "channels": {
-        "label": "[to be translated]:Send to Channels",
-        "noActiveChatIds": "[to be translated]:The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
-        "placeholder": "[to be translated]:Select channels to receive results"
+        "label": "Αποστολή σε Κανάλια",
+        "noActiveChatIds": "Τα επιλεγμένα κανάλια δεν διαθέτουν διαθέσιμους παραλήπτες (Chat ID). Τα αποτελέσματα της εργασίας ενδέχεται να μην παραδοθούν. Παρακαλώ στείλτε πρώτα ένα μήνυμα στο Bot στην πλατφόρμα.",
+        "placeholder": "Επιλέξτε κανάλια για να λαμβάνετε αποτελέσματα"
       },
-      "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+      "cronPlaceholder": "π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
       "delete": {
-        "confirm": "[to be translated]:Are you sure you want to delete this task?",
-        "label": "[to be translated]:Delete"
+        "confirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εργασία;",
+        "label": "Διαγραφή"
       },
-      "edit": "[to be translated]:Edit",
-      "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
+      "edit": "Επεξεργασία",
+      "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
       "error": {
-        "createFailed": "[to be translated]:Failed to create task",
-        "deleteFailed": "[to be translated]:Failed to delete task",
-        "loadFailed": "[to be translated]:Failed to load tasks",
-        "runFailed": "[to be translated]:Failed to run task",
-        "updateFailed": "[to be translated]:Failed to update task"
+        "createFailed": "Αποτυχία δημιουργίας εργασίας",
+        "deleteFailed": "Αποτυχία διαγραφής εργασίας",
+        "loadFailed": "Αποτυχία φόρτωσης εργασιών",
+        "runFailed": "Αποτυχία εκτέλεσης εργασίας",
+        "updateFailed": "Αποτυχία ενημέρωσης εργασίας"
       },
       "frequency": {
-        "everyPrefix": "[to be translated]:Every",
-        "everySuffix": "[to be translated]:minutes",
-        "label": "[to be translated]:Execution Frequency"
+        "everyPrefix": "Κάθε",
+        "everySuffix": "λεπτά",
+        "label": "Συχνότητα εκτέλεσης"
       },
-      "intervalPlaceholder": "[to be translated]:At least 1",
-      "intervalUnit": "[to be translated]:minutes",
-      "lastRun": "[to be translated]:Last Run",
+      "intervalPlaceholder": "Τουλάχιστον 1",
+      "intervalUnit": "λεπτά",
+      "lastRun": "Τελευταία εκτέλεση",
       "logs": {
-        "cancelled": "[to be translated]:Cancelled",
-        "completed": "[to be translated]:Completed",
-        "duration": "[to be translated]:Duration",
-        "empty": "[to be translated]:No run history yet.",
-        "failed": "[to be translated]:Failed",
-        "justNow": "[to be translated]:just now",
-        "label": "[to be translated]:Run History",
-        "loadError": "[to be translated]:Failed to load run history",
-        "result": "[to be translated]:Result",
-        "runAt": "[to be translated]:Run At",
-        "running": "[to be translated]:Running...",
-        "search": "[to be translated]:Search logs...",
-        "status": "[to be translated]:Status",
-        "viewSession": "[to be translated]:View session"
+        "cancelled": "Ακυρώθηκε",
+        "completed": "Ολοκληρώθηκε",
+        "duration": "Διάρκεια",
+        "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
+        "failed": "Απέτυχε",
+        "justNow": "μόλις τώρα",
+        "label": "Ιστορικό εκτελέσεων",
+        "loadError": "Αποτυχία φόρτωσης ιστορικού εκτέλεσης",
+        "result": "Αποτέλεσμα",
+        "runAt": "Εκτελέστηκε στις",
+        "running": "Τρέχει...",
+        "search": "Αναζήτηση αρχείων καταγραφής...",
+        "status": "Κατάσταση",
+        "viewSession": "Δείτε τη συνεδρία"
       },
       "name": {
-        "label": "[to be translated]:Name",
-        "placeholder": "[to be translated]:e.g. Daily code review"
+        "label": "Όνομα",
+        "placeholder": "π.χ. Καθημερινή αναθεώρηση κώδικα"
       },
-      "nextRun": "[to be translated]:Next Run",
-      "oncePlaceholder": "[to be translated]:Select date and time",
-      "pause": "[to be translated]:Pause",
+      "nextRun": "Επόμενη εκτέλεση",
+      "oncePlaceholder": "Επιλέξτε ημερομηνία και ώρα",
+      "pause": "Παύση",
       "prompt": {
-        "expand": "[to be translated]:Expand editor",
-        "label": "[to be translated]:Prompt",
-        "placeholder": "[to be translated]:What should the agent do when this task runs?"
+        "expand": "Αναπτύξτε τον επεξεργαστή",
+        "label": "Prompt",
+        "placeholder": "Τι πρέπει να κάνει ο πράκτορας όταν εκτελείται αυτή η εργασία;"
       },
-      "resume": "[to be translated]:Resume",
-      "run": "[to be translated]:Run",
-      "runTriggered": "[to be translated]:Task triggered",
-      "save": "[to be translated]:Save",
+      "resume": "Συνέχιση",
+      "run": "Εκτέλεση",
+      "runTriggered": "Η εργασία ενεργοποιήθηκε",
+      "save": "Αποθήκευση",
       "scheduleType": {
-        "cron": "[to be translated]:Cron",
-        "interval": "[to be translated]:Interval",
-        "once": "[to be translated]:Once"
+        "cron": "Cron",
+        "interval": "Διάστημα",
+        "once": "Μία φορά"
       },
       "status": {
-        "active": "[to be translated]:Active",
-        "completed": "[to be translated]:Completed",
-        "paused": "[to be translated]:Paused"
+        "active": "Ενεργή",
+        "completed": "Ολοκληρώθηκε",
+        "paused": "Σε παύση"
       },
-      "tab": "[to be translated]:Tasks",
+      "tab": "Εργασίες",
       "time": {
-        "hoursAgo": "[to be translated]:{{count}}h ago",
-        "minutesAgo": "[to be translated]:{{count}}m ago"
+        "hoursAgo": "{{count}}h πριν",
+        "minutesAgo": "{{count}}μ πριν"
       },
       "timeout": {
-        "label": "[to be translated]:Maximum Execution Time",
-        "placeholder": "[to be translated]:No limit"
+        "label": "Μέγιστος χρόνος εκτέλεσης",
+        "placeholder": "Χωρίς όριο"
       },
-      "title": "[to be translated]:Scheduled Tasks"
+      "title": "Προγραμματισμένες εργασίες"
     },
     "todo": {
       "mock": {
@@ -968,24 +968,24 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Ελέγχει και διαχειρίζεται αυτήν τη ρύθμιση παράγοντα και τα κανάλια",
+          "label": "Ρύθμιση Πράκτορα"
         },
         "CherryCron": {
-          "description": "[to be translated]:Manages the in-app scheduler",
-          "label": "[to be translated]:Scheduler"
+          "description": "Διαχειρίζεται τον ενσωματωμένο προγραμματιστή εντός της εφαρμογής",
+          "label": "Προγραμματιστής"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "Προσθέτει, διαγράφει ή ανανεώνει έγγραφα στις βάσεις γνώσης σας",
+          "label": "Διαχείριση Γνώσης"
         },
         "CherryKbSearch": {
           "description": "Αναζητά τις βάσεις γνώσης σας",
           "label": "Αναζήτηση Γνώσης"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Στέλνει μια ειδοποίηση μέσω ενός συνδεδεμένου καναλιού",
+          "label": "Ειδοποίηση"
         },
         "CherryWebFetch": {
           "description": "Ανάκτηση και ανάγνωση μιας ιστοσελίδας",
@@ -1127,7 +1127,7 @@
     "clear": {
       "content": "Η διαγραφή του θέματος θα διαγράψει όλα τα θέματα και τα αρχεία του βοηθού. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
       "menu_title": "Διαγραφή όλων των συνομιλιών με τον βοηθό",
-      "success_title": "[to be translated]:Cleared {{count}} topics",
+      "success_title": "Έγινε εκκαθάριση {{count}} θεμάτων",
       "title": "Διαγραφή θέματος"
     },
     "copy": {
@@ -1337,14 +1337,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
-      "group_by": "[to be translated]:Group by tag",
+      "group_by": "Ομαδοποίηση κατά ετικέτα",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
-      "ungroup": "[to be translated]:Turn off tag grouping",
+      "ungroup": "Απενεργοποίηση ομαδοποίησης ετικετών",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -1501,7 +1501,7 @@
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
-      "resize_height": "[to be translated]:Resize input height",
+      "resize_height": "Αλλαγή ύψους εισόδου",
       "resource_panel": {
         "categories": {
           "agents": "Πράκτορες",
@@ -1520,7 +1520,7 @@
         },
         "title": "Πόροι"
       },
-      "restore": "[to be translated]:Restore",
+      "restore": "Επαναφορά",
       "send": "Αποστολή",
       "send_failed": "Αποτυχία αποστολής μηνύματος",
       "settings": "Ρυθμίσεις",
@@ -1529,7 +1529,7 @@
           "clear": "Διαγραφή ιστορικού συνομιλίας",
           "compact": "Συνοπτική συνομιλία με προαιρετικές οδηγίες εστίασης",
           "context": "Οπτικοποίηση της τρέχουσας χρήσης πλαισίου ως έγχρωμο πλέγμα",
-          "usage": "[to be translated]:Show session cost, plan usage limits, and activity stats"
+          "usage": "Εμφάνιση κόστους συνεδρίας, ορίων χρήσης πλάνου και στατιστικών δραστηριότητας"
         },
         "description": "Εντολές κάθετης γραμμής για συνεδρία πράκτορα",
         "title": "Εντολές Κάθετης Γραμμής"
@@ -1607,8 +1607,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Ανάγνωση cache {{cache_read}} / εγγραφή {{cache_write}} / χωρίς cache {{no_cache}} · εξοικονομήθηκαν {{saved}} tokens εισόδου"
       },
       "editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
       "flow": {
@@ -1628,9 +1628,9 @@
         "branch": {
           "created": "Νέα διακοπή δημιουργήθηκε",
           "disabled": {
-            "active": "[to be translated]:This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "[to be translated]:You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "[to be translated]:There is no follow-up after this message yet. Switch to this node and continue typing instead."
+            "active": "Αυτός ο κόμβος έχει ήδη επιλεγεί. Συνεχίστε να πληκτρολογείτε για να επεκτείνετε τον κλάδο από εδώ.",
+            "latest": "Ήδη βρίσκεστε στο τέλος αυτού του κλαδιού. Συνεχίστε να πληκτρολογείτε για να το επεκτείνετε.",
+            "no_follow_up": "Δεν υπάρχει ακόμη συνέχεια μετά από αυτό το μήνυμα. Μετάβαση σε αυτόν τον κόμβο και συνέχισε να πληκτρολογείς εκεί."
           },
           "label": "Διακοπή"
         },
@@ -1664,9 +1664,9 @@
     "resend": "Ξαναστείλε",
     "resource_view": {
       "menu": {
-        "agent": "[to be translated]:Agents",
-        "assistant": "[to be translated]:Assistants",
-        "skill": "[to be translated]:Skills"
+        "agent": "Πράκτορες",
+        "assistant": "Βοηθοί",
+        "skill": "Δεξιότητες"
       }
     },
     "save": {
@@ -1753,7 +1753,7 @@
               "tip": "Τα θέματα θα αποθηκευτούν στη βάση γνώσεων σε μορφή που περιλαμβάνει το πλήρες συμφραζόμενο της συνομιλίας"
             }
           },
-          "source_fallback": "[to be translated]:Conversation",
+          "source_fallback": "Συνομιλία",
           "success": "Το θέμα αποθηκεύτηκε με επιτυχία στη βάση γνώσεων ({{count}} στοιχεία περιεχομένου)",
           "title": "Αποθήκευση θέματος στη βάση γνώσεων"
         }
@@ -1963,200 +1963,200 @@
     }
   },
   "code": {
-    "add_provider_hint": "[to be translated]:Add provider in Settings → Model Service",
-    "add_provider_hint_anthropic_messages": "[to be translated]:Configure an Anthropic Messages endpoint in Settings → Model Service",
-    "add_provider_hint_gemini": "[to be translated]:Configure a Gemini endpoint in Settings → Model Service",
-    "add_provider_hint_openai_responses": "[to be translated]:Configure an OpenAI Responses endpoint in Settings → Model Service",
+    "add_provider_hint": "Προσθήκη παρόχου στις Ρυθμίσεις → Υπηρεσία μοντέλου",
+    "add_provider_hint_anthropic_messages": "Ρύθμιση ενός τελικού σημείου Anthropic Messages στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "add_provider_hint_gemini": "Διαμορφώστε ένα τελικό σημείο Gemini στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "add_provider_hint_openai_responses": "Ρυθμίστε ένα τελικό σημείο OpenAI Responses στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
     "adv": {
       "claude": {
-        "context_column": "[to be translated]:1M",
-        "disable_1m_context": "[to be translated]:Disable 1M Context",
-        "disable_attribution_header": "[to be translated]:Disable Attribution Header",
-        "disable_auto_upgrade": "[to be translated]:Disable Auto Upgrade",
-        "disable_bundled_skills": "[to be translated]:Disable Bundled Skills",
-        "disable_compact": "[to be translated]:Disable Compaction",
-        "disable_extra_usage_command": "[to be translated]:Disable Extra Usage Command",
-        "disable_nonessential_traffic": "[to be translated]:Disable Non-Essential Traffic",
-        "disable_terminal_title": "[to be translated]:Disable Terminal Title",
-        "effort_level_hint": "[to be translated]:Effort Level",
-        "enable_teammates": "[to be translated]:Enable Teammates",
-        "enable_tool_search": "[to be translated]:Enable Tool Search",
-        "fable_model": "[to be translated]:Fable",
-        "haiku_model": "[to be translated]:Haiku",
-        "hide_attribution": "[to be translated]:Hide AI Attribution",
-        "max_context_tokens_hint": "[to be translated]:Max Context Tokens",
-        "max_output_tokens_hint": "[to be translated]:Max Output Tokens",
-        "model_column": "[to be translated]:Request Model",
-        "model_roles": "[to be translated]:Model Role Mapping",
-        "model_roles_hint": "[to be translated]:Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
-        "options": "[to be translated]:Quick Options",
-        "opus_model": "[to be translated]:Opus",
-        "permissions_allow": "[to be translated]:Allow (comma-separated)",
-        "permissions_deny": "[to be translated]:Deny (comma-separated)",
-        "permissions_hint": "[to be translated]:Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
-        "role_column": "[to be translated]:Role",
-        "sonnet_model": "[to be translated]:Sonnet",
+        "context_column": "1M",
+        "disable_1m_context": "Απενεργοποίηση Πλαισίου 1M",
+        "disable_attribution_header": "Απενεργοποίηση Κεφαλίδας Απόδοσης",
+        "disable_auto_upgrade": "Απενεργοποίηση Αυτόματης Αναβάθμισης",
+        "disable_bundled_skills": "Απενεργοποίηση Ενσωματωμένων Δεξιοτήτων",
+        "disable_compact": "Απενεργοποίηση συμπίεσης",
+        "disable_extra_usage_command": "Απενεργοποίηση Εντολής Επιπλέον Χρήσης",
+        "disable_nonessential_traffic": "Απενεργοποίηση Μη Απαραίτητης Κυκλοφορίας",
+        "disable_terminal_title": "Απενεργοποίηση Τίτλου Τερματικού",
+        "effort_level_hint": "Επίπεδο Προσπάθειας",
+        "enable_teammates": "Ενεργοποίηση Συνεργατών Ομάδας",
+        "enable_tool_search": "Ενεργοποίηση Αναζήτησης Εργαλείων",
+        "fable_model": "Μύθος",
+        "haiku_model": "Χαϊκού",
+        "hide_attribution": "Απόκρυψη Απόδοσης AI",
+        "max_context_tokens_hint": "Μέγιστα Διαθέσιμα Tokens Συμφραζομένων",
+        "max_output_tokens_hint": "Μέγιστος Αριθμός Εξαγόμενων Tokens",
+        "model_column": "Μοντέλο Αίτησης",
+        "model_roles": "Αντιστοίχιση Ρόλων Μοντέλου",
+        "model_roles_hint": "Παράκαμψη μοντέλων που χρησιμοποιούνται για υποεργασίες παρασκηνίου (π.χ. συμπίεση, τίτλοι). Αφήστε κενό για να ακολουθήσετε το κύριο μοντέλο.",
+        "options": "Γρήγορες Επιλογές",
+        "opus_model": "Opus",
+        "permissions_allow": "Επιτρέπεται (διαχωρισμένα με κόμμα)",
+        "permissions_deny": "Αρνούμαι (διαχωρισμένα με κόμμα)",
+        "permissions_hint": "Προέγκριση ή απόρριψη μοτίβων εργαλείων. Υποστηρίζει χαρακτήρες μπαλαντέρ όπως Read(secrets-*/config.json).",
+        "role_column": "Ρόλος",
+        "sonnet_model": "Σονέτο",
         "subagent_model": "[to be translated]:Subagent"
       },
       "codex": {
-        "disable_response_storage": "[to be translated]:Disable Response Storage",
-        "goal_mode": "[to be translated]:Enable Goal Mode",
-        "remote_compaction": "[to be translated]:Enable Remote Compaction"
+        "disable_response_storage": "Απενεργοποίηση Αποθήκευσης Απαντήσεων",
+        "goal_mode": "Ενεργοποίηση Λειτουργίας Στόχου",
+        "remote_compaction": "Ενεργοποίηση Απομακρυσμένης Συμπίεσης"
       },
       "gemini": {
-        "checkpointing": "[to be translated]:Enable Checkpointing",
-        "disable_usage_stats": "[to be translated]:Disable Usage Statistics",
-        "hide_banner": "[to be translated]:Hide Startup Banner",
-        "vim_mode": "[to be translated]:Enable Vim Mode"
+        "checkpointing": "Ενεργοποίηση Checkpointing",
+        "disable_usage_stats": "Απενεργοποίηση Στατιστικών Χρήσης",
+        "hide_banner": "Απόκρυψη Banner Εκκίνησης",
+        "vim_mode": "Ενεργοποίηση Λειτουργίας Vim"
       },
       "kimi": {
-        "disable_telemetry": "[to be translated]:Disable Telemetry",
-        "keep_background_tasks": "[to be translated]:Keep Background Tasks On Exit",
-        "micro_compaction": "[to be translated]:Enable Micro Compaction",
-        "plan_mode": "[to be translated]:Default Plan Mode",
-        "thinking": "[to be translated]:Enable Thinking"
+        "disable_telemetry": "Απενεργοποίηση Τηλεμετρίας",
+        "keep_background_tasks": "Διατήρηση Εργασιών Παρασκηνίου κατά την Έξοδο",
+        "micro_compaction": "Ενεργοποίηση Μικροσυμπύκνωσης",
+        "plan_mode": "Προεπιλεγμένη Λειτουργία Σχεδίου",
+        "thinking": "Ενεργοποίηση Σκέψης"
       },
       "opencode": {
-        "auto_compact": "[to be translated]:Auto Compact",
-        "enable_reasoning": "[to be translated]:Enable Reasoning"
+        "auto_compact": "Αυτόματη Συμπύκνωση",
+        "enable_reasoning": "Ενεργοποίηση Συλλογισμού"
       },
-      "permission_mode": "[to be translated]:Permission Approval",
+      "permission_mode": "Έγκριση Άδειας",
       "permission_modes": {
-        "accept_edits": "[to be translated]:Accept Edits",
-        "ask": "[to be translated]:Ask",
-        "auto": "[to be translated]:Auto",
-        "auto_edit": "[to be translated]:Auto Edit",
-        "bypass_high_risk": "[to be translated]:Bypass Permissions (High Risk)",
-        "default": "[to be translated]:Default",
-        "default_allow_all": "[to be translated]:Default (Allow All)",
-        "deny": "[to be translated]:Deny",
-        "full_access_high_risk": "[to be translated]:Full Access (High Risk)",
-        "manual": "[to be translated]:Manual",
-        "plan": "[to be translated]:Plan",
-        "read_only": "[to be translated]:Read Only",
-        "workspace": "[to be translated]:Workspace",
-        "yolo_high_risk": "[to be translated]:YOLO (High Risk)"
+        "accept_edits": "Αποδοχή επεξεργασιών",
+        "ask": "Ρώτα",
+        "auto": "Αυτόματο",
+        "auto_edit": "Αυτόματη Επεξεργασία",
+        "bypass_high_risk": "Παράκαμψη Δικαιωμάτων (Υψηλός Κίνδυνος)",
+        "default": "Προεπιλογή",
+        "default_allow_all": "Προεπιλογή (Να επιτρέπονται όλα)",
+        "deny": "Αρνούμαι",
+        "full_access_high_risk": "Πλήρης Πρόσβαση (Υψηλός Κίνδυνος)",
+        "manual": "Εγχειρίδιο",
+        "plan": "Σχέδιο",
+        "read_only": "Μόνο για ανάγνωση",
+        "workspace": "Χώρος εργασίας",
+        "yolo_high_risk": "YOLO (Υψηλός Κίνδυνος)"
       },
       "qwen": {
-        "classify_all_shell": "[to be translated]:Classify All Shell Commands",
-        "disable_auto_update": "[to be translated]:Disable Auto Update",
-        "disable_usage_stats": "[to be translated]:Disable Usage Statistics",
-        "hide_banner": "[to be translated]:Hide Startup Banner",
-        "vim_mode": "[to be translated]:Enable Vim Mode"
+        "classify_all_shell": "Ταξινόμηση Όλων των Εντολών Κελύφους",
+        "disable_auto_update": "Απενεργοποίηση Αυτόματης Ενημέρωσης",
+        "disable_usage_stats": "Απενεργοποίηση Στατιστικών Χρήσης",
+        "hide_banner": "Απόκρυψη Banner Εκκίνησης",
+        "vim_mode": "Ενεργοποίηση λειτουργίας Vim"
       },
-      "reasoning_effort": "[to be translated]:Reasoning Effort",
+      "reasoning_effort": "Προσπάθεια Συλλογισμού",
       "reasoning_efforts": {
-        "default": "[to be translated]:Default",
-        "high": "[to be translated]:High",
-        "low": "[to be translated]:Low",
-        "medium": "[to be translated]:Medium",
-        "minimal": "[to be translated]:Minimal",
-        "xhigh": "[to be translated]:Extra High"
+        "default": "Προεπιλογή",
+        "high": "Υψηλή",
+        "low": "Χαμηλός",
+        "medium": "Μέτριο",
+        "minimal": "Ελάχιστο",
+        "xhigh": "Εξαιρετικά Υψηλό"
       },
-      "select_placeholder": "[to be translated]:Select…"
+      "select_placeholder": "Επιλογή…"
     },
     "api_gateway": {
       "description": "[to be translated]:Any CLI, every model",
       "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
       "title": "[to be translated]:Unified Gateway"
     },
-    "apply_failed": "[to be translated]:Failed to write CLI config to the system file",
+    "apply_failed": "Αποτυχία εγγραφής της διαμόρφωσης CLI στο αρχείο συστήματος",
     "auto_update_to_latest": "Έλεγχος για ενημερώσεις και εγκατάσταση της τελευταίας έκδοσης",
     "bun_required_message": "Για τη λειτουργία του εργαλείου CLI πρέπει να εγκαταστήσετε το περιβάλλον Bun",
-    "can_upgrade": "[to be translated]:Upgrade available",
-    "clear_config_failed": "[to be translated]:Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
+    "can_upgrade": "Διαθέσιμη αναβάθμιση",
+    "clear_config_failed": "Αποτυχία εκκαθάρισης της διαμόρφωσης CLI. Τα διαπιστευτήριά σας ενδέχεται να βρίσκονται ακόμα στα αρχεία διαμόρφωσης του εργαλείου.",
     "cli_config": {
-      "format_failed": "[to be translated]:Format failed. Check the file syntax.",
-      "hint": "[to be translated]:This is the content that will be written to the system CLI config file. API keys are not saved to preferences.",
-      "title": "[to be translated]:CLI Config File",
-      "unknown_model": "[to be translated]:Unknown model",
-      "unknown_provider": "[to be translated]:Unknown Provider"
+      "format_failed": "Η μορφοποίηση απέτυχε. Ελέγξτε τη σύνταξη του αρχείου.",
+      "hint": "Αυτό είναι το περιεχόμενο που θα γραφτεί στο αρχείο ρυθμίσεων CLI του συστήματος. Τα κλειδιά API δεν αποθηκεύονται στις προτιμήσεις.",
+      "title": "Αρχείο Ρυθμίσεων CLI",
+      "unknown_model": "Άγνωστο μοντέλο",
+      "unknown_provider": "Άγνωστος Πάροχος"
     },
     "cli_tool": "Εργαλείο CLI",
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
     "cli_tools": {
-      "claude_code": "[to be translated]:Claude Code",
-      "gemini_cli": "[to be translated]:Gemini CLI",
-      "github_copilot_cli": "[to be translated]:GitHub Copilot CLI",
-      "kimi_code": "[to be translated]:Kimi Code",
-      "openai_codex": "[to be translated]:OpenAI Codex",
-      "openclaw": "[to be translated]:OpenClaw",
-      "opencode": "[to be translated]:OpenCode",
-      "qoder_cli": "[to be translated]:Qoder CLI",
-      "qwen_code": "[to be translated]:Qwen Code"
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "Ανοικτός Κώδικας",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
     },
-    "collapse": "[to be translated]:Collapse",
-    "config_json_hint": "[to be translated]:Paste or edit raw JSON; it stays in sync with the fields above",
-    "configure": "[to be translated]:Configure",
-    "configuring_provider": "[to be translated]:Configure {{provider}}",
+    "collapse": "Κατάρρευση",
+    "config_json_hint": "Επικολλήστε ή επεξεργαστείτε ακατέργαστο JSON· παραμένει συγχρονισμένο με τα πεδία παραπάνω",
+    "configure": "Ρυθμίστε",
+    "configuring_provider": "Ρυθμίστε {{provider}}",
     "count_one": "{{count}} αντικείμενο",
     "count_other": "{{count}} αντικείμενα",
-    "current_config": "[to be translated]:Current",
-    "current_config_settings": "[to be translated]:Current Config",
+    "current_config": "Τρέχων",
+    "current_config_settings": "Τρέχουσα Διαμόρφωση",
     "custom_path": "Προσαρμοσμένη διαδρομή",
     "custom_path_error": "Η ρύθμιση της προσαρμοσμένης διαδρομής τερματικού απέτυχε",
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
     "custom_path_set": "Η προσαρμοσμένη διαδρομή τερματικού ορίστηκε με επιτυχία",
     "description": "Εκκίνηση γρήγορα πολλών εργαλείων CLI κώδικα, για αύξηση της αποδοτικότητας ανάπτυξης",
-    "disable": "[to be translated]:Disable",
-    "edit_config": "[to be translated]:Edit Config",
-    "enable": "[to be translated]:Enable",
-    "enabled": "[to be translated]:Enabled",
-    "endpoint_default": "[to be translated]:Using provider default",
-    "endpoint_hint": "[to be translated]:Endpoint / Key in Model Service",
+    "disable": "Απενεργοποίηση",
+    "edit_config": "Επεξεργασία Διαμόρφωσης",
+    "enable": "Ενεργοποίηση",
+    "enabled": "Ενεργοποιημένο",
+    "endpoint_default": "Χρησιμοποιώντας τον προεπιλεγμένο πάροχο",
+    "endpoint_hint": "Endpoint / Key στο Model Service",
     "env_vars_help": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, με τη μορφή: KEY=value)",
     "environment_variables": "Μεταβλητές περιβάλλοντος",
     "folder_placeholder": "Επιλέξτε κατάλογο εργασίας",
-    "format_json": "[to be translated]:Format",
+    "format_json": "Μορφοποίηση",
     "hero_tagline": "Διάλεξε ένα εργαλείο CLI για διαμόρφωση",
-    "install": "[to be translated]:Install",
+    "install": "Εγκατάσταση",
     "install_bun": "Εγκατάσταση Bun",
-    "install_error": "[to be translated]:Installation failed",
-    "install_success": "[to be translated]:Installation successful",
-    "install_tool_first": "[to be translated]:Install {{toolName}} first to select a provider",
-    "installing": "[to be translated]:Installing…",
+    "install_error": "Η εγκατάσταση απέτυχε",
+    "install_success": "Εγκατάσταση επιτυχής",
+    "install_tool_first": "Εγκαταστήστε πρώτα το {{toolName}} για να επιλέξετε πάροχο",
+    "installing": "Εγκατάσταση…",
     "installing_bun": "Εγκατάσταση...",
-    "latest": "[to be translated]:Latest",
+    "latest": "Τελευταία",
     "launch": {
       "bun_required": "Παρακαλώ εγκαταστήστε πρώτα το περιβάλλον Bun πριν εκκινήσετε το εργαλείο CLI",
       "error": "Η εκκίνηση απέτυχε, παρακαλώ δοκιμάστε ξανά",
       "label": "Εκκίνηση",
       "launched": "Ξεκίνησε",
       "success": "Επιτυχής εκκίνηση",
-      "title": "[to be translated]:Launch {{tool}}",
+      "title": "Εκκίνηση {{tool}}",
       "validation_error": "Συμπληρώστε όλα τα υποχρεωτικά πεδία: εργαλείο CLI, μοντέλο και κατάλογος εργασίας"
     },
     "launching": "Εκκίνηση...",
     "model": "μοντέλο",
     "model_hint": "Επέλεξε ποιο μοντέλο AI θα χρησιμοποιήσει το εργαλείο CLI",
-    "model_hint_config": "[to be translated]:Select the model to use",
+    "model_hint_config": "Επιλέξτε το μοντέλο που θα χρησιμοποιηθεί",
     "model_mode": {
-      "common": "[to be translated]:General",
-      "detailed": "[to be translated]:Detailed"
+      "common": "Γενικός",
+      "detailed": "Λεπτομερής"
     },
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
-    "model_providers": "[to be translated]:Model Providers",
+    "model_providers": "Πάροχοι Μοντέλων",
     "model_required": "Επιλέξτε μοντέλο",
-    "model_selection": "[to be translated]:Model Selection",
-    "more": "[to be translated]:More",
+    "model_selection": "Επιλογή Μοντέλου",
+    "more": "Περισσότερα",
     "move_provider_to_top": "[to be translated]:Move provider to top",
-    "no_matching_providers": "[to be translated]:No matching providers",
-    "no_model_for_provider": "[to be translated]:No model available for this provider",
-    "no_providers_description": "[to be translated]:Enable a supported provider in Settings → Model Service",
-    "no_providers_title": "[to be translated]:No enabled providers",
-    "no_tools": "[to be translated]:No tools available",
-    "not_installed": "[to be translated]:Not installed",
-    "open_provider_settings": "[to be translated]:Open provider settings",
+    "no_matching_providers": "Δεν υπάρχουν συμβατοί πάροχοι",
+    "no_model_for_provider": "Δεν υπάρχει διαθέσιμο μοντέλο για αυτόν τον πάροχο",
+    "no_providers_description": "Ενεργοποιήστε έναν υποστηριζόμενο πάροχο στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "no_providers_title": "Δεν υπάρχουν ενεργοποιημένοι πάροχοι",
+    "no_tools": "Δεν υπάρχουν διαθέσιμα εργαλεία",
+    "not_installed": "Δεν είναι εγκατεστημένο",
+    "open_provider_settings": "Άνοιγμα ρυθμίσεων παρόχου",
     "own_login": {
-      "title": "[to be translated]:{{toolName}} Official"
+      "title": "{{toolName}} Επίσημο"
     },
-    "providerless_hint": "[to be translated]:This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
-    "providers": "[to be translated]:Providers",
-    "raw_config": "[to be translated]:Raw Config (JSON)",
-    "search_provider_placeholder": "[to be translated]:Search providers…",
+    "providerless_hint": "Αυτό το εργαλείο πιστοποιείται μέσω της δικής του ροής σύνδεσης — απλώς επιλέξτε έναν φάκελο εργασίας και εκκινήστε το. Εκτελέστε το εργαλείο μία φορά για να συνδεθείτε.",
+    "providers": "Πάροχοι",
+    "raw_config": "Ακατέργαστη Ρύθμιση (JSON)",
+    "search_provider_placeholder": "Πάροχοι αναζήτησης…",
     "select_folder": "Επιλογή φακέλου",
-    "select_provider_before_launch": "[to be translated]:Select a provider before launching {{toolName}}",
-    "select_tool_to_start": "[to be translated]:Select a CLI tool from the left to start configuring",
+    "select_provider_before_launch": "Επιλέξτε έναν πάροχο πριν εκκινήσετε το {{toolName}}",
+    "select_tool_to_start": "Επιλέξτε ένα εργαλείο CLI από τα αριστερά για να ξεκινήσετε τη διαμόρφωση",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
@@ -2164,22 +2164,22 @@
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
     "title": "Εργαλεία κώδικα",
     "tool_description": {
-      "claude_code": "Το επίσημο εργαλείο γραμμής εντολών κώδικα AI της Anthropic",
-      "gemini_cli": "Επίσημη γραμμή εντολών βοηθού Gemini της Google",
-      "github_copilot_cli": "Το επίσημο συνοδευτικό εργαλείο γραμμής εντολών του GitHub Copilot",
-      "iflow_cli": "ο πολυμοντέλος βηχανικός βοηθός γραμμής εντολών του iFlow",
-      "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
-      "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
-      "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
-      "qoder_cli": "Το εργαλείο κωδικοποίησης γραμμής εντολών με δυνατότητες πρακτόρων της Alibaba Qoder",
-      "qwen_code": "Το εργαλείο κωδικοποίησης CLI ανοικτού κώδικα της Alibaba Tongyi"
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
     },
-    "tool_parameters": "[to be translated]:Parameter Settings",
-    "up_to_date": "[to be translated]:Up to date",
+    "tool_parameters": "Ρυθμίσεις Παραμέτρων",
+    "up_to_date": "Ενημερωμένο",
     "update_options": "Ενημέρωση επιλογών",
-    "upgrade": "[to be translated]:Upgrade",
-    "upgrade_error": "[to be translated]:Upgrade failed",
-    "upgrade_success": "[to be translated]:Upgrade successful",
+    "upgrade": "Αναβάθμιση",
+    "upgrade_error": "Η αναβάθμιση απέτυχε",
+    "upgrade_success": "Η αναβάθμιση ολοκληρώθηκε επιτυχώς",
     "working_directory": "κατάλογος εργασίας",
     "working_directory_hint": "Ο κατάλογος εργασίας στον οποίο εκκινεί το εργαλείο CLI"
   },
@@ -2285,7 +2285,7 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
-    "help": "[to be translated]:Help",
+    "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
@@ -2313,7 +2313,7 @@
     "open_in_new_tab": "Άνοιγμα σε νέα καρτέλα",
     "open_sidebar": "Άνοιγμα πλαϊνής γραμμής",
     "other": "[to be translated]:Other",
-    "paste": "Επικόλληση",
+    "paste": "[to be translated]:Paste",
     "placeholders": {
       "select": {
         "model": "Επιλέξτε μοντέλο"
@@ -2392,7 +2392,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-edit": "[to be translated]:Image Edit (OpenAI)",
+    "image-edit": "Επεξεργασία Εικόνας (OpenAI)",
     "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
     "openai": "OpenAI",
@@ -2558,7 +2558,7 @@
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
       "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
     },
-    "empty_trash": "[to be translated]:Empty trash",
+    "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
       "delete_failed": "Αποτυχία διαγραφής αρχείων",
       "delete_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να διαγραφούν",
@@ -2576,7 +2576,7 @@
     "missing": "Αγνοούμενος",
     "modified_at": "Τροποποιήθηκε στις",
     "name": "Όνομα αρχείου",
-    "no_actions": "[to be translated]:No actions available",
+    "no_actions": "Δεν υπάρχουν διαθέσιμες ενέργειες",
     "open": "Άνοιγμα",
     "other": "Άλλο",
     "permanent_delete": "Διαγραφή οριστικά",
@@ -2590,18 +2590,18 @@
     "remove_from_library": "Αφαίρεση από τη βιβλιοθήκη",
     "rename": "Μετονομασία",
     "restore": "Επαναφορά",
-    "select_all": "[to be translated]:Select visible files",
-    "select_all_short": "[to be translated]:Select All",
-    "select_file": "[to be translated]:Select {{name}}",
+    "select_all": "Επιλογή ορατών αρχείων",
+    "select_all_short": "Επιλογή Όλων",
+    "select_file": "Επιλέξτε {{name}}",
     "selected_count": "{{count}} αρχεία επιλέχθηκαν",
-    "selected_missing_hint": "[to be translated]:Some selected files are missing. Locate them or remove their records.",
+    "selected_missing_hint": "Κάποια επιλεγμένα αρχεία λείπουν. Εντοπίστε τα ή αφαιρέστε τις εγγραφές τους.",
     "show_in_folder": "Εμφάνιση στο φάκελο",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
     "trash": "Σκουπίδια",
     "type": "Τύπος",
-    "upload": "[to be translated]:Upload files",
+    "upload": "Μεταφόρτωση αρχείων",
     "video": "Βίντεο"
   },
   "globalSearch": {
@@ -2722,7 +2722,7 @@
         "target": "Στόχος βοηθός",
         "title": "Μετακίνηση επιλεγμένων συνομιλιών"
       },
-      "clearSearch": "[to be translated]:Clear search",
+      "clearSearch": "Εκκαθάριση αναζήτησης",
       "empty": {
         "description": "Δεν υπάρχουν συνομιλίες για τα τρέχοντα φίλτρα.",
         "sessionsDescription": "Δεν υπάρχουν εργασίες για τα τρέχοντα φίλτρα.",
@@ -2730,11 +2730,11 @@
         "title": "Καμία συνομιλία"
       },
       "filter": {
-        "selectAgent": "[to be translated]:Select an agent",
-        "selectAssistant": "[to be translated]:Select an assistant",
-        "statusLabel": "[to be translated]:Status",
-        "statusPlaceholder": "[to be translated]:Select status",
-        "unlinkedAssistant": "[to be translated]:Unlinked assistant"
+        "selectAgent": "Επιλέξτε πράκτορα",
+        "selectAssistant": "Επιλέξτε βοηθό",
+        "statusLabel": "Κατάσταση",
+        "statusPlaceholder": "Επιλέξτε κατάσταση",
+        "unlinkedAssistant": "Ασύνδετος βοηθός"
       },
       "loading": {
         "description": "Φόρτωση λίστας συνομιλίας.",
@@ -2752,7 +2752,7 @@
       },
       "table": {
         "actions": "Ενέργειες",
-        "conversation": "[to be translated]:Conversation",
+        "conversation": "Συνομιλία",
         "emptyValue": "—",
         "session": "Εργασία",
         "time": "Χρόνος"
@@ -2847,12 +2847,12 @@
           "title": "Οι πηγές υπάρχουν ήδη"
         },
         "directory": {
-          "description": "Εισαγωγή υποστηριζόμενων αρχείων αναδρομικά από έναν φάκελο",
-          "title": "Κάντε κλικ για να επιλέξετε ένα φάκελο"
+          "description": "[to be translated]:Recursively import supported files from a folder",
+          "title": "[to be translated]:Click to select a folder"
         },
         "footer": {
-          "selected_directories": "{{count}} κατάλογοι επιλέχθηκαν",
-          "selected_files": "{{count}} αρχεία επιλέχθηκαν",
+          "selected_directories": "[to be translated]:{{count}} directories selected",
+          "selected_files": "[to be translated]:{{count}} files selected",
           "selected_notes": "{{count}} σημειώσεις επιλέχθηκαν"
         },
         "note": {
@@ -2887,7 +2887,7 @@
         }
       },
       "bulk": {
-        "cancel": "Ακύρωση",
+        "cancel": "[to be translated]:Cancel",
         "delete": "Διαγραφή",
         "delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
@@ -2929,7 +2929,7 @@
         "failed": "Αποτυχία προεπισκόπησης πηγής",
         "unavailable": "Αυτή η πηγή δεδομένων δεν έχει πηγή για προεπισκόπηση"
       },
-      "ready_summary": "{{ready}}/{{total}} έτοιμα",
+      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
@@ -2953,13 +2953,13 @@
       },
       "toolbar": {
         "add": "Προσθήκη Πηγής Δεδομένων",
-        "no_search_results": "Δεν υπάρχουν αντίστοιχες πηγές δεδομένων",
-        "search_placeholder": "Αναζήτηση πηγών δεδομένων"
+        "no_search_results": "[to be translated]:No matching data sources",
+        "search_placeholder": "[to be translated]:Search data sources"
       }
     },
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
     "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
-    "drag_file": "Βάλτε το αρχείο εδώ",
+    "drag_file": "[to be translated]:Drag file here",
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
@@ -2975,7 +2975,7 @@
       "missing_vector_store": "Η αποθήκη διανυσμάτων αυτής της βάσης γνώσης δεν μπόρεσε να διαβαστεί κατά τη μετεγκατάσταση (λείπει, είναι άδεια ή κλειδωμένη). Η βάση γνώσης διατηρήθηκε· επανευρετηριάστε την για ανάκτηση.",
       "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί"
     },
-    "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
+    "file_hint": "[to be translated]:Support {{file_types}}",
     "groups": {
       "add": "Νέα Ομάδα",
       "create_base_here": "Δημιούργησε εδώ",
@@ -3014,8 +3014,8 @@
       "chunking": "Κατάτμηση",
       "default_separator": "Αυτόματη (συνιστάται)",
       "document_count": "Καταμέτρηση Εγγράφων",
-      "download_local_embedding": "[to be translated]:Download Local Model",
-      "download_local_embedding_failed": "[to be translated]:Failed to download the local embedding model",
+      "download_local_embedding": "Λήψη Τοπικού Μοντέλου",
+      "download_local_embedding_failed": "Αποτυχία λήψης του τοπικού μοντέλου ενσωμάτωσης",
       "embedding_model": "Μοντέλο Ενσωμάτωσης",
       "embedding_model_select": "Επιλογή Μοντέλου",
       "file_processing": "Επεξεργασία Αρχείων",
@@ -3043,7 +3043,7 @@
       "smart_chunking": "Έξυπνη Τμηματοποίηση",
       "threshold": "Κατώφλι Ομοιότητας",
       "tokens_unit": "διακριτικά",
-      "use_local_embedding": "[to be translated]:Use Local Model"
+      "use_local_embedding": "Χρήση Τοπικού Μοντέλου"
     },
     "recall": {
       "collapse": "Κατάρρευση Κομματιού",
@@ -3149,7 +3149,7 @@
       "preview_prompt": "Προτροπή",
       "scroll_left": "Κύλιση κατηγοριών αριστερά",
       "scroll_right": "Κύλιση κατηγοριών δεξιά",
-      "title": "[to be translated]:Assistant Library"
+      "title": "Βιβλιοθήκη Βοηθού"
     },
     "badge": {
       "update": "Ενημέρωση"
@@ -3217,7 +3217,7 @@
             "label": "Λειτουργία δικαιωμάτων",
             "option": {
               "acceptEdits": "Αποδοχή επεξεργασιών",
-              "bypassPermissions": "Παράκαμψη δικαιωμάτων (Ψυχή)",
+              "bypassPermissions": "Παράκαμψη δικαιωμάτων",
               "default": "Προεπιλογή",
               "plan": "Λειτουργία σχεδίου"
             }
@@ -3270,7 +3270,7 @@
             "no_skills_enabled": "Καμία ενεργοποιημένη δεξιότητα",
             "search_placeholder": "Εργαλεία ή διακομιστές αναζήτησης...",
             "skills_coming_soon": "Οι δεσμεύσεις δεξιοτήτων έρχονται σύντομα",
-            "skills_enable_all": "[to be translated]:Enable all",
+            "skills_enable_all": "Ενεργοποίηση Όλων",
             "skills_require_save": "Αποθήκευσε πριν ενεργοποιήσεις τις ικανότητες",
             "tab": {
               "mcp": "Διακομιστής MCP",
@@ -3357,22 +3357,22 @@
           "agent_title": "Νέος Πράκτορας",
           "assistant_title": "Νέος Βοηθός",
           "avatar_aria": "Επιλέξτε άβαταρ",
-          "back": "[to be translated]:Back",
+          "back": "Πίσω",
           "capability": {
-            "builtin_badge": "[to be translated]:Enabled by default",
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "builtin_badge": "Ενεργοποιημένο από προεπιλογή",
+            "import": "Εισαγωγή δεξιοτήτων",
+            "no_skills": "Δεν έχουν εγκατασταθεί δεξιότητες",
+            "search": "Δεξιότητες αναζήτησης"
           },
           "description_placeholder": "Περιγράψτε για τι χρησιμεύει...",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Οδηγός ρύθμισης · Βήμα {{current}} από {{total}}",
           "name_placeholder": "Εισάγετε ένα όνομα",
-          "next": "[to be translated]:Next",
+          "next": "Επόμενο",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "Βασικές πληροφορίες",
+            "capability": "Δεξιότητες",
+            "knowledge": "Γνώση",
+            "persona": "Πρόσωπο"
           },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"
@@ -3584,8 +3584,8 @@
       "title": "Βιβλιοθήκη"
     },
     "skill_add": {
-      "local_import": "[to be translated]:Local import",
-      "online_search": "[to be translated]:Online search"
+      "local_import": "Τοπική εισαγωγή",
+      "online_search": "Διαδικτυακή αναζήτηση"
     },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
@@ -3599,13 +3599,13 @@
       "updated_at": "Πρόσφατα ενημερώθηκε"
     },
     "skill_marketplace": {
-      "empty_description": "[to be translated]:Search online registries to find installable skills.",
-      "empty_title": "[to be translated]:Search for skills",
-      "no_results_description": "[to be translated]:Try another keyword or import a local ZIP or directory.",
-      "no_results_title": "[to be translated]:No skills found",
-      "search_failed_description": "[to be translated]:Search failed. Please try again later.",
-      "search_placeholder": "[to be translated]:Search skills...",
-      "title": "[to be translated]:Online skill search"
+      "empty_description": "Αναζητήστε σε διαδικτυακά μητρώα για να βρείτε εγκαταστάσιμες δεξιότητες.",
+      "empty_title": "Αναζήτηση δεξιοτήτων",
+      "no_results_description": "Δοκιμάστε μια άλλη λέξη-κλειδί ή εισαγάγετε ένα τοπικό αρχείο ZIP ή φάκελο.",
+      "no_results_title": "Δεν βρέθηκαν δεξιότητες",
+      "search_failed_description": "Η αναζήτηση απέτυχε. Παρακαλώ δοκιμάστε ξανά αργότερα.",
+      "search_placeholder": "Αναζήτηση δεξιοτήτων...",
+      "title": "Αναζήτηση δεξιοτήτων online"
     },
     "sort": {
       "created": "Ταξινόμηση κατά ημερομηνία δημιουργίας",
@@ -3994,7 +3994,7 @@
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
-      "collapse": "[to be translated]:Collapse",
+      "collapse": "Σύμπτυξη",
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
@@ -4039,7 +4039,7 @@
         "usingTools": "Δουλεύω πάνω στην εργασία"
       },
       "preview": "Προεπισκόπηση",
-      "processed": "[to be translated]:Processed",
+      "processed": "Επεξεργάστηκε",
       "raw": "Ακατέργαστο",
       "runningCount": "{{count}} εργαλεία εκτελούνται",
       "runningHeader": "Εργάζεται…",
@@ -4114,62 +4114,62 @@
     }
   },
   "minapp": {
-    "add_to_launchpad": "Προσθήκη στο Launchpad",
-    "add_to_sidebar": "Προσθήκη στην πλαϊνή μπάρα",
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
     "popup": {
-      "close": "Κλείσιμο MinApp",
-      "devtools": "Εργαλεία Προγραμματιστών",
-      "goBack": "Πίσω",
-      "goForward": "Προχώρα",
-      "minimize": "Ελαχιστοποίηση MinApp",
-      "openExternal": "Άνοιγμα στον περιηγητή",
-      "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμων στο προεπιλεγμένο παράθυρο",
-      "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμων στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Κάντε δεξί κλικ για να αντιγράψετε τη διεύθυνση URL"
+      "close": "[to be translated]:Close MinApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "minimize": "[to be translated]:Minimize MinApp",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
     },
-    "remove_from_launchpad": "Αφαίρεση από το Launchpad",
-    "remove_from_sidebar": "Αφαίρεση από την πλαϊνή μπάρα",
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
     "sidebar": {
       "close": {
-        "title": "Κλείσιμο"
+        "title": "[to be translated]:Close"
       },
       "closeall": {
-        "title": "Κλείσιμο Όλων"
+        "title": "[to be translated]:Close All"
       },
       "hide": {
-        "title": "Κρύψε"
+        "title": "[to be translated]:Hide"
       },
       "remove_custom": {
-        "title": "Διαγραφή Προσαρμοσμένης Εφαρμογής"
+        "title": "[to be translated]:Delete Custom App"
       }
     },
-    "title": "MinApp"
+    "title": "[to be translated]:MinApp"
   },
   "minapps": {
-    "ant-ling": "Μυρμηγκίδα",
-    "baichuan": "Μπάιτσουαν",
-    "baidu-ai-search": "Baidu AI Αναζήτηση",
-    "chatglm": "ChatGLM",
-    "dangbei": "Ντάγκμπεϊ",
-    "doubao": "Ντάουμπαο",
-    "hailuo": "Χαίλουο",
-    "ima": "εικόνα",
-    "metaso": "Μέτασο",
-    "minimax-agent": "Υπολογιστής Minimax CN",
-    "minimax-global": "Πράκτορας Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Αναζήτηση",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Γιουάνμπαο",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Γουάνζι",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Ξιαογι",
-    "zhihu": "Ζίχου"
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
@@ -4181,7 +4181,7 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Αποτυχία καρφιτσώματος μίνι εφαρμογής",
     "popup": {
-      "close": "Κλείσιμο της εφαρμογής",
+      "close": "[to be translated]:Close MiniApp",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
@@ -4189,7 +4189,7 @@
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
       "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
@@ -4202,16 +4202,16 @@
     "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
-        "title": "Κλείσιμο"
+        "title": "[to be translated]:Close"
       },
       "closeall": {
-        "title": "Κλείσιμο όλων"
+        "title": "[to be translated]:Close All"
       },
       "hide": {
         "title": "Απόκρυψη"
       },
       "remove_custom": {
-        "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
+        "title": "[to be translated]:Delete Custom App"
       }
     },
     "title": "Μικρόπρογραμμα",
@@ -4231,7 +4231,7 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4363,13 +4363,13 @@
     "drop_markdown_hint": "Σύρετε και αποθέστε αρχεία ή φακέλους .md εδώ για εισαγωγή",
     "empty": "δεν υπάρχει σημείωση για τώρα",
     "expand": "να ανοίξει",
-    "exportToPDF": "[to be translated]:Export to PDF",
+    "exportToPDF": "Εξαγωγή σε PDF",
     "exportToWord": "Εξαγωγή σε Word",
     "export_failed": "Εξαγωγή στη βάση γνώσης απέτυχε",
     "export_knowledge": "εξαγωγή σημειώσεων στη βάση γνώσης",
     "export_success": "Επιτυχής εξαγωγή στην βάση γνώσης",
-    "export_to_pdf_failed": "[to be translated]:Failed to export to PDF",
-    "export_to_pdf_success": "[to be translated]:Exported to PDF",
+    "export_to_pdf_failed": "Αποτυχία εξαγωγής σε PDF",
+    "export_to_pdf_success": "Εξήχθη σε PDF",
     "export_to_word_failed": "Αποτυχία εξαγωγής στο Word",
     "folder": "φάκελος",
     "load_failed": "Αποτυχία φόρτωσης σημείωσης",
@@ -4386,8 +4386,8 @@
     "no_valid_files": "Δεν ανέβηκε έγκυρο αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "open_outside": "Από το εξωτερικό",
-    "print": "[to be translated]:Print",
-    "print_failed": "[to be translated]:Failed to print note",
+    "print": "Εκτύπωση",
+    "print_failed": "Αποτυχία εκτύπωσης σημείωσης",
     "rename": "μετονομασία",
     "rename_changed": "Λόγω πολιτικής ασφάλειας, το όνομα του αρχείου έχει αλλάξει από {{original}} σε {{final}}",
     "rename_failed": "Αποτυχία μετονομασίας σημείωσης",
@@ -4491,25 +4491,25 @@
   },
   "ocr": {
     "builtin": {
-      "system": "σύστημα OCR"
+      "system": "[to be translated]:System OCR"
     },
     "error": {
       "provider": {
-        "cannot_remove_builtin": "Δεν είναι δυνατή η διαγραφή του ενσωματωμένου παρόχου",
-        "existing": "Ο πάροχος υπηρεσιών υπάρχει ήδη",
-        "get_providers": "Αποτυχία λήψης διαθέσιμων παρόχων",
-        "not_found": "Ο πάροχος OCR δεν υπάρχει",
-        "update_failed": "Αποτυχία ενημέρωσης της διαμόρφωσης"
+        "cannot_remove_builtin": "[to be translated]:Cannot delete built-in provider",
+        "existing": "[to be translated]:The provider already exists",
+        "get_providers": "[to be translated]:Failed to get available providers",
+        "not_found": "[to be translated]:OCR provider does not exist",
+        "update_failed": "[to be translated]:Failed to update configuration"
       },
-      "unknown": "Η διαδικασία OCR εμφάνισε σφάλμα"
+      "unknown": "[to be translated]:An error occurred during the OCR process"
     },
     "file": {
-      "not_supported": "Μη υποστηριζόμενος τύπος αρχείου {{type}}"
+      "not_supported": "[to be translated]:Unsupported file type {{type}}"
     },
     "processing": "Η επεξεργασία OCR βρίσκεται σε εξέλιξη...",
     "warning": {
       "provider": {
-        "fallback": "Επαναφέρθηκε στο {{name}}, το οποίο μπορεί να προκαλέσει προβλήματα"
+        "fallback": "[to be translated]:Reverted to {{name}}, which may cause issues"
       }
     }
   },
@@ -4549,7 +4549,7 @@
       "select_provider_model": "Παρακαλώ επιλέξτε πρώτα έναν πάροχο και ένα μοντέλο"
     },
     "gateway": {
-      "open_dashboard": "[to be translated]:Open OpenClaw",
+      "open_dashboard": "Άνοιγμα OpenClaw",
       "port": "Λιμάνι",
       "restart": "Επανεκκίνηση",
       "start": "Έναρξη πύλης",
@@ -5047,7 +5047,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
@@ -5060,7 +5060,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
-    "grok-cli": "[to be translated]:Grok CLI",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -5069,7 +5069,7 @@
     "jina": "Jina",
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
-    "local-embedding": "[to be translated]:Qwen3 Embedding 0.6B",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Τσίρο",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5085,8 +5085,8 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
-    "openai-codex": "[to be translated]:OpenAI Codex",
-    "opencode": "[to be translated]:OpenCode Go",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -5104,7 +5104,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Τέσσερακς",
     "together": "Together",
-    "tokenhub": "[to be translated]:TokenHub",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Xiran",
@@ -5596,7 +5596,7 @@
     "assistant": {
       "create_new": "Νέος Βοηθός",
       "empty_text": "Κανένας βοηθός ακόμα",
-      "filter": "[to be translated]:Filter assistants",
+      "filter": "Φίλτρο βοηθών",
       "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
       "multi_label": "Παράλληλος πολλαπλών βοηθών",
       "search_placeholder": "Αναζήτηση βοηθών…"
@@ -5674,13 +5674,13 @@
     },
     "agent": {
       "position": {
-        "label": "[to be translated]:Session position",
-        "left": "[to be translated]:Left",
-        "right": "[to be translated]:Right"
+        "label": "Θέση συνεδρίας",
+        "left": "Αριστερά",
+        "right": "Σωστά"
       }
     },
     "appearance": {
-      "title": "[to be translated]:Appearance"
+      "title": "Εμφάνιση"
     },
     "assistant": {
       "icon": {
@@ -5701,114 +5701,114 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "Καθαρό",
-        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
-        "configTitle": "Διαμόρφωση",
-        "currentProps": "Τρέχοντα props",
-        "description": "Το AgentSelector διαβάζει πλέον πραγματικά δεδομένα από το /agents του DataApi για να επαληθεύει τη συμπεριφορά επιλογής id/item, καρφιτσώματος, ταξινόμησης και αναζήτησης.",
-        "emptyShellNotice": "Αυτή η προεπισκόπηση χρησιμοποιει την πραγματική λίστα πρακτόρων που επιστρέφεται από το /agents DataApi.",
-        "lastOnChange": "Τελευταίο onChange",
-        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
-        "previewTitle": "Προεπισκόπηση",
-        "title": "Επιλογέας Πράκτορα",
-        "triggerPlaceholder": "Επιλέξτε έναν πράκτορα",
-        "valueProp": "Τρέχουσα τιμή"
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
       },
       "agentTodoList": {
-        "title": "Λίστα Εργασιών Πράκτορα"
+        "title": "[to be translated]:Agent Todo List"
       },
       "assistantSelector": {
-        "clearSelection": "Καθαρό",
-        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
-        "configTitle": "Διαμόρφωση",
-        "currentProps": "Τρέχοντα props",
-        "description": "Τοποθετεί το επιχειρησιακό στοιχείο AssistantSelector απευθείας για να επαληθεύσει τη συμπεριφορά πολλαπλού/μονού, αναγνωριστικού/αντικειμένου, καρφίτσας, ταξινόμησης και αναζήτησης.",
-        "lastOnChange": "Τελευταίο onChange",
-        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
-        "previewTitle": "Προεπισκόπηση",
-        "title": "Επιλογέας Βοηθού",
-        "triggerPlaceholder": "Επιλέξτε βοηθό",
-        "triggerSelectedCount": "{{count}} βοηθοί επιλέχθηκαν",
-        "valueProp": "Τρέχουσα τιμή"
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
       },
-      "description": "Ορατό μόνο κατά την ανάπτυξη για τη δοκιμή του νέου επιλογέα μοντέλου απευθείας μέσα στην εφαρμογή.",
+      "description": "[to be translated]:Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
       "fileProcessing": {
         "artifact": {
-          "file": "Αρχείο Markdown",
-          "text": "Αποτέλεσμα κειμένου"
+          "file": "[to be translated]:Markdown file",
+          "text": "[to be translated]:Text result"
         },
-        "description": "Εκτελέστε κάθε διαμορφωμένο επεξεργαστή αρχείων μέσω του πραγματικού IPC επεξεργασίας αρχείων και συγκρίνετε τα αποτελέσματα.",
-        "duration": "{{seconds}}δ",
-        "jobId": "Αναγνωριστικό Εργασίας",
+        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
-          "description": "Επιλέξτε ένα έγγραφο και εκτελέστε όλους τους επεξεργαστές μετατροπής εγγράφων σε markdown.",
-          "fileFilterName": "Έγγραφα",
-          "noFile": "Δεν έχει επιλεγεί κανένα έγγραφο",
-          "select": "Επιλέξτε έγγραφο",
-          "start": "Test markdown",
-          "title": "Markdown"
+          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "[to be translated]:Documents",
+          "noFile": "[to be translated]:No document selected",
+          "select": "[to be translated]:Select document",
+          "start": "[to be translated]:Test markdown",
+          "title": "[to be translated]:Markdown"
         },
-        "noProcessors": "Κανένας επεξεργαστής δεν υποστηρίζει αυτή τη λειτουργία.",
+        "noProcessors": "[to be translated]:No processors support this feature.",
         "ocr": {
-          "description": "Επιλέξτε μια εικόνα και εκτελέστε όλους τους επεξεργαστές OCR.",
-          "fileFilterName": "Εικόνες",
-          "noFile": "Δεν έχει επιλεγεί εικόνα",
-          "select": "Επιλέξτε εικόνα",
-          "start": "Δοκιμή OCR",
-          "title": "OCR"
+          "description": "[to be translated]:Select an image and run all OCR processors.",
+          "fileFilterName": "[to be translated]:Images",
+          "noFile": "[to be translated]:No image selected",
+          "select": "[to be translated]:Select image",
+          "start": "[to be translated]:Test OCR",
+          "title": "[to be translated]:OCR"
         },
-        "processorCount": "{{count}} επεξεργαστές",
+        "processorCount": "[to be translated]:{{count}} processors",
         "status": {
-          "cancelled": "Ακυρώθηκε",
-          "completed": "Ολοκληρώθηκε",
-          "delayed": "Καθυστερημένη",
-          "failed": "Απέτυχε",
-          "idle": "Αδρανής",
-          "pending": "Εκκρεμεί",
-          "processing": "Επεξεργασία",
-          "running": "Τρέξιμο",
-          "starting": "Έναρξη"
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
+          "failed": "[to be translated]:Failed",
+          "idle": "[to be translated]:Idle",
+          "pending": "[to be translated]:Pending",
+          "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
+          "starting": "[to be translated]:Starting"
         },
-        "title": "Ανάλυση Εγγράφων"
+        "title": "[to be translated]:Document Parsing"
       },
-      "label": "Εργαστήριο Συστατικών",
+      "label": "[to be translated]:Component Lab",
       "modelSelector": {
-        "behaviorConfig": "Ρύθμιση Συμπεριφοράς και Εμφάνισης",
-        "callbackEmpty": "Δεν έχει ληφθεί ακόμη κλήση συστατικού",
-        "clearSelection": "Καθαρισμός Επιλογής",
-        "configDescription": "Εναλλάξτε τα βασικά props του ModelSelector παραπάνω και επιθεωρήστε την τιμή εισόδου καθώς και τα payloads των callbacks παρακάτω.",
-        "configTitle": "Παιχνίδι με Αξεσουάρ",
-        "controlMultiSelectMode": "Ελεγχόμενη λειτουργία πολλαπλής επιλογής",
-        "currentProps": "Τρέχοντα Props",
-        "defaultMultiSelectMode": "προεπιλεγμένηΛειτουργίαΠολλαπλήςΕπιλογής",
-        "description": "Αυτή η σελίδα τοποθετεί απευθείας το τρέχον επιχειρησιακό στοιχείο ModelSelector, ώστε να μπορούμε να επαληθεύσουμε τη συμπεριφορά επιλογής, φιλτραρίσματος, αναζήτησης και καρφιτσώματος.",
-        "empty": "Δεν είναι διαθέσιμα μοντέλα αυτή τη στιγμή, επομένως ο επιλογέας δεν μπορεί ακόμα να εμφανιστεί.",
-        "lastModeChangeReturn": "Τελευταία επιστροφή onMultiSelectModeChange",
-        "lastSelectReturn": "Τελευταίο onSelect Return",
-        "loading": "Φόρτωση μοντέλων...",
-        "modelId": "Αναγνωριστικό μοντέλου",
-        "multiSelectMode": "πολλαπλήΛειτουργίαΕπιλογής",
-        "multiple": "πολλαπλές",
-        "normalizedIds": "Κανονικοποιημένα Επιλεγμένα Αναγνωριστικά",
-        "outputEmpty": "Δεν υπάρχουν ακόμα δεδομένα για εμφάνιση",
-        "provider": "Πάροχος",
-        "resetOutputs": "Επαναφορά Εξόδων",
-        "resultsDescription": "Αυτό δείχνει την τρέχουσα πρόταση αξίας, τα κανονικοποιημένα επιλεγμένα αναγνωριστικά και το τελευταίο αποτέλεσμα callback από το στοιχείο.",
-        "resultsTitle": "Έξοδοι & Κατάσταση",
-        "selected": "Τρέχουσα Επιλογή",
-        "selectedEmpty": "Δεν έχει επιλεγεί ακόμα μοντέλο",
-        "selectionConfig": "Διαμόρφωση τιμής επιλογής",
-        "selectionType": "τύπος επιλογής",
-        "selectionTypeId": "Επιστροφή Αναγνωριστικών Μοντέλου",
-        "selectionTypeModel": "Επιστροφή Αντικειμένων Μοντέλου",
-        "showPinnedModels": "εμφάνιση καρφιτσωμένων μοντέλων",
-        "showTagFilter": "showTagFilter",
-        "title": "Επιλογέας Μοντέλου",
-        "triggerPlaceholder": "Επιλέξτε ένα μοντέλο",
-        "triggerSelectedCount": "{{count}} μοντέλα επιλέχθηκαν",
-        "valueProp": "Τρέχουσα Πρόταση Αξίας"
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
       },
-      "title": "Εργαστήριο Ανάπτυξης Συστατικών"
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5845,7 +5845,7 @@
       "backup": {
         "skip_file_data_help": "Κατά τη δημιουργία αντιγράφων ασφαλείας, παραλείψτε τις εικόνες, τις βάσεις γνώσεων και άλλα αρχεία δεδομένων. Δημιουργήστε αντίγραφα μόνο για το ιστορικό συνομιλιών και τις ρυθμίσεις. Αυτό θα μειώσει τη χρήση χώρου και θα επιταχύνει την ταχύτητα δημιουργίας αντιγράφων.",
         "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας",
-        "v2_unavailable": "[to be translated]:Backup & restore V2 is not available yet. Coming soon."
+        "v2_unavailable": "Η δημιουργία αντιγράφων ασφαλείας και η επαναφορά V2 δεν είναι ακόμη διαθέσιμες. Έρχονται σύντομα."
       },
       "clear_cache": {
         "button": "Καθαρισμός Μνήμης",
@@ -5862,7 +5862,7 @@
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
         "export_settings": "Ρυθμίσεις εξαγωγής",
         "import_settings": "Εισαγωγή Ρυθμίσεων",
-        "note_export": "[to be translated]:Note Export",
+        "note_export": "Εξαγωγή Σημείωσης",
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
@@ -6356,72 +6356,72 @@
       }
     },
     "dependencies": {
-      "addTool": "[to be translated]:Add Tool",
-      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "checkUpdates": "[to be translated]:Check for updates",
-      "coreDepsMissing": "[to be translated]:Core dependencies not installed",
-      "customTools": "[to be translated]:Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
-      "description": "[to be translated]:Manage binary tools and runtime dependencies required by the app.",
-      "duplicateName": "[to be translated]:A tool with the same name already exists",
-      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
-      "installError": "[to be translated]:Failed to install tool",
-      "installing": "[to be translated]:Installing...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Έλεγχος για ενημερώσεις",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
+      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Εγκατάσταση",
+      "installError": "Failed to install tool",
+      "installing": "Εγκατάσταση...",
+      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "localModels": {
-        "cancel": "[to be translated]:Cancel",
-        "description": "[to be translated]:Models that run locally on your device — download once, then use offline with no API key.",
-        "download": "[to be translated]:Download",
+        "cancel": "Ακύρωση",
+        "description": "Μοντέλα που εκτελούνται τοπικά στη συσκευή σας — κατεβάστε μία φορά, στη συνέχεια χρησιμοποιήστε τα εκτός σύνδεσης χωρίς κλειδί API.",
+        "download": "Λήψη",
         "embedding": {
-          "name": "[to be translated]:Local Embedding",
-          "subtitle": "[to be translated]:Qwen3 Embedding 0.6B · ~614 MB"
+          "name": "Τοπική Ενσωμάτωση",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
         },
         "notice": {
-          "downloadFailed": "[to be translated]:Download failed. Check your connection and try again.",
-          "inUse": "[to be translated]:Still used by a knowledge base; the weights were kept.",
-          "removeFailed": "[to be translated]:Remove failed. Check the logs for details."
+          "downloadFailed": "Η λήψη απέτυχε. Ελέγξτε τη σύνδεσή σας και προσπαθήστε ξανά.",
+          "inUse": "Ακόμα χρησιμοποιείται από μια βάση γνώσης· τα βάρη διατηρήθηκαν.",
+          "removeFailed": "Η αφαίρεση απέτυχε. Ελέγξτε τα αρχεία καταγραφής για λεπτομέρειες."
         },
         "ocr": {
-          "name": "[to be translated]:Local OCR",
-          "subtitle": "[to be translated]:PaddleOCR PP-OCRv6 · ~140 MB"
+          "name": "Τοπικό OCR",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
         },
-        "remove": "[to be translated]:Remove",
+        "remove": "Αφαίρεση",
         "status": {
-          "downloading": "[to be translated]:Downloading…",
-          "ready": "[to be translated]:Ready"
+          "downloading": "Λήψη…",
+          "ready": "Έτοιμος"
         },
-        "title": "[to be translated]:Local Models"
+        "title": "Τοπικά Μοντέλα"
       },
-      "notInstalled": "[to be translated]:Not installed",
-      "openBinariesDir": "[to be translated]:Open binaries directory",
-      "remove": "[to be translated]:Remove tool",
-      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "[to be translated]:Remove Tool",
-      "searchFailed": "[to be translated]:Search failed, check logs",
-      "searchRegistry": "[to be translated]:Search mise registry...",
+      "notInstalled": "Δεν έχει εγκατασταθεί",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "[to be translated]:bundled"
+        "bundled": "bundled"
       },
-      "title": "[to be translated]:Dependencies",
+      "title": "Εξαρτήσεις Περιβάλλοντος",
       "tools": {
-        "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "[to be translated]:Anthropic's agentic coding tool for the terminal.",
-        "codex": "[to be translated]:OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "[to be translated]:Fast file finder, alternative to find.",
-        "gh": "[to be translated]:GitHub CLI for repository and workflow management.",
-        "hermes": "[to be translated]:Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "[to be translated]:Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "[to be translated]:Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "[to be translated]:Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "[to be translated]:Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "[to be translated]:AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "[to be translated]:CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "[to be translated]:Python package manager for MCP services and dependency installation."
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "[to be translated]:Update to latest version",
-      "updateCheckFailed": "[to be translated]:Failed to check for updates"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Αποτυχία ελέγχου για ενημερώσεις"
     },
     "developer": {
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
@@ -6483,7 +6483,7 @@
       },
       "title": "Ρυθμίσεις εμφάνισης",
       "topic": {
-        "title": "Ρυθμίσεις Θεμάτων"
+        "title": "Ρυθμίσεις προβολής συνομιλίας"
       },
       "zoom": {
         "title": "Ρυθμίσεις κλίμακας"
@@ -6690,7 +6690,7 @@
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Φίλτρο"
       },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
@@ -6732,7 +6732,7 @@
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
       "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Δεν είναι εγκατεστημένο",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
         "actions": "Ενέργειες",
@@ -6762,7 +6762,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "Δεν βρέθηκε πάροχος MCP",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6865,11 +6865,11 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "automation": "Αυτοματοποίηση",
+      "capabilities": "Δυνατότητες & Εργαλεία",
+      "models": "Μοντέλα",
+      "personal": "Προσωπικό",
+      "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },
     "messages": {
@@ -6888,17 +6888,17 @@
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
+        "paste_long_text_as_file": "[to be translated]:Paste long text as file",
+        "paste_long_text_threshold": "[to be translated]:Paste long text length",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
       },
       "layout": {
-        "classic": "[to be translated]:Classic",
-        "conversation": "[to be translated]:Conversation view",
-        "modern": "[to be translated]:Modern",
-        "work": "[to be translated]:Work view"
+        "classic": "Κλασικός",
+        "conversation": "Προβολή συνομιλίας",
+        "modern": "Σύγχρονος",
+        "work": "Προβολή εργασίας"
       },
       "markdown_rendering_input_message": "Markdown Rendering Input Message",
       "metrics": "Χρόνος πρώτου χαρακτήρα {{time_first_token_millsec}}ms | {{token_speed}} tokens ανά δευτερόλεπτο",
@@ -6911,7 +6911,7 @@
         "label": "Κουμπιά πλοήγησης συζητήσεων",
         "none": "Χωρίς εμφάνιση"
       },
-      "prompt": "Λήμμα προτροπής",
+      "prompt": "[to be translated]:Show prompt",
       "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
@@ -6921,40 +6921,40 @@
     "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
-      "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
+      "cache_settings": "[to be translated]:Cache Settings",
       "cache_title": "Ποσότητα Προσωρινής Μνήμης Μικροπρογράμματος",
       "custom": {
-        "conflicting_ids": "Υπάρχει σύγκρουση με τα προεπιλεγμένα ID της εφαρμογής: {{ids}}",
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
         "create_title": "Δημιουργία προσαρμοσμένης μικροεφαρμογής",
-        "duplicate_ids": "Εντοπίστηκαν διπλότυπα ID: {{ids}}",
-        "edit_description": "Επεξεργαστείτε τη διαμόρφωση της προσαρμοσμένης σας εφαρμογής εδώ. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
         "edit_title": "Επεξεργασία Προσαρμοσμένης Εφαρμογής",
-        "id": "ID",
-        "id_error": "Το ID είναι υποχρεωτικό πεδίο.",
-        "id_placeholder": "Παρακαλώ εισάγετε το ID",
-        "logo": "Logo",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
         "logo_file": "Μεταφόρτωση Logo Αρχείου",
-        "logo_upload_button": "Μεταφόρτωση",
+        "logo_upload_button": "[to be translated]:Upload",
         "logo_upload_error": "Αποτυχία μεταφόρτωσης του Logo.",
         "logo_upload_label": "Μεταφόρτωση Logo",
-        "logo_upload_success": "Το Logo μεταφορτώθηκε επιτυχώς.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Παρακαλώ εισάγετε το Logo URL",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
         "name": "Όνομα",
-        "name_error": "Το Όνομα είναι υποχρεωτικό πεδίο.",
+        "name_error": "[to be translated]:Name is required.",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
-        "placeholder": "Παρακαλώ εισάγετε τη διαμόρφωση της προσαρμοσμένης εφαρμογής (Μορφή JSON)",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
         "remove_confirm_description": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής \"{{name}}\"; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "remove_confirm_title": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής;",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
-        "save": "Αποθήκευση",
+        "save": "[to be translated]:Save",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
         "save_success": "Η προσαρμοσμένη εφαρμογή αποθηκεύτηκε επιτυχώς.",
         "title": "Προσαρμοσμένη Εφαρμογή",
         "url": "URL",
-        "url_error": "Το URL είναι υποχρεωτικό πεδίο.",
+        "url_error": "[to be translated]:URL is required.",
         "url_invalid": "Εισαγάγετε μια έγκυρη διεύθυνση URL http, https ή file.",
         "url_placeholder": "Παρακαλώ εισάγετε το URL"
       },
@@ -6981,59 +6981,59 @@
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
     "miniapps": {
-      "cache_change_notice": "Οι αλλαγές θα τεθούν σε ισχύ όταν ο αριθμός των ανοιχτών μίνι εφαρμογών φτάσει την ορισμένη τιμή",
-      "cache_description": "Ορίστε τον μέγιστο αριθμό ενεργών μίνι εφαρμογών που θα διατηρούνται στη μνήμη",
-      "cache_settings": "Ρυθμίσεις Cache",
-      "cache_title": "Όριο Κρυφής Μνήμης Mini App",
+      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "[to be translated]:Cache Settings",
+      "cache_title": "[to be translated]:Mini App Cache Limit",
       "custom": {
-        "conflicting_ids": "Αντιφατικά αναγνωριστικά με τις προεπιλεγμένες εφαρμογές: {{ids}}",
-        "duplicate_ids": "Βρέθηκαν διπλότυπα αναγνωριστικά: {{ids}}",
-        "edit_description": "Επεξεργαστείτε εδώ τη ρύθμιση προσαρμοσμένου mini app. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
-        "edit_title": "Επεξεργασία Προσαρμοσμένης Mini Εφαρμογής",
-        "id": "Ταυτότητα",
-        "id_error": "Απαιτείται ταυτότητα.",
-        "id_placeholder": "Εισαγωγή ID",
-        "logo": "Λογότυπο",
-        "logo_file": "Ανέβασμα Αρχείου Λογότυπου",
-        "logo_upload_button": "Μεταφόρτωση",
-        "logo_upload_error": "Αποτυχία μεταφόρτωσης λογότυπου.",
-        "logo_upload_label": "Ανέβασμα Λογότυπου",
-        "logo_upload_success": "Το λογότυπο μεταφορτώθηκε με επιτυχία.",
-        "logo_url": "Διεύθυνση URL λογότυπου",
-        "logo_url_label": "Διεύθυνση URL λογότυπου",
-        "logo_url_placeholder": "Εισάγετε τη διεύθυνση URL του λογότυπου",
-        "name": "Όνομα",
-        "name_error": "Το όνομα είναι υποχρεωτικό.",
-        "name_placeholder": "Εισαγωγή ονόματος",
-        "placeholder": "Εισαγωγή προσαρμοσμένης διαμόρφωσης mini εφαρμογής (μορφή JSON)",
-        "remove_error": "Αποτυχία αφαίρεσης προσαρμοσμένης μικρής εφαρμογής.",
-        "remove_success": "Η προσαρμοσμένη μίνι εφαρμογή αφαιρέθηκε με επιτυχία.",
-        "save": "Αποθήκευση",
-        "save_error": "Αποτυχία αποθήκευσης προσαρμοσμένης μίνι εφαρμογής.",
-        "save_success": "Η προσαρμοσμένη μίνι εφαρμογή αποθηκεύτηκε με επιτυχία.",
-        "title": "Προσαρμοσμένο",
-        "url": "URL",
-        "url_error": "Απαιτείται URL.",
-        "url_placeholder": "Εισαγάγετε URL"
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "[to be translated]:Edit Custom Mini App",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
+        "logo_file": "[to be translated]:Upload Logo File",
+        "logo_upload_button": "[to be translated]:Upload",
+        "logo_upload_error": "[to be translated]:Failed to upload logo.",
+        "logo_upload_label": "[to be translated]:Upload Logo",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
+        "name": "[to be translated]:Name",
+        "name_error": "[to be translated]:Name is required.",
+        "name_placeholder": "[to be translated]:Enter name",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
+        "remove_error": "[to be translated]:Failed to remove custom mini app.",
+        "remove_success": "[to be translated]:Custom mini app removed successfully.",
+        "save": "[to be translated]:Save",
+        "save_error": "[to be translated]:Failed to save custom mini app.",
+        "save_success": "[to be translated]:Custom mini app saved successfully.",
+        "title": "[to be translated]:Custom",
+        "url": "[to be translated]:URL",
+        "url_error": "[to be translated]:URL is required.",
+        "url_placeholder": "[to be translated]:Enter URL"
       },
-      "disabled": "Κρυμμένα Μίνι Εφαρμογές",
-      "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
-      "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
+      "disabled": "[to be translated]:Hidden Mini Apps",
+      "display_title": "[to be translated]:Mini App Display Settings",
+      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
       "open_link_external": {
-        "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
+        "title": "[to be translated]:Open new-window links in browser"
       },
       "region": {
-        "auto": "Αυτόματη ανίχνευση",
-        "cn": "Κίνα",
-        "description": "Φιλτράρισμα μη υποστηριζόμενων μίνι προγραμμάτων με βάση την περιοχή",
-        "global": "Παγκόσμιος",
-        "title": "Φίλτρο Mini Program"
+        "auto": "[to be translated]:Auto detect",
+        "cn": "[to be translated]:China",
+        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
+        "global": "[to be translated]:Global",
+        "title": "[to be translated]:Mini Program filter"
       },
-      "reset_tooltip": "Επαναφορά στις προεπιλογές",
-      "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
-      "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
-      "title": "Ρυθμίσεις Mini Apps",
-      "visible": "Ορατές Μικρές Εφαρμογές"
+      "reset_tooltip": "[to be translated]:Reset to default",
+      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
+      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
+      "title": "[to be translated]:Mini Apps Settings",
+      "visible": "[to be translated]:Visible Mini Apps"
     },
     "model": "Πρόεδρος Υπηρεσίας",
     "models": {
@@ -7066,8 +7066,8 @@
         },
         "model_id": {
           "label": "ID μοντέλου",
-          "placeholder": "Απαραίτητο για παράδειγμα gpt-3.5-turbo",
-          "required": "[to be translated]:Please enter the model ID",
+          "placeholder": "Για παράδειγμα gpt-5.5",
+          "required": "Εισαγάγετε το ID μοντέλου",
           "select": {
             "placeholder": "Επιλέξτε μοντέλο"
           },
@@ -7075,7 +7075,7 @@
         },
         "model_name": {
           "label": "Όνομα μοντέλου",
-          "placeholder": "Για παράδειγμα GPT-3.5",
+          "placeholder": "Για παράδειγμα GPT-5.5",
           "tooltip": "Για παράδειγμα GPT-4"
         },
         "supported_text_delta": {
@@ -7144,18 +7144,18 @@
       },
       "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",
-      "list_title": "Model list",
+      "list_title": "Μοντέλα",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Είστε βέβαιοι ότι θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
-          "label": "Προσθήκη μοντέλων από τη λίστα"
+          "label": "Προσθήκη όλων των μοντέλων"
         },
         "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
-        "clean_stale_models": "[to be translated]:Clean stale models",
-        "clean_stale_success": "[to be translated]:Cleaned {{count}} stale model(s)",
-        "default_model_cannot_remove": "[to be translated]:Default model can't be deleted.",
+        "clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",
+        "clean_stale_success": "Εκκαθαρίστηκαν {{count}} μη έγκυρα μοντέλα",
+        "default_model_cannot_remove": "Το προεπιλεγμένο μοντέλο δεν μπορεί να διαγραφεί.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -7177,14 +7177,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
+        "remove_listed": "Αφαίρεση όλων των μοντέλων",
         "remove_model": "Αφαίρεση Μοντέλου",
-        "remove_skipped_default_in_use": "[to be translated]:Skipped {{count}} default model(s)",
+        "remove_skipped_default_in_use": "Παραλείφθηκαν {{count}} προεπιλεγμένα μοντέλα",
         "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
-        "stale_badge": "[to be translated]:Stale",
-        "stale_filter": "[to be translated]:Stale",
+        "stale_badge": "Μη έγκυρο",
+        "stale_filter": "Μη έγκυρο",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -7244,7 +7244,7 @@
         "custom_add": "Προσαρμοσμένο",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Προσθήκη"
+        "pull_short": "Λήψη λίστας μοντέλων"
       },
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
@@ -7271,7 +7271,7 @@
       "assistant": "Μήνυμα βοηθού",
       "backup": "Δημιουργία αντιγράφου ασφαλείας",
       "knowledge_embed": "Βάση γνώσης",
-      "title": "Ρυθμίσεις ειδοποιήσεων"
+      "title": "Ειδοποιήσεις"
     },
     "openai": {
       "service_tier": {
@@ -7308,48 +7308,48 @@
     },
     "parameter_settings": "Ρυθμίσεις Παραμέτρων",
     "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
-      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Εγκατάσταση",
-      "installError": "Failed to install tool",
-      "installing": "Εγκατάσταση...",
-      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
-      "notInstalled": "Δεν έχει εγκατασταθεί",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
+      "addTool": "[to be translated]:Add Tool",
+      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+      "coreDepsMissing": "[to be translated]:Core dependencies not installed",
+      "customTools": "[to be translated]:Custom Tools",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "description": "[to be translated]:Manage binary tools and runtime dependencies required by the app.",
+      "duplicateName": "[to be translated]:A tool with the same name already exists",
+      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "install": "[to be translated]:Install",
+      "installError": "[to be translated]:Failed to install tool",
+      "installing": "[to be translated]:Installing...",
+      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "notInstalled": "[to be translated]:Not installed",
+      "openBinariesDir": "[to be translated]:Open binaries directory",
+      "remove": "[to be translated]:Remove tool",
+      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "searchFailed": "[to be translated]:Search failed, check logs",
+      "searchRegistry": "[to be translated]:Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "[to be translated]:bundled"
       },
-      "title": "Εξαρτήσεις Περιβάλλοντος",
+      "title": "[to be translated]:Dependencies",
       "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
+        "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "[to be translated]:Anthropic's agentic coding tool for the terminal.",
+        "codex": "[to be translated]:OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "[to be translated]:Fast file finder, alternative to find.",
+        "gh": "[to be translated]:GitHub CLI for repository and workflow management.",
+        "hermes": "[to be translated]:Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "[to be translated]:Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "[to be translated]:Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "[to be translated]:Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "[to be translated]:Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "[to be translated]:AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "[to be translated]:CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "[to be translated]:Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version",
-      "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
+      "update": "[to be translated]:Update to latest version",
+      "uvDescription": "[to be translated]:Python package manager for MCP services and dependency installation."
     },
     "power": {
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
@@ -7372,7 +7372,7 @@
         "reorderFailed": "Αποτυχία αναδιάταξης προτροπών",
         "updateFailed": "Αποτυχία ενημέρωσης προτροπής"
       },
-      "manage": "[to be translated]:Manage Prompts",
+      "manage": "Διαχείριση Προτροπών",
       "title": "Διαχείριση Prompts",
       "titleLabel": "Τίτλος",
       "titlePlaceholder": "Εισαγάγετε τίτλο prompt",
@@ -7380,7 +7380,7 @@
     },
     "provider": {
       "add": {
-        "button_title": "[to be translated]:Add Provider",
+        "button_title": "Προσθήκη παρόχου",
         "name": {
           "label": "Όνομα παρόχου",
           "placeholder": "π.χ. OpenAI",
@@ -7518,30 +7518,30 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Τομέας επιτάχυνσης",
-          "backup": "Τομέας αντιγράφων ασφαλείας",
+          "backup": "[to be translated]:Backup domain",
           "international": "Διεθνής τομέας"
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Ο πάροχος Claude Code είναι διαθέσιμος μόνο για Πράκτορες — δεν μπορεί να χρησιμοποιηθεί σε συνομιλίες ή βοηθούς.",
+        "description": "Συνδεθείτε με τη συνδρομή σας Claude",
+        "description_detail": "Αυτός ο πάροχος επαναχρησιμοποιεί τη σύνδεση του Claude Code CLI (Claude Pro/Max) και είναι διαθέσιμος μόνο στους Agents. Ανοίξτε ένα τερματικό και εκτελέστε `claude /login` για να συνδεθείτε.",
+        "launch_failed": "Αποτυχία ανοίγματος του τερματικού. Εκτελέστε χειροκίνητα το `claude /login` για να συνδεθείτε.",
+        "legal_link": "Νομικά & Συμμόρφωση",
+        "logged_in": "Συνδέθηκε στο Claude Code",
+        "logged_in_detail": "Οι πράκτορες θα χρησιμοποιήσουν τα διαπιστευτήρια της συνδρομής σας στο Claude Code CLI.",
+        "open_terminal": "Άνοιγμα τερματικού για σύνδεση",
+        "recheck": "Επανέλεγχος"
       },
       "codex": {
-        "account": "[to be translated]:Account: {{accountId}}",
-        "description": "[to be translated]:Sign in with your ChatGPT subscription",
-        "description_detail": "[to be translated]:This provider uses your ChatGPT Plus/Pro login (OAuth) to access OpenAI Codex models. Your browser will open to complete sign-in.",
-        "logged_in": "[to be translated]:Signed in to OpenAI Codex",
-        "sign_in_button": "[to be translated]:Sign in with ChatGPT",
-        "sign_in_failed": "[to be translated]:Sign-in failed. Please try again.",
-        "sign_in_success": "[to be translated]:Signed in to OpenAI Codex",
-        "signing_in": "[to be translated]:Waiting for browser…"
+        "account": "Λογαριασμός: {{accountId}}",
+        "description": "Συνδεθείτε με τη συνδρομή σας στο ChatGPT",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας ChatGPT Plus/Pro (OAuth) για να αποκτήσει πρόσβαση στα μοντέλα OpenAI Codex. Το πρόγραμμα περιήγησής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεθήκατε στο OpenAI Codex",
+        "sign_in_button": "Σύνδεση με το ChatGPT",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ προσπαθήστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο OpenAI Codex",
+        "signing_in": "Αναμονή για το πρόγραμμα περιήγησης…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7619,13 +7619,13 @@
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
       "grok_cli": {
-        "description": "[to be translated]:Sign in with your SuperGrok subscription",
-        "description_detail": "[to be translated]:This provider uses your xAI SuperGrok login (OAuth) to access Grok CLI models (Grok Build, Composer). Your browser will open to complete sign-in.",
-        "logged_in": "[to be translated]:Signed in to Grok CLI",
-        "sign_in_button": "[to be translated]:Sign in with xAI",
-        "sign_in_failed": "[to be translated]:Sign-in failed. Please try again.",
-        "sign_in_success": "[to be translated]:Signed in to Grok CLI",
-        "signing_in": "[to be translated]:Waiting for browser…"
+        "description": "Συνδεθείτε με τη συνδρομή σας SuperGrok",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας xAI SuperGrok (OAuth) για πρόσβαση στα μοντέλα Grok CLI (Grok Build, Composer). Το πρόγραμμα περιήγησής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεδεμένος στο Grok CLI",
+        "sign_in_button": "Σύνδεση με xAI",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο Grok CLI",
+        "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
       },
       "logo_upload_failed": "Αποτυχία επεξεργασίας της επιλεγμένης εικόνας",
       "misc": "Άλλο",
@@ -7791,7 +7791,7 @@
       "all_enable": "Ενεργοποίηση Όλων",
       "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
       "categories": {
-        "all": "[to be translated]:All",
+        "all": "Όλα",
         "assistant": "Εργαλεία Βοηθού Τεχνητής Νοημοσύνης",
         "chat": "Αλληλεπίδραση Μηνυμάτων",
         "general": "Καθολικό και Παράθυρο",
@@ -7807,7 +7807,7 @@
       "empty": "Δεν υπάρχουν διαθέσιμες συντομεύσεις σε αυτήν την ομάδα",
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
-      "filter": "[to be translated]:Filter",
+      "filter": "Φίλτρο",
       "label": "Πλήκτρο",
       "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
       "new_topic": "Νέο θέμα",
@@ -7815,7 +7815,7 @@
       "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
       "pin_tab": "Εναλλαγή Καρφίτσωμα Καρτέλας",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
-      "print": "[to be translated]:Print",
+      "print": "Εκτύπωση",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
       "reset": "Επαναφορά",
@@ -7845,9 +7845,9 @@
     },
     "skills": {
       "author": "Συγγραφέας",
-      "batchInstallComplete": "[to be translated]:Installed {{count}} skills",
-      "batchInstallPartialFailed": "[to be translated]:Installed {{success}}/{{total}} skills, {{failed}} failed",
-      "batchInstallQueued": "[to be translated]:Queued",
+      "batchInstallComplete": "Εγκαταστάθηκαν {{count}} δεξιότητες",
+      "batchInstallPartialFailed": "Εγκαταστάθηκαν {{success}}/{{total}} δεξιότητες, {{failed}} αποτυχίες",
+      "batchInstallQueued": "Σε ουρά",
       "batchUninstallSuccess": "{{count}} δεξιότητες απεγκαταστάθηκαν",
       "builtin": "Ενσωματωμένο",
       "confirmBatchUninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε {{count}} επιλεγμένες δεξιότητες;",
@@ -7882,7 +7882,7 @@
       "zip": "Τ.Κ."
     },
     "system": {
-      "title": "[to be translated]:System"
+      "title": "Σύστημα"
     },
     "theme": {
       "color_primary": "Κύριο Χρώμα Θέματος",
@@ -7931,10 +7931,10 @@
             "name": "Doc2x"
           },
           "local_paddleocr": {
-            "description": "[to be translated]:PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
-            "name": "[to be translated]:Local PaddleOCR",
+            "description": "PaddleOCR (PP-OCRv6 medium) που εκτελείται εντός της διεργασίας — πλήρως εκτός σύνδεσης, χωρίς κλειδί API, με αναγνώριση σε νήμα παρασκηνίου ώστε το UI να παραμένει ανταποκρινόμενο. Κατεβάστε το μοντέλο (~140MB) στις Εξαρτήσεις Περιβάλλοντος πριν την πρώτη χρήση.",
+            "name": "Τοπικό PaddleOCR",
             "status": {
-              "local": "[to be translated]:Runs fully on your device"
+              "local": "Εκτελείται πλήρως στη συσκευή σας"
             }
           },
           "mineru": {
@@ -8038,7 +8038,7 @@
           "exa": "API νευρωνικής αναζήτησης για εφαρμογές τεχνητής νοημοσύνης, βελτιστοποιημένο για σημασιολογική ανάκτηση από τον ιστό.",
           "exa_mcp": "Κάντε διαθέσιμη την αναζήτηση Exa στους πράκτορες μέσω του διακομιστή Exa MCP.",
           "fetch": "Ενσωματωμένος πάροχος λήψης URL. Ανακτά περιεχόμενο ιστοσελίδων από ένα URL για την εμπλουτισμό των αποτελεσμάτων αναζήτησης.",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Υπηρεσία ανίχνευσης και αναζήτησης Firecrawl, βελτιστοποιημένη για τη μετατροπή ιστότοπων σε Markdown.",
           "jina": "APIs αναζήτησης και ανάγνωσης Jina Reader για την ανάκτηση καθαρού περιεχομένου από τον ιστό.",
           "querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
           "searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
@@ -8281,7 +8281,7 @@
   },
   "title": {
     "apps": "Εφαρμογές",
-    "chat": "[to be translated]:Chat",
+    "chat": "Συνομιλία",
     "code": "Κώδικας",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",

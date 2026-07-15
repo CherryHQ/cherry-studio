@@ -37,88 +37,88 @@
       }
     },
     "channels": {
-      "add": "[to be translated]:Add",
-      "bindAgent": "[to be translated]:Bind Agent",
-      "chatIdsAutoTrackHint": "[to be translated]:When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
-      "comingSoon": "[to be translated]:Coming soon",
-      "connected": "[to be translated]:Connected",
-      "connecting": "[to be translated]:Connecting",
-      "createError": "[to be translated]:Failed to create channel",
-      "deleteConfirm": "[to be translated]:Delete channel \"{{name}}\"?",
-      "deleteError": "[to be translated]:Failed to delete channel",
-      "description": "[to be translated]:Connect your agent to messaging platforms.",
-      "disconnected": "[to be translated]:Disconnected",
+      "add": "Ajouter",
+      "bindAgent": "Agent Lier",
+      "chatIdsAutoTrackHint": "Lorsqu'il est laissé vide, le système effectuera un suivi automatique : vous devez d'abord envoyer un message au Bot sur la plateforme, puis le système enregistrera l'ID du chat pour les notifications futures.",
+      "comingSoon": "Bientôt disponible",
+      "connected": "Connecté",
+      "connecting": "Connexion",
+      "createError": "Échec de la création du canal",
+      "deleteConfirm": "Supprimer le canal \"{{name}}\" ?",
+      "deleteError": "Échec de la suppression du canal",
+      "description": "Connectez votre agent aux plateformes de messagerie.",
+      "disconnected": "Déconnecté",
       "discord": {
-        "botToken": "[to be translated]:Bot Token",
-        "botTokenPlaceholder": "[to be translated]:Enter your Discord bot token",
-        "channelIds": "[to be translated]:Allowed Channel IDs",
-        "channelIdsHint": "[to be translated]:Format: channel:id or dm:id. Leave empty to allow all.",
-        "channelIdsPlaceholder": "[to be translated]:channel:123456789, dm:987654321",
-        "description": "[to be translated]:Receive and respond to messages via a Discord bot using WebSocket gateway.",
-        "title": "[to be translated]:Discord",
-        "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+        "botToken": "Jeton de bot",
+        "botTokenPlaceholder": "Entrez votre jeton de bot Discord",
+        "channelIds": "IDs de canaux autorisés",
+        "channelIdsHint": "Format : channel:id ou dm:id. Laissez vide pour tout autoriser.",
+        "channelIdsPlaceholder": "canal:123456789, mp:987654321",
+        "description": "Recevoir et répondre aux messages via un bot Discord en utilisant la passerelle WebSocket.",
+        "title": "Discord",
+        "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir l’ID de votre chaîne au bon format."
       },
-      "error": "[to be translated]:Error",
+      "error": "Erreur",
       "feishu": {
-        "appId": "[to be translated]:App ID",
-        "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
-        "appSecret": "[to be translated]:App Secret",
-        "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
-        "chatIds": "[to be translated]:Allowed Chat IDs",
-        "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
-        "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
-        "connected": "[to be translated]:Connected",
-        "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-        "domain": "[to be translated]:Domain",
-        "domainFeishu": "[to be translated]:Feishu (China)",
-        "domainLark": "[to be translated]:Lark (International)",
-        "encryptKey": "[to be translated]:Encrypt Key",
-        "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
-        "loginHint": "[to be translated]:No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-        "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
-        "qrHint": "[to be translated]:Waiting for QR code scan...",
-        "qrScanHint": "[to be translated]:Open Feishu on your phone and scan the QR code to create a bot app.",
-        "qrTitle": "[to be translated]:Feishu QR Registration",
-        "title": "[to be translated]:Feishu",
-        "verificationToken": "[to be translated]:Verification Token",
-        "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+        "appId": "App ID",
+        "appIdPlaceholder": "Saisissez l'App ID de votre application Feishu",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "Saisissez l'App Secret de votre application Feishu",
+        "chatIds": "IDs de chat autorisés",
+        "chatIdsHint": "IDs de chat séparés par des virgules. Laissez vide pour autoriser tous les chats.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+        "connected": "Connecté",
+        "description": "Recevoir et répondre aux messages via un bot Feishu/Lark en utilisant WebSocket.",
+        "domain": "Domaine",
+        "domainFeishu": "Feishu (Chine)",
+        "domainLark": "Lark (International)",
+        "encryptKey": "Clé de chiffrement",
+        "encryptKeyPlaceholder": "Saisissez la clé de chiffrement de votre application Feishu",
+        "loginHint": "Aucune information d’identification configurée. Activez le canal pour démarrer l’enregistrement par code QR, ou saisissez manuellement l’ID de l’application et le secret de l’application.",
+        "qrExpired": "Code QR expiré. Veuillez réessayer en basculant le canal.",
+        "qrHint": "En attente de la numérisation du code QR...",
+        "qrScanHint": "Ouvre Feishu sur ton téléphone et scanne le code QR pour créer une application bot.",
+        "qrTitle": "Inscription par QR code Feishu",
+        "title": "Feishu",
+        "verificationToken": "Jeton de vérification",
+        "verificationTokenPlaceholder": "Saisissez le jeton de vérification de votre application Feishu"
       },
-      "logs": "[to be translated]:Logs",
-      "noInstances": "[to be translated]:No {{type}} channels configured. Click \"+ Add\" to create one.",
-      "noLogs": "[to be translated]:No logs yet",
-      "notifyReceiver": "[to be translated]:Receive task notifications",
-      "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+      "logs": "Journaux",
+      "noInstances": "Aucun canal {{type}} configuré. Cliquez sur « + Ajouter » pour en créer un.",
+      "noLogs": "Pas encore de journaux",
+      "notifyReceiver": "Recevoir les notifications de tâches",
+      "notifyReceiverHint": "Envoyer les résultats des tâches planifiées à ce canal.",
       "qq": {
-        "appId": "[to be translated]:App ID",
-        "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
-        "chatIds": "[to be translated]:Allowed Chat IDs",
-        "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-        "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
-        "clientSecret": "[to be translated]:Client Secret",
-        "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
-        "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-        "title": "[to be translated]:QQ",
-        "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+        "appId": "App ID",
+        "appIdPlaceholder": "Entrez votre App ID QQ Bot",
+        "chatIds": "IDs de chat autorisés",
+        "chatIdsHint": "Format : c2c:openid, group:groupid, channel:channelid. Laissez vide pour tout autoriser.",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Entrez votre Client Secret QQ Bot",
+        "description": "Recevoir et répondre aux messages via l'API officielle QQ Bot.",
+        "title": "QQ",
+        "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir votre ID de chat au bon format."
       },
       "security": {
-        "inheritFromAgent": "[to be translated]:Inherit from agent",
-        "permissionMode": "[to be translated]:Channel Permission Mode",
-        "permissionModeHint": "[to be translated]:Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
+        "inheritFromAgent": "Hériter de l'agent",
+        "permissionMode": "Mode de permission du canal",
+        "permissionModeHint": "Remplace le mode d'autorisation de l'agent pour les messages provenant de ce canal. « Hériter » utilise la valeur par défaut de l'agent."
       },
-      "selectAgent": "[to be translated]:Select an agent to bind",
+      "selectAgent": "Sélectionnez un agent à lier",
       "slack": {
-        "appToken": "[to be translated]:App-Level Token",
-        "appTokenPlaceholder": "[to be translated]:xapp-...",
-        "botToken": "[to be translated]:Bot Token",
-        "botTokenPlaceholder": "[to be translated]:xoxb-...",
-        "channelIds": "[to be translated]:Allowed Channel IDs",
-        "channelIdsHint": "[to be translated]:Slack channel IDs. Leave empty to allow all.",
-        "channelIdsPlaceholder": "[to be translated]:C01234567, D89012345",
-        "description": "[to be translated]:Receive and respond to messages via a Slack bot using Socket Mode.",
-        "title": "[to be translated]:Slack",
-        "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get the channel ID."
+        "appToken": "Jeton au niveau de l'application",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Jeton du bot",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "ID de canaux autorisés",
+        "channelIdsHint": "IDs de canaux Slack. Laissez vide pour autoriser tous.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Recevoir et répondre aux messages via un bot Slack en mode Socket.",
+        "title": "Slack",
+        "whoamiTip": "💡 Astuce : Envoie /whoami au bot pour obtenir l’ID du canal."
       },
-      "tab": "[to be translated]:Channels",
+      "tab": "Canaux",
       "tasks": {
         "add": "[to be translated]:Add Task",
         "cancel": "[to be translated]:Cancel",
@@ -205,32 +205,32 @@
         "title": "[to be translated]:Scheduled Tasks"
       },
       "telegram": {
-        "botToken": "[to be translated]:Bot Token",
-        "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-        "chatIds": "[to be translated]:Allowed Chat IDs",
-        "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-        "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-        "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-        "title": "[to be translated]:Telegram"
+        "botToken": "Token du bot",
+        "botTokenPlaceholder": "Entrez votre token de bot Telegram",
+        "chatIds": "IDs de chat autorisés",
+        "chatIdsHint": "Séparés par des virgules. Laissez vide pour autoriser tous les chats.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Recevoir et répondre aux messages via un bot Telegram en utilisant le long polling.",
+        "title": "Telegram"
       },
-      "title": "[to be translated]:Channels",
-      "updateError": "[to be translated]:Failed to update channel",
+      "title": "Canaux",
+      "updateError": "Échec de la mise à jour du canal",
       "warning": {
         "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       },
       "wechat": {
-        "addAccount": "[to be translated]:Add WeChat Account",
-        "chatIds": "[to be translated]:Allowed User IDs",
-        "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all users.",
-        "chatIdsPlaceholder": "[to be translated]:wxid_abc123, wxid_def456",
-        "connected": "[to be translated]:Logged in",
-        "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
-        "disconnected": "[to be translated]:Not logged in",
-        "loginHint": "[to be translated]:First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
-        "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
-        "qrTitle": "[to be translated]:WeChat QR Login",
-        "title": "[to be translated]:WeChat",
-        "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
+        "addAccount": "Ajouter un compte WeChat",
+        "chatIds": "Identifiants d'utilisateurs autorisés",
+        "chatIdsHint": "Séparés par des virgules. Laisser vide pour autoriser tous les utilisateurs.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Connecté",
+        "description": "Recevoir et répondre aux messages via WeChat en utilisant l'API iLink Bot.",
+        "disconnected": "Déconnecté",
+        "loginHint": "La première connexion nécessite de scanner un code QR. Vérifiez les journaux de l'application pour obtenir l'URL de connexion.",
+        "qrHint": "Ouvrez WeChat sur votre téléphone, scannez le code QR pour vous connecter.",
+        "qrTitle": "Connexion par QR WeChat",
+        "title": "WeChat",
+        "whoamiTip": "Astuce : envoyez /whoami dans WeChat pour obtenir l'ID d'un utilisateur."
       }
     },
     "delete": {
@@ -284,7 +284,7 @@
       "welcome_title": "De quoi allons-nous parler aujourd'hui ?"
     },
     "icon": {
-      "type": "[to be translated]:Agent Icon"
+      "type": "Icône de l'agent"
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
@@ -295,7 +295,7 @@
       }
     },
     "manage": {
-      "title": "[to be translated]:Manage Agents"
+      "title": "Gérer les agents"
     },
     "pin": {
       "title": "Agent Pin"
@@ -448,7 +448,7 @@
         "label": "Outils pré-approuvés",
         "placeholder": "Sélectionner des outils pré-approuvés"
       },
-      "auto_rename": "[to be translated]:Generate task name",
+      "auto_rename": "Générer le nom de la tâche",
       "create": {
         "error": {
           "failed": "Échec de l'ajout d'une session"
@@ -506,7 +506,7 @@
       "list": {
         "title": "Tâches"
       },
-      "new": "[to be translated]:New task",
+      "new": "Nouvelle tâche",
       "pin": {
         "title": "Épingler la tâche"
       },
@@ -517,7 +517,7 @@
       },
       "search": {
         "placeholder": "Tâches de recherche",
-        "title": "[to be translated]:Search tasks"
+        "title": "Rechercher des tâches"
       },
       "unpin": {
         "title": "Détacher la tâche"
@@ -730,91 +730,91 @@
     "sidebar_title": "Agents",
     "skill": {
       "manage": {
-        "title": "[to be translated]:Manage skills"
+        "title": "Gérer les compétences"
       }
     },
     "tasks": {
-      "add": "[to be translated]:Add Task",
-      "cancel": "[to be translated]:Cancel",
+      "add": "Ajouter une tâche",
+      "cancel": "Annuler",
       "channels": {
-        "label": "[to be translated]:Send to Channels",
-        "noActiveChatIds": "[to be translated]:The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
-        "placeholder": "[to be translated]:Select channels to receive results"
+        "label": "Envoyer aux chaînes",
+        "noActiveChatIds": "Les canaux sélectionnés ne possèdent aucun destinataire disponible (ID de chat). Les résultats de la tâche peuvent ne pas être livrés. Veuillez d'abord envoyer un message au Bot sur la plateforme.",
+        "placeholder": "Sélectionnez les chaînes pour recevoir les résultats"
       },
-      "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+      "cronPlaceholder": "ex: 0 9 * * * (tous les jours à 9h)",
       "delete": {
-        "confirm": "[to be translated]:Are you sure you want to delete this task?",
-        "label": "[to be translated]:Delete"
+        "confirm": "Êtes-vous sûr de vouloir supprimer cette tâche ?",
+        "label": "Supprimer"
       },
-      "edit": "[to be translated]:Edit",
-      "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
+      "edit": "Modifier",
+      "empty": "Aucune tâche planifiée. Ajoutez-en une pour commencer.",
       "error": {
-        "createFailed": "[to be translated]:Failed to create task",
-        "deleteFailed": "[to be translated]:Failed to delete task",
-        "loadFailed": "[to be translated]:Failed to load tasks",
-        "runFailed": "[to be translated]:Failed to run task",
-        "updateFailed": "[to be translated]:Failed to update task"
+        "createFailed": "Échec de la création de la tâche",
+        "deleteFailed": "Échec de la suppression de la tâche",
+        "loadFailed": "Échec du chargement des tâches",
+        "runFailed": "Échec de l'exécution de la tâche",
+        "updateFailed": "Échec de la mise à jour de la tâche"
       },
       "frequency": {
-        "everyPrefix": "[to be translated]:Every",
-        "everySuffix": "[to be translated]:minutes",
-        "label": "[to be translated]:Execution Frequency"
+        "everyPrefix": "Toutes les",
+        "everySuffix": "minutes",
+        "label": "Fréquence d’exécution"
       },
-      "intervalPlaceholder": "[to be translated]:At least 1",
-      "intervalUnit": "[to be translated]:minutes",
-      "lastRun": "[to be translated]:Last Run",
+      "intervalPlaceholder": "Au moins 1",
+      "intervalUnit": "minutes",
+      "lastRun": "Dernière exécution",
       "logs": {
-        "cancelled": "[to be translated]:Cancelled",
-        "completed": "[to be translated]:Completed",
-        "duration": "[to be translated]:Duration",
-        "empty": "[to be translated]:No run history yet.",
-        "failed": "[to be translated]:Failed",
-        "justNow": "[to be translated]:just now",
-        "label": "[to be translated]:Run History",
-        "loadError": "[to be translated]:Failed to load run history",
-        "result": "[to be translated]:Result",
-        "runAt": "[to be translated]:Run At",
-        "running": "[to be translated]:Running...",
-        "search": "[to be translated]:Search logs...",
-        "status": "[to be translated]:Status",
-        "viewSession": "[to be translated]:View session"
+        "cancelled": "Annulé",
+        "completed": "Terminé",
+        "duration": "Durée",
+        "empty": "Aucun historique d'exécution.",
+        "failed": "Échoué",
+        "justNow": "à l'instant",
+        "label": "Historique d'exécution",
+        "loadError": "Échec du chargement de l'historique des exécutions",
+        "result": "Résultat",
+        "runAt": "Exécuté le",
+        "running": "En cours d'exécution...",
+        "search": "Rechercher les journaux...",
+        "status": "Statut",
+        "viewSession": "Voir la session"
       },
       "name": {
-        "label": "[to be translated]:Name",
-        "placeholder": "[to be translated]:e.g. Daily code review"
+        "label": "Nom",
+        "placeholder": "ex: Revue de code quotidienne"
       },
-      "nextRun": "[to be translated]:Next Run",
-      "oncePlaceholder": "[to be translated]:Select date and time",
-      "pause": "[to be translated]:Pause",
+      "nextRun": "Prochaine exécution",
+      "oncePlaceholder": "Sélectionner la date et l'heure",
+      "pause": "Pause",
       "prompt": {
-        "expand": "[to be translated]:Expand editor",
-        "label": "[to be translated]:Prompt",
-        "placeholder": "[to be translated]:What should the agent do when this task runs?"
+        "expand": "Développer l'éditeur",
+        "label": "Prompt",
+        "placeholder": "Que doit faire l'agent lors de l'exécution de cette tâche ?"
       },
-      "resume": "[to be translated]:Resume",
-      "run": "[to be translated]:Run",
-      "runTriggered": "[to be translated]:Task triggered",
-      "save": "[to be translated]:Save",
+      "resume": "Reprendre",
+      "run": "Exécuter",
+      "runTriggered": "Tâche déclenchée",
+      "save": "Enregistrer",
       "scheduleType": {
-        "cron": "[to be translated]:Cron",
-        "interval": "[to be translated]:Interval",
-        "once": "[to be translated]:Once"
+        "cron": "Cron",
+        "interval": "Intervalle",
+        "once": "Une fois"
       },
       "status": {
-        "active": "[to be translated]:Active",
-        "completed": "[to be translated]:Completed",
-        "paused": "[to be translated]:Paused"
+        "active": "Actif",
+        "completed": "Terminé",
+        "paused": "En pause"
       },
-      "tab": "[to be translated]:Tasks",
+      "tab": "Tâches",
       "time": {
-        "hoursAgo": "[to be translated]:{{count}}h ago",
-        "minutesAgo": "[to be translated]:{{count}}m ago"
+        "hoursAgo": "{{count}}h il y a",
+        "minutesAgo": "{{count}}m il y a"
       },
       "timeout": {
-        "label": "[to be translated]:Maximum Execution Time",
-        "placeholder": "[to be translated]:No limit"
+        "label": "Temps d’exécution maximal",
+        "placeholder": "Aucune limite"
       },
-      "title": "[to be translated]:Scheduled Tasks"
+      "title": "Tâches planifiées"
     },
     "todo": {
       "mock": {
@@ -968,24 +968,24 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspecte et gère cette configuration d'agent et ses canaux",
+          "label": "Configuration de l'agent"
         },
         "CherryCron": {
-          "description": "[to be translated]:Manages the in-app scheduler",
-          "label": "[to be translated]:Scheduler"
+          "description": "Gère le planificateur intégré à l'application",
+          "label": "Planificateur"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
+          "label": "Gérer les connaissances"
         },
         "CherryKbSearch": {
           "description": "Recherche dans vos bases de connaissances",
           "label": "Recherche de connaissances"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Envoie une notification via un canal connecté",
+          "label": "Notifier"
         },
         "CherryWebFetch": {
           "description": "Récupère et lit une page web",
@@ -1127,7 +1127,7 @@
     "clear": {
       "content": "Supprimer le sujet supprimera tous les sujets et fichiers de l'aide. Êtes-vous sûr de vouloir continuer ?",
       "menu_title": "Supprimer toutes les conversations avec l'assistant",
-      "success_title": "[to be translated]:Cleared {{count}} topics",
+      "success_title": "{{count}} sujets effacés",
       "title": "Supprimer les sujets"
     },
     "copy": {
@@ -1337,14 +1337,14 @@
       "add": "Ajouter un tag",
       "delete": "Supprimer le tag",
       "deleteConfirm": "Voulez-vous vraiment supprimer ce tag ?",
-      "group_by": "[to be translated]:Group by tag",
+      "group_by": "Regrouper par étiquette",
       "manage": "Gestion des tags",
       "modify": "Modifier le tag",
       "none": "Aucun tag pour le moment",
       "settings": {
         "title": "Paramètres des balises"
       },
-      "ungroup": "[to be translated]:Turn off tag grouping",
+      "ungroup": "Désactiver le regroupement par étiquettes",
       "untagged": "Non groupé"
     },
     "title": "Agent",
@@ -1501,7 +1501,7 @@
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
-      "resize_height": "[to be translated]:Resize input height",
+      "resize_height": "Redimensionner la hauteur d'entrée",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1520,7 +1520,7 @@
         },
         "title": "Ressources"
       },
-      "restore": "[to be translated]:Restore",
+      "restore": "Restaurer",
       "send": "Envoyer",
       "send_failed": "Échec de l'envoi du message",
       "settings": "Paramètres",
@@ -1529,7 +1529,7 @@
           "clear": "Effacer l'historique de la conversation",
           "compact": "Conversation compacte avec instructions de focalisation optionnelles",
           "context": "Visualiser l'utilisation actuelle du contexte sous forme de grille colorée",
-          "usage": "[to be translated]:Show session cost, plan usage limits, and activity stats"
+          "usage": "Afficher le coût de la session, les limites d'utilisation du plan et les statistiques d'activité"
         },
         "description": "Commandes slash de session d'agent",
         "title": "Commandes Slash"
@@ -1607,8 +1607,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Lecture du cache {{cache_read}} / écriture {{cache_write}} / pas de cache {{no_cache}} · {{saved}} jetons d'entrée économisés"
       },
       "editing_current": "Ce message est en cours de modification dans le compositeur",
       "flow": {
@@ -1628,9 +1628,9 @@
         "branch": {
           "created": "Nouvelle branche créée",
           "disabled": {
-            "active": "[to be translated]:This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "[to be translated]:You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "[to be translated]:There is no follow-up after this message yet. Switch to this node and continue typing instead."
+            "active": "Ce nœud est déjà sélectionné. Continuez à taper pour étendre la branche à partir d'ici.",
+            "latest": "Vous êtes déjà à la fin de cette branche. Continuez à taper pour l'étendre.",
+            "no_follow_up": "Il n'y a pas encore de suite après ce message. Passez à ce nœud et continuez à taper à la place."
           },
           "label": "Branche"
         },
@@ -1664,9 +1664,9 @@
     "resend": "Réenvoyer",
     "resource_view": {
       "menu": {
-        "agent": "[to be translated]:Agents",
-        "assistant": "[to be translated]:Assistants",
-        "skill": "[to be translated]:Skills"
+        "agent": "Agents",
+        "assistant": "Assistants",
+        "skill": "Compétences"
       }
     },
     "save": {
@@ -1753,7 +1753,7 @@
               "tip": "Le sujet sera enregistré dans la base de connaissances sous la forme d’un contexte de conversation complet."
             }
           },
-          "source_fallback": "[to be translated]:Conversation",
+          "source_fallback": "Conversation",
           "success": "Le sujet a été enregistré avec succès dans la base de connaissances ({{count}} éléments de contenu)",
           "title": "Enregistrer le sujet dans la base de connaissances"
         }
@@ -1963,200 +1963,200 @@
     }
   },
   "code": {
-    "add_provider_hint": "[to be translated]:Add provider in Settings → Model Service",
-    "add_provider_hint_anthropic_messages": "[to be translated]:Configure an Anthropic Messages endpoint in Settings → Model Service",
-    "add_provider_hint_gemini": "[to be translated]:Configure a Gemini endpoint in Settings → Model Service",
-    "add_provider_hint_openai_responses": "[to be translated]:Configure an OpenAI Responses endpoint in Settings → Model Service",
+    "add_provider_hint": "Ajouter un fournisseur dans Paramètres → Service de modèle",
+    "add_provider_hint_anthropic_messages": "Configurer un point de terminaison Anthropic Messages dans Paramètres → Service de modèle",
+    "add_provider_hint_gemini": "Configurez un point de terminaison Gemini dans Paramètres → Service de modèle",
+    "add_provider_hint_openai_responses": "Configurez un point de terminaison OpenAI Responses dans Paramètres → Service de modèle",
     "adv": {
       "claude": {
-        "context_column": "[to be translated]:1M",
-        "disable_1m_context": "[to be translated]:Disable 1M Context",
-        "disable_attribution_header": "[to be translated]:Disable Attribution Header",
-        "disable_auto_upgrade": "[to be translated]:Disable Auto Upgrade",
-        "disable_bundled_skills": "[to be translated]:Disable Bundled Skills",
-        "disable_compact": "[to be translated]:Disable Compaction",
-        "disable_extra_usage_command": "[to be translated]:Disable Extra Usage Command",
-        "disable_nonessential_traffic": "[to be translated]:Disable Non-Essential Traffic",
-        "disable_terminal_title": "[to be translated]:Disable Terminal Title",
-        "effort_level_hint": "[to be translated]:Effort Level",
-        "enable_teammates": "[to be translated]:Enable Teammates",
-        "enable_tool_search": "[to be translated]:Enable Tool Search",
-        "fable_model": "[to be translated]:Fable",
-        "haiku_model": "[to be translated]:Haiku",
-        "hide_attribution": "[to be translated]:Hide AI Attribution",
-        "max_context_tokens_hint": "[to be translated]:Max Context Tokens",
-        "max_output_tokens_hint": "[to be translated]:Max Output Tokens",
-        "model_column": "[to be translated]:Request Model",
-        "model_roles": "[to be translated]:Model Role Mapping",
-        "model_roles_hint": "[to be translated]:Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
-        "options": "[to be translated]:Quick Options",
-        "opus_model": "[to be translated]:Opus",
-        "permissions_allow": "[to be translated]:Allow (comma-separated)",
-        "permissions_deny": "[to be translated]:Deny (comma-separated)",
-        "permissions_hint": "[to be translated]:Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
-        "role_column": "[to be translated]:Role",
-        "sonnet_model": "[to be translated]:Sonnet",
+        "context_column": "1M",
+        "disable_1m_context": "Désactiver le contexte 1M",
+        "disable_attribution_header": "Désactiver l'en-tête d'attribution",
+        "disable_auto_upgrade": "Désactiver la mise à niveau automatique",
+        "disable_bundled_skills": "Désactiver les compétences groupées",
+        "disable_compact": "Désactiver la compaction",
+        "disable_extra_usage_command": "Désactiver la commande d'utilisation supplémentaire",
+        "disable_nonessential_traffic": "Désactiver le trafic non essentiel",
+        "disable_terminal_title": "Désactiver le titre du terminal",
+        "effort_level_hint": "Niveau d'effort",
+        "enable_teammates": "Activer les coéquipiers",
+        "enable_tool_search": "Activer la recherche d'outils",
+        "fable_model": "Fable",
+        "haiku_model": "Haïku",
+        "hide_attribution": "Masquer l'attribution IA",
+        "max_context_tokens_hint": "Jetons de contexte maximum",
+        "max_output_tokens_hint": "Jetons de sortie maximum",
+        "model_column": "Modèle de requête",
+        "model_roles": "Mappage des rôles du modèle",
+        "model_roles_hint": "Remplacer les modèles utilisés pour les sous-tâches en arrière-plan (par exemple, compaction, titres). Laisser vide pour suivre le modèle principal.",
+        "options": "Options rapides",
+        "opus_model": "Opus",
+        "permissions_allow": "Autoriser (séparés par des virgules)",
+        "permissions_deny": "Refuser (séparé par des virgules)",
+        "permissions_hint": "Pré-approuver ou refuser les modèles d'outils. Prend en charge les caractères génériques comme Read(secrets-*/config.json).",
+        "role_column": "Rôle",
+        "sonnet_model": "Sonnet",
         "subagent_model": "[to be translated]:Subagent"
       },
       "codex": {
-        "disable_response_storage": "[to be translated]:Disable Response Storage",
-        "goal_mode": "[to be translated]:Enable Goal Mode",
-        "remote_compaction": "[to be translated]:Enable Remote Compaction"
+        "disable_response_storage": "Désactiver le stockage des réponses",
+        "goal_mode": "Activer le Mode Objectif",
+        "remote_compaction": "Activer la compaction à distance"
       },
       "gemini": {
-        "checkpointing": "[to be translated]:Enable Checkpointing",
-        "disable_usage_stats": "[to be translated]:Disable Usage Statistics",
-        "hide_banner": "[to be translated]:Hide Startup Banner",
-        "vim_mode": "[to be translated]:Enable Vim Mode"
+        "checkpointing": "Activer les points de contrôle",
+        "disable_usage_stats": "Désactiver les statistiques d'utilisation",
+        "hide_banner": "Masquer la bannière de démarrage",
+        "vim_mode": "Activer le mode Vim"
       },
       "kimi": {
-        "disable_telemetry": "[to be translated]:Disable Telemetry",
-        "keep_background_tasks": "[to be translated]:Keep Background Tasks On Exit",
-        "micro_compaction": "[to be translated]:Enable Micro Compaction",
-        "plan_mode": "[to be translated]:Default Plan Mode",
-        "thinking": "[to be translated]:Enable Thinking"
+        "disable_telemetry": "Désactiver la télémétrie",
+        "keep_background_tasks": "Conserver les tâches en arrière-plan à la sortie",
+        "micro_compaction": "Activer la micro-compaction",
+        "plan_mode": "Mode Plan par défaut",
+        "thinking": "Activer la réflexion"
       },
       "opencode": {
-        "auto_compact": "[to be translated]:Auto Compact",
-        "enable_reasoning": "[to be translated]:Enable Reasoning"
+        "auto_compact": "Compactage automatique",
+        "enable_reasoning": "Activer le raisonnement"
       },
-      "permission_mode": "[to be translated]:Permission Approval",
+      "permission_mode": "Approbation des autorisations",
       "permission_modes": {
-        "accept_edits": "[to be translated]:Accept Edits",
-        "ask": "[to be translated]:Ask",
-        "auto": "[to be translated]:Auto",
-        "auto_edit": "[to be translated]:Auto Edit",
-        "bypass_high_risk": "[to be translated]:Bypass Permissions (High Risk)",
-        "default": "[to be translated]:Default",
-        "default_allow_all": "[to be translated]:Default (Allow All)",
-        "deny": "[to be translated]:Deny",
-        "full_access_high_risk": "[to be translated]:Full Access (High Risk)",
-        "manual": "[to be translated]:Manual",
-        "plan": "[to be translated]:Plan",
-        "read_only": "[to be translated]:Read Only",
-        "workspace": "[to be translated]:Workspace",
-        "yolo_high_risk": "[to be translated]:YOLO (High Risk)"
+        "accept_edits": "Accepter les modifications",
+        "ask": "Demander",
+        "auto": "Auto",
+        "auto_edit": "Édition automatique",
+        "bypass_high_risk": "Contournement des autorisations (risque élevé)",
+        "default": "Par défaut",
+        "default_allow_all": "Par défaut (Tout autoriser)",
+        "deny": "Refuser",
+        "full_access_high_risk": "Accès complet (Haut risque)",
+        "manual": "Manuel",
+        "plan": "Plan",
+        "read_only": "Lecture seule",
+        "workspace": "Espace de travail",
+        "yolo_high_risk": "YOLO (Haut Risque)"
       },
       "qwen": {
-        "classify_all_shell": "[to be translated]:Classify All Shell Commands",
-        "disable_auto_update": "[to be translated]:Disable Auto Update",
-        "disable_usage_stats": "[to be translated]:Disable Usage Statistics",
-        "hide_banner": "[to be translated]:Hide Startup Banner",
-        "vim_mode": "[to be translated]:Enable Vim Mode"
+        "classify_all_shell": "Classer Toutes les Commandes Shell",
+        "disable_auto_update": "Désactiver la mise à jour automatique",
+        "disable_usage_stats": "Désactiver les statistiques d'utilisation",
+        "hide_banner": "Masquer la bannière de démarrage",
+        "vim_mode": "Activer le mode Vim"
       },
-      "reasoning_effort": "[to be translated]:Reasoning Effort",
+      "reasoning_effort": "Effort de raisonnement",
       "reasoning_efforts": {
-        "default": "[to be translated]:Default",
-        "high": "[to be translated]:High",
-        "low": "[to be translated]:Low",
-        "medium": "[to be translated]:Medium",
-        "minimal": "[to be translated]:Minimal",
-        "xhigh": "[to be translated]:Extra High"
+        "default": "Par défaut",
+        "high": "Élevé",
+        "low": "Faible",
+        "medium": "Moyen",
+        "minimal": "Minimal",
+        "xhigh": "Extra Haut"
       },
-      "select_placeholder": "[to be translated]:Select…"
+      "select_placeholder": "Sélectionner…"
     },
     "api_gateway": {
       "description": "[to be translated]:Any CLI, every model",
       "requires_running": "[to be translated]:Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
       "title": "[to be translated]:Unified Gateway"
     },
-    "apply_failed": "[to be translated]:Failed to write CLI config to the system file",
+    "apply_failed": "Échec de l'écriture de la configuration CLI dans le fichier système",
     "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
     "bun_required_message": "L'exécution de l'outil en ligne de commande nécessite l'installation de l'environnement Bun",
-    "can_upgrade": "[to be translated]:Upgrade available",
-    "clear_config_failed": "[to be translated]:Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
+    "can_upgrade": "Mise à niveau disponible",
+    "clear_config_failed": "Échec de l'effacement de la configuration CLI. Vos informations d'identification peuvent toujours se trouver dans les fichiers de configuration de l'outil.",
     "cli_config": {
-      "format_failed": "[to be translated]:Format failed. Check the file syntax.",
-      "hint": "[to be translated]:This is the content that will be written to the system CLI config file. API keys are not saved to preferences.",
-      "title": "[to be translated]:CLI Config File",
-      "unknown_model": "[to be translated]:Unknown model",
-      "unknown_provider": "[to be translated]:Unknown Provider"
+      "format_failed": "Le formatage a échoué. Vérifiez la syntaxe du fichier.",
+      "hint": "Voici le contenu qui sera écrit dans le fichier de configuration CLI du système. Les clés API ne sont pas enregistrées dans les préférences.",
+      "title": "Fichier de configuration CLI",
+      "unknown_model": "Modèle inconnu",
+      "unknown_provider": "Fournisseur inconnu"
     },
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "cli_tools": {
-      "claude_code": "[to be translated]:Claude Code",
-      "gemini_cli": "[to be translated]:Gemini CLI",
-      "github_copilot_cli": "[to be translated]:GitHub Copilot CLI",
-      "kimi_code": "[to be translated]:Kimi Code",
-      "openai_codex": "[to be translated]:OpenAI Codex",
-      "openclaw": "[to be translated]:OpenClaw",
-      "opencode": "[to be translated]:OpenCode",
-      "qoder_cli": "[to be translated]:Qoder CLI",
-      "qwen_code": "[to be translated]:Qwen Code"
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "CLI GitHub Copilot",
+      "kimi_code": "Code Kimi",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
     },
-    "collapse": "[to be translated]:Collapse",
-    "config_json_hint": "[to be translated]:Paste or edit raw JSON; it stays in sync with the fields above",
-    "configure": "[to be translated]:Configure",
-    "configuring_provider": "[to be translated]:Configure {{provider}}",
+    "collapse": "Réduire",
+    "config_json_hint": "Collez ou modifiez le JSON brut ; il reste synchronisé avec les champs ci-dessus",
+    "configure": "Configurer",
+    "configuring_provider": "Configurer {{provider}}",
     "count_one": "{{count}} article",
     "count_other": "{{count}} articles",
-    "current_config": "[to be translated]:Current",
-    "current_config_settings": "[to be translated]:Current Config",
+    "current_config": "Actuel",
+    "current_config_settings": "Configuration actuelle",
     "custom_path": "Chemin personnalisé",
     "custom_path_error": "Échec de la définition du chemin de terminal personnalisé",
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
-    "disable": "[to be translated]:Disable",
-    "edit_config": "[to be translated]:Edit Config",
-    "enable": "[to be translated]:Enable",
-    "enabled": "[to be translated]:Enabled",
-    "endpoint_default": "[to be translated]:Using provider default",
-    "endpoint_hint": "[to be translated]:Endpoint / Key in Model Service",
+    "disable": "Désactiver",
+    "edit_config": "Modifier la configuration",
+    "enable": "Activer",
+    "enabled": "Activé",
+    "endpoint_default": "Utilisant le fournisseur par défaut",
+    "endpoint_hint": "Point de terminaison / Clé dans le Service de modèle",
     "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
     "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
-    "format_json": "[to be translated]:Format",
+    "format_json": "Format",
     "hero_tagline": "Choisissez un outil CLI à configurer",
-    "install": "[to be translated]:Install",
+    "install": "Installer",
     "install_bun": "Installer Bun",
-    "install_error": "[to be translated]:Installation failed",
-    "install_success": "[to be translated]:Installation successful",
-    "install_tool_first": "[to be translated]:Install {{toolName}} first to select a provider",
-    "installing": "[to be translated]:Installing…",
+    "install_error": "L'installation a échoué",
+    "install_success": "Installation réussie",
+    "install_tool_first": "Installez d'abord {{toolName}} pour sélectionner un fournisseur",
+    "installing": "Installation…",
     "installing_bun": "Installation en cours...",
-    "latest": "[to be translated]:Latest",
+    "latest": "Dernier",
     "launch": {
       "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil en ligne de commande",
       "error": "Échec du démarrage, veuillez réessayer",
       "label": "Démarrer",
       "launched": "Lancé",
       "success": "Démarrage réussi",
-      "title": "[to be translated]:Launch {{tool}}",
+      "title": "Lancer {{outil}}",
       "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
     },
     "launching": "En cours de démarrage...",
     "model": "modèle",
     "model_hint": "Choisis quel modèle d’IA l’outil CLI doit utiliser",
-    "model_hint_config": "[to be translated]:Select the model to use",
+    "model_hint_config": "Sélectionnez le modèle à utiliser",
     "model_mode": {
-      "common": "[to be translated]:General",
-      "detailed": "[to be translated]:Detailed"
+      "common": "Général",
+      "detailed": "Détaillé"
     },
     "model_placeholder": "Sélectionnez le modèle à utiliser",
-    "model_providers": "[to be translated]:Model Providers",
+    "model_providers": "Fournisseurs de modèles",
     "model_required": "Veuillez sélectionner le modèle",
-    "model_selection": "[to be translated]:Model Selection",
-    "more": "[to be translated]:More",
+    "model_selection": "Sélection de modèle",
+    "more": "Plus",
     "move_provider_to_top": "[to be translated]:Move provider to top",
-    "no_matching_providers": "[to be translated]:No matching providers",
-    "no_model_for_provider": "[to be translated]:No model available for this provider",
-    "no_providers_description": "[to be translated]:Enable a supported provider in Settings → Model Service",
-    "no_providers_title": "[to be translated]:No enabled providers",
-    "no_tools": "[to be translated]:No tools available",
-    "not_installed": "[to be translated]:Not installed",
-    "open_provider_settings": "[to be translated]:Open provider settings",
+    "no_matching_providers": "Aucun fournisseur correspondant",
+    "no_model_for_provider": "Aucun modèle disponible pour ce fournisseur",
+    "no_providers_description": "Activez un fournisseur pris en charge dans Paramètres → Service de modèle",
+    "no_providers_title": "Aucun fournisseur activé",
+    "no_tools": "Aucun outil disponible",
+    "not_installed": "Non installé",
+    "open_provider_settings": "Ouvrir les paramètres du fournisseur",
     "own_login": {
-      "title": "[to be translated]:{{toolName}} Official"
+      "title": "{{toolName}} Officiel"
     },
-    "providerless_hint": "[to be translated]:This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
-    "providers": "[to be translated]:Providers",
-    "raw_config": "[to be translated]:Raw Config (JSON)",
-    "search_provider_placeholder": "[to be translated]:Search providers…",
+    "providerless_hint": "Cet outil s'authentifie via son propre processus de connexion — il suffit de choisir un répertoire de travail et de le lancer. Exécutez l'outil une fois pour vous connecter.",
+    "providers": "Fournisseurs",
+    "raw_config": "Configuration brute (JSON)",
+    "search_provider_placeholder": "Fournisseurs de recherche…",
     "select_folder": "Sélectionner le dossier",
-    "select_provider_before_launch": "[to be translated]:Select a provider before launching {{toolName}}",
-    "select_tool_to_start": "[to be translated]:Select a CLI tool from the left to start configuring",
+    "select_provider_before_launch": "Sélectionnez un fournisseur avant de lancer {{toolName}}",
+    "select_tool_to_start": "Sélectionnez un outil CLI à gauche pour commencer la configuration",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
@@ -2164,22 +2164,22 @@
     "terminal_placeholder": "Choisir une application de terminal",
     "title": "Outils de code",
     "tool_description": {
-      "claude_code": "Assistant de codage IA en ligne de commande officiel d'Anthropic",
-      "gemini_cli": "Assistant en ligne de commande officiel Gemini de Google",
-      "github_copilot_cli": "Compagnon officiel de ligne de commande de GitHub Copilot",
-      "iflow_cli": "Assistant en ligne de commande multi-modèle d'iFlow",
-      "kimi_cli": "Assistant en ligne de commande Kimi de Moonshot",
-      "openai_codex": "CLI officiel de génération de code d’OpenAI",
-      "opencode": "Agent de codage multi-modèle open-source",
-      "qoder_cli": "L'outil de codage en ligne de commande agentique d'Alibaba Qoder",
-      "qwen_code": "L'outil de codage CLI open source d'Alibaba Tongyi"
+      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
+      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
+      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
+      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
+      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
+      "opencode": "[to be translated]:Open-source multi-model coding agent",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
+      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
     },
-    "tool_parameters": "[to be translated]:Parameter Settings",
-    "up_to_date": "[to be translated]:Up to date",
+    "tool_parameters": "Paramètres",
+    "up_to_date": "À jour",
     "update_options": "Options de mise à jour",
-    "upgrade": "[to be translated]:Upgrade",
-    "upgrade_error": "[to be translated]:Upgrade failed",
-    "upgrade_success": "[to be translated]:Upgrade successful",
+    "upgrade": "Mise à niveau",
+    "upgrade_error": "La mise à niveau a échoué",
+    "upgrade_success": "Mise à niveau réussie",
     "working_directory": "répertoire de travail",
     "working_directory_hint": "Le répertoire de travail dans lequel l'outil CLI se lance"
   },
@@ -2285,7 +2285,7 @@
     "generate_random_seed": "Générer une graine aléatoire",
     "get_embedding_dimension": "Obtenir la dimension d'intégration",
     "go_to_settings": "Aller aux paramètres",
-    "help": "[to be translated]:Help",
+    "help": "Aide",
     "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
     "ignore": "Ignorer",
@@ -2313,7 +2313,7 @@
     "open_in_new_tab": "Ouvrir dans un nouvel onglet",
     "open_sidebar": "Ouvrir la barre latérale",
     "other": "[to be translated]:Other",
-    "paste": "Coller",
+    "paste": "[to be translated]:Paste",
     "placeholders": {
       "select": {
         "model": "Choisir le modèle"
@@ -2392,7 +2392,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-edit": "[to be translated]:Image Edit (OpenAI)",
+    "image-edit": "Édition d'images (OpenAI)",
     "image-generation": "Génération d'images (OpenAI)",
     "jina-rerank": "Reclassement Jina",
     "openai": "OpenAI",
@@ -2558,7 +2558,7 @@
       "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
       "no_match_title": "Aucun fichier correspondant trouvé"
     },
-    "empty_trash": "[to be translated]:Empty trash",
+    "empty_trash": "Vider la corbeille",
     "error": {
       "delete_failed": "Échec de la suppression des fichiers",
       "delete_partial_failed": "Certains fichiers n'ont pas pu être supprimés",
@@ -2576,7 +2576,7 @@
     "missing": "Manquant",
     "modified_at": "Modifié le",
     "name": "Nom du fichier",
-    "no_actions": "[to be translated]:No actions available",
+    "no_actions": "Aucune action disponible",
     "open": "Ouvrir",
     "other": "Autre",
     "permanent_delete": "Supprimer définitivement",
@@ -2590,18 +2590,18 @@
     "remove_from_library": "Supprimer de la bibliothèque",
     "rename": "Renommer",
     "restore": "Restaurer",
-    "select_all": "[to be translated]:Select visible files",
-    "select_all_short": "[to be translated]:Select All",
-    "select_file": "[to be translated]:Select {{name}}",
+    "select_all": "Sélectionner les fichiers visibles",
+    "select_all_short": "Tout sélectionner",
+    "select_file": "Sélectionner {{name}}",
     "selected_count": "{{count}} fichiers sélectionnés",
-    "selected_missing_hint": "[to be translated]:Some selected files are missing. Locate them or remove their records.",
+    "selected_missing_hint": "Certains fichiers sélectionnés sont manquants. Localisez-les ou supprimez leurs enregistrements.",
     "show_in_folder": "Afficher dans le dossier",
     "size": "Taille",
     "text": "Texte",
     "title": "Fichier",
     "trash": "Poubelle",
     "type": "Type",
-    "upload": "[to be translated]:Upload files",
+    "upload": "Télécharger des fichiers",
     "video": "Vidéo"
   },
   "globalSearch": {
@@ -2722,7 +2722,7 @@
         "target": "Assistant cible",
         "title": "Déplacer les conversations sélectionnées"
       },
-      "clearSearch": "[to be translated]:Clear search",
+      "clearSearch": "Effacer la recherche",
       "empty": {
         "description": "Aucune conversation pour les filtres actuels.",
         "sessionsDescription": "Aucune tâche pour les filtres actuels.",
@@ -2730,11 +2730,11 @@
         "title": "Aucune conversation"
       },
       "filter": {
-        "selectAgent": "[to be translated]:Select an agent",
-        "selectAssistant": "[to be translated]:Select an assistant",
-        "statusLabel": "[to be translated]:Status",
-        "statusPlaceholder": "[to be translated]:Select status",
-        "unlinkedAssistant": "[to be translated]:Unlinked assistant"
+        "selectAgent": "Sélectionner un agent",
+        "selectAssistant": "Sélectionner un assistant",
+        "statusLabel": "Statut",
+        "statusPlaceholder": "Sélectionner un statut",
+        "unlinkedAssistant": "Assistant non lié"
       },
       "loading": {
         "description": "Chargement de la liste des conversations.",
@@ -2752,7 +2752,7 @@
       },
       "table": {
         "actions": "Actions",
-        "conversation": "[to be translated]:Conversation",
+        "conversation": "Conversation",
         "emptyValue": "—",
         "session": "Tâche",
         "time": "Temps"
@@ -2847,12 +2847,12 @@
           "title": "Les sources existent déjà"
         },
         "directory": {
-          "description": "Importer récursivement les fichiers pris en charge depuis un dossier",
-          "title": "Cliquez pour sélectionner un dossier"
+          "description": "[to be translated]:Recursively import supported files from a folder",
+          "title": "[to be translated]:Click to select a folder"
         },
         "footer": {
-          "selected_directories": "{{count}} répertoires sélectionnés",
-          "selected_files": "{{count}} fichiers sélectionnés",
+          "selected_directories": "[to be translated]:{{count}} directories selected",
+          "selected_files": "[to be translated]:{{count}} files selected",
           "selected_notes": "{{count}} notes sélectionnées"
         },
         "note": {
@@ -2887,7 +2887,7 @@
         }
       },
       "bulk": {
-        "cancel": "Annuler",
+        "cancel": "[to be translated]:Cancel",
         "delete": "Supprimer",
         "delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
@@ -2929,7 +2929,7 @@
         "failed": "Échec de l'aperçu de la source",
         "unavailable": "Cette source de données n'a aucune source à prévisualiser"
       },
-      "ready_summary": "{{ready}}/{{total}} prêt",
+      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
       "reindex_failed": "Échec de la réindexation de la source de données",
       "status": {
         "chunking": "Fragmentation",
@@ -2953,13 +2953,13 @@
       },
       "toolbar": {
         "add": "Ajouter une source de données",
-        "no_search_results": "Aucune source de données correspondante",
-        "search_placeholder": "Sources de données de recherche"
+        "no_search_results": "[to be translated]:No matching data sources",
+        "search_placeholder": "[to be translated]:Search data sources"
       }
     },
     "dimensions_auto_set": "Réglage automatique des dimensions d'incorporation",
     "dimensions_size_placeholder": " Taille de dimension d'incorporation, ex. 1024",
-    "drag_file": "Glissez-déposez un fichier ici",
+    "drag_file": "[to be translated]:Drag file here",
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
@@ -2975,7 +2975,7 @@
       "missing_vector_store": "Le magasin de vecteurs de cette base de connaissances n'a pas pu être lu pendant la migration (manquant, vide ou verrouillé). La base de connaissances a été conservée ; ré-indexez-la pour la récupérer.",
       "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
     },
-    "file_hint": "Format supporté : {{file_types}}",
+    "file_hint": "[to be translated]:Support {{file_types}}",
     "groups": {
       "add": "Nouveau Groupe",
       "create_base_here": "Créez ici",
@@ -3014,8 +3014,8 @@
       "chunking": "Fragmentation",
       "default_separator": "Auto (recommandé)",
       "document_count": "Nombre de documents",
-      "download_local_embedding": "[to be translated]:Download Local Model",
-      "download_local_embedding_failed": "[to be translated]:Failed to download the local embedding model",
+      "download_local_embedding": "Télécharger le modèle local",
+      "download_local_embedding_failed": "Échec du téléchargement du modèle d'embedding local",
       "embedding_model": "Modèle d'embedding",
       "embedding_model_select": "Sélection de modèle",
       "file_processing": "Traitement de fichiers",
@@ -3043,7 +3043,7 @@
       "smart_chunking": "Découpage intelligent",
       "threshold": "Seuil de similarité",
       "tokens_unit": "jetons",
-      "use_local_embedding": "[to be translated]:Use Local Model"
+      "use_local_embedding": "Utiliser le modèle local"
     },
     "recall": {
       "collapse": "Réduire le bloc",
@@ -3149,7 +3149,7 @@
       "preview_prompt": "Invite",
       "scroll_left": "Faire défiler les catégories vers la gauche",
       "scroll_right": "Faire défiler les catégories vers la droite",
-      "title": "[to be translated]:Assistant Library"
+      "title": "Bibliothèque d'assistants"
     },
     "badge": {
       "update": "Mise à jour"
@@ -3217,7 +3217,7 @@
             "label": "Mode d'autorisation",
             "option": {
               "acceptEdits": "Accepter les modifications",
-              "bypassPermissions": "Contourner les permissions (Âme)",
+              "bypassPermissions": "Contourner les permissions",
               "default": "Défaut",
               "plan": "Mode plan"
             }
@@ -3270,7 +3270,7 @@
             "no_skills_enabled": "Aucune compétence activée",
             "search_placeholder": "Outils ou serveurs de recherche...",
             "skills_coming_soon": "Associations de compétences à venir",
-            "skills_enable_all": "[to be translated]:Enable all",
+            "skills_enable_all": "Tout activer",
             "skills_require_save": "Enregistrer avant d'activer les compétences",
             "tab": {
               "mcp": "Serveur MCP",
@@ -3357,22 +3357,22 @@
           "agent_title": "Nouvel agent",
           "assistant_title": "Nouvel Assistant",
           "avatar_aria": "Choisir un avatar",
-          "back": "[to be translated]:Back",
+          "back": "Retour",
           "capability": {
-            "builtin_badge": "[to be translated]:Enabled by default",
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "builtin_badge": "Activé par défaut",
+            "import": "Importer une compétence",
+            "no_skills": "Aucune compétence installée",
+            "search": "Compétences de recherche"
           },
           "description_placeholder": "Décrire à quoi cela sert...",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Configuration guidée · Étape {{current}} sur {{total}}",
           "name_placeholder": "Entrez un nom",
-          "next": "[to be translated]:Next",
+          "next": "Suivant",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "Informations de base",
+            "capability": "Compétences",
+            "knowledge": "Connaissance",
+            "persona": "Persona"
           },
           "submit": "Créer",
           "submit_failed": "Échec de la création"
@@ -3584,8 +3584,8 @@
       "title": "Bibliothèque"
     },
     "skill_add": {
-      "local_import": "[to be translated]:Local import",
-      "online_search": "[to be translated]:Online search"
+      "local_import": "Importation locale",
+      "online_search": "Recherche en ligne"
     },
     "skill_detail": {
       "created_at": "Créé",
@@ -3599,13 +3599,13 @@
       "updated_at": "Récemment mis à jour"
     },
     "skill_marketplace": {
-      "empty_description": "[to be translated]:Search online registries to find installable skills.",
-      "empty_title": "[to be translated]:Search for skills",
-      "no_results_description": "[to be translated]:Try another keyword or import a local ZIP or directory.",
-      "no_results_title": "[to be translated]:No skills found",
-      "search_failed_description": "[to be translated]:Search failed. Please try again later.",
-      "search_placeholder": "[to be translated]:Search skills...",
-      "title": "[to be translated]:Online skill search"
+      "empty_description": "Recherchez dans les registres en ligne pour trouver des compétences installables.",
+      "empty_title": "Rechercher des compétences",
+      "no_results_description": "Essayez un autre mot-clé ou importez un fichier ZIP local ou un répertoire.",
+      "no_results_title": "Aucune compétence trouvée",
+      "search_failed_description": "La recherche a échoué. Veuillez réessayer plus tard.",
+      "search_placeholder": "Compétences de recherche...",
+      "title": "Recherche de compétences en ligne"
     },
     "sort": {
       "created": "Trier par date de création",
@@ -3994,7 +3994,7 @@
       "approvalRequired": "L'outil \"{{tool}}\" nécessite une approbation",
       "autoApproveEnabled": "Cet outil a l'approbation automatique activée",
       "cancelled": "Annulé",
-      "collapse": "[to be translated]:Collapse",
+      "collapse": "Effondrement",
       "completed": "Terminé",
       "error": "Une erreur s'est produite",
       "groupHeader": "{{count}} appels d'outil",
@@ -4039,7 +4039,7 @@
         "usingTools": "Travailler sur la tâche"
       },
       "preview": "Aperçu",
-      "processed": "[to be translated]:Processed",
+      "processed": "Traité",
       "raw": "Brut",
       "runningCount": "{{count}} outils en cours d'exécution",
       "runningHeader": "En cours…",
@@ -4114,62 +4114,62 @@
     }
   },
   "minapp": {
-    "add_to_launchpad": "Ajouter à Launchpad",
-    "add_to_sidebar": "Ajouter à la barre latérale",
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
     "popup": {
-      "close": "Fermer MinApp",
-      "devtools": "Outils de développement",
-      "goBack": "Retour",
-      "goForward": "Avancer",
-      "minimize": "Réduire MinApp",
-      "openExternal": "Ouvrir dans le navigateur",
-      "open_link_external_off": "Actuel : Ouvrir les liens dans la fenêtre par défaut",
-      "open_link_external_on": "Actuel : Ouvrir les liens dans le navigateur",
-      "refresh": "Actualiser",
-      "rightclick_copyurl": "Clic droit pour copier l'URL"
+      "close": "[to be translated]:Close MinApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "minimize": "[to be translated]:Minimize MinApp",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
     },
-    "remove_from_launchpad": "Supprimer de Launchpad",
-    "remove_from_sidebar": "Supprimer de la barre latérale",
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
     "sidebar": {
       "close": {
-        "title": "Fermer"
+        "title": "[to be translated]:Close"
       },
       "closeall": {
-        "title": "Tout fermer"
+        "title": "[to be translated]:Close All"
       },
       "hide": {
-        "title": "Cacher"
+        "title": "[to be translated]:Hide"
       },
       "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
+        "title": "[to be translated]:Delete Custom App"
       }
     },
-    "title": "MinApp"
+    "title": "[to be translated]:MinApp"
   },
   "minapps": {
-    "ant-ling": "Fourmi Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Recherche IA Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Recherche Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
@@ -4181,7 +4181,7 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Échec de l'épinglage de la mini-application",
     "popup": {
-      "close": "Закрыть мини-программу",
+      "close": "[to be translated]:Close MiniApp",
       "devtools": "Инструменты разработчика",
       "goBack": "Reculer",
       "goForward": "Avancer",
@@ -4189,7 +4189,7 @@
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
       "refresh": "Обновить",
-      "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
     },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
@@ -4202,16 +4202,16 @@
     "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
-        "title": "Fermer"
+        "title": "[to be translated]:Close"
       },
       "closeall": {
-        "title": "Закрыть все"
+        "title": "[to be translated]:Close All"
       },
       "hide": {
         "title": "Cacher"
       },
       "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
+        "title": "[to be translated]:Delete Custom App"
       }
     },
     "title": "Mini-programme",
@@ -4231,7 +4231,7 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4363,13 +4363,13 @@
     "drop_markdown_hint": "Déposez ici des fichiers ou dossiers .md pour les importer",
     "empty": "Aucune note pour le moment",
     "expand": "développer",
-    "exportToPDF": "[to be translated]:Export to PDF",
+    "exportToPDF": "Exporter en PDF",
     "exportToWord": "Exporter vers Word",
     "export_failed": "Échec de l'exportation vers la base de connaissances",
     "export_knowledge": "exporter la note vers la base de connaissances",
     "export_success": "Exporté avec succès vers la base de connaissances",
-    "export_to_pdf_failed": "[to be translated]:Failed to export to PDF",
-    "export_to_pdf_success": "[to be translated]:Exported to PDF",
+    "export_to_pdf_failed": "Échec de l'exportation au format PDF",
+    "export_to_pdf_success": "Exporté au format PDF",
     "export_to_word_failed": "Échec de l'exportation vers Word",
     "folder": "dossier",
     "load_failed": "Échec du chargement de la note",
@@ -4386,8 +4386,8 @@
     "no_valid_files": "Aucun fichier valide n’a été téléversé",
     "open_folder": "ouvrir le dossier externe",
     "open_outside": "Ouvrir depuis l'extérieur",
-    "print": "[to be translated]:Print",
-    "print_failed": "[to be translated]:Failed to print note",
+    "print": "Imprimer",
+    "print_failed": "Échec de l'impression de la note",
     "rename": "renommer",
     "rename_changed": "En raison de la politique de sécurité, le nom du fichier a été changé de {{original}} à {{final}}",
     "rename_failed": "Échec du renommage de la note",
@@ -4491,25 +4491,25 @@
   },
   "ocr": {
     "builtin": {
-      "system": "OCR système"
+      "system": "[to be translated]:System OCR"
     },
     "error": {
       "provider": {
-        "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
-        "existing": "Le fournisseur existe déjà",
-        "get_providers": "Échec de l'obtention des fournisseurs disponibles",
-        "not_found": "Le fournisseur OCR n'existe pas",
-        "update_failed": "Échec de la mise à jour de la configuration"
+        "cannot_remove_builtin": "[to be translated]:Cannot delete built-in provider",
+        "existing": "[to be translated]:The provider already exists",
+        "get_providers": "[to be translated]:Failed to get available providers",
+        "not_found": "[to be translated]:OCR provider does not exist",
+        "update_failed": "[to be translated]:Failed to update configuration"
       },
-      "unknown": "Une erreur s'est produite lors du processus OCR"
+      "unknown": "[to be translated]:An error occurred during the OCR process"
     },
     "file": {
-      "not_supported": "Type de fichier non pris en charge {{type}}"
+      "not_supported": "[to be translated]:Unsupported file type {{type}}"
     },
     "processing": "Traitement OCR en cours...",
     "warning": {
       "provider": {
-        "fallback": "Revenu à {{name}}, ce qui pourrait entraîner des problèmes"
+        "fallback": "[to be translated]:Reverted to {{name}}, which may cause issues"
       }
     }
   },
@@ -4549,7 +4549,7 @@
       "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle"
     },
     "gateway": {
-      "open_dashboard": "[to be translated]:Open OpenClaw",
+      "open_dashboard": "Ouvrir OpenClaw",
       "port": "Port",
       "restart": "Redémarrer",
       "start": "Démarrer la passerelle",
@@ -5047,7 +5047,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilote",
     "dashscope": "AliCloud BaiLian",
     "deepseek": "DeepSeek",
@@ -5060,7 +5060,7 @@
     "github": "GitHub Modèles",
     "gpustack": "GPUStack",
     "grok": "Grok",
-    "grok-cli": "[to be translated]:Grok CLI",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent HunYuan",
@@ -5069,7 +5069,7 @@
     "jina": "Jina",
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
-    "local-embedding": "[to be translated]:Qwen3 Embedding 0.6B",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5085,8 +5085,8 @@
     "ollama": "Ollama",
     "open-mineru": "Ouvrir MinerU",
     "openai": "OpenAI",
-    "openai-codex": "[to be translated]:OpenAI Codex",
-    "opencode": "[to be translated]:OpenCode Go",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -5104,7 +5104,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Ensemble",
-    "tokenhub": "[to be translated]:TokenHub",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
@@ -5596,7 +5596,7 @@
     "assistant": {
       "create_new": "Nouvel Assistant",
       "empty_text": "Pas encore d'assistants",
-      "filter": "[to be translated]:Filter assistants",
+      "filter": "Filtrer les assistants",
       "multi_hint": "(mutuellement exclusif avec multi-modèle)",
       "multi_label": "Multi-assistant parallèle",
       "search_placeholder": "Assistant de recherche…"
@@ -5674,13 +5674,13 @@
     },
     "agent": {
       "position": {
-        "label": "[to be translated]:Session position",
-        "left": "[to be translated]:Left",
-        "right": "[to be translated]:Right"
+        "label": "Position de session",
+        "left": "Gauche",
+        "right": "Droite"
       }
     },
     "appearance": {
-      "title": "[to be translated]:Appearance"
+      "title": "Apparence"
     },
     "assistant": {
       "icon": {
@@ -5701,114 +5701,114 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "Clair",
-        "configDescription": "Basculer les props pour prévisualiser le comportement du composant",
-        "configTitle": "Configuration",
-        "currentProps": "Accessoires actuels",
-        "description": "AgentSelector lit désormais les données réelles de l’API DataApi /agents pour vérifier la sélection d’identifiant/d’élément, l’épinglage, le tri et le comportement de recherche.",
-        "emptyShellNotice": "Cet aperçu utilise la vraie liste d’agents renvoyée par l’API de données /agents.",
-        "lastOnChange": "Dernier onChange",
-        "previewDescription": "Cliquez sur le déclencheur pour ouvrir le sélecteur",
-        "previewTitle": "Aperçu",
-        "title": "Sélecteur d'agent",
-        "triggerPlaceholder": "Sélectionnez un agent",
-        "valueProp": "Valeur actuelle"
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
       },
       "agentTodoList": {
-        "title": "Liste de tâches de l'agent"
+        "title": "[to be translated]:Agent Todo List"
       },
       "assistantSelector": {
-        "clearSelection": "Clair",
-        "configDescription": "Basculer les props pour prévisualiser le comportement du composant",
-        "configTitle": "Configuration",
-        "currentProps": "Propriétés actuelles",
-        "description": "Monte le composant métier AssistantSelector directement pour vérifier les comportements multi/simple, id/élément, épinglage, tri et recherche.",
-        "lastOnChange": "Dernier onChange",
-        "previewDescription": "Cliquez sur le déclencheur pour ouvrir le sélecteur",
-        "previewTitle": "Aperçu",
-        "title": "Sélecteur d'Assistant",
-        "triggerPlaceholder": "Sélectionnez un assistant",
-        "triggerSelectedCount": "{{count}} assistants sélectionnés",
-        "valueProp": "Valeur actuelle"
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
       },
-      "description": "Visible uniquement en développement pour tester le nouveau sélecteur de modèle directement dans l'application.",
+      "description": "[to be translated]:Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
       "fileProcessing": {
         "artifact": {
-          "file": "Fichier Markdown",
-          "text": "Résultat de texte"
+          "file": "[to be translated]:Markdown file",
+          "text": "[to be translated]:Text result"
         },
-        "description": "Exécuter chaque processeur de fichiers configuré via le véritable IPC de traitement de fichiers et comparer les résultats.",
-        "duration": "{{seconds}} s",
-        "jobId": "ID de tâche",
+        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
-          "description": "Sélectionnez un document et exécutez tous les processeurs de conversion de document vers Markdown.",
-          "fileFilterName": "Documents",
-          "noFile": "Aucun document sélectionné",
-          "select": "Sélectionner un document",
-          "start": "Test markdown",
-          "title": "Markdown"
+          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "[to be translated]:Documents",
+          "noFile": "[to be translated]:No document selected",
+          "select": "[to be translated]:Select document",
+          "start": "[to be translated]:Test markdown",
+          "title": "[to be translated]:Markdown"
         },
-        "noProcessors": "Aucun processeur ne prend en charge cette fonctionnalité.",
+        "noProcessors": "[to be translated]:No processors support this feature.",
         "ocr": {
-          "description": "Sélectionnez une image et exécutez tous les processeurs OCR.",
-          "fileFilterName": "Images",
-          "noFile": "Aucune image sélectionnée",
-          "select": "Sélectionner une image",
-          "start": "Test OCR",
-          "title": "OCR"
+          "description": "[to be translated]:Select an image and run all OCR processors.",
+          "fileFilterName": "[to be translated]:Images",
+          "noFile": "[to be translated]:No image selected",
+          "select": "[to be translated]:Select image",
+          "start": "[to be translated]:Test OCR",
+          "title": "[to be translated]:OCR"
         },
-        "processorCount": "{{count}} processeurs",
+        "processorCount": "[to be translated]:{{count}} processors",
         "status": {
-          "cancelled": "Annulé",
-          "completed": "Terminé",
-          "delayed": "Retardé",
-          "failed": "Échec",
-          "idle": "Inactif",
-          "pending": "En attente",
-          "processing": "Traitement",
-          "running": "Courir",
-          "starting": "Démarrage"
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
+          "failed": "[to be translated]:Failed",
+          "idle": "[to be translated]:Idle",
+          "pending": "[to be translated]:Pending",
+          "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
+          "starting": "[to be translated]:Starting"
         },
-        "title": "Analyse de documents"
+        "title": "[to be translated]:Document Parsing"
       },
-      "label": "Laboratoire de Composants",
+      "label": "[to be translated]:Component Lab",
       "modelSelector": {
-        "behaviorConfig": "Configuration du comportement et de l'affichage",
-        "callbackEmpty": "Aucun rappel de composant reçu pour l'instant",
-        "clearSelection": "Effacer la sélection",
-        "configDescription": "Activez les props clés de ModelSelector ci-dessus et inspectez la valeur d'entrée ainsi que les payloads de rappel ci-dessous.",
-        "configTitle": "Terrain de jeu des accessoires",
-        "controlMultiSelectMode": "Mode multi-sélection contrôlée",
-        "currentProps": "Accessoires actuels",
-        "defaultMultiSelectMode": "modeSélectionMultipleParDéfaut",
-        "description": "Cette page monte directement le composant métier ModelSelector actuel afin que nous puissions vérifier les comportements de sélection, de filtrage, de recherche et d'épinglage.",
-        "empty": "Aucun modèle n’est actuellement disponible, donc le sélecteur ne peut pas encore être affiché.",
-        "lastModeChangeReturn": "Dernier retour de onMultiSelectModeChange",
-        "lastSelectReturn": "Dernier retour onSelect",
-        "loading": "Chargement des modèles...",
-        "modelId": "ID du modèle",
-        "multiSelectMode": "modeSélectionMultiple",
-        "multiple": "multiple",
-        "normalizedIds": "IDs sélectionnés normalisés",
-        "outputEmpty": "Aucune donnée à afficher pour le moment",
-        "provider": "Fournisseur",
-        "resetOutputs": "Réinitialiser les sorties",
-        "resultsDescription": "Ceci montre la proposition de valeur actuelle, les identifiants sélectionnés normalisés et la dernière sortie de rappel du composant.",
-        "resultsTitle": "Sorties et état",
-        "selected": "Sélection actuelle",
-        "selectedEmpty": "Aucun modèle sélectionné pour l'instant",
-        "selectionConfig": "Configuration de la valeur de sélection",
-        "selectionType": "typeDeSélection",
-        "selectionTypeId": "Retourner les ID de modèle",
-        "selectionTypeModel": "Retourner les objets du modèle",
-        "showPinnedModels": "afficherModèlesÉpinglés",
-        "showTagFilter": "afficherFiltreTag",
-        "title": "Sélecteur de modèle",
-        "triggerPlaceholder": "Sélectionner un modèle",
-        "triggerSelectedCount": "{{count}} modèles sélectionnés",
-        "valueProp": "Valeur actuelle proposée"
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
       },
-      "title": "Composant de développement Laboratoire"
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5845,7 +5845,7 @@
       "backup": {
         "skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
         "skip_file_data_title": "Sauvegarde réduite",
-        "v2_unavailable": "[to be translated]:Backup & restore V2 is not available yet. Coming soon."
+        "v2_unavailable": "La sauvegarde et la restauration V2 n'est pas encore disponible. Bientôt disponible."
       },
       "clear_cache": {
         "button": "Effacer le cache",
@@ -5862,7 +5862,7 @@
         "cloud_storage": "Paramètres de sauvegarde cloud",
         "export_settings": "Paramètres d'exportation",
         "import_settings": "Importer les paramètres",
-        "note_export": "[to be translated]:Note Export",
+        "note_export": "Exportation de notes",
         "third_party": "Connexion tierce"
       },
       "export_menu": {
@@ -6356,72 +6356,72 @@
       }
     },
     "dependencies": {
-      "addTool": "[to be translated]:Add Tool",
-      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "checkUpdates": "[to be translated]:Check for updates",
-      "coreDepsMissing": "[to be translated]:Core dependencies not installed",
-      "customTools": "[to be translated]:Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
-      "description": "[to be translated]:Manage binary tools and runtime dependencies required by the app.",
-      "duplicateName": "[to be translated]:A tool with the same name already exists",
-      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
-      "installError": "[to be translated]:Failed to install tool",
-      "installing": "[to be translated]:Installing...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Vérifier les mises à jour",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Aucun outil personnalisé pour l'instant. Ajoutez-en un pour commencer.",
+      "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Installer",
+      "installError": "Failed to install tool",
+      "installing": "Installation en cours...",
+      "invalidTool": "Nom d'outil ou clé invalide",
       "localModels": {
-        "cancel": "[to be translated]:Cancel",
-        "description": "[to be translated]:Models that run locally on your device — download once, then use offline with no API key.",
-        "download": "[to be translated]:Download",
+        "cancel": "Annuler",
+        "description": "Les modèles qui s'exécutent localement sur votre appareil — téléchargez une fois, puis utilisez hors ligne sans clé API.",
+        "download": "Télécharger",
         "embedding": {
-          "name": "[to be translated]:Local Embedding",
-          "subtitle": "[to be translated]:Qwen3 Embedding 0.6B · ~614 MB"
+          "name": "Intégration locale",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 Mo"
         },
         "notice": {
-          "downloadFailed": "[to be translated]:Download failed. Check your connection and try again.",
-          "inUse": "[to be translated]:Still used by a knowledge base; the weights were kept.",
-          "removeFailed": "[to be translated]:Remove failed. Check the logs for details."
+          "downloadFailed": "Échec du téléchargement. Vérifiez votre connexion et réessayez.",
+          "inUse": "Toujours utilisé par une base de connaissances ; les poids ont été conservés.",
+          "removeFailed": "La suppression a échoué. Consultez les journaux pour plus de détails."
         },
         "ocr": {
-          "name": "[to be translated]:Local OCR",
-          "subtitle": "[to be translated]:PaddleOCR PP-OCRv6 · ~140 MB"
+          "name": "OCR local",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 Mo"
         },
-        "remove": "[to be translated]:Remove",
+        "remove": "Supprimer",
         "status": {
-          "downloading": "[to be translated]:Downloading…",
-          "ready": "[to be translated]:Ready"
+          "downloading": "Téléchargement…",
+          "ready": "Prêt"
         },
-        "title": "[to be translated]:Local Models"
+        "title": "Modèles locaux"
       },
-      "notInstalled": "[to be translated]:Not installed",
-      "openBinariesDir": "[to be translated]:Open binaries directory",
-      "remove": "[to be translated]:Remove tool",
-      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "[to be translated]:Remove Tool",
-      "searchFailed": "[to be translated]:Search failed, check logs",
-      "searchRegistry": "[to be translated]:Search mise registry...",
+      "notInstalled": "Non installé",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "[to be translated]:bundled"
+        "bundled": "bundled"
       },
-      "title": "[to be translated]:Dependencies",
+      "title": "Dépendances de l'environnement",
       "tools": {
-        "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "[to be translated]:Anthropic's agentic coding tool for the terminal.",
-        "codex": "[to be translated]:OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "[to be translated]:Fast file finder, alternative to find.",
-        "gh": "[to be translated]:GitHub CLI for repository and workflow management.",
-        "hermes": "[to be translated]:Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "[to be translated]:Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "[to be translated]:Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "[to be translated]:Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "[to be translated]:Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "[to be translated]:AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "[to be translated]:CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "[to be translated]:Python package manager for MCP services and dependency installation."
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "[to be translated]:Update to latest version",
-      "updateCheckFailed": "[to be translated]:Failed to check for updates"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Échec de la vérification des mises à jour"
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",
@@ -6483,7 +6483,7 @@
       },
       "title": "Paramètres d'affichage",
       "topic": {
-        "title": "Paramètres de sujet"
+        "title": "Paramètres de vue de conversation"
       },
       "zoom": {
         "title": "Paramètres de zoom"
@@ -6690,7 +6690,7 @@
         "success": "Serveurs MCP récupérés avec succès"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Filtre"
       },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
@@ -6732,7 +6732,7 @@
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
       "noLogs": "Aucun journal pour le moment",
       "noServers": "Aucun serveur configuré",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Non installé",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Actions",
@@ -6762,7 +6762,7 @@
         "title": "Exécuter un MCP externe ?"
       },
       "provider": "Поставщик",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "Fournisseur MCP non trouvé",
       "providerPlaceholder": "Название поставщика",
       "providerUrl": "Адрес поставщика",
       "providers": "Fournisseurs",
@@ -6865,15 +6865,15 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "automation": "Automatisation",
+      "capabilities": "Capacités et Outils",
+      "models": "Modèles",
+      "personal": "Personnel",
+      "quickAccess": "Accès rapide",
       "system": "Système"
     },
     "messages": {
-      "cache_read_tokens": "Jetons d'entrée mis en cache lus",
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Séparateur de messages",
         "tooltip": "Non applicable aux messages de style bulle"
@@ -6888,17 +6888,17 @@
         "confirm_delete_message": "Confirmer avant de supprimer le message",
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
-        "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
-        "paste_long_text_threshold": "Seuil de longueur de texte",
+        "paste_long_text_as_file": "[to be translated]:Paste long text as file",
+        "paste_long_text_threshold": "[to be translated]:Paste long text length",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"
       },
       "layout": {
-        "classic": "[to be translated]:Classic",
-        "conversation": "[to be translated]:Conversation view",
-        "modern": "[to be translated]:Modern",
-        "work": "[to be translated]:Work view"
+        "classic": "Classique",
+        "conversation": "Vue conversation",
+        "modern": "Moderne",
+        "work": "Vue du travail"
       },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
@@ -6911,8 +6911,8 @@
         "label": "Bouton de navigation des conversations",
         "none": "Ne pas afficher"
       },
-      "prompt": "Mot-clé d'affichage",
-      "reasoning_tokens": "Jetons de raisonnement",
+      "prompt": "[to be translated]:Show prompt",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif",
@@ -6921,40 +6921,40 @@
     "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
-      "cache_settings": "Paramètres du cache",
+      "cache_settings": "[to be translated]:Cache Settings",
       "cache_title": "Nombre de caches d'applications",
       "custom": {
-        "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}",
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
         "create_title": "Créer une mini-application personnalisée",
-        "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
-        "edit_description": "Здесь вы можете отредактировать конфигурацию пользовательского приложения. Каждое приложение должно содержать поля id, name, url и logo.",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
         "edit_title": "Редактировать пользовательское приложение",
-        "id": "ID",
-        "id_error": "Поле ID обязательно для заполнения.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
         "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
+        "logo_upload_button": "[to be translated]:Upload",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
         "name": "Имя",
-        "name_error": "Поле Имя обязательно для заполнения.",
+        "name_error": "[to be translated]:Name is required.",
         "name_placeholder": "Введите имя",
-        "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
         "remove_confirm_description": "Supprimer le mini-app personnalisé \"{{name}}\" ? Cette action ne peut pas être annulée.",
         "remove_confirm_title": "Supprimer le mini-app personnalisé ?",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
+        "save": "[to be translated]:Save",
         "save_error": "Не удалось сохранить пользовательское приложение.",
         "save_success": "Пользовательское приложение успешно сохранено.",
         "title": "Пользовательское приложение",
         "url": "URL",
-        "url_error": "Поле URL обязательно для заполнения.",
+        "url_error": "[to be translated]:URL is required.",
         "url_invalid": "Saisissez une URL http, https ou file valide.",
         "url_placeholder": "Введите URL"
       },
@@ -6981,59 +6981,59 @@
       "visible": "Applications visibles"
     },
     "miniapps": {
-      "cache_change_notice": "Les changements prendront effet lorsque le nombre d’applications mini ouvertes atteindra la valeur définie",
-      "cache_description": "Définir le nombre maximal de mini-applications actives à conserver en mémoire",
-      "cache_settings": "Paramètres du cache",
-      "cache_title": "Limite du cache de la mini-application",
+      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "[to be translated]:Cache Settings",
+      "cache_title": "[to be translated]:Mini App Cache Limit",
       "custom": {
-        "conflicting_ids": "IDs en conflit avec les applications par défaut : {{ids}}",
-        "duplicate_ids": "IDs en double trouvés : {{ids}}",
-        "edit_description": "Modifiez ici la configuration de la mini-application personnalisée. Chaque application doit inclure les champs id, name, url et logo.",
-        "edit_title": "Modifier la mini-application personnalisée",
-        "id": "ID",
-        "id_error": "L'ID est requis.",
-        "id_placeholder": "Entrez l'ID",
-        "logo": "Logo",
-        "logo_file": "Télécharger le fichier du logo",
-        "logo_upload_button": "Télécharger",
-        "logo_upload_error": "Échec du téléchargement du logo.",
-        "logo_upload_label": "Télécharger le logo",
-        "logo_upload_success": "Logo téléchargé avec succès.",
-        "logo_url": "URL du logo",
-        "logo_url_label": "URL du logo",
-        "logo_url_placeholder": "Entrer l'URL du logo",
-        "name": "Nom",
-        "name_error": "Le nom est requis.",
-        "name_placeholder": "Entrez le nom",
-        "placeholder": "Entrez la configuration personnalisée de la mini-application (format JSON)",
-        "remove_error": "Échec de la suppression de la mini-application personnalisée.",
-        "remove_success": "Mini application personnalisée supprimée avec succès.",
-        "save": "Enregistrer",
-        "save_error": "Échec de l'enregistrement de la mini-application personnalisée.",
-        "save_success": "Mini-app personnalisée enregistrée avec succès.",
-        "title": "Personnalisé",
-        "url": "URL",
-        "url_error": "L'URL est requise.",
-        "url_placeholder": "Entrez l'URL"
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "[to be translated]:Edit Custom Mini App",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
+        "logo_file": "[to be translated]:Upload Logo File",
+        "logo_upload_button": "[to be translated]:Upload",
+        "logo_upload_error": "[to be translated]:Failed to upload logo.",
+        "logo_upload_label": "[to be translated]:Upload Logo",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
+        "name": "[to be translated]:Name",
+        "name_error": "[to be translated]:Name is required.",
+        "name_placeholder": "[to be translated]:Enter name",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
+        "remove_error": "[to be translated]:Failed to remove custom mini app.",
+        "remove_success": "[to be translated]:Custom mini app removed successfully.",
+        "save": "[to be translated]:Save",
+        "save_error": "[to be translated]:Failed to save custom mini app.",
+        "save_success": "[to be translated]:Custom mini app saved successfully.",
+        "title": "[to be translated]:Custom",
+        "url": "[to be translated]:URL",
+        "url_error": "[to be translated]:URL is required.",
+        "url_placeholder": "[to be translated]:Enter URL"
       },
-      "disabled": "Mini-applications cachées",
-      "display_title": "Paramètres d'affichage de la mini-application",
-      "empty": "Cliquez sur l’icône de masquage d’une application à gauche et elle se déplacera ici.",
+      "disabled": "[to be translated]:Hidden Mini Apps",
+      "display_title": "[to be translated]:Mini App Display Settings",
+      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
       "open_link_external": {
-        "title": "Ouvrir les liens dans une nouvelle fenêtre du navigateur"
+        "title": "[to be translated]:Open new-window links in browser"
       },
       "region": {
-        "auto": "Détection automatique",
-        "cn": "Chine",
-        "description": "Filtrage des mini-programmes non pris en charge en fonction de la région",
-        "global": "Mondial",
-        "title": "Filtre Mini Programme"
+        "auto": "[to be translated]:Auto detect",
+        "cn": "[to be translated]:China",
+        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
+        "global": "[to be translated]:Global",
+        "title": "[to be translated]:Mini Program filter"
       },
-      "reset_tooltip": "Rétablir les paramètres par défaut",
-      "sidebar_description": "Afficher les mini-applications actives dans la barre latérale",
-      "sidebar_title": "Affichage des Mini Apps actives dans la barre latérale",
-      "title": "Paramètres des Mini Apps",
-      "visible": "Mini Applications Visibles"
+      "reset_tooltip": "[to be translated]:Reset to default",
+      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
+      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
+      "title": "[to be translated]:Mini Apps Settings",
+      "visible": "[to be translated]:Visible Mini Apps"
     },
     "model": "Modèle par défaut",
     "models": {
@@ -7066,8 +7066,8 @@
         },
         "model_id": {
           "label": "ID du modèle",
-          "placeholder": "Obligatoire, par exemple gpt-3.5-turbo",
-          "required": "[to be translated]:Please enter the model ID",
+          "placeholder": "Par exemple gpt-5.5",
+          "required": "Saisissez l’identifiant du modèle",
           "select": {
             "placeholder": "Sélectionner un modèle"
           },
@@ -7075,7 +7075,7 @@
         },
         "model_name": {
           "label": "Nom du modèle",
-          "placeholder": "Par exemple, GPT-3.5",
+          "placeholder": "Par exemple, GPT-5.5",
           "tooltip": "Par exemple GPT-4"
         },
         "supported_text_delta": {
@@ -7144,18 +7144,18 @@
       },
       "group_disable": "Désactiver ce groupe",
       "group_enable": "Activer ce groupe",
-      "list_title": "Model list",
+      "list_title": "Modèles",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste"
+          "label": "Ajouter tous les modèles"
         },
         "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Ajouter tout le groupe",
-        "clean_stale_models": "[to be translated]:Clean stale models",
-        "clean_stale_success": "[to be translated]:Cleaned {{count}} stale model(s)",
-        "default_model_cannot_remove": "[to be translated]:Default model can't be deleted.",
+        "clean_stale_models": "Nettoyer les modèles obsolètes",
+        "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
+        "default_model_cannot_remove": "Le modèle par défaut ne peut pas être supprimé.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -7177,14 +7177,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Supprimer un modèle de la liste",
+        "remove_listed": "Supprimer tous les modèles",
         "remove_model": "Supprimer le modèle",
-        "remove_skipped_default_in_use": "[to be translated]:Skipped {{count}} default model(s)",
+        "remove_skipped_default_in_use": "{{count}} modèle(s) par défaut ignoré(s)",
         "remove_whole_group": "Supprimer tout le groupe",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
-        "stale_badge": "[to be translated]:Stale",
-        "stale_filter": "[to be translated]:Stale",
+        "stale_badge": "Obsolète",
+        "stale_filter": "Obsolète",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -7244,7 +7244,7 @@
         "custom_add": "Personnalisé",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Ajouter"
+        "pull_short": "Récupérer la liste des modèles"
       },
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
@@ -7271,7 +7271,7 @@
       "assistant": "Message de l'assistant",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
-      "title": "Paramètres de notification"
+      "title": "Notifications"
     },
     "openai": {
       "service_tier": {
@@ -7308,48 +7308,48 @@
     },
     "parameter_settings": "Paramètres",
     "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "bunDescription": "Runtime JavaScript utilisé par les services MCP et les chaînes d'outils associées.",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aucun outil personnalisé pour l'instant. Ajoutez-en un pour commencer.",
-      "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Installer",
-      "installError": "Failed to install tool",
-      "installing": "Installation en cours...",
-      "invalidTool": "Nom d'outil ou clé invalide",
-      "notInstalled": "Non installé",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
+      "addTool": "[to be translated]:Add Tool",
+      "addToolDescription": "[to be translated]:Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+      "coreDepsMissing": "[to be translated]:Core dependencies not installed",
+      "customTools": "[to be translated]:Custom Tools",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "description": "[to be translated]:Manage binary tools and runtime dependencies required by the app.",
+      "duplicateName": "[to be translated]:A tool with the same name already exists",
+      "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "install": "[to be translated]:Install",
+      "installError": "[to be translated]:Failed to install tool",
+      "installing": "[to be translated]:Installing...",
+      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "notInstalled": "[to be translated]:Not installed",
+      "openBinariesDir": "[to be translated]:Open binaries directory",
+      "remove": "[to be translated]:Remove tool",
+      "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "searchFailed": "[to be translated]:Search failed, check logs",
+      "searchRegistry": "[to be translated]:Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "[to be translated]:bundled"
       },
-      "title": "Dépendances de l'environnement",
+      "title": "[to be translated]:Dependencies",
       "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
+        "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "[to be translated]:Anthropic's agentic coding tool for the terminal.",
+        "codex": "[to be translated]:OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "[to be translated]:Fast file finder, alternative to find.",
+        "gh": "[to be translated]:GitHub CLI for repository and workflow management.",
+        "hermes": "[to be translated]:Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "[to be translated]:Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "[to be translated]:Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "[to be translated]:Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "[to be translated]:Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "[to be translated]:AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "[to be translated]:Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "[to be translated]:CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "[to be translated]:Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version",
-      "uvDescription": "Gestionnaire de packages Python pour les services MCP et l’installation des dépendances."
+      "update": "[to be translated]:Update to latest version",
+      "uvDescription": "[to be translated]:Python package manager for MCP services and dependency installation."
     },
     "power": {
       "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
@@ -7372,7 +7372,7 @@
         "reorderFailed": "Échec du réordonnancement des invites",
         "updateFailed": "Échec de la mise à jour de l'invite"
       },
-      "manage": "[to be translated]:Manage Prompts",
+      "manage": "Gérer les invites",
       "title": "Gestion des prompts",
       "titleLabel": "Titre",
       "titlePlaceholder": "Saisissez le titre du prompt",
@@ -7380,7 +7380,7 @@
     },
     "provider": {
       "add": {
-        "button_title": "[to be translated]:Add Provider",
+        "button_title": "Ajouter un fournisseur",
         "name": {
           "label": "Nom du fournisseur",
           "placeholder": "Par exemple OpenAI",
@@ -7518,30 +7518,30 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domaine d'accélération",
-          "backup": "Domaine de sauvegarde",
+          "backup": "[to be translated]:Backup domain",
           "international": "Domaine international"
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Le fournisseur Claude Code n'est disponible que pour les Agents — il ne peut pas être utilisé dans les chats ou les assistants.",
+        "description": "Connectez-vous avec votre abonnement Claude",
+        "description_detail": "Ce fournisseur réutilise la connexion CLI Claude Code (Claude Pro/Max) et n'est disponible que pour les Agents. Ouvrez un terminal et exécutez `claude /login` pour vous connecter.",
+        "launch_failed": "Impossible d'ouvrir le terminal. Exécutez `claude /login` manuellement pour vous connecter.",
+        "legal_link": "Juridique et conformité",
+        "logged_in": "Connecté à Claude Code",
+        "logged_in_detail": "Les agents utiliseront vos identifiants d'abonnement Claude Code CLI.",
+        "open_terminal": "Ouvrir le terminal pour se connecter",
+        "recheck": "Revérifier"
       },
       "codex": {
-        "account": "[to be translated]:Account: {{accountId}}",
-        "description": "[to be translated]:Sign in with your ChatGPT subscription",
-        "description_detail": "[to be translated]:This provider uses your ChatGPT Plus/Pro login (OAuth) to access OpenAI Codex models. Your browser will open to complete sign-in.",
-        "logged_in": "[to be translated]:Signed in to OpenAI Codex",
-        "sign_in_button": "[to be translated]:Sign in with ChatGPT",
-        "sign_in_failed": "[to be translated]:Sign-in failed. Please try again.",
-        "sign_in_success": "[to be translated]:Signed in to OpenAI Codex",
-        "signing_in": "[to be translated]:Waiting for browser…"
+        "account": "Compte : {{accountId}}",
+        "description": "Connectez-vous avec votre abonnement ChatGPT",
+        "description_detail": "Ce fournisseur utilise votre connexion ChatGPT Plus/Pro (OAuth) pour accéder aux modèles OpenAI Codex. Votre navigateur s'ouvrira pour finaliser la connexion.",
+        "logged_in": "Connecté à OpenAI Codex",
+        "sign_in_button": "Se connecter avec ChatGPT",
+        "sign_in_failed": "La connexion a échoué. Veuillez réessayer.",
+        "sign_in_success": "Connecté à OpenAI Codex",
+        "signing_in": "En attente du navigateur…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7619,13 +7619,13 @@
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
       "grok_cli": {
-        "description": "[to be translated]:Sign in with your SuperGrok subscription",
-        "description_detail": "[to be translated]:This provider uses your xAI SuperGrok login (OAuth) to access Grok CLI models (Grok Build, Composer). Your browser will open to complete sign-in.",
-        "logged_in": "[to be translated]:Signed in to Grok CLI",
-        "sign_in_button": "[to be translated]:Sign in with xAI",
-        "sign_in_failed": "[to be translated]:Sign-in failed. Please try again.",
-        "sign_in_success": "[to be translated]:Signed in to Grok CLI",
-        "signing_in": "[to be translated]:Waiting for browser…"
+        "description": "Connectez-vous avec votre abonnement SuperGrok",
+        "description_detail": "Ce fournisseur utilise votre connexion xAI SuperGrok (OAuth) pour accéder aux modèles Grok CLI (Grok Build, Composer). Votre navigateur s'ouvrira pour terminer la connexion.",
+        "logged_in": "Connecté à Grok CLI",
+        "sign_in_button": "Se connecter avec xAI",
+        "sign_in_failed": "La connexion a échoué. Veuillez réessayer.",
+        "sign_in_success": "Connecté à Grok CLI",
+        "signing_in": "En attente du navigateur…"
       },
       "logo_upload_failed": "Échec du traitement de l'image sélectionnée",
       "misc": "autre",
@@ -7791,7 +7791,7 @@
       "all_enable": "Tout activer",
       "bind_first_to_enable": "Liez d'abord un raccourci pour modifier son état activé",
       "categories": {
-        "all": "[to be translated]:All",
+        "all": "Tous",
         "assistant": "Outils d'assistance IA",
         "chat": "Interaction des messages",
         "general": "Global et Fenêtre",
@@ -7807,7 +7807,7 @@
       "empty": "Aucun raccourci n’est disponible dans ce groupe",
       "enabled": "activer",
       "exit_fullscreen": "Quitter le plein écran",
-      "filter": "[to be translated]:Filter",
+      "filter": "Filtre",
       "label": "Touche",
       "move_tab_to_first": "Déplacer l'onglet en premier",
       "new_topic": "Nouveau sujet",
@@ -7815,7 +7815,7 @@
       "open_tab_in_new_window": "Ouvrir l'onglet dans une nouvelle fenêtre",
       "pin_tab": "Épingler/Désépingler l'onglet",
       "press_shortcut": "Appuyer sur raccourci clavier",
-      "print": "[to be translated]:Print",
+      "print": "Imprimer",
       "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
       "reset": "Réinitialiser",
@@ -7845,9 +7845,9 @@
     },
     "skills": {
       "author": "Auteur",
-      "batchInstallComplete": "[to be translated]:Installed {{count}} skills",
-      "batchInstallPartialFailed": "[to be translated]:Installed {{success}}/{{total}} skills, {{failed}} failed",
-      "batchInstallQueued": "[to be translated]:Queued",
+      "batchInstallComplete": "{{count}} compétences installées",
+      "batchInstallPartialFailed": "{{success}}/{{total}} compétences installées, {{failed}} échouées",
+      "batchInstallQueued": "En attente",
       "batchUninstallSuccess": "{{count}} compétences désinstallées",
       "builtin": "Intégré",
       "confirmBatchUninstall": "Êtes-vous sûr de vouloir désinstaller les {{count}} compétences sélectionnées ?",
@@ -7882,7 +7882,7 @@
       "zip": "ZIP"
     },
     "system": {
-      "title": "[to be translated]:System"
+      "title": "Système"
     },
     "theme": {
       "color_primary": "Couleur principale",
@@ -7931,10 +7931,10 @@
             "name": "Doc2x"
           },
           "local_paddleocr": {
-            "description": "[to be translated]:PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
-            "name": "[to be translated]:Local PaddleOCR",
+            "description": "PaddleOCR (PP-OCRv6 medium) fonctionnant en processus — entièrement hors ligne, sans clé API, avec une reconnaissance sur un thread en arrière-plan pour que l'interface utilisateur reste réactive. Téléchargez le modèle (~140 Mo) dans les dépendances d'environnement avant la première utilisation.",
+            "name": "PaddleOCR local",
             "status": {
-              "local": "[to be translated]:Runs fully on your device"
+              "local": "Fonctionne entièrement sur votre appareil"
             }
           },
           "mineru": {
@@ -8038,7 +8038,7 @@
           "exa": "API de recherche neuronale pour applications IA, optimisée pour la récupération sémantique sur le web.",
           "exa_mcp": "Exposez la recherche Exa aux agents via le serveur MCP Exa.",
           "fetch": "Fournisseur d’extraction d’URL intégré. Récupère le contenu des pages web à partir d’une URL pour enrichir les résultats de recherche.",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Service d'exploration et de recherche Firecrawl, optimisé pour transformer les sites web en Markdown.",
           "jina": "APIs de recherche et de lecture Jina Reader pour récupérer du contenu web propre.",
           "querit": "Service de recherche pour applications IA avec résultats de récupération web.",
           "searxng": "Moteur de méta-recherche internet gratuit auto-hébergeable couvrant de nombreuses sources.",
@@ -8128,22 +8128,22 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "Jours actifs",
+        "activeDays": "[to be translated]:Active days",
         "cacheHitRate": "[to be translated]:Cache hit rate",
         "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "costHint": "Le coût est regroupé par devise.",
-        "dailyAverage": "Moyenne quotidienne",
-        "lastPeriod": "vs période précédente",
-        "mixedCurrency": "Plusieurs devises sont affichées séparément.",
-        "none": "N/A",
-        "peakDay": "Jour de pointe",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
         "providerAuth": "[to be translated]:Provider auth",
-        "streak": "Série la plus longue : {{days}} jours",
-        "topModel": "Top model",
-        "totalCost": "Coût total",
-        "totalRequests": "Requêtes",
-        "totalTokens": "Total de jetons",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
         "unattributedApiKey": "[to be translated]:Unattributed request",
         "unattributedSource": "[to be translated]:Unattributed source"
       },
@@ -8161,61 +8161,61 @@
         "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "L'utilisation apparaît après que les demandes d'IA créent des entrées de grand livre.",
-        "title": "Aucune utilisation pour le moment"
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
       },
       "explore": {
         "activity": "[to be translated]:Activity",
-        "allProviders": "Tous les fournisseurs",
+        "allProviders": "[to be translated]:All providers",
         "analysis": "[to be translated]:Analysis",
-        "breakdown": "Décomposition",
+        "breakdown": "[to be translated]:Breakdown",
         "breakdownTab": "[to be translated]:Breakdown",
         "cacheUsage": "[to be translated]:Cache usage",
         "chart": "[to be translated]:Chart",
-        "clearDate": "Effacer le filtre de date",
+        "clearDate": "[to be translated]:Clear date filter",
         "costDrivers": "[to be translated]:Cost drivers",
         "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "Entrées",
+        "entries": "[to be translated]:Requests",
         "groupBy": "[to be translated]:Group by",
-        "loadMore": "Charger plus",
-        "loading": "Chargement...",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
         "metric": "[to be translated]:Metric",
-        "noBreakdown": "Aucune donnée ventilée",
-        "noBreakdownDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
-        "noEntries": "Aucune entrée",
-        "noEntriesDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
-        "provider": "Fournisseur",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
-        "selectedDate": "Date sélectionnée : {{date}}",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
-        "title": "Explorer",
+        "title": "[to be translated]:Explore",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
         "topSources": "[to be translated]:Top assistants / agents",
-        "totalEntries": "{{count}} entrées"
+        "totalEntries": "[to be translated]:{{count}} entries"
       },
       "groupBy": {
-        "apiKey": "Clé API",
-        "model": "Modèle",
-        "provider": "Fournisseur",
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Utilisation le {{date}}",
-        "costDisabled": "La vue Coût n’est disponible que lorsque cette fenêtre possède une seule devise.",
-        "title": "Activité quotidienne"
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
       },
       "metric": {
-        "cost": "Coût",
+        "cost": "[to be translated]:Cost",
         "requests": "[to be translated]:Requests",
-        "tokens": "Jetons"
+        "tokens": "[to be translated]:Tokens"
       },
       "modality": {
-        "embedding": "Intégration",
-        "image": "Image",
-        "language": "Langue"
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
       },
       "overview": {
         "title": "[to be translated]:Overview"
@@ -8225,33 +8225,33 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} jetons / {{requests}} requêtes / {{activeDays}} jours actifs",
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "apiKey": "clé API",
-        "cost": "Coût",
-        "date": "Date",
-        "modality": "Type",
-        "model": "Modèle",
-        "provider": "Fournisseur",
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "request": "[to be translated]:Request",
         "source": "[to be translated]:Source",
-        "tokens": "Jetons",
-        "tps": "TPS",
-        "tpsValue": "{{value}} tok/s",
-        "ttft": "TTFT"
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
       },
-      "title": "Empreinte d'utilisation",
+      "title": "[to be translated]:Usage Analytics",
       "tooltip": {
-        "cost": "Coût {{value}}",
-        "metric": "{{value}}",
-        "requests": "{{count}} demandes",
-        "tokens": "{{value}} jetons"
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
       },
       "window": {
-        "30d": "30 derniers jours",
-        "365d": "L'année dernière",
-        "90d": "90 derniers jours",
-        "all": "Tout le temps"
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
       }
     },
     "use_system_title_bar": {
@@ -8281,7 +8281,7 @@
   },
   "title": {
     "apps": "Mini-programmes",
-    "chat": "[to be translated]:Chat",
+    "chat": "Chat",
     "code": "Code",
     "files": "Fichiers",
     "home": "Page d'accueil",
