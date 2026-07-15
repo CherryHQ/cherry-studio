@@ -1,6 +1,6 @@
 import type { FilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -186,6 +186,7 @@ describe('PdfFilePreview', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     document.documentElement.style.removeProperty('--color-background')
   })
