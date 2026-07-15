@@ -163,7 +163,7 @@ export function PromptEditorField({
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
-              : 'border-border/20 focus-within:border-border/40'
+              : 'border-border focus-within:border-border-hover'
           )}>
           {effectiveShowPreview ? (
             <div
