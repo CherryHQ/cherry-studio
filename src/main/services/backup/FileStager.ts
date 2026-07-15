@@ -47,6 +47,16 @@ const isSourceGone = async (src: string): Promise<boolean> => {
   }
 }
 
+/**
+ * True if `e` is a definitive "path absent" fs error (ENOENT/ENOTDIR). Used on the
+ * pre-copy stat: only these mean the source is genuinely gone; EACCES/EPERM/EIO/
+ * ELOOP mean the path may exist but be unreadable, so the caller MUST abort — never
+ * silently drop a blob the DB references (pruneMissingRows would otherwise delete
+ * the row → silent data loss, #16683 P1).
+ */
+const isMissingPath = (e: unknown): boolean =>
+  isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'ENOTDIR')
+
 /** Result of staging file blobs: how many copied, total bytes, which ids were missing. */
 export interface StageFilesResult {
   readonly total: number
@@ -139,11 +149,16 @@ export class SqliteFileStager implements FileStager {
           continue
         }
         size = s.size
-      } catch {
-        // Source missing/unreadable (external file moved, internal blob deleted
-        // out-of-band) → skip, don't fail the export.
-        missing.push(row.id)
-        continue
+      } catch (e) {
+        // Only a definitively-absent source (ENOENT/ENOTDIR) is missing; EACCES/
+        // EPERM/EIO mean the path may exist but be unreadable — abort instead of
+        // silently dropping a blob the DB references (pruneMissingRows would
+        // otherwise delete the row → never delete local data, #16683 P1).
+        if (isMissingPath(e)) {
+          missing.push(row.id)
+          continue
+        }
+        throw e
       }
       // stat succeeded → the source existed at check time. A copyFile failure now
       // is usually a DESTINATION write error (disk-full / permission) and MUST
@@ -187,11 +202,15 @@ export class SqliteFileStager implements FileStager {
       let dirStat
       try {
         dirStat = await stat(src)
-      } catch {
-        // Base dir missing on disk (base row exists in DB but files were never
-        // written or were removed) — skip, don't fail the export.
-        missing.push(baseId)
-        continue
+      } catch (e) {
+        // Only a definitively-absent base dir (ENOENT/ENOTDIR) is missing; EACCES/
+        // EPERM/EIO mean the dir may exist but be unreadable — abort instead of
+        // silently dropping a base the DB references (#16683 P1).
+        if (isMissingPath(e)) {
+          missing.push(baseId)
+          continue
+        }
+        throw e
       }
       if (!dirStat.isDirectory()) {
         missing.push(baseId)
