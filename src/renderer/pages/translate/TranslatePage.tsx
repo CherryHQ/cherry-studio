@@ -37,17 +37,13 @@ import {
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
-import {
-  isUniqueModelId,
-  type Model as SelectorModel,
-  MODEL_CAPABILITY,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { isNonChatModel } from '@shared/utils/model'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -63,12 +59,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.IMAGE_GENERATION
-])
-
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getTitleFromTranslationResult = (translationResult: string) =>
@@ -430,11 +420,7 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
-  const modelSelectorFilter = useCallback(
-    (model: SelectorModel) =>
-      !model.capabilities.some((capability) => EXCLUDED_TRANSLATE_MODEL_CAPABILITIES.has(capability)),
-    []
-  )
+  const modelSelectorFilter = useCallback((model: SelectorModel) => !isNonChatModel(model), [])
 
   const handleModelIdSelect = useCallback(
     (modelId: UniqueModelId | undefined) => {
