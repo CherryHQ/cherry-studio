@@ -170,10 +170,7 @@ export const useNotesMenu = ({
           id: 'notes.rename',
           label: t('notes.rename'),
           icon: <Edit3 size={14} />,
-          // Let the context menu finish closing before mounting and focusing the
-          // rename input. Otherwise the menu's focus restoration can move focus
-          // back to the row immediately after useInPlaceEdit focuses the input.
-          onSelect: () => window.requestAnimationFrame(() => handleStartEdit(node))
+          onSelect: () => handleStartEdit(node)
         },
         {
           type: 'item',
