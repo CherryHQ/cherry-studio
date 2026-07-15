@@ -3,7 +3,7 @@ import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
-import { Check, Download, FolderSearch, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Check, Download, FolderSearch, Loader2, TriangleAlert } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,13 +12,12 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onRegistered?: (skill: InstalledSkill) => void
-  selectedIds?: readonly string[]
 }
 
-export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, selectedIds = [] }: Props) {
+export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }: Props) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
-  const { skills, loading, error, refresh, register, registering } = useSystemSkills(agentId, open)
+  const { skills, loading, error, register, registering } = useSystemSkills(agentId, open)
   const visibleSkills = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return skills
@@ -32,14 +31,10 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
     async (skill: SystemSkillCandidate) => {
       const installed = await register(skill)
       if (!installed) return
-      toast.success(
-        t(agentId ? 'library.system_skill.install_enable_success' : 'library.system_skill.install_select_success', {
-          name: installed.name
-        })
-      )
+      toast.success(t('library.system_skill.import_success', { name: installed.name }))
       onRegistered?.(installed)
     },
-    [agentId, onRegistered, register, t]
+    [onRegistered, register, t]
   )
 
   return (
@@ -50,21 +45,10 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
         className="flex h-[min(640px,82vh)] flex-col gap-0 overflow-hidden p-0"
         data-testid="system-skill-dialog">
         <div className="shrink-0 border-border-muted border-b px-6 pt-5 pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <DialogHeader className="min-w-0 text-left">
-              <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
-              <p className="mt-1 text-foreground-muted text-xs">{t('library.system_skill.description')}</p>
-            </DialogHeader>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void refresh()}
-              disabled={loading}
-              className="mr-8 shrink-0">
-              <RefreshCw className={loading ? 'size-3 animate-spin' : 'size-3'} />
-              {t('common.refresh')}
-            </Button>
-          </div>
+          <DialogHeader className="min-w-0 text-left">
+            <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
+            <p className="mt-1 text-foreground-muted text-xs">{t('library.system_skill.description')}</p>
+          </DialogHeader>
           <ResourceCatalogSearchInput
             value={query}
             onValueChange={setQuery}
@@ -95,8 +79,6 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
                 <SystemSkillRow
                   key={skill.id}
                   skill={skill}
-                  selecting={!agentId}
-                  selected={Boolean(skill.registeredSkillId && selectedIds.includes(skill.registeredSkillId))}
                   registering={registering.has(skill.id)}
                   onRegister={() => void handleRegister(skill)}
                 />
@@ -111,29 +93,22 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
 
 function SystemSkillRow({
   skill,
-  selecting,
-  selected,
   registering,
   onRegister
 }: {
   skill: SystemSkillCandidate
-  selecting: boolean
-  selected: boolean
   registering: boolean
   onRegister: () => void
 }) {
   const { t } = useTranslation()
   const placementNames = Array.from(new Set(skill.placements.map((placement) => placement.sourceName))).join(', ')
-  const disabled = registering || selected || skill.status === 'enabled' || skill.status === 'conflict'
-  const buttonLabel = selected
-    ? t('common.selected')
-    : skill.status === 'enabled'
-      ? t('library.system_skill.enabled')
-      : skill.status === 'conflict'
-        ? t('library.system_skill.conflict')
-        : skill.status === 'registered'
-          ? t(selecting ? 'common.select' : 'library.system_skill.enable')
-          : t(selecting ? 'library.system_skill.install_select' : 'library.system_skill.install_enable')
+  const imported = skill.status === 'enabled'
+  const disabled = registering || imported || skill.status === 'conflict'
+  const buttonLabel = imported
+    ? t('library.system_skill.imported')
+    : skill.status === 'conflict'
+      ? t('library.system_skill.conflict')
+      : t('library.system_skill.import')
 
   return (
     <div
@@ -155,7 +130,7 @@ function SystemSkillRow({
       <Button variant="outline" size="sm" disabled={disabled} onClick={onRegister} className="shrink-0">
         {registering ? (
           <Loader2 className="size-3 animate-spin" />
-        ) : selected || skill.status === 'enabled' ? (
+        ) : imported ? (
           <Check className="size-3" />
         ) : (
           <Download className="size-3" />

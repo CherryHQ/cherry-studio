@@ -78,34 +78,70 @@ beforeEach(() => {
     skills: [candidate],
     loading: false,
     error: null,
-    refresh: vi.fn(),
     register: registerMock,
     registering: new Set<string>()
   })
 })
 
 describe('SystemSkillDialog', () => {
-  it('registers and selects a system skill before the agent exists', async () => {
+  it('imports a system skill before the agent exists', async () => {
     const user = userEvent.setup()
     const onRegistered = vi.fn()
     render(<SystemSkillDialog open onOpenChange={vi.fn()} onRegistered={onRegistered} />)
 
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.install_select' }))
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
     expect(useSystemSkillsMock).toHaveBeenCalledWith(undefined, true)
     expect(registerMock).toHaveBeenCalledWith(candidate)
     expect(onRegistered).toHaveBeenCalledWith(installed)
-    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.install_select_success:System Skill')
+    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
   })
 
-  it('keeps register-and-enable behavior for an existing agent', async () => {
+  it('imports a system skill for an existing agent', async () => {
     const user = userEvent.setup()
     render(<SystemSkillDialog agentId="agent-1" open onOpenChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.install_enable' }))
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
     expect(useSystemSkillsMock).toHaveBeenCalledWith('agent-1', true)
-    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.install_enable_success:System Skill')
+    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
+  })
+
+  it('does not show a manual refresh action', () => {
+    render(<SystemSkillDialog open onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'common.refresh' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a registered skill importable for the current agent', () => {
+    const registeredCandidate = { ...candidate, status: 'registered' as const, registeredSkillId: installed.id }
+    useSystemSkillsMock.mockReturnValue({
+      skills: [registeredCandidate],
+      loading: false,
+      error: null,
+      register: registerMock,
+      registering: new Set<string>()
+    })
+
+    render(<SystemSkillDialog agentId="agent-1" open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'library.system_skill.import' })).toBeEnabled()
+    expect(registerMock).not.toHaveBeenCalled()
+  })
+
+  it('shows an enabled skill as imported', () => {
+    useSystemSkillsMock.mockReturnValue({
+      skills: [{ ...candidate, status: 'enabled' }],
+      loading: false,
+      error: null,
+      register: registerMock,
+      registering: new Set<string>()
+    })
+
+    render(<SystemSkillDialog agentId="agent-1" open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'library.system_skill.imported' })).toBeDisabled()
+    expect(registerMock).not.toHaveBeenCalled()
   })
 
   it('filters system skills by the search query', async () => {
@@ -122,7 +158,6 @@ describe('SystemSkillDialog', () => {
       ],
       loading: false,
       error: null,
-      refresh: vi.fn(),
       register: registerMock,
       registering: new Set<string>()
     })
@@ -140,21 +175,5 @@ describe('SystemSkillDialog', () => {
     expect(screen.queryByText('System Skill')).not.toBeInTheDocument()
     expect(screen.queryByText('Other Skill')).not.toBeInTheDocument()
     expect(screen.getByText('common.no_results')).toBeInTheDocument()
-  })
-
-  it('does not register a system skill that is already selected', () => {
-    useSystemSkillsMock.mockReturnValue({
-      skills: [{ ...candidate, status: 'registered', registeredSkillId: installed.id }],
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-      register: registerMock,
-      registering: new Set<string>()
-    })
-
-    render(<SystemSkillDialog open onOpenChange={vi.fn()} selectedIds={[installed.id]} />)
-
-    expect(screen.getByRole('button', { name: 'common.selected' })).toBeDisabled()
-    expect(registerMock).not.toHaveBeenCalled()
   })
 })

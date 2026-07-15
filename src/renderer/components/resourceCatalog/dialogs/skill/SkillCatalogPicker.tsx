@@ -183,7 +183,6 @@ export function SkillCatalogPicker({
       <SystemSkillDialog
         open={systemSkillOpen}
         onOpenChange={setSystemSkillOpen}
-        selectedIds={selectedIds}
         onRegistered={(skill) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skill.id])))}
       />
       <ConfirmDialog

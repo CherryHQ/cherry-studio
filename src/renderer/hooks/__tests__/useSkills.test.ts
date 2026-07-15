@@ -357,7 +357,7 @@ describe('useSystemSkills', () => {
     expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', { agentId: 'agent-1' })
   })
 
-  it('installs and enables a system skill for the same agent', async () => {
+  it('imports a system skill for the same agent', async () => {
     const { result } = renderHook(() => useSystemSkills('agent-1'))
     await waitFor(() => expect(result.current.skills).toEqual([candidate]))
 

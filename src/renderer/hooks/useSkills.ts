@@ -180,7 +180,7 @@ export function useSystemSkills(agentId?: string, enabled = true) {
   const invalidate = useInvalidateCache()
   const requestIdRef = useRef(0)
 
-  const refresh = useCallback(async () => {
+  const discover = useCallback(async () => {
     const requestId = ++requestIdRef.current
     if (!enabled) {
       setSkills([])
@@ -206,11 +206,11 @@ export function useSystemSkills(agentId?: string, enabled = true) {
   }, [agentId, enabled])
 
   useEffect(() => {
-    void refresh()
+    void discover()
     return () => {
       requestIdRef.current += 1
     }
-  }, [refresh])
+  }, [discover])
 
   const register = useCallback(
     async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
@@ -222,7 +222,7 @@ export function useSystemSkills(agentId?: string, enabled = true) {
           'skill.register_system',
           agentId ? { directoryPath: skill.directoryPath, agentId } : { directoryPath: skill.directoryPath }
         )
-        await Promise.all([refreshSkillsBestEffort(invalidate), refresh()])
+        await Promise.all([refreshSkillsBestEffort(invalidate), discover()])
         return installed
       } catch (cause) {
         reportSkillMutationError('register system skill', cause)
@@ -236,10 +236,10 @@ export function useSystemSkills(agentId?: string, enabled = true) {
         })
       }
     },
-    [agentId, invalidate, refresh]
+    [agentId, discover, invalidate]
   )
 
-  return { skills, loading, error, refresh, register, registering }
+  return { skills, loading, error, register, registering }
 }
 
 /**

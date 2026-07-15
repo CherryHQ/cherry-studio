@@ -103,7 +103,6 @@ export function ResourceCatalogView({
           agentId={skillAgentId}
           open={dialogs.systemSkillOpen}
           onOpenChange={dialogs.setSystemSkillOpen}
-          onRegistered={() => refetch()}
         />
       ) : null}
       <ResourceCreateWizard
