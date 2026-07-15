@@ -149,8 +149,8 @@ export async function deriveConnectionConfig(
       config: await deriveConnectionConfigFromSnapshot(session, agent, connectionModelId ?? agent.model)
     }
   } catch {
-    // Deleted provider/model rows or an unroutable combination (e.g. Gemini) — the connection
-    // cannot be rebuilt to a valid target, so it is invalid rather than merely stale.
+    // Deleted provider/model rows — the connection cannot be rebuilt to a valid target, so it is
+    // invalid rather than merely stale.
     return unroutable
   }
 }
