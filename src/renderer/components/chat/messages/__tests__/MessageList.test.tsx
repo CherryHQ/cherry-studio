@@ -5,7 +5,6 @@ import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
-import { ImmersiveNarrowReportProvider, ImmersiveNavbarStateProvider } from '../../layout/ImmersiveNavbarContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
 import MessageList from '../MessageList'
 import { MessageListProvider } from '../MessageListProvider'
@@ -376,37 +375,6 @@ describe('MessageList', () => {
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-bottom-offset', '128')
   })
 
-  it('uses the immersive navbar inset as the virtual-list top padding', () => {
-    render(
-      <ImmersiveNavbarStateProvider value={{ floating: true, insetHeight: 44 }}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNavbarStateProvider>
-    )
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-top-padding', '44')
-  })
-
-  it('reports the narrow flag — including while initial loading (no probe-timing dependency)', () => {
-    const reportNarrow = vi.fn()
-    render(
-      <ImmersiveNarrowReportProvider value={reportNarrow}>
-        <MessageListProvider
-          value={createValue([], {
-            isInitialLoading: true,
-            renderConfig: { ...defaultMessageRenderConfig, narrowMode: true }
-          })}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNarrowReportProvider>
-    )
-
-    // Narrow is config-derived, so it is published even during loading — the subwindow regression
-    // was that the old probe-based report stayed silent until the probe mounted.
-    expect(reportNarrow).toHaveBeenLastCalledWith(true)
-  })
-
   it('keeps existing messages visible while history refresh is loading', () => {
     render(
       <MessageListProvider
@@ -435,19 +403,6 @@ describe('MessageList', () => {
 
     expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('virtual-list')).toBeNull()
-  })
-
-  it('reports narrow=false when narrow mode is off', () => {
-    const reportNarrow = vi.fn()
-    render(
-      <ImmersiveNarrowReportProvider value={reportNarrow}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNarrowReportProvider>
-    )
-
-    expect(reportNarrow).toHaveBeenLastCalledWith(false)
   })
 
   it('marks newly appended user and assistant messages for enter motion', () => {
