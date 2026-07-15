@@ -21,6 +21,19 @@ describe('ConversationTopBarPortal', () => {
     vi.restoreAllMocks()
   })
 
+  it('uses compact hover surfaces for top-bar selector buttons', () => {
+    const { container } = render(
+      <ConversationTopBarPortalProvider>
+        <ConversationTopBarPortalHost />
+      </ConversationTopBarPortalProvider>
+    )
+
+    expect(container.querySelector('[data-conversation-topbar-controls]')).toHaveClass(
+      '[&_button]:h-7',
+      '[&_button]:px-1.5'
+    )
+  })
+
   it('switches portaled controls to icon-only mode when the host overflows', async () => {
     globalThis.ResizeObserver = undefined as unknown as typeof ResizeObserver
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function clientWidth(this: HTMLElement) {
