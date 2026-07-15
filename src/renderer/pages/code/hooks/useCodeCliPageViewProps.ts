@@ -154,7 +154,14 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     owned: false,
     canUpgrade: false
   }
-  const installError = versionStatus.operation?.status === 'failed' ? versionStatus.operation.error : undefined
+  // Only surface install failures here — the dialog is labeled "install error"
+  // and offers a retry-install action. Remove failures are reported by their own
+  // toast in useBinaryActions, so gating on the action avoids mislabeling a
+  // failed uninstall as an install error.
+  const installError =
+    versionStatus.operation?.status === 'failed' && versionStatus.operation.action === 'install'
+      ? versionStatus.operation.error
+      : undefined
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)

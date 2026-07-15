@@ -5,7 +5,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { CircleAlert, ExternalLink } from 'lucide-react'
-import { type FC, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
@@ -87,6 +87,12 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   const { t } = useTranslation()
   const [providerSearch, setProviderSearch] = useState('')
   const [showInstallError, setShowInstallError] = useState(false)
+
+  // Reset on tool switch: the dialog's controlled `open` goes false when
+  // `installError` clears for the new tool, but Radix does not fire onOpenChange
+  // on a controlled close, so `showInstallError` would stay true and re-surface
+  // the dialog unprompted when switching back to a failed tool.
+  useEffect(() => setShowInstallError(false), [selectedCliTool])
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
