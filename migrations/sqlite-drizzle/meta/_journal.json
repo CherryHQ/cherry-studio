@@ -154,6 +154,13 @@
       "when": 1783909776548,
       "tag": "0021_noisy_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1784082114757,
+      "tag": "0022_cynical_khan",
+      "breakpoints": true
     }
   ],
   "version": "7"

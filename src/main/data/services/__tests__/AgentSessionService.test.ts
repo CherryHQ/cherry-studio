@@ -62,6 +62,15 @@ describe('AgentSessionService', () => {
     })
   }
 
+  async function createChannelSession(name: string, workspaceId?: string) {
+    const workspace = workspaceId ? null : await createWorkspace(`${name}-workspace`)
+    return agentSessionService.createForChannel({
+      agentId: 'agent-session-test',
+      name,
+      workspace: { type: 'user', workspaceId: workspaceId ?? workspace!.id }
+    })
+  }
+
   async function insertSessionMessage(sessionId: string, id: string) {
     await dbh.db.insert(agentSessionMessageTable).values({
       id,
@@ -99,6 +108,15 @@ describe('AgentSessionService', () => {
         workspaceId: workspace.id,
         orderKey: 'a2',
         updatedAt: 300
+      },
+      {
+        id: 'session-search-hidden',
+        agentId: 'agent-session-test',
+        name: 'Needle Hidden Session',
+        workspaceId: workspace.id,
+        orderKey: 'a3',
+        updatedAt: 400,
+        isHidden: true
       }
     ])
 
@@ -128,8 +146,8 @@ describe('AgentSessionService', () => {
   describe('getLatestUpdated', () => {
     it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')
-      // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
-      // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
+      // `active-latest` has the largest visible orderKey (oldest-created → last under `orderKey ASC` paging) yet
+      // the highest visible updatedAt, so returning it proves the query ranks by updatedAt, not list position.
       await dbh.db.insert(agentSessionTable).values([
         {
           id: 'created-newest',
@@ -154,6 +172,15 @@ describe('AgentSessionService', () => {
           workspaceId: workspace.id,
           orderKey: 'a2',
           updatedAt: 300
+        },
+        {
+          id: 'hidden-latest',
+          agentId: 'agent-session-test',
+          name: 'Hidden',
+          workspaceId: workspace.id,
+          orderKey: 'a3',
+          updatedAt: 400,
+          isHidden: true
         }
       ])
 
@@ -166,6 +193,15 @@ describe('AgentSessionService', () => {
     it('returns null when there are no sessions', () => {
       expect(agentSessionService.getLatestUpdated()).toBeNull()
     })
+  })
+
+  it('creates hidden sessions that remain directly accessible without exposing the internal marker', async () => {
+    const hidden = await createChannelSession('Hidden')
+
+    expect(hidden).not.toHaveProperty('isHidden')
+    expect(agentSessionService.getById(hidden.id)).toMatchObject({ id: hidden.id })
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, hidden.id))
+    expect(row?.isHidden).toBe(true)
   })
 
   it('binds a session to an explicit workspace', async () => {
@@ -663,10 +699,11 @@ describe('AgentSessionService', () => {
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
   })
 
-  it('paginates sessions with a cursor', async () => {
+  it('paginates visible sessions with a cursor', async () => {
     const first = await createSession('First')
     const second = await createSession('Second')
     const third = await createSession('Third')
+    const hidden = await createChannelSession('Hidden')
 
     const page1 = agentSessionService.listByCursor({ limit: 2 })
     expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
@@ -675,6 +712,7 @@ describe('AgentSessionService', () => {
     const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
+    expect([...page1.items, ...page2.items].map((item) => item.id)).not.toContain(hidden.id)
   })
 
   it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {
@@ -686,14 +724,17 @@ describe('AgentSessionService', () => {
     const s2 = await createSession('S2')
     const s3 = await createSession('S3')
     const s4 = await createSession('S4')
+    const hidden = await createChannelSession('Hidden pinned')
     await dbh.db.insert(pinTable).values([
       { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+      { id: 'pin-hidden', entityType: 'session', entityId: hidden.id, orderKey: 'a00', createdAt: 1, updatedAt: 1 },
       { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
     ])
 
     const result = agentSessionService.listByCursor()
     // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
     expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
+    expect(result.items.map((item) => item.id)).not.toContain(hidden.id)
     expect(result.nextCursor).toBeUndefined()
   })
 

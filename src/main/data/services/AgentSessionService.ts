@@ -47,7 +47,8 @@ type JoinedSessionRow = {
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
-  const clean = nullsToUndefined(row.session)
+  const { isHidden: _isHidden, ...clean } = nullsToUndefined(row.session)
+  void _isHidden // Intentionally internal; never leak discovery state into the entity API.
   return {
     ...clean,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
@@ -73,7 +74,7 @@ export class AgentSessionService {
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = []
+    const filters: SQL[] = [eq(sessionsTable.isHidden, false)]
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.updatedAtFrom !== undefined) {
@@ -106,11 +107,23 @@ export class AgentSessionService {
   }
 
   create(dto: CreateAgentSessionDto): AgentSessionEntity {
+    return this.createWithVisibility(dto, false)
+  }
+
+  /** Creates a channel-owned session that remains runnable but is omitted from UI discovery. */
+  createForChannel(dto: CreateAgentSessionDto): AgentSessionEntity {
+    return this.createWithVisibility(dto, true)
+  }
+
+  private createWithVisibility(dto: CreateAgentSessionDto, isHidden: boolean): AgentSessionEntity {
     const id = uuidv4()
-    withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto)), {
-      ...defaultHandlersFor('Session', id),
-      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
-    })
+    withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.createTxWithVisibility(tx, id, dto, isHidden)),
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      }
+    )
     return this.getById(id)
   }
 
@@ -119,6 +132,10 @@ export class AgentSessionService {
    * while seeders run, so create() would fail through DbService.withWriteTx().
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+    this.createTxWithVisibility(tx, id, dto, false)
+  }
+
+  private createTxWithVisibility(tx: DbOrTx, id: string, dto: CreateAgentSessionDto, isHidden: boolean): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string
@@ -152,7 +169,8 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
-      workspaceId
+      workspaceId,
+      isHidden
     })
   }
 
@@ -194,6 +212,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.isHidden, false))
       .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
       .limit(1)
       .all()
@@ -232,6 +251,7 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const visibilityFilter = eq(sessionsTable.isHidden, false)
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
 
@@ -247,7 +267,7 @@ export class AgentSessionService {
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, pinAfter))
+        .where(and(visibilityFilter, agentFilter, pinAfter))
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
         .all()
@@ -294,7 +314,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
+      .where(and(visibilityFilter, agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
       .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
       .limit(remaining + 1)
       .all()
@@ -411,6 +431,7 @@ export class AgentSessionService {
       name: string
       description?: string
       workspaceId: string
+      isHidden: boolean
     }
   ): void {
     insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })

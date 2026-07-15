@@ -12,6 +12,8 @@ export const agentSessionTable = sqliteTable(
     name: text().notNull(),
     // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
+    // Internal discovery control; intentionally excluded from AgentSessionEntity.
+    isHidden: integer({ mode: 'boolean' }).notNull().default(false),
     description: text().notNull().default(''),
     workspaceId: text()
       .notNull()
