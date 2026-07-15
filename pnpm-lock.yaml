@@ -84,9 +84,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.185
         version: 0.3.185(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
-      '@codemirror/language':
-        specifier: 6.12.2
-        version: 6.12.2
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
@@ -96,9 +93,6 @@ importers:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.60.0
-      '@lezer/highlight':
-        specifier: 1.2.3
-        version: 1.2.3
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -295,6 +289,9 @@ importers:
       '@codemirror/lang-json':
         specifier: 6.0.2
         version: 6.0.2
+      '@codemirror/language':
+        specifier: 6.12.2
+        version: 6.12.2
       '@codemirror/lint':
         specifier: 6.9.5
         version: 6.9.5
@@ -379,6 +376,9 @@ importers:
       '@j178/prek':
         specifier: ^0.3.4
         version: 0.3.4
+      '@lezer/highlight':
+        specifier: 1.2.3
+        version: 1.2.3
       '@mistralai/mistralai':
         specifier: ^1.7.5
         version: 1.11.0
