@@ -90,13 +90,13 @@ export { getMetadataByPath } from './utils/metadata'
 // UTF-8 text editing primitives. The renderer-facing IPC adapter composes
 // these with FileHandle dispatch and FileManager's entry-aware write path.
 export {
-  encodeTextEditContent,
   readTextEditSnapshotByPath,
   type TextEditSnapshot,
   TextEditSnapshotChangedError,
   TextEditUnsupportedError,
   type TextEditUnsupportedReason,
   type TextFileLineEnding,
+  writeTextEdit,
   writeTextEditIfUnchangedByPath
 } from './utils/textEdit'
 

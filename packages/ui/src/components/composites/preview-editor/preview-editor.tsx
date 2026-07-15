@@ -1,10 +1,7 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import Eye from 'lucide-react/dist/esm/icons/eye'
-import Save from 'lucide-react/dist/esm/icons/save'
-import SquarePen from 'lucide-react/dist/esm/icons/square-pen'
-import Undo2 from 'lucide-react/dist/esm/icons/undo-2'
+import { Eye, Save, SquarePen, Undo2 } from 'lucide-react'
 import * as React from 'react'
 
 export type PreviewEditorMode = 'preview' | 'edit'

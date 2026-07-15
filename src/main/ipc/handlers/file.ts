@@ -1,7 +1,6 @@
 import { application } from '@application'
 import {
   dispatchHandle,
-  encodeTextEditContent,
   getMetadataByPath,
   readTextEditSnapshotByPath,
   safeOpen,
@@ -9,15 +8,16 @@ import {
   StaleVersionError,
   TextEditSnapshotChangedError,
   TextEditUnsupportedError,
+  writeTextEdit,
   writeTextEditIfUnchangedByPath
 } from '@main/services/file'
-import { hashData, PathStaleVersionError, PathUnsupportedAtomicWriteTargetError } from '@main/utils/file'
+import { PathStaleVersionError, PathUnsupportedAtomicWriteTargetError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { type CreateInternalEntryIpcParams, TEXT_FILE_EDIT_MAX_BYTES } from '@shared/types/file'
+import type { CreateInternalEntryIpcParams } from '@shared/types/file'
 
 function toTextEditIpcError(error: unknown): never {
   if (error instanceof StaleVersionError || error instanceof PathStaleVersionError) {
@@ -111,12 +111,9 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         handle as FileHandle,
         async (entryId) => {
           const target = fileManager.getPhysicalPath(entryId)
-          const data = encodeTextEditContent(content, lineEnding, hasBom)
-          if (data.byteLength > TEXT_FILE_EDIT_MAX_BYTES) {
-            throw new TextEditUnsupportedError(target, 'too-large')
-          }
-          const version = await fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash)
-          return { version, contentHash: await hashData(data) }
+          return writeTextEdit(target, content, lineEnding, hasBom, (data) =>
+            fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash)
+          )
         },
         (target) =>
           writeTextEditIfUnchangedByPath(target, content, lineEnding, hasBom, expectedVersion, expectedContentHash)

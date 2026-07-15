@@ -1,4 +1,5 @@
 import { ipcApi } from '@renderer/ipc'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -7,14 +8,16 @@ import type { ArtifactPaneFileSelection } from './artifactPanePath'
 
 export type ArtifactFileEditorMode = 'preview' | 'edit'
 
+type TextEditSnapshot = OutputFor<'file.read_text_snapshot'>
+
 export interface ArtifactFileEditSession {
   mode: ArtifactFileEditorMode
   status: 'loading' | 'ready' | 'saving'
   draft: string
   savedContent: string
-  version?: { mtime: number; size: number }
+  version?: TextEditSnapshot['version']
   contentHash?: string
-  lineEnding?: 'lf' | 'crlf'
+  lineEnding?: TextEditSnapshot['lineEnding']
   hasBom?: boolean
 }
 
@@ -32,7 +35,7 @@ function getSelectionPath(selection: ArtifactPaneFileSelection): FilePath {
   return canonicalizeAbsolutePath(`${selection.workspacePath}/${selection.filePath}`) as FilePath
 }
 
-export function getArtifactFileEditKey(selection: ArtifactPaneFileSelection): string {
+function getArtifactFileEditKey(selection: ArtifactPaneFileSelection): string {
   return getSelectionPath(selection)
 }
 

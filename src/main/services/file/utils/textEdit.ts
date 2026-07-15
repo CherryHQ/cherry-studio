@@ -68,7 +68,7 @@ function decodeTextSnapshot(target: FilePath, bytes: Uint8Array, version: FileVe
   }
 }
 
-export function encodeTextEditContent(content: string, lineEnding: TextFileLineEnding, hasBom: boolean): Uint8Array {
+function encodeTextEditContent(content: string, lineEnding: TextFileLineEnding, hasBom: boolean): Uint8Array {
   const normalized = content.replace(/\r\n?/g, '\n')
   const encoded = new TextEncoder().encode(lineEnding === 'crlf' ? normalized.replace(/\n/g, '\r\n') : normalized)
   if (!hasBom) return encoded
@@ -100,6 +100,21 @@ export async function readTextEditSnapshotByPath(target: FilePath): Promise<Text
   throw new TextEditSnapshotChangedError(target)
 }
 
+/** Encode a draft, enforce the byte limit, commit it via `write`, and hash the committed bytes. */
+export async function writeTextEdit(
+  target: FilePath,
+  content: string,
+  lineEnding: TextFileLineEnding,
+  hasBom: boolean,
+  write: (data: Uint8Array) => Promise<FileVersion>
+): Promise<{ version: FileVersion; contentHash: string }> {
+  const data = encodeTextEditContent(content, lineEnding, hasBom)
+  if (data.byteLength > TEXT_FILE_EDIT_MAX_BYTES) throw new TextEditUnsupportedError(target, 'too-large')
+
+  const version = await write(data)
+  return { version, contentHash: await hashData(data) }
+}
+
 export async function writeTextEditIfUnchangedByPath(
   target: FilePath,
   content: string,
@@ -108,9 +123,7 @@ export async function writeTextEditIfUnchangedByPath(
   expectedVersion: FileVersion,
   expectedContentHash: string
 ): Promise<{ version: FileVersion; contentHash: string }> {
-  const data = encodeTextEditContent(content, lineEnding, hasBom)
-  if (data.byteLength > TEXT_FILE_EDIT_MAX_BYTES) throw new TextEditUnsupportedError(target, 'too-large')
-
-  const version = await atomicWriteIfUnchanged(target, data, expectedVersion, expectedContentHash)
-  return { version, contentHash: await hashData(data) }
+  return writeTextEdit(target, content, lineEnding, hasBom, (data) =>
+    atomicWriteIfUnchanged(target, data, expectedVersion, expectedContentHash)
+  )
 }
