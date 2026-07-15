@@ -496,8 +496,21 @@ vi.mock('../components/AgentChatNavbar', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
-  default: ({ sendDisabled, sessionId }: { sendDisabled?: boolean; sessionId?: string }) => (
-    <div data-testid="agent-composer" data-send-disabled={String(Boolean(sendDisabled))} data-session-id={sessionId} />
+  default: ({
+    compactWhenSingleLine,
+    sendDisabled,
+    sessionId
+  }: {
+    compactWhenSingleLine?: boolean
+    sendDisabled?: boolean
+    sessionId?: string
+  }) => (
+    <div
+      data-testid="agent-composer"
+      data-compact-when-single-line={String(Boolean(compactWhenSingleLine))}
+      data-send-disabled={String(Boolean(sendDisabled))}
+      data-session-id={sessionId}
+    />
   ),
   AgentHomeComposer: ({ sendMessage }: { sendMessage?: (message: { text: string }) => Promise<void> | void }) => (
     <button type="button" data-testid="agent-home-composer" onClick={() => void sendMessage?.({ text: 'hello' })}>
@@ -667,6 +680,7 @@ describe('AgentChat artifact pane', () => {
 
     openFilesPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-compact-when-single-line', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
@@ -684,6 +698,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
     expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-compact-when-single-line', 'true')
   })
 
   it('only offers maximize for the files pane', () => {

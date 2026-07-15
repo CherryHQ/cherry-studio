@@ -28,6 +28,10 @@ function getComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 * 2 + 6)
 }
 
+function getCompactComposerEditorMinHeight(fontSize: number) {
+  return Math.ceil(fontSize * 1.4 + 6)
+}
+
 function getViewportRelativeHeightPx(minHeight: number, viewportRatio: number) {
   return Math.max(minHeight, Math.round(window.innerHeight * viewportRatio))
 }
@@ -62,21 +66,29 @@ function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight:
   return Math.max(editorMinHeight, Math.min(contentHeight, maxCollapsedHeight))
 }
 
-function getComposerEditorStyle(fontSize: number, isExpanded: boolean, manualEditorFrameHeight: number | null) {
-  const isFixedHeight = isExpanded || manualEditorFrameHeight !== null
-  const maxHeight = isExpanded
-    ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT
-    : manualEditorFrameHeight !== null
-      ? `${manualEditorFrameHeight}px`
-      : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT
+function getComposerEditorStyle(
+  fontSize: number,
+  isExpanded: boolean,
+  manualEditorFrameHeight: number | null,
+  compact = false
+) {
+  const minHeight = compact ? getCompactComposerEditorMinHeight(fontSize) : getComposerEditorMinHeight(fontSize)
+  const isFixedHeight = compact || isExpanded || manualEditorFrameHeight !== null
+  const maxHeight = compact
+    ? `${minHeight}px !important`
+    : isExpanded
+      ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT
+      : manualEditorFrameHeight !== null
+        ? `${manualEditorFrameHeight}px`
+        : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT
 
   return [
-    '--composer-editor-padding: 6px 44px 0 15px',
-    `--composer-editor-min-height: ${getComposerEditorMinHeight(fontSize)}px`,
+    `--composer-editor-padding: ${compact ? '3px 0' : '6px 44px 0 15px'}`,
+    `--composer-editor-min-height: ${minHeight}px`,
     `--composer-editor-font-size: ${fontSize}px`,
     '--composer-editor-line-height: 1.4',
     `max-height: ${maxHeight}`,
-    'overflow-y: auto',
+    `overflow-y: ${compact ? 'hidden' : 'auto'}`,
     isFixedHeight ? 'height: 100%' : undefined
   ]
     .filter(Boolean)
@@ -91,6 +103,7 @@ export function useComposerEditorFrameSizing({
   setTimeoutTimer
 }: ComposerEditorFrameSizingOptions) {
   const minHeight = getComposerEditorMinHeight(fontSize)
+  const compactMinHeight = getCompactComposerEditorMinHeight(fontSize)
   const maxHeight = getExpandedEditorFrameHeightPx(minHeight)
   const frameRef = useRef<HTMLDivElement | null>(null)
   const animationFrameRef = useRef<number | null>(null)
@@ -291,12 +304,28 @@ export function useComposerEditorFrameSizing({
     () => (hasCustomHeight ? { height: '100%', minHeight } : { minHeight }),
     [hasCustomHeight, minHeight]
   )
+  const compactFrameStyle = useMemo<CSSProperties>(
+    () => ({
+      height: compactMinHeight,
+      minHeight: compactMinHeight,
+      overflow: 'hidden',
+      transitionDuration: '0ms'
+    }),
+    [compactMinHeight]
+  )
+  const compactEditorContentStyle = useMemo<CSSProperties>(
+    () => ({ height: compactMinHeight, minHeight: compactMinHeight }),
+    [compactMinHeight]
+  )
 
   return {
     frameRef,
     frameStyle,
+    compactFrameStyle,
     editorContentStyle,
+    compactEditorContentStyle,
     editorStyle: getComposerEditorStyle(fontSize, isExpanded, manualHeight),
+    compactEditorStyle: getComposerEditorStyle(fontSize, false, null, true),
     minHeight,
     maxHeight,
     resizeHandleValue: isExpanded ? maxHeight : (manualHeight ?? minHeight),

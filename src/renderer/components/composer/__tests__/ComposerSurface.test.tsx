@@ -19,7 +19,9 @@ const mocks = vi.hoisted(() => ({
   editorInstance: undefined as any,
   stabilizeEditor: false,
   actions: undefined as ComposerSurfaceActions | undefined,
+  editorClientHeight: 28,
   editorViewComposing: false,
+  editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
@@ -233,6 +235,13 @@ vi.mock('@tiptap/react', () => ({
   EditorContent: ({ style, onFocus }: { style?: React.CSSProperties; onFocus?: () => void }) => (
     <div data-testid="editor-content" style={style} onFocus={onFocus}>
       <div
+        ref={(node) => {
+          if (!node) return
+          Object.defineProperties(node, {
+            clientHeight: { configurable: true, get: () => mocks.editorClientHeight },
+            scrollHeight: { configurable: true, get: () => mocks.editorScrollHeight }
+          })
+        }}
         data-testid="composer-editor"
         className={mocks.editorOptions?.editorProps?.attributes?.class}
         data-editor-style={mocks.editorOptions?.editorProps?.attributes?.style}
@@ -243,6 +252,10 @@ vi.mock('@tiptap/react', () => ({
 
 vi.mock('@renderer/components/SendMessageButton', () => ({
   default: () => <button type="button">send</button>
+}))
+
+vi.mock('../ComposerToolRuntime', () => ({
+  ComposerToolMenu: () => <button type="button">add tool</button>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -396,7 +409,9 @@ describe('ComposerSurface', () => {
     mocks.editorInstance = undefined
     mocks.stabilizeEditor = false
     mocks.actions = undefined
+    mocks.editorClientHeight = 28
     mocks.editorViewComposing = false
+    mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
     mocks.deleteRange.mockReset()
@@ -472,6 +487,129 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
+  })
+
+  it('uses the compact single-row presentation when eligible content fits', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        compactWhenSingleLine
+        renderCompactControls={() => <button type="button">pinned tool</button>}
+        sendAccessory={<span aria-label="context usage" />}
+      />
+    )
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+
+    expect(inputbar?.querySelector('[data-composer-compact-row]')).not.toBeNull()
+    expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
+    expect(screen.getByTestId('editor-content').parentElement).toHaveStyle({ minHeight: '26px' })
+    expect(screen.getByTestId('editor-content')).toHaveStyle({ minHeight: '26px' })
+    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain(
+      '--composer-editor-min-height: 26px'
+    )
+    const addToolButton = screen.getByRole('button', { name: 'add tool' })
+    const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
+    const contextUsage = screen.getByLabelText('context usage')
+    const sendButton = screen.getByRole('button', { name: 'send' })
+    expect(addToolButton.compareDocumentPosition(pinnedToolButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(pinnedToolButton.compareDocumentPosition(contextUsage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(contextUsage.compareDocumentPosition(sendButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('preserves the editor DOM when switching between compact and regular presentations', async () => {
+    const { rerender } = render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+    const editorElement = screen.getByTestId('composer-editor')
+
+    rerender(<ComposerSurface {...baseProps} compactWhenSingleLine={false} />)
+
+    expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular')
+    expect(screen.getByTestId('composer-editor')).toBe(editorElement)
+  })
+
+  it('keeps the regular presentation while the user has a custom height', () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        compactWhenSingleLine
+        isExpanded
+        renderCompactControls={() => <button type="button">pinned tool</button>}
+      />
+    )
+
+    const inputbar = document.getElementById('inputbar')
+    expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular')
+    expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'pinned tool' })).not.toBeInTheDocument()
+  })
+
+  it('returns to the regular presentation when compact content wraps', async () => {
+    mocks.editorScrollHeight = 52
+
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+    expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
+  })
+
+  it('returns to the compact presentation when edited content fits on one line again', async () => {
+    mocks.editorScrollHeight = 52
+    mocks.stabilizeEditor = true
+
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+
+    mocks.editorScrollHeight = 28
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+  })
+
+  it('remeasures through the shared path when the editor DOM changes', async () => {
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    const editorElement = screen.getByTestId('composer-editor')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+
+    mocks.editorScrollHeight = 52
+    editorElement.textContent = 'wrapped content'
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+
+    mocks.editorScrollHeight = 28
+    editorElement.textContent = 'short'
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+  })
+
+  it('defers presentation changes while the editor is composing', async () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+
+    mocks.editorScrollHeight = 52
+    mocks.editorViewComposing = true
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+    expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact')
+
+    mocks.editorViewComposing = false
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
 
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
