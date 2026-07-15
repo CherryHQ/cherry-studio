@@ -169,6 +169,28 @@ export interface BackupContextBase {
   readonly progress?: BackupProgressEmitter
 }
 
+/**
+ * Typed descriptor for a file resource discovered by `collectFileResources`.
+ * Replaces the untyped `Set<string>` contract: routing is by `kind`, NOT by the
+ * producing domain — the orchestrator dispatches staging by kind, so new
+ * resource forms extend the union without touching a domain switch.
+ *
+ * - `file-entry` / `knowledge-base` / `notes-file`: existing blob & markdown forms.
+ * - `skill-dir` / `mcp-package-dir` / `agent-workspace-dir`: directory resources
+ *   whose on-disk content is NOT re-fetchable (dejeune file-resource-hooks
+ *   domains — SKILLS / MCP_SERVERS / AGENTS system workspace). Additive per
+ *   identity key; promoted via restore journal `dir-add`. Staging for these
+ *   lands with the directory-resource staging work; no contributor emits them
+ *   until that work ships.
+ */
+export type ResourceDescriptor =
+  | { readonly kind: 'file-entry'; readonly fileEntryId: string }
+  | { readonly kind: 'knowledge-base'; readonly baseId: string }
+  | { readonly kind: 'notes-file'; readonly relPath: string }
+  | { readonly kind: 'skill-dir'; readonly folderName: string; readonly contentHash: string }
+  | { readonly kind: 'mcp-package-dir'; readonly serverName: string }
+  | { readonly kind: 'agent-workspace-dir'; readonly sessionId: string }
+
 /** Context for collectFileResources — reads live DB file metadata only. */
 export interface FileResourceContext extends BackupContextBase {
   readonly liveDb: BackupReadonlyDb
@@ -279,7 +301,7 @@ export interface BackupContributorPolicy {
  * (it's the importer's internal pre-scan).
  */
 export interface BackupContributorOperations {
-  collectFileResources?: (ctx: FileResourceContext) => Promise<Set<string>>
+  collectFileResources?: (ctx: FileResourceContext) => Promise<readonly ResourceDescriptor[]>
   beforeArchive?: (ctx: BeforeArchiveContext) => Promise<void>
   /** Pure row transform; return null to skip the row. No db on the context. */
   transformRow?: (ctx: RowTransformContext) => Promise<Readonly<Record<string, unknown>> | null>
