@@ -8,12 +8,16 @@ date: 2026-07-15
 
 ## What changed
 
-The Agent right panel can now switch text files up to 2 MB between preview and edit modes, save changes, or discard a draft. File loading and saving reuse the same existing filesystem capabilities as the Notes editor.
+The Agent right panel can now switch text files up to 2 MiB between preview and edit modes, then save or discard changes.
 
 ## Why this matters to the user
 
-Users can make small changes to generated code and text without leaving Cherry Studio. Drafts stay local until they are saved; closing the file or opening another one asks before discarding unsaved changes and then clears the draft.
+Users can make small changes to generated code and text without leaving Cherry Studio. If a draft has unsaved changes, closing the preview or opening another file asks for confirmation before clearing it.
 
 ## What the user should do
 
-Nothing - this is automatic. Binary files and files larger than 2 MB remain preview-only and can still be opened in an external editor.
+Nothing — this is automatic. Binary files and files larger than 2 MiB remain non-editable in the preview pane and can still be opened in an external app.
+
+## Notes for release manager
+
+Saving does not detect changes made by another application after the file was loaded.
