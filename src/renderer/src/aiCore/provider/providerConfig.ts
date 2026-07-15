@@ -29,7 +29,7 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { defaultAppHeaders } from '@shared/utils'
+import { defaultAppHeaders, withoutTrailingApiVersion } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
@@ -392,7 +392,7 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
 function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
   switch (endpointType) {
     case 'gemini':
-      return formatApiHost(baseURL, true, 'v1beta')
+      return formatApiHost(withoutTrailingApiVersion(baseURL), true, 'v1beta')
     case 'anthropic':
       return formatApiHost(baseURL, false)
     default:

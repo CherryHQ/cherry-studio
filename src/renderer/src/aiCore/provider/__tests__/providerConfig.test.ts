@@ -849,6 +849,40 @@ describe('providerToAiSdkConfig', () => {
   })
 
   describe('NewAPI builder', () => {
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1beta'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1beta'],
+      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1beta']
+    ])('uses /v1beta for Gemini endpoint with base URL %s', async (apiHost, expectedBaseURL) => {
+      const provider = makeProvider({
+        id: 'new-api',
+        type: 'new-api',
+        apiHost
+      })
+
+      const model = makeModel('gemini-2.5-flash', provider.id, { endpoint_type: 'gemini' })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      const settings = config.providerSettings as NewApiProviderSettings
+      expect(settings.baseURL).toBe(expectedBaseURL)
+    })
+
+    it('keeps /v1 for OpenAI endpoint type', async () => {
+      const provider = makeProvider({
+        id: 'new-api',
+        type: 'new-api',
+        apiHost: 'https://api.newapi.com'
+      })
+
+      const model = makeModel('gpt-4', provider.id, { endpoint_type: 'openai' })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      const settings = config.providerSettings as NewApiProviderSettings
+      expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+    })
+
     it('passes endpoint_type from model', async () => {
       const provider = makeProvider({
         id: 'new-api',
