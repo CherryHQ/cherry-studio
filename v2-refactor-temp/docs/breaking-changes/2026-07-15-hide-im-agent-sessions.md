@@ -2,7 +2,7 @@
 title: "IM agent sessions no longer appear in Cherry session lists"
 category: changed
 severity: notice
-introduced_in_pr: "#TBD"
+introduced_in_pr: "#17027"
 date: 2026-07-15
 ---
 
