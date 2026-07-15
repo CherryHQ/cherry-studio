@@ -676,6 +676,30 @@ describe('ReadonlyBackupRegistry queries', () => {
     expect(aggs[0].conflictDefault).toBe('FIELD_MERGE')
   })
 
+  it('getters return deeply frozen values — registry is runtime-immutable (#16683 P1 / F6)', () => {
+    const deps = registry.getDependencies('ASSISTANTS')
+    expect(Object.isFrozen(deps)).toBe(true)
+    // Mutation attempts throw in strict mode (before F6 these were mutable refs a
+    // caller could push onto, corrupting the cached registry).
+    expect(() => (deps as BackupDomain[]).push('TOPICS')).toThrow(TypeError)
+
+    // Aggregates: patch a domain with an explicit aggregate so finalize produces one,
+    // then assert array + object + identityKey + members are all frozen.
+    const list = patchSchema(buildFixture(), 'PROVIDERS', {
+      aggregates: [{ root: 'user_provider', renamable: false }]
+    })
+    const reg = finalize(list, META)
+    const aggs = reg.getAggregatesForDomain('PROVIDERS')
+    expect(aggs).toHaveLength(1)
+    expect(Object.isFrozen(aggs)).toBe(true)
+    const agg = aggs[0]
+    expect(Object.isFrozen(agg)).toBe(true)
+    expect(Object.isFrozen(agg.identityKey)).toBe(true)
+    expect(Object.isFrozen(agg.members)).toBe(true)
+    expect(() => (aggs as AggregateBoundary[]).push(agg)).toThrow(TypeError)
+    expect(() => ((agg as AggregateBoundary).renamable = true)).toThrow(TypeError)
+  })
+
   it('resolves the table owner for an owned table', () => {
     expect(registry.getTableOwner('assistant')).toBe('ASSISTANTS')
   })
