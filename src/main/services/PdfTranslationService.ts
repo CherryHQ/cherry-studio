@@ -193,13 +193,16 @@ export class PdfTranslationService extends BaseService {
     }
 
     const job: ActivePdfTranslation = { cancelled: false, child: null, progress: 0, progressStage: null }
-    this.activeJobs.set(request.jobId, job)
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     const gateway = application.get('ApiGatewayService')
     let gatewayLeaseAcquired = false
     let completed = false
 
     try {
+      // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
+      // removal + lease release) always pairs with it — a throw from the resolves above can't leave
+      // the id wedged in `activeJobs`.
+      this.activeJobs.set(request.jobId, job)
       await fs.promises.access(request.sourcePath, fs.constants.R_OK)
       if (path.extname(request.sourcePath).toLowerCase() !== '.pdf') {
         throw new Error('PDF translation requires a .pdf source file')
