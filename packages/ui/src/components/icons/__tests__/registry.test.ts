@@ -82,6 +82,37 @@ describe('resolveModelIconRef — pattern boundaries (#10, #11, #12)', () => {
   })
 })
 
+describe('vendor-pattern parity with VENDOR_PATTERNS (icon routing drift)', () => {
+  it('lyria routes to the Gemini model icon (namespaced OpenRouter id)', () => {
+    expect(resolveModelIconRef('google/lyria-3-pro-preview')?.key).toBe('gemini')
+  })
+
+  it('happyhorse-* video ids route to the happyhorse model icon', () => {
+    expect(resolveModelIconRef('happyhorse-1.1-i2v')?.key).toBe('happyhorse')
+    expect(resolveModelIconRef('happyhorse-1.0-video-edit')?.key).toBe('happyhorse')
+  })
+
+  it('novel gpt-* families route to the OpenAI provider icon', () => {
+    expect(resolveIconRef('gpt-audio', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'openai' })
+    )
+    expect(resolveIconRef('gpt-chat-latest', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'openai' })
+    )
+  })
+
+  it('bare/namespaced o-series ids route to the OpenAI provider icon', () => {
+    expect(resolveIconRef('openai/o3', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'openai' })
+    )
+    expect(resolveModelToProviderIconRef('o3')?.key).toBe('openai')
+    expect(resolveModelToProviderIconRef('o1')?.key).toBe('openai')
+    expect(resolveModelToProviderIconRef('o3-mini')?.key).toBe('openai')
+    // guard: not matched inside another word
+    expect(resolveModelToProviderIconRef('mano3')?.key).not.toBe('openai')
+  })
+})
+
 describe('resolveIconRef — full fallback chain', () => {
   it('prefers the dedicated model icon', () => {
     expect(resolveIconRef('claude-sonnet-5', 'openrouter')).toEqual(

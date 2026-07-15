@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -26,6 +26,7 @@ import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
@@ -40,7 +41,6 @@ import {
   isUniqueModelId,
   type Model as SelectorModel,
   MODEL_CAPABILITY,
-  parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
@@ -68,8 +68,6 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.RERANK,
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
-
-const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
@@ -201,9 +199,7 @@ const TranslatePage: FC = () => {
 
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
   const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
-  const selectedModelIcon = useIcon(
-    selectedModel ? resolveIconRef(getModelIdentifier(selectedModel), selectedModel.providerId) : undefined
-  )
+  const selectedModelIcon = useIcon(selectedModel ? getModelLogoRef(selectedModel) : undefined)
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
