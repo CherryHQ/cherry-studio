@@ -4,8 +4,8 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-15T10:44:58.450Z
- * Total icons: 115
+ * Generated at: 2026-07-15T11:45:33.372Z
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { AceIcon } from './ace'
@@ -49,21 +49,71 @@ import { GemmaIcon } from './gemma'
 import { GlmIcon } from './glm'
 import { GlmvIcon } from './glmv'
 import { GoogleIcon } from './google'
+import { Gpt35TurboIcon } from './gpt-3-5-turbo'
+import { Gpt4Icon } from './gpt-4'
+import { Gpt41Icon } from './gpt-4-1'
+import { Gpt41MiniIcon } from './gpt-4-1-mini'
+import { Gpt41NanoIcon } from './gpt-4-1-nano'
+import { Gpt45PreviewIcon } from './gpt-4-5-preview'
+import { Gpt4TurboIcon } from './gpt-4-turbo'
+import { Gpt4TurboPreviewIcon } from './gpt-4-turbo-preview'
+import { Gpt4oIcon } from './gpt-4o'
+import { Gpt4oAudioPreviewIcon } from './gpt-4o-audio-preview'
+import { Gpt4oMiniIcon } from './gpt-4o-mini'
+import { Gpt4oMiniAudioPreviewIcon } from './gpt-4o-mini-audio-preview'
+import { Gpt4oMiniRealtimePreviewIcon } from './gpt-4o-mini-realtime-preview'
+import { Gpt4oMiniSearchPreviewIcon } from './gpt-4o-mini-search-preview'
+import { Gpt4oMiniTranscribeIcon } from './gpt-4o-mini-transcribe'
+import { Gpt4oMiniTtsIcon } from './gpt-4o-mini-tts'
+import { Gpt4oRealtimePreviewIcon } from './gpt-4o-realtime-preview'
+import { Gpt4oSearchPreviewIcon } from './gpt-4o-search-preview'
+import { Gpt4oTranscribeIcon } from './gpt-4o-transcribe'
+import { Gpt4oTranscribeDiarizeIcon } from './gpt-4o-transcribe-diarize'
 import { Gpt5Icon } from './gpt-5'
 import { Gpt51Icon } from './gpt-5-1'
 import { Gpt51ChatIcon } from './gpt-5-1-chat'
+import { Gpt51ChatLatestIcon } from './gpt-5-1-chat-latest'
 import { Gpt51CodexIcon } from './gpt-5-1-codex'
+import { Gpt51CodexMaxIcon } from './gpt-5-1-codex-max'
 import { Gpt51CodexMiniIcon } from './gpt-5-1-codex-mini'
 import { Gpt52Icon } from './gpt-5-2'
+import { Gpt52ChatLatestIcon } from './gpt-5-2-chat-latest'
+import { Gpt52CodexIcon } from './gpt-5-2-codex'
 import { Gpt52ProIcon } from './gpt-5-2-pro'
+import { Gpt53ChatLatestIcon } from './gpt-5-3-chat-latest'
+import { Gpt53CodexIcon } from './gpt-5-3-codex'
+import { Gpt54Icon } from './gpt-5-4'
+import { Gpt54MiniIcon } from './gpt-5-4-mini'
+import { Gpt54NanoIcon } from './gpt-5-4-nano'
+import { Gpt54ProIcon } from './gpt-5-4-pro'
+import { Gpt55Icon } from './gpt-5-5'
+import { Gpt55ProIcon } from './gpt-5-5-pro'
+import { Gpt56LunaIcon } from './gpt-5-6-luna'
+import { Gpt56SolIcon } from './gpt-5-6-sol'
+import { Gpt56TerraIcon } from './gpt-5-6-terra'
 import { Gpt5ChatIcon } from './gpt-5-chat'
+import { Gpt5ChatLatestIcon } from './gpt-5-chat-latest'
 import { Gpt5CodexIcon } from './gpt-5-codex'
 import { Gpt5MiniIcon } from './gpt-5-mini'
 import { Gpt5NanoIcon } from './gpt-5-nano'
+import { Gpt5ProIcon } from './gpt-5-pro'
+import { GptAudioIcon } from './gpt-audio'
+import { GptAudio15Icon } from './gpt-audio-1-5'
+import { GptAudioMiniIcon } from './gpt-audio-mini'
 import { GptImage1Icon } from './gpt-image-1'
 import { GptImage15Icon } from './gpt-image-1-5'
+import { GptImage1MiniIcon } from './gpt-image-1-mini'
+import { GptImage2Icon } from './gpt-image-2'
 import { GptOss20bIcon } from './gpt-oss-20b'
 import { GptOss120bIcon } from './gpt-oss-120b'
+import { GptRealtimeIcon } from './gpt-realtime'
+import { GptRealtime15Icon } from './gpt-realtime-1-5'
+import { GptRealtime2Icon } from './gpt-realtime-2'
+import { GptRealtime21Icon } from './gpt-realtime-2-1'
+import { GptRealtime21MiniIcon } from './gpt-realtime-2-1-mini'
+import { GptRealtimeMiniIcon } from './gpt-realtime-mini'
+import { GptRealtimeTranslateIcon } from './gpt-realtime-translate'
+import { GptRealtimeWhisperIcon } from './gpt-realtime-whisper'
 import { GrokIcon } from './grok'
 import { HailuoIcon } from './hailuo'
 import { HunyuanIcon } from './hunyuan'
@@ -167,21 +217,71 @@ export const MODEL_ICON_CATALOG = {
   glm: GlmIcon,
   glmv: GlmvIcon,
   google: GoogleIcon,
+  'gpt-3-5-turbo': Gpt35TurboIcon,
+  'gpt-4': Gpt4Icon,
+  'gpt-4-1': Gpt41Icon,
+  'gpt-4-1-mini': Gpt41MiniIcon,
+  'gpt-4-1-nano': Gpt41NanoIcon,
+  'gpt-4-5-preview': Gpt45PreviewIcon,
+  'gpt-4-turbo': Gpt4TurboIcon,
+  'gpt-4-turbo-preview': Gpt4TurboPreviewIcon,
+  'gpt-4o': Gpt4oIcon,
+  'gpt-4o-audio-preview': Gpt4oAudioPreviewIcon,
+  'gpt-4o-mini': Gpt4oMiniIcon,
+  'gpt-4o-mini-audio-preview': Gpt4oMiniAudioPreviewIcon,
+  'gpt-4o-mini-realtime-preview': Gpt4oMiniRealtimePreviewIcon,
+  'gpt-4o-mini-search-preview': Gpt4oMiniSearchPreviewIcon,
+  'gpt-4o-mini-transcribe': Gpt4oMiniTranscribeIcon,
+  'gpt-4o-mini-tts': Gpt4oMiniTtsIcon,
+  'gpt-4o-realtime-preview': Gpt4oRealtimePreviewIcon,
+  'gpt-4o-search-preview': Gpt4oSearchPreviewIcon,
+  'gpt-4o-transcribe': Gpt4oTranscribeIcon,
+  'gpt-4o-transcribe-diarize': Gpt4oTranscribeDiarizeIcon,
   'gpt-5': Gpt5Icon,
   'gpt-5-1': Gpt51Icon,
   'gpt-5-1-chat': Gpt51ChatIcon,
+  'gpt-5-1-chat-latest': Gpt51ChatLatestIcon,
   'gpt-5-1-codex': Gpt51CodexIcon,
+  'gpt-5-1-codex-max': Gpt51CodexMaxIcon,
   'gpt-5-1-codex-mini': Gpt51CodexMiniIcon,
   'gpt-5-2': Gpt52Icon,
+  'gpt-5-2-chat-latest': Gpt52ChatLatestIcon,
+  'gpt-5-2-codex': Gpt52CodexIcon,
   'gpt-5-2-pro': Gpt52ProIcon,
+  'gpt-5-3-chat-latest': Gpt53ChatLatestIcon,
+  'gpt-5-3-codex': Gpt53CodexIcon,
+  'gpt-5-4': Gpt54Icon,
+  'gpt-5-4-mini': Gpt54MiniIcon,
+  'gpt-5-4-nano': Gpt54NanoIcon,
+  'gpt-5-4-pro': Gpt54ProIcon,
+  'gpt-5-5': Gpt55Icon,
+  'gpt-5-5-pro': Gpt55ProIcon,
+  'gpt-5-6-luna': Gpt56LunaIcon,
+  'gpt-5-6-sol': Gpt56SolIcon,
+  'gpt-5-6-terra': Gpt56TerraIcon,
   'gpt-5-chat': Gpt5ChatIcon,
+  'gpt-5-chat-latest': Gpt5ChatLatestIcon,
   'gpt-5-codex': Gpt5CodexIcon,
   'gpt-5-mini': Gpt5MiniIcon,
   'gpt-5-nano': Gpt5NanoIcon,
+  'gpt-5-pro': Gpt5ProIcon,
+  'gpt-audio': GptAudioIcon,
+  'gpt-audio-1-5': GptAudio15Icon,
+  'gpt-audio-mini': GptAudioMiniIcon,
   'gpt-image-1': GptImage1Icon,
   'gpt-image-1-5': GptImage15Icon,
+  'gpt-image-1-mini': GptImage1MiniIcon,
+  'gpt-image-2': GptImage2Icon,
   'gpt-oss-120b': GptOss120bIcon,
   'gpt-oss-20b': GptOss20bIcon,
+  'gpt-realtime': GptRealtimeIcon,
+  'gpt-realtime-1-5': GptRealtime15Icon,
+  'gpt-realtime-2': GptRealtime2Icon,
+  'gpt-realtime-2-1': GptRealtime21Icon,
+  'gpt-realtime-2-1-mini': GptRealtime21MiniIcon,
+  'gpt-realtime-mini': GptRealtimeMiniIcon,
+  'gpt-realtime-translate': GptRealtimeTranslateIcon,
+  'gpt-realtime-whisper': GptRealtimeWhisperIcon,
   grok: GrokIcon,
   hailuo: HailuoIcon,
   hunyuan: HunyuanIcon,
