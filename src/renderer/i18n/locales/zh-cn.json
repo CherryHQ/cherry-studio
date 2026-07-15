@@ -2451,6 +2451,24 @@
       "title": "预览失败"
     },
     "loading": "正在加载预览...",
+    "markdown": {
+      "empty": {
+        "description": "此 Markdown 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "Markdown 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 Markdown 文件。",
+        "title": "文件过大"
+      }
+    },
     "unsupported": {
       "description": "此文件类型暂不支持预览。",
       "title": "暂不支持预览"

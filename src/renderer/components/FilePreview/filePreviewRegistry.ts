@@ -2,6 +2,7 @@ import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { normalizeExt } from '@shared/utils/file'
 
 import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
+import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
 import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
@@ -37,5 +38,5 @@ export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRe
 }
 
 export const filePreviewRegistry = createFilePreviewRegistry({
-  extensionPlugins: [imageFilePreviewPlugin, pdfFilePreviewPlugin]
+  extensionPlugins: [imageFilePreviewPlugin, markdownFilePreviewPlugin, pdfFilePreviewPlugin]
 })

@@ -1,50 +1,17 @@
-import { Button, EmptyState, ImagePreviewImage, Tooltip, useImagePreviewTransform } from '@cherrystudio/ui'
+import { EmptyState, ImagePreviewImage, useImagePreviewTransform } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { toSafeFileUrl } from '@shared/utils/file'
-import {
-  FlipHorizontal,
-  FlipVertical,
-  ImageOff,
-  LoaderCircle,
-  RotateCcw,
-  RotateCw,
-  Undo2,
-  ZoomIn,
-  ZoomOut
-} from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import ImageOff from 'lucide-react/dist/esm/icons/image-off'
+import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import { FilePreviewToolbar } from '../../FilePreviewToolbar'
 import type { FilePreviewPluginProps } from '../../types'
+import { ImageFilePreviewToolbar } from './ImageFilePreviewToolbar'
 
 const logger = loggerService.withContext('ImageFilePreview')
-
-interface ImageToolbarButtonProps {
-  children: ReactNode
-  disabled?: boolean
-  label: string
-  onClick: () => void
-}
-
-function ImageToolbarButton({ children, disabled, label, onClick }: ImageToolbarButtonProps) {
-  return (
-    <Tooltip content={label} delay={300}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={label}
-        disabled={disabled}
-        onClick={onClick}
-        className="text-muted-foreground hover:text-foreground">
-        {children}
-      </Button>
-    </Tooltip>
-  )
-}
 
 export default function ImageFilePreview({ filePath, fileName }: FilePreviewPluginProps) {
   const { t } = useTranslation()
@@ -79,47 +46,7 @@ export default function ImageFilePreview({ filePath, fileName }: FilePreviewPlug
 
   return (
     <FilePreviewLayout.Frame>
-      <FilePreviewToolbar aria-label={t('preview.label')}>
-        <ImageToolbarButton
-          label={t('preview.zoom_out')}
-          disabled={status !== 'ready' || !transformControls.canZoomOut}
-          onClick={transformControls.zoomOut}>
-          <ZoomOut aria-hidden />
-        </ImageToolbarButton>
-        <ImageToolbarButton
-          label={t('preview.zoom_in')}
-          disabled={status !== 'ready' || !transformControls.canZoomIn}
-          onClick={transformControls.zoomIn}>
-          <ZoomIn aria-hidden />
-        </ImageToolbarButton>
-        <ImageToolbarButton
-          label={t('preview.rotate_left')}
-          disabled={status !== 'ready'}
-          onClick={transformControls.rotateLeft}>
-          <RotateCcw aria-hidden />
-        </ImageToolbarButton>
-        <ImageToolbarButton
-          label={t('preview.rotate_right')}
-          disabled={status !== 'ready'}
-          onClick={transformControls.rotateRight}>
-          <RotateCw aria-hidden />
-        </ImageToolbarButton>
-        <ImageToolbarButton
-          label={t('preview.flip_horizontal')}
-          disabled={status !== 'ready'}
-          onClick={transformControls.flipHorizontal}>
-          <FlipHorizontal aria-hidden />
-        </ImageToolbarButton>
-        <ImageToolbarButton
-          label={t('preview.flip_vertical')}
-          disabled={status !== 'ready'}
-          onClick={transformControls.flipVertical}>
-          <FlipVertical aria-hidden />
-        </ImageToolbarButton>
-        <ImageToolbarButton label={t('preview.reset')} disabled={status !== 'ready'} onClick={transformControls.reset}>
-          <Undo2 aria-hidden />
-        </ImageToolbarButton>
-      </FilePreviewToolbar>
+      <ImageFilePreviewToolbar disabled={status !== 'ready'} transformControls={transformControls} />
       <FilePreviewLayout.Content>
         <div className="relative flex h-full min-h-full min-w-full items-center justify-center p-4">
           {status === 'loading' && (
