@@ -43,6 +43,7 @@ import {
 import { renderDocxPreviewHtml } from './utils/docxPreview'
 import { mountPptxPreview } from './utils/pptxPreview'
 import { renderCode, renderMarkdown } from './utils/renderMarkdown'
+import { createSpeechSynthesisController, type SpeechSynthesisControllerState } from './utils/speechSynthesis'
 import {
   buildWorkspaceSearchTree,
   getWorkspaceCodeLanguage,
@@ -134,6 +135,9 @@ const textPacks = {
     connected: 'Win11 desktop bridge connected',
     context: 'Context',
     copy: 'Copy',
+    readAloud: 'Read aloud',
+    stopReading: 'Stop reading',
+    speechUnavailable: 'Speech is not available in this browser.',
     delete: 'Delete',
     deleteMessage: 'Delete this message?',
     deleteMessageDescription: 'This message will be removed from the desktop conversation and cannot be restored.',
@@ -242,6 +246,9 @@ const textPacks = {
     connected: 'Win11 桌面桥接已连接',
     context: '上下文',
     copy: '复制',
+    readAloud: '朗读',
+    stopReading: '停止朗读',
+    speechUnavailable: '当前浏览器不支持朗读。',
     delete: '删除',
     deleteMessage: '删除这条消息？',
     deleteMessageDescription: '此消息将从桌面会话中删除，且无法恢复。',
@@ -350,6 +357,9 @@ const textPacks = {
     connected: 'Win11 桌面橋接已連線',
     context: '上下文',
     copy: '複製',
+    readAloud: '朗讀',
+    stopReading: '停止朗讀',
+    speechUnavailable: '目前瀏覽器不支援朗讀。',
     delete: '刪除',
     deleteMessage: '刪除這則訊息？',
     deleteMessageDescription: '此訊息將從桌面會話中刪除，且無法復原。',
@@ -605,6 +615,7 @@ type ActionIconName =
   | 'refresh'
   | 'back'
   | 'search'
+  | 'volume'
 
 const renderActionIcon = (name: ActionIconName, restore = false) => {
   const props = {
@@ -644,6 +655,7 @@ const renderActionIcon = (name: ActionIconName, restore = false) => {
   if (name === 'refresh') return h('svg', props, [h('path', { d: 'M20 6v5h-5' }), h('path', { d: 'M4 18v-5h5' }), h('path', { d: 'M6.1 9A7 7 0 0 1 18 6l2 5' }), h('path', { d: 'm4 13 2 5a7 7 0 0 0 11.9-3' })])
   if (name === 'back') return h('svg', props, [h('path', { d: 'm15 18-6-6 6-6' }), h('path', { d: 'M9 12h10' })])
   if (name === 'search') return h('svg', props, [h('circle', { cx: 11, cy: 11, r: 7 }), h('path', { d: 'm20 20-4-4' })])
+  if (name === 'volume') return h('svg', props, [h('path', { d: 'M11 5 6 9H3v6h3l5 4V5Z' }), h('path', { d: 'M15.5 8.5a5 5 0 0 1 0 7' }), h('path', { d: 'M18.5 5.5a9 9 0 0 1 0 13' })])
   return h('svg', props)
 }
 
@@ -874,6 +886,12 @@ const App = defineComponent({
     const deleteMessageId = ref<string>()
     const messageDeleteState = ref<'idle' | 'deleting' | 'error'>('idle')
     const messageDeleteError = ref('')
+    const speechState = ref<SpeechSynthesisControllerState>({ isSpeaking: false })
+    const speechController = createSpeechSynthesisController({
+      onStateChange: (state) => {
+        speechState.value = state
+      }
+    })
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     const pendingChunkRetries = new Map<string, number>()
     let healthTimer: number | undefined
@@ -986,6 +1004,9 @@ const App = defineComponent({
     }
 
     const localizedErrorMessage = (error: unknown) => (isAbortError(error) ? text('requestAborted') : toErrorMessage(error))
+    const canReadMessageAloud = (message: WebUiMessageSnapshot) =>
+      speechController.isSupported && message.status !== 'pending' && Boolean(message.content.trim())
+    const isReadingMessage = (messageId: string) => speechState.value.isSpeaking && speechState.value.messageId === messageId
     const localizedSseErrorMessage = (message?: string) =>
       message && isAbortError(message) ? text('requestAborted') : message || text('disconnected')
     const isAbortSseMessage = (message?: string) => Boolean(message && isAbortError(message))
@@ -2166,6 +2187,11 @@ const App = defineComponent({
       }
     }
 
+    const toggleReadMessageAloud = (message: WebUiMessageSnapshot) => {
+      if (!canReadMessageAloud(message)) return
+      speechController.speak(message.id, message.content, language.value)
+    }
+
     const copyText = async (value: string) => {
       try {
         await navigator.clipboard.writeText(value)
@@ -2321,6 +2347,10 @@ const App = defineComponent({
       reasoningPickerOpen.value = false
     })
 
+    watch(selectedConversationId, () => {
+      speechController.stop()
+    })
+
     watch(workspaceFileSearch, (value) => {
       if (workspaceFileSearchTimer !== undefined) window.clearTimeout(workspaceFileSearchTimer)
       workspaceFileSearchTimer = undefined
@@ -2362,6 +2392,7 @@ const App = defineComponent({
       if (chunkFrame !== undefined) window.cancelAnimationFrame(chunkFrame)
       pendingChunks.clear()
       pendingChunkRetries.clear()
+      speechController.stop()
       unsubscribeSync()
       unsubscribeChunk()
       unsubscribeDone()
@@ -2684,6 +2715,25 @@ const App = defineComponent({
                               h('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
                               h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
                             ])
+                          )
+                        : undefined,
+                      message.content
+                        ? h(
+                            'button',
+                            {
+                              class: ['message-action-button', { 'message-action-button-active': isReadingMessage(message.id) }],
+                              type: 'button',
+                              disabled: !canReadMessageAloud(message),
+                              title: speechController.isSupported
+                                ? isReadingMessage(message.id)
+                                  ? text('stopReading')
+                                  : text('readAloud')
+                                : text('speechUnavailable'),
+                              'aria-label': isReadingMessage(message.id) ? text('stopReading') : text('readAloud'),
+                              'aria-pressed': isReadingMessage(message.id) ? 'true' : 'false',
+                              onClick: () => toggleReadMessageAloud(message)
+                            },
+                            renderActionIcon(isReadingMessage(message.id) ? 'stop' : 'volume')
                           )
                         : undefined,
                       h(
@@ -4580,9 +4630,23 @@ style.textContent = `
     opacity: 1;
   }
 
+  .message-action-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.32;
+  }
+
+  .message-action-button-active {
+    color: #2563eb;
+    opacity: 1;
+  }
+
   .user-message .message-action-button:hover,
   .user-message .message-action-button:focus-visible {
     background: rgb(255 255 255 / 16%);
+  }
+
+  .user-message .message-action-button-active {
+    color: #bfdbfe;
   }
 
   .message-delete-button:hover,
