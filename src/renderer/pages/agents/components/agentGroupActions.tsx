@@ -30,7 +30,7 @@ const agentGroupActionRegistry = createActionRegistry<AgentGroupActionContext>()
 agentGroupActionRegistry.registerCommand({
   id: 'agent-group.edit',
   run: ({ agentId, onEdit }) => {
-    window.requestAnimationFrame(() => onEdit(agentId))
+    onEdit(agentId)
   }
 })
 

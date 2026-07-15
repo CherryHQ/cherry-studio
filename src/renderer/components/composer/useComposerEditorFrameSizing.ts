@@ -292,11 +292,16 @@ export function useComposerEditorFrameSizing({
     [hasCustomHeight, minHeight]
   )
 
+  const editorStyle = useMemo<string>(
+    () => getComposerEditorStyle(fontSize, isExpanded, manualHeight),
+    [fontSize, isExpanded, manualHeight]
+  )
+
   return {
     frameRef,
     frameStyle,
     editorContentStyle,
-    editorStyle: getComposerEditorStyle(fontSize, isExpanded, manualHeight),
+    editorStyle,
     minHeight,
     maxHeight,
     resizeHandleValue: isExpanded ? maxHeight : (manualHeight ?? minHeight),
