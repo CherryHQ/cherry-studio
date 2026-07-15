@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { MessageEnterMotionProvider, useMessageEnterMotionIds } from '../motion/messageEnterMotion'
+import { usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
@@ -89,6 +90,7 @@ const MessageList = () => {
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
+  const partsByMessageId = usePartsMap()
   const { setForceWideLayout } = useChatLayoutMode()
   const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -516,6 +518,7 @@ const MessageList = () => {
                       isLatestAssistantGroup={key === latestAssistantGroupKey}
                       directAssistantModelsByUserId={directAssistantModelsByUserId}
                       messages={groupMessages}
+                      partsByMessageId={partsByMessageId}
                       topic={topic}
                       registerMessageElement={registerMessageElement}
                       onMultiModelMessageStyleChange={(style) => {
@@ -556,6 +559,7 @@ const MessageList = () => {
                 isLatestAssistantGroup={key === latestAssistantGroupKey}
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
+                partsByMessageId={partsByMessageId}
                 topic={topic}
               />
             </NarrowLayout>

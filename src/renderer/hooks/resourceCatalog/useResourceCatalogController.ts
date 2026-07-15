@@ -1,11 +1,17 @@
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
-import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
+import type {
+  AgentDetail,
+  ResourceCreateValues,
+  ResourceItem,
+  ResourceType,
+  TagItem
+} from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
+import { buildCreateAgentDto, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,16 +24,6 @@ type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'age
 
 type ResourceCreateWizardKind = 'assistant' | 'agent'
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
-
-type ResourceCreateWizardValues = {
-  avatar: string
-  name: string
-  modelId: UniqueModelId
-  description: string
-  prompt: string
-  knowledgeBaseIds: string[]
-  skillIds: string[]
-}
 
 const DIALOG_EXIT_ANIMATION_MS = 200
 
@@ -192,36 +188,16 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   )
 
   const handleSubmitCreateResource = useCallback(
-    async (values: ResourceCreateWizardValues) => {
+    async (values: ResourceCreateValues) => {
       const kind = createDialogKind
       if (!kind || creatingResource) return
 
       setCreatingResource(true)
       try {
         if (kind === 'assistant') {
-          await createAssistant({
-            name: values.name,
-            emoji: values.avatar,
-            modelId: values.modelId,
-            description: values.description,
-            prompt: values.prompt,
-            knowledgeBaseIds: values.knowledgeBaseIds
-          })
+          await createAssistant(buildCreateAssistantDto(values))
         } else {
-          await createAgent({
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions'
-            }
-          })
+          await createAgent(buildCreateAgentDto(values))
         }
 
         setCreateDialogOpen(false)

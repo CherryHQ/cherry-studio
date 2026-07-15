@@ -758,7 +758,7 @@ describe('ResourceSelectorShell', () => {
 
       const alphaOption = getRow('Alpha')
       const row = alphaOption.closest('[data-model-selector-row]')
-      expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-accent/70')
+      expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'py-1', 'bg-accent/70')
       expect(row).not.toHaveClass('bg-primary/10')
     })
 

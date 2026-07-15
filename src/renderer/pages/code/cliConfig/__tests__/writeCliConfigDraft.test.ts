@@ -209,6 +209,24 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('claude-sonnet-4-5')
     })
 
+    it('round-trips a primary model together with an independent Subagent override', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-haiku-4-5' } }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-5')
+      expect(parsed.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-haiku-4-5')
+    })
+
     it('deep-merges, preserving unrelated keys (mcpServers/theme) and clearing stale managed env keys', async () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
         mcpServers: { fs: { command: 'npx' } },
@@ -622,6 +640,49 @@ describe('writeCliConfigDraft', () => {
       // Top-level default-model selector — OpenCode's launch reads the model from here
       // (no --model flag), so it must reference the exact provider key + model key above.
       expect(parsed.model).toBe('cherry-DeepSeek/deepseek-chat')
+    })
+
+    it('forwards provider headers to OpenCode options', async () => {
+      const providerWithRequestOptions = {
+        ...openaiCompatProvider,
+        settings: {
+          extraHeaders: { 'HTTP-Referer': 'https://cherry-ai.com', 'X-Title': 'Cherry Studio' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/deepseek': () => providerWithRequestOptions,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      const options = JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].options
+      expect(options.headers).toEqual({
+        'HTTP-Referer': 'https://cherry-ai.com',
+        'X-Title': 'Cherry Studio'
+      })
+    })
+
+    it('writes OpenCode model limits from Cherry model metadata', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ contextWindow: 65536, maxOutputTokens: 8192 })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      expect(JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+        context: 65536,
+        output: 8192
+      })
     })
 
     it('enables anthropic thinking when reasoning is on', async () => {
