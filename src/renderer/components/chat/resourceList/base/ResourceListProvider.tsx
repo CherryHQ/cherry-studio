@@ -801,6 +801,16 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     viewSections
   ])
 
+  // Keep the latest groups in a ref so the group actions (loadRemoteGroups /
+  // showMoreInGroup) can read them without pulling `viewGroups` into the
+  // `actions` memo — otherwise every filter/query change would recompute
+  // `viewGroups` and rebuild the whole action map, breaking its referential
+  // stability. Mirrors the `collapsedStateRef` pattern below.
+  const viewGroupsRef = useRef(viewGroups)
+  useLayoutEffect(() => {
+    viewGroupsRef.current = viewGroups
+  }, [viewGroups])
+
   const visibleItems = useMemo(() => viewGroups.flatMap((group) => group.items), [viewGroups])
   const stateGroups = useMemo(
     () => (sectionBy ? [...buildSectionStateGroups(viewSections), ...viewGroups] : viewGroups),
@@ -874,7 +884,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     (groupIds: readonly string[]) => {
       if (!remoteData?.loadGroup) return
       const unloadedGroupIds = groupIds.filter((groupId) => {
-        const group = viewGroups.find((candidate) => candidate.group.id === groupId)
+        const group = viewGroupsRef.current.find((candidate) => candidate.group.id === groupId)
         return (
           group &&
           group.totalCount > 0 &&
@@ -888,7 +898,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         runRemoteGroupLoad(groupId, () => remoteData.loadGroup?.(groupId) ?? Promise.resolve())
       ).catch(() => undefined)
     },
-    [remoteData, runRemoteGroupLoad, viewGroups]
+    [remoteData, runRemoteGroupLoad]
   )
 
   const actions = useMemo(
@@ -949,7 +959,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
           return
         }
 
-        const group = viewGroups.find((candidate) => candidate.group.id === groupId)
+        const group = viewGroupsRef.current.find((candidate) => candidate.group.id === groupId)
         if (!group || group.status === 'loading' || pendingGroupLoadsRef.current.has(groupId)) return
         const nextVisibleCount =
           groupLoadStep === Number.POSITIVE_INFINITY ? Number.POSITIVE_INFINITY : group.visibleCount + groupLoadStep
@@ -1010,8 +1020,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       remoteData,
       runRemoteGroupLoad,
       selectGroupHeaderItem,
-      uiStore,
-      viewGroups
+      uiStore
     ]
   )
 

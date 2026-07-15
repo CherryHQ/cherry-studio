@@ -349,18 +349,23 @@ function createAgentSessionsSource(): AgentSessionsSource {
 }
 
 function createAssistantTopicsSource(): AssistantTopicsSource {
+  const byAssistantCounts = new Map<string | null, number>()
+  for (const topic of assistantDataMocks.topics) {
+    const key = topic.assistantId ?? null
+    byAssistantCounts.set(key, (byAssistantCounts.get(key) ?? 0) + 1)
+  }
   return {
-    error: null,
-    hasNext: false,
-    isFullyLoaded: true,
-    isLoading: false,
-    isLoadingAll: false,
-    isRefreshing: false,
-    loadNext: vi.fn(),
-    mutate: vi.fn(),
-    pages: [],
-    refetch: vi.fn(),
-    topics: assistantDataMocks.topics
+    stats: {
+      total: assistantDataMocks.topics.length,
+      pinnedCount: 0,
+      byAssistant: Array.from(byAssistantCounts, ([assistantId, count]) => ({ assistantId, count, pinnedCount: 0 }))
+    },
+    isStatsLoading: false,
+    statsError: null,
+    refetchStats: vi.fn(),
+    loadFirstTopic: vi.fn().mockResolvedValue(null),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    loadTopicSeedCandidates: vi.fn().mockResolvedValue([])
   } as unknown as AssistantTopicsSource
 }
 
@@ -688,7 +693,7 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('keeps classic assistant rail history in the shared display menu', () => {
+  it('keeps classic assistant rail history in the shared display menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -702,10 +707,12 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
 
-    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+    // The shared display menu defers item selection until after the menu closes
+    // (runAfterMenuClose → setTimeout), so the callback fires asynchronously.
+    await waitFor(() => expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1))
   })
 
-  it('keeps assistant management in the shared display menu without adding a classic rail entry', () => {
+  it('keeps assistant management in the shared display menu without adding a classic rail entry', async () => {
     const onManageAssistants = vi.fn()
 
     render(
@@ -726,7 +733,8 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
-    expect(onManageAssistants).toHaveBeenCalledTimes(1)
+    // Selection is deferred until after the menu closes (runAfterMenuClose → setTimeout).
+    await waitFor(() => expect(onManageAssistants).toHaveBeenCalledTimes(1))
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'false')
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
@@ -814,7 +822,8 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
+    // Display-mode options render as radio items (role="menuitemradio"), not plain buttons.
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'agent.session.display.workdir' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
@@ -839,7 +848,7 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('passes skill management entries into the classic agent rail display menu', () => {
+  it('passes skill management entries into the classic agent rail display menu', async () => {
     const onManageSkills = vi.fn()
 
     render(
@@ -866,7 +875,8 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.skill.manage.title' }))
 
-    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    // Selection is deferred until after the menu closes (runAfterMenuClose → setTimeout).
+    await waitFor(() => expect(onManageSkills).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
   })
 
@@ -892,7 +902,7 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
-  it('keeps classic agent rail history in the shared display menu without section toggles', () => {
+  it('keeps classic agent rail history in the shared display menu without section toggles', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -908,7 +918,8 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
 
-    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+    // Selection is deferred until after the menu closes (runAfterMenuClose → setTimeout).
+    await waitFor(() => expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('agent.session.group.expand_all')).not.toBeInTheDocument()
     expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
   })

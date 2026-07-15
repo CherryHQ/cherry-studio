@@ -19,7 +19,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, SquarePen, Tags, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -120,6 +120,14 @@ export function AssistantResourceList({
     }
     return counts
   }, [assistants, topicStats?.byAssistant])
+
+  // Keep the latest per-assistant topic counts in a ref so a clear action that
+  // is awaiting its confirm dialog can re-check the count after the user
+  // confirms — the list may have drained while the dialog was open.
+  const topicCountByAssistantIdRef = useRef(topicCountByAssistantId)
+  useEffect(() => {
+    topicCountByAssistantIdRef.current = topicCountByAssistantId
+  }, [topicCountByAssistantId])
 
   const handleCreateTopic = useCallback(
     (assistantId: string) => onCreateTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
@@ -268,6 +276,10 @@ export function AssistantResourceList({
           }
         })
         if (!confirmed) return
+
+        // The list may have drained while the confirm dialog was open — re-check
+        // the latest count so we don't clear (and recreate) an already-empty assistant.
+        if ((topicCountByAssistantIdRef.current.get(assistantId) ?? 0) === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()

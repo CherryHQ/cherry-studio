@@ -100,6 +100,14 @@ const agentPageMocks = vi.hoisted(() => ({
   // `undefined` → derive the latest from `classicLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestSessionOverride: undefined as { id: string; updatedAt: string } | null | undefined,
+  // Controls the imperative `/agent-sessions/latest` seed lookup (`agentSessionsSource.loadLatestSession`),
+  // which `handleActiveAgentDeleted` reads AFTER the active agent is deleted. `undefined` → first
+  // classic-layout session (default); `null` → no session remains post-deletion; a session → that exact
+  // session.
+  loadLatestSessionOverride: undefined as
+    | (Record<string, unknown> & { id: string; updatedAt: string })
+    | null
+    | undefined,
   sessionExpansionAgent: [] as string[]
 }))
 
@@ -137,7 +145,11 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
       loadFirstSession: vi.fn(
         async (agentId: string) => sessions.find((session) => session.agentId === agentId) ?? null
       ),
-      loadLatestSession: vi.fn(async () => sessions[0] ?? null),
+      loadLatestSession: vi.fn(async () =>
+        agentPageMocks.loadLatestSessionOverride === undefined
+          ? (sessions[0] ?? null)
+          : agentPageMocks.loadLatestSessionOverride
+      ),
       loadSessionSeedCandidates: vi.fn(async (agentId: string) =>
         sessions.filter((session) => session.agentId === agentId)
       )
@@ -719,6 +731,7 @@ describe('AgentPage', () => {
     agentPageMocks.sessionsLoadingAll = false
     agentPageMocks.isLatestSessionLoading = false
     agentPageMocks.latestSessionOverride = undefined
+    agentPageMocks.loadLatestSessionOverride = undefined
     agentPageMocks.agentResourceListSessionsSource = undefined
     agentPageMocks.agentSessionsSourceOptions = []
     agentPageMocks.agentSidePanelSessionsSource = undefined
@@ -1305,6 +1318,14 @@ describe('AgentPage', () => {
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
+    // After agent-a is deleted its sessions are gone from the DB, so `/agent-sessions/latest` returns the
+    // latest remaining session (agent-b's newest).
+    agentPageMocks.loadLatestSessionOverride = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-b-new',
+      agentId: 'agent-b',
+      updatedAt: '2026-01-03T00:00:00.000Z'
+    }
 
     render(<AgentPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
@@ -1329,6 +1350,9 @@ describe('AgentPage', () => {
     agentPageMocks.classicLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a', updatedAt: '2026-01-02T00:00:00.000Z' }
     ]
+    // The deleted agent's only session is the active one; post-deletion `/agent-sessions/latest` is empty,
+    // so the handler falls through to the fallback create (which rejects below).
+    agentPageMocks.loadLatestSessionOverride = null
     agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
 
     render(<AgentPage />)

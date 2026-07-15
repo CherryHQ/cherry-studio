@@ -4,7 +4,7 @@ import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -243,8 +243,20 @@ vi.mock('@dnd-kit/sortable', () => {
   return {
     SortableContext: ({ children }: { children: ReactNode }) =>
       React.createElement('div', { 'data-testid': 'sortable-context' }, children),
-    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
-      if (data) {
+    useSortable: ({
+      data,
+      id,
+      disabled
+    }: {
+      data?: unknown
+      id: string
+      disabled?: boolean | { draggable?: boolean; droppable?: boolean }
+    }) => {
+      // Model dnd-kit's `disabled` so `sortableData` reflects draggable sources
+      // only: a row whose drag is disabled (e.g. session items under a timestamp
+      // sort) is still laid out but is not a drag source.
+      const dragDisabled = typeof disabled === 'object' && disabled !== null ? disabled.draggable : disabled
+      if (data && !dragDisabled) {
         dndMocks.sortableData.set(id, data)
       }
 
@@ -751,7 +763,7 @@ function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = 
   }
 }
 
-function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
+function createSession(overrides: Partial<AgentSessionListItem> = {}): AgentSessionListItem {
   return {
     id: 'session-a',
     agentId: 'agent-a',
@@ -762,6 +774,8 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
+    pinned: false,
+    pinId: null,
     ...overrides,
     isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
@@ -931,7 +945,6 @@ describe('Sessions', () => {
 
     const view = render(<SessionsForTest />)
 
-    expect(sessionDataMocks.useSessions).not.toHaveBeenCalled()
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search tasks')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
@@ -1232,7 +1245,7 @@ describe('Sessions', () => {
     expect(onCreateSession).not.toHaveBeenCalled()
   })
 
-  it('renders no-project sessions in a bottom no-project section', () => {
+  it('renders no-project sessions in a bottom no-project section', async () => {
     const onCreateSession = vi.fn()
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
@@ -1272,10 +1285,12 @@ describe('Sessions', () => {
     expect(noProjectSectionHeader).not.toBeNull()
     fireEvent.click(within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'New task' }))
 
-    expect(onCreateSession).toHaveBeenCalledWith({
-      agentId: 'agent-a',
-      workspace: { type: 'system' }
-    })
+    await vi.waitFor(() =>
+      expect(onCreateSession).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspace: { type: 'system' }
+      })
+    )
   })
 
   it('does not reserve leading icon space for flat time-mode session rows', () => {
@@ -1566,7 +1581,7 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('clears session selection while a resource menu item is active', () => {
+  it('clears session selection while a resource menu item is active', async () => {
     cacheMocks.state.activeSessionId = 'session-a'
     const onSelectResourceView = vi.fn()
     setupSessions({
@@ -1587,13 +1602,13 @@ describe('Sessions', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'Manage Agents' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
-    expect(onSelectResourceView).toHaveBeenCalled()
+    fireEvent.click(screen.getByLabelText('List options'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage Agents' }))
+    await vi.waitFor(() => expect(onSelectResourceView).toHaveBeenCalled())
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
   })
 
-  it('shows the skill resource menu entry with agent management in the display menu', () => {
+  it('shows the skill resource menu entry with agent management in the display menu', async () => {
     const onManageAgents = vi.fn()
     const onManageSkills = vi.fn()
     setupSessions({
@@ -1618,11 +1633,11 @@ describe('Sessions', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Manage Agents' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Manage skills' }))
+    fireEvent.click(screen.getByLabelText('List options'))
+    expect(screen.getByRole('menuitem', { name: 'Manage Agents' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage skills' }))
 
-    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(onManageSkills).toHaveBeenCalledTimes(1))
     expect(onManageAgents).not.toHaveBeenCalled()
   })
 
@@ -1678,7 +1693,7 @@ describe('Sessions', () => {
     await vi.waitFor(() =>
       expect(onCreateSession).toHaveBeenCalledWith({
         agentId: 'agent-b',
-        workspace: { type: 'user', workspaceId: 'ws-c' }
+        workspace: { type: 'system' }
       })
     )
 
@@ -1686,7 +1701,8 @@ describe('Sessions', () => {
   })
 
   it('renders load errors inside the shared ResourceList shell', () => {
-    setupSessions({ error: new Error('Failed request'), sessions: [] })
+    dataApiMocks.workspacesError = new Error('Failed request')
+    setupSessions({ sessions: [] })
 
     render(<SessionsForTest />)
 
@@ -1725,6 +1741,7 @@ describe('Sessions', () => {
 
   it('keeps workdir sessions loading until workspace rows are ready', () => {
     dataApiMocks.workspacesLoading = true
+    setupSessions({ sessions: [] })
 
     render(<SessionsForTest />)
 
@@ -1747,6 +1764,7 @@ describe('Sessions', () => {
 
   it('renders workspace load errors in workdir mode', async () => {
     dataApiMocks.workspacesError = new Error('Workspace request failed')
+    setupSessions({ sessions: [] })
 
     render(<SessionsForTest />)
 
@@ -2099,9 +2117,14 @@ describe('Sessions', () => {
     setupSessions({
       sessions: [
         createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
-        createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'b' })
-      ],
-      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+        createSession({
+          id: 'session-pinned',
+          name: 'Pinned session',
+          orderKey: 'b',
+          pinned: true,
+          pinId: 'pin-session-pinned'
+        })
+      ]
     })
 
     render(<SessionsForTest />)
@@ -2471,7 +2494,7 @@ describe('Sessions', () => {
     const submenuTriggers = optionsMenu?.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]') ?? []
     expect(submenuTriggers[0]).toHaveTextContent('Display mode')
     expect(submenuTriggers[1]).toHaveTextContent('Sort order')
-    expect(within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Task' })).toBeInTheDocument()
+    expect(within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Time' })).toBeInTheDocument()
     const selectedDisplayMode = within(optionsMenu as HTMLElement).getByRole('menuitemradio', {
       name: 'Work directory'
     })
@@ -2479,7 +2502,7 @@ describe('Sessions', () => {
     expect(selectedDisplayMode.querySelector('.lucide-check')).toBeInTheDocument()
     expect(
       within(optionsMenu as HTMLElement)
-        .getByRole('menuitemradio', { name: 'Task' })
+        .getByRole('menuitemradio', { name: 'Time' })
         .querySelector('.lucide-check')
     ).not.toBeInTheDocument()
     fireEvent.click(within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Agent' }))
@@ -2538,10 +2561,11 @@ describe('Sessions', () => {
           name: 'Gamma session',
           workspaceId: 'ws-b',
           workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
-          orderKey: 'c'
+          orderKey: 'c',
+          pinned: true,
+          pinId: 'pin-session-c'
         })
-      ],
-      pinIdBySessionId: new Map([['session-c', 'pin-session-c']])
+      ]
     })
 
     render(<SessionsForTest />)
@@ -2746,8 +2770,8 @@ describe('Sessions', () => {
 
     expect(screen.getByText('Workspace session 1')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    fireEvent.click(screen.getByLabelText('List options'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse all' }))
     await vi.waitFor(() => {
       expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-a')
     })
@@ -2762,8 +2786,8 @@ describe('Sessions', () => {
     )
     await vi.waitFor(() => expect(screen.queryByText('Workspace session 1')).not.toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('List options'))
+    expect(screen.getByRole('menuitem', { name: 'Expand all' })).toBeInTheDocument()
   })
 
   it('opens the workspace group more menu from the group header context menu', () => {
@@ -3090,8 +3114,8 @@ describe('Sessions', () => {
 
     expect(screen.getByText('Agent session 1')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    fireEvent.click(screen.getByLabelText('List options'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse all' }))
     await vi.waitFor(() => {
       expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-a')
     })
@@ -3106,8 +3130,8 @@ describe('Sessions', () => {
     )
     await vi.waitFor(() => expect(screen.queryByText('Agent session 1')).not.toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('List options'))
+    expect(screen.getByRole('menuitem', { name: 'Expand all' })).toBeInTheDocument()
   })
 
   it('opens the agent group more menu from the group header context menu', async () => {

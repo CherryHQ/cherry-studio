@@ -506,7 +506,11 @@ const Sessions = ({
   const workdirDragReady =
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
-  const itemDragReady = sessionSortBy === 'orderKey' && (displayMode === 'workdir' ? workdirDragReady : agentDragReady)
+  // Group (workspace/agent) reordering is independent of the session sort — it
+  // stays available on timestamp sorts. Session ITEM drag additionally requires
+  // manual (`orderKey`) sort.
+  const groupDragReady = displayMode === 'agent' ? agentDragReady : workdirDragReady
+  const itemDragReady = sessionSortBy === 'orderKey' && groupDragReady
   const workspaceRowsForDisplay = useMemo(() => {
     if (!optimisticWorkspaceOrderIds) return workspaceRows
 
@@ -2191,7 +2195,7 @@ const Sessions = ({
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
-        groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
+        groups: groupDragReady,
         items: itemDragReady,
         itemSameGroup: itemDragReady,
         itemCrossGroup: false
@@ -2255,7 +2259,7 @@ const Sessions = ({
         channelTypeMap={channelTypeMap}
         displayMode={displayMode}
         error={listError}
-        isDraggable={itemDragReady && !isRightPanel}
+        isDraggable={groupDragReady && !isRightPanel}
         isRightPanel={isRightPanel}
         isValidating={listValidating}
         listRef={listRef}

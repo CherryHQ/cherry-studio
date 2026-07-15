@@ -68,6 +68,10 @@ const homeMocks = vi.hoisted(() => ({
   // `undefined` → derive the latest from `classicLayoutTopics`; `null` → empty; a topic → that exact topic
   // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestTopicOverride: undefined as Topic | null | undefined,
+  // Controls the imperative `/topics/latest` seed lookup (`assistantTopicsSource.loadLatestTopic`), which
+  // `handleActiveAssistantDeleted` reads AFTER the active assistant is deleted. `undefined` → first
+  // classic-layout topic (default); `null` → no topic remains post-deletion; a topic → that exact topic.
+  loadLatestTopicOverride: undefined as Topic | null | undefined,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
@@ -232,7 +236,9 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
           loadFirstTopic: vi.fn(async (assistantId: string | null) =>
             topics.find((topic) => (topic.assistantId ?? null) === assistantId)
           ),
-          loadLatestTopic: vi.fn(async () => topics[0] ?? null),
+          loadLatestTopic: vi.fn(async () =>
+            homeMocks.loadLatestTopicOverride === undefined ? (topics[0] ?? null) : homeMocks.loadLatestTopicOverride
+          ),
           loadTopicSeedCandidates: vi.fn(async (assistantId: string | null) =>
             topics.filter((topic) => (topic.assistantId ?? null) === assistantId)
           )
@@ -702,6 +708,7 @@ describe('HomePage', () => {
     homeMocks.isTopicsLoadingAll = false
     homeMocks.isLatestTopicLoading = false
     homeMocks.latestTopicOverride = undefined
+    homeMocks.loadLatestTopicOverride = undefined
     homeMocks.assistantsError = undefined
     homeMocks.assistantsLoaded = true
     homeMocks.assistantsLoading = false
@@ -1179,6 +1186,14 @@ describe('HomePage', () => {
       { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]
+    // After assistant-a is deleted its topics are gone from the DB, so `/topics/latest` returns the latest
+    // remaining topic (assistant-b's newest).
+    homeMocks.loadLatestTopicOverride = {
+      ...historyTopic,
+      id: 'topic-b-new',
+      assistantId: 'assistant-b',
+      updatedAt: '2026-01-03T00:00:00.000Z'
+    }
 
     render(<HomePage />)
     // Latest overall (assistant-a) auto-selects on load.
@@ -1234,6 +1249,9 @@ describe('HomePage', () => {
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
+    // The deleted assistant owned the only topic, so `/topics/latest` is empty post-deletion → the handler
+    // must fall back to creating a topic on a remaining assistant.
+    homeMocks.loadLatestTopicOverride = null
 
     render(<HomePage />)
 
@@ -1252,6 +1270,9 @@ describe('HomePage', () => {
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
+    // The deleted assistant's only topic is the active one; post-deletion `/topics/latest` is empty, so the
+    // handler falls through to the fallback create (which rejects below).
+    homeMocks.loadLatestTopicOverride = null
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
 
     render(<HomePage />)
@@ -1471,7 +1492,7 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('ignores a rapid double-click on the classic-layout composer new-topic action', () => {
+  it('ignores a rapid double-click on the classic-layout composer new-topic action', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
@@ -1484,7 +1505,9 @@ describe('HomePage', () => {
     fireEvent.click(button)
     fireEvent.click(button)
 
-    expect(homeMocks.createTopic).toHaveBeenCalledTimes(1)
+    // The synchronous re-entry guard drops the second click, but `createTopic` now sits behind an awaited
+    // reuse-candidate lookup, so wait for the single in-flight create to land.
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
   })
 
   it('selects a reused topic in the current tab even when another tab may already show it', async () => {

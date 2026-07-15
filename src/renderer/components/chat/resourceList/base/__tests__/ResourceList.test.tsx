@@ -369,7 +369,7 @@ describe('ResourceList', () => {
     })
   })
 
-  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
+  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onGroupHeaderSelectItem = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -407,8 +407,12 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
+    // The group header click handler is async (it awaits actions.selectGroupHeader before
+    // falling through to toggleGroup), so the collapsed-state callback fires on a microtask.
+    await waitFor(() => {
+      expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
+    })
     expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
-    expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
   })
 
   it('ignores invalid controlled collapsed state from stale persisted cache', () => {
@@ -440,7 +444,7 @@ describe('ResourceList', () => {
     })
   })
 
-  it('lets callers handle empty select-first group clicks', () => {
+  it('lets callers handle empty select-first group clicks', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onEmptyGroupHeaderClick = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -473,9 +477,13 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
-    expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
-    )
+    // The group header click handler awaits actions.selectGroupHeader before invoking the
+    // caller's empty-group handler, so the callback fires on a microtask.
+    await waitFor(() => {
+      expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
+      )
+    })
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
   })
 
