@@ -78,14 +78,16 @@ export function resolveCapabilities(
       isOpenRouterBuiltInWebSearchModel(model) ||
       model.id.includes('sonar'))
 
-  // `assistant.enableUrlContext` / `enableGenerateImage` are not yet on the
-  // shared `Assistant` schema, so the toggles stay guarded and default to false.
+  // `assistant.enableUrlContext` is not yet on the shared `Assistant` schema, so it stays guarded.
   const urlContextSupported =
     isSupportUrlContextProvider(provider) &&
     !isPureGenerateImageModel(model) &&
     (isGeminiModel(model) || isAnthropicModel(model))
   const enableUrlContext = urlContextSupported && false
 
+  // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
+  // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),
+  // not this capability. Kept `&& false` so the provider-option plumbing below never fires.
   const enableGenerateImage = isGenerateImageModel(model) && false
 
   const isSupportedToolUse = isFunctionCallingModel(model)

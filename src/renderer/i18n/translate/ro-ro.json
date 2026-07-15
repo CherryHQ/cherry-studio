@@ -887,6 +887,10 @@
           "description": "Gestionează programatorul din aplicație",
           "label": "Planificator"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Adaugă, șterge sau reîmprospătează documente în bazele tale de cunoștințe",
           "label": "Gestionează cunoștințele"
@@ -1397,7 +1401,7 @@
         "title": "În coadă ({{count}})"
       },
       "generate_image": "Generează imagine",
-      "generate_image_not_supported": "Modelul nu acceptă generarea de imagini.",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Bază de cunoștințe",
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
       "knowledge_base_unavailable": "Selectați un model capabil de instrumente sau activați utilizarea instrumentelor în prompt",
@@ -1471,6 +1475,11 @@
         "collapse_out": "Elimină din restrângere",
         "expand": "Extinde",
         "file_not_found": "Fișier negăsit: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Deschide fișier",
         "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
         "reveal_in_finder": "Afișează în Finder"
@@ -6827,6 +6836,8 @@
       },
       "more_actions": "Mai multe acțiuni pentru lista de modele",
       "not_enabled_models": "Dezactivate",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Adăugarea cheii API a furnizorului a eșuat, datele sunt goale",
