@@ -824,6 +824,49 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('allows changing the agent for an empty session', async () => {
+    const session = await createSession('Agent switch')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-target',
+      type: 'claude-code',
+      name: 'Target Agent',
+      instructions: 'Target instructions',
+      model: null,
+      orderKey: 'a1'
+    })
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-session-target' })
+
+    expect(updated.agentId).toBe('agent-session-target')
+  })
+
+  it('rejects agent changes after messages are sent and rolls back the whole patch', async () => {
+    const session = await createSession('Locked agent switch')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-target',
+      type: 'claude-code',
+      name: 'Target Agent',
+      instructions: 'Target instructions',
+      model: null,
+      orderKey: 'a1'
+    })
+    await insertSessionMessage(session.id, 'message-locks-agent')
+
+    expect(
+      captureError(() =>
+        agentSessionService.update(session.id, {
+          agentId: 'agent-session-target',
+          name: 'Must not be persisted'
+        })
+      )
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    expect(agentSessionService.getById(session.id)).toMatchObject({
+      agentId: 'agent-session-test',
+      name: 'Locked agent switch'
+    })
+  })
+
   it('updates an empty session workspace', async () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')

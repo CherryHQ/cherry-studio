@@ -516,7 +516,7 @@ export class AgentSessionService {
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const row = withSqliteErrors(
-      () => this.updateTx(application.get('DbService').getDb(), id, patch),
+      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -524,6 +524,19 @@ export class AgentSessionService {
   }
 
   updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): SessionRow | undefined {
+    if (patch.agentId !== undefined) {
+      const [current] = tx
+        .select({ agentId: sessionsTable.agentId })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, id))
+        .limit(1)
+        .all()
+      if (!current) return undefined
+      if (current.agentId !== patch.agentId) {
+        this.assertSessionHasNoMessagesTx(tx, id, 'agent')
+      }
+    }
+
     const [row] = tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning().all()
     return row
   }
@@ -545,7 +558,7 @@ export class AgentSessionService {
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
     // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    this.assertSessionHasNoMessagesTx(tx, id, 'workspace')
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
@@ -576,7 +589,7 @@ export class AgentSessionService {
     return row
   }
 
-  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
+  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string, context: 'agent' | 'workspace'): void {
     const [message] = tx
       .select({ id: agentSessionMessageTable.id })
       .from(agentSessionMessageTable)
@@ -585,8 +598,8 @@ export class AgentSessionService {
       .all()
     if (message) {
       throw DataApiErrorFactory.invalidOperation(
-        'update session workspace',
-        'workspace cannot be changed after messages are sent'
+        `update session ${context}`,
+        `${context} cannot be changed after messages are sent`
       )
     }
   }
