@@ -15,11 +15,10 @@ import {
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
+const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
 const WORKSPACE_ID = 'workspace-1'
 
 describe('ListAgentSessionsQuerySchema', () => {
-  const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
-
   it('accepts agentId/cursor/limit without sortBy when the ordinary stream is explicit', () => {
     expect(ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10, pinned: false })).toEqual({
       agentId: AGENT_ID,
