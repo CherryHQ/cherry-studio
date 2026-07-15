@@ -288,10 +288,17 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
       }
 
+      // Roll the new child up into its ancestor containers in the SAME transaction
+      // as the INSERT: an add into an already-completed directory must atomically
+      // pull it back to an active status. Splitting these into two transactions
+      // could leave a committed active child the caller never observed — its
+      // rollback would miss the row while still deleting the source file it just
+      // copied, stranding a DB record that points at a nonexistent file.
+      this.reconcileContainersTx(tx, baseId, [insertedRow.id, insertedRow.groupId])
+
       return insertedRow
     })
 
-    this.reconcileContainers(baseId, [row.id, row.groupId])
     logger.info('Created active knowledge item', { baseId, id: row.id, type: row.type, status })
     return rowToKnowledgeItem(row)
   }
@@ -659,72 +666,79 @@ export class KnowledgeItemService {
   }
 
   private reconcileContainers(baseId: string, startContainerIds: Array<string | null | undefined>): void {
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => {
-      const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
-      const visited = new Set<string>()
+    application.get('DbService').withWriteTx((tx) => this.reconcileContainersTx(tx, baseId, startContainerIds))
+  }
 
-      while (queue.length > 0) {
-        const containerId = queue.shift()
-        if (!containerId || visited.has(containerId)) {
-          continue
+  /**
+   * Ancestor container rollup on a caller-supplied transaction, so it can commit
+   * atomically with the write that changed a child's status (see `createActive`).
+   * Walks up from each start container, recomputing its status from its immediate
+   * children.
+   */
+  private reconcileContainersTx(tx: DbOrTx, baseId: string, startContainerIds: Array<string | null | undefined>): void {
+    const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
+    const visited = new Set<string>()
+
+    while (queue.length > 0) {
+      const containerId = queue.shift()
+      if (!containerId || visited.has(containerId)) {
+        continue
+      }
+      visited.add(containerId)
+
+      const [containerRow] = tx
+        .select()
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+        .limit(1)
+        .all()
+
+      if (!containerRow || containerRow.type !== 'directory') {
+        continue
+      }
+
+      if (containerRow.status === 'deleting') {
+        continue
+      }
+
+      if (containerRow.status === 'preparing') {
+        if (containerRow.groupId) {
+          queue.push(containerRow.groupId)
         }
-        visited.add(containerId)
+        continue
+      }
 
-        const [containerRow] = tx
-          .select()
-          .from(knowledgeItemTable)
-          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-          .limit(1)
-          .all()
+      const [stats] = tx
+        .select({
+          activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
+          failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
+        })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
+        .all()
 
-        if (!containerRow || containerRow.type !== 'directory') {
-          continue
-        }
-
-        if (containerRow.status === 'deleting') {
-          continue
-        }
-
-        if (containerRow.status === 'preparing') {
-          if (containerRow.groupId) {
-            queue.push(containerRow.groupId)
-          }
-          continue
-        }
-
-        const [stats] = tx
-          .select({
-            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
-            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
-          })
-          .from(knowledgeItemTable)
-          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
-          .all()
-
-        if (Number(stats?.activeCount ?? 0) > 0) {
-          tx.update(knowledgeItemTable)
-            .set({ status: 'processing', error: null })
-            .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-            .run()
-
-          if (containerRow.groupId) {
-            queue.push(containerRow.groupId)
-          }
-          continue
-        }
-
-        const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
+      if (Number(stats?.activeCount ?? 0) > 0) {
         tx.update(knowledgeItemTable)
-          .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
+          .set({ status: 'processing', error: null })
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
           .run()
 
         if (containerRow.groupId) {
           queue.push(containerRow.groupId)
         }
+        continue
       }
-    })
+
+      const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
+      tx.update(knowledgeItemTable)
+        .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+        .run()
+
+      if (containerRow.groupId) {
+        queue.push(containerRow.groupId)
+      }
+    }
   }
 
   delete(id: string): void {

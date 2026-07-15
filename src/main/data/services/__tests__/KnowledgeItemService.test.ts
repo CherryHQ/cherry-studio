@@ -1670,5 +1670,38 @@ describe('KnowledgeItemService', () => {
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'processing', error: null })
     })
+
+    it('rolls back the createActive INSERT when the ancestor rollup throws (one transaction)', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs' },
+        status: 'completed'
+      })
+      const before = service.getItemsByBaseId(KNOWLEDGE_BASE_ID).length
+
+      // The INSERT and the ancestor rollup share one transaction: a reconcile
+      // failure must unwind the freshly-inserted child, or the caller (which never
+      // sees the committed row) deletes its copied source file and strands the row.
+      vi.spyOn(
+        service as unknown as { reconcileContainersTx: () => void },
+        'reconcileContainersTx'
+      ).mockImplementationOnce(() => {
+        throw new Error('reconcile boom')
+      })
+
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, {
+          groupId: DIR_ROOT_ID,
+          type: 'note',
+          data: { source: 'note', content: 'note' }
+        })
+      ).toThrow('reconcile boom')
+
+      // No orphan child was committed and the parent stays completed — its rollup
+      // rolled back together with the INSERT.
+      expect(service.getItemsByBaseId(KNOWLEDGE_BASE_ID)).toHaveLength(before)
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+    })
   })
 })
