@@ -598,6 +598,27 @@ describe('transformBlocksToParts', () => {
       }
     })
 
+    it('deduplicates legacy base64 image mirrored in url and generateImageResponse metadata', async () => {
+      const image = 'data:image/png;base64,AAA='
+      const { parts } = await transformBlocksToParts(
+        [
+          block('image', {
+            url: image,
+            metadata: { generateImageResponse: { type: 'base64', images: ['AAA='] } }
+          })
+        ],
+        { db: dbh.db, filesDataDir: MIGRATION_FILES_DIR }
+      )
+
+      expect(parts).toHaveLength(1)
+      const fileEntryId = readCherryMeta(parts[0] as FileUIPart)?.fileEntryId
+      expect(fileEntryId).toBeTruthy()
+
+      const rows = await dbh.db.select().from(fileEntryTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).toBe(fileEntryId)
+    })
+
     it('drops metadata.generateImageResponse base64 images when no db dep is provided (parity with pre-helper behavior)', async () => {
       const { parts } = await transformBlocksToParts([
         block('image', {

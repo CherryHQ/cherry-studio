@@ -182,6 +182,16 @@ describe('PromptEditorField', () => {
     parent.remove()
   })
 
+  it('composes fill layout classes without merging adjacent class names', () => {
+    render(<PromptEditorField fill label={<span>Prompt</span>} value="Original prompt" onChange={vi.fn()} />)
+
+    const preview = screen.getByTestId('markdown').parentElement
+    const editorFrame = preview?.parentElement
+
+    expect(preview).toHaveClass('text-xs', 'min-h-0', 'flex-1')
+    expect(editorFrame).toHaveClass('flex-col', 'border-border')
+  })
+
   it('does not submit a parent form when toggling preview', () => {
     const onSubmit = vi.fn()
 
