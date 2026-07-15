@@ -15,6 +15,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -176,6 +177,7 @@ type GroupedEntry = PartEntry | PartEntry[]
 interface RenderGroupedEntryOptions {
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
   settleActiveTools?: boolean
@@ -287,6 +289,28 @@ function getFileEntryName(entry: PartEntry): string {
       ?.replace(/^file:\/\//, '') ||
     ''
   )
+}
+
+function getReadOnlyFileTokenPreviews(
+  parts: readonly CherryMessagePart[]
+): ReadonlyMap<string, ReadOnlyComposerFileTokenPreview> {
+  const previews = new Map<string, ReadOnlyComposerFileTokenPreview>()
+
+  for (const part of parts) {
+    if (!isFileUIPart(part)) continue
+
+    const cherryMeta = getCherryMeta(part)
+    const sourceId = cherryMeta?.fileTokenSourceId
+    if (!sourceId) continue
+
+    previews.set(sourceId, {
+      url: part.url,
+      mediaType: part.mediaType,
+      ...(cherryMeta.composerFileKind && { composerFileKind: cherryMeta.composerFileKind })
+    })
+  }
+
+  return previews
 }
 
 function findUniqueVisibleFileTokenIndex(
@@ -504,6 +528,7 @@ function renderPart(
           citationReferences={citationReferences}
           role={message.role}
           composer={cherryMeta?.composer}
+          readOnlyFilePreviews={options?.readOnlyFilePreviews}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onUserContentExpandedChange={
             message.role === 'user' && options?.onTextPartExpandedChange
@@ -666,6 +691,36 @@ function useStableItemArray<T>(items: T[]): T[] {
   const stableRef = React.useRef(items)
   if (stableRef.current.length !== items.length || stableRef.current.some((item, index) => item !== items[index])) {
     stableRef.current = items
+  }
+  return stableRef.current
+}
+
+function areReadOnlyFilePreviewsEqual(
+  previous: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>,
+  next: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+): boolean {
+  if (previous.size !== next.size) return false
+  for (const [key, prev] of previous) {
+    const current = next.get(key)
+    if (
+      !current ||
+      current.url !== prev.url ||
+      current.mediaType !== prev.mediaType ||
+      current.composerFileKind !== prev.composerFileKind
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+// Keeps the preview map identity stable across streaming ticks so render memoization holds when file tokens are unchanged.
+function useStableReadOnlyFilePreviews(
+  previews: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+): ReadonlyMap<string, ReadOnlyComposerFileTokenPreview> {
+  const stableRef = React.useRef(previews)
+  if (!areReadOnlyFilePreviewsEqual(stableRef.current, previews)) {
+    stableRef.current = previews
   }
   return stableRef.current
 }
@@ -1222,6 +1277,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [partEntries, message.id]
   )
   const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
+  const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
+  const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
   const visibleComposerFileTokens = useMemo(
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
@@ -1237,9 +1294,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const renderOptions = useMemo(
     () => ({
       expandedTextPartIds,
+      readOnlyFilePreviews,
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
-    [expandedTextPartIds, handleTextPartExpandedChange]
+    [expandedTextPartIds, handleTextPartExpandedChange, readOnlyFilePreviews]
   )
 
   // No parts to render — normal for user messages (content is in message text, not parts)

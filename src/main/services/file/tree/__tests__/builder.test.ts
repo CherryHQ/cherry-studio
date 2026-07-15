@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -283,17 +283,18 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
   })
 
   it('emits "updated" with refreshed stats when a tracked file is modified', async () => {
-    await writeFile(path.join(tmp, 'note.md'), 'first')
+    const notePath = path.join(tmp, 'note.md')
+    await writeFile(notePath, 'first')
+    const oldTimestamp = new Date(Date.now() - 2000)
+    await utimes(notePath, oldTimestamp, oldTimestamp)
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {
       const before = builder.getNode(path.join(tmp, 'note.md'))
       expect(before?.stats).toBeDefined()
       const beforeMtime = before?.stats?.mtime
 
-      // Sleep ≥1s so mtime granularity (1s on HFS+/some FSes) actually moves.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
       const updatedPromise = waitForEvent(builder, (e) => e.type === 'updated' && e.path.endsWith('/note.md'))
-      await writeFile(path.join(tmp, 'note.md'), 'second')
+      await writeFile(notePath, 'second')
       const ev = await updatedPromise
 
       // The mutation carries fresh stats AND the in-memory node is mutated
