@@ -1,6 +1,4 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
@@ -95,7 +93,6 @@ export function ChatAppShell({
   const previousShellWidthRef = useRef<number | null>(null)
   const previousCenterWidthRef = useRef<number | null>(null)
 
-  const isWindow = useWindowFrame().mode === 'window'
   const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
     const reasons = autoCollapseReasonsRef.current
     const wasCollapsed = reasons.center || reasons.shell
@@ -193,10 +190,7 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar
-          open={leftPaneOpen}
-          style={isWindow ? { paddingTop: TITLE_BAR_HEIGHT_PX } : undefined}
-          onPaneCollapse={onPaneCollapse}>
+        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
           {pane}
         </PageSidebar>
 
