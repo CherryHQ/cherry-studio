@@ -458,7 +458,6 @@ describe('AssistantSelector', () => {
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
@@ -480,7 +479,7 @@ describe('AssistantSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
@@ -500,7 +499,7 @@ describe('AssistantSelector', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))

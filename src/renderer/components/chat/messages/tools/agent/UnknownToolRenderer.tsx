@@ -45,6 +45,8 @@ function extractMcpText(output: unknown): string | null {
  */
 export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToolProps): ToolDisclosureItem {
   const { t } = useTranslation()
+  const isMcpTool = toolName.startsWith('mcp__')
+  const displayName = getToolDisplayName(toolName)
 
   const getToolDescription = (name: string) => {
     if (name.startsWith('mcp__')) {
@@ -66,13 +68,15 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
   // Try MCP CallToolResult format first (text only, images rendered via IMAGE_COMPLETE)
   const mcpText = extractMcpText(output)
   const normalizedOutput = mcpText !== null ? { value: mcpText } : normalizeArgs(output)
+  const displayLabel = isMcpTool ? `${getToolDescription(toolName)} ${displayName}` : undefined
 
   return {
     key: 'unknown-tool',
     label: (
       <ToolHeader
-        toolName={getToolDisplayName(toolName)}
-        params={getToolDescription(toolName)}
+        label={displayLabel}
+        toolName={displayName}
+        params={isMcpTool ? undefined : getToolDescription(toolName)}
         variant="collapse-label"
         showStatus={false}
       />

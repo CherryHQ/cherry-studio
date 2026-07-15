@@ -39,7 +39,6 @@ import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing
 import {
   isUniqueModelId,
   type Model as SelectorModel,
-  MODEL_CAPABILITY,
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
@@ -48,6 +47,7 @@ import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { isNonChatModel } from '@shared/utils/model'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -63,12 +63,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.IMAGE_GENERATION
-])
-
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
@@ -434,11 +428,7 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
-  const modelSelectorFilter = useCallback(
-    (model: SelectorModel) =>
-      !model.capabilities.some((capability) => EXCLUDED_TRANSLATE_MODEL_CAPABILITIES.has(capability)),
-    []
-  )
+  const modelSelectorFilter = useCallback((model: SelectorModel) => !isNonChatModel(model), [])
 
   const handleModelIdSelect = useCallback(
     (modelId: UniqueModelId | undefined) => {
@@ -774,7 +764,7 @@ const TranslatePage: FC = () => {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
             <TranslateInputPane
               ref={inputScrollRef}
@@ -798,7 +788,7 @@ const TranslatePage: FC = () => {
             />
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l">
+          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-l">
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}

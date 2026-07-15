@@ -9,6 +9,7 @@ import {
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
@@ -54,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelTriggerInfo: undefined as any,
   quickPanelUpdateList: vi.fn(),
   selection: { from: 1 } as any,
+  translate: (key: string) => key,
   transaction: undefined as any
 }))
 
@@ -289,7 +291,7 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty',
     init: vi.fn()
   },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mocks.translate })
 }))
 
 vi.mock('../composerPreset', () => ({
@@ -1608,6 +1610,77 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
   })
 
+  it('ignores pending resource search results after the root panel closes without reopening', async () => {
+    let resolveResourceItems: (items: QuickPanelListItem[]) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((resolve) => {
+          resolveResourceItems = resolve
+        })
+    )
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    mocks.quickPanelUpdateList.mockClear()
+
+    mocks.quickPanelIsVisible = false
+    mocks.quickPanelGeneration = 2
+    await act(async () => {
+      resolveResourceItems([{ id: 'file:notes', label: 'notes.md', icon: 'file' }])
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
+  })
+
   it('clears unified panel resources when the resource provider rejects', async () => {
     let rejectResourceItems: (error: Error) => void = () => undefined
     const resourceProvider = vi.fn(
@@ -2284,7 +2357,8 @@ describe('ComposerSurface', () => {
     )
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('h-6', 'align-baseline')
+    expect(token).toHaveClass('h-6', 'align-middle')
+    expect(token).not.toHaveClass('align-baseline')
     expect(token).toHaveTextContent('preview.png')
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toHaveClass('size-4.5!', 'object-cover')
     expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')
@@ -3795,6 +3869,128 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
     expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Enter', 'Enter', new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })],
+    ['NumpadEnter', 'Enter', new KeyboardEvent('keydown', { key: 'NumpadEnter', cancelable: true })],
+    ['Ctrl+Enter', 'Ctrl+Enter', new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })]
+  ])('suppresses %s sends while the visible QuickPanel has no active key handler', async (_, shortcut, event) => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = shortcut
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(false)
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it.each(['Enter', 'NumpadEnter'])('does not swallow composing %s while the QuickPanel is visible', async (key) => {
+    const onSendDraft = vi.fn()
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(false)
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key, isComposing: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('preserves Shift+Enter newline while the visible QuickPanel has no active key handler', async () => {
+    const onSendDraft = vi.fn()
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(false)
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('uses the latest send-message shortcut from preference updates', async () => {
+    const onSendDraft = vi.fn()
+    const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const initialEditorProps = mocks.editorOptions.editorProps
+    const initialHandleKeyDown = initialEditorProps.handleKeyDown
+
+    let enterHandled = true
+    let ctrlEnterHandled = false
+    act(() => {
+      mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
+      // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- Simulates the post-commit window before passive effects flush.
+      flushSync(() => {
+        rerender(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+      })
+      enterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+      ctrlEnterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+    })
+
+    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
+    expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
+    expect(enterHandled).toBe(false)
+    expect(ctrlEnterHandled).toBe(true)
+    expect(onSendDraft).toHaveBeenCalledTimes(1)
+    expect(onSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
+  })
+
+  it('uses the latest send draft callback immediately after rerender', async () => {
+    const initialSendDraft = vi.fn()
+    const nextSendDraft = vi.fn()
+    const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={initialSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const initialEditorProps = mocks.editorOptions.editorProps
+    const initialHandleKeyDown = initialEditorProps.handleKeyDown
+
+    let handled = false
+    act(() => {
+      // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- Simulates the post-commit window before passive effects flush.
+      flushSync(() => {
+        rerender(<ComposerSurface {...baseProps} onSendDraft={nextSendDraft} />)
+      })
+      handled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
+
+    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
+    expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
+    expect(handled).toBe(true)
+    expect(initialSendDraft).not.toHaveBeenCalled()
+    expect(nextSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
+  })
+
+  it('keeps omitted suggestion sources stable across quick panel rerenders', async () => {
+    const { rerender } = render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+    const initialSuggestionSources = mocks.editorPresetOptions.suggestionSources
+    const initialEditorProps = mocks.editorOptions.editorProps
+    const initialHandlePaste = mocks.editorOptions.handlePaste
+    const initialExtensions = mocks.editorOptions.extensions
+
+    rerender(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    expect(mocks.editorPresetOptions.suggestionSources).toBe(initialSuggestionSources)
+    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
+    expect(mocks.editorOptions.handlePaste).toBe(initialHandlePaste)
+    expect(mocks.editorOptions.extensions).toBe(initialExtensions)
   })
 
   it('lets the visible QuickPanel handle Tab before prompt-variable navigation', async () => {

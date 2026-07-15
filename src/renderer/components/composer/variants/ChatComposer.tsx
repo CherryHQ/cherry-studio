@@ -32,13 +32,13 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
+import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
@@ -49,7 +49,6 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot, ChevronDown, Globe, Lightbulb } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -132,7 +131,6 @@ interface ChatComposerContextControlsProps {
   assistantName: string
   assistantEmoji?: string
   model?: Model
-  modelProviderName?: string
   modelPending?: boolean
   providers: Provider[]
   mentionedModels: Model[]
@@ -157,7 +155,6 @@ const ChatComposerContextControls = ({
   assistantName,
   assistantEmoji,
   model,
-  modelProviderName,
   modelPending,
   providers,
   mentionedModels,
@@ -192,9 +189,7 @@ const ChatComposerContextControls = ({
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
   )
-  const assistantModelLabel = model
-    ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
-    : selectModelLabel
+  const assistantModelLabel = model ? model.name : selectModelLabel
   const modelLabel = assistantModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
@@ -767,8 +762,6 @@ const ChatComposerInner = ({
   const canSteer = isPending && !awaitingApproval
   const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
-  const providerName = useProviderDisplayName(runtimeModel?.providerId)
-
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
     fallbackModel: runtimeModel
@@ -1102,7 +1095,7 @@ const ChatComposerInner = ({
           const tokenId = chatComposerTokenId.file(file)
           const originalFilePart = originalFilePartsByTokenId.get(tokenId)
           const filePart = originalFilePart
-            ? withCherryMeta(originalFilePart, { fileTokenSourceId: file.fileTokenSourceId })
+            ? withComposerFilePartMeta(originalFilePart, file)
             : rebuiltFileParts.get(tokenId)
           return filePart ? [filePart] : []
         })
@@ -1269,11 +1262,11 @@ const ChatComposerInner = ({
         type="button"
         variant="ghost"
         size="icon-sm"
-        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
         disabled={newTopicDisabled}
         aria-label={t('chat.conversation.new')}
         onClick={() => addNewTopic()}>
-        <NewConversationIcon size={18} aria-hidden />
+        <NewConversationIcon size={20} aria-hidden />
       </Button>
     </Tooltip>
   ) : undefined
@@ -1283,7 +1276,6 @@ const ChatComposerInner = ({
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
     model: runtimeModel,
-    modelProviderName: providerName,
     modelPending: runtimeModelPending,
     providers,
     mentionedModels,

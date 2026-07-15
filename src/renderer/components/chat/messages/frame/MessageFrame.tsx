@@ -4,6 +4,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames, cn } from '@renderer/utils/style'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
@@ -15,7 +16,7 @@ import {
   getMessageEnterMotionVariant,
   useMessageEnterMotionActive
 } from '../../motion/messageEnterMotion'
-import { useMessageParts } from '../blocks/MessagePartsContext'
+import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
@@ -38,6 +39,7 @@ const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
 
 interface Props {
   message: MessageListItem
+  messageParts?: CherryMessagePart[]
   topic: Topic
   index?: number
   total?: number
@@ -52,7 +54,7 @@ interface Props {
   lockedMentionedModels?: Model[]
 }
 
-const MessageItem: FC<Props> = ({
+const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   message,
   topic,
   // assistant,
@@ -293,6 +295,17 @@ const MessageItem: FC<Props> = ({
         />
       )}
     </div>
+  )
+}
+
+const MessageItem: FC<Props> = ({ message, messageParts, ...props }) => {
+  const content = <MessageItemContent message={message} {...props} />
+  if (!messageParts) return content
+
+  return (
+    <MessagePartsScopeProvider messageId={message.id} parts={messageParts}>
+      {content}
+    </MessagePartsScopeProvider>
   )
 }
 

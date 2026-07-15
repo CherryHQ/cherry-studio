@@ -13,7 +13,9 @@ export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
 
-  const rightPaddingClass = hasWindowControls ? 'pr-[184px]' : 'pr-[56px]'
+  // Extra ~16px over the action cluster's own width leaves a draggable gap between the
+  // last tab / "+" button and the right-side buttons, so the window stays easy to grab-move (Chrome-style).
+  const rightPaddingClass = hasWindowControls ? 'pr-[200px]' : 'pr-[72px]'
 
   return {
     hasWindowControls,
@@ -70,7 +72,7 @@ export function SidebarShellActions({
           size="icon"
           aria-label={t('settings.title')}
           onClick={onSettingsClick}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground">
           <Settings size={18} strokeWidth={1.6} />
         </Button>
       </CommandTooltip>
@@ -83,7 +85,7 @@ export function SidebarShellActions({
       variant="ghost"
       aria-label={t('settings.title')}
       onClick={onSettingsClick}
-      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60 dark:text-foreground">
       <Settings size={16} strokeWidth={1.6} />
       <span>{t('settings.title')}</span>
     </Button>

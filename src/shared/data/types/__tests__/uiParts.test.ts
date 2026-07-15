@@ -53,10 +53,11 @@ describe('CherryToolMetaSchema', () => {
 })
 
 describe('CherryFileMetaSchema', () => {
-  it('accepts fileEntryId and fileTokenSourceId', () => {
+  it('accepts fileEntryId, fileTokenSourceId, and the safe composer file kind', () => {
     const ok = CherryFileMetaSchema.safeParse({
       fileEntryId: 'entry-1',
-      fileTokenSourceId: 'source-1'
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
     })
 
     expect(ok.success).toBe(true)
@@ -64,6 +65,12 @@ describe('CherryFileMetaSchema', () => {
 
   it('rejects non-string fileTokenSourceId', () => {
     const bad = CherryFileMetaSchema.safeParse({ fileTokenSourceId: 1 })
+
+    expect(bad.success).toBe(false)
+  })
+
+  it('rejects unsupported composer file kinds', () => {
+    const bad = CherryFileMetaSchema.safeParse({ composerFileKind: 'local-path' })
 
     expect(bad.success).toBe(false)
   })
@@ -126,10 +133,16 @@ describe('readCherryMeta', () => {
       mediaType: 'application/pdf',
       url: 'file:///tmp/report.pdf',
       filename: 'report.pdf',
-      providerMetadata: { cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' } }
+      providerMetadata: {
+        cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1', composerFileKind: 'pasted-text' }
+      }
     } as unknown as Extract<CherryMessagePart, { type: 'file' }>
 
-    expect(readCherryMeta(part)).toEqual({ fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' })
+    expect(readCherryMeta(part)).toEqual({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
+    })
   })
 
   it('returns undefined when providerMetadata is missing', () => {
