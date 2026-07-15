@@ -71,6 +71,17 @@ const schemaModule = await import('../indexStore/schema')
 const indexMetaModule = await import('../indexStore/indexMeta')
 const { KNOWLEDGE_INDEX_SCHEMA_VERSION } = schemaModule
 
+// Every service that opens a store caches a real better-sqlite3 handle. Track them so
+// afterEach can close them via onStop() before the temp dir is removed — a leaked handle
+// blocks the rmSync on Windows (EBUSY/EPERM) and leaks the native fd on Linux.
+const openedServices: InstanceType<typeof KnowledgeVectorStoreService>[] = []
+
+function createTrackedService(): InstanceType<typeof KnowledgeVectorStoreService> {
+  const service = new KnowledgeVectorStoreService()
+  openedServices.push(service)
+  return service
+}
+
 function createBase(id = 'kb-1'): KnowledgeBase {
   return {
     id,
@@ -126,13 +137,18 @@ describe('KnowledgeVectorStoreService', () => {
     deleteDirMock.mockResolvedValue(undefined)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Close every store opened this test before deleting its backing dir. onStop is
+    // idempotent (it clears the cache), so tests that already stopped/deleted are no-ops.
+    for (const service of openedServices.splice(0)) {
+      await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    }
     vi.restoreAllMocks()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
   it('opens an index store on first request and caches it per base', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
 
     const first = service.getIndexStore(base)
@@ -150,7 +166,7 @@ describe('KnowledgeVectorStoreService', () => {
     // in-flight state the second call could observe mid-open. Pinned via a call-count
     // assertion so a future refactor that reintroduces an async open cannot silently
     // double-open.
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
 
@@ -162,7 +178,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('evicts a failed open so a later call retries instead of re-throwing the failure', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     // A regular file where the index dir must go makes the real mkdirSync in
     // openBetterSqlite3IndexDriver fail with ENOTDIR before any Database is opened.
@@ -177,7 +193,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('stamps and verifies the meta identity row before handing out the store', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     const ensureIndexMetaSpy = vi.spyOn(indexMetaModule, 'ensureIndexMeta')
 
@@ -192,7 +208,7 @@ describe('KnowledgeVectorStoreService', () => {
     primeStoreOnDisk(base)
     const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
     const resetSchemaSpy = vi.spyOn(schemaModule, 'resetKnowledgeIndexSchema')
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
 
     service.getIndexStore(base)
 
@@ -212,7 +228,7 @@ describe('KnowledgeVectorStoreService', () => {
     const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
     const resetSchemaSpy = vi.spyOn(schemaModule, 'resetKnowledgeIndexSchema')
     const ensureIndexMetaSpy = vi.spyOn(indexMetaModule, 'ensureIndexMeta')
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
 
     service.getIndexStore(base)
 
@@ -252,7 +268,7 @@ describe('KnowledgeVectorStoreService', () => {
     })
     const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
     const resetSchemaSpy = vi.spyOn(schemaModule, 'resetKnowledgeIndexSchema')
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
 
     service.getIndexStore(base)
 
@@ -268,7 +284,7 @@ describe('KnowledgeVectorStoreService', () => {
     getPathSyncMock.mockImplementation(() => join(tempDir, 'shared.sqlite'))
     primeStoreOnDisk(base)
     const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
 
     expect(() => service.getIndexStore(otherBase)).toThrow('belongs to a different base')
 
@@ -276,7 +292,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('closes the driver when schema creation fails so the file handle is not leaked', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
     vi.spyOn(schemaModule, 'createKnowledgeIndexSchema').mockImplementationOnce(() => {
@@ -289,7 +305,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('returns undefined from getIndexStoreIfExists when no backing file exists', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
 
     expect(service.getIndexStoreIfExists(base)).toBeUndefined()
@@ -300,7 +316,7 @@ describe('KnowledgeVectorStoreService', () => {
   it('opens an existing store from disk when getIndexStoreIfExists detects a backing file', () => {
     const base = createBase()
     primeStoreOnDisk(base)
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
 
     const store = service.getIndexStoreIfExists(base)
 
@@ -308,7 +324,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('returns the cached store from getIndexStoreIfExists without probing disk', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     const created = service.getIndexStore(base)
     getPathSyncMock.mockClear()
@@ -320,7 +336,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('closes the cached store and removes the base directory on deleteStore', async () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
 
@@ -343,7 +359,7 @@ describe('KnowledgeVectorStoreService', () => {
     // caches a store, or throws before caching anything. There is no in-flight state
     // deleteStore could observe mid-open, so this covers the "nothing cached" case:
     // deleteStore must still close-if-present (a no-op here) and remove the directory.
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
 
     await service.deleteStore(base.id)
@@ -352,7 +368,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('evicts the cached store even when directory removal fails', async () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     deleteDirMock.mockRejectedValueOnce(new Error('delete failed'))
 
@@ -364,7 +380,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('closes all cached stores during stop and continues when one close throws', async () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
 
     const first = service.getIndexStore(createBase('kb-1'))
     const second = service.getIndexStore(createBase('kb-2'))
@@ -387,10 +403,16 @@ describe('KnowledgeVectorStoreService', () => {
     // Cache cleared: reopening kb-2 builds a fresh instance.
     const reopened = service.getIndexStore(createBase('kb-2'))
     expect(reopened).not.toBe(second)
+
+    // The forced-throw left kb-1's real handle open and evicted it from the cache, so
+    // afterEach's onStop can no longer reach it. Close it here so the temp-dir rmSync
+    // doesn't race a live sqlite handle (EBUSY/EPERM on Windows, leaked fd on Linux).
+    firstCloseSpy.mockRestore()
+    first.close()
   })
 
   it('rejects bases that are not ready before touching disk', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createFailedBase()
 
     expect(() => service.getIndexStore(base)).toThrow('not ready for vector store operations')
@@ -402,14 +424,14 @@ describe('KnowledgeVectorStoreService', () => {
   it('lets cleanup on a failed base proceed: getIndexStoreIfExists returns undefined instead of asserting', () => {
     // Failed bases never get a store file (the vector migrator skips them and
     // getIndexStore asserts), so the existence probe is the path cleanup takes.
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createFailedBase()
 
     expect(service.getIndexStoreIfExists(base)).toBeUndefined()
   })
 
   it('still asserts readiness when a failed base unexpectedly has a store file on disk', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createFailedBase()
     writeFileSync(getPathSyncMock(base.id), '')
 
@@ -417,7 +439,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('logs an error when an empty index mounts under a base with completed items', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     getItemsByBaseIdMock.mockReturnValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
@@ -434,7 +456,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('stays quiet when an empty index mounts under a base with no completed indexable items', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     // A completed empty directory is legitimate without materials; in-flight leaves are too.
     getItemsByBaseIdMock.mockReturnValueOnce([
@@ -448,7 +470,7 @@ describe('KnowledgeVectorStoreService', () => {
   })
 
   it('fails the open and closes the driver when the empty-index diagnostic cannot read the base items', () => {
-    const service = new KnowledgeVectorStoreService()
+    const service = createTrackedService()
     const base = createBase()
     const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
     getItemsByBaseIdMock.mockImplementationOnce(() => {
