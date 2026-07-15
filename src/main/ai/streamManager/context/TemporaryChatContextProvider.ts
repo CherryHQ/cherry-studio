@@ -56,7 +56,11 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
-    const { assistantId, defaultModelId } = resolveAssistantModelId(topic.assistantId)
+    const selectedModelId = req.mentionedModelIds?.[0]
+    const { assistantId, defaultModelId } =
+      !topic.assistantId && selectedModelId
+        ? { assistantId: undefined, defaultModelId: selectedModelId }
+        : resolveAssistantModelId(topic.assistantId)
 
     let resolveWith: UniqueModelId[] | undefined
     if (req.mentionedModelIds?.length) {
