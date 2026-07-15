@@ -6,7 +6,7 @@ import {
   SafeNameSchema
 } from '@shared/data/types/file'
 import { FileHandleSchema } from '@shared/data/types/file'
-import { PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
+import { PhysicalFileMetadataSchema, SafeExtSchema, TEXT_FILE_EDIT_MAX_BYTES } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -57,6 +57,31 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
 })
 
+const fileVersionSchema = z.strictObject({
+  mtime: z.number().int(),
+  size: z.number().int().nonnegative()
+})
+
+const textFileLineEndingSchema = z.enum(['lf', 'crlf'])
+const contentHashSchema = z.string().regex(/^[0-9a-f]{16}$/)
+
+const readTextSnapshotOutputSchema = z.strictObject({
+  content: z.string().max(TEXT_FILE_EDIT_MAX_BYTES),
+  version: fileVersionSchema,
+  contentHash: contentHashSchema,
+  lineEnding: textFileLineEndingSchema,
+  hasBom: z.boolean()
+})
+
+const writeTextIfUnchangedInputSchema = z.strictObject({
+  handle: FileHandleSchema,
+  content: z.string().max(TEXT_FILE_EDIT_MAX_BYTES),
+  lineEnding: textFileLineEndingSchema,
+  hasBom: z.boolean(),
+  expectedVersion: fileVersionSchema,
+  expectedContentHash: contentHashSchema
+})
+
 /**
  * File IPC schemas — filesystem-backed FileManager operations.
  *
@@ -87,6 +112,11 @@ export const fileRequestSchemas = {
   'file.rename': defineRoute({
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
+  }),
+  'file.read_text_snapshot': defineRoute({ input: FileHandleSchema, output: readTextSnapshotOutputSchema }),
+  'file.write_text_if_unchanged': defineRoute({
+    input: writeTextIfUnchangedInputSchema,
+    output: z.strictObject({ version: fileVersionSchema, contentHash: contentHashSchema })
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() })

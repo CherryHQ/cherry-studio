@@ -19,6 +19,7 @@ import {
   useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
+import { type ArtifactFileEditor, useArtifactFileEditor } from '@renderer/components/chat/panes/useArtifactFileEditor'
 import {
   type ArtifactFileTreeModel,
   isSelectableFileNode,
@@ -158,11 +159,23 @@ function useAgentRightPane(): AgentRightPaneContextValue {
 // updates (every lazy-load tick produces a fresh `filteredTree`) only re-render
 // the files panel, not the status/flow/info panels reading the main context.
 const AgentFileTreeModelContext = createContext<ArtifactFileTreeModel | null>(null)
+const AgentFileEditorContext = createContext<ArtifactFileEditor | null>(null)
 
 function useAgentFileTreeModel(): ArtifactFileTreeModel {
   const value = use(AgentFileTreeModelContext)
   if (!value) throw new Error('useAgentFileTreeModel must be used within <AgentRightPane>')
   return value
+}
+
+function useAgentFileEditor(): ArtifactFileEditor {
+  const value = use(AgentFileEditorContext)
+  if (!value) throw new Error('useAgentFileEditor must be used within <AgentRightPane>')
+  return value
+}
+
+function AgentFileEditorProvider({ children, resetKey }: { children: ReactNode; resetKey: string }) {
+  const fileEditor = useArtifactFileEditor(resetKey)
+  return <AgentFileEditorContext value={fileEditor}>{children}</AgentFileEditorContext>
 }
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
@@ -370,7 +383,9 @@ function AgentRightPaneStateProvider({
 
   return (
     <AgentRightPaneContext value={value}>
-      <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
+      <AgentFileTreeModelContext value={fileTreeModel}>
+        <AgentFileEditorProvider resetKey={workspaceKey}>{children}</AgentFileEditorProvider>
+      </AgentFileTreeModelContext>
     </AgentRightPaneContext>
   )
 }
@@ -396,6 +411,7 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
 function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
   const model = useAgentFileTreeModel()
+  const fileEditor = useAgentFileEditor()
   const shellState = useShellState()
   return (
     <ArtifactPaneView
@@ -405,6 +421,7 @@ function AgentRightPaneFilesPanel() {
       pdfLayoutPending={shellState.pdfLayoutPending}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       enableFileSearch
+      fileEditor={fileEditor}
       model={model}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}

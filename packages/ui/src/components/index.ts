@@ -132,6 +132,13 @@ export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composite
 export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/menu-list'
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
+// PreviewEditor
+export {
+  PreviewEditor,
+  type PreviewEditorLabels,
+  type PreviewEditorMode,
+  type PreviewEditorProps
+} from './composites/preview-editor'
 // ReorderableList
 export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
 // Sortable

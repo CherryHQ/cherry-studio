@@ -217,6 +217,19 @@
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
+      "edit": {
+        "conflict": {
+          "description": "The file changed on disk after editing began. Reloading keeps the newer disk version and discards this draft.",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
+        "discard": "Discard",
+        "open_failed": "Unable to open this file for editing.",
+        "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file.",
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing currently supports regular UTF-8 text files up to 2 MB with consistent line endings."
+      },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"

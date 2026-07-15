@@ -4,6 +4,9 @@
 
 import * as z from 'zod'
 
+/** Upper bound for in-app text editing and syntax-highlighted previews. */
+export const TEXT_FILE_EDIT_MAX_BYTES = 2 * 1024 * 1024
+
 // ─── File Type Classification ───
 
 export const FILE_TYPE = {

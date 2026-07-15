@@ -217,6 +217,19 @@
       "code": "程式碼",
       "code_unavailable": "無法為二進位檔案提供來源檢視",
       "default_app": "預設應用程式",
+      "edit": {
+        "conflict": {
+          "description": "開始編輯後，磁碟上的檔案已發生變更。重新載入會保留磁碟上的新版本，並捨棄目前草稿。",
+          "reload": "重新載入檔案",
+          "title": "磁碟檔案已變更"
+        },
+        "discard": "捨棄變更",
+        "open_failed": "無法開啟此檔案進行編輯。",
+        "refresh_failed": "無法重新載入最新檔案內容。",
+        "save_failed": "無法儲存此檔案。",
+        "unsaved": "未儲存",
+        "unsupported": "此檔案可以預覽，但暫時無法在此安全編輯。目前僅支援 2 MB 以內、換行符號一致的一般 UTF-8 文字檔案。"
+      },
       "empty": {
         "description": "開始與代理對話；生成的程式碼與即時預覽將顯示於此。",
         "title": "準備好了"
