@@ -2,7 +2,7 @@
 title: Agent file previews can be edited in place
 category: other
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17044"
 date: 2026-07-15
 ---
 
