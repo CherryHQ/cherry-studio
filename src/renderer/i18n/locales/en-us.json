@@ -2441,6 +2441,25 @@
     },
     "user": "User"
   },
+  "file_preview": {
+    "invalid_path": {
+      "description": "File preview requires a valid absolute local path.",
+      "title": "Can't preview this file"
+    },
+    "load_error": {
+      "description": "The preview content could not be loaded.",
+      "title": "Preview failed"
+    },
+    "loading": "Loading preview...",
+    "probe_error": {
+      "description": "The file could not be read for preview.",
+      "title": "File unavailable"
+    },
+    "unsupported": {
+      "description": "This file type cannot be previewed yet.",
+      "title": "Preview unavailable"
+    }
+  },
   "files": {
     "actions": "Actions",
     "all": "All Files",

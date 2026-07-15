@@ -2441,6 +2441,25 @@
     },
     "user": "用户"
   },
+  "file_preview": {
+    "invalid_path": {
+      "description": "文件预览需要有效的本地绝对路径。",
+      "title": "无法预览此文件"
+    },
+    "load_error": {
+      "description": "无法加载此文件的预览内容。",
+      "title": "预览失败"
+    },
+    "loading": "正在加载预览...",
+    "probe_error": {
+      "description": "无法读取此文件以生成预览。",
+      "title": "文件不可用"
+    },
+    "unsupported": {
+      "description": "此文件类型暂不支持预览。",
+      "title": "暂不支持预览"
+    }
+  },
   "files": {
     "actions": "操作",
     "all": "所有文件",
