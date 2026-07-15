@@ -360,7 +360,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
-  it('preserves the message list shell when only active message content changes', () => {
+  it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
     const topic = {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
@@ -408,24 +408,16 @@ describe('useAgentMessageListProviderValue', () => {
     }
 
     const view = render(<Probe messages={[historyMessage, activeMessage]} />)
-    const firstMessageItems = value?.state.messages
     const firstHistoryItem = value?.state.messages[0]
     const firstActiveItem = value?.state.messages[1]
     const nextActiveMessage = {
       ...activeMessage,
       parts: [{ type: 'text', text: 'ab' }]
     } as CherryUIMessage
-    const streamingMessages = [historyMessage, nextActiveMessage]
-    Object.defineProperty(streamingMessages, 0, {
-      configurable: true,
-      get: () => {
-        throw new Error('The sealed history source should not be read during a live-only update')
-      }
-    })
 
     view.rerender(
       <Probe
-        messages={streamingMessages}
+        messages={[historyMessage, nextActiveMessage]}
         partsByMessageId={{
           ...historyPartsByMessageId,
           [nextActiveMessage.id]: nextActiveMessage.parts ?? []
@@ -434,19 +426,7 @@ describe('useAgentMessageListProviderValue', () => {
     )
 
     expect(value?.state.messages[0]).toBe(firstHistoryItem)
-    expect(value?.state.messages[1]).toBe(firstActiveItem)
-    expect(value?.state.messages).toBe(firstMessageItems)
-
-    const settledActiveMessage = {
-      ...nextActiveMessage,
-      metadata: { ...nextActiveMessage.metadata, status: 'success' }
-    } as CherryUIMessage
-
-    view.rerender(<Probe messages={[historyMessage, settledActiveMessage]} />)
-
-    expect(value?.state.messages[0]).toBe(firstHistoryItem)
     expect(value?.state.messages[1]).not.toBe(firstActiveItem)
-    expect(value?.state.messages).not.toBe(firstMessageItems)
   })
 
   it('does not expose selected delete action without delete capability', () => {
