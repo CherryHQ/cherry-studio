@@ -717,11 +717,11 @@ describe('ComposerSurface', () => {
     expect(editorContainer).toHaveStyle({ height: '46px' })
   })
 
-  it('renders a compact editing mode badge attached to the inputbar edge', () => {
+  it('renders editing controls in a full-width header inside the inputbar', () => {
     const onCancel = vi.fn()
     const onLocate = vi.fn()
 
-    render(
+    const view = render(
       <ComposerSurface
         {...baseProps}
         editingState={{
@@ -732,34 +732,52 @@ describe('ComposerSurface', () => {
       />
     )
 
-    const editingBadge = screen.getByText('chat.input.editing').closest('[data-composer-editing-badge]')
+    const editingHeader = screen.getByText('chat.input.editing').closest('[data-composer-editing-header]')
+    const inputbar = editingHeader?.closest('[data-composer-inputbar]')
 
-    expect(editingBadge?.closest('[data-composer-inputbar]')).not.toBeNull()
-    expect(editingBadge?.closest('[data-composer-toolbar]')).toBeNull()
-    expect(editingBadge).toHaveClass(
-      'absolute',
-      'top-0',
-      'left-3',
-      '-translate-y-1/2',
-      'rounded-full',
-      'border',
+    expect(inputbar).not.toBeNull()
+    expect(editingHeader?.closest('[data-composer-toolbar]')).toBeNull()
+    expect(editingHeader).toHaveClass(
+      'flex',
+      'h-9',
+      'shrink-0',
+      'justify-between',
+      'border-b',
       'border-border-subtle',
-      'bg-card'
+      'bg-transparent',
+      'px-3'
     )
-    expect(editingBadge).not.toHaveClass('w-full', 'border-b-0', 'bg-muted', 'bg-secondary', 'shadow-xs')
+    expect(editingHeader).not.toHaveClass('bg-card')
+    expect(editingHeader).not.toHaveClass('absolute', 'top-0', '-translate-y-1/2', 'rounded-full', 'border')
+    expect(editingHeader?.children).toHaveLength(2)
+    expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveClass('size-3.5', 'shrink-0')
+    expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveAttribute('aria-hidden', 'true')
+    expect(inputbar).toHaveClass('pt-0')
+    expect(inputbar).not.toHaveClass('pt-2')
+    expect(document.querySelector('[data-composer-editor-frame]')).toHaveClass('mt-2')
+    expect(document.querySelector('[data-composer-expand-corner]')).toBeNull()
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
-    expect(locateButton).toHaveClass('size-5', 'text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
+    expect(locateButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
-    expect(cancelButton).toHaveClass('size-5', 'text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
+    expect(cancelButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
     expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
 
     fireEvent.click(cancelButton)
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+
+    view.rerender(<ComposerSurface {...baseProps} editingState={undefined} />)
+
+    expect(document.querySelector('[data-composer-editing-header]')).toBeNull()
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
+    expect(document.querySelector('[data-composer-inputbar]')).toHaveClass('pt-2')
+    expect(document.querySelector('[data-composer-editor-frame]')).not.toHaveClass('mt-2')
   })
 
   it('focuses the editor when an editing session starts', async () => {
