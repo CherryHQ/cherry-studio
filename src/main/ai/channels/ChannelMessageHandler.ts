@@ -623,7 +623,7 @@ export class ChannelMessageHandler {
     if (!channelRow) {
       throw new Error(`Channel not found: ${channelId}`)
     }
-    return agentSessionService.create({
+    return agentSessionService.createForChannel({
       agentId,
       name: 'Channel session',
       workspace: channelRow.workspace
