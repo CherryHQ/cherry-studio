@@ -1,12 +1,13 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
+import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ArrowLeft, Check, KeyRound, LogIn } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -33,20 +34,38 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const { t } = useTranslation()
   const { addApiKey, updateProvider } = useProvider('cherryin')
+  const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
+  const { models: enabledModels, isLoading: isModelsLoading } = useModels({ enabled: true })
   const { defaultModel, quickModel, translateModel } = useDefaultModel()
   const [step, setStep] = useState<OnboardingStep>('welcome')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const canCompleteModelSetup = Boolean(defaultModel && quickModel && translateModel)
+  const eligibleProviderIds = new Set(
+    enabledProviders.filter((provider) => provider.id !== CHERRYAI_PROVIDER_ID).map((provider) => provider.id)
+  )
+  const hasEligibleProvider = eligibleProviderIds.size > 0
+  const hasEligibleModel = enabledModels.some((model) => eligibleProviderIds.has(model.providerId))
+  const isProviderSetupLoading = isProvidersLoading || isModelsLoading
+  const canContinueProviderSetup = !isProviderSetupLoading && hasEligibleProvider && hasEligibleModel
+  const providerSetupHint = !isProviderSetupLoading
+    ? !hasEligibleProvider
+      ? t('onboarding.provider_setup.missing_provider')
+      : !hasEligibleModel
+        ? t('onboarding.provider_setup.missing_model')
+        : null
+    : null
 
   const complete = useCallback(async () => {
     setIsCompleting(true)
     try {
       await onComplete()
+    } catch {
+      toast.error(t('onboarding.toast.complete_failed'))
     } finally {
       setIsCompleting(false)
     }
-  }, [onComplete])
+  }, [onComplete, t])
 
   const handleCherryInLogin = useCallback(async () => {
     setIsLoggingIn(true)
@@ -139,19 +158,31 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 <Button type="button" variant="outline" onClick={() => setStep('welcome')}>
                   {t('common.back')}
                 </Button>
-                <Button type="button" onClick={() => setStep('select-model')}>
-                  {t('onboarding.provider_setup.next')}
-                </Button>
+                <Tooltip
+                  content={providerSetupHint}
+                  placement="top"
+                  classNames={{
+                    content:
+                      'dark:bg-neutral-100 dark:text-neutral-900 dark:[&_svg]:fill-neutral-100! dark:[&_svg]:stroke-neutral-100!'
+                  }}>
+                  <Button
+                    type="button"
+                    aria-disabled={!canContinueProviderSetup}
+                    className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                    onClick={() => canContinueProviderSetup && setStep('select-model')}>
+                    {t('onboarding.provider_setup.next')}
+                  </Button>
+                </Tooltip>
               </div>
             </div>
           )}
 
           {step === 'select-model' && (
-            <div className="flex h-full w-full justify-center overflow-y-auto px-6 py-8">
-              <div className="flex h-full w-full max-w-[440px] flex-col">
-                <div className="flex min-h-0 flex-1 items-center">
+            <div className="flex h-full min-h-0 w-full flex-col">
+              <OnboardingHeader title={t('onboarding.select_model.title')} onBack={() => setStep('provider')} padded />
+              <div className="flex min-h-0 flex-1 justify-center overflow-y-auto border-border border-t px-6 py-8">
+                <div className="flex w-full max-w-[440px] items-center">
                   <div className="w-full">
-                    <OnboardingHeader title={t('onboarding.select_model.title')} onBack={() => setStep('provider')} />
                     <ModelSettings
                       showSettingsButton={false}
                       showDescription={false}

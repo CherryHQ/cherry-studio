@@ -8,6 +8,8 @@ const updateProviderMock = vi.fn()
 const oauthWithCherryInMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
+const enabledProvidersMock: Array<{ id: string; isEnabled: boolean }> = []
+const enabledModelsMock: Array<{ id: string; providerId: string; isEnabled: boolean }> = []
 const selectedModelsMock: {
   defaultModel?: { id: string }
   quickModel?: { id: string }
@@ -22,11 +24,13 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({
     addApiKey: addApiKeyMock,
     updateProvider: updateProviderMock
-  })
+  }),
+  useProviders: () => ({ providers: enabledProvidersMock, isLoading: false })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => selectedModelsMock
+  useDefaultModel: () => selectedModelsMock,
+  useModels: () => ({ models: enabledModelsMock, isLoading: false })
 }))
 
 vi.mock('@renderer/services/oauth', () => ({
@@ -62,6 +66,12 @@ describe('OnboardingPage', () => {
     oauthWithCherryInMock.mockResolvedValue('sk-test')
     addApiKeyMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
+    enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'openai', isEnabled: true })
+    enabledModelsMock.splice(0, enabledModelsMock.length, {
+      id: 'openai::gpt-4o-mini',
+      providerId: 'openai',
+      isEnabled: true
+    })
     selectedModelsMock.defaultModel = { id: 'default-model' }
     selectedModelsMock.quickModel = { id: 'quick-model' }
     selectedModelsMock.translateModel = { id: 'translate-model' }
@@ -92,6 +102,37 @@ describe('OnboardingPage', () => {
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
   })
 
+  it('does not allow CherryAI to satisfy the provider setup requirements', async () => {
+    enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'cherryai', isEnabled: true })
+    enabledModelsMock.splice(0, enabledModelsMock.length, {
+      id: 'cherryai::qwen',
+      providerId: 'cherryai',
+      isEnabled: true
+    })
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+
+    const nextButton = await screen.findByRole('button', { name: 'onboarding.provider_setup.next' })
+    expect(nextButton).toHaveAttribute('aria-disabled', 'true')
+    nextButton.focus()
+    expect(nextButton).toHaveFocus()
+    fireEvent.click(nextButton)
+    expect(screen.getByRole('heading', { name: 'onboarding.provider_setup.title' })).toBeInTheDocument()
+    expect(nextButton.parentElement).toHaveAttribute('data-title', 'onboarding.provider_setup.missing_provider')
+  })
+
+  it('explains when an enabled provider has no enabled model', async () => {
+    enabledModelsMock.splice(0)
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+
+    const nextButton = await screen.findByRole('button', { name: 'onboarding.provider_setup.next' })
+    expect(nextButton).toHaveAttribute('aria-disabled', 'true')
+    expect(nextButton.parentElement).toHaveAttribute('data-title', 'onboarding.provider_setup.missing_model')
+  })
+
   it('keeps the start action disabled until all three models are selected', async () => {
     selectedModelsMock.translateModel = undefined
     render(<OnboardingPage onComplete={vi.fn()} />)
@@ -112,6 +153,16 @@ describe('OnboardingPage', () => {
     fireEvent.click(skipButton)
 
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows an error when completing onboarding fails', async () => {
+    const onComplete = vi.fn().mockRejectedValue(new Error('write failed'))
+    render(<OnboardingPage onComplete={onComplete} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('onboarding.toast.complete_failed'))
+    expect(screen.getByRole('button', { name: 'onboarding.skip' })).toBeEnabled()
   })
 
   it('renders window controls beside the skip action for frameless Windows', () => {

@@ -4318,6 +4318,8 @@
   },
   "onboarding": {
     "provider_setup": {
+      "missing_model": "請先啟用該服務商下的至少一個模型",
+      "missing_provider": "請先啟用一個服務商",
       "next": "下一步",
       "subtitle": "新增 API Key 或登入 CherryIN，然後啟用一個服務商。",
       "title": "選擇服務商"
@@ -4330,6 +4332,7 @@
     },
     "skip": "跳過",
     "toast": {
+      "complete_failed": "無法完成引導，請重試",
       "connected": "成功連接到 CherryIN"
     },
     "welcome": {

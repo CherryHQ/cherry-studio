@@ -4318,6 +4318,8 @@
   },
   "onboarding": {
     "provider_setup": {
+      "missing_model": "Enable at least one model from the enabled provider",
+      "missing_provider": "Enable a provider to continue",
       "next": "Next",
       "subtitle": "Add an API key or sign in with CherryIN, then enable a provider.",
       "title": "Choose a Provider"
@@ -4330,6 +4332,7 @@
     },
     "skip": "Skip",
     "toast": {
+      "complete_failed": "Unable to complete setup. Please try again.",
       "connected": "Successfully connected to CherryIN"
     },
     "welcome": {
