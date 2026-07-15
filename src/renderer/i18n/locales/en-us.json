@@ -5334,7 +5334,7 @@
         "icon": {
           "error": "Invalid icon name, please check your input",
           "label": "Icon",
-          "placeholder": "Enter Lucide icon name",
+          "placeholder": "Icon name",
           "random": "Random Icon",
           "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
           "view_all": "View All Icons"

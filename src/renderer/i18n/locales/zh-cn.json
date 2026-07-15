@@ -5334,7 +5334,7 @@
         "icon": {
           "error": "无效的图标名称，请检查输入",
           "label": "图标",
-          "placeholder": "输入 Lucide 图标名称",
+          "placeholder": "图标名称",
           "random": "随机图标",
           "tooltip": "Lucide 图标名称为小写，如 arrow-right",
           "view_all": "查看所有图标"

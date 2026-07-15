@@ -17,6 +17,7 @@ import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -34,6 +35,8 @@ interface Props {
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
+const ACTION_LANGUAGE_POPOVER_CLASS_NAME =
+  '!w-[var(--radix-popover-trigger-width)] bg-card [&_[data-slot=command]]:bg-card'
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
@@ -208,8 +211,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       await runTranslate(selectedText, translateLang)
     } catch (err) {
       setContent('')
-      const message = err instanceof Error ? err.message : String(err)
-      setCompletionError(t(message, message))
+      setCompletionError(getSelectionActionErrorMessage(err, t))
     } finally {
       setIsPreparing(false)
     }
@@ -270,9 +272,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <span className="text-foreground-secondary text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
-            className="w-full"
+            className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
+            popoverClassName={ACTION_LANGUAGE_POPOVER_CLASS_NAME}
             onChange={(value) => {
               const next = getLanguage(value)
               if (next) handleChangeLanguage(next, alterLanguage)
@@ -285,9 +288,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <span className="text-foreground-secondary text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
-            className="w-full"
+            className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
+            popoverClassName={ACTION_LANGUAGE_POPOVER_CLASS_NAME}
             onChange={(value) => {
               const next = getLanguage(value)
               if (next) handleChangeLanguage(targetLanguage, next)
@@ -339,6 +343,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               listHeight={160}
               size="small"
               optionFilterProp="label"
+              popoverClassName={ACTION_LANGUAGE_POPOVER_CLASS_NAME}
               onChange={handleDirectTargetChange}
               disabled={isStreaming}
             />
@@ -350,18 +355,18 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="size-7 shrink-0 rounded text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                    className="size-7 shrink-0 rounded text-icon shadow-none hover:bg-accent hover:text-foreground dark:text-icon">
                     <Settings2 size={14} />
                   </Button>
                 </PopoverTrigger>
               </Tooltip>
-              <PopoverContent align="end" className="w-[220px] p-2">
+              <PopoverContent align="end" className="w-[220px] bg-card p-2">
                 {settingsContent}
               </PopoverContent>
             </Popover>
 
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
-              <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-muted-foreground" />
+              <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-icon" />
             </Tooltip>
           </div>
 
@@ -383,6 +388,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
+                successFeedback="icon"
               />
             </div>
           </div>

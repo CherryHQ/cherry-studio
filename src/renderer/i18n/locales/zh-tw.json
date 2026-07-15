@@ -5334,7 +5334,7 @@
         "icon": {
           "error": "無效的圖示名稱，請檢查輸入",
           "label": "圖示",
-          "placeholder": "輸入 Lucide 圖示名稱",
+          "placeholder": "圖示名稱",
           "random": "隨機圖示",
           "tooltip": "Lucide 圖示名稱為小寫，如 arrow-right",
           "view_all": "檢視所有圖示"

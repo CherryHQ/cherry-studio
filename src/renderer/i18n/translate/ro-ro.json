@@ -5330,7 +5330,7 @@
         "icon": {
           "error": "Nume pictogramă invalid, te rugăm să verifici intrarea",
           "label": "Pictogramă",
-          "placeholder": "Introdu numele pictogramei Lucide",
+          "placeholder": "Numele pictogramei",
           "random": "Pictogramă aleatorie",
           "tooltip": "Numele pictogramelor Lucide sunt cu litere mici, de ex. arrow-right",
           "view_all": "Vezi toate pictogramele"

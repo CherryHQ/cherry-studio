@@ -5330,7 +5330,7 @@
         "icon": {
           "error": "Nome de ícone inválido, verifique a entrada",
           "label": "Ícone",
-          "placeholder": "Insira o nome do ícone Lucide",
+          "placeholder": "Nome do ícone",
           "random": "Ícone aleatório",
           "tooltip": "O nome do ícone Lucide é em letras minúsculas, como arrow-right",
           "view_all": "Ver todos os ícones"

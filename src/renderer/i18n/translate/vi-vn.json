@@ -5330,7 +5330,7 @@
         "icon": {
           "error": "Nombre de icono no válido, por favor verifique su entrada",
           "label": "Ícono",
-          "placeholder": "Inserisci il nome dell'icona Lucide",
+          "placeholder": "Tên biểu tượng",
           "random": "Biểu tượng Ngẫu nhiên",
           "tooltip": "Tên biểu tượng Lucide viết thường, ví dụ: arrow-right",
           "view_all": "undefined"

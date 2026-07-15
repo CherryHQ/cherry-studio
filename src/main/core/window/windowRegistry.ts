@@ -404,7 +404,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden', // [macOS]
-          trafficLightPosition: { x: 12, y: 9 } // [macOS]
+          trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }
       },
       webPreferences: {

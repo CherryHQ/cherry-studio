@@ -5330,7 +5330,7 @@
         "icon": {
           "error": "Ungültiger Symbolname, bitte Eingabe prüfen",
           "label": "Symbol",
-          "placeholder": "Lucide-Symbolnamen eingeben",
+          "placeholder": "Symbolname",
           "random": "Zufälliges Symbol",
           "tooltip": "Lucide-Symbolnamen sind kleingeschrieben, z. B. arrow-right",
           "view_all": "Alle Symbole anzeigen"

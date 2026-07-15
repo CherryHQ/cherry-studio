@@ -43,7 +43,11 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Popover: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  PopoverContent: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  PopoverContent: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+    <div data-testid="popover-content" className={className}>
+      {children}
+    </div>
+  ),
   PopoverTrigger: ({ children }: React.PropsWithChildren) => <>{children}</>,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>
 }))
@@ -83,7 +87,19 @@ vi.mock('@renderer/hooks/translate', () => ({
 }))
 
 vi.mock('@renderer/components/LanguageSelect', () => ({
-  default: ({ value }: { value?: string }) => <div data-testid="language-select">{value}</div>
+  default: ({
+    value,
+    className,
+    popoverClassName
+  }: {
+    value?: string
+    className?: string
+    popoverClassName?: string
+  }) => (
+    <div data-testid="language-select" data-class={className} data-popover-class={popoverClassName}>
+      {value}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
@@ -194,5 +210,41 @@ describe('ActionTranslate', () => {
     await act(async () => {
       resolveTranslate('translated text')
     })
+  })
+
+  it('localizes known translation errors', async () => {
+    state.detectLanguage.mockResolvedValue('unknown')
+    state.translate.mockRejectedValue(new Error("Model with id 'provider/model' not found"))
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    expect(await screen.findByText('error.diagnosis.model')).toBeInTheDocument()
+    expect(screen.queryByText("Model with id 'provider/model' not found")).not.toBeInTheDocument()
+  })
+
+  it('keeps action-window language dropdowns aligned with the card surface', () => {
+    state.detectLanguage.mockReturnValue(new Promise<never>(() => {}))
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    const languageSelects = screen.getAllByTestId('language-select')
+    for (const select of languageSelects) {
+      expect(select).toHaveAttribute(
+        'data-popover-class',
+        '!w-[var(--radix-popover-trigger-width)] bg-card [&_[data-slot=command]]:bg-card'
+      )
+    }
+    expect(languageSelects[1]).toHaveAttribute('data-class', 'w-full [&>div]:w-full')
+    expect(languageSelects[2]).toHaveAttribute('data-class', 'w-full [&>div]:w-full')
+    expect(screen.getByTestId('popover-content')).toHaveClass('bg-card')
+  })
+
+  it('uses the icon color token for language settings and help', () => {
+    state.detectLanguage.mockReturnValue(new Promise<never>(() => {}))
+
+    const { container } = render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    expect(container.querySelector('.lucide-settings-2')?.closest('button')).toHaveClass('text-icon', 'dark:text-icon')
+    expect(container.querySelector('.lucide-circle-question-mark')).toHaveClass('text-icon')
   })
 })

@@ -5330,7 +5330,7 @@
         "icon": {
           "error": "Некорректное название",
           "label": "Иконка",
-          "placeholder": "Название иконки Lucide",
+          "placeholder": "Название иконки",
           "random": "Случайная",
           "tooltip": "Названия в lowercase, например arrow-right",
           "view_all": "Все иконки"
