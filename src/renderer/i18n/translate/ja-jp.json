@@ -887,6 +887,10 @@
           "description": "アプリ内スケジューラを管理します",
           "label": "スケジューラ"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
           "label": "ナレッジ管理"
@@ -1397,7 +1401,7 @@
         "title": "キューに追加済み（{{count}}）"
       },
       "generate_image": "画像を生成する",
-      "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "ナレッジベース",
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
@@ -1471,6 +1475,11 @@
         "collapse_out": "展開",
         "expand": "展開",
         "file_not_found": "ファイルが見つかりません: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "ファイルを開く",
         "open_file_error": "ファイルを開けませんでした: {{path}}",
         "reveal_in_finder": "Finderで表示"
@@ -6874,6 +6883,8 @@
       },
       "more_actions": "モデル一覧のその他の操作",
       "not_enabled_models": "無効",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
       "provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",

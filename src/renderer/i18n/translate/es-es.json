@@ -887,6 +887,10 @@
           "description": "Gestiona el programador dentro de la aplicación",
           "label": "Planificador"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
           "label": "Gestionar conocimiento"
@@ -1397,7 +1401,7 @@
         "title": "En cola ({{count}})"
       },
       "generate_image": "Generar imagen",
-      "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Base de conocimientos",
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
@@ -1471,6 +1475,11 @@
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
         "file_not_found": "Archivo no encontrado: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Abrir archivo",
         "open_file_error": "Error al abrir el archivo: {{path}}",
         "reveal_in_finder": "Mostrar en el Finder"
@@ -6874,6 +6883,8 @@
       },
       "more_actions": "Más acciones de la lista de modelos",
       "not_enabled_models": "Deshabilitados",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "ID del proveedor",
       "provider_key_add_confirm": "¿Desea agregar una clave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Error al agregar la clave API del proveedor: los datos están vacíos",

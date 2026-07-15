@@ -887,6 +887,10 @@
           "description": "Διαχειρίζεται τον ενσωματωμένο προγραμματιστή εντός της εφαρμογής",
           "label": "Προγραμματιστής"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Προσθέτει, διαγράφει ή ανανεώνει έγγραφα στις βάσεις γνώσης σας",
           "label": "Διαχείριση Γνώσης"
@@ -1397,7 +1401,7 @@
         "title": "Σε ουρά ({{count}})"
       },
       "generate_image": "Δημιουργία εικόνας",
-      "generate_image_not_supported": "Το μοντέλο δεν υποστηρίζει τη δημιουργία εικόνων",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Βάση γνώσεων",
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
       "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων ή ενεργοποιήστε τη χρήση εργαλείων στο prompt",
@@ -1471,6 +1475,11 @@
         "collapse_out": "Αφαίρεση από σύμπτυξη",
         "expand": "Επέκταση",
         "file_not_found": "Δεν βρέθηκε το αρχείο: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Άνοιγμα Αρχείου",
         "open_file_error": "Αποτυχία ανοίγματος αρχείου: {{path}}",
         "reveal_in_finder": "Εμφάνιση στον Finder"
@@ -6874,6 +6883,8 @@
       },
       "more_actions": "Περισσότερες ενέργειες λίστας μοντέλων",
       "not_enabled_models": "Απενεργοποιημένα",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "Αναγνωριστικό Παρόχου",
       "provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",
       "provider_key_add_failed_by_empty_data": "Η προσθήκη κλειδιού API παρόχου απέτυχε, τα δεδομένα είναι κενά",

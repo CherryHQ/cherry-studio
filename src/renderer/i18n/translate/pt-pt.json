@@ -887,6 +887,10 @@
           "description": "Gerencia o agendador dentro do aplicativo",
           "label": "Agendador"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
           "label": "Gerenciar Conhecimento"
@@ -1397,7 +1401,7 @@
         "title": "Na fila ({{count}})"
       },
       "generate_image": "Gerar imagem",
-      "generate_image_not_supported": "Modelo não suporta geração de imagem",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Base de conhecimento",
       "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
       "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
@@ -1471,6 +1475,11 @@
         "collapse_out": "Remover do recolhimento",
         "expand": "Expandir",
         "file_not_found": "Arquivo não encontrado: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Abrir Arquivo",
         "open_file_error": "Falha ao abrir o arquivo: {{path}}",
         "reveal_in_finder": "Revelar no Finder"
@@ -6874,6 +6883,8 @@
       },
       "more_actions": "Mais ações da lista de modelos",
       "not_enabled_models": "Desativados",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Falha ao adicionar chave API do provedor: dados vazios",

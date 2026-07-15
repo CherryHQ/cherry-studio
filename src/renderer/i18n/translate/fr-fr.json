@@ -887,6 +887,10 @@
           "description": "Gère le planificateur intégré à l'application",
           "label": "Planificateur"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
           "label": "Gérer les connaissances"
@@ -1397,7 +1401,7 @@
         "title": "Mis en file d’attente ({{count}})"
       },
       "generate_image": "Générer une image",
-      "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
@@ -1471,6 +1475,11 @@
         "collapse_out": "Retirer de la réduction",
         "expand": "Développer",
         "file_not_found": "Fichier introuvable : {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Ouvrir le fichier",
         "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
         "reveal_in_finder": "Afficher dans le Finder"
@@ -6874,6 +6883,8 @@
       },
       "more_actions": "Plus d'actions pour la liste des modèles",
       "not_enabled_models": "Désactivés",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
       "provider_key_add_failed_by_empty_data": "Échec de l'ajout de la clé API du fournisseur, les données sont vides",
