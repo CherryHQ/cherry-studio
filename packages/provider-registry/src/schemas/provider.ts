@@ -36,12 +36,7 @@ export const ApiFeaturesSchema = z.object({
 
   // --- Response feature flags ---
 
-  /**
-   * Whether the provider returns the actual billed cost in its usage response
-   * (e.g. OpenRouter `usage.cost`). When true, that figure is trusted over
-   * locally computed pricing; otherwise cost is computed from the model's
-   * configured pricing. See `enrichStatsWithCost`.
-   */
+  /** Whether the provider returns the actual billed cost in its usage response */
   reportsActualCost: z.boolean().default(false)
 })
 

@@ -26,7 +26,6 @@ const CatalogApiFeaturesSchema = z.object({
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
   verbosity: z.boolean().optional(),
-  /** Provider returns actual billed cost in its usage response (e.g. OpenRouter `usage.cost`). */
   reportsActualCost: z.boolean().optional()
 })
 
