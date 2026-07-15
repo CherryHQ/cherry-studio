@@ -23,6 +23,8 @@ type Props = {
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  liveMessageIds?: readonly string[]
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -42,6 +44,8 @@ const AgentSessionMessages = ({
   messages,
   activeAgent,
   partsByMessageId,
+  historyPartsByMessageId,
+  liveMessageIds,
   optimisticAskUserQuestionInputsByToolCallId = {},
   isLoading,
   hasOlder = false,
@@ -60,6 +64,16 @@ const AgentSessionMessages = ({
   const sessionName = session?.name ?? sessionId
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
+  const assistantProfile = useMemo(
+    () =>
+      activeAgent
+        ? {
+            name: activeAgent.name,
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+          }
+        : undefined,
+    [activeAgent]
+  )
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -78,12 +92,9 @@ const AgentSessionMessages = ({
     topic: derivedTopic,
     messages,
     partsByMessageId,
-    assistantProfile: activeAgent
-      ? {
-          name: activeAgent.name,
-          avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
-        }
-      : undefined,
+    historyPartsByMessageId,
+    liveMessageIds,
+    assistantProfile,
     assistantId: agentId,
     isLoading,
     hasOlder,

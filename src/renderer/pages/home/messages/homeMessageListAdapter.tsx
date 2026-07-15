@@ -73,6 +73,8 @@ interface HomeMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  liveMessageIds?: readonly string[]
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
@@ -88,6 +90,8 @@ export function useHomeMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
+  historyPartsByMessageId,
+  liveMessageIds,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
@@ -117,17 +121,37 @@ export function useHomeMessageListProviderValue({
   const messageUiStateCache = useMessageUiStateCache()
   const { editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-
-  const messageItems = useMemo(
-    () =>
-      messages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: assistant?.id ?? assistantId,
-          topicId
-        })
-      ),
-    [assistant?.id, assistantId, messages, topicId]
+  const resolvedAssistantId = assistant?.id ?? assistantId
+  const messageItemCacheRef = useRef(
+    new WeakMap<
+      CherryUIMessage,
+      {
+        assistantId?: string
+        item: MessageListItem
+        topicId: string
+      }
+    >()
   )
+
+  const messageItems = useMemo(() => {
+    return messages.map((message) => {
+      const cached = messageItemCacheRef.current.get(message)
+      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topicId) {
+        return cached.item
+      }
+
+      const item = toMessageListItem(message, {
+        assistantId: resolvedAssistantId,
+        topicId
+      })
+      messageItemCacheRef.current.set(message, {
+        assistantId: resolvedAssistantId,
+        item,
+        topicId
+      })
+      return item
+    })
+  }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
@@ -646,6 +670,8 @@ export function useHomeMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
+      historyPartsByMessageId,
+      liveMessageIds,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -674,9 +700,11 @@ export function useHomeMessageListProviderValue({
       getMessageSiblings,
       getTranslationLanguageLabel,
       hasOlder,
+      historyPartsByMessageId,
       isInitialLoading,
       isMessagesStale,
       leafCapabilities,
+      liveMessageIds,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,

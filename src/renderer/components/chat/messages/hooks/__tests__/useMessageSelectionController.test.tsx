@@ -18,17 +18,30 @@ const setCacheValue = vi.hoisted(() =>
   })
 )
 
-vi.mock('@data/hooks/useCache', () => ({
-  useCache: (key: string) => [cacheValues[key], (value: unknown) => setCacheValue(key, value)]
-}))
+vi.mock('@data/hooks/useCache', () => {
+  const setters = new Map<string, (value: unknown) => void>()
+  return {
+    useCache: (key: string) => {
+      let setter = setters.get(key)
+      if (!setter) {
+        setter = (value: unknown) => setCacheValue(key, value)
+        setters.set(key, setter)
+      }
+      return [cacheValues[key], setter]
+    }
+  }
+})
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    type: '3rdParty',
-    init: vi.fn()
-  },
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: string) => key
+  return {
+    initReactI18next: {
+      type: '3rdParty',
+      init: vi.fn()
+    },
+    useTranslation: () => ({ t })
+  }
+})
 
 const message = (id: string) => ({
   id,
@@ -129,6 +142,42 @@ describe('useMessageSelectionController', () => {
 
     expect(copyRichContent).not.toHaveBeenCalled()
     expect(writeText).toHaveBeenCalledWith('plain')
+  })
+
+  it('keeps action identities stable while reading the latest streamed message data', async () => {
+    writeText.mockResolvedValue(undefined)
+    type HookProps = {
+      messages: ReturnType<typeof message>[]
+      partsByMessageId: Record<string, CherryMessagePart[]>
+    }
+    const { result, rerender } = renderHook(
+      ({ messages, partsByMessageId }: HookProps) =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages,
+          partsByMessageId
+        }),
+      {
+        initialProps: {
+          messages: [message('a')],
+          partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
+        } as HookProps
+      }
+    )
+    const initialActions = result.current.actions
+
+    rerender({
+      messages: [message('b')],
+      partsByMessageId: { b: [{ type: 'text', text: 'latest' }] as CherryMessagePart[] }
+    })
+
+    expect(result.current.actions).toBe(initialActions)
+
+    await act(async () => {
+      await result.current.actions.copySelectedMessages?.(['b'])
+    })
+
+    expect(writeText).toHaveBeenCalledWith('latest')
   })
 
   it('clears multi-select state when the message list unmounts', () => {

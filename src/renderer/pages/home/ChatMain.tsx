@@ -11,6 +11,8 @@ interface ChatMainProps {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  liveMessageIds: readonly string[]
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder: () => void
@@ -23,6 +25,8 @@ const ChatMain: FC<ChatMainProps> = ({
   topic,
   messages,
   partsByMessageId,
+  historyPartsByMessageId,
+  liveMessageIds,
   isInitialLoading,
   isMessagesStale,
   loadOlder,
@@ -34,6 +38,8 @@ const ChatMain: FC<ChatMainProps> = ({
     topic,
     messages,
     partsByMessageId,
+    historyPartsByMessageId,
+    liveMessageIds,
     isInitialLoading,
     isMessagesStale,
     loadOlder,

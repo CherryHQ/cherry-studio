@@ -229,6 +229,38 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
   })
 
+  it('keeps the history contract and composer callback stable across stream snapshots', () => {
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const historyParts = result.current.historyPartsByMessageId
+    const liveMessageIds = result.current.liveMessageIds
+    const sendMessage = result.current.sendMessage
+
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    rerender()
+
+    expect(result.current.historyPartsByMessageId).toBe(historyParts)
+    expect(result.current.liveMessageIds).toBe(liveMessageIds)
+    expect(result.current.liveMessageIds).toEqual(['assistant-1'])
+    expect(result.current.sendMessage).toBe(sendMessage)
+  })
+
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>

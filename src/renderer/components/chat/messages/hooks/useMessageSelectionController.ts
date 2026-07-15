@@ -15,7 +15,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useMessageSelectionController')
@@ -52,6 +52,8 @@ export function useMessageSelectionController({
   const { t } = useTranslation()
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
+  const latestExportDataRef = useRef({ messages, partsByMessageId, copyRichContent })
+  latestExportDataRef.current = { messages, partsByMessageId, copyRichContent }
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
 
@@ -105,15 +107,17 @@ export function useMessageSelectionController({
       const ids = ensureSelection(messageIds)
       if (!ids) return
 
-      const richContent = copyRichContent
-        ? getSelectedMessagesRichClipboardContent(ids, messages, partsByMessageId)
+      const latest = latestExportDataRef.current
+      const richContent = latest.copyRichContent
+        ? getSelectedMessagesRichClipboardContent(ids, latest.messages, latest.partsByMessageId)
         : null
-      const contentToCopy = richContent?.plainText ?? getSelectedMessagesPlainText(ids, messages, partsByMessageId)
+      const contentToCopy =
+        richContent?.plainText ?? getSelectedMessagesPlainText(ids, latest.messages, latest.partsByMessageId)
       if (!contentToCopy) return
 
       try {
-        if (richContent && copyRichContent) {
-          await copyRichContent(richContent, { successMessage: t('message.copied') })
+        if (richContent && latest.copyRichContent) {
+          await latest.copyRichContent(richContent, { successMessage: t('message.copied') })
         } else {
           await navigator.clipboard.writeText(contentToCopy)
           toast.success(t('message.copied'))
@@ -124,7 +128,7 @@ export function useMessageSelectionController({
         toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
       }
     },
-    [copyRichContent, ensureSelection, messages, partsByMessageId, t, toggleMultiSelectMode]
+    [ensureSelection, t, toggleMultiSelectMode]
   )
 
   const saveSelectedMessages = useCallback(
@@ -137,11 +141,12 @@ export function useMessageSelectionController({
         return
       }
 
-      const exportMessages = createSelectedMessageExportViews(ids, messages, partsByMessageId)
+      const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
+      const exportMessages = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
       const contentToSave =
         exportMessages.length > 0
           ? await messagesToMarkdown(exportMessages)
-          : getSelectedMessagesPlainText(ids, messages, partsByMessageId)
+          : getSelectedMessagesPlainText(ids, latestMessages, latestPartsByMessageId)
 
       if (!contentToSave) return
 
@@ -157,7 +162,7 @@ export function useMessageSelectionController({
         toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       }
     },
-    [ensureSelection, messages, partsByMessageId, saveTextFile, t, toggleMultiSelectMode]
+    [ensureSelection, saveTextFile, t, toggleMultiSelectMode]
   )
 
   const deleteSelectedMessages = useCallback(

@@ -247,6 +247,14 @@ export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /**
+   * Persisted parts used by the sealed history render layer. When provided
+   * together with `liveMessageIds`, streaming updates stay isolated from
+   * historical message subtrees.
+   */
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  /** Message ids that mark the beginning of the mutable streaming tail. */
+  liveMessageIds?: readonly string[]
   beforeList?: ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean

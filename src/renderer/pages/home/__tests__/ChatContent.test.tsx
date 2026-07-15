@@ -188,11 +188,15 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: {
     messages: CherryUIMessage[]
     partsByMessageId: Record<string, CherryMessagePart[]>
+    historyPartsByMessageId: Record<string, CherryMessagePart[]>
+    liveMessageIds: readonly string[]
     isInitialLoading?: boolean
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
+      historyPartsByMessageId: params.historyPartsByMessageId,
+      liveMessageIds: params.liveMessageIds,
       isInitialLoading: params.isInitialLoading
     },
     actions: {},
@@ -535,6 +539,83 @@ describe('ChatContent', () => {
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant,pending-placeholder')
     })
+  })
+
+  it('keeps Home history parts and live ids stable across execution overlay frames', async () => {
+    const historyMessage = createUiMessage('history-assistant', 'assistant')
+    const pendingMessage = {
+      ...createUiMessage('pending-placeholder', 'assistant'),
+      parts: [{ type: 'text', text: 'persisted seed' }],
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        modelId: 'provider::model',
+        status: 'pending'
+      }
+    } as CherryUIMessage
+    const messages = [historyMessage, pendingMessage]
+    const activeExecutions = [{ executionId: 'provider::model', anchorMessageId: pendingMessage.id }]
+    const firstLiveAssistant = {
+      ...pendingMessage,
+      parts: [{ type: 'text', text: 'stream frame 1' }]
+    } as CherryUIMessage
+
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: messages,
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: pendingMessage.id,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'streaming',
+      setMessages: vi.fn(),
+      activeExecutions
+    })
+    mockExecutionOverlay.current = {
+      overlay: { [pendingMessage.id]: firstLiveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [firstLiveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+
+    const view = render(<ChatContent topic={topic} />)
+
+    await waitFor(() => {
+      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+        text: 'stream frame 1'
+      })
+    })
+    const firstHistoryParts = mockMessageListValue.current.state.historyPartsByMessageId
+    const firstLiveMessageIds = mockMessageListValue.current.state.liveMessageIds
+    expect(firstHistoryParts[pendingMessage.id][0]).toMatchObject({ text: 'persisted seed' })
+    expect(firstLiveMessageIds).toEqual([pendingMessage.id])
+
+    const secondLiveAssistant = {
+      ...pendingMessage,
+      parts: [{ type: 'text', text: 'stream frame 2' }]
+    } as CherryUIMessage
+    mockExecutionOverlay.current = {
+      overlay: { [pendingMessage.id]: secondLiveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [secondLiveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+    view.rerender(<ChatContent topic={topic} />)
+
+    await waitFor(() => {
+      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+        text: 'stream frame 2'
+      })
+    })
+    expect(mockMessageListValue.current.state.historyPartsByMessageId).toBe(firstHistoryParts)
+    expect(mockMessageListValue.current.state.liveMessageIds).toBe(firstLiveMessageIds)
   })
 
   it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {

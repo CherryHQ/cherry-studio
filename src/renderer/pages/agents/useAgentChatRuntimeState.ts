@@ -16,11 +16,11 @@ import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@rendere
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -97,6 +97,8 @@ export interface AgentChatRuntimeState {
   sessionId: string
   uiMessages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  liveMessageIds: readonly string[]
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
@@ -114,6 +116,20 @@ interface UseAgentChatRuntimeStateParams {
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
+}
+
+function stringArraysEqual(previous: readonly string[], next: readonly string[]): boolean {
+  if (previous === next) return true
+  if (previous.length !== next.length) return false
+  return previous.every((value, index) => value === next[index])
+}
+
+function useStableStringArray(values: readonly string[]): readonly string[] {
+  const stableRef = useRef<readonly string[]>(values)
+  if (!stringArraysEqual(stableRef.current, values)) {
+    stableRef.current = values
+  }
+  return stableRef.current
 }
 
 export function useAgentChatRuntimeState({
@@ -142,7 +158,7 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -151,28 +167,33 @@ export function useAgentChatRuntimeState({
     }),
     [refresh, seedReservedMessages]
   )
-  const turnController = useConversationTurnController<AgentTurnInput, { topicId: string }>({
-    scopeKey: sessionTopicId,
-    historyAdapter,
-    ensureConversation: () => ({ topicId: sessionTopicId }),
-    buildStreamRequest: (input, conversation) => ({
+  const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
+  const buildStreamRequest = useCallback(
+    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
       trigger: 'submit-message',
       topicId: conversation.topicId,
       userMessageParts: getAgentTurnParts(input)
-    })
+    }),
+    []
+  )
+  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+    scopeKey: sessionTopicId,
+    historyAdapter,
+    ensureConversation,
+    buildStreamRequest
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      await turnController.send({ text: message?.text ?? '', options })
+      await send({ text: message?.text ?? '', options })
     },
-    [turnController]
+    [send]
   )
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
-      chat.setMessages((current) => current.filter((message) => message.id !== messageId))
+      setMessages((current) => current.filter((message) => message.id !== messageId))
     },
-    [chat, deleteSessionMessage]
+    [deleteSessionMessage, setMessages]
   )
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
@@ -187,7 +208,18 @@ export function useAgentChatRuntimeState({
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
+  const liveMessageIdCandidates = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...activeExecutions.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : [])),
+          ...liveAssistants.map((message) => message.id)
+        ])
+      ),
+    [activeExecutions, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
@@ -298,12 +330,14 @@ export function useAgentChatRuntimeState({
     sessionId,
     uiMessages: displayMessages,
     partsByMessageId,
+    historyPartsByMessageId: basePartsMap,
+    liveMessageIds,
     optimisticAskUserQuestionInputsByToolCallId,
     isLoading,
     hasOlder,
     loadOlder,
     isPending,
-    stop: chat.stop,
+    stop,
     sendMessage,
     deleteMessage,
     respondToolApproval,

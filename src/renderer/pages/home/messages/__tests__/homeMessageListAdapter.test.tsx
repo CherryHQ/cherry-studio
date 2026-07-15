@@ -219,6 +219,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
@@ -242,6 +243,8 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   imageActionConsumer,
+  historyPartsByMessageId,
+  liveMessageIds,
   messages = [],
   onStartBranchDraft,
   onValue,
@@ -249,6 +252,8 @@ function MessageListAdapterHarness({
   topic
 }: {
   imageActionConsumer?: 'capture'
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  liveMessageIds?: readonly string[]
   messages?: CherryUIMessage[]
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
@@ -259,6 +264,8 @@ function MessageListAdapterHarness({
     topic,
     messages,
     partsByMessageId,
+    historyPartsByMessageId,
+    liveMessageIds,
     imageActionConsumer,
     onStartBranchDraft
   })
@@ -324,6 +331,61 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('passes layered streaming state and reuses unchanged history message projections', () => {
+    const historyMessage = {
+      id: 'history-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'sealed history' }]
+    } as CherryUIMessage
+    const liveMessage = {
+      id: 'live-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'a' }]
+    } as CherryUIMessage
+    const historyPartsByMessageId = {
+      'history-message': historyMessage.parts as CherryMessagePart[]
+    }
+    const liveMessageIds = ['live-message'] as const
+    let value: MessageListProviderValue | undefined
+
+    const view = render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[historyMessage, liveMessage]}
+        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts as CherryMessagePart[] }}
+        historyPartsByMessageId={historyPartsByMessageId}
+        liveMessageIds={liveMessageIds}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const firstHistoryItem = value?.state.messages[0]
+    expect(value?.state.historyPartsByMessageId).toBe(historyPartsByMessageId)
+    expect(value?.state.liveMessageIds).toBe(liveMessageIds)
+
+    const nextLiveMessage = {
+      ...liveMessage,
+      parts: [...(liveMessage.parts ?? []), { type: 'text', text: 'b' } as CherryMessagePart]
+    }
+    view.rerender(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[historyMessage, nextLiveMessage]}
+        partsByMessageId={{
+          ...historyPartsByMessageId,
+          'live-message': nextLiveMessage.parts as CherryMessagePart[]
+        }}
+        historyPartsByMessageId={historyPartsByMessageId}
+        liveMessageIds={liveMessageIds}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.messages[0]).toBe(firstHistoryItem)
+    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message === historyMessage)).toHaveLength(1)
+    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message.id === liveMessage.id)).toHaveLength(2)
   })
 
   it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {

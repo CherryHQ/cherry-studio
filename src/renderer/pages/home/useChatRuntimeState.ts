@@ -23,7 +23,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { useStablePartsByMessageId } from './hooks/useStablePartsByMessageId'
+import { useStableMessagePartsLayers } from './hooks/useStablePartsByMessageId'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -86,6 +86,20 @@ function getReservedActiveExecutions(messages: CherryUIMessage[]): ActiveExecuti
   }
 
   return executions
+}
+
+function stringArraysEqual(previous: readonly string[], next: readonly string[]): boolean {
+  if (previous === next) return true
+  if (previous.length !== next.length) return false
+  return previous.every((value, index) => value === next[index])
+}
+
+function useStableStringArray(values: readonly string[]): readonly string[] {
+  const stableRef = useRef<readonly string[]>(values)
+  if (!stringArraysEqual(stableRef.current, values)) {
+    stableRef.current = values
+  }
+  return stableRef.current
 }
 
 export function useChatRuntimeState({
@@ -172,8 +186,25 @@ export function useChatRuntimeState({
     }
   })
 
-  const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
+  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(
+    messages,
+    overlay,
+    translationOverlay
+  )
   const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
+  const liveMessageIdCandidates = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...branchActiveExecutions.flatMap((execution) =>
+            execution.anchorMessageId ? [execution.anchorMessageId] : []
+          ),
+          ...liveAssistants.map((message) => message.id)
+        ])
+      ),
+    [branchActiveExecutions, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -236,16 +267,7 @@ export function useChatRuntimeState({
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 
-  const activeStreamingMessageIds = useMemo(
-    () =>
-      new Set([
-        ...branchActiveExecutions.flatMap((execution) =>
-          execution.anchorMessageId ? [execution.anchorMessageId] : []
-        ),
-        ...liveAssistants.map((message) => message.id)
-      ]),
-    [branchActiveExecutions, liveAssistants]
-  )
+  const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
   const activeAnchorMessages = useMemo(
     () => messages.filter((message) => activeStreamingMessageIds.has(message.id)),
     [activeStreamingMessageIds, messages]
@@ -365,6 +387,8 @@ export function useChatRuntimeState({
   return {
     messages: displayMessages,
     partsByMessageId,
+    historyPartsByMessageId,
+    liveMessageIds,
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,

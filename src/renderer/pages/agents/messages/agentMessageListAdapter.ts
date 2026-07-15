@@ -60,6 +60,8 @@ interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  liveMessageIds?: readonly string[]
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -95,6 +97,8 @@ export function useAgentMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
+  historyPartsByMessageId,
+  liveMessageIds,
   assistantProfile,
   assistantId,
   isLoading,
@@ -272,6 +276,8 @@ export function useAgentMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
+      historyPartsByMessageId,
+      liveMessageIds,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -292,7 +298,9 @@ export function useAgentMessageListProviderValue({
       getMessageActivityState,
       hasOlder,
       isLoading,
+      historyPartsByMessageId,
       leafCapabilities,
+      liveMessageIds,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageNavigation,

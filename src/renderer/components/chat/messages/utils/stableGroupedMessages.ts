@@ -45,11 +45,12 @@ function entriesShallowEqual(a: readonly GroupedEntry[], b: readonly GroupedEntr
 
 export interface StableGroupedMessagesCache {
   prevEntries: GroupedEntry[]
+  prevEntryByKey: Map<string, GroupedEntry>
   prevByKey: Map<string, MessageListItem[]>
 }
 
 export function createStableGroupedMessagesCache(): StableGroupedMessagesCache {
-  return { prevEntries: [], prevByKey: new Map() }
+  return { prevEntries: [], prevEntryByKey: new Map(), prevByKey: new Map() }
 }
 
 export function stableGroupedMessages(
@@ -60,16 +61,21 @@ export function stableGroupedMessages(
   // mutate it, but the underlying signature is typed that way, hence the cast.
   const grouped = groupMessageListItems(messages as MessageListItem[])
   const nextEntries: GroupedEntry[] = []
+  const nextEntryByKey = new Map<string, GroupedEntry>()
   const nextByKey = new Map<string, MessageListItem[]>()
 
   for (const key of Object.keys(grouped)) {
     const candidate = grouped[key]
     const prev = cache.prevByKey.get(key)
     const adopted = prev && arraysShallowEqual(prev, candidate) ? prev : candidate
-    nextEntries.push([key, adopted])
+    const previousEntry = cache.prevEntryByKey.get(key)
+    const entry: GroupedEntry = previousEntry?.[1] === adopted ? previousEntry : [key, adopted]
+    nextEntries.push(entry)
+    nextEntryByKey.set(key, entry)
     nextByKey.set(key, adopted)
   }
 
+  cache.prevEntryByKey = nextEntryByKey
   cache.prevByKey = nextByKey
 
   if (entriesShallowEqual(cache.prevEntries, nextEntries)) {
