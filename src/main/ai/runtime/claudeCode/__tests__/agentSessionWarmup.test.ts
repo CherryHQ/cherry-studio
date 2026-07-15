@@ -808,7 +808,7 @@ describe('deriveConnectionConfig', () => {
     expect(toolReenabled.rebuildSignature).toBe(policyChanged.rebuildSignature)
   })
 
-  it('reports unroutable for deleted agents, missing workspaces and unroutable providers', async () => {
+  it('reports unroutable for deleted agents, missing workspaces and deleted provider rows', async () => {
     mocks.getAgent.mockReturnValue(undefined)
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
 
@@ -818,7 +818,7 @@ describe('deriveConnectionConfig', () => {
 
     mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
     mocks.getProviderByProviderId.mockImplementation(() => {
-      throw new Error('provider deleted')
+      throw new Error('Provider not found')
     })
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
   })
