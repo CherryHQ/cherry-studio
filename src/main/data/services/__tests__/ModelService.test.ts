@@ -32,7 +32,8 @@ const { lookupModelMock } = vi.hoisted(() => ({
   lookupModelMock: vi.fn<
     (
       providerId: string,
-      modelId: string
+      modelId: string,
+      reasoningConfigCache?: unknown
     ) => {
       presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
       registryOverride: {
@@ -895,6 +896,18 @@ describe('ModelService.getByKey', () => {
       thinkingTokenLimits: undefined
     })
     expect(model.supportsFastMode).toBe(true)
+  })
+
+  it('forwards a shared reasoning config cache to registry lookups', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai-codex', 'OpenAI Codex'))
+    await dbh.db
+      .insert(userModelTable)
+      .values(modelRow('openai-codex', 'gpt-5-6-sol', { presetModelId: 'gpt-5-6-sol' }))
+    const reasoningConfigCache = new Map()
+
+    modelService.getByKey('openai-codex', 'gpt-5-6-sol', reasoningConfigCache)
+
+    expect(lookupModelMock).toHaveBeenCalledWith('openai-codex', 'gpt-5-6-sol', reasoningConfigCache)
   })
 
   it('preserves a user reasoning override', async () => {

@@ -2,6 +2,7 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
+import type { ReasoningConfigCache } from '@main/data/services/ProviderRegistryService'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 // Sub-ms tiebreaker for back-to-back regenerate clicks. Resets per process; only needs to be session-unique.
@@ -14,9 +15,15 @@ function nextSiblingsGroupId(): number {
 /** Resolve the Model list from an optional selector-selected list, falling back to the assistant default. */
 export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, defaultModelId: UniqueModelId): Model[] {
   if (mentionedModelIds?.length) {
+    if (mentionedModelIds.length === 1) {
+      const { providerId, modelId } = parseUniqueModelId(mentionedModelIds[0])
+      return [modelService.getByKey(providerId, modelId)]
+    }
+
+    const reasoningConfigCache: ReasoningConfigCache = new Map()
     return mentionedModelIds.map((uniqueModelId) => {
       const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-      return modelService.getByKey(providerId, modelId)
+      return modelService.getByKey(providerId, modelId, reasoningConfigCache)
     })
   }
 

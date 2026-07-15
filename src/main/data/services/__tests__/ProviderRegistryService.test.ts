@@ -221,6 +221,22 @@ describe('ProviderRegistryService', () => {
 
       expect(mockReadModels).toHaveBeenCalledTimes(1)
     })
+
+    it('should resolve provider reasoning config once when a request cache is shared', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        name: 'OpenAI',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      const getProviderSpy = vi.spyOn(providerService, 'getByProviderId')
+      const reasoningConfigCache = new Map()
+
+      providerRegistryService.lookupModel('openai', 'gpt-4o', reasoningConfigCache)
+      providerRegistryService.lookupModel('openai', 'gpt-4o', reasoningConfigCache)
+
+      expect(getProviderSpy).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('resolveModels', () => {

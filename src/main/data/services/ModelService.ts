@@ -14,7 +14,11 @@ import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/user
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
+import {
+  mergePresetModel,
+  providerRegistryService,
+  type ReasoningConfigCache
+} from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -488,10 +492,7 @@ class ModelService {
     // Memoize the per-provider reasoning config so a list of N models in the
     // same provider resolves it once instead of issuing N identical
     // `getByProviderId` reads (the painting model picker lists one provider).
-    const reasoningConfigCache = new Map<
-      string,
-      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
-    >()
+    const reasoningConfigCache: ReasoningConfigCache = new Map()
     models = models.map((model) => {
       const presetId = model.presetModelId ?? model.apiModelId
       if (!presetId) return model
@@ -588,7 +589,7 @@ class ModelService {
   /**
    * Get a model by composite key (providerId + modelId)
    */
-  getByKey(providerId: string, modelId: string): Model {
+  getByKey(providerId: string, modelId: string, reasoningConfigCache?: ReasoningConfigCache): Model {
     const db = application.get('DbService').getDb()
 
     const [row] = db
@@ -606,7 +607,7 @@ class ModelService {
     if (!row.presetModelId) return model
 
     try {
-      const registryData = providerRegistryService.lookupModel(providerId, row.presetModelId)
+      const registryData = providerRegistryService.lookupModel(providerId, row.presetModelId, reasoningConfigCache)
       if (!registryData.presetModel) return model
 
       const currentPreset = mergePresetModel(
