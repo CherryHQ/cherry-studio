@@ -66,15 +66,14 @@ function clearMockTimers() {
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
-    size: _size,
+    size,
     variant: _variant,
     ...props
   }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
-    void _size
     void _variant
 
     return (
-      <button type="button" {...props}>
+      <button type="button" data-size={size} {...props}>
         {children}
       </button>
     )
@@ -758,13 +757,13 @@ describe('ComposerSurface', () => {
     expect(document.querySelector('[data-composer-expand-corner]')).toBeNull()
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
-    expect(locateButton).toHaveClass('size-7')
+    expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
     expect(locateButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
-    expect(cancelButton).toHaveClass('size-7')
+    expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
     expect(cancelButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
     expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
 
