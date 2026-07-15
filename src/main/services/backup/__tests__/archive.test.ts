@@ -1,6 +1,6 @@
 // Unit tests for assembleArchive — zip layout round-trip (no DB; dummy blob bytes).
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -8,6 +8,7 @@ import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
 import { assembleArchive } from '../archive'
+import { OutputPathExistsError } from '../errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
 
 const MANIFEST_FULL: BackupManifest = {
@@ -137,6 +138,26 @@ describe('assembleArchive', () => {
       const out = join(dir, 'nonexistent-subdir', 'a.cbu')
       await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toThrow()
       expect(existsSync(out)).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects with OutputPathExistsError and leaves a prior outPath untouched (no-clobber)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('x'))
+      // A pre-existing outPath MUST be refused, never overwritten — the stat pre-check
+      // rejects before archiving starts (defense-in-depth ahead of the link/copyFile
+      // EXCL publish path in archive.ts).
+      const out = join(dir, 'a.cbu')
+      await writeFile(out, Buffer.from('prior-good-backup'))
+      await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toThrow(
+        OutputPathExistsError
+      )
+      // The prior archive is untouched.
+      expect((await readFile(out)).toString('utf8')).toBe('prior-good-backup')
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

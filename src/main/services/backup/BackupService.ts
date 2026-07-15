@@ -26,7 +26,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
-import { stat, statfs } from 'node:fs/promises'
+import { lstat, readdir, stat, statfs } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
@@ -106,6 +106,15 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /**
+   * Notes root resolved ONCE per export (startBackup, before preflight) and reused by
+   * both preflightDisk (sizing) and the ExportOrchestrator notesRoot callback (staging),
+   * so a mid-export change to feature.notes.path can't make the disk budget cover a
+   * different tree than staging reads (TOCTOU). Export-only; reset to undefined in
+   * startBackup's finally. Safe under activeOperation mutual exclusion (one export at a
+   * time, so no concurrent export can clobber it between resolve and stage).
+   */
+  private pendingNotesRoot: string | undefined
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
@@ -158,8 +167,10 @@ export class BackupService extends BaseService {
       knowledgeRoot: application.getPath('feature.knowledgebase.data'),
       // Notes markdown bodies (PREFERENCES file resource) — full preset only.
       // Notes root is preference-driven (feature.notes.path may sit outside the
-      // managed data dir), so resolve it fresh per export — see resolveNotesRoot.
-      notesRoot: () => this.resolveNotesRoot(),
+      // managed data dir). startBackup resolves it ONCE per export into
+      // pendingNotesRoot; this callback returns that cached root so preflight sizing
+      // and staging share the SAME tree (TOCTOU guard — see pendingNotesRoot).
+      notesRoot: () => this.pendingNotesRoot,
       stripper: new SqliteBackupStripper()
     })
   }
@@ -205,9 +216,26 @@ export class BackupService extends BaseService {
     const active: ActiveOperation = { kind: 'export', id: backupId, abortController }
     this.activeOperation = active
     try {
+      // Resolve the Notes root ONCE per export — preflight sizing and the orchestrator's
+      // notesRoot callback both read pendingNotesRoot, so a mid-export change to
+      // feature.notes.path can't make the budget cover a different tree than staging
+      // reads (TOCTOU). May throw (unreadable custom path) → fails the export here.
+      this.pendingNotesRoot = this.resolveNotesRoot()
+      // Emit the FIRST progress event BEFORE preflight so the renderer has backupId
+      // (the cancel/progress routing key) while the disk-space scan runs. Without it,
+      // cancel() is a no-op until ExportOrchestrator's first 'collect' tick — leaving a
+      // large knowledge/notes traversal uncancellable (the signal is still checked in
+      // sumDirBytes, but the renderer needs backupId to reach it via cancel(backupId)).
+      this._onProgress?.fire({
+        backupId,
+        phase: 'preflight',
+        current: 0,
+        total: 0,
+        message: 'Checking disk space'
+      })
       // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
       // here rather than a mid-export SQLITE_FULL (disk budget).
-      await this.preflightDisk(preset, outputPath)
+      await this.preflightDisk(preset, outputPath, abortController.signal)
       const result = await this.orchestrator.exportBackup({
         preset,
         outputPath,
@@ -227,6 +255,8 @@ export class BackupService extends BaseService {
       throw this.toIpcError(e)
     } finally {
       if (this.activeOperation === active) this.activeOperation = null
+      // Drop the per-export resolved Notes root — the next export re-resolves fresh.
+      this.pendingNotesRoot = undefined
     }
   }
 
@@ -389,6 +419,9 @@ export class BackupService extends BaseService {
    * - DB online copy + DB embedded in archive = 2× live DB (both presets).
    * - full: internal blobs staged to files/ AND embedded in the .cbu while
    *   assembleArchive runs (temp + archive co-exist briefly) = 2× internal blob total.
+   *   Full ALSO stages knowledge/ + notes/ source trees (each ~2× under the same
+   *   temp + archive co-existence rule) — sized as the whole source dir, a
+   *   conservative superset of what collect will actually stage.
    * - lite: omits files/ entirely (presetIncludesFiles=false), so no blob budget —
    *   charging lite for blobs would defeat its "skip large files" purpose.
    *
@@ -399,13 +432,23 @@ export class BackupService extends BaseService {
    * best-effort early check; a mid-export disk-full is caught at the archive write
    * stream (DiskFullError + temp cleanup, see archive.ts).
    */
-  private async preflightDisk(preset: 'full' | 'lite', outputPath: string): Promise<void> {
+  private async preflightDisk(preset: 'full' | 'lite', outputPath: string, signal?: AbortSignal): Promise<void> {
     const liveDbPath = application.getPath('app.database.file')
     const liveDbSize = (await stat(liveDbPath)).size
     let needed = liveDbSize * 2
     if (preset === 'full') {
       const internalBlobBytes = await this.sumInternalBlobBytes()
       needed += internalBlobBytes * 2
+      // Knowledge base dirs (knowledge/) + Notes markdown (notes/) are staged to temp
+      // AND packed into the archive for full — same ~2× as blobs. Sized as the WHOLE
+      // source tree (conservative superset: staging copies only the collected baseIds /
+      // PREFERENCES-referenced markdown, which isn't known until collectFileResources —
+      // same late-pipeline gap as external blobs). notesRoot is undefined when no Notes
+      // dir is configured (fresh install) → 0 bytes.
+      const knowledgeBytes = await this.sumDirBytes(application.getPath('feature.knowledgebase.data'), signal)
+      const notesRoot = this.pendingNotesRoot
+      const notesBytes = notesRoot ? await this.sumDirBytes(notesRoot, signal) : 0
+      needed += (knowledgeBytes + notesBytes) * 2
     }
     // Staging volume (backup.sqlite + staged files) and the output archive volume
     // can differ — e.g. user backs up to an external USB / network drive while
@@ -452,6 +495,58 @@ export class BackupService extends BaseService {
       .from(fileEntryTable)
       .where(and(eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.deletedAt)))
     return Number(rows[0]?.total ?? 0)
+  }
+
+  /**
+   * Recursively sum `stat().size` over every regular file under `dir`. Sizes the
+   * knowledge + notes source trees for full-preset preflight. A genuinely absent dir
+   * (ENOENT/ENOTDIR — fresh install, no KB/notes yet) returns 0; any other error
+   * (EACCES/EIO) rethrows so the export fails here rather than silently passing
+   * preflight and failing mid-copy. UPPER BOUND: it sizes every file under the root,
+   * including files staging won't collect, which suits preflight's conservative 1.2×
+   * budget (and under-counts dir/sparse block overhead the margin absorbs). Sequential
+   * recursion — no shared mutable counter (race-free) and no concurrent-stat fd pressure
+   * on large KB trees.
+   */
+  private async sumDirBytes(dir: string, signal?: AbortSignal): Promise<number> {
+    let entries: string[]
+    try {
+      entries = await readdir(dir)
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') return 0
+      throw e
+    }
+    let total = 0
+    for (const name of entries) {
+      // Honor cancel mid-traversal: a large knowledge/notes tree can otherwise keep
+      // the user in an uncancellable preflight. The signal is live from startBackup's
+      // activeOperation.abortController; combined with the 'preflight' progress event
+      // (fired before this scan), the renderer's cancel() reaches this check.
+      if (signal?.aborted) throw new BackupCancelledError()
+      const child = join(dir, name)
+      // lstat, NOT stat: stat follows symlinks/junctions, which can walk outside the
+      // source tree (the Notes collector refuses just such escapes), fail on a broken
+      // link, or loop forever through an ancestor link. Size only real entries — a
+      // symlink contributes 0 bytes (its target is either outside scope or counted at
+      // its own real location), matching stageNotes' realpath containment guard.
+      let s
+      try {
+        s = await lstat(child)
+      } catch (e) {
+        // Child vanished between readdir and lstat (a normal fs race — an entry the
+        // exporter is about to stage, or a concurrent prune). A definitively-absent
+        // child is skippable like any other missing resource (stageFiles treats a
+        // missing source as missing, not fatal); only a real read error (EACCES/EIO)
+        // aborts, consistent with the readdir catch above.
+        const code = (e as NodeJS.ErrnoException).code
+        if (code !== 'ENOENT' && code !== 'ENOTDIR') throw e
+        continue
+      }
+      if (s.isSymbolicLink()) continue
+      total += s.isDirectory() ? await this.sumDirBytes(child, signal) : s.size
+    }
+    return total
   }
 
   /** Read the last migration's `when` (folderMillis) from the drizzle migration journal. */
@@ -503,8 +598,14 @@ export class BackupService extends BaseService {
           readdirSync(defaultRoot)
           return defaultRoot
         }
-      } catch {
-        // missing / unreadable default — treat as no Notes root for this export
+      } catch (e) {
+        // ENOENT/ENOTDIR = managed default genuinely absent (fresh install / Notes
+        // never opened) → no notes to back up (collect skips). A different code
+        // (EACCES/EIO/...) means the default EXISTS but is unreadable — MUST abort
+        // rather than silently omit the user's notes from a "complete" archive
+        // (codex review; mirrors FileStager.isMissingPath).
+        const code = (e as NodeJS.ErrnoException).code
+        if (code !== 'ENOENT' && code !== 'ENOTDIR') throw e
       }
       return undefined
     }

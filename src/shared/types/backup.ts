@@ -39,7 +39,16 @@ export type S3Config = {
  */
 export interface BackupProgressUpdate {
   readonly backupId: string
-  readonly phase: 'collect' | 'snapshot' | 'archive' | 'quiesce' | 'merge' | 'verify' | 'journal' | 'relaunch'
+  readonly phase:
+    | 'preflight'
+    | 'collect'
+    | 'snapshot'
+    | 'archive'
+    | 'quiesce'
+    | 'merge'
+    | 'verify'
+    | 'journal'
+    | 'relaunch'
   readonly current: number
   readonly total: number
   readonly message?: string

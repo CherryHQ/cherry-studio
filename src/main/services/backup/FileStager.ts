@@ -164,8 +164,9 @@ export class SqliteFileStager implements FileStager {
       // abort (the archive would otherwise omit a blob its DB references). But an
       // ENOENT here means the source disappeared between stat and copy (external
       // file moved/deleted) → treat as missing, not a write error.
+      const dest = join(destDir, row.id)
       try {
-        await copyFile(src, join(destDir, row.id))
+        await copyFile(src, dest)
       } catch (e) {
         // ENOENT = source gone (stat→copy race) → missing. EACCES/EPERM is
         // ambiguous — unreadable source (mode 000) OR a dest write-permission
@@ -174,10 +175,14 @@ export class SqliteFileStager implements FileStager {
         // otherwise omit a blob its DB references). ENOSPC / other system errors
         // always abort.
         if (isErrnoCode(e, 'ENOENT')) {
+          // A failed copy may have written partial bytes to dest — remove it so the
+          // archive never holds an unmanifested blob (codex review).
+          await rm(dest, { force: true }).catch(() => {})
           missing.push(row.id)
           continue
         }
         if ((isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) && (await isSourceGone(src))) {
+          await rm(dest, { force: true }).catch(() => {})
           missing.push(row.id)
           continue
         }

@@ -136,6 +136,9 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
         await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
       } catch (e2) {
         if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
+        // A partial copy (ENOSPC / interrupted) can leave a truncated outPath that
+        // blocks retry (the no-clobber check sees it). Remove it before propagating.
+        await unlink(outPath).catch(() => {})
         throw e2
       }
     }
