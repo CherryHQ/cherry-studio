@@ -6050,29 +6050,29 @@
       "installError": "工具安裝失敗",
       "installErrorHint": "安裝命令執行失敗。複製下方日誌以便排查或尋求協助。",
       "installSettings": {
-        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "description": "微調內建 CLI 工具的安裝方式。所有欄位皆為選填，留空則保持預設。",
         "githubMirror": {
           "help": "GitHub Release 下載的代理前綴（例如 https://ghfast.top）。GitHub API 仍會直連；遇到速率限制時請設定 Token。",
-          "label": "[to be translated]:GitHub mirror",
-          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+          "label": "GitHub 鏡像",
+          "placeholder": "https://ghfast.top（留空則直連）"
         },
         "githubToken": {
-          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
-          "hide": "[to be translated]:Hide token",
+          "help": "提高工具查詢時的 GitHub API 速率限制。以純文字儲存在本機。留空則使用 CHERRY_GITHUB_TOKEN 環境變數。",
+          "hide": "隱藏權杖",
           "label": "GitHub Token",
           "placeholder": "ghp_…",
           "show": "顯示 Token"
         },
-        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "invalidUrl": "請輸入包含 https:// 的有效 URL",
         "npmRegistry": {
-          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
-          "label": "[to be translated]:npm registry",
-          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+          "help": "npm: 類工具使用的鏡像來源。留空則在中國大陸自動選擇鏡像。",
+          "label": "npm 鏡像來源",
+          "placeholder": "留空則自動（中國鏡像）"
         },
         "pipIndexUrl": {
-          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
-          "label": "[to be translated]:pip index URL",
-          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+          "help": "pipx: 類工具使用的索引網址。留空則在中國大陸自動選擇鏡像。",
+          "label": "pip 索引網址",
+          "placeholder": "留空則自動（中國鏡像）"
         },
         "presetLabels": {
           "aliyun": "阿里雲（中國）",
@@ -6085,10 +6085,10 @@
           "tsinghua": "清華大學（中國）"
         },
         "presets": "預設",
-        "title": "[to be translated]:Advanced install settings",
+        "title": "進階安裝設定",
         "verifySignatures": {
-          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
-          "label": "[to be translated]:Verify tool signatures"
+          "help": "驗證 aqua 類工具的 Sigstore/SLSA 簽章。僅當你的網路無法完成驗證時才關閉——關閉會略過供應鏈驗證。",
+          "label": "驗證工具簽章"
         }
       },
       "installing": "安裝中...",
@@ -6130,7 +6130,7 @@
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
         "bundled": "內建",
-        "system": "[to be translated]:System"
+        "system": "系統"
       },
       "title": "環境依賴",
       "tools": {
