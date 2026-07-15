@@ -87,16 +87,8 @@ vi.mock('@renderer/hooks/translate', () => ({
 }))
 
 vi.mock('@renderer/components/LanguageSelect', () => ({
-  default: ({
-    value,
-    className,
-    popoverClassName
-  }: {
-    value?: string
-    className?: string
-    popoverClassName?: string
-  }) => (
-    <div data-testid="language-select" data-class={className} data-popover-class={popoverClassName}>
+  default: ({ value, className }: { value?: string; className?: string }) => (
+    <div data-testid="language-select" data-class={className}>
       {value}
     </div>
   )
@@ -122,7 +114,7 @@ vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 
-vi.mock('@renderer/components/CopyButton', () => ({
+vi.mock('../OriginalTextCopyButton', () => ({
   default: () => <button type="button">copy</button>
 }))
 
@@ -222,18 +214,12 @@ describe('ActionTranslate', () => {
     expect(screen.queryByText("Model with id 'provider/model' not found")).not.toBeInTheDocument()
   })
 
-  it('keeps action-window language dropdowns aligned with the card surface', () => {
+  it('keeps action-window language dropdowns full width on the card surface', () => {
     state.detectLanguage.mockReturnValue(new Promise<never>(() => {}))
 
     render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
 
     const languageSelects = screen.getAllByTestId('language-select')
-    for (const select of languageSelects) {
-      expect(select).toHaveAttribute(
-        'data-popover-class',
-        '!w-[var(--radix-popover-trigger-width)] bg-card [&_[data-slot=command]]:bg-card'
-      )
-    }
     expect(languageSelects[1]).toHaveAttribute('data-class', 'w-full [&>div]:w-full')
     expect(languageSelects[2]).toHaveAttribute('data-class', 'w-full [&>div]:w-full')
     expect(screen.getByTestId('popover-content')).toHaveClass('bg-card')

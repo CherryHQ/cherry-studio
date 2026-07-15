@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
-import { Check, Copy } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import type { CSSProperties, FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,7 +11,6 @@ interface CopyButtonProps {
   color?: string
   hoverColor?: string
   size?: number
-  successFeedback?: 'toast' | 'icon'
 }
 
 type CopyButtonStyle = CSSProperties & {
@@ -26,21 +24,15 @@ const CopyButton: FC<CopyButtonProps> = ({
   label,
   color = 'var(--color-text-2)',
   hoverColor = 'var(--color-primary)',
-  size = 14,
-  successFeedback = 'toast'
+  size = 14
 }) => {
   const { t } = useTranslation()
-  const [copied, setCopied] = useTemporaryValue(false)
 
   const handleCopy = () => {
     navigator.clipboard
       .writeText(textToCopy)
       .then(() => {
-        if (successFeedback === 'icon') {
-          setCopied(true)
-        } else {
-          toast.success(t('message.copy.success'))
-        }
+        toast.success(t('message.copy.success'))
       })
       .catch(() => {
         toast.error(t('message.copy.failed'))
@@ -69,11 +61,7 @@ const CopyButton: FC<CopyButtonProps> = ({
       role="button"
       aria-label={ariaLabel}
       tabIndex={0}>
-      {copied ? (
-        <Check size={size} className="copy-icon shrink-0 text-success transition-colors" />
-      ) : (
-        <Copy size={size} className="copy-icon shrink-0 transition-colors" />
-      )}
+      <Copy size={size} className="copy-icon shrink-0 transition-colors" />
       {label && <span style={{ fontSize: size }}>{label}</span>}
     </div>
   )

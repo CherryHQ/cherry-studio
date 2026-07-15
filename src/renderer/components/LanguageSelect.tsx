@@ -22,7 +22,6 @@ type Props = {
   disabled?: boolean
   style?: CSSProperties
   className?: string
-  popoverClassName?: string
   showSearch?: boolean
   optionFilterProp?: string
   listHeight?: number
@@ -65,7 +64,6 @@ const LanguageSelect = (props: Props) => {
     onChange,
     onClick,
     placeholder,
-    popoverClassName,
     showSearch,
     size,
     style,
@@ -181,8 +179,7 @@ const LanguageSelect = (props: Props) => {
         placeholder={placeholder ?? t('common.select')}
         popoverClassName={cn(
           'w-(--radix-popover-trigger-width)',
-          listHeight && '[&_[data-slot=command-list]]:max-h-[160px]',
-          popoverClassName
+          listHeight && '[&_[data-slot=command-list]]:max-h-[160px]'
         )}
         renderOption={renderOption}
         renderValue={renderValue}
