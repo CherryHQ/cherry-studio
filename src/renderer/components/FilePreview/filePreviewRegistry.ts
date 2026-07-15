@@ -1,6 +1,7 @@
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { normalizeExt } from '@shared/utils/file'
 
+import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
 export interface FilePreviewRegistry {
@@ -34,4 +35,4 @@ export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRe
   return extension ? (registry.extensionPlugins.get(extension) ?? null) : null
 }
 
-export const filePreviewRegistry = createFilePreviewRegistry({ extensionPlugins: [] })
+export const filePreviewRegistry = createFilePreviewRegistry({ extensionPlugins: [imageFilePreviewPlugin] })
