@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { getImageBlobFromSource } from '@renderer/components/ImageViewer'
+import { getImageBlobFromSource } from '@renderer/utils/image'
 import { encode } from 'blurhash'
 
 const logger = loggerService.withContext('paintings/computeImageBlurhash')

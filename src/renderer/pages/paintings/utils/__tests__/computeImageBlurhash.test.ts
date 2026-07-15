@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetImageBlobFromSource = vi.hoisted(() => vi.fn())
-vi.mock('@renderer/components/ImageViewer', () => ({
+vi.mock('@renderer/utils/image', () => ({
   getImageBlobFromSource: mockGetImageBlobFromSource
 }))
 

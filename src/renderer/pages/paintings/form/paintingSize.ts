@@ -1,7 +1,24 @@
 import type { PaintingData } from '../model/types/paintingData'
 import type { BaseConfigItem } from './baseConfigItem'
-import { deriveChipLabel, parseRatio } from './fields/SizeChipsField'
 import { resolveOptions } from './resolveOptions'
+import { deriveChipLabel, parseRatio } from './sizeLabel'
+
+/**
+ * Localized chip label for a single size-option value — the shared path behind
+ * the composer chips, the artboard prompt bar (`resolveSizeLabel`), and the
+ * compact params summary (`PaintingComposer.formatSummaryValue`), so all three
+ * read `auto` as its localized label and format `1024x1024` as `1024×1024`
+ * identically instead of drifting to the raw enum.
+ */
+export function sizeOptionLabel(
+  item: BaseConfigItem,
+  value: string,
+  params: PaintingData['params'],
+  translate: (key: string) => string
+): string {
+  const selected = resolveOptions(item, params ?? {}, translate).find((option) => String(option.value) === value)
+  return deriveChipLabel(selected?.label ?? value, value)
+}
 
 /**
  * Size-bearing canonical keys — the fields that carry image dimensions. Shared by
@@ -75,12 +92,7 @@ export function resolveSizeLabel(
     }
 
     if (typeof value !== 'string' || value === '') continue
-    // Localize the selected option the same way the composer's chips do
-    // (`resolveOptions` maps each option's `labelKey`), so a value like `auto`
-    // reads `自动` on a localized UI instead of the raw enum, then reduce it to
-    // the concise chip label.
-    const selected = resolveOptions(item, params ?? {}, translate).find((option) => String(option.value) === value)
-    return deriveChipLabel(selected?.label ?? value, value)
+    return sizeOptionLabel(item, value, params, translate)
   }
 
   return undefined
