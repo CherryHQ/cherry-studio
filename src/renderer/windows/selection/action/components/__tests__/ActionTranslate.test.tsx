@@ -222,7 +222,7 @@ describe('ActionTranslate', () => {
     const languageSelects = screen.getAllByTestId('language-select')
     expect(languageSelects[1]).toHaveAttribute('data-class', 'w-full [&>div]:w-full')
     expect(languageSelects[2]).toHaveAttribute('data-class', 'w-full [&>div]:w-full')
-    expect(screen.getByTestId('popover-content')).toHaveClass('bg-card')
+    expect(screen.getByTestId('popover-content')).not.toHaveClass('bg-card')
   })
 
   it('uses the icon color token for language settings and help', () => {

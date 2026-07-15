@@ -354,7 +354,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                   </Button>
                 </PopoverTrigger>
               </Tooltip>
-              <PopoverContent align="end" className="w-[220px] bg-card p-2">
+              <PopoverContent align="end" className="w-[220px] p-2">
                 {settingsContent}
               </PopoverContent>
             </Popover>
