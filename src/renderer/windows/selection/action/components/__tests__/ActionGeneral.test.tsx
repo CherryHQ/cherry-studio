@@ -77,7 +77,7 @@ vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 
-vi.mock('../OriginalTextCopyButton', () => ({
+vi.mock('@renderer/components/CopyButton', () => ({
   default: () => <button type="button">copy</button>
 }))
 

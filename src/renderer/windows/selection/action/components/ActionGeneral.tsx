@@ -2,6 +2,7 @@ import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -17,7 +18,6 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
-import OriginalTextCopyButton from './OriginalTextCopyButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -188,9 +188,11 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
             {action.selectedText}
             <div className="flex justify-end">
-              <OriginalTextCopyButton
+              <CopyButton
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
+                size={12}
+                successFeedback="icon"
               />
             </div>
           </div>

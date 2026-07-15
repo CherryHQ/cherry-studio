@@ -2,6 +2,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherr
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
@@ -17,7 +18,6 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
-import OriginalTextCopyButton from './OriginalTextCopyButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -378,9 +378,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
             {action.selectedText}{' '}
             <div className="flex justify-end">
-              <OriginalTextCopyButton
+              <CopyButton
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
+                size={12}
+                successFeedback="icon"
               />
             </div>
           </div>
