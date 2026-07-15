@@ -16,12 +16,12 @@ const candidate: SystemSkillCandidate = {
   id: 'candidate-1',
   name: 'System Skill',
   filename: 'system-skill',
-  directoryPath: '/home/test/.codex/skills/system-skill',
+  directoryPath: '/home/test123/.codex/skills/system-skill',
   placements: [
     {
       sourceId: 'codex',
       sourceName: 'Codex',
-      directoryPath: '/home/test/.codex/skills/system-skill'
+      directoryPath: '/home/test123/.codex/skills/system-skill'
     }
   ],
   status: 'available'
@@ -67,6 +67,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {description}
     </div>
   ),
+  Input: (props: ComponentProps<'input'>) => <input {...props} />,
   Spinner: ({ text }: { text?: ReactNode }) => <div>{text}</div>
 }))
 
@@ -105,6 +106,40 @@ describe('SystemSkillDialog', () => {
 
     expect(useSystemSkillsMock).toHaveBeenCalledWith('agent-1', true)
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.reference_enable_success:System Skill')
+  })
+
+  it('filters system skills by the search query', async () => {
+    const user = userEvent.setup()
+    useSystemSkillsMock.mockReturnValue({
+      skills: [
+        candidate,
+        {
+          ...candidate,
+          id: 'candidate-2',
+          name: 'Other Skill',
+          directoryPath: '/home/test/.claude/skills/other-skill'
+        }
+      ],
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+      register: registerMock,
+      registering: new Set<string>()
+    })
+
+    render(<SystemSkillDialog open onOpenChange={vi.fn()} />)
+
+    await user.type(screen.getByPlaceholderText('library.system_skill.search_placeholder'), 'other')
+
+    expect(screen.queryByText('System Skill')).not.toBeInTheDocument()
+    expect(screen.getByText('Other Skill')).toBeInTheDocument()
+
+    await user.clear(screen.getByPlaceholderText('library.system_skill.search_placeholder'))
+    await user.type(screen.getByPlaceholderText('library.system_skill.search_placeholder'), '123')
+
+    expect(screen.queryByText('System Skill')).not.toBeInTheDocument()
+    expect(screen.queryByText('Other Skill')).not.toBeInTheDocument()
+    expect(screen.getByText('common.no_results')).toBeInTheDocument()
   })
 
   it('does not register a system skill that is already selected', () => {

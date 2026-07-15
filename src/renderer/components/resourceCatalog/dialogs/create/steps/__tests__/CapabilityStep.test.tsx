@@ -1,5 +1,5 @@
 import type { InstalledSkill } from '@shared/types/skill'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { CapabilityStep } from '../CapabilityStep'
 
-const { importSkillDialogState, marketplaceDialogState, systemSkillDialogState } = vi.hoisted(() => ({
+const {
+  importSkillDialogState,
+  installedSkillsState,
+  marketplaceDialogState,
+  systemSkillDialogState,
+  uninstallSkillMock
+} = vi.hoisted(() => ({
   importSkillDialogState: {
     current: null as null | {
       open: boolean
@@ -20,13 +26,21 @@ const { importSkillDialogState, marketplaceDialogState, systemSkillDialogState }
       onOpenChange: (open: boolean) => void
     }
   },
+  installedSkillsState: {
+    skills: [
+      { id: 'skill-a', name: 'Alpha Skill', source: 'local' },
+      { id: 'skill-b', name: 'Beta Skill', source: 'local' },
+      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
+    ] as InstalledSkill[]
+  },
   systemSkillDialogState: {
     current: null as null | {
       open: boolean
       onOpenChange: (open: boolean) => void
       onRegistered?: (skill: InstalledSkill) => void
     }
-  }
+  },
+  uninstallSkillMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -35,12 +49,9 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
-    skills: [
-      { id: 'skill-a', name: 'Alpha Skill', source: 'local' },
-      { id: 'skill-b', name: 'Beta Skill', source: 'local' },
-      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
-    ],
-    loading: false
+    skills: installedSkillsState.skills,
+    loading: false,
+    uninstall: uninstallSkillMock
   })
 }))
 
@@ -92,6 +103,13 @@ function CapabilityStepHarness() {
 
 describe('CapabilityStep', () => {
   beforeEach(() => {
+    installedSkillsState.skills = [
+      { id: 'skill-a', name: 'Alpha Skill', source: 'local' },
+      { id: 'skill-b', name: 'Beta Skill', source: 'local' },
+      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
+    ] as InstalledSkill[]
+    uninstallSkillMock.mockReset()
+    uninstallSkillMock.mockResolvedValue(true)
     importSkillDialogState.current = null
     marketplaceDialogState.current = null
     systemSkillDialogState.current = null
@@ -155,7 +173,8 @@ describe('CapabilityStep', () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    await user.click(screen.getByRole('button', { name: 'library.config.dialogs.create.capability.import' }))
+    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
+    await user.click(screen.getByRole('button', { name: 'library.skill_add.local_import' }))
     expect(importSkillDialogState.current?.open).toBe(true)
   })
 
@@ -163,6 +182,7 @@ describe('CapabilityStep', () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
+    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
     await user.click(screen.getByRole('button', { name: 'library.skill_add.online_search' }))
     expect(marketplaceDialogState.current?.open).toBe(true)
   })
@@ -171,10 +191,47 @@ describe('CapabilityStep', () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.title' }))
+    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
+    await user.click(screen.getByRole('button', { name: 'library.skill_add.system_search' }))
     expect(systemSkillDialogState.current?.open).toBe(true)
 
     act(() => systemSkillDialogState.current?.onRegistered?.({ id: 'system-skill-id' } as InstalledSkill))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('system-skill-id')
+  })
+
+  it('removes a referenced system skill from the skill list', async () => {
+    const user = userEvent.setup()
+    installedSkillsState.skills = [
+      ...installedSkillsState.skills,
+      { id: 'system-skill-id', name: 'System Skill', source: 'system' } as InstalledSkill
+    ]
+    render(<CapabilityStepHarness />)
+
+    act(() => systemSkillDialogState.current?.onRegistered?.({ id: 'system-skill-id' } as InstalledSkill))
+    expect(screen.getByRole('checkbox', { name: 'System Skill' })).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.remove_reference_aria' }))
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.remove_reference' }))
+
+    await waitFor(() => expect(uninstallSkillMock).toHaveBeenCalledWith('system-skill-id'))
+    expect(screen.getByTestId('skill-ids').textContent).toBe('')
+  })
+
+  it('uninstalls an online skill from the skill list', async () => {
+    const user = userEvent.setup()
+    installedSkillsState.skills = [
+      ...installedSkillsState.skills,
+      { id: 'marketplace-skill-id', name: 'Marketplace Skill', source: 'marketplace' } as InstalledSkill
+    ]
+    render(<CapabilityStepHarness />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Marketplace Skill' }))
+    expect(screen.getByTestId('skill-ids')).toHaveTextContent('marketplace-skill-id')
+
+    await user.click(screen.getByRole('button', { name: 'library.action.uninstall' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'library.action.uninstall' }))
+
+    await waitFor(() => expect(uninstallSkillMock).toHaveBeenCalledWith('marketplace-skill-id'))
+    expect(screen.getByTestId('skill-ids').textContent).toBe('')
   })
 })

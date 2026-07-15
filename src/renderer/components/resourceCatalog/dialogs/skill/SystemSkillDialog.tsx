@@ -1,9 +1,10 @@
 import { Button, Center, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Spinner } from '@cherrystudio/ui'
+import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 import { Check, FolderSearch, Link2, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {
@@ -16,7 +17,16 @@ type Props = {
 
 export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, selectedIds = [] }: Props) {
   const { t } = useTranslation()
+  const [query, setQuery] = useState('')
   const { skills, loading, error, refresh, register, registering } = useSystemSkills(agentId, open)
+  const visibleSkills = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return skills
+
+    return skills.filter((skill) =>
+      [skill.name, skill.description].some((value) => value?.toLowerCase().includes(normalizedQuery))
+    )
+  }, [query, skills])
 
   const handleRegister = useCallback(
     async (skill: SystemSkillCandidate) => {
@@ -39,20 +49,28 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
         size="xl"
         className="flex h-[min(640px,82vh)] flex-col gap-0 overflow-hidden p-0"
         data-testid="system-skill-dialog">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-border-muted border-b px-6 py-5">
-          <DialogHeader className="min-w-0 text-left">
-            <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
-            <p className="mt-1 text-foreground-muted text-xs">{t('library.system_skill.description')}</p>
-          </DialogHeader>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void refresh()}
-            disabled={loading}
-            className="mr-8 shrink-0">
-            <RefreshCw className={loading ? 'size-3 animate-spin' : 'size-3'} />
-            {t('common.refresh')}
-          </Button>
+        <div className="shrink-0 border-border-muted border-b px-6 pt-5 pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <DialogHeader className="min-w-0 text-left">
+              <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
+              <p className="mt-1 text-foreground-muted text-xs">{t('library.system_skill.description')}</p>
+            </DialogHeader>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refresh()}
+              disabled={loading}
+              className="mr-8 shrink-0">
+              <RefreshCw className={loading ? 'size-3 animate-spin' : 'size-3'} />
+              {t('common.refresh')}
+            </Button>
+          </div>
+          <ResourceCatalogSearchInput
+            value={query}
+            onValueChange={setQuery}
+            placeholder={t('library.system_skill.search_placeholder')}
+            className="mt-3"
+          />
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -69,9 +87,11 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
               description={t('library.system_skill.empty_description')}
               className="min-h-0 flex-1"
             />
+          ) : visibleSkills.length === 0 ? (
+            <EmptyState preset="no-result" title={t('common.no_results')} className="min-h-0 flex-1" />
           ) : (
             <div role="list" className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
-              {skills.map((skill) => (
+              {visibleSkills.map((skill) => (
                 <SystemSkillRow
                   key={skill.id}
                   skill={skill}

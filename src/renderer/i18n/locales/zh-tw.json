@@ -3513,6 +3513,11 @@
       "reference_enable_success": "已引用並啟用 {{name}}",
       "reference_select": "引用並選擇",
       "reference_select_success": "已引用並選擇 {{name}}",
+      "remove_reference": "移除引用",
+      "remove_reference_aria": "移除對 {{name}} 的引用",
+      "remove_reference_description": "確定移除 Cherry 對 {{name}} 的引用嗎？來源 Skill 不會被刪除。",
+      "remove_reference_title": "移除系統 Skill 引用？",
+      "search_placeholder": "搜尋系統 Skill...",
       "title": "系統 Skill"
     },
     "tag_picker": {
