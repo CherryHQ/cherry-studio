@@ -18,6 +18,7 @@ type MockCodeEditorProps = ComponentProps<'textarea'> & {
 }
 
 const mocks = vi.hoisted(() => ({
+  theme: 'light' as 'light' | 'dark',
   codeEditorProps: undefined as
     | {
         options?: { foldGutter?: boolean; lineNumbers?: boolean }
@@ -44,9 +45,9 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({
-    activeCmTheme: 'light'
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({
+    theme: mocks.theme
   })
 }))
 
@@ -88,6 +89,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 describe('PromptEditorField', () => {
   beforeEach(() => {
+    mocks.theme = 'light'
     mocks.codeEditorProps = undefined
   })
 
@@ -109,8 +111,32 @@ describe('PromptEditorField', () => {
     const editorContainer = screen.getByTestId('editor-empty-area').parentElement
     expect(editorContainer).toHaveClass('bg-background')
     expect(editorContainer).toHaveClass('border-border', 'focus-within:border-border-hover')
+    expect(editorContainer).toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
     expect(editorContainer).not.toHaveClass('bg-accent/15', 'focus-within:bg-accent/20')
     expect(editorContainer).not.toHaveClass('border-border/20', 'focus-within:border-border/40')
+  })
+
+  it('marks the prompt theme as dark in dark mode', () => {
+    mocks.theme = 'dark'
+
+    function Harness() {
+      const [value, setValue] = useState('')
+      return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
+    }
+
+    render(<Harness />)
+
+    const theme = mocks.codeEditorProps?.theme
+    if (!Array.isArray(theme)) throw new Error('Expected the prompt editor to provide a CodeMirror extension theme')
+
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    const view = new EditorView({ extensions: theme, parent })
+
+    expect(view.state.facet(EditorView.darkTheme)).toBe(true)
+
+    view.destroy()
+    parent.remove()
   })
 
   it('keeps Markdown markers visually secondary', () => {
@@ -132,7 +158,7 @@ describe('PromptEditorField', () => {
       parent
     })
 
-    const tokenColor = (text: string, occurrence = 0) => {
+    const tokenStyle = (text: string, occurrence = 0) => {
       const allTokens = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-content span'))
       const tokens = allTokens.filter((token) => token.textContent === text)
       if (!tokens[occurrence]) {
@@ -140,14 +166,17 @@ describe('PromptEditorField', () => {
           `Missing token ${text}; rendered tokens: ${allTokens.map((token) => token.textContent).join('|')}`
         )
       }
-      return getComputedStyle(tokens[occurrence]).color
+      return getComputedStyle(tokens[occurrence])
     }
 
-    expect(tokenColor('#')).toBe('var(--color-foreground-secondary)')
-    expect(tokenColor(' Heading')).toBe('var(--color-foreground)')
-    expect(tokenColor('**')).toBe('var(--color-foreground-secondary)')
-    expect(tokenColor('link')).toBe('var(--color-primary)')
-    expect(tokenColor('[')).toBe('var(--color-foreground-secondary)')
+    expect(tokenStyle('#').color).toBe('var(--color-foreground-secondary)')
+    expect(tokenStyle(' Heading').color).toBe('var(--color-foreground)')
+    expect(tokenStyle(' Heading').fontWeight).toBe('var(--font-weight-medium)')
+    expect(tokenStyle('**').color).toBe('var(--color-foreground-secondary)')
+    expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
+    expect(tokenStyle('link').color).toBe('var(--color-primary)')
+    expect(tokenStyle('[').color).toBe('var(--color-foreground-secondary)')
+    expect(getComputedStyle(view.contentDOM).padding).toBe('var(--cs-size-3xs)')
 
     view.destroy()
     parent.remove()

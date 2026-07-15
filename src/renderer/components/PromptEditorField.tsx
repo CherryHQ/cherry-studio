@@ -5,63 +5,69 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { usePreference } from '@data/hooks/usePreference'
 import { tags } from '@lezer/highlight'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-const promptEditorTheme = [
-  EditorView.theme({
-    '&': {
-      backgroundColor: 'var(--color-background)',
-      color: 'var(--color-foreground)'
+const promptEditorThemeSpec = {
+  '&': {
+    backgroundColor: 'var(--color-background)',
+    color: 'var(--color-foreground)'
+  },
+  '.cm-scroller': {
+    backgroundColor: 'var(--color-background)'
+  },
+  '.cm-content': {
+    caretColor: 'var(--color-foreground)',
+    padding: 'var(--cs-size-3xs)'
+  },
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeftColor: 'var(--color-foreground)'
+  },
+  '.cm-activeLine': {
+    backgroundColor: 'transparent'
+  },
+  '.cm-placeholder': {
+    color: 'var(--color-foreground-muted)'
+  },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+    backgroundColor: 'var(--color-accent) !important'
+  }
+}
+
+const promptEditorHighlighting = syntaxHighlighting(
+  HighlightStyle.define([
+    { tag: tags.content, color: 'var(--color-foreground)' },
+    {
+      tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
+      color: 'var(--color-foreground)',
+      fontWeight: 'var(--font-weight-medium)'
     },
-    '.cm-scroller': {
-      backgroundColor: 'var(--color-background)'
+    { tag: tags.strong, color: 'var(--color-foreground)', fontWeight: 'var(--font-weight-bold)' },
+    { tag: tags.emphasis, color: 'var(--color-foreground)', fontStyle: 'italic' },
+    {
+      tag: [tags.link, tags.url],
+      color: 'var(--color-primary)',
+      textDecoration: 'underline'
     },
-    '.cm-content': {
-      caretColor: 'var(--color-foreground)',
-      padding: '0.75rem'
-    },
-    '.cm-cursor, .cm-dropCursor': {
-      borderLeftColor: 'var(--color-foreground)'
-    },
-    '.cm-activeLine': {
-      backgroundColor: 'transparent'
-    },
-    '.cm-placeholder': {
-      color: 'var(--color-foreground-muted)'
-    },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-      backgroundColor: 'var(--color-accent) !important'
+    { tag: [tags.monospace, tags.quote], color: 'var(--color-foreground)' },
+    { tag: tags.comment, color: 'var(--color-foreground-secondary)', fontStyle: 'italic' },
+    {
+      tag: [tags.processingInstruction, tags.contentSeparator],
+      color: 'var(--color-foreground-secondary)'
     }
-  }),
-  syntaxHighlighting(
-    HighlightStyle.define([
-      { tag: tags.content, color: 'var(--color-foreground)' },
-      {
-        tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
-        color: 'var(--color-foreground)',
-        fontWeight: '600'
-      },
-      { tag: tags.strong, color: 'var(--color-foreground)', fontWeight: '700' },
-      { tag: tags.emphasis, color: 'var(--color-foreground)', fontStyle: 'italic' },
-      {
-        tag: [tags.link, tags.url],
-        color: 'var(--color-primary)',
-        textDecoration: 'underline'
-      },
-      { tag: [tags.monospace, tags.quote], color: 'var(--color-foreground)' },
-      { tag: tags.comment, color: 'var(--color-foreground-secondary)', fontStyle: 'italic' },
-      {
-        tag: [tags.processingInstruction, tags.contentSeparator],
-        color: 'var(--color-foreground-secondary)'
-      }
-    ])
-  )
-]
+  ])
+)
+
+const promptEditorThemes = {
+  light: [EditorView.theme(promptEditorThemeSpec), promptEditorHighlighting],
+  dark: [EditorView.theme(promptEditorThemeSpec, { dark: true }), promptEditorHighlighting]
+}
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -101,6 +107,7 @@ export function PromptEditorField({
   fill = false
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const previewId = useId()
   const [fontSize] = usePreference('chat.message.font_size')
   const [showPreview, setShowPreview] = useState(value.length > 0)
@@ -108,6 +115,7 @@ export function PromptEditorField({
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
+  const promptEditorTheme = theme === ThemeMode.dark ? promptEditorThemes.dark : promptEditorThemes.light
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
 
   useImperativeHandle(ref, () => ({
@@ -159,7 +167,7 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all',
+            'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
