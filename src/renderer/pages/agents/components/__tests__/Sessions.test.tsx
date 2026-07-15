@@ -2327,17 +2327,18 @@ describe('Sessions', () => {
     expect(badges[0]).toHaveTextContent('Waiting for approval')
     // Warning tint matches the composer's approval pill.
     expect(badges[0]).toHaveClass('text-warning')
-    // The whole cluster (pill + optional spinner) collapses while hover actions
-    // are visible (hover / focus-within / forced-active), like the stream dot swap.
-    const clusters = screen.getAllByTestId('agent-session-awaiting-approval')
-    expect(clusters[0]).toHaveClass('group-hover:opacity-0')
-    expect(clusters[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
-    expect(clusters[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
-    // Terminal awaiting-approval (MCP): the turn is paused, not running — no spinner.
-    expect(clusters[0].querySelector('.animate-spin')).toBeNull()
+    // The pill collapses while hover actions are visible (hover / focus-within /
+    // forced-active), like the stream dot swap.
+    expect(badges[0]).toHaveClass('group-hover:opacity-0')
+    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
+    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
+    // Terminal awaiting-approval (MCP): the turn is paused, not running — no
+    // overlay spinner, and the pill needs no overlay reservation margin.
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+    expect(badges[0]).not.toHaveClass('mr-7')
   })
 
-  it('shows the badge and hides the stream dot while a live stream pauses for approval', () => {
+  it('shows the badge alongside the aligned overlay spinner while a live stream pauses', () => {
     // claude-code runtime: stream stays 'streaming' during a permission pause;
     // only the awaiting-approval anchors mark the pause.
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
@@ -2352,15 +2353,15 @@ describe('Sessions', () => {
 
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
-    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
-    // The turn is still running behind the pause, so a separate normal-size
-    // spinner sits alongside the pill (not shrunk inside it).
-    const cluster = screen.getByTestId('agent-session-awaiting-approval')
-    const spinner = cluster.querySelector('.animate-spin')
-    expect(spinner).not.toBeNull()
-    // It is a sibling of the pill, not a child — the two are distinct elements.
+    // The turn is still running behind the pause, so the spinner shows in the
+    // shared overlay slot (same position as every other row's spinner), NOT
+    // inside the pill.
+    const indicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(indicator).toHaveClass('absolute', 'right-1.5')
+    expect(indicator.firstElementChild).toHaveClass('animate-spin')
     expect(badges[0].querySelector('.animate-spin')).toBeNull()
-    expect(spinner).toHaveClass('size-3')
+    // The pill reserves the overlay slot so it sits just left of the spinner.
+    expect(badges[0]).toHaveClass('mr-7')
   })
 
   it('keeps the awaiting-approval badge on the selected session row', () => {
