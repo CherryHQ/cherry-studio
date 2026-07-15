@@ -246,6 +246,14 @@ describe('Tooltip', () => {
     })
   })
 
+  describe('Electron drag-region opt-out', () => {
+    it('marks tooltip content as no-drag so it stays interactive over titlebar drag regions', () => {
+      renderOpenTooltipContent('drag-safe tip')
+
+      expect(getTooltipContentElement('drag-safe tip')).toHaveClass('[-webkit-app-region:no-drag]')
+    })
+  })
+
   describe('focus-visible filtering', () => {
     it('does not open tooltip when focused without :focus-visible', () => {
       render(

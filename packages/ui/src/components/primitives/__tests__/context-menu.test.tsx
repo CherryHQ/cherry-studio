@@ -4,7 +4,15 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../context-menu'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger
+} from '../context-menu'
 import { PortalContainerProvider } from '../portal-container'
 
 beforeAll(() => {
@@ -183,6 +191,36 @@ describe('ContextMenu primitive', () => {
       fireEvent.click(screen.getByText('Delete'))
 
       expect(handleSelect).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Electron drag-region opt-out', () => {
+    it('marks content and sub-content as no-drag so they stay clickable over titlebar drag regions', () => {
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem>Delete</ContextMenuItem>
+            <ContextMenuSub open>
+              <ContextMenuSubTrigger>More</ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                <ContextMenuItem>Sub item</ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      openMenu(screen.getByText('Trigger'))
+
+      expect(screen.getByText('Delete').closest('[data-slot="context-menu-content"]')).toHaveClass(
+        '[-webkit-app-region:no-drag]'
+      )
+      expect(screen.getByText('Sub item').closest('[data-slot="context-menu-sub-content"]')).toHaveClass(
+        '[-webkit-app-region:no-drag]'
+      )
     })
   })
 
