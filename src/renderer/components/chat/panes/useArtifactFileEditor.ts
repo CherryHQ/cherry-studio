@@ -1,4 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
@@ -11,8 +13,9 @@ export type ArtifactFileEditorMode = 'preview' | 'edit'
 type TextEditSnapshot = OutputFor<'file.read_text_snapshot'>
 
 export interface ArtifactFileEditSession {
+  filePath: FilePath
   mode: ArtifactFileEditorMode
-  status: 'loading' | 'ready' | 'saving'
+  status: 'loading' | 'ready' | 'saving' | 'conflict'
   draft: string
   savedContent: string
   version?: TextEditSnapshot['version']
@@ -22,21 +25,19 @@ export interface ArtifactFileEditSession {
 }
 
 export interface ArtifactFileEditor {
-  sessions: Readonly<Record<string, ArtifactFileEditSession>>
+  session: ArtifactFileEditSession | undefined
+  hasUnsavedChanges: boolean
   getSession: (selection: ArtifactPaneFileSelection) => ArtifactFileEditSession | undefined
   setMode: (selection: ArtifactPaneFileSelection, mode: ArtifactFileEditorMode) => Promise<void>
   updateDraft: (selection: ArtifactPaneFileSelection, draft: string) => void
   save: (selection: ArtifactPaneFileSelection) => Promise<void>
   discard: (selection: ArtifactPaneFileSelection) => void
   reload: (selection: ArtifactPaneFileSelection) => Promise<void>
+  clear: () => void
 }
 
 function getSelectionPath(selection: ArtifactPaneFileSelection): FilePath {
   return canonicalizeAbsolutePath(`${selection.workspacePath}/${selection.filePath}`) as FilePath
-}
-
-function getArtifactFileEditKey(selection: ArtifactPaneFileSelection): string {
-  return getSelectionPath(selection)
 }
 
 function isDirty(session: ArtifactFileEditSession): boolean {
@@ -44,58 +45,61 @@ function isDirty(session: ArtifactFileEditSession): boolean {
 }
 
 /**
- * File-specific controller for the generic PreviewEditor. Callers may lift this
- * hook above view swaps so drafts survive remounts.
+ * Controller for the one file currently being edited. Callers may lift this
+ * hook above layout remounts, but must clear it when the file is closed or changed.
  */
 export function useArtifactFileEditor(resetKey?: string): ArtifactFileEditor {
-  const [sessions, setSessions] = useState<Record<string, ArtifactFileEditSession>>({})
-  const requestVersionsRef = useRef(new Map<string, number>())
+  const [session, setSession] = useState<ArtifactFileEditSession>()
+  const requestVersionRef = useRef(0)
   const previousResetKeyRef = useRef(resetKey)
+
+  const clear = useCallback(() => {
+    requestVersionRef.current += 1
+    setSession(undefined)
+  }, [])
 
   useEffect(() => {
     if (previousResetKeyRef.current === resetKey) return
     previousResetKeyRef.current = resetKey
-    requestVersionsRef.current.clear()
-    setSessions({})
-  }, [resetKey])
+    clear()
+  }, [clear, resetKey])
 
   const getSession = useCallback(
-    (selection: ArtifactPaneFileSelection) => sessions[getArtifactFileEditKey(selection)],
-    [sessions]
+    (selection: ArtifactPaneFileSelection) => {
+      const filePath = getSelectionPath(selection)
+      return session?.filePath === filePath ? session : undefined
+    },
+    [session]
   )
 
-  const load = useCallback(async (selection: ArtifactPaneFileSelection, requestedMode?: ArtifactFileEditorMode) => {
-    const key = getArtifactFileEditKey(selection)
-    const requestVersion = (requestVersionsRef.current.get(key) ?? 0) + 1
-    requestVersionsRef.current.set(key, requestVersion)
+  const load = useCallback(
+    async (selection: ArtifactPaneFileSelection, requestedMode?: ArtifactFileEditorMode) => {
+      const filePath = getSelectionPath(selection)
+      const previousSession = session?.filePath === filePath ? session : undefined
+      const requestVersion = requestVersionRef.current + 1
+      requestVersionRef.current = requestVersion
 
-    setSessions((current) => {
-      const existing = current[key]
-      const retained = Object.fromEntries(
-        Object.entries(current).filter(([sessionKey, session]) => sessionKey === key || isDirty(session))
-      )
-      retained[key] = {
-        mode: requestedMode ?? existing?.mode ?? 'preview',
+      setSession({
+        filePath,
+        mode: requestedMode ?? previousSession?.mode ?? 'preview',
         status: 'loading',
-        draft: existing?.draft ?? '',
-        savedContent: existing?.savedContent ?? '',
-        version: existing?.version,
-        contentHash: existing?.contentHash,
-        lineEnding: existing?.lineEnding,
-        hasBom: existing?.hasBom
-      }
-      return retained
-    })
+        draft: previousSession?.draft ?? '',
+        savedContent: previousSession?.savedContent ?? '',
+        version: previousSession?.version,
+        contentHash: previousSession?.contentHash,
+        lineEnding: previousSession?.lineEnding,
+        hasBom: previousSession?.hasBom
+      })
 
-    try {
-      const snapshot = await ipcApi.request('file.read_text_snapshot', createFilePathHandle(key as FilePath))
-      if (requestVersionsRef.current.get(key) !== requestVersion) return
-      setSessions((current) => {
-        const existing = current[key]
-        return {
-          ...current,
-          [key]: {
-            mode: requestedMode ?? existing?.mode ?? 'preview',
+      try {
+        const snapshot = await ipcApi.request('file.read_text_snapshot', createFilePathHandle(filePath))
+        if (requestVersionRef.current !== requestVersion) return
+
+        setSession((current) => {
+          if (current?.filePath !== filePath) return current
+          return {
+            filePath,
+            mode: requestedMode ?? current.mode,
             status: 'ready',
             draft: snapshot.content,
             savedContent: snapshot.content,
@@ -104,54 +108,39 @@ export function useArtifactFileEditor(resetKey?: string): ArtifactFileEditor {
             lineEnding: snapshot.lineEnding,
             hasBom: snapshot.hasBom
           }
-        }
-      })
-    } catch (error) {
-      if (requestVersionsRef.current.get(key) === requestVersion) {
-        setSessions((current) => {
-          const failed = current[key]
-          if (failed?.version) {
-            return { ...current, [key]: { ...failed, status: 'ready' } }
-          }
-          const next = { ...current }
-          delete next[key]
-          return next
         })
+      } catch (error) {
+        if (requestVersionRef.current === requestVersion) {
+          setSession(previousSession)
+        }
+        throw error
       }
-      throw error
-    }
-  }, [])
+    },
+    [session]
+  )
 
   const setMode = useCallback(
     async (selection: ArtifactPaneFileSelection, mode: ArtifactFileEditorMode) => {
-      const key = getArtifactFileEditKey(selection)
-      const session = sessions[key]
-      if (mode === 'edit' && !session) {
+      const filePath = getSelectionPath(selection)
+      if (mode === 'edit' && session?.filePath !== filePath) {
         await load(selection, 'edit')
         return
       }
-      setSessions((current) => {
-        const existing = current[key]
-        return existing ? { ...current, [key]: { ...existing, mode } } : current
-      })
+      setSession((current) => (current?.filePath === filePath ? { ...current, mode } : current))
     },
-    [load, sessions]
+    [load, session]
   )
 
   const updateDraft = useCallback((selection: ArtifactPaneFileSelection, draft: string) => {
-    const key = getArtifactFileEditKey(selection)
-    setSessions((current) => {
-      const existing = current[key]
-      return existing ? { ...current, [key]: { ...existing, draft } } : current
-    })
+    const filePath = getSelectionPath(selection)
+    setSession((current) => (current?.filePath === filePath ? { ...current, draft } : current))
   }, [])
 
   const save = useCallback(
     async (selection: ArtifactPaneFileSelection) => {
-      const key = getArtifactFileEditKey(selection)
-      const session = sessions[key]
+      const filePath = getSelectionPath(selection)
       if (
-        !session ||
+        session?.filePath !== filePath ||
         session.status !== 'ready' ||
         !session.version ||
         !session.contentHash ||
@@ -163,50 +152,51 @@ export function useArtifactFileEditor(resetKey?: string): ArtifactFileEditor {
       }
 
       const submittedDraft = session.draft
-      setSessions((current) => {
-        const existing = current[key]
-        return existing ? { ...current, [key]: { ...existing, status: 'saving' } } : current
-      })
+      const requestVersion = requestVersionRef.current + 1
+      requestVersionRef.current = requestVersion
+      setSession((current) => (current?.filePath === filePath ? { ...current, status: 'saving' as const } : current))
 
       try {
         const result = await ipcApi.request('file.write_text_if_unchanged', {
-          handle: createFilePathHandle(key as FilePath),
+          handle: createFilePathHandle(filePath),
           content: submittedDraft,
           lineEnding: session.lineEnding,
           hasBom: session.hasBom,
           expectedVersion: session.version,
           expectedContentHash: session.contentHash
         })
-        setSessions((current) => {
-          const existing = current[key]
-          if (!existing) return current
+        if (requestVersionRef.current !== requestVersion) return
+
+        setSession((current) => {
+          if (current?.filePath !== filePath) return current
           return {
             ...current,
-            [key]: {
-              ...existing,
-              status: 'ready',
-              savedContent: submittedDraft,
-              version: result.version,
-              contentHash: result.contentHash
-            }
+            status: 'ready',
+            savedContent: submittedDraft,
+            version: result.version,
+            contentHash: result.contentHash
           }
         })
       } catch (error) {
-        setSessions((current) => {
-          const existing = current[key]
-          return existing ? { ...current, [key]: { ...existing, status: 'ready' } } : current
-        })
+        if (requestVersionRef.current === requestVersion) {
+          setSession((current) => {
+            if (current?.filePath !== filePath) return current
+            const status =
+              error instanceof IpcError && error.code === fileErrorCodes.TEXT_EDIT_STALE ? 'conflict' : 'ready'
+            return { ...current, status }
+          })
+        }
         throw error
       }
     },
-    [sessions]
+    [session]
   )
 
   const discard = useCallback((selection: ArtifactPaneFileSelection) => {
-    const key = getArtifactFileEditKey(selection)
-    setSessions((current) => {
-      const existing = current[key]
-      return existing ? { ...current, [key]: { ...existing, draft: existing.savedContent } } : current
+    const filePath = getSelectionPath(selection)
+    setSession((current) => {
+      if (current?.filePath !== filePath || current.status !== 'ready') return current
+      return { ...current, draft: current.savedContent }
     })
   }, [])
 
@@ -218,7 +208,17 @@ export function useArtifactFileEditor(resetKey?: string): ArtifactFileEditor {
   )
 
   return useMemo(
-    () => ({ sessions, getSession, setMode, updateDraft, save, discard, reload }),
-    [discard, getSession, reload, save, sessions, setMode, updateDraft]
+    () => ({
+      session,
+      hasUnsavedChanges: session ? isDirty(session) : false,
+      getSession,
+      setMode,
+      updateDraft,
+      save,
+      discard,
+      reload,
+      clear
+    }),
+    [clear, discard, getSession, reload, save, session, setMode, updateDraft]
   )
 }

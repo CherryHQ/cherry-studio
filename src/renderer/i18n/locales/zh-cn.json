@@ -224,6 +224,11 @@
           "title": "磁盘文件已变化"
         },
         "discard": "放弃更改",
+        "leave": {
+          "confirm": "放弃并继续",
+          "description": "关闭当前文件或打开其他文件会清除当前草稿，此操作无法撤销。",
+          "title": "放弃未保存的更改？"
+        },
         "open_failed": "无法打开此文件进行编辑。",
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。",

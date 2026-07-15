@@ -224,6 +224,11 @@
           "title": "File changed on disk"
         },
         "discard": "Discard",
+        "leave": {
+          "confirm": "Discard and continue",
+          "description": "Closing this file or opening another one will discard your unsaved changes.",
+          "title": "Discard unsaved changes?"
+        },
         "open_failed": "Unable to open this file for editing.",
         "refresh_failed": "Unable to reload the latest file content.",
         "save_failed": "Unable to save this file.",

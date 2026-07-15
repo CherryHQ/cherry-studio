@@ -41,6 +41,7 @@ describe('useArtifactFileEditor', () => {
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.read_text_snapshot', { kind: 'path', path: '/ws/notes.txt' })
     expect(result.current.getSession(selection)).toMatchObject({
+      filePath: '/ws/notes.txt',
       mode: 'edit',
       status: 'ready',
       draft: 'hello\n',
@@ -50,6 +51,8 @@ describe('useArtifactFileEditor', () => {
       lineEnding: 'lf',
       hasBom: false
     })
+    expect(result.current.session).toBe(result.current.getSession(selection))
+    expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
   it('saves a dirty draft with the snapshot version and records the new one', async () => {
@@ -81,9 +84,10 @@ describe('useArtifactFileEditor', () => {
       version: saved.version,
       contentHash: saved.contentHash
     })
+    expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
-  it('keeps the dirty draft and rethrows when saving fails', async () => {
+  it('keeps the dirty draft in conflict state when the file changed on disk', async () => {
     ipcMocks.request.mockResolvedValueOnce(snapshot)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
@@ -100,10 +104,11 @@ describe('useArtifactFileEditor', () => {
     ).rejects.toBe(stale)
 
     expect(result.current.getSession(selection)).toMatchObject({
-      status: 'ready',
+      status: 'conflict',
       draft: 'draft',
       savedContent: 'hello\n'
     })
+    expect(result.current.hasUnsavedChanges).toBe(true)
   })
 
   it('discard restores the last saved content', async () => {
@@ -147,7 +152,7 @@ describe('useArtifactFileEditor', () => {
     })
   })
 
-  it('evicts clean sessions and keeps dirty ones when another file loads', async () => {
+  it('replaces the active session when another file loads', async () => {
     ipcMocks.request.mockResolvedValue(snapshot)
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
@@ -159,10 +164,32 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.getSession(selection)).toBeUndefined()
 
     act(() => result.current.updateDraft(otherSelection, 'dirty'))
+    expect(result.current.hasUnsavedChanges).toBe(true)
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
-    expect(result.current.getSession(otherSelection)).toMatchObject({ draft: 'dirty' })
+    expect(result.current.getSession(otherSelection)).toBeUndefined()
+    expect(result.current.session).toMatchObject({ filePath: '/ws/notes.txt', draft: 'hello\n' })
+    expect(result.current.hasUnsavedChanges).toBe(false)
+  })
+
+  it('clears the active session and invalidates an outstanding load', async () => {
+    let resolveLoad!: (value: typeof snapshot) => void
+    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
+    const { result } = renderHook(() => useArtifactFileEditor())
+
+    let load: Promise<void> | undefined
+    act(() => {
+      load = result.current.setMode(selection, 'edit')
+    })
+    act(() => result.current.clear())
+    await act(async () => {
+      resolveLoad(snapshot)
+      await load
+    })
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
   it('ignores a stale snapshot response after a newer load starts', async () => {
@@ -200,7 +227,7 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.getSession(selection)).toBeUndefined()
   })
 
-  it('clears all sessions when the reset key changes', async () => {
+  it('clears the active session when the reset key changes', async () => {
     ipcMocks.request.mockResolvedValueOnce(snapshot)
     const { result, rerender } = renderHook(({ resetKey }) => useArtifactFileEditor(resetKey), {
       initialProps: { resetKey: 'ws-a' }

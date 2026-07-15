@@ -1,4 +1,4 @@
-import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { Badge, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -52,7 +52,7 @@ import {
   Waypoints
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
@@ -84,6 +84,14 @@ function getFlowToolCallId(tab: string): string | undefined {
 function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
   const title = input.title?.trim() || input.toolName?.trim() || input.toolCallId
   return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
+}
+
+function isSameFileSelection(
+  current: ArtifactPaneFileSelection | null,
+  next: ArtifactPaneFileSelection | null
+): boolean {
+  if (!current || !next) return current === next
+  return current.workspacePath === next.workspacePath && current.filePath === next.filePath
 }
 
 interface AgentFlowTab {
@@ -160,6 +168,11 @@ function useAgentRightPane(): AgentRightPaneContextValue {
 // the files panel, not the status/flow/info panels reading the main context.
 const AgentFileTreeModelContext = createContext<ArtifactFileTreeModel | null>(null)
 const AgentFileEditorContext = createContext<ArtifactFileEditor | null>(null)
+interface AgentFileEditorNavigation {
+  hasUnsavedChanges: () => boolean
+  clear: () => void
+}
+const AgentFileEditorNavigationContext = createContext<AgentFileEditorNavigation | null>(null)
 
 function useAgentFileTreeModel(): ArtifactFileTreeModel {
   const value = use(AgentFileTreeModelContext)
@@ -173,9 +186,30 @@ function useAgentFileEditor(): ArtifactFileEditor {
   return value
 }
 
+function useAgentFileEditorNavigation(): AgentFileEditorNavigation {
+  const value = use(AgentFileEditorNavigationContext)
+  if (!value) throw new Error('useAgentFileEditorNavigation must be used within <AgentRightPane>')
+  return value
+}
+
 function AgentFileEditorProvider({ children, resetKey }: { children: ReactNode; resetKey: string }) {
   const fileEditor = useArtifactFileEditor(resetKey)
-  return <AgentFileEditorContext value={fileEditor}>{children}</AgentFileEditorContext>
+  const fileEditorRef = useRef(fileEditor)
+  useLayoutEffect(() => {
+    fileEditorRef.current = fileEditor
+  }, [fileEditor])
+  const navigation = useMemo<AgentFileEditorNavigation>(
+    () => ({
+      hasUnsavedChanges: () => fileEditorRef.current.hasUnsavedChanges,
+      clear: fileEditor.clear
+    }),
+    [fileEditor.clear]
+  )
+  return (
+    <AgentFileEditorNavigationContext value={navigation}>
+      <AgentFileEditorContext value={fileEditor}>{children}</AgentFileEditorContext>
+    </AgentFileEditorNavigationContext>
+  )
 }
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
@@ -197,12 +231,15 @@ function AgentRightPaneStateProvider({
   filesEnabled = true,
   statusEnabled = true
 }: AgentRightPaneProviderProps) {
+  const { t } = useTranslation()
   const shellState = useShellState()
   const { activeTab } = shellState
   const { openTab } = useShellActions()
+  const { clear: clearFileEditor, hasUnsavedChanges } = useAgentFileEditorNavigation()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [pendingFileSelection, setPendingFileSelection] = useState<ArtifactPaneFileSelection | null | undefined>()
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
@@ -235,6 +272,34 @@ function AgentRightPaneStateProvider({
   )
   const status = useMemo(() => buildAgentRightPaneStatus(messages, partsByMessageId), [messages, partsByMessageId])
 
+  const applyFileSelection = useCallback(
+    (selection: ArtifactPaneFileSelection | null) => {
+      clearFileEditor()
+      setPreviewFileSelection(selection)
+      setSelectedFile(selection && selection.workspacePath === workspacePath ? selection.filePath : null)
+    },
+    [clearFileEditor, workspacePath]
+  )
+
+  const requestFileSelection = useCallback(
+    (selection: ArtifactPaneFileSelection | null) => {
+      if (isSameFileSelection(previewFileSelection, selection)) return
+      if (hasUnsavedChanges()) {
+        setPendingFileSelection(selection)
+        return
+      }
+      applyFileSelection(selection)
+    },
+    [applyFileSelection, hasUnsavedChanges, previewFileSelection]
+  )
+
+  const confirmPendingFileSelection = useCallback(() => {
+    if (pendingFileSelection === undefined) return
+    const selection = pendingFileSelection
+    setPendingFileSelection(undefined)
+    applyFileSelection(selection)
+  }, [applyFileSelection, pendingFileSelection])
+
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       const nextTab: AgentFlowTab = {
@@ -254,28 +319,24 @@ function AgentRightPaneStateProvider({
     (path: string) => {
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
       if (!selection) return
-      setPreviewFileSelection(selection)
-      if (selection.workspacePath === workspacePath) {
-        setSelectedFile(selection.filePath)
-      } else {
-        setSelectedFile(null)
-      }
       openTab('files')
+      requestFileSelection(selection)
     },
-    [openTab, workspacePath]
+    [openTab, requestFileSelection, workspacePath]
   )
 
   const selectFile = useCallback(
     (file: string | null) => {
-      setPreviewFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
-      setSelectedFile(file)
+      requestFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
     },
-    [workspacePath]
+    [requestFileSelection, workspacePath]
   )
 
   useEffect(() => {
     if (previousWorkspaceKeyRef.current === workspaceKey) return
     previousWorkspaceKeyRef.current = workspaceKey
+    clearFileEditor()
+    setPendingFileSelection(undefined)
     setSelectedFile(null)
     setPreviewFileSelection(null)
     setFileTreeExpandedIds(new Set())
@@ -284,7 +345,7 @@ function AgentRightPaneStateProvider({
     // The lazy-children map now lives in the surviving provider, so its reset on
     // workspace change must be explicit (previously it rode the pane remount).
     resetFileTreeLazyChildren()
-  }, [resetFileTreeLazyChildren, workspaceKey])
+  }, [clearFileEditor, resetFileTreeLazyChildren, workspaceKey])
 
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
@@ -303,15 +364,21 @@ function AgentRightPaneStateProvider({
       previewFileSelection.workspacePath === workspacePath &&
       previewFileSelection.filePath === selectedFile
     ) {
+      clearFileEditor()
+      setPendingFileSelection(undefined)
       setPreviewFileSelection(null)
     }
     lastSelectableFileRef.current = null
     setSelectedFile(null)
-  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, previewFileSelection, selectedFile, workspacePath])
-  const closeFilePreview = useCallback(() => {
-    setPreviewFileSelection(null)
-    setSelectedFile(null)
-  }, [])
+  }, [
+    clearFileEditor,
+    fileTreeModel.hasLoaded,
+    fileTreeModel.nodeById,
+    previewFileSelection,
+    selectedFile,
+    workspacePath
+  ])
+  const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
   const closeFlowTab = useCallback(
     (toolCallId: string) => {
       setFlowTabs((currentTabs) => currentTabs.filter((tab) => tab.toolCallId !== toolCallId))
@@ -384,7 +451,19 @@ function AgentRightPaneStateProvider({
   return (
     <AgentRightPaneContext value={value}>
       <AgentFileTreeModelContext value={fileTreeModel}>
-        <AgentFileEditorProvider resetKey={workspaceKey}>{children}</AgentFileEditorProvider>
+        {children}
+        <ConfirmDialog
+          open={pendingFileSelection !== undefined}
+          onOpenChange={(open) => {
+            if (!open) setPendingFileSelection(undefined)
+          }}
+          title={t('agent.preview_pane.edit.leave.title')}
+          description={t('agent.preview_pane.edit.leave.description')}
+          confirmText={t('agent.preview_pane.edit.leave.confirm')}
+          cancelText={t('common.cancel')}
+          destructive
+          onConfirm={confirmPendingFileSelection}
+        />
       </AgentFileTreeModelContext>
     </AgentRightPaneContext>
   )
@@ -393,6 +472,7 @@ function AgentRightPaneStateProvider({
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
   const { children, resourcePane, revealRequest, defaultOpen = false, onOpenChange, ...rest } = props
   const shellModeKey = resourcePane ? 'resource-pane' : 'files-pane'
+  const workspaceKey = `${rest.workspaceId ?? ''}\0${rest.workspacePath ?? ''}`
 
   return (
     <Shell
@@ -402,7 +482,9 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
       onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
+        <AgentFileEditorProvider resetKey={workspaceKey}>
+          <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
+        </AgentFileEditorProvider>
       </ResourcePaneProvider>
     </Shell>
   )

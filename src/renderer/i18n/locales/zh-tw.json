@@ -224,6 +224,11 @@
           "title": "磁碟檔案已變更"
         },
         "discard": "捨棄變更",
+        "leave": {
+          "confirm": "捨棄並繼續",
+          "description": "關閉目前檔案或開啟其他檔案會清除目前草稿，此操作無法復原。",
+          "title": "捨棄未儲存的變更？"
+        },
         "open_failed": "無法開啟此檔案進行編輯。",
         "refresh_failed": "無法重新載入最新檔案內容。",
         "save_failed": "無法儲存此檔案。",

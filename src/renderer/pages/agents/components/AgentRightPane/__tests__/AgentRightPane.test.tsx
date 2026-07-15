@@ -5,8 +5,20 @@ import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactEleme
 import { cloneElement, isValidElement, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock, useCommandHandlerMock } = vi.hoisted(
-  () => ({
+const {
+  clearFileEditorMock,
+  fileEditorState,
+  fileTreeModelState,
+  resetLazyChildrenMock,
+  useArtifactFileTreeModelMock,
+  useCommandHandlerMock
+} = vi.hoisted(() => {
+  const fileEditorState = { hasUnsavedChanges: false }
+  return {
+    clearFileEditorMock: vi.fn(() => {
+      fileEditorState.hasUnsavedChanges = false
+    }),
+    fileEditorState,
     fileTreeModelState: {
       hasLoaded: false,
       nodeById: new Map<string, { kind: string }>()
@@ -14,8 +26,8 @@ const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock,
     resetLazyChildrenMock: vi.fn(),
     useArtifactFileTreeModelMock: vi.fn(),
     useCommandHandlerMock: vi.fn()
-  })
-)
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -24,6 +36,35 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  ConfirmDialog: ({
+    cancelText,
+    confirmText,
+    description,
+    onConfirm,
+    onOpenChange,
+    open,
+    title
+  }: {
+    cancelText: string
+    confirmText: string
+    description: string
+    onConfirm: () => void
+    onOpenChange: (open: boolean) => void
+    open: boolean
+    title: string
+  }) =>
+    open ? (
+      <div role="dialog">
+        <div>{title}</div>
+        <div>{description}</div>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          {cancelText}
+        </button>
+        <button type="button" onClick={onConfirm}>
+          {confirmText}
+        </button>
+      </div>
+    ) : null,
   HoverCard: ({ children }: PropsWithChildren) => <div>{children}</div>,
   HoverCardContent: ({ children }: PropsWithChildren) => <div data-testid="status-shortcut-preview">{children}</div>,
   HoverCardTrigger: ({ children }: PropsWithChildren) =>
@@ -129,6 +170,20 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
   default: () => <button type="button">Open external</button>
 }))
 
+vi.mock('@renderer/components/chat/panes/useArtifactFileEditor', () => ({
+  useArtifactFileEditor: () => ({
+    session: undefined,
+    hasUnsavedChanges: fileEditorState.hasUnsavedChanges,
+    getSession: vi.fn(),
+    setMode: vi.fn(),
+    updateDraft: vi.fn(),
+    save: vi.fn(),
+    discard: vi.fn(),
+    reload: vi.fn(),
+    clear: clearFileEditorMock
+  })
+}))
+
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
@@ -209,6 +264,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    fileEditorState.hasUnsavedChanges = false
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
     useArtifactFileTreeModelMock.mockImplementation(() => ({
@@ -453,5 +509,65 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
+  })
+
+  it('confirms before discarding a dirty draft when another file is selected', () => {
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([
+      ['README.md', { kind: 'file' }],
+      ['src/deep.ts', { kind: 'file' }]
+    ])
+    const renderPane = () => (
+      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Host />
+      </AgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fileEditorState.hasUnsavedChanges = true
+    clearFileEditorMock.mockClear()
+    rerender(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(clearFileEditorMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.confirm' }))
+
+    expect(clearFileEditorMock).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+  })
+
+  it('confirms before discarding a dirty draft when the preview is closed', () => {
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    const renderPane = () => (
+      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Host />
+      </AgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fileEditorState.hasUnsavedChanges = true
+    clearFileEditorMock.mockClear()
+    rerender(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.confirm' }))
+
+    expect(clearFileEditorMock).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 })
