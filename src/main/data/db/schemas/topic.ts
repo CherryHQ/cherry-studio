@@ -31,7 +31,6 @@ export const topicTable = sqliteTable(
   },
   (t) => [
     index('topic_created_at_id_idx').on(sql`${t.createdAt} desc`, t.id),
-    index('topic_group_updated_idx').on(t.groupId, t.updatedAt),
     index('topic_updated_at_id_idx').on(sql`${t.updatedAt} desc`, t.id),
     orderKeyIndex('topic')(t),
     index('topic_assistant_id_idx').on(t.assistantId)
