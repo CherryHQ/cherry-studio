@@ -1,14 +1,67 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { EditorView } from '@codemirror/view'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { tags } from '@lezer/highlight'
 import { cn } from '@renderer/utils/style'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
+
+const promptEditorTheme = [
+  EditorView.theme({
+    '&': {
+      backgroundColor: 'var(--color-background)',
+      color: 'var(--color-foreground)'
+    },
+    '.cm-scroller': {
+      backgroundColor: 'var(--color-background)'
+    },
+    '.cm-content': {
+      caretColor: 'var(--color-foreground)',
+      padding: '0.75rem'
+    },
+    '.cm-cursor, .cm-dropCursor': {
+      borderLeftColor: 'var(--color-foreground)'
+    },
+    '.cm-activeLine': {
+      backgroundColor: 'transparent'
+    },
+    '.cm-placeholder': {
+      color: 'var(--color-foreground-muted)'
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+      backgroundColor: 'var(--color-accent) !important'
+    }
+  }),
+  syntaxHighlighting(
+    HighlightStyle.define([
+      { tag: tags.content, color: 'var(--color-foreground)' },
+      {
+        tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
+        color: 'var(--color-foreground)',
+        fontWeight: '600'
+      },
+      { tag: tags.strong, color: 'var(--color-foreground)', fontWeight: '700' },
+      { tag: tags.emphasis, color: 'var(--color-foreground)', fontStyle: 'italic' },
+      {
+        tag: [tags.link, tags.url],
+        color: 'var(--color-primary)',
+        textDecoration: 'underline'
+      },
+      { tag: [tags.monospace, tags.quote], color: 'var(--color-foreground)' },
+      { tag: tags.comment, color: 'var(--color-foreground-secondary)', fontStyle: 'italic' },
+      {
+        tag: [tags.processingInstruction, tags.contentSeparator],
+        color: 'var(--color-foreground-secondary)'
+      }
+    ])
+  )
+]
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -50,7 +103,6 @@ export function PromptEditorField({
   const { t } = useTranslation()
   const previewId = useId()
   const [fontSize] = usePreference('chat.message.font_size')
-  const { activeCmTheme } = useCodeStyle()
   const [showPreview, setShowPreview] = useState(value.length > 0)
   const previousResetPreviewKey = useRef(resetPreviewKey)
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
@@ -107,7 +159,7 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-accent/15 transition-all focus-within:bg-accent/20',
+            'overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
@@ -123,12 +175,13 @@ export function PromptEditorField({
           ) : (
             <CodeEditor
               ref={codeEditorRef}
-              theme={activeCmTheme}
+              theme={promptEditorTheme}
               fontSize={fontSize - 1}
               value={value}
               autoFocus={autoFocus}
               language="markdown"
               onChange={handleChange}
+              options={{ foldGutter: false, lineNumbers: false }}
               expanded={false}
               className={fill ? 'min-h-0 flex-1' : undefined}
               height={fill ? '100%' : undefined}
