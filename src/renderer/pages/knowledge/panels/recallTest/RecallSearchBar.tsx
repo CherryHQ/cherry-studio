@@ -4,14 +4,17 @@ import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import RecallHistoryList from './RecallHistoryList'
-import { useRecallTest } from './RecallTestProvider'
+import { useRecallQuery, useRecallResult } from './RecallTestProvider'
 
 const RecallSearchBar = () => {
   const { t } = useTranslation()
   const {
-    state: { query, historyItems, isHistoryOpen, isSearching },
+    state: { query, historyItems, isHistoryOpen },
     actions: { setQuery, setHistoryOpen, runSearch }
-  } = useRecallTest()
+  } = useRecallQuery()
+  const {
+    state: { isSearching }
+  } = useRecallResult()
   const canSearch = query.trim().length > 0 && !isSearching
   const hasHistory = historyItems.length > 0
 

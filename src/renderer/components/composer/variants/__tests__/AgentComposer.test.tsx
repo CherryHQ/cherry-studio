@@ -1994,7 +1994,12 @@ describe('AgentComposer', () => {
               type: 'file',
               url: 'file:///workspace/docs/notes.md',
               mediaType: 'text/markdown',
-              filename: 'notes.md'
+              filename: 'notes.md',
+              providerMetadata: {
+                cherry: {
+                  fileTokenSourceId: 'source-workspace-file-1'
+                }
+              }
             }
           ])
         }
@@ -2056,7 +2061,12 @@ describe('AgentComposer', () => {
               type: 'file',
               url: 'file:///C:/workspace/docs/notes.md',
               mediaType: 'text/markdown',
-              filename: 'notes.md'
+              filename: 'notes.md',
+              providerMetadata: {
+                cherry: {
+                  fileTokenSourceId: 'source-workspace-file-1'
+                }
+              }
             }
           ])
         }
