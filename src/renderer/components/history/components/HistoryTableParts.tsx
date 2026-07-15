@@ -244,7 +244,7 @@ export function HistoryActionContextMenu<TContext = unknown>({
         })
         return
       }
-      window.requestAnimationFrame(() => void onAction(action))
+      await onAction(action)
     },
     [onAction]
   )

@@ -72,7 +72,7 @@ export function SidebarShellActions({
           size="icon"
           aria-label={t('settings.title')}
           onClick={onSettingsClick}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground">
           <Settings size={18} strokeWidth={1.6} />
         </Button>
       </CommandTooltip>
@@ -85,7 +85,7 @@ export function SidebarShellActions({
       variant="ghost"
       aria-label={t('settings.title')}
       onClick={onSettingsClick}
-      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60 dark:text-foreground">
       <Settings size={16} strokeWidth={1.6} />
       <span>{t('settings.title')}</span>
     </Button>

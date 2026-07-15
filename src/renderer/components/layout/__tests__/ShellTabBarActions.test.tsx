@@ -128,6 +128,10 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
+      'text-muted-foreground',
+      'dark:text-muted-foreground'
+    )
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -145,7 +149,12 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
+      'justify-start',
+      'text-foreground',
+      'dark:text-foreground'
+    )
+    expect(screen.getByRole('button', { name: /settings/i })).not.toHaveClass('text-muted-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })
 })

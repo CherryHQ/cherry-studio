@@ -11,6 +11,7 @@ import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
 import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
+import { DocReader } from './files/DocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
@@ -22,6 +23,8 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
       return new PDFReader()
     case '.csv':
       return new CSVReader()
+    case '.doc':
+      return new DocReader()
     case '.docx':
       return new DocxReader()
     case '.epub':
