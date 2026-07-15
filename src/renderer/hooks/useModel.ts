@@ -30,7 +30,7 @@ export function useDefaultModel() {
   const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
   const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
-  const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.model_id')
+  const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
   const { model: defaultModel } = useModelById(defaultModelId as UniqueModelId)
   const { model: quickModel } = useModelById((quickModelId as UniqueModelId) ?? defaultModelId)

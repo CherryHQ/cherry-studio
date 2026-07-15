@@ -55,7 +55,7 @@ export function createGenerateImageToolEntry(): ToolEntry {
     // Both are required — without a model there is nothing to generate; without the opt-in the model
     // shouldn't be offered image generation at all.
     applies: (scope) =>
-      Boolean(application.get('PreferenceService').get('feature.paintings.model_id')) &&
+      Boolean(application.get('PreferenceService').get('feature.paintings.default_model_id')) &&
       Boolean(scope.assistant?.settings?.enableGenerateImage)
   }
 }

@@ -180,7 +180,7 @@
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
-      "targetKey": "feature.paintings.model_id",
+      "targetKey": "feature.paintings.default_model_id",
       "type": "string",
       "defaultValue": null,
       "status": "classified",

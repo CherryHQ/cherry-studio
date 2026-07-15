@@ -4,7 +4,7 @@
  * Single source of truth for "generate an image from a prompt" shared by the
  * AI-SDK builtin tool (`generate_image`) and the Claude Code in-process MCP
  * bridge. Both runtimes are thin wrappers over `generateImageFromPrompt`; the
- * painting model is resolved from the `feature.paintings.model_id` preference,
+ * painting model is resolved from the `feature.paintings.default_model_id` preference,
  * and generation is delegated to `AiService.generateImage`, which owns
  * provider/model resolution, vendor param mapping, the sync + async-job
  * transports, and FileEntry persistence.
@@ -82,7 +82,9 @@ export async function generateImageFromPrompt(
   input: GenerateImagePromptInput,
   signal?: AbortSignal
 ): Promise<PaintingResult> {
-  const uniqueModelId = application.get('PreferenceService').get('feature.paintings.model_id') as UniqueModelId | null
+  const uniqueModelId = application
+    .get('PreferenceService')
+    .get('feature.paintings.default_model_id') as UniqueModelId | null
   if (!uniqueModelId) {
     return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
   }

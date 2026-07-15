@@ -591,18 +591,18 @@ describe('useDefaultModel', () => {
     }))
   })
 
-  it('persists the picked painting model id to feature.paintings.model_id', async () => {
+  it('persists the picked painting model id to feature.paintings.default_model_id', async () => {
     const { result } = renderHook(() => useDefaultModel())
 
     await act(async () => {
       await result.current.setPaintingModel({ id: 'openai::dall-e-3' })
     })
 
-    expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.model_id')).toBe('openai::dall-e-3')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.default_model_id')).toBe('openai::dall-e-3')
   })
 
-  it('resolves paintingModel from feature.paintings.model_id', () => {
-    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.model_id', 'openai::dall-e-3')
+  it('resolves paintingModel from feature.paintings.default_model_id', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
 
     renderHook(() => useDefaultModel())
 
@@ -616,7 +616,7 @@ describe('useDefaultModel', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
-    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.model_id', null)
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', null)
 
     renderHook(() => useDefaultModel())
 
@@ -635,6 +635,6 @@ describe('useDefaultModel', () => {
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe('openai::gpt-4o')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe('openai::gpt-4o')
-    expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.model_id')).toBeNull()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.default_model_id')).toBeNull()
   })
 })

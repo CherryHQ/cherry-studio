@@ -21,7 +21,7 @@ interface Props {
 const useGenerateImageToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const { assistant, updateAssistant } = useAssistant(assistantId)
-  const [paintingModelId] = usePreference('feature.paintings.model_id')
+  const [paintingModelId] = usePreference('feature.paintings.default_model_id')
 
   const enabled = assistant?.settings.enableGenerateImage ?? false
   const disabledReason = paintingModelId ? undefined : t('chat.input.generate_image_no_model')
