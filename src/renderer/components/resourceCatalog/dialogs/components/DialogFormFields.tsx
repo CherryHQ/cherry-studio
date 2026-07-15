@@ -64,7 +64,6 @@ export function DialogModelFrame({ invalid, children }: { invalid?: boolean; chi
 
 type DialogModelTriggerProps = Omit<ComponentPropsWithoutRef<typeof Button>, 'children'> & {
   displayLabel: ReactNode
-  providerLabel?: ReactNode
   model?: ComponentProps<typeof ModelAvatar>['model']
   ariaLabel?: string
   ariaLabelledBy?: string
@@ -74,7 +73,6 @@ type DialogModelTriggerProps = Omit<ComponentPropsWithoutRef<typeof Button>, 'ch
 export const DialogModelTrigger = ({
   ref,
   displayLabel,
-  providerLabel,
   disabled,
   model,
   ariaLabel,
@@ -101,10 +99,7 @@ export const DialogModelTrigger = ({
     )}>
     <span className="flex min-w-0 flex-1 items-center gap-2">
       {model ? <ModelAvatar model={model} size={18} /> : null}
-      <span className="min-w-0 flex-1 truncate text-left">
-        {displayLabel}
-        {providerLabel ? <span className="text-muted-foreground/70"> | {providerLabel}</span> : null}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-left">{displayLabel}</span>
     </span>
     <ChevronDown
       aria-hidden="true"
