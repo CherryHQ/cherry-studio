@@ -1311,10 +1311,10 @@ const AgentComposerInner = ({
         type="button"
         variant="ghost"
         size="icon-sm"
-        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
         aria-label={t('agent.session.new')}
         onClick={handleCreateEmptySession}>
-        <NewConversationIcon size={18} aria-hidden />
+        <NewConversationIcon size={20} aria-hidden />
       </Button>
     </Tooltip>
   ) : undefined

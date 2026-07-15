@@ -774,7 +774,10 @@ describe('AgentComposer', () => {
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(newSessionButton.querySelector('.new-conversation-icon')).toBeInTheDocument()
+    expect(newSessionButton).toHaveClass('[&_.new-conversation-icon]:!size-5')
+    const newConversationIcon = newSessionButton.querySelector('.new-conversation-icon')
+    expect(newConversationIcon).toHaveAttribute('width', '20')
+    expect(newConversationIcon).toHaveAttribute('height', '20')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
