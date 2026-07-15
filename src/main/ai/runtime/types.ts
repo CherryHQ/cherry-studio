@@ -2,7 +2,6 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -38,10 +37,6 @@ export interface AgentRuntimeUserInput {
   systemReminder?: boolean
 }
 
-export type AgentRuntimePolicyUpdate =
-  | { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
-  | { type: 'tool-policy'; agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'> }
-
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'resume-token'; token: string }
@@ -64,6 +59,17 @@ export type AgentRuntimeEvent =
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   | { type: 'error'; error: unknown }
 
+/**
+ * Verdict of {@link AgentRuntimeConnection.reconcile}.
+ * - `current`: connection matches the desired config.
+ * - `patched`: live-appliable facts were hot-patched; the connection is now current.
+ * - `rebuild`: spawn-frozen config is stale — the host reconnects at a safe boundary (any live
+ *   patches were still applied first).
+ * - `invalid`: the desired config can no longer be derived (agent/session/model deleted) — close.
+ * - `failed`: a live patch failed — fail closed; the connection may be enforcing the OLD policy.
+ */
+export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
+
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
   send(input: AgentRuntimeUserInput): void | Promise<void>
@@ -76,7 +82,18 @@ export interface AgentRuntimeConnection {
    * host always queues.
    */
   redirect?(input: AgentRuntimeUserInput): boolean
-  applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
+  /**
+   * Re-derive the session's desired config and reconcile the running connection against it.
+   * Live-appliable facts (tool policy) are patched in place FIRST — even mid-turn, so a security
+   * tighten is never deferred behind a rebuild a live turn postpones — then the rebuild signature
+   * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
+   * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
+   *
+   * `modelId` is the model the connection should serve right now (a live turn's captured model, or
+   * the agent's latest) — the same pinning the host uses for `connect`.
+   */
+  // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
+  reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
    * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
