@@ -28,4 +28,25 @@ describe('useCloseBeforeAction', () => {
 
     expect(action).toHaveBeenCalledOnce()
   })
+
+  it('keeps independently selected actions scheduled', () => {
+    const frameCallbacks: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frameCallbacks.push(callback)
+      return frameCallbacks.length
+    })
+    const firstAction = vi.fn()
+    const secondAction = vi.fn()
+    const { result } = renderHook(() => useCloseBeforeAction(vi.fn()))
+
+    act(() => {
+      result.current(firstAction)
+      result.current(secondAction)
+    })
+
+    frameCallbacks[0]?.(0)
+    frameCallbacks[1]?.(0)
+    expect(firstAction).toHaveBeenCalledOnce()
+    expect(secondAction).toHaveBeenCalledOnce()
+  })
 })
