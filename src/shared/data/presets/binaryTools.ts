@@ -101,7 +101,8 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     name: 'lark-cli',
     displayName: 'Lark CLI',
     tool: 'github:larksuite/cli',
-    icon: 'simple-icons:lark',
+    // No recognizable Feishu/Lark brand glyph exists in the icon sets we ship, so
+    // fall back to the default tool icon rather than an unrelated or invisible one.
     repoUrl: 'https://github.com/larksuite/cli'
   },
   {

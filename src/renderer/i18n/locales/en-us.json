@@ -6151,6 +6151,7 @@
       },
       "update": "Update to latest version",
       "updateCheckFailed": "Failed to check for updates",
+      "updateCheckSuccess": "Version check complete",
       "viewErrorDetails": "View details"
     },
     "developer": {

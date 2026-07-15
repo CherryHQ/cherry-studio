@@ -153,6 +153,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         const versions = await ipcApi.request('binary.get_latest_versions', force)
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versions)
+          // Only the manual refresh (force) gets a toast — the background check on
+          // mount must stay silent.
+          if (force) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
         return versions
       } catch (error) {
@@ -299,7 +302,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground/50 hover:text-foreground"
+            className="text-foreground-muted hover:text-foreground"
             onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
             aria-label={t('settings.dependencies.checkUpdates')}
@@ -313,7 +316,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground/50 hover:text-foreground"
+            className="text-foreground-muted hover:text-foreground"
             onClick={() => setShowInstallSettings(true)}
             aria-label={t('settings.dependencies.installSettings.title')}
             title={t('settings.dependencies.installSettings.title')}>
@@ -510,7 +513,7 @@ const BinaryToolPresetCard: FC<{
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="text-foreground/40 hover:text-foreground"
+                className="text-foreground-muted hover:text-foreground"
                 onClick={onUpdate}
                 disabled={busy}
                 title={t('settings.dependencies.update')}>
@@ -520,7 +523,7 @@ const BinaryToolPresetCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground/40 hover:text-destructive"
+              className="text-foreground-muted hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
               aria-label={t('settings.dependencies.remove')}
@@ -538,7 +541,7 @@ const BinaryToolPresetCard: FC<{
       <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
           onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
@@ -546,7 +549,7 @@ const BinaryToolPresetCard: FC<{
         {tool.homepage && (
           <button
             type="button"
-            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
             onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
             <SquareArrowOutUpRight className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
@@ -558,7 +561,7 @@ const BinaryToolPresetCard: FC<{
             onClick={onOpenPath}
             aria-label={t('settings.dependencies.openBinariesDir')}
             title={t('settings.dependencies.openBinariesDir')}
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-foreground-muted transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
         )}
@@ -687,7 +690,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground/40 hover:text-foreground"
+              className="text-foreground-muted hover:text-foreground"
               onClick={onUpdate}
               disabled={busy}
               title={t('settings.dependencies.update')}>
@@ -698,7 +701,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground/40 hover:text-foreground"
+              className="text-foreground-muted hover:text-foreground"
               onClick={onOpenPath}
               aria-label={t('settings.dependencies.openBinariesDir')}
               title={t('common.open')}>
@@ -709,7 +712,7 @@ const CustomToolCard: FC<{
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground/40 hover:text-destructive"
+              className="text-foreground-muted hover:text-destructive"
               aria-label={t('settings.dependencies.remove')}
               title={t('settings.dependencies.remove')}
               onClick={onRemove}

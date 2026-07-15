@@ -6151,6 +6151,7 @@
       },
       "update": "更新到最新版本",
       "updateCheckFailed": "檢查更新失敗",
+      "updateCheckSuccess": "版本檢查完成",
       "viewErrorDetails": "檢視詳情"
     },
     "developer": {
