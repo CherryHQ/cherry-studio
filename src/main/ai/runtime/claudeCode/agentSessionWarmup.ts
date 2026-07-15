@@ -16,12 +16,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import {
-  isExternalCliProvider,
-  isGeminiProvider,
-  isOllamaProvider,
-  OLLAMA_PLACEHOLDER_AUTH_TOKEN
-} from '@shared/utils/provider'
+import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -350,11 +345,6 @@ function deriveRouteFacts(
   const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
   const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
-
-  const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
-  if (geminiRef) {
-    throw new Error(`Gemini provider models are not supported by Claude Code agents: ${geminiRef.providerId}`)
-  }
 
   // External-cli (e.g. claude-code) authenticates only through the SDK's
   // subscription login, which can serve *only* this provider's own models. A
