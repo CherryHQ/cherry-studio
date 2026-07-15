@@ -1,6 +1,5 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
-import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
@@ -103,8 +102,6 @@ const MessageList = () => {
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
   const [anchorRailVisible, setAnchorRailVisible] = useState(false)
   const bottomOverlayInsets = useChatBottomOverlayInset()
-  const { insetHeight: topOverlayInset } = useImmersiveNavbar()
-  const reportImmersiveNarrow = useReportImmersiveNarrow()
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -152,15 +149,6 @@ const MessageList = () => {
     setForceWideLayout(useWideMessageLayout)
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
-
-  // Declare whether the message column is rendered narrow (centered) so the shell can decide
-  // whether the navbar may float over it. The shell owns the geometry (it measures the center
-  // width); we only publish this boolean — no probe, no layout read, so loading/mount timing
-  // can't desync it.
-  useEffect(() => {
-    reportImmersiveNarrow(messageListNarrowMode)
-    return () => reportImmersiveNarrow(false)
-  }, [messageListNarrowMode, reportImmersiveNarrow])
 
   const enteringMessageIds = useMessageEnterMotionIds({
     messages,
@@ -565,7 +553,7 @@ const MessageList = () => {
       ? defaultBottomPadding
       : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
   const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
-  const topPadding = topOverlayInset || MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
+  const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth =
     scrollContainerRef.current?.clientWidth || scrollContainerRef.current?.getBoundingClientRect().width || undefined
 
