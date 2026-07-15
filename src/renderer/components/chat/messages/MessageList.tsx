@@ -53,6 +53,7 @@ type TopicImageRuntimeAction = 'copy' | 'export'
 
 interface PendingTopicImageRuntimeAction {
   action: TopicImageRuntimeAction
+  captureWidth?: number
   reject: (reason?: unknown) => void
   resolve: () => void
 }
@@ -318,6 +319,20 @@ const MessageList = () => {
   }, [messageById, shouldTrackMessageOutline])
   const updateActiveMessageOutlineRef = useRef(updateActiveMessageOutline)
   updateActiveMessageOutlineRef.current = updateActiveMessageOutline
+  const activeMessageOutlineFrameRef = useRef<number | null>(null)
+  const requestActiveMessageOutlineUpdate = useCallback(() => {
+    if (activeMessageOutlineFrameRef.current !== null) return
+
+    activeMessageOutlineFrameRef.current = requestAnimationFrame(() => {
+      activeMessageOutlineFrameRef.current = null
+      updateActiveMessageOutlineRef.current()
+    })
+  }, [])
+  const cancelActiveMessageOutlineUpdate = useCallback(() => {
+    if (activeMessageOutlineFrameRef.current === null) return
+    cancelAnimationFrame(activeMessageOutlineFrameRef.current)
+    activeMessageOutlineFrameRef.current = null
+  }, [])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
@@ -374,7 +389,9 @@ const MessageList = () => {
 
   const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
     return new Promise<void>((resolve, reject) => {
-      const captureAction = { action, reject, resolve }
+      const scrollContainer = scrollContainerRef.current
+      const captureWidth = scrollContainer?.clientWidth || scrollContainer?.getBoundingClientRect().width || undefined
+      const captureAction = { action, captureWidth, reject, resolve }
       setTopicImageCaptureActions((current) => {
         const nextActions = [...current, captureAction]
         topicImageCaptureActionsRef.current = nextActions
@@ -473,18 +490,21 @@ const MessageList = () => {
 
   useEffect(() => {
     if (shouldTrackMessageOutline) {
-      updateActiveMessageOutline()
+      requestActiveMessageOutlineUpdate()
       return
     }
+    cancelActiveMessageOutlineUpdate()
     setActiveOutline((current) => (current ? null : current))
-  }, [groupedMessages, shouldTrackMessageOutline, updateActiveMessageOutline])
+  }, [cancelActiveMessageOutlineUpdate, groupedMessages, requestActiveMessageOutlineUpdate, shouldTrackMessageOutline])
+
+  useEffect(() => cancelActiveMessageOutlineUpdate, [cancelActiveMessageOutlineUpdate])
 
   useEffect(() => {
     if (!shouldTrackMessageOutline) return
     const scrollElement = messageListRef.current?.getScrollElement()
     if (!scrollElement) return
 
-    const handleOutlineUpdate = () => updateActiveMessageOutlineRef.current()
+    const handleOutlineUpdate = requestActiveMessageOutlineUpdate
     scrollElement.addEventListener('scroll', handleOutlineUpdate, { passive: true })
     window.addEventListener('resize', handleOutlineUpdate)
 
@@ -492,7 +512,7 @@ const MessageList = () => {
       scrollElement.removeEventListener('scroll', handleOutlineUpdate)
       window.removeEventListener('resize', handleOutlineUpdate)
     }
-  }, [data.isInitialLoading, data.listKey, shouldTrackMessageOutline, topic.id])
+  }, [data.isInitialLoading, data.listKey, requestActiveMessageOutlineUpdate, shouldTrackMessageOutline, topic.id])
 
   useEffect(() => {
     return bindRuntime?.({
@@ -534,8 +554,7 @@ const MessageList = () => {
       : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
   const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
-  const topicImageCaptureWidth =
-    scrollContainerRef.current?.clientWidth || scrollContainerRef.current?.getBoundingClientRect().width || undefined
+  const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
 
   return (
     <MessagesContainer

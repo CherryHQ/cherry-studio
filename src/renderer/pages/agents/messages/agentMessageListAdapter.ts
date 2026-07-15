@@ -32,6 +32,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import {
@@ -80,6 +81,17 @@ interface AgentMessageListParams {
   workspacePath?: string
 }
 
+interface AgentMessageItemProjectionCache {
+  assistantId?: string
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  itemIndexById: Map<string, number>
+  items: MessageListItem[]
+  liveMessageIds: readonly string[]
+  messageCount: number
+  messageIndexById: Map<string, number>
+  topicId: string
+}
+
 const isAbsoluteFilePath = (path: string): boolean => {
   return path.startsWith('/') || path.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(path)
 }
@@ -115,52 +127,140 @@ export function useAgentMessageListProviderValue({
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
-  const messageItemCacheRef = useRef(
-    new WeakMap<
-      CherryUIMessage,
-      {
-        assistantId?: string
-        item: MessageListItem
-        topicId: string
-      }
-    >()
+  const messageItemCache = useMemo(
+    () => ({
+      topicId: topic.id,
+      items: new Map<
+        string,
+        {
+          assistantId?: string
+          item: MessageListItem
+          source: CherryUIMessage
+        }
+      >()
+    }),
+    [topic.id]
   )
-  const visibleMessages = useMemo(
-    () =>
-      messages.filter((message) => {
-        const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
-        if (parts.length === 0) return true
-        return parts.some((part) => !hasPartParentToolCallId(part))
-      }),
-    [messages, partsByMessageId]
-  )
+  const messageItemProjectionCacheRef = useRef<AgentMessageItemProjectionCache | null>(null)
   const messageItems = useMemo(() => {
     const resolvedAssistantId = assistantId ?? topic.assistantId
-    return visibleMessages.map((message) => {
-      const cached = messageItemCacheRef.current.get(message)
-      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
-        return cached.item
-      }
+    const isMessageVisible = (message: CherryUIMessage) => {
+      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      return parts.length === 0 || parts.some((part) => !hasPartParentToolCallId(part))
+    }
+    const resolveMessageItem = (message: CherryUIMessage) => {
+      const cached = messageItemCache.items.get(message.id)
+      if (cached?.source === message && cached.assistantId === resolvedAssistantId) return cached.item
 
-      const item = toMessageListItem(message, {
+      const nextItem = toMessageListItem(message, {
         assistantId: resolvedAssistantId,
         topicId: topic.id
       })
-      messageItemCacheRef.current.set(message, {
+      const item =
+        cached && cached.assistantId === resolvedAssistantId && isEqual(cached.item, nextItem) ? cached.item : nextItem
+      messageItemCache.items.set(message.id, {
         assistantId: resolvedAssistantId,
         item,
-        topicId: topic.id
+        source: message
       })
       return item
-    })
-  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
+    }
+
+    const previousProjection = messageItemProjectionCacheRef.current
+    const canUpdateLiveOnly =
+      historyPartsByMessageId !== undefined &&
+      liveMessageIds !== undefined &&
+      previousProjection?.topicId === topic.id &&
+      previousProjection.assistantId === resolvedAssistantId &&
+      previousProjection.historyPartsByMessageId === historyPartsByMessageId &&
+      previousProjection.messageCount === messages.length
+
+    if (canUpdateLiveOnly && previousProjection && liveMessageIds) {
+      const mutableMessageIds = new Set([...previousProjection.liveMessageIds, ...liveMessageIds])
+      let nextMessageItems = previousProjection.items
+      let canReuseProjection = true
+
+      for (const messageId of mutableMessageIds) {
+        const messageIndex = previousProjection.messageIndexById.get(messageId)
+        const message = messageIndex === undefined ? undefined : messages[messageIndex]
+        if (!message || message.id !== messageId) {
+          canReuseProjection = false
+          break
+        }
+
+        const itemIndex = previousProjection.itemIndexById.get(messageId)
+        const isVisible = isMessageVisible(message)
+        if (isVisible !== (itemIndex !== undefined)) {
+          canReuseProjection = false
+          break
+        }
+        if (!isVisible || itemIndex === undefined) continue
+
+        const item = resolveMessageItem(message)
+        if (item === previousProjection.items[itemIndex]) continue
+        if (nextMessageItems === previousProjection.items) nextMessageItems = [...previousProjection.items]
+        nextMessageItems[itemIndex] = item
+      }
+
+      if (canReuseProjection) {
+        messageItemProjectionCacheRef.current = {
+          ...previousProjection,
+          items: nextMessageItems,
+          liveMessageIds
+        }
+        return nextMessageItems
+      }
+    }
+
+    const nextMessageItems: MessageListItem[] = []
+    const messageIndexById = new Map<string, number>()
+    const itemIndexById = new Map<string, number>()
+
+    for (const [messageIndex, message] of messages.entries()) {
+      messageIndexById.set(message.id, messageIndex)
+      if (!isMessageVisible(message)) continue
+
+      itemIndexById.set(message.id, nextMessageItems.length)
+      nextMessageItems.push(resolveMessageItem(message))
+    }
+
+    const sharedMessageItems =
+      previousProjection?.items.length === nextMessageItems.length &&
+      previousProjection.items.every((message, index) => message === nextMessageItems[index])
+        ? previousProjection.items
+        : nextMessageItems
+    messageItemProjectionCacheRef.current = {
+      assistantId: resolvedAssistantId,
+      historyPartsByMessageId,
+      itemIndexById,
+      items: sharedMessageItems,
+      liveMessageIds: liveMessageIds ?? [],
+      messageCount: messages.length,
+      messageIndexById,
+      topicId: topic.id
+    }
+    return sharedMessageItems
+  }, [
+    assistantId,
+    historyPartsByMessageId,
+    liveMessageIds,
+    messageItemCache,
+    messages,
+    partsByMessageId,
+    topic.assistantId,
+    topic.id
+  ])
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const leafCapabilities = useMessageLeafCapabilities({
+    partsByMessageId,
+    historyPartsByMessageId,
+    liveMessageIds
+  })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'

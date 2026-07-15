@@ -315,6 +315,8 @@ export function useAgentChatRuntimeState({
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    historyPartsByMessageId: basePartsMap,
+    liveMessageIds,
     onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)

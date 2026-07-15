@@ -29,6 +29,8 @@ type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApprov
 
 interface MessageLeafCapabilitiesParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  liveMessageIds?: readonly string[]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,15 +96,27 @@ function formatMessageAttachmentFileName(file: FileMetadata, t: TFunction): stri
 }
 
 export function useMessageLeafCapabilities({
-  partsByMessageId
+  partsByMessageId,
+  historyPartsByMessageId,
+  liveMessageIds
 }: MessageLeafCapabilitiesParams): MessageLeafActions & MessageLeafState {
   const { t } = useTranslation()
   const { preview } = useAttachment()
   const platformActions = useMessagePlatformActions()
-  const hasMcpToolParts = useMemo(
-    () => Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart)),
-    [partsByMessageId]
+  const historyHasMcpToolParts = useMemo(
+    () =>
+      historyPartsByMessageId
+        ? Object.values(historyPartsByMessageId).some((parts) => parts.some(isMcpToolPart))
+        : false,
+    [historyPartsByMessageId]
   )
+  const hasMcpToolParts = useMemo(() => {
+    if (!historyPartsByMessageId || !liveMessageIds) {
+      return Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart))
+    }
+    if (historyHasMcpToolParts) return true
+    return liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
+  }, [historyHasMcpToolParts, historyPartsByMessageId, liveMessageIds, partsByMessageId])
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
   const { data: externalApps } = useExternalApps()
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])

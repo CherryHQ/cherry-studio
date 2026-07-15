@@ -10,19 +10,53 @@ import { findLatestPendingPermissionRequest } from './variants/permissionRequest
 
 type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
+  liveMessageIds?: readonly string[]
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
+  historyPartsByMessageId,
+  liveMessageIds,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const [dismissedApprovalIds, setDismissedApprovalIds] = useState<ReadonlySet<string>>(() => new Set())
-  const askUserQuestionRequest = useMemo(
-    () => findLatestPendingAskUserQuestionRequest(partsByMessageId),
-    [partsByMessageId]
+  const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
+    if (!historyPartsByMessageId || !liveMessageIds) return null
+
+    const liveMessageIdSet = new Set(liveMessageIds)
+    const historyParts: Record<string, CherryMessagePart[]> = {}
+    for (const [messageId, parts] of Object.entries(historyPartsByMessageId)) {
+      if (!liveMessageIdSet.has(messageId)) historyParts[messageId] = parts
+    }
+    return historyParts
+  }, [historyPartsByMessageId, liveMessageIds])
+  const currentParts = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    if (!historyPartsByMessageId || !liveMessageIds) return partsByMessageId
+
+    const liveParts: Record<string, CherryMessagePart[]> = {}
+    for (const messageId of liveMessageIds) {
+      const parts = partsByMessageId[messageId]
+      if (parts) liveParts[messageId] = parts
+    }
+    return liveParts
+  }, [historyPartsByMessageId, liveMessageIds, partsByMessageId])
+  const historyAskUserQuestionRequest = useMemo(
+    () => (settledHistoryParts ? findLatestPendingAskUserQuestionRequest(settledHistoryParts) : null),
+    [settledHistoryParts]
   )
-  const permissionRequest = useMemo(() => findLatestPendingPermissionRequest(partsByMessageId), [partsByMessageId])
+  const currentAskUserQuestionRequest = useMemo(
+    () => findLatestPendingAskUserQuestionRequest(currentParts),
+    [currentParts]
+  )
+  const askUserQuestionRequest = currentAskUserQuestionRequest ?? historyAskUserQuestionRequest
+  const historyPermissionRequest = useMemo(
+    () => (settledHistoryParts ? findLatestPendingPermissionRequest(settledHistoryParts) : null),
+    [settledHistoryParts]
+  )
+  const currentPermissionRequest = useMemo(() => findLatestPendingPermissionRequest(currentParts), [currentParts])
+  const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
   const visiblePermissionRequest =
     permissionRequest && !dismissedApprovalIds.has(permissionRequest.approvalId) ? permissionRequest : null
 
