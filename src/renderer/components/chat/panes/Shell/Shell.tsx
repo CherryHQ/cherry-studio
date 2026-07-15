@@ -446,6 +446,7 @@ function ShellTabList({
         // Match ConversationShell's edge inset so the closed-state expand button and
         // opened-state close button keep the same distance from the nearest edge.
         'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
+        state.maximized && 'bg-card',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
         isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
       )}>

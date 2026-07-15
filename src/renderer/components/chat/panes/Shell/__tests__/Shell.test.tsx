@@ -593,6 +593,25 @@ describe('Shell.Host', () => {
 })
 
 describe('Shell.TabList', () => {
+  it('uses a card background only while maximized', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Tabs>
+          <Shell.TabList canMaximize>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+      </Shell>
+    )
+
+    const tabList = screen.getByTestId('shell-tab-list')
+    expect(tabList).not.toHaveClass('bg-card')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(tabList).toHaveClass('bg-card')
+  })
+
   it('only offers maximize while the consumer allows it, but keeps minimize available', () => {
     const renderTabList = (canMaximize: boolean) => (
       <Shell defaultTab="files">
