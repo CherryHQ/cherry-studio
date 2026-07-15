@@ -383,6 +383,30 @@ describe('BinaryManager', () => {
       expect(snapshots.fd.operation).toMatchObject({ status: 'failed', action: 'install' })
     })
 
+    it('drops a stale failed install once the tool resolves as a bundled binary', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+        bun: { status: 'failed', action: 'install', error: 'offline', intent: { name: 'bun', tool: 'bun' } }
+      })
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+      mockFs.readFileSync.mockImplementation((candidate: string) =>
+        candidate === '/mock/cherry.bin/.bun-version'
+          ? '1.2.3'
+          : (() => {
+              throw new Error('ENOENT')
+            })()
+      )
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      const snapshots = await service.getToolSnapshots(['bun'])
+
+      // The bundled binary always works — a failed install over it is pure noise.
+      expect(snapshots.bun.availability.source).toBe('bundled')
+      expect(snapshots.bun.operation).toBeUndefined()
+    })
+
     it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

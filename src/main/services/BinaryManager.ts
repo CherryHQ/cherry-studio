@@ -378,13 +378,17 @@ export class BinaryManager extends BaseService {
             ? { source: 'system', path: system[name] }
             : { source: 'none' }
       const operation = operations[name]
-      // A failed install for a tool that now resolves on the system PATH was
-      // satisfied out-of-band (e.g. the user installed it with their own package
-      // manager). It is stale — dropping it avoids a spurious retry over a
-      // working tool. A mise/bundled source keeps its failed op: that is the
-      // "installed but manifest write failed" case whose retry claims ownership.
+      // A failed install for a tool that is now usable without our ownership was
+      // satisfied out-of-band: a `system` tool the user installed with their own
+      // package manager, or a `bundled` binary that ships with the app. Its
+      // failed op is stale — dropping it avoids a spurious retry over a working
+      // tool. Only `mise` keeps its failed op: that is the "installed but
+      // manifest write failed" case whose retry claims ownership. `none` keeps it
+      // too — a genuine install failure the user must still see.
       const staleFailedInstall =
-        operation?.status === 'failed' && operation.action === 'install' && availability.source === 'system'
+        operation?.status === 'failed' &&
+        operation.action === 'install' &&
+        (availability.source === 'system' || availability.source === 'bundled')
       snapshots[name] = {
         name,
         ...(intentsByName.has(name) ? { intent: intentsByName.get(name)! } : {}),
