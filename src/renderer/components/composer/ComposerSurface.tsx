@@ -169,6 +169,8 @@ export interface ComposerSurfaceProps {
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
+  /** Custom content pinned to the left of the editor, inside the input frame (e.g. an image tray). */
+  leadingContent?: React.ReactNode
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
 }
 
@@ -544,6 +546,7 @@ export default function ComposerSurface({
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls,
+  leadingContent,
   sendAccessory
 }: ComposerSurfaceProps) {
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -1928,19 +1931,22 @@ export default function ComposerSurface({
         </Button>
       </div>
       {editingModeBadge}
-      <div
-        ref={frameRef}
-        className="overflow-hidden transition-[height] ease-out"
-        onTransitionEnd={handleTransitionEnd}
-        style={frameStyle}>
-        <EditorContent
-          editor={editor}
-          style={editorContentStyle}
-          onFocus={() => {
-            onFocus?.()
-            pasteHandling.setLastFocusedComponent('inputbar')
-          }}
-        />
+      <div className="flex items-start">
+        {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
+        <div
+          ref={frameRef}
+          className="min-w-0 flex-1 overflow-hidden transition-[height] ease-out"
+          onTransitionEnd={handleTransitionEnd}
+          style={frameStyle}>
+          <EditorContent
+            editor={editor}
+            style={editorContentStyle}
+            onFocus={() => {
+              onFocus?.()
+              pasteHandling.setLastFocusedComponent('inputbar')
+            }}
+          />
+        </div>
       </div>
 
       <div

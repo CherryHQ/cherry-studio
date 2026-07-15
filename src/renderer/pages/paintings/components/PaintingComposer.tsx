@@ -36,10 +36,15 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { PaintingData } from '../model/types/paintingData'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
+// Edit-image models render their inputs via the leading image gallery, not file
+// pills, so the composer manages no tokens then (empty set = no doc token reconcile).
+const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = []
+const EMPTY_TOKENS: readonly ComposerDraftToken[] = []
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
 
@@ -186,6 +191,11 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
+  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities
+  // includes image), the single source for "this model takes an image" — so
+  // nudge the user to upload one. Intentionally does NOT read `imageGeneration.modes`.
+  const placeholder = couldAddImageFile ? t('paintings.prompt_placeholder_upload') : t('paintings.prompt_placeholder')
+
   usePaintingComposerInputFiles({
     paintingId: painting.id,
     inputFiles: painting.inputFiles ?? [],
@@ -194,7 +204,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     onInputFilesChange
   })
 
-  const tokens = useMemo(() => files.map(fileToComposerToken), [files])
+  // Edit-image models: images live in the leading gallery (reads `files` from
+  // context), so emit no file pills and manage no tokens — `files` stays authoritative.
+  const tokens = useMemo(
+    () => (couldAddImageFile ? EMPTY_TOKENS : files.map(fileToComposerToken)),
+    [couldAddImageFile, files]
+  )
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
   const handleTextChange = useCallback(
@@ -219,9 +234,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
-        managedTokenKinds={PAINTING_MANAGED_TOKEN_KINDS}
+        managedTokenKinds={couldAddImageFile ? PAINTING_NO_MANAGED_TOKEN_KINDS : PAINTING_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
-        placeholder={t('paintings.prompt_placeholder')}
+        leadingContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
+        placeholder={placeholder}
         sendDisabled={generating || (text.trim().length === 0 && files.length === 0) || !model}
         isLoading={generating}
         onSendDraft={handleSendDraft}

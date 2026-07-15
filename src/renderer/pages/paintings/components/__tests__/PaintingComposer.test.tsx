@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
 
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
+const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
 
 const imageGenerationSupportWithFields = {
   modes: {
@@ -97,7 +98,9 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
+vi.mock('@shared/utils/model', () => ({ isEditImageModel: mockIsEditImageModel }))
+
+vi.mock('../PaintingImageGallery', () => ({ PaintingImageGallery: () => <div data-testid="painting-image-gallery" /> }))
 
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
 
@@ -151,6 +154,22 @@ describe('PaintingComposer', () => {
     captured.surfaceProps = undefined
     mockUseImageGenerationSupport.mockReset()
     mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
+    mockIsEditImageModel.mockReset()
+    mockIsEditImageModel.mockReturnValue(false)
+  })
+
+  it('renders the leading image gallery and drops file pills for edit-image models', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    renderComposer()
+    expect(captured.surfaceProps?.leadingContent).toBeTruthy()
+    expect(captured.surfaceProps?.tokens).toEqual([])
+    expect(captured.surfaceProps?.managedTokenKinds).toEqual([])
+  })
+
+  it('keeps file pills and no leading gallery for non-edit models', () => {
+    renderComposer()
+    expect(captured.surfaceProps?.leadingContent).toBeUndefined()
+    expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
   })
 
   it('renders the model selector control in the toolbar', () => {
