@@ -10,4 +10,15 @@ describe('AgentLabel', () => {
     expect(screen.getByText('Blank avatar agent')).toBeInTheDocument()
     expect(screen.getAllByText('🤖').length).toBeGreaterThan(0)
   })
+
+  it('uses the requested avatar size', () => {
+    const { container } = render(
+      <AgentLabel avatarSize={20} agent={{ name: 'Compact agent', configuration: { avatar: '🤖' } }} />
+    )
+
+    expect(container.querySelector<HTMLElement>('[style*="width: 20px"]')).toHaveStyle({
+      width: '20px',
+      height: '20px'
+    })
+  })
 })

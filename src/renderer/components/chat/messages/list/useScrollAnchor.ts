@@ -45,7 +45,7 @@ const REASSERT_TOLERANCE_PX = 2
 // places it at the viewport top, so the spacer is redundant. The threshold is
 // applied as `startMargin + ANCHOR_NEAR_TOP_PX` (see `onContentSizeChange`)
 // because the anchor offset includes `startMargin`; a bare constant would never
-// fire under a tall top inset (e.g. a floating immersive navbar).
+// fire under a tall top inset.
 const ANCHOR_NEAR_TOP_PX = 24
 
 export interface ScrollAnchorInputs {
