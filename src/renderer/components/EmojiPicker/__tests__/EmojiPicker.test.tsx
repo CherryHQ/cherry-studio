@@ -166,6 +166,8 @@ describe('EmojiPicker', () => {
 
     expect(categoryLabelRule).toContain('backdrop-filter: none')
     expect(categoryLabelRule).toContain('box-shadow: 0 -1px 0 var(--epr-category-label-bg-color)')
+    expect(categoryLabelRule).toContain('font-size: 14px')
+    expect(categoryLabelRule).toContain('font-weight: var(--font-weight-regular)')
   })
 
   it('does not keep a Windows-only category label override', () => {
