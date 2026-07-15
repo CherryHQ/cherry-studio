@@ -163,24 +163,6 @@ const meta: Meta<typeof AllIconsShowcase> = {
   parameters: {
     layout: 'fullscreen'
   },
-  // Monochrome brand logos use `currentColor`, so they only show correctly when the
-  // `dark` class is applied. Storybook's "Backgrounds" toggle only recolors the canvas
-  // and does NOT flip the theme, which left mono logos invisible on a dark canvas. Mirror
-  // the dark background (or the theme global) onto a `dark` + `text-foreground` wrapper so
-  // the logos stay visible whichever toggle you use.
-  decorators: [
-    (Story, context) => {
-      const globals = context.globals as { theme?: string; backgrounds?: unknown }
-      const bg = globals?.backgrounds
-      const bgValue = typeof bg === 'string' ? bg : ((bg as { value?: string })?.value ?? '')
-      const isDark = globals?.theme === 'dark' || /dark|6%,\s*10%/.test(String(bgValue))
-      return (
-        <div className={isDark ? 'dark text-foreground' : 'text-foreground'}>
-          <Story />
-        </div>
-      )
-    }
-  ],
   tags: ['autodocs'],
   argTypes: {
     fontSize: {

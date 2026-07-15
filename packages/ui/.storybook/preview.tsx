@@ -5,12 +5,10 @@ import type { Preview } from '@storybook/react'
 
 const preview: Preview = {
   parameters: {
-    backgrounds: {
-      options: {
-        light: { name: 'Light', value: 'hsla(0, 0%, 97%, 1)' },
-        dark: { name: 'Dark', value: 'hsla(240, 6%, 10%, 1)' }
-      }
-    }
+    // A single "Theme" toggle drives everything: `withThemeByClassName` sets the `dark`
+    // class and the wrapper below paints the matching `bg-background`/`text-foreground`.
+    // The separate "Backgrounds" toolbar switch is disabled so there is only one control.
+    backgrounds: { disable: true }
   },
   decorators: [
     withThemeByClassName({
@@ -19,7 +17,12 @@ const preview: Preview = {
         dark: 'dark'
       },
       defaultTheme: 'light'
-    })
+    }),
+    (Story) => (
+      <div className="min-h-screen bg-background text-foreground">
+        <Story />
+      </div>
+    )
   ]
 }
 
