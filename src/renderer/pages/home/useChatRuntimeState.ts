@@ -5,6 +5,7 @@ import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -192,6 +193,10 @@ export function useChatRuntimeState({
     [branchActiveExecutions, liveAssistants]
   )
   const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
+  const streamingLayers = useMemo<MessageStreamingLayers>(
+    () => ({ historyPartsByMessageId, liveMessageIds }),
+    [historyPartsByMessageId, liveMessageIds]
+  )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -374,8 +379,7 @@ export function useChatRuntimeState({
   return {
     messages: displayMessages,
     partsByMessageId,
-    historyPartsByMessageId,
-    liveMessageIds,
+    streamingLayers,
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,

@@ -243,8 +243,7 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   imageActionConsumer,
-  historyPartsByMessageId,
-  liveMessageIds,
+  streamingLayers,
   messages = [],
   onStartBranchDraft,
   onValue,
@@ -252,8 +251,7 @@ function MessageListAdapterHarness({
   topic
 }: {
   imageActionConsumer?: 'capture'
-  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
-  liveMessageIds?: readonly string[]
+  streamingLayers?: MessageListProviderValue['state']['streamingLayers']
   messages?: CherryUIMessage[]
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
@@ -264,8 +262,7 @@ function MessageListAdapterHarness({
     topic,
     messages,
     partsByMessageId,
-    historyPartsByMessageId,
-    liveMessageIds,
+    streamingLayers,
     imageActionConsumer,
     onStartBranchDraft
   })
@@ -347,7 +344,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     const historyPartsByMessageId = {
       'history-message': historyMessage.parts as CherryMessagePart[]
     }
-    const liveMessageIds = ['live-message'] as const
+    const streamingLayers = {
+      historyPartsByMessageId,
+      liveMessageIds: ['live-message']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
     let value: MessageListProviderValue | undefined
 
     const view = render(
@@ -355,15 +355,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         topic={createTopic('topic-a')}
         messages={[historyMessage, liveMessage]}
         partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts as CherryMessagePart[] }}
-        historyPartsByMessageId={historyPartsByMessageId}
-        liveMessageIds={liveMessageIds}
+        streamingLayers={streamingLayers}
         onValue={(nextValue) => (value = nextValue)}
       />
     )
 
     const firstHistoryItem = value?.state.messages[0]
-    expect(value?.state.historyPartsByMessageId).toBe(historyPartsByMessageId)
-    expect(value?.state.liveMessageIds).toBe(liveMessageIds)
+    expect(value?.state.streamingLayers).toBe(streamingLayers)
 
     const nextLiveMessage = {
       ...liveMessage,
@@ -377,8 +375,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
           ...historyPartsByMessageId,
           'live-message': nextLiveMessage.parts as CherryMessagePart[]
         }}
-        historyPartsByMessageId={historyPartsByMessageId}
-        liveMessageIds={liveMessageIds}
+        streamingLayers={streamingLayers}
         onValue={(nextValue) => (value = nextValue)}
       />
     )

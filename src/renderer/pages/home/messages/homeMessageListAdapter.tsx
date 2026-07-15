@@ -25,7 +25,8 @@ import type {
   MessageListProviderValue,
   MessageListRuntime,
   MessageListState,
-  MessageRuntime
+  MessageRuntime,
+  MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import {
   bindCaptureMessageImageRuntime,
@@ -73,8 +74,7 @@ interface HomeMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
-  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
-  liveMessageIds?: readonly string[]
+  streamingLayers?: MessageStreamingLayers
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
@@ -90,8 +90,7 @@ export function useHomeMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
-  historyPartsByMessageId,
-  liveMessageIds,
+  streamingLayers,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
@@ -116,7 +115,7 @@ export function useHomeMessageListProviderValue({
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const { editingMessageId, startEditing } = useMessageEditing()
@@ -670,8 +669,7 @@ export function useHomeMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
-      historyPartsByMessageId,
-      liveMessageIds,
+      streamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -700,11 +698,9 @@ export function useHomeMessageListProviderValue({
       getMessageSiblings,
       getTranslationLanguageLabel,
       hasOlder,
-      historyPartsByMessageId,
       isInitialLoading,
       isMessagesStale,
       leafCapabilities,
-      liveMessageIds,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,
@@ -712,6 +708,7 @@ export function useHomeMessageListProviderValue({
       partsByMessageId,
       renderConfig,
       selectionController.selection,
+      streamingLayers,
       topic,
       translationLanguages
     ]

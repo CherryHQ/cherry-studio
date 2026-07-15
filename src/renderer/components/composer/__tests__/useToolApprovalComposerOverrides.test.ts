@@ -82,8 +82,10 @@ describe('useToolApprovalComposerOverrides', () => {
     const { result } = renderHook(() =>
       useToolApprovalComposerOverrides({
         partsByMessageId: { 'message-1': [currentPart] },
-        historyPartsByMessageId: { 'message-1': [historicalPart] },
-        liveMessageIds: ['message-1'],
+        streamingLayers: {
+          historyPartsByMessageId: { 'message-1': [historicalPart] },
+          liveMessageIds: ['message-1']
+        },
         onRespond: vi.fn()
       })
     )

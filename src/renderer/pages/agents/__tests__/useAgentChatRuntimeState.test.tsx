@@ -243,8 +243,7 @@ describe('useAgentChatRuntimeState', () => {
         reservedMessages: []
       })
     )
-    const historyParts = result.current.historyPartsByMessageId
-    const liveMessageIds = result.current.liveMessageIds
+    const streamingLayers = result.current.streamingLayers
     const sendMessage = result.current.sendMessage
 
     mocks.useExecutionOverlay.mockReturnValue({
@@ -255,9 +254,8 @@ describe('useAgentChatRuntimeState', () => {
     })
     rerender()
 
-    expect(result.current.historyPartsByMessageId).toBe(historyParts)
-    expect(result.current.liveMessageIds).toBe(liveMessageIds)
-    expect(result.current.liveMessageIds).toEqual(['assistant-1'])
+    expect(result.current.streamingLayers).toBe(streamingLayers)
+    expect(result.current.streamingLayers.liveMessageIds).toEqual(['assistant-1'])
     expect(result.current.sendMessage).toBe(sendMessage)
   })
 

@@ -2,7 +2,7 @@ import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -98,8 +98,7 @@ export interface AgentChatRuntimeState {
   sessionId: string
   uiMessages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
-  liveMessageIds: readonly string[]
+  streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
@@ -207,6 +206,10 @@ export function useAgentChatRuntimeState({
     [activeExecutions, liveAssistants]
   )
   const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
+  const streamingLayers = useMemo<MessageStreamingLayers>(
+    () => ({ historyPartsByMessageId: basePartsMap, liveMessageIds }),
+    [basePartsMap, liveMessageIds]
+  )
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
@@ -302,8 +305,7 @@ export function useAgentChatRuntimeState({
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
-    historyPartsByMessageId: basePartsMap,
-    liveMessageIds,
+    streamingLayers,
     onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
@@ -319,8 +321,7 @@ export function useAgentChatRuntimeState({
     sessionId,
     uiMessages: displayMessages,
     partsByMessageId,
-    historyPartsByMessageId: basePartsMap,
-    liveMessageIds,
+    streamingLayers,
     optimisticAskUserQuestionInputsByToolCallId,
     isLoading,
     hasOlder,

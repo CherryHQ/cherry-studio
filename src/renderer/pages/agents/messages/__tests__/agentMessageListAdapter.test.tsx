@@ -382,10 +382,10 @@ describe('useAgentMessageListProviderValue', () => {
       metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'pending' }
     } as CherryUIMessage
     const historyPartsByMessageId = {
-      [historyMessage.id]: historyMessage.parts ?? [],
-      [activeMessage.id]: activeMessage.parts ?? []
+      [historyMessage.id]: (historyMessage.parts ?? []) as CherryMessagePart[],
+      [activeMessage.id]: (activeMessage.parts ?? []) as CherryMessagePart[]
     }
-    const liveMessageIds = [activeMessage.id]
+    const streamingLayers = { historyPartsByMessageId, liveMessageIds: [activeMessage.id] }
     let value: MessageListProviderValue | undefined
 
     const Probe = ({
@@ -399,8 +399,7 @@ describe('useAgentMessageListProviderValue', () => {
         topic,
         messages,
         partsByMessageId,
-        historyPartsByMessageId,
-        liveMessageIds,
+        streamingLayers,
         isLoading: false,
         messageNavigation: 'none'
       })

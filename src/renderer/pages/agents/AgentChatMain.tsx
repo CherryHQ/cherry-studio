@@ -1,4 +1,4 @@
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
@@ -16,8 +16,7 @@ interface AgentChatMainProps {
   messages: CherryUIMessage[]
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
-  liveMessageIds: readonly string[]
+  streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
@@ -35,8 +34,7 @@ export default function AgentChatMain({
   messages,
   activeAgent,
   partsByMessageId,
-  historyPartsByMessageId,
-  liveMessageIds,
+  streamingLayers,
   optimisticAskUserQuestionInputsByToolCallId,
   isLoading,
   hasOlder,
@@ -58,8 +56,7 @@ export default function AgentChatMain({
           messages={messages}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
-          historyPartsByMessageId={historyPartsByMessageId}
-          liveMessageIds={liveMessageIds}
+          streamingLayers={streamingLayers}
           optimisticAskUserQuestionInputsByToolCallId={optimisticAskUserQuestionInputsByToolCallId}
           isLoading={isLoading}
           hasOlder={hasOlder}

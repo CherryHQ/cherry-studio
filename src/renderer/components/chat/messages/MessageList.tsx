@@ -168,11 +168,11 @@ const MessageList = () => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
-  const hasLayeredStreamingState = data.historyPartsByMessageId !== undefined && data.liveMessageIds !== undefined
-  const liveMessageIds = data.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
+  const streamingLayers = data.streamingLayers
+  const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
   const firstLiveGroupIndex = useMemo(() => {
-    if (!hasLayeredStreamingState) return 0
+    if (!streamingLayers) return 0
     if (liveMessageIds.length === 0) return groupedMessages.length
 
     const liveIndex = groupedMessages.findIndex(([, groupMessages]) =>
@@ -184,7 +184,7 @@ const MessageList = () => {
       ? groupedMessages.findIndex(([key]) => key === latestAssistantGroupKey)
       : -1
     return latestAssistantIndex >= 0 ? latestAssistantIndex : groupedMessages.length
-  }, [groupedMessages, hasLayeredStreamingState, latestAssistantGroupKey, liveMessageIdSet, liveMessageIds.length])
+  }, [groupedMessages, latestAssistantGroupKey, liveMessageIdSet, liveMessageIds.length, streamingLayers])
   const { bindRuntime, copyImage, loadOlder, saveImage } = actions
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -593,7 +593,10 @@ const MessageList = () => {
                   isLatestAssistantGroup: key === latestAssistantGroupKey,
                   directAssistantModelsByUserId,
                   messages: groupMessages,
-                  partsByMessageId: index < firstLiveGroupIndex ? data.historyPartsByMessageId : partsByMessageId,
+                  partsByMessageId:
+                    index < firstLiveGroupIndex && streamingLayers
+                      ? streamingLayers.historyPartsByMessageId
+                      : partsByMessageId,
                   topic,
                   registerMessageElement,
                   onMultiModelMessageStyleChange: (style) => {

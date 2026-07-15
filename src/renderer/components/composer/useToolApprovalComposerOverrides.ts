@@ -1,4 +1,4 @@
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -10,38 +10,36 @@ import { findLatestPendingPermissionRequest } from './variants/permissionRequest
 
 type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
-  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
-  liveMessageIds?: readonly string[]
+  streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
-  historyPartsByMessageId,
-  liveMessageIds,
+  streamingLayers,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const [dismissedApprovalIds, setDismissedApprovalIds] = useState<ReadonlySet<string>>(() => new Set())
   const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
-    if (!historyPartsByMessageId || !liveMessageIds) return null
+    if (!streamingLayers) return null
 
-    const liveMessageIdSet = new Set(liveMessageIds)
+    const liveMessageIdSet = new Set(streamingLayers.liveMessageIds)
     const historyParts: Record<string, CherryMessagePart[]> = {}
-    for (const [messageId, parts] of Object.entries(historyPartsByMessageId)) {
+    for (const [messageId, parts] of Object.entries(streamingLayers.historyPartsByMessageId)) {
       if (!liveMessageIdSet.has(messageId)) historyParts[messageId] = parts
     }
     return historyParts
-  }, [historyPartsByMessageId, liveMessageIds])
+  }, [streamingLayers])
   const currentParts = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    if (!historyPartsByMessageId || !liveMessageIds) return partsByMessageId
+    if (!streamingLayers) return partsByMessageId
 
     const liveParts: Record<string, CherryMessagePart[]> = {}
-    for (const messageId of liveMessageIds) {
+    for (const messageId of streamingLayers.liveMessageIds) {
       const parts = partsByMessageId[messageId]
       if (parts) liveParts[messageId] = parts
     }
     return liveParts
-  }, [historyPartsByMessageId, liveMessageIds, partsByMessageId])
+  }, [streamingLayers, partsByMessageId])
   const historyAskUserQuestionRequest = useMemo(
     () => (settledHistoryParts ? findLatestPendingAskUserQuestionRequest(settledHistoryParts) : null),
     [settledHistoryParts]

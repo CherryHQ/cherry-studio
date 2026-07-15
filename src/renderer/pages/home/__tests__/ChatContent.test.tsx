@@ -188,15 +188,16 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: {
     messages: CherryUIMessage[]
     partsByMessageId: Record<string, CherryMessagePart[]>
-    historyPartsByMessageId: Record<string, CherryMessagePart[]>
-    liveMessageIds: readonly string[]
+    streamingLayers: {
+      historyPartsByMessageId: Record<string, CherryMessagePart[]>
+      liveMessageIds: readonly string[]
+    }
     isInitialLoading?: boolean
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
-      historyPartsByMessageId: params.historyPartsByMessageId,
-      liveMessageIds: params.liveMessageIds,
+      streamingLayers: params.streamingLayers,
       isInitialLoading: params.isInitialLoading
     },
     actions: {},
@@ -592,10 +593,11 @@ describe('ChatContent', () => {
         text: 'stream frame 1'
       })
     })
-    const firstHistoryParts = mockMessageListValue.current.state.historyPartsByMessageId
-    const firstLiveMessageIds = mockMessageListValue.current.state.liveMessageIds
-    expect(firstHistoryParts[pendingMessage.id][0]).toMatchObject({ text: 'persisted seed' })
-    expect(firstLiveMessageIds).toEqual([pendingMessage.id])
+    const firstStreamingLayers = mockMessageListValue.current.state.streamingLayers
+    expect(firstStreamingLayers.historyPartsByMessageId[pendingMessage.id][0]).toMatchObject({
+      text: 'persisted seed'
+    })
+    expect(firstStreamingLayers.liveMessageIds).toEqual([pendingMessage.id])
 
     const secondLiveAssistant = {
       ...pendingMessage,
@@ -614,8 +616,7 @@ describe('ChatContent', () => {
         text: 'stream frame 2'
       })
     })
-    expect(mockMessageListValue.current.state.historyPartsByMessageId).toBe(firstHistoryParts)
-    expect(mockMessageListValue.current.state.liveMessageIds).toBe(firstLiveMessageIds)
+    expect(mockMessageListValue.current.state.streamingLayers).toBe(firstStreamingLayers)
   })
 
   it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {

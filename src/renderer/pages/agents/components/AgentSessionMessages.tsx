@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
-import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
@@ -23,8 +23,7 @@ type Props = {
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
-  historyPartsByMessageId?: Record<string, CherryMessagePart[]>
-  liveMessageIds?: readonly string[]
+  streamingLayers?: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -44,8 +43,7 @@ const AgentSessionMessages = ({
   messages,
   activeAgent,
   partsByMessageId,
-  historyPartsByMessageId,
-  liveMessageIds,
+  streamingLayers,
   optimisticAskUserQuestionInputsByToolCallId = {},
   isLoading,
   hasOlder = false,
@@ -92,8 +90,7 @@ const AgentSessionMessages = ({
     topic: derivedTopic,
     messages,
     partsByMessageId,
-    historyPartsByMessageId,
-    liveMessageIds,
+    streamingLayers,
     assistantProfile,
     assistantId: agentId,
     isLoading,

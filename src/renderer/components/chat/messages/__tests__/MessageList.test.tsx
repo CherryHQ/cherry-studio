@@ -293,15 +293,17 @@ describe('MessageList', () => {
       'user-history': [{ type: 'text', text: 'question' }],
       'assistant-history': [{ type: 'text', text: 'sealed answer' }]
     } as MessageListProviderValue['state']['partsByMessageId']
-    const liveMessageIds = ['assistant-live'] as const
+    const streamingLayers = {
+      historyPartsByMessageId: historyParts,
+      liveMessageIds: ['assistant-live']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
     const actions: Partial<MessageListActions> = {}
     const buildValue = (text: string) =>
       createValue(
         [historyUser, historyAssistant, { ...liveAssistant }],
         {
           topic,
-          historyPartsByMessageId: historyParts,
-          liveMessageIds,
+          streamingLayers,
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text }]
