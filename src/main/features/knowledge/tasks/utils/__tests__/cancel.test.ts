@@ -146,6 +146,38 @@ describe('cancelActiveKnowledgeJobs', () => {
     expect(cancelMock).toHaveBeenCalledWith('index-job', 'knowledge-delete-subtree')
   })
 
+  it('cancels a scoped target even when it trails a full window of unrelated active jobs', async () => {
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('target')])
+    // More unrelated active jobs than the base-wide page window, with the only subtree
+    // match at the very end. A windowed read (limit KNOWLEDGE_ACTIVE_JOB_LIMIT) that
+    // broke when a full page missed the subtree would never reach it; the unbounded
+    // scoped read sees it.
+    const jobs = [
+      ...Array.from({ length: KNOWLEDGE_ACTIVE_JOB_LIMIT }, (_, index) =>
+        createJobSnapshot({
+          id: `miss-${index}`,
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: `other-${index}` }
+        })
+      ),
+      createJobSnapshot({
+        id: 'target-job',
+        type: 'knowledge.index-documents',
+        input: { baseId: 'kb-1', itemId: 'target' }
+      })
+    ]
+    listMock.mockResolvedValue(jobs)
+
+    await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
+      rootItemIds: ['target'],
+      onCancelTimeout: 'throw'
+    })
+
+    expect(listMock).toHaveBeenCalledTimes(1)
+    expect(cancelMock).toHaveBeenCalledTimes(1)
+    expect(cancelMock).toHaveBeenCalledWith('target-job', 'knowledge-delete-subtree')
+  })
+
   it('throws when a scoped cancel times out', async () => {
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('note-1')])
     listMock.mockResolvedValue([
@@ -196,20 +228,19 @@ describe('cancelActiveKnowledgeJobs', () => {
     expect(cancelMock).toHaveBeenCalledTimes(KNOWLEDGE_ACTIVE_JOB_LIMIT)
   })
 
-  it('terminates a full page of scoped-out jobs instead of re-querying it forever', async () => {
+  it('reads the scoped active set once and cancels nothing when it all misses the subtree', async () => {
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('target')])
-    // A full page whose every job touches an item OUTSIDE the requested subtree: nothing
-    // is cancellable, so the active set never shrinks. `mockResolvedValue` (not `Once`)
-    // returns the same page on every call, so a loop that only breaks on a short page
-    // would spin forever here — the guard must stop on the first no-progress round.
-    const fullPageOfMisses = Array.from({ length: KNOWLEDGE_ACTIVE_JOB_LIMIT }, (_, index) =>
+    // Every active job touches an item OUTSIDE the requested subtree, so there is nothing
+    // to cancel. Scoped cancel makes a single unbounded read (no `limit`), so it never
+    // re-queries and never spins.
+    const misses = Array.from({ length: KNOWLEDGE_ACTIVE_JOB_LIMIT }, (_, index) =>
       createJobSnapshot({
         id: `index-job-${index}`,
         type: 'knowledge.index-documents',
         input: { baseId: 'kb-1', itemId: `other-${index}` }
       })
     )
-    listMock.mockResolvedValue(fullPageOfMisses)
+    listMock.mockResolvedValue(misses)
 
     await cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
       rootItemIds: ['target'],
@@ -217,6 +248,7 @@ describe('cancelActiveKnowledgeJobs', () => {
     })
 
     expect(listMock).toHaveBeenCalledTimes(1)
+    expect(listMock).toHaveBeenCalledWith(expect.not.objectContaining({ limit: expect.anything() }))
     expect(cancelMock).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
+import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_JOB_TYPES, knowledgeQueueName, toKnowledgeBaseId } from '../../types'
 import { narrowKnowledgeJobInput } from './jobInput'
@@ -59,9 +59,36 @@ export async function cancelActiveKnowledgeJobs(
       ? (jobId) => cancelJobOrThrow(jobId, reason)
       : (jobId) => jobManager.cancel(jobId, reason)
 
-  // Re-query from the top each round (no offset): cancelling shrinks the active-job
-  // set between rounds, so offset-based paging could skip rows as the window shifts,
-  // and `list()`'s createdAt-only ordering has no tie-breaker to make offsets stable.
+  const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {
+    const jobIds = activeJobs
+      .filter((job) => job.id !== excludeJobId)
+      .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
+      .map((job) => job.id)
+    const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
+    await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
+  }
+
+  if (subtreeItemIds) {
+    // Scoped cancel reads the queue's ENTIRE active set in one unbounded snapshot
+    // (`list` with no `limit` returns every matching row), then cancels the subtree
+    // subset. A fixed-window read would strand target jobs: if a full page's every job
+    // missed the subtree there is nothing to cancel, the active set never shrinks, and a
+    // drain loop would break on "no progress" before reaching later pages. The scoped
+    // set is bounded (its own subtree), so a single pass suffices — cancelling those jobs
+    // is enough, and the caller purges the subtree under the lock immediately after.
+    const activeJobs = await jobManager.list({
+      queue,
+      status: [...ACTIVE_JOB_STATUSES],
+      type: [...KNOWLEDGE_JOB_TYPES]
+    })
+    await collectAndCancel(activeJobs)
+    return
+  }
+
+  // Base-wide cancel drains page by page: cancelling shrinks the active set, so re-query
+  // from the top (no offset — createdAt-only ordering has no stable tie-breaker) until a
+  // page comes back short. Every non-empty page yields cancellable jobs (no subtree
+  // filter), so each round makes progress and the loop terminates.
   while (true) {
     const activeJobs = await jobManager.list({
       queue,
@@ -69,20 +96,8 @@ export async function cancelActiveKnowledgeJobs(
       type: [...KNOWLEDGE_JOB_TYPES],
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
-
-    const jobIds = activeJobs
-      .filter((job) => job.id !== excludeJobId)
-      .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
-      .map((job) => job.id)
-    const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
-
-    await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
-
-    // Stop when the page came back short (nothing more to drain) or when a full page
-    // yielded nothing cancellable this round. The short-page check alone is not enough:
-    // a scoped cancel whose entire full page misses the subtree cancels nothing, so the
-    // active set never shrinks and the same page would be re-queried forever.
-    if (activeJobs.length < KNOWLEDGE_ACTIVE_JOB_LIMIT || jobIds.length + fileProcessingJobIds.length === 0) {
+    await collectAndCancel(activeJobs)
+    if (activeJobs.length < KNOWLEDGE_ACTIVE_JOB_LIMIT) {
       break
     }
   }
