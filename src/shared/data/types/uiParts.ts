@@ -156,6 +156,8 @@ export interface CherryFileMeta {
   fileEntryId?: string
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
+  /** Safe composer-only source marker used to restore sent-message token previews. */
+  composerFileKind?: 'pasted-text'
 }
 
 /**
@@ -233,7 +235,8 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   fileEntryId: z.string().optional(),
-  fileTokenSourceId: z.string().optional()
+  fileTokenSourceId: z.string().optional(),
+  composerFileKind: z.literal('pasted-text').optional()
 })
 
 // Table-driven dispatch — part `type` → schema. First match wins.
