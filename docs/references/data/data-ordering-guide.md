@@ -163,7 +163,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
   - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
   - Planned / hypothetical: none currently.
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
-- **Pin insertion**. `PinService.pin()` inserts a fresh row at the first position of its `entityType` scope; pin-aware reads use `pin.orderKey ASC`, so the most recently pinned entity appears first without changing the target entity's own `order_key`.
+- **Pin insertion**. `PinService.pin()` inserts fresh Topic and Session pins at the first position of their `entityType` scope; other entity types preserve append order. Pin-aware reads use `pin.orderKey ASC`, so the most recently pinned Topic or Session appears first without changing the target entity's own `order_key`.
 
 ---
 

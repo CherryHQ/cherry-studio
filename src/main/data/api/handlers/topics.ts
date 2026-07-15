@@ -6,7 +6,7 @@
  * - Topic CRUD operations
  * - Topic path duplication
  * - Active node switching for branch navigation
- * - Scoped reorder (single + batch) via OrderEndpoints
+ * - Global reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'

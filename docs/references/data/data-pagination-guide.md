@@ -299,8 +299,9 @@ lives in `src/main/data/services/utils/ftsSearch.ts`; see
   or `total` won't match the page.
 - **List cursors warn-and-fall-back; search cursors throw 422** — don't copy one
   policy into the other.
-- **Multi-band cursors keep their own codec** — `TopicService.listByCursor` is
-  not routable through `keysetOrdering`.
+- **Keep band cursors isolated** — pinned and ordinary list streams both use
+  `keysetOrdering`, but their cursor families are bound to the selected band
+  and are not interchangeable.
 - **Page-load order ≠ display order** — choose `reversePages` / `reverseItems`
   in `useInfiniteFlatItems` deliberately.
 
