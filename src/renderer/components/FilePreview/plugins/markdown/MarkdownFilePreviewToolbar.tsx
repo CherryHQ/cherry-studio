@@ -19,6 +19,7 @@ export function MarkdownFilePreviewToolbar({ disabled, mode, onModeChange }: Mar
       <SegmentedControl<MarkdownFilePreviewMode>
         size="sm"
         aria-label={t('file_preview.markdown.mode.label')}
+        className="ml-auto rounded-md [&>button]:h-6 [&>button]:rounded-sm [&>button]:px-2"
         disabled={disabled}
         value={mode}
         onValueChange={onModeChange}

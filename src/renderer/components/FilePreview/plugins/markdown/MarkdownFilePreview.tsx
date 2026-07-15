@@ -94,9 +94,14 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
 
   if (mode === 'source') {
     return (
-      <div className="min-h-full w-full">
+      <div className="flex min-h-full w-full p-3">
         <Suspense fallback={<MarkdownPreviewLoading />}>
-          <LazyCodeViewer value={loadState.content} language="markdown" wrapped={false} className="min-h-full w-full" />
+          <LazyCodeViewer
+            value={loadState.content}
+            language="markdown"
+            wrapped
+            className="min-w-0 flex-1 overflow-hidden rounded-md border border-border-muted"
+          />
         </Suspense>
       </div>
     )
