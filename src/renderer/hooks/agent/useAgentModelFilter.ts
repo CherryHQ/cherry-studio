@@ -10,7 +10,6 @@
  * those make sense as chat targets).
  */
 
-import { useProviders } from '@renderer/hooks/useProvider'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { isAgentRuntimeSupportedModel, isNonChatModel } from '@shared/utils/model'
@@ -37,19 +36,15 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
-  const { providers } = useProviders()
-
-  const providersById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
-
   return useMemo<AgentModelFilter>(() => {
     const predicate: AgentModelFilter = (model: Model) => {
       if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        return isAgentRuntimeSupportedModel(model, providersById.get(model.providerId))
+        return isAgentRuntimeSupportedModel(model)
       }
       return true
     }
     predicate[AGENT_ONLY_FILTER] = true
     return predicate
-  }, [agentType, providersById])
+  }, [agentType])
 }
