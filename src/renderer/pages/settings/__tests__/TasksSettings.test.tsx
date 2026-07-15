@@ -524,6 +524,7 @@ describe('TasksSettings task logs', () => {
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
     )
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledTimes(4))
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {
