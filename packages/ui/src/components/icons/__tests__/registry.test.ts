@@ -92,6 +92,15 @@ describe('vendor-pattern parity with VENDOR_PATTERNS (icon routing drift)', () =
     expect(resolveModelIconRef('happyhorse-1.0-video-edit')?.key).toBe('happyhorse')
   })
 
+  it('bare ByteDance seed ids route to the Doubao icon (delimiter-bounded)', () => {
+    expect(resolveModelIconRef('seed-2.0-lite')?.key).toBe('doubao')
+    expect(resolveModelIconRef('seed-1.6-flash')?.key).toBe('doubao')
+    expect(resolveModelIconRef('seedream-4-5')?.key).toBe('doubao')
+    expect(resolveModelIconRef('seedance-1-0')?.key).toBe('doubao')
+    // guard: `seed` embedded in another word must not misfire
+    expect(resolveModelIconRef('linseed-embedding')?.key).not.toBe('doubao')
+  })
+
   it('novel gpt-* families route to the OpenAI provider icon', () => {
     expect(resolveIconRef('gpt-audio', 'openrouter')).toEqual(
       expect.objectContaining({ kind: 'provider', key: 'openai' })

@@ -45,7 +45,9 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // `wan` is delimiter-bounded so `taiwan-llm` doesn't misfire to the Qwen icon
   [/qwen|qwq|qvq|(?:^|[-_/])wan(?:[-_\d]|$)|z-image/i, 'qwen'],
   [/glm/i, 'glm'],
-  [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
+  // `seed` delimiter-bounded (mirrors VENDOR_PATTERNS.doubao) so `bytedance-seed`'s bare
+  // `seed-2.0-lite`/`seed-1.6` match, while `seedream`/`seedance` keep their explicit alts
+  [/doubao|seedream|seedance|ep-202|(?:^|[-_/])seed(?:[-_\d]|$)/i, 'doubao'],
   [/hunyuan|hy3/i, 'hunyuan'],
   [/kimi|moonshot/i, 'kimi'],
   // Other model-specific icons
