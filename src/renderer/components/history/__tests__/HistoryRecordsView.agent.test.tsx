@@ -275,7 +275,7 @@ function flushAnimationFrame() {
 }
 
 function flushCommandMenuAction() {
-  return new Promise<void>((resolve) => queueMicrotask(resolve))
+  return flushAnimationFrame()
 }
 
 function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
