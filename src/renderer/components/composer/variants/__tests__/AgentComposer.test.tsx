@@ -439,8 +439,8 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
-  default: () => <span data-testid="model-avatar" />,
-  ModelAvatar: () => <span data-testid="model-avatar" />
+  default: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />,
+  ModelAvatar: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -676,6 +676,37 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
+  it('uses the same 20px size for the model and workspace icons', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onWorkspaceChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('model-avatar')).toHaveAttribute('data-size', '20')
+    expect(screen.getByText('Workspace 1').closest('button')?.querySelector('.lucide-folder')).toHaveAttribute(
+      'width',
+      '20'
+    )
+  })
+
+  it('uses the same 20px size for missing agent, model, and workspace icons', async () => {
+    mocks.sessionLayout = 'time'
+
+    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
+    expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
+    expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
+  })
+
   it('updates the agent model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
@@ -890,7 +921,10 @@ describe('AgentComposer', () => {
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(newSessionButton.querySelector('.new-conversation-icon')).toBeInTheDocument()
+    expect(newSessionButton).toHaveClass('[&_.new-conversation-icon]:!size-5')
+    const newConversationIcon = newSessionButton.querySelector('.new-conversation-icon')
+    expect(newConversationIcon).toHaveAttribute('width', '20')
+    expect(newConversationIcon).toHaveAttribute('height', '20')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -2936,6 +2970,23 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 
+  it('uses the same 20px size for the workspace warning icon', async () => {
+    mocks.sessionLayout = 'time'
+    mocks.isDirectory.mockResolvedValueOnce(false)
+
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(document.querySelector('.lucide-triangle-alert')).toHaveAttribute('width', '20'))
+  })
+
   it('does not preflight the system no-project workspace path', () => {
     mocks.sessionLayout = 'time'
 
@@ -2964,6 +3015,7 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
+    expect(document.querySelector('.lucide-circle-slash')).toHaveAttribute('width', '20')
     expect(mocks.isDirectory).not.toHaveBeenCalled()
   })
 })
