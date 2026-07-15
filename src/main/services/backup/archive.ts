@@ -17,8 +17,8 @@
 // (backup archives have no optional entries).
 
 import { randomBytes } from 'node:crypto'
-import { createWriteStream } from 'node:fs'
-import { link, rename, stat, unlink } from 'node:fs/promises'
+import { constants, createWriteStream } from 'node:fs'
+import { copyFile, link, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
@@ -120,21 +120,26 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
     })
 
     // Atomic no-clobber publish. Prefer hard-link (EEXIST = no-clobber, atomic, no data
-    // copy). Fallback to rename only on filesystems that reject hard-links (exFAT / some
-    // network volumes → ENOTSUP / EOPNOTSUPP / ENOSYS): rename is atomic but can overwrite,
-    // so it relies on the entry validateOutputPath + the stat no-clobber above (TOCTOU
-    // window = the export duration, bounded by preflightDisk).
+    // copy). Fallback to copyFile(COPYFILE_EXCL) on filesystems that reject hard-links
+    // (exFAT / some network volumes → ENOTSUP / EOPNOTSUPP / ENOSYS): COPYFILE_EXCL is
+    // exclusive (EEXIST if the target exists) — not atomic-visibility, but no clobber,
+    // closing the rename TOCTOU window (#16683 P1).
     try {
       await link(tmpPath, outPath)
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code
       if (code === 'EEXIST') throw new OutputPathExistsError(outPath)
       if (code !== 'ENOTSUP' && code !== 'EOPNOTSUPP' && code !== 'ENOSYS') throw e
-      // Hard-link unsupported on this volume — fallback to rename (commit point; the
-      // entry + stat no-clobber checks above guard the overwrite window).
-      await rename(tmpPath, outPath)
+      // Hard-link unsupported on this volume — fallback to copyFile with COPYFILE_EXCL
+      // (cross-platform no-clobber; EEXIST re-thrown as OutputPathExistsError).
+      try {
+        await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
+      } catch (e2) {
+        if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
+        throw e2
+      }
     }
-    // Commit point reached (link or rename succeeded) — outPath holds the archive. tmp
+    // Commit point reached (link or copy succeeded) — outPath holds the archive. tmp
     // cleanup is best-effort: a cleanup failure must NOT turn a successful export into a
     // reported failure (the outer catch would otherwise rethrow, and a retry would then
     // hit BACKUP_OUTPUT_PATH_EXISTS on the already-written archive).
