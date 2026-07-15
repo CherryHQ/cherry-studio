@@ -10,9 +10,11 @@
  * those make sense as chat targets).
  */
 
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { isAgentRuntimeSupportedModel, isNonChatModel } from '@shared/utils/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
@@ -40,7 +42,8 @@ export function useAgentModelFilter(agentType: AgentType | undefined): (model: M
     const predicate: AgentModelFilter = (model: Model) => {
       if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        return isAgentRuntimeSupportedModel(model)
+        const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+        return !isManagedCherryAiDefaultModel(model.providerId, modelId)
       }
       return true
     }

@@ -94,11 +94,6 @@ export const isNonChatModel = (model: Model): boolean =>
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
 
-export const isAgentRuntimeSupportedModel = (model: Model): boolean => {
-  if (isNonChatModel(model)) return false
-  return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
-}
-
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's
  * `/v1/models` listing and the renderer's gateway model picker, so the CLI can only
