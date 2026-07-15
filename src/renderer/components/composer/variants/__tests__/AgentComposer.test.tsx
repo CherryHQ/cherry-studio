@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
@@ -376,10 +377,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviderDisplayName: () => 'Anthropic'
-}))
-
 vi.mock('@renderer/hooks/useSkills', () => ({
   useAvailableSkills: () => ({
     skills: mocks.availableSkills,
@@ -401,8 +398,8 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
-  default: () => <span data-testid="model-avatar" />,
-  ModelAvatar: () => <span data-testid="model-avatar" />
+  default: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />,
+  ModelAvatar: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -638,6 +635,37 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
+  it('uses the same 20px size for the model and workspace icons', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onWorkspaceChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('model-avatar')).toHaveAttribute('data-size', '20')
+    expect(screen.getByText('Workspace 1').closest('button')?.querySelector('.lucide-folder')).toHaveAttribute(
+      'width',
+      '20'
+    )
+  })
+
+  it('uses the same 20px size for missing agent, model, and workspace icons', async () => {
+    mocks.sessionLayout = 'time'
+
+    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
+    expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
+    expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
+  })
+
   it('updates the agent model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
@@ -652,7 +680,7 @@ describe('AgentComposer', () => {
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
     expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('text-foreground/85')
+    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -673,7 +701,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    const modelLabel = screen.getByText('Claude Sonnet 4.5 | Anthropic')
+    const modelLabel = screen.getByText('Claude Sonnet 4.5')
     expect(modelLabel).not.toHaveClass('text-muted-foreground')
     expect(modelLabel).not.toHaveClass('text-foreground/85')
     expect(modelLabel.closest('button')).toBeDisabled()
@@ -745,7 +773,10 @@ describe('AgentComposer', () => {
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(newSessionButton.querySelector('.new-conversation-icon')).toBeInTheDocument()
+    expect(newSessionButton).toHaveClass('[&_.new-conversation-icon]:!size-5')
+    const newConversationIcon = newSessionButton.querySelector('.new-conversation-icon')
+    expect(newConversationIcon).toHaveAttribute('width', '20')
+    expect(newConversationIcon).toHaveAttribute('height', '20')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -1392,6 +1423,34 @@ describe('AgentComposer', () => {
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
   })
 
+  it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const initialSuggestionSources = mocks.surfaceProps?.suggestionSources
+    expect(initialSuggestionSources).toEqual([])
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    expect(mocks.surfaceProps?.isLoading).toBe(true)
+    expect(mocks.surfaceProps?.suggestionSources).toBe(initialSuggestionSources)
+  })
+
   it('changes the unified panel resource provider when the workspace scope changes', () => {
     const { rerender } = render(
       <AgentComposer
@@ -1924,6 +1983,78 @@ describe('AgentComposer', () => {
         }
       }
     )
+  })
+
+  it('batches workspace attachment metadata while preserving attachment order', async () => {
+    const workspaceFileA = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'alpha.md',
+      origin_name: 'alpha.md',
+      path: '/workspace/docs/alpha.md'
+    } as FileMetadata
+    const localFile = {
+      id: 'local-file-1',
+      fileTokenSourceId: 'source-local-file-1',
+      name: 'local.md',
+      origin_name: 'local.md',
+      path: '/tmp/local.md'
+    } as FileMetadata
+    const workspaceFileB = {
+      id: 'workspace-file-2',
+      fileTokenSourceId: 'source-workspace-file-2',
+      name: 'beta.md',
+      origin_name: 'beta.md',
+      path: '/workspace/docs/beta.md'
+    } as FileMetadata
+    mocks.files = [workspaceFileA, localFile, workspaceFileB]
+    mocks.draftTokens = [workspaceFileA, localFile, workspaceFileB].map(
+      (attachedFile, index) =>
+        ({
+          id: `file:${attachedFile.fileTokenSourceId}`,
+          kind: 'file',
+          label: attachedFile.name,
+          payload: attachedFile,
+          index,
+          textOffset: mocks.draftText.length
+        }) as ComposerSerializedToken
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.ipcApiRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
+      items: [
+        { key: '/workspace/docs/alpha.md', handle: { kind: 'path', path: '/workspace/docs/alpha.md' } },
+        { key: '/workspace/docs/beta.md', handle: { kind: 'path', path: '/workspace/docs/beta.md' } }
+      ]
+    })
+    expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/local.md' })
+
+    const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
+    expect(userMessageParts?.map((part) => part.type)).toEqual(['text', 'file', 'file', 'file'])
+    expect(userMessageParts?.slice(1).map((part) => (part as FileUIPart).filename)).toEqual([
+      'alpha.md',
+      'local.md',
+      'beta.md'
+    ])
+    expect(userMessageParts?.slice(1).map((part) => (part as FileUIPart).url)).toEqual([
+      'file:///workspace/docs/alpha.md',
+      'file:///p/fe-1.png',
+      'file:///workspace/docs/beta.md'
+    ])
   })
 
   it('sends Windows drive-slash workspace resource file references without internalizing them', async () => {
@@ -2633,7 +2764,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(true)
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('Agent')
-    expect(belowControls).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
+    expect(belowControls).toHaveTextContent('Claude Sonnet 4.5')
     expect(belowControls).toHaveTextContent('Workspace 1')
     const sendAccessory = screen.getByTestId('composer-send-accessory')
     expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
@@ -2641,13 +2772,13 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toHaveClass('h-8', 'rounded-lg')
+    expect(screen.getByText('Claude Sonnet 4.5').closest('button')).toHaveClass('h-8', 'rounded-lg')
     const workspaceButton = screen.getByText('Workspace 1').closest('button')
     expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
 
     const belowText = belowControls.textContent ?? ''
-    expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
-    expect(belowText.indexOf('Claude Sonnet 4.5 | Anthropic')).toBeLessThan(belowText.indexOf('Workspace 1'))
+    expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5'))
+    expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
   })
 
   it('renders a missing-agent home composer with a selectable agent and blocked sending', () => {
@@ -2723,7 +2854,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5')).not.toHaveClass('sr-only')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
 
@@ -2731,7 +2862,7 @@ describe('AgentComposer', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Agent')).toHaveClass('sr-only')
-      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
+      expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('sr-only')
     })
     expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })
@@ -2855,6 +2986,23 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 
+  it('uses the same 20px size for the workspace warning icon', async () => {
+    mocks.sessionLayout = 'time'
+    mocks.isDirectory.mockResolvedValueOnce(false)
+
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(document.querySelector('.lucide-triangle-alert')).toHaveAttribute('width', '20'))
+  })
+
   it('does not preflight the system no-project workspace path', () => {
     mocks.sessionLayout = 'time'
 
@@ -2883,6 +3031,7 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
+    expect(document.querySelector('.lucide-circle-slash')).toHaveAttribute('width', '20')
     expect(mocks.isDirectory).not.toHaveBeenCalled()
   })
 })

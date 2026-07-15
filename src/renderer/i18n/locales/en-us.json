@@ -2791,6 +2791,7 @@
           "title": "Import a single webpage"
         }
       },
+      "back_to_parent": "Back",
       "bulk": {
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
@@ -2818,6 +2819,7 @@
         "title": "Upload Your First Data Source"
       },
       "empty_description": "No data sources yet",
+      "empty_folder": "This folder is empty",
       "filters": {
         "all": "All",
         "directory": "Folders",
@@ -2850,9 +2852,9 @@
           "type": "Type",
           "updated_at": "Updated"
         },
+        "open_row": "Open {{title}}",
         "select_all": "Select all",
-        "select_row": "Select row",
-        "view_chunks_row": "View chunks for {{title}}"
+        "select_row": "Select row"
       },
       "toolbar": {
         "add": "Add Data Source"
@@ -2863,6 +2865,8 @@
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
+    "empty_action": "Create Knowledge Base",
+    "empty_description": "You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
