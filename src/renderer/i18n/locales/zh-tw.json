@@ -2791,6 +2791,7 @@
           "title": "导入单个网页"
         }
       },
+      "back_to_parent": "返回上層",
       "bulk": {
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
@@ -2818,6 +2819,7 @@
         "title": "上傳第一個資料來源"
       },
       "empty_description": "暂无数据源",
+      "empty_folder": "此資料夾為空",
       "filters": {
         "all": "全部",
         "directory": "目录",
@@ -2850,9 +2852,9 @@
           "type": "類型",
           "updated_at": "更新時間"
         },
+        "open_row": "開啟「{{title}}」",
         "select_all": "全選",
-        "select_row": "選取列",
-        "view_chunks_row": "查看「{{title}}」的 Chunks"
+        "select_row": "選取列"
       },
       "toolbar": {
         "add": "新增資料來源"
@@ -2863,6 +2865,8 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
+    "empty_action": "建立知識庫",
+    "empty_description": "你還沒有建立任何知識庫。建立一個來整理與檢索你的文件吧。",
     "error": {
       "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
       "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",

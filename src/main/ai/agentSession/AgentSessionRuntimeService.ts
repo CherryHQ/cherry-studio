@@ -34,7 +34,7 @@ import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimePolicyUpdate,
+  AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput
 } from '../runtime/types'
@@ -118,12 +118,9 @@ type AgentSessionRuntimeEntry = {
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
-  /** Model the current connection was opened with. A model edit invalidates reuse. */
-  connectionModelId?: UniqueModelId
   connectionLoop?: Promise<void>
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
-  connectingModelId?: UniqueModelId
   currentTurn?: AgentSessionTurn
   lastResumeToken?: string
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -356,98 +353,75 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  async applyAgentPolicyUpdate(agentId: string, update: AgentRuntimePolicyUpdate): Promise<void> {
-    const updates: Array<{
-      entry: AgentSessionRuntimeEntry
-      connection: AgentRuntimeConnection
-      promise: Promise<boolean> | boolean
-    }> = []
-    for (const entry of this.entries.values()) {
-      if (entry.agentId !== agentId) continue
-      const { connection } = entry
-      if (!connection?.applyPolicyUpdate) continue
-      updates.push({ entry, connection, promise: connection.applyPolicyUpdate(update) })
-    }
-    const results = await Promise.allSettled(updates.map(({ promise }) => promise))
-    for (const [index, result] of results.entries()) {
-      const updateTarget = updates[index]
-      if (!updateTarget) continue
-      const { entry, connection } = updateTarget
-      const { sessionId } = entry
-
-      // Fail closed: a rejected policy update may have left the connection enforcing the OLD (looser)
-      // policy — the snapshot's `permissionMode` gates `canUseTool`, so a failed tighten must not keep
-      // running. Pause the live turn and tear the connection down rather than silently continuing.
-      if (result.status === 'rejected') {
-        logger.error('Failed to apply live agent policy update; closing runtime connection', {
-          agentId,
-          sessionId,
-          error: result.reason
-        })
-        this.closeFailedPolicyUpdateConnection(entry, connection)
-        continue
-      }
-
-      // `false` means the connection had no live query to apply the update to (already torn down) —
-      // detach it so a stale connection doesn't keep serving a policy it never received.
-      if (result.value === false) {
-        logger.warn('Live agent policy update had no live query; detaching runtime connection', { agentId, sessionId })
-        this.detachPolicyUpdateConnection(entry, connection)
-      }
-    }
-  }
-
+  /**
+   * Push side of connection reconcile — a latency optimization over the pull that every fresh turn
+   * runs in {@link ensureConnection}: agent edits apply to live/idle connections without waiting for
+   * the next message. The connection's `reconcile` re-derives the desired config itself, so no
+   * per-field knowledge lives here: live facts (permission mode, tool policy) hot-apply — even
+   * mid-turn — and spawn-frozen changes (model, workspace, skills, sub-models, MCP definitions, …)
+   * report 'rebuild'. Inputs that change WITHOUT an agent-updated event (in-session skill toggles,
+   * MCP definition edits, workspace switches) have no push at all and are covered by the pull.
+   */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
-    if (Object.prototype.hasOwnProperty.call(updates, 'model')) {
-      this.applyAgentModelUpdate(agentId, agent.model)
-    }
-
-    // WARNING: only the primary `model` invalidates the connection here — `planModel`/`smallModel` edits
-    // are NOT reconciled against a live or warm connection. The sonnet/haiku route is rebuilt from the
-    // current agent in `buildClaudeCodeQueryRequestForAgentSession`, so a sub-model change takes effect on
-    // the NEXT reconnect (next fresh turn on a cold entry, or after the idle TTL), not on an already-open
-    // connection. Editing only plan/small while a connection is warm won't retarget it until it rebuilds.
-
-    // `configuration` is a wholesale column replace, so a partial update that omits `permission_mode`
-    // still changes the effective value (it clears it). Resync on ANY configuration change and derive
-    // the authoritative value from the post-update agent — never from the update DTO's key presence,
-    // which would leave the warm connection on a stale mode the DB no longer holds.
-    if (updates.configuration !== undefined) {
-      await this.applyAgentPolicyUpdate(agentId, {
-        type: 'permission-mode',
-        permissionMode: agent.configuration?.permission_mode
-      })
-    }
-
-    if (
-      Object.prototype.hasOwnProperty.call(updates, 'disabledTools') ||
-      Object.prototype.hasOwnProperty.call(updates, 'mcps')
-    ) {
-      await this.applyAgentPolicyUpdate(agentId, { type: 'tool-policy', agent })
-    }
-  }
-
-  private applyAgentModelUpdate(agentId: string, modelId: UniqueModelId | null): void {
+    const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
+    const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
 
-      if (!modelId) {
+      // A cleared model (`PATCH { model: null }`) is unroutable, not stale — fully invalidate.
+      if (modelEdited && !agent.model) {
         this.invalidateModelClearedEntry(entry)
         continue
       }
 
-      if (entry.modelId === modelId) continue
-      entry.modelId = modelId
+      // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
+      // live turn keeps its captured `turn.modelId` regardless.
+      if (agent.model) entry.modelId = agent.model
+      reconciles.push(this.reconcileEntryConnection(entry))
+    }
+    await Promise.all(reconciles)
+  }
 
-      // Treat a steer roll as a live turn: at a `steer-boundary` A1a is marked terminal but `entry.rolling`
-      // stays true while the same SDK query keeps streaming the post-steer response into A2. Closing the
-      // connection in that gap would drop the continuation. Deferring is safe — the roll continuation keeps
-      // A1a's captured model, and the next fresh turn reconnects to the new model via `ensureConnection`.
-      const turn = entry.currentTurn
-      const hasLiveTurn = (turn && !turn.terminalStatus) || entry.rolling === true
-      if (!hasLiveTurn) {
-        this.closeConnectionAsync(entry)
+  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
+    const connection = entry.connection
+    if (!connection) return
+
+    let verdict: AgentRuntimeReconcileResult
+    try {
+      verdict = await connection.reconcile({ modelId: this.connectionTargetModelId(entry) })
+    } catch (error) {
+      logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
+      this.closeFailedPolicyUpdateConnection(entry, connection)
+      return
+    }
+    // The entry/connection may have been replaced while reconcile awaited — never act on a successor.
+    if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+
+    switch (verdict) {
+      case 'current':
+      case 'patched':
+        return
+      case 'rebuild': {
+        // Live patches are already applied (live-first). Rebuild eagerly only when nothing is
+        // streaming — a roll or non-terminal turn keeps its connection, and the next fresh turn's
+        // pull picks the rebuild up.
+        const turn = entry.currentTurn
+        const hasLiveTurn = (turn && !turn.terminalStatus) || entry.rolling === true
+        if (!hasLiveTurn) this.closeConnectionAsync(entry)
+        return
       }
+      case 'invalid':
+        // Desired config no longer derivable (agent/session/model rows gone) — same full
+        // invalidation as a cleared model.
+        this.invalidateModelClearedEntry(entry)
+        return
+      case 'failed':
+        // Fail closed: a failed live patch may have left the connection enforcing the OLD (looser)
+        // policy — the snapshot's `permissionMode` gates `canUseTool`, so a failed tighten must not
+        // keep running. Pause the live turn and tear the connection down.
+        logger.error('Live connection reconcile failed; closing runtime connection', { sessionId: entry.sessionId })
+        this.closeFailedPolicyUpdateConnection(entry, connection)
+        return
     }
   }
 
@@ -534,7 +508,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    const canRedirectOnCurrentModel = entry.connectionModelId === entry.modelId
+    // The gate compares the live turn's captured model against the entry's latest: after a mid-turn
+    // model edit the steer must queue as the NEXT turn (on the new model) instead of folding into a
+    // turn still running on the old one.
+    const canRedirectOnCurrentModel = turn?.modelId === entry.modelId
     if (
       turn &&
       !turn.terminalStatus &&
@@ -713,37 +690,64 @@ export class AgentSessionRuntimeService extends BaseService {
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       const targetModelId = this.connectionTargetModelId(entry)
-      if (entry.connection) {
-        if (entry.connectionModelId === targetModelId) return true
-        this.closeConnectionAsync(entry)
-        continue
+      const connection = entry.connection
+      if (connection) {
+        // A connection carrying a live SDK stream is NEVER reconciled here: closing it would drop
+        // the stream. `turn.admitted` is the load-bearing clause — the steer-roll continuation (A2)
+        // is pre-admitted and `flushRollBuffer` clears `entry.rolling` BEFORE openTurnStream reaches
+        // this point, so `admitted` alone protects the still-streaming roll. (This also closes
+        // #16796's steer-window edge case: the continuation always reuses the rolling connection.)
+        // A fresh, unadmitted turn DOES reconcile — it must run on the latest config.
+        const turn = entry.currentTurn
+        if (entry.rolling || (turn && turn.admitted && !turn.terminalStatus)) return true
+
+        // TOCTOU discipline: reconcile acts on the CAPTURED connection (its live patches land on
+        // the right object even if the entry moves on), and every close decision below re-validates
+        // that the captured connection is still the entry's current one. A thrown reconcile fails
+        // closed like the push path: the suspect connection is replaced by a fresh one.
+        let verdict: AgentRuntimeReconcileResult
+        try {
+          verdict = await connection.reconcile({ modelId: targetModelId })
+        } catch (error) {
+          logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
+          verdict = 'failed'
+        }
+        if (!this.isCurrentEntry(entry)) return false
+        if (entry.connection !== connection) continue
+        // A turn may have been admitted while reconcile awaited (e.g. a racing openTurnStream that
+        // reused the connection) — its stream now rides this connection, so stop touching it.
+        const turnAfter = entry.currentTurn
+        if (entry.rolling || (turnAfter && turnAfter.admitted && !turnAfter.terminalStatus)) return true
+
+        switch (verdict) {
+          case 'current':
+          case 'patched':
+            return true
+          case 'rebuild':
+          case 'failed':
+            // 'failed' pre-turn is recoverable: the suspect connection is torn down (fail closed)
+            // and the loop reconnects from the latest config.
+            this.closeConnectionAsync(entry)
+            continue
+          case 'invalid':
+            this.closeSession(entry.sessionId)
+            return false
+        }
       }
 
       // Share a single in-flight connect across concurrent callers so two streams opening at once
-      // can't each spin up a connection (the second would leak/clobber the first). If the target
-      // model changed while that connect was in flight, wait for the stale attempt to self-discard,
-      // then loop and open the new model.
+      // can't each spin up a connection (the second would leak/clobber the first). Whatever that
+      // connect produces, loop and re-check it — a stale attempt self-discards in `connect()` and a
+      // fresh one passes the reconcile above.
       if (entry.connecting) {
-        if (entry.connectingModelId === targetModelId) {
-          // Don't hand the shared promise straight back: it resolves false when the attempt
-          // self-discards on a mid-flight model edit, and a caller surfacing that false while the
-          // entry is still current would leave its turn stream waiting forever. Loop and retry.
-          if (await entry.connecting) return true
-          continue
-        }
         await entry.connecting.catch(() => false)
         continue
       }
 
-      const connectingModelId = targetModelId
-      const connecting = this.connect(entry, connectingModelId).finally(() => {
-        if (entry.connecting === connecting) {
-          entry.connecting = undefined
-          entry.connectingModelId = undefined
-        }
+      const connecting = this.connect(entry, targetModelId).finally(() => {
+        if (entry.connecting === connecting) entry.connecting = undefined
       })
       entry.connecting = connecting
-      entry.connectingModelId = connectingModelId
       const connected = await connecting
       if (connected) return true
     }
@@ -773,13 +777,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
-    entry.connectionModelId = modelId
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
         entry.connection = undefined
-        entry.connectionModelId = undefined
       }
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
@@ -1388,21 +1390,12 @@ export class AgentSessionRuntimeService extends BaseService {
       // down via `closeSession`); a failed tighten must not keep streaming under the old policy.
       application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-policy-update-failed')
     }
-    this.detachPolicyUpdateConnection(entry, connection)
-  }
-
-  private detachPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
-    if (entry.connection !== connection) return
-    this.closeConnection(entry)
-    void Promise.resolve(connection.close()).catch((error) =>
-      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-    )
+    this.closeConnectionAsync(entry)
   }
 
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     const connection = entry.connection
     entry.connection = undefined
-    entry.connectionModelId = undefined
     entry.connectionLoop = undefined
     return connection
   }
