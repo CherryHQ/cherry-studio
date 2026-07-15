@@ -149,9 +149,7 @@ const KnowledgeItemRow = ({
       type: 'item',
       id: 'delete',
       label: t('knowledge.data_source.actions.delete'),
-      // Explicit destructive color: the menu's default svg rule mutes uncolored icons, so the
-      // trash icon would otherwise stay gray while the label is red.
-      icon: <Trash2 className="size-3.5 text-destructive" />,
+      icon: <Trash2 className="size-3.5" />,
       destructive: true,
       onSelect: () => {
         void Promise.resolve(onDelete()).catch((error) => {
