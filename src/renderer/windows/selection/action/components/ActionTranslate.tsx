@@ -361,7 +361,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                   </Button>
                 </PopoverTrigger>
               </Tooltip>
-              <PopoverContent align="end" className="w-[220px] p-2">
+              <PopoverContent
+                align="end"
+                className="w-[220px] p-2"
+                onOpenAutoFocus={(event) => {
+                  event.preventDefault()
+                  const content = event.currentTarget as HTMLElement
+                  content.focus()
+                }}>
                 {settingsContent}
               </PopoverContent>
             </Popover>
