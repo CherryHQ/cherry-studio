@@ -1399,16 +1399,21 @@ describe('ResourceList', () => {
     const sessionButton = screen.getByRole('button', { name: 'session' })
     const sessionLabel = sessionButton.querySelector('span')
     const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
+    const sessionChevronSlot = sessionChevron?.parentElement
     expect(sessionLabel).not.toBeNull()
     expect(sessionChevron).not.toBeNull()
-    expect(sessionChevron!.previousElementSibling).toBe(sessionLabel)
+    expect(sessionChevronSlot?.previousElementSibling).toBe(sessionLabel)
     expect(sessionLabel!).not.toHaveClass('flex-1')
-    expect(sessionChevron!).toHaveClass(
+    expect(sessionChevronSlot).toHaveClass(
       'hidden',
-      'group-hover/resource-list-group:block',
-      'group-focus-within/resource-list-group:block',
-      'group-has-data-[state=open]/resource-list-group:block'
+      'size-6',
+      'items-center',
+      'justify-center',
+      'group-hover/resource-list-group:flex',
+      'group-focus-within/resource-list-group:flex',
+      'group-has-data-[state=open]/resource-list-group:flex'
     )
+    expect(sessionChevron!).toHaveClass('size-3')
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
     fireEvent.click(sessionButton)
@@ -1604,16 +1609,29 @@ describe('ResourceList', () => {
 
     const groupActionButton = screen.getAllByRole('button', { name: 'Group more' })[0]
     const groupActionWrapper = groupActionButton.parentElement
+    const groupHeaderRow = groupActionWrapper?.parentElement
+    const groupHeaderButton = screen.getByRole('button', { name: 'session' })
 
     expect(groupActionButton).toHaveClass('size-6', 'min-h-6', 'min-w-6', 'rounded-md', 'p-0', '[&_svg]:size-3!')
     expect(groupActionButton).not.toHaveClass('min-h-7.5')
+    expect(groupHeaderRow).toHaveClass('relative')
+    expect(groupHeaderButton).toHaveClass(
+      'group-hover/resource-list-group:pr-12',
+      'group-focus-within/resource-list-group:pr-12',
+      'group-has-data-[state=open]/resource-list-group:pr-12'
+    )
     expect(groupActionWrapper).toHaveClass(
+      'absolute',
+      'top-1/2',
+      'right-1.5',
+      '-translate-y-1/2',
       'flex',
       'opacity-0',
       'group-hover/resource-list-group:opacity-100',
       'group-focus-within/resource-list-group:opacity-100',
       'has-data-[state=open]:opacity-100'
     )
+    expect(groupActionWrapper).not.toHaveClass('ml-auto', 'shrink-0')
     expect(groupActionWrapper).not.toHaveClass('hidden')
   })
 

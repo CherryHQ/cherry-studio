@@ -1052,14 +1052,6 @@ export function Topics({
     },
     [assistantById]
   )
-  const getGroupHeaderClickBehavior = useCallback(
-    (group: { id: string }) => {
-      if (isRightPanel) return 'none'
-
-      return displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'expand-only' : 'toggle'
-    },
-    [displayMode, isRightPanel]
-  )
   const loadTopicGroup = useCallback(
     async (groupId: string) => {
       if (groupId === TOPIC_PINNED_GROUP_ID) return pinnedTopics[0]?.id ?? null
@@ -1636,7 +1628,7 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
-        groupHeaderClickBehavior={getGroupHeaderClickBehavior}
+        groupHeaderClickBehavior={isRightPanel ? 'none' : 'toggle'}
         dragCapabilities={{
           groups: isAssistantDisplayMode,
           items: isAssistantDisplayMode && topicSortBy === 'orderKey',

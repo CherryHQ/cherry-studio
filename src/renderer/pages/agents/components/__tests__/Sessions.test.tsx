@@ -973,11 +973,8 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Project A Workspace' }))
-    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
-    expect(getSessionGroupExpansionCache().workdir).not.toContain('session:workspace:ws-a')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.collapse: Project A Workspace' }))
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
+    expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-a')
   })
 
   it('defaults only the active workspace group to expanded before the user changes expansion', () => {
@@ -1498,7 +1495,7 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
     expect(betaGroup).toHaveAttribute('aria-expanded', 'true')
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.collapse: Beta agent' }))
+    fireEvent.click(betaGroup)
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
     expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
   })
@@ -1645,7 +1642,7 @@ describe('Sessions', () => {
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
   })
 
-  it('keeps an expanded agent group open on label click and collapses it from the disclosure button', () => {
+  it('toggles an agent group from the group row without changing the active session', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     cacheMocks.state.activeSessionId = 'session-a'
     agentDataMocks.useAgents.mockReturnValue({
@@ -1671,12 +1668,14 @@ describe('Sessions', () => {
     fireEvent.click(betaGroupButton)
 
     expect(cacheMocks.setActiveSessionId).not.toHaveBeenCalled()
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.collapse: Beta agent' }))
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'false')
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
-    expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'common.collapse: Beta agent' })).not.toBeInTheDocument()
+
+    fireEvent.click(betaGroupButton)
+
+    expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('clears session selection while a resource menu item is active', async () => {

@@ -1679,11 +1679,6 @@ const Sessions = ({
     },
     [setActiveSessionId]
   )
-  const getGroupHeaderClickBehavior = useCallback(
-    (group: ResourceListGroup) =>
-      displayMode !== 'time' && group.id !== SESSION_PINNED_GROUP_ID ? 'expand-only' : 'toggle',
-    [displayMode]
-  )
   const loadSessionGroup = useCallback(
     async (groupId: string) => {
       if (groupId === SESSION_PINNED_GROUP_ID) return pinnedSessions[0]?.id ?? null
@@ -2338,7 +2333,6 @@ const Sessions = ({
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
-      groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
         groups: groupDragReady,
         items: itemDragReady,

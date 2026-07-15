@@ -3082,7 +3082,7 @@ describe('Topics', () => {
     expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1')
   })
 
-  it('keeps an expanded assistant group open on label click and collapses it from the disclosure button', () => {
+  it('toggles an assistant group from the group row without changing the active topic', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     const { setActiveTopic } = renderTopicList()
 
@@ -3092,12 +3092,14 @@ describe('Topics', () => {
     fireEvent.click(betaGroupButton)
 
     expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.collapse: Beta Assistant' }))
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'false')
     expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'common.collapse: Beta Assistant' })).not.toBeInTheDocument()
+
+    fireEvent.click(betaGroupButton)
+
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('moves the assistant resource entry into the topic options menu', async () => {
