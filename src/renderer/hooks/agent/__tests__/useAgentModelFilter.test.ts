@@ -41,6 +41,12 @@ describe('useAgentModelFilter', () => {
     ).toBe(false)
   })
 
+  it('filters provider IDs that the API Gateway cannot route for Claude Code agents', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(result.current({ ...model(), providerId: 'corp:west', id: 'corp:west::gpt-4o' })).toBe(false)
+  })
+
   it('marks its predicate as an agent picker so selectors surface agent-only providers', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 

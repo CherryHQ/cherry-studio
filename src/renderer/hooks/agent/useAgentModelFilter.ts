@@ -10,11 +10,9 @@
  * those make sense as chat targets).
  */
 
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
-import { isNonChatModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
@@ -40,12 +38,10 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
   return useMemo<AgentModelFilter>(() => {
     const predicate: AgentModelFilter = (model: Model) => {
-      if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-        return !isManagedCherryAiDefaultModel(model.providerId, modelId)
+        return isGatewayRoutableModel(model)
       }
-      return true
+      return baseAgentFilter(model)
     }
     predicate[AGENT_ONLY_FILTER] = true
     return predicate
