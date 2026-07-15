@@ -421,7 +421,12 @@ import {
 } from '@renderer/utils/chat/topicsHelpers'
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import {
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseMutation,
+  mockUseQuery
+} from '@test-mocks/renderer/useDataApi'
 import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 
 import {
@@ -676,8 +681,14 @@ function clearTopicStreamCache(...topicIds: string[]) {
 }
 
 describe('Topics', () => {
+  // Stable `useInvalidateCache` return so tests can assert which keys a move revalidates
+  // (the default mock hands out a fresh spy per call).
+  let invalidateCacheSpy: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    invalidateCacheSpy = vi.fn(async () => undefined)
+    mockUseInvalidateCache.mockReturnValue(invalidateCacheSpy)
     clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
     topicRowRenderMocks.counts.clear()
@@ -3604,7 +3615,8 @@ describe('Topics', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
-    renderTopicList()
+    // The default active topic is topic-a, so this drag moves the *open* conversation.
+    const { setActiveTopic } = renderTopicList()
 
     dndMocks.onDragEnd?.({
       active: {
@@ -3629,9 +3641,60 @@ describe('Topics', () => {
     )
     expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
     expect(patchSpy).toHaveBeenCalledTimes(2)
+    // The moved topic is the open conversation, so it follows to its new assistant instead of
+    // staying bound to the old one (composer/model/capabilities read the active topic's assistant).
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a', assistantId: 'assistant-2' }))
+    // A single refresh after both writes revalidates the list *and* `/topics/:id` (the open
+    // conversation's source), so it isn't fired mid-flight and left bound to the old assistant.
+    expect(invalidateCacheSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+  })
+
+  it('does not snap back to a topic that stopped being active during a cross-assistant move', async () => {
+    // Hold the assistant PATCH open (it is the first patch for a cross-assistant move) so we can
+    // change the active topic before the handler resumes; the follow-up order patch resolves.
+    let resolveAssistantPatch: (() => void) | undefined
+    const pendingAssistantPatch = new Promise<void>((resolve) => {
+      resolveAssistantPatch = () => resolve()
+    })
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    patchSpy.mockReturnValueOnce(pendingAssistantPatch as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    // Start with topic-a as the open conversation, then drag it to another assistant.
+    const { setActiveTopic, rerenderTopicList } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1' })
+    })
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:topic-a'),
+        id: 'item:topic-a',
+        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
+    })
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-a', { body: { assistantId: 'assistant-2' } })
+    )
+
+    // The user navigates to another topic while the assistant PATCH is still in flight.
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({ id: 'topic-d', assistantId: 'assistant-2', name: 'Delta archive' })
+    )
+
+    // Resume the move; it should observe the live selection (topic-d) and leave it alone.
+    resolveAssistantPatch?.()
+
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-a/order', { body: { after: 'topic-d' } })
+    )
+    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' }))
   })
 
   it('refreshes topics after a cross-assistant move partially succeeds before ordering fails', async () => {
+    // The assistant change succeeds; only the follow-up order patch fails.
     const patchSpy = vi
       .spyOn(dataApiService, 'patch')
       .mockResolvedValueOnce(undefined as never)
@@ -3652,7 +3715,8 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(2))
     expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
     expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
-    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
+    // The partial failure still reconciles by revalidating the list and the moved topic's `/topics/:id`.
+    await vi.waitFor(() => expect(invalidateCacheSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a']))
   })
 
   it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
@@ -3755,7 +3819,8 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    renderTopicList()
+    // The open conversation (default topic-a) is not the topic being dragged (topic-e).
+    const { setActiveTopic } = renderTopicList()
 
     dndMocks.onDragEnd?.({
       active: { data: sortableData('item:topic-e'), id: 'item:topic-e' },
@@ -3766,6 +3831,8 @@ describe('Topics', () => {
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-e', { body: { assistantId: 'assistant-1' } })
     )
     expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { after: 'topic-a' } })
+    // Moving a non-active topic must not re-point the open conversation.
+    expect(setActiveTopic).not.toHaveBeenCalled()
   })
 
   it('does not drop topics into pinned or unlinked assistant groups', () => {
