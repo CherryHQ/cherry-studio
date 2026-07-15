@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CitationPreviewService as CitationPreviewServiceType } from '../CitationPreviewService'
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
-const extractReadableTextMock = vi.hoisted(() => vi.fn())
+const extractPreviewTextMock = vi.hoisted(() => vi.fn())
 let mockMainLoggerService: MockMainLoggerService
 let service: CitationPreviewServiceType
 
@@ -13,7 +13,7 @@ vi.mock('@main/utils/remoteFetch', () => ({
 }))
 
 vi.mock('@main/utils/readableContent', () => ({
-  extractReadableText: extractReadableTextMock
+  extractPreviewText: extractPreviewTextMock
 }))
 
 const USER_AGENT =
@@ -37,8 +37,8 @@ describe('CitationPreviewService', () => {
   beforeEach(async () => {
     vi.resetModules()
     fetchRemoteTextMock.mockReset()
-    extractReadableTextMock.mockReset()
-    extractReadableTextMock.mockResolvedValue('Readable article text')
+    extractPreviewTextMock.mockReset()
+    extractPreviewTextMock.mockImplementation(async (source: string) => source)
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
     mockMainLoggerService.error.mockClear()
@@ -52,9 +52,10 @@ describe('CitationPreviewService', () => {
     vi.restoreAllMocks()
   })
 
-  it('cleans plain text, compresses whitespace, and truncates display text to 100 characters', async () => {
+  it('formats plain text in the worker and returns its bounded preview', async () => {
     const body = `![hero](https://example.com/hero.png)\n[Visible](https://example.com/link)\nhttps://hidden.test --- ${'x'.repeat(110)}`
     fetchRemoteTextMock.mockResolvedValue(body)
+    extractPreviewTextMock.mockResolvedValue(`Visible ${'x'.repeat(92)}...`)
 
     await expect(service.fetchPreview('https://example.com', requestContext('request-1'))).resolves.toBe(
       `Visible ${'x'.repeat(92)}...`
@@ -69,18 +70,28 @@ describe('CitationPreviewService', () => {
       maxBytes: MAX_RESPONSE_BYTES,
       maxRedirects: 5
     })
+    expect(extractPreviewTextMock).toHaveBeenCalledWith(body, {
+      inputKind: 'text',
+      maxLength: 100,
+      signal: requestInit.signal
+    })
   })
 
   it('extracts HTML through the shared worker with the task abort signal', async () => {
     const html = '<!doctype html><html><body><article><p>Article</p></article></body></html>'
     fetchRemoteTextMock.mockResolvedValue(html)
+    extractPreviewTextMock.mockResolvedValue('Readable article text')
 
     await expect(service.fetchPreview('https://example.com/article', requestContext('request-1'))).resolves.toBe(
       'Readable article text'
     )
 
     const signal = fetchRemoteTextMock.mock.calls[0]?.[1]?.signal as AbortSignal
-    expect(extractReadableTextMock).toHaveBeenCalledWith(html, { signal })
+    expect(extractPreviewTextMock).toHaveBeenCalledWith(html, {
+      inputKind: 'html',
+      maxLength: 100,
+      signal
+    })
   })
 
   it('rejects private and invalid URLs before calling the remote fetch helper', async () => {

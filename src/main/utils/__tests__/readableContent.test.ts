@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractReadableMarkdown, extractReadableText } from '../readableContent'
+import { extractPreviewText, extractReadableMarkdown, extractReadableText } from '../readableContent'
 
 const ARTICLE_HTML = `
   <!doctype html>
@@ -45,5 +45,27 @@ describe('readableContent', () => {
 
     expect(settled).toBe(false)
     await expect(extraction).resolves.toContain('Readable worker regression content')
+  })
+
+  it('cleans and truncates plain preview text inside the worker', async () => {
+    const body = `![hero](https://example.com/hero.png)\n[Visible](https://example.com/link)\nhttps://hidden.test --- ${'x'.repeat(110)}`
+
+    await expect(extractPreviewText(body, { inputKind: 'text', maxLength: 100 })).resolves.toBe(
+      `Visible ${'x'.repeat(92)}...`
+    )
+  })
+
+  it('keeps the main event loop responsive while cleaning adversarial preview text', async () => {
+    const token = '![unclosed'
+    const source = token.repeat(Math.ceil((1024 * 1024) / token.length))
+    let settled = false
+
+    const extraction = extractPreviewText(source, { inputKind: 'text', maxLength: 100 }).finally(() => {
+      settled = true
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(settled).toBe(false)
+    await expect(extraction).resolves.toHaveLength(103)
   })
 })

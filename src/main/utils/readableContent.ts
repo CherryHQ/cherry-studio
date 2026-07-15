@@ -14,7 +14,14 @@ const JSDOM_MODULE_PATH = moduleRequire.resolve('jsdom')
 const READABILITY_MODULE_PATH = moduleRequire.resolve('@mozilla/readability')
 const TURNDOWN_MODULE_PATH = moduleRequire.resolve('turndown')
 
-type ReadableContentFormat = 'text' | 'markdown'
+type ReadableContentFormat = 'text' | 'markdown' | 'preview'
+
+type ReadableContentWorkerInput = {
+  readonly format: ReadableContentFormat
+  readonly inputKind: 'html' | 'text'
+  readonly maxLength?: number
+  readonly source: string
+}
 
 type ReadableContentWorkerMessage =
   | { type: 'result'; title: string; content: string }
@@ -28,6 +35,11 @@ export type ReadableContentResult = {
 export type ReadableContentOptions = {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
+}
+
+export type PreviewTextOptions = ReadableContentOptions & {
+  readonly inputKind: 'html' | 'text'
+  readonly maxLength: number
 }
 
 function getAbortReason(signal: AbortSignal): Error {
@@ -51,8 +63,7 @@ function terminateWorker(worker: Worker): void {
 }
 
 function runReadableContentWorker(
-  html: string,
-  format: ReadableContentFormat,
+  input: ReadableContentWorkerInput,
   options: ReadableContentOptions
 ): Promise<ReadableContentResult> {
   if (options.signal?.aborted) {
@@ -64,8 +75,7 @@ function runReadableContentWorker(
       eval: true,
       workerData: {
         baseUrl: SAFE_JSDOM_URL,
-        format,
-        html,
+        ...input,
         jsdomModulePath: JSDOM_MODULE_PATH,
         readabilityModulePath: READABILITY_MODULE_PATH,
         turndownModulePath: TURNDOWN_MODULE_PATH
@@ -118,7 +128,7 @@ function runReadableContentWorker(
 }
 
 export async function extractReadableText(html: string, options: ReadableContentOptions = {}): Promise<string> {
-  const result = await runReadableContentWorker(html, 'text', options)
+  const result = await runReadableContentWorker({ format: 'text', inputKind: 'html', source: html }, options)
   return result.content
 }
 
@@ -126,5 +136,11 @@ export function extractReadableMarkdown(
   html: string,
   options: ReadableContentOptions = {}
 ): Promise<ReadableContentResult> {
-  return runReadableContentWorker(html, 'markdown', options)
+  return runReadableContentWorker({ format: 'markdown', inputKind: 'html', source: html }, options)
+}
+
+export async function extractPreviewText(source: string, options: PreviewTextOptions): Promise<string> {
+  const { inputKind, maxLength, ...workerOptions } = options
+  const result = await runReadableContentWorker({ format: 'preview', inputKind, maxLength, source }, workerOptions)
+  return result.content
 }

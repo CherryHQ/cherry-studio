@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { extractReadableText } from '@main/utils/readableContent'
+import { extractPreviewText } from '@main/utils/readableContent'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { WindowId } from '@shared/ipc/types'
@@ -29,23 +29,6 @@ type PreviewJob = {
   readonly consumers: Set<string>
   readonly controller: AbortController
   readonly promise: Promise<string>
-}
-
-function cleanMarkdownContent(text: string): string {
-  if (!text) return ''
-
-  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '')
-  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1')
-  cleaned = cleaned.replace(/https?:\/\/\S+/g, '')
-  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ')
-  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '')
-  return cleaned.replace(/\s+/g, ' ').trim()
-}
-
-function formatPreview(text: string): string {
-  const cleaned = cleanMarkdownContent(text)
-
-  return cleaned.length > MAX_PREVIEW_LENGTH ? `${cleaned.slice(0, MAX_PREVIEW_LENGTH)}...` : cleaned
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -79,9 +62,11 @@ async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise
       maxRedirects: 5
     })
 
-    const content = looksLikeHtml(responseText) ? await extractReadableText(responseText, { signal }) : responseText
-
-    return formatPreview(content)
+    return await extractPreviewText(responseText, {
+      inputKind: looksLikeHtml(responseText) ? 'html' : 'text',
+      maxLength: MAX_PREVIEW_LENGTH,
+      signal
+    })
   } catch (error) {
     if (!isAbortError(error)) {
       logger.error('Failed to fetch citation preview', createErrorLogContext(safeUrl, error))
