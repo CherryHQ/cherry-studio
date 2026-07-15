@@ -1,6 +1,6 @@
 import type { AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
 import type { Model } from '@shared/data/types/model'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import * as React from 'react'
 import { type ButtonHTMLAttributes, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -181,6 +181,10 @@ describe('AgentSpeedControl UI', () => {
       })
     )
     openAdvancedSettings()
+    const backButton = await screen.findByRole('button', { name: 'common.back' })
+    expect(backButton.querySelector('.lucide-chevron-left')).toBeInTheDocument()
+    expect(backButton).not.toHaveTextContent('common.advanced_settings')
+    expect(backButton.nextElementSibling).toContainElement(screen.getByTestId('agent-effort-slider-label'))
     const slider = await screen.findByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '2')
     expect(slider).toHaveAttribute('data-mark-count', '0')
@@ -188,10 +192,26 @@ describe('AgentSpeedControl UI', () => {
     expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.off')
     expect(slider).toHaveClass('[&_[data-slot=slider-thumb]]:shadow-sm')
     expect(slider).not.toHaveClass('[&_[data-slot=slider-thumb]]:shadow-none')
+    expect(slider).toHaveClass(
+      '[&_[data-slot=slider-thumb]]:rounded-lg',
+      '[&_[data-slot=slider-track]]:bg-primary/15',
+      '[&_[data-slot=slider-track]]:shadow-inner'
+    )
+    expect(screen.getByText('agent.speed.faster')).toBeInTheDocument()
+    expect(screen.getByText('agent.speed.smarter')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-effort-slider-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.max'
+    )
+    expect(slider).toHaveClass('agent-effort-slider')
 
     fireEvent.click(screen.getByTestId('select-slider-min'))
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-effort-slider-label')).toHaveTextContent(
+        'assistants.settings.reasoning_effort.off'
+      )
     )
 
     const fastIconButton = screen.getByRole('button', { name: 'agent.speed.fast' })

@@ -648,8 +648,10 @@
     "speed": {
       "effort": "Effort",
       "fast": "Fast",
+      "faster": "Faster",
       "label": "Speed",
       "reasoning": "Reasoning effort",
+      "smarter": "Smarter",
       "title": "Response settings"
     },
     "tasks": {

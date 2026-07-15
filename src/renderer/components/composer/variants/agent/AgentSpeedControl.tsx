@@ -12,9 +12,10 @@ import {
   DropdownMenuTrigger,
   Slider
 } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
 import type { Model } from '@shared/data/types/model'
-import { ChevronDown, ChevronRight, ChevronUp, Gauge, Zap } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronUp, Gauge, Zap } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -158,13 +159,28 @@ export function AgentSpeedControl({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1 px-0 text-muted-foreground text-xs hover:bg-transparent hover:text-foreground"
+                  size="icon-sm"
+                  className="rounded-full text-muted-foreground hover:text-foreground"
                   aria-label={t('common.back')}
                   onClick={() => setShowAdvanced(false)}>
-                  <span>{t('common.advanced_settings')}</span>
-                  <ChevronRight size={15} />
+                  <ChevronLeft size={15} />
                 </Button>
+                <div className="ml-1 flex min-w-0 items-baseline gap-1 text-xs">
+                  <span className="shrink-0 text-muted-foreground">{t('agent.speed.effort')}:</span>
+                  <AnimatePresence initial={false} mode="wait">
+                    <motion.span
+                      key={selectedSliderEffort}
+                      data-testid="agent-effort-slider-label"
+                      aria-live="polite"
+                      className="truncate font-medium text-foreground"
+                      initial={{ y: 2, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -2, opacity: 0 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}>
+                      {t(EFFORT_LABEL_KEYS[selectedSliderEffort])}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
                 {supportsFast ? (
                   <Button
                     type="button"
@@ -179,31 +195,41 @@ export function AgentSpeedControl({
                 ) : null}
               </div>
               {showEffortSlider ? (
-                <div className="relative mx-2.5 mt-1 mb-2 h-8">
-                  <Slider
-                    thumbAriaLabel={t('agent.speed.reasoning')}
-                    getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[sliderEfforts[index]])}
-                    value={[currentIndex]}
-                    min={0}
-                    max={sliderEfforts.length - 1}
-                    step={1}
-                    size="lg"
-                    className="h-8 [&_[data-slot=slider-thumb]:hover]:ring-0 [&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-8 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:shadow-sm [&_[data-slot=slider-track]]:h-6 [&_[data-slot=slider-track]]:bg-muted-foreground/30"
-                    onValueChange={([index]) => {
-                      const effort = sliderEfforts[index]
-                      if (effort) selectReasoningEffort(effort)
-                    }}
-                  />
-                  <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-                    {sliderEfforts.map((effort, index) => (
-                      <span
-                        key={effort}
-                        className={`-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full ${
-                          index <= currentIndex ? 'bg-white/75' : 'bg-muted-foreground'
-                        }`}
-                        style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
-                      />
-                    ))}
+                <div className="mx-2.5 mt-1 mb-2">
+                  <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
+                    <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
+                    <span className="text-primary">{t('agent.speed.smarter')}</span>
+                  </div>
+                  <div className="relative mt-1.5 h-8">
+                    <Slider
+                      thumbAriaLabel={t('agent.speed.reasoning')}
+                      getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[sliderEfforts[index]])}
+                      value={[currentIndex]}
+                      min={0}
+                      max={sliderEfforts.length - 1}
+                      step={1}
+                      size="lg"
+                      className={cn(
+                        'agent-effort-slider h-8',
+                        '[&_[data-slot=slider-track]]:h-6 [&_[data-slot=slider-track]]:bg-primary/15 [&_[data-slot=slider-track]]:shadow-inner',
+                        '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:h-7 [&_[data-slot=slider-thumb]]:w-6 [&_[data-slot=slider-thumb]]:rounded-lg',
+                        '[&_[data-slot=slider-thumb]]:border-primary/25 [&_[data-slot=slider-thumb]]:bg-background [&_[data-slot=slider-thumb]]:shadow-sm',
+                        '[&_[data-slot=slider-thumb]:active]:scale-95 [&_[data-slot=slider-thumb]:hover]:ring-0'
+                      )}
+                      onValueChange={([index]) => {
+                        const effort = sliderEfforts[index]
+                        if (effort) selectReasoningEffort(effort)
+                      }}
+                    />
+                    <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
+                      {sliderEfforts.map((effort, index) => (
+                        <span
+                          key={effort}
+                          className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-primary/60"
+                          style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : manualEfforts.length === 1 ? (
