@@ -34,7 +34,9 @@ function PopoverContent({
         sideOffset={sideOffset}
         forceMount={forceMount}
         className={cn(
-          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[80] w-72 origin-(--radix-popover-content-transform-origin) rounded-lg border-[0.5px] p-4 shadow-lg outline-hidden',
+          // no-drag punches the popup's area out of any titlebar drag region it overlaps,
+          // so hover/click reach the items instead of the window-drag hit test (Electron).
+          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[80] w-72 origin-(--radix-popover-content-transform-origin) rounded-lg border-[0.5px] p-4 shadow-lg outline-hidden [-webkit-app-region:no-drag]',
           className
         )}
         {...props}
