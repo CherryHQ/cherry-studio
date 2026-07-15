@@ -2,6 +2,13 @@
   --cherry-emoji-category-focus-size: 30px;
 }
 
+/* emoji-picker-react forces its native emoji font stack with !important. */
+body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
+  font-family:
+    'Twemoji Country Flags', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Segoe UI', 'Apple Color Emoji', 'Twemoji Mozilla',
+    'Noto Color Emoji', 'EmojiOne Color', 'Android Emoji' !important;
+}
+
 .cherry-emoji-picker-react .epr-emoji-category-label {
   font-size: 14px;
   font-weight: var(--font-weight-regular);

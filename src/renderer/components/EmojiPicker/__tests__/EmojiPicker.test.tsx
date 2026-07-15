@@ -162,6 +162,16 @@ describe('EmojiPicker', () => {
     expect(css).toContain('transform: translate(-50%, -50%)')
   })
 
+  it('uses the bundled country flag font for native emojis on Windows', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
+    const windowsNativeEmojiRule = css.match(
+      /body\[os='windows'\] \.cherry-emoji-picker-react \.epr-emoji-native\s*\{([^}]*)\}/
+    )?.[1]
+
+    expect(windowsNativeEmojiRule).toMatch(/font-family:\s*'Twemoji Country Flags'/)
+    expect(windowsNativeEmojiRule).toContain('!important')
+  })
+
   it('uses native Emoji 13, auto theme, no preview, and no skin tone picker', () => {
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
 
