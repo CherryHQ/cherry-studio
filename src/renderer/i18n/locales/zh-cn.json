@@ -1219,20 +1219,20 @@
         "auto_description": "灵活决定推理力度",
         "default": "默认",
         "default_description": "依赖模型默认行为，不作任何配置",
-        "high": "沉思",
+        "high": "高",
         "high_description": "高强度推理",
-        "label": "思维链长度",
-        "low": "浮想",
+        "label": "思考深度",
+        "low": "低",
         "low_description": "低强度推理",
-        "max": "极限",
-        "medium": "斟酌",
+        "max": "极高",
+        "medium": "中",
         "medium_description": "中强度推理",
-        "minimal": "微念",
+        "minimal": "最低",
         "minimal_description": "最小程度的推理",
         "off": "关闭",
         "off_description": "禁用推理",
-        "ultra": "究极",
-        "xhigh": "穷究",
+        "ultra": "最高",
+        "xhigh": "超高",
         "xhigh_description": "超高强度推理"
       },
       "regular_phrases": {
@@ -2787,6 +2787,7 @@
           "title": "导入单个网页"
         }
       },
+      "back_to_parent": "返回上级",
       "bulk": {
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
@@ -2814,6 +2815,7 @@
         "title": "上传第一个数据源"
       },
       "empty_description": "暂无数据源",
+      "empty_folder": "该文件夹为空",
       "filters": {
         "all": "全部",
         "directory": "目录",
@@ -2846,9 +2848,9 @@
           "type": "类型",
           "updated_at": "更新时间"
         },
+        "open_row": "打开「{{title}}」",
         "select_all": "全选",
-        "select_row": "选择行",
-        "view_chunks_row": "查看「{{title}}」的 Chunks"
+        "select_row": "选择行"
       },
       "toolbar": {
         "add": "添加数据源"
@@ -2859,6 +2861,8 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
+    "empty_action": "创建知识库",
+    "empty_description": "你还没有创建任何知识库。创建一个来整理和检索你的文档吧。",
     "error": {
       "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",

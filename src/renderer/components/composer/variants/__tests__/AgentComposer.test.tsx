@@ -415,10 +415,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviderDisplayName: () => 'Anthropic'
-}))
-
 vi.mock('@renderer/hooks/useSkills', () => ({
   useAvailableSkills: () => ({
     skills: mocks.availableSkills,
@@ -722,7 +718,7 @@ describe('AgentComposer', () => {
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
     expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('text-foreground/85')
+    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -850,7 +846,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    const modelLabel = screen.getByText('Claude Sonnet 4.5 | Anthropic')
+    const modelLabel = screen.getByText('Claude Sonnet 4.5')
     expect(modelLabel).not.toHaveClass('text-muted-foreground')
     expect(modelLabel).not.toHaveClass('text-foreground/85')
     expect(modelLabel.closest('button')).toBeDisabled()
@@ -2849,7 +2845,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(true)
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('Agent')
-    expect(belowControls).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
+    expect(belowControls).toHaveTextContent('Claude Sonnet 4.5')
     expect(belowControls).toHaveTextContent('Workspace 1')
     const sendAccessory = screen.getByTestId('composer-send-accessory')
     expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
@@ -2857,13 +2853,13 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toHaveClass('h-8', 'rounded-lg')
+    expect(screen.getByText('Claude Sonnet 4.5').closest('button')).toHaveClass('h-8', 'rounded-lg')
     const workspaceButton = screen.getByText('Workspace 1').closest('button')
     expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
 
     const belowText = belowControls.textContent ?? ''
-    expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
-    expect(belowText.indexOf('Claude Sonnet 4.5 | Anthropic')).toBeLessThan(belowText.indexOf('Workspace 1'))
+    expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5'))
+    expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
   })
 
   it('renders a missing-agent home composer with a selectable agent and blocked sending', () => {
@@ -2939,7 +2935,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5')).not.toHaveClass('sr-only')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
 
@@ -2947,7 +2943,7 @@ describe('AgentComposer', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Agent')).toHaveClass('sr-only')
-      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
+      expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('sr-only')
     })
     expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })

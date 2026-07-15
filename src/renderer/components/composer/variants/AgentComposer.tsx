@@ -37,7 +37,6 @@ import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -415,7 +414,6 @@ interface AgentComposerWorkspaceControlProps {
 
 interface AgentComposerModelControlProps {
   model?: Model
-  modelProviderName?: string
   selectModelLabel: string
   canChangeModel: boolean
   side: 'top' | 'bottom'
@@ -508,7 +506,6 @@ const AgentComposerContextControls = ({
 
 const AgentComposerModelControl = ({
   model,
-  modelProviderName,
   selectModelLabel,
   canChangeModel,
   side,
@@ -519,7 +516,7 @@ const AgentComposerModelControl = ({
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelLabel = model ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}` : selectModelLabel
+  const modelLabel = model ? model.name : selectModelLabel
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
@@ -734,7 +731,6 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   topBarPortalAvailable: boolean
   topBarPortalIconOnly: boolean
   model?: Model
-  modelProviderName?: string
   selectModelLabel: string
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
@@ -909,7 +905,6 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
-  const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
@@ -1409,7 +1404,6 @@ const AgentComposerInner = ({
   const controlSlots = renderControls({
     agent: agentBase,
     model,
-    modelProviderName,
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
     agentChanging,
@@ -1565,7 +1559,6 @@ const MissingAgentHomeComposerInner = ({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
     model: undefined,
-    modelProviderName: undefined,
     selectModelLabel: t('button.select_model'),
     agentChanging,
     agentTriggerMode: 'selector',

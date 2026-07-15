@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getCmThemeByName, getCmThemeNames, getNormalizedExtension } from '../utils'
 
@@ -30,7 +30,29 @@ describe('getNormalizedExtension', () => {
 })
 
 describe('cm theme lazy boundary', () => {
-  it('does not load @uiw/codemirror-themes-all until a theme API is called', async () => {
+  afterEach(() => {
+    vi.doUnmock('@uiw/codemirror-themes-all')
+    vi.resetModules()
+  })
+
+  it.each(['light', 'dark', 'none'] as const)(
+    'does not load the theme catalog for the built-in %s theme',
+    async (name) => {
+      vi.resetModules()
+      const loaded = vi.fn()
+      vi.doMock('@uiw/codemirror-themes-all', () => {
+        loaded()
+        return { dracula: [] }
+      })
+
+      const utils = await import('../utils')
+
+      await expect(utils.getCmThemeByName(name)).resolves.toBe(name)
+      expect(loaded).not.toHaveBeenCalled()
+    }
+  )
+
+  it('loads the theme catalog for a named theme', async () => {
     vi.resetModules()
     const loaded = vi.fn()
     vi.doMock('@uiw/codemirror-themes-all', () => {
@@ -38,16 +60,10 @@ describe('cm theme lazy boundary', () => {
       return { dracula: [] }
     })
 
-    try {
-      const utils = await import('../utils')
-      expect(loaded).not.toHaveBeenCalled()
+    const utils = await import('../utils')
 
-      await expect(utils.getCmThemeByName('dracula')).resolves.toEqual([])
-      expect(loaded).toHaveBeenCalledTimes(1)
-    } finally {
-      vi.doUnmock('@uiw/codemirror-themes-all')
-      vi.resetModules()
-    }
+    await expect(utils.getCmThemeByName('dracula')).resolves.toEqual([])
+    expect(loaded).toHaveBeenCalledTimes(1)
   })
 })
 

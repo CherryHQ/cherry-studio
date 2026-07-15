@@ -93,7 +93,9 @@ function Slider({
   formatValueLabel,
   thumbAriaLabel,
   getThumbAriaValueText,
+  disabled,
   onValueChange,
+  onValueCommit,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
   VariantProps<typeof sliderTrackVariants> & {
@@ -114,20 +116,27 @@ function Slider({
   }, [value])
 
   const isVertical = orientation === 'vertical'
+  const currentValues = Array.isArray(value) ? value : localValues
+  const updateValues = React.useCallback(
+    (newValues: number[], commit = false) => {
+      setLocalValues(newValues)
+      onValueChange?.(newValues)
+      if (commit) onValueCommit?.(newValues)
+    },
+    [onValueChange, onValueCommit]
+  )
 
   const sliderElement = (
     <SliderPrimitive.Root
       data-slot="slider"
       data-size={size}
-      defaultValue={defaultValue}
-      value={value}
+      value={currentValues}
       min={min}
       max={max}
       orientation={orientation}
-      onValueChange={(newValues) => {
-        setLocalValues(newValues)
-        onValueChange?.(newValues)
-      }}
+      disabled={disabled}
+      onValueChange={updateValues}
+      onValueCommit={onValueCommit}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
         !marks?.length && className
@@ -139,7 +148,7 @@ function Slider({
           className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
-      {localValues.map((val, index) => (
+      {currentValues.map((val, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
@@ -174,16 +183,30 @@ function Slider({
           const percentage = ((mark.value - min) / range) * 100
           const transform =
             percentage <= 0 ? 'translateX(0)' : percentage >= 100 ? 'translateX(-100%)' : 'translateX(-50%)'
-          return (
+          const markStyle = isVertical
+            ? { top: `${100 - percentage}%`, transform: 'translateY(-50%)' }
+            : { left: `${percentage}%`, transform }
+
+          return currentValues.length === 1 ? (
+            <button
+              type="button"
+              key={mark.value}
+              data-slot="slider-mark"
+              disabled={disabled}
+              className={cn(
+                sliderMarkLabelVariants({ size }),
+                'cursor-pointer border-0 bg-transparent p-0 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed'
+              )}
+              style={markStyle}
+              onClick={() => updateValues([mark.value], true)}>
+              {mark.label}
+            </button>
+          ) : (
             <span
               key={mark.value}
               data-slot="slider-mark"
               className={sliderMarkLabelVariants({ size })}
-              style={
-                isVertical
-                  ? { top: `${100 - percentage}%`, transform: 'translateY(-50%)' }
-                  : { left: `${percentage}%`, transform }
-              }>
+              style={markStyle}>
               {mark.label}
             </span>
           )

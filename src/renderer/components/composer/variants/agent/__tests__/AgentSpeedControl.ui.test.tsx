@@ -24,41 +24,22 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </div>
   ),
-  Switch: ({
-    checked,
-    onCheckedChange,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    checked?: boolean
-    onCheckedChange?: (checked: boolean) => void
-    size?: string
-  }) => {
-    const switchProps = { ...props }
-    delete switchProps.size
-    return (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onCheckedChange?.(!checked)}
-        {...switchProps}
-      />
-    )
-  },
   Slider: ({
     marks,
     max,
     disabled,
     value,
     thumbAriaLabel,
-    getThumbAriaValueText
+    getThumbAriaValueText,
+    onValueChange
   }: {
-    marks: unknown[]
+    marks: { value: number; label: string }[]
     max: number
     disabled?: boolean
     value: number[]
     thumbAriaLabel: string
     getThumbAriaValueText: (value: number) => string
+    onValueChange: (value: number[]) => void
   }) => (
     <div
       data-testid="reasoning-slider"
@@ -67,8 +48,13 @@ vi.mock('@cherrystudio/ui', () => ({
       data-disabled={String(Boolean(disabled))}
       data-value={value[0]}
       data-thumb-label={thumbAriaLabel}
-      data-thumb-value-text={getThumbAriaValueText(0)}
-    />
+      data-thumb-value-text={getThumbAriaValueText(value[0])}>
+      {marks.map((mark) => (
+        <button key={mark.value} type="button" disabled={disabled} onClick={() => onValueChange([mark.value])}>
+          {mark.label}
+        </button>
+      ))}
+    </div>
   )
 }))
 
@@ -103,6 +89,10 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
   )
 }
 
+function openAdvancedSettings(container: HTMLElement = screen.getByTestId('popover-content')) {
+  fireEvent.click(within(container).getByRole('button', { name: 'common.advanced_settings' }))
+}
+
 describe('AgentSpeedControl UI', () => {
   it('renders model-specific marks and the Fast activation button inside the popover', () => {
     const onFastModeChange = vi.fn()
@@ -119,6 +109,13 @@ describe('AgentSpeedControl UI', () => {
 
     const popover = screen.getByTestId('popover-content')
     expect(popover).toHaveClass('w-80')
+    const fastButton = within(popover).getByRole('button', { name: 'agent.speed.fast' })
+    expect(fastButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(fastButton)
+    expect(onFastModeChange).toHaveBeenCalledWith(true)
+
+    openAdvancedSettings(popover)
     expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-mark-count', '6')
     expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-max', '5')
     expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-thumb-label', 'agent.speed.reasoning')
@@ -127,11 +124,7 @@ describe('AgentSpeedControl UI', () => {
       'assistants.settings.reasoning_effort.low'
     )
 
-    const fastButton = within(popover).getByRole('button', { name: 'agent.speed.fast' })
-    expect(fastButton).toHaveAttribute('aria-pressed', 'false')
-
-    fireEvent.click(fastButton)
-    expect(onFastModeChange).toHaveBeenCalledWith(true)
+    expect(within(popover).queryByRole('button', { name: 'agent.speed.fast' })).not.toBeInTheDocument()
   })
 
   it('does not offer Fast for Claude Code models without direct Fast support', () => {
@@ -187,11 +180,9 @@ describe('AgentSpeedControl UI', () => {
     )
 
     const popover = screen.getByTestId('popover-content')
+    openAdvancedSettings(popover)
     expect(within(popover).queryByTestId('reasoning-slider')).not.toBeInTheDocument()
     expect(within(popover).getByText('assistants.settings.reasoning_effort.auto_description')).toBeInTheDocument()
-
-    const reasoningSwitch = within(popover).getByRole('switch', { name: 'agent.speed.reasoning' })
-    expect(reasoningSwitch).toHaveAttribute('aria-checked', 'true')
 
     const reasoningButton = within(popover).getByRole('button', {
       name: 'assistants.settings.reasoning_effort.auto'
@@ -199,7 +190,7 @@ describe('AgentSpeedControl UI', () => {
     expect(reasoningButton).toHaveAttribute('aria-pressed', 'true')
     expect(reasoningButton.querySelector('svg')).not.toBeInTheDocument()
 
-    fireEvent.click(reasoningSwitch)
+    fireEvent.click(reasoningButton)
     expect(onReasoningEffortChange).toHaveBeenCalledWith('none')
   })
 
@@ -224,6 +215,7 @@ describe('AgentSpeedControl UI', () => {
     )
 
     const popover = screen.getByTestId('popover-content')
+    openAdvancedSettings(popover)
     expect(within(popover).queryByTestId('reasoning-slider')).not.toBeInTheDocument()
     expect(within(popover).queryByRole('switch', { name: 'agent.speed.reasoning' })).not.toBeInTheDocument()
     expect(within(popover).queryByText('assistants.settings.reasoning_effort.high')).not.toBeInTheDocument()
@@ -251,6 +243,7 @@ describe('AgentSpeedControl UI', () => {
 
     const popover = screen.getByTestId('popover-content')
     expect(popover).toHaveClass('w-56')
+    openAdvancedSettings(popover)
     expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-mark-count', '2')
     expect(within(popover).queryByRole('switch', { name: 'agent.speed.reasoning' })).not.toBeInTheDocument()
   })
@@ -281,14 +274,12 @@ describe('AgentSpeedControl UI', () => {
     )
 
     const popover = screen.getByTestId('popover-content')
+    openAdvancedSettings(popover)
     const slider = within(popover).getByTestId('reasoning-slider')
-    expect(slider).toHaveAttribute('data-mark-count', '2')
+    expect(slider).toHaveAttribute('data-mark-count', '3')
+    expect(slider).toHaveAttribute('data-max', '2')
     expect(slider).toHaveAttribute('data-disabled', 'true')
     expect(slider).toHaveAttribute('data-thumb-value-text', 'assistants.settings.reasoning_effort.high')
-    expect(within(popover).getByRole('switch', { name: 'agent.speed.reasoning' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
 
     const autoButton = within(popover).getByRole('button', {
       name: 'assistants.settings.reasoning_effort.auto'
@@ -321,6 +312,7 @@ describe('AgentSpeedControl UI', () => {
     )
 
     const popover = screen.getByTestId('popover-content')
+    openAdvancedSettings(popover)
     expect(within(popover).queryByTestId('reasoning-slider')).not.toBeInTheDocument()
 
     expect(
@@ -353,13 +345,14 @@ describe('AgentSpeedControl UI', () => {
     )
 
     const popover = screen.getByTestId('popover-content')
+    openAdvancedSettings(popover)
     expect(within(popover).queryByTestId('reasoning-slider')).not.toBeInTheDocument()
     expect(within(popover).queryByRole('switch', { name: 'agent.speed.reasoning' })).not.toBeInTheDocument()
     expect(within(popover).getByRole('button', { name: 'assistants.settings.reasoning_effort.auto' })).toBeDisabled()
     expect(onReasoningEffortChange).not.toHaveBeenCalled()
   })
 
-  it('restores the last enabled effort through the toggle event path', () => {
+  it('treats off as a selectable reasoning effort', () => {
     const toggleAndEffortModel = {
       ...codexModel,
       supportsFastMode: false,
@@ -371,21 +364,20 @@ describe('AgentSpeedControl UI', () => {
 
     render(<ControlledSpeedControl model={toggleAndEffortModel} initialEffort="high" />)
 
-    const reasoningSwitch = screen.getByRole('switch', { name: 'agent.speed.reasoning' })
-    fireEvent.click(reasoningSwitch)
+    openAdvancedSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.off' }))
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
     )
-    expect(reasoningSwitch).toHaveAttribute('aria-checked', 'false')
 
-    fireEvent.click(reasoningSwitch)
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.high' }))
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.high'
     )
-    expect(reasoningSwitch).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('keeps the last manual slider position while reasoning is off or automatic', () => {
+  it('keeps the last manual slider position while reasoning is automatic', () => {
     const toggleAndAutomaticModel = {
       ...codexModel,
       supportsFastMode: false,
@@ -398,23 +390,19 @@ describe('AgentSpeedControl UI', () => {
 
     render(<ControlledSpeedControl model={toggleAndAutomaticModel} initialEffort="high" />)
 
+    openAdvancedSettings()
+
     const slider = () => screen.getByTestId('reasoning-slider')
-    const reasoningSwitch = screen.getByRole('switch', { name: 'agent.speed.reasoning' })
     const autoButton = screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.auto' })
-    expect(slider()).toHaveAttribute('data-value', '1')
+    expect(slider()).toHaveAttribute('data-value', '2')
 
     fireEvent.click(autoButton)
     expect(slider()).toHaveAttribute('data-disabled', 'true')
-    expect(slider()).toHaveAttribute('data-value', '1')
+    expect(slider()).toHaveAttribute('data-value', '2')
 
-    fireEvent.click(reasoningSwitch)
-    expect(slider()).toHaveAttribute('data-disabled', 'true')
-    expect(slider()).toHaveAttribute('data-value', '1')
-
-    fireEvent.click(reasoningSwitch)
     fireEvent.click(autoButton)
     expect(slider()).toHaveAttribute('data-disabled', 'false')
-    expect(slider()).toHaveAttribute('data-value', '1')
+    expect(slider()).toHaveAttribute('data-value', '2')
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.high'
     )
