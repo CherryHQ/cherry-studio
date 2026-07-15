@@ -3,8 +3,10 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const agentPageMocks = vi.hoisted(() => ({
@@ -349,27 +351,6 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => agentPageMocks.routeSearch
 }))
 
-vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
-  default: ({
-    center,
-    pane,
-    paneOpen,
-    topBar
-  }: {
-    center?: { content?: ReactNode }
-    pane?: ReactNode
-    paneOpen?: boolean
-    topBar?: ReactNode
-  }) => (
-    <section data-testid="agent-conversation-page-shell">
-      <output data-testid="resource-pane-open">{String(paneOpen)}</output>
-      {topBar}
-      {pane}
-      {center?.content}
-    </section>
-  )
-}))
-
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   default: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
     <section data-testid="agent-conversation-shell">
@@ -434,6 +415,7 @@ vi.mock('../AgentChat', () => ({
   default: ({
     activeSession,
     activeSessionLoading,
+    centerSurface,
     missingAgentSelection,
     onCreateEmptySession,
     onMissingAgentSelectionAgentChange,
@@ -455,6 +437,7 @@ vi.mock('../AgentChat', () => ({
   }: {
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
+    centerSurface?: { content?: ReactNode } | null
     missingAgentSelection?: boolean
     onCreateEmptySession?: (defaults?: {
       agentId?: string | null
@@ -478,19 +461,54 @@ vi.mock('../AgentChat', () => ({
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="agent-chat">
-      <output data-testid="active-session">{activeSession?.id ?? ''}</output>
-      <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
-      <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
-      <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+      {centerSurface?.content ?? (
+        <>
+          <output data-testid="active-session">{activeSession?.id ?? ''}</output>
+          <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
+          <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
+          <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+          <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
+          <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+          {showResourceListControls && onSidebarToggle && (
+            <button type="button" onClick={onSidebarToggle}>
+              Toggle sidebar
+            </button>
+          )}
+          {resourcePaneCount && (
+            <output data-testid="resource-pane-count">
+              {resourcePaneCount.label}:{resourcePaneCount.count}
+            </output>
+          )}
+          <button type="button" onClick={() => void onSessionWorkspaceChange?.('workspace-next')}>
+            Select session workspace
+          </button>
+          <button type="button" onClick={() => void onCreateEmptySession?.({ agentId: 'agent-a' })}>
+            Create session for agent
+          </button>
+          {onCreateEmptySession && (
+            <button type="button" onClick={() => void onCreateEmptySession()}>
+              Create empty session from composer
+            </button>
+          )}
+          <button type="button" onClick={() => void onMissingAgentSelectionAgentChange?.('agent-b')}>
+            Select missing agent
+          </button>
+          <button type="button" onClick={() => onVisibleAgentChange?.('agent-visible')}>
+            Show visible agent
+          </button>
+          <button type="button" onClick={() => onVisibleWorkspaceChange?.('workspace-visible')}>
+            Show visible workspace
+          </button>
+          {onSessionPaneOpenChange && (
+            <button type="button" onClick={() => onSessionPaneOpenChange(false)}>
+              Close session pane
+            </button>
+          )}
+          {resourcePane?.node}
+        </>
+      )}
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="pane-position">{panePosition ?? ''}</output>
-      <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
-      <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
-      {showResourceListControls && onSidebarToggle && (
-        <button type="button" onClick={onSidebarToggle}>
-          Toggle sidebar
-        </button>
-      )}
       {onPaneAutoCollapseChange && (
         <>
           <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
@@ -501,43 +519,12 @@ vi.mock('../AgentChat', () => ({
           </button>
         </>
       )}
-      {resourcePaneCount && (
-        <output data-testid="resource-pane-count">
-          {resourcePaneCount.label}:{resourcePaneCount.count}
-        </output>
-      )}
-      <button type="button" onClick={() => void onSessionWorkspaceChange?.('workspace-next')}>
-        Select session workspace
-      </button>
-      <button type="button" onClick={() => void onCreateEmptySession?.({ agentId: 'agent-a' })}>
-        Create session for agent
-      </button>
-      {onCreateEmptySession && (
-        <button type="button" onClick={() => void onCreateEmptySession()}>
-          Create empty session from composer
-        </button>
-      )}
-      <button type="button" onClick={() => void onMissingAgentSelectionAgentChange?.('agent-b')}>
-        Select missing agent
-      </button>
-      <button type="button" onClick={() => onVisibleAgentChange?.('agent-visible')}>
-        Show visible agent
-      </button>
-      <button type="button" onClick={() => onVisibleWorkspaceChange?.('workspace-visible')}>
-        Show visible workspace
-      </button>
-      {onSessionPaneOpenChange && (
-        <button type="button" onClick={() => onSessionPaneOpenChange(false)}>
-          Close session pane
-        </button>
-      )}
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
         </button>
       )}
       {pane}
-      {resourcePane?.node}
     </section>
   )
 }))
@@ -554,8 +541,8 @@ vi.mock('../components/AgentChatNavbar', () => ({
   )
 }))
 
-vi.mock('../AgentSidePanel', () => ({
-  default: ({
+vi.mock('../AgentSidePanel', () => {
+  const AgentSidePanelMock = ({
     activeSessionId,
     historyRecordsActive,
     agentSessionsSource,
@@ -569,6 +556,7 @@ vi.mock('../AgentSidePanel', () => ({
     setActiveSessionId
   }: any) => {
     agentPageMocks.agentSidePanelSessionsSource = agentSessionsSource
+    const [sidebarQuery, setSidebarQuery] = useState('')
 
     return (
       <div
@@ -576,6 +564,11 @@ vi.mock('../AgentSidePanel', () => ({
         data-history-active={String(Boolean(historyRecordsActive))}
         data-reveal-request={JSON.stringify(revealRequest ?? null)}
         data-testid="agent-side-panel">
+        <input
+          aria-label="Session sidebar query"
+          value={sidebarQuery}
+          onChange={(event) => setSidebarQuery(event.target.value)}
+        />
         <button
           type="button"
           onClick={() => {
@@ -622,7 +615,9 @@ vi.mock('../AgentSidePanel', () => ({
       </div>
     )
   }
-}))
+
+  return { default: AgentSidePanelMock }
+})
 
 vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
@@ -762,6 +757,7 @@ import AgentPage from '../AgentPage'
 describe('AgentPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.resourceLayoutSessions = []
@@ -777,6 +773,7 @@ describe('AgentPage', () => {
     agentPageMocks.rightPanelSessionsSource = undefined
     agentPageMocks.currentTab = undefined
     agentPageMocks.lastUsedAgentId = null
+    agentPageMocks.lastUsedSessionId = null
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.sessionExpansionAgent = null
     agentPageMocks.resourcePaneOpen = null
@@ -1068,7 +1065,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.sessionExpansionAgent).toEqual(['session:agent:agent-c'])
   })
 
-  it('renders the agent resource view outside AgentChat runtime', () => {
+  it('renders the agent resource view inside the stable AgentChat shell', () => {
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -1076,8 +1073,8 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
   })
 
   it('keeps system skill management available for the built-in Assistant', () => {
@@ -1098,23 +1095,27 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('resource-catalog-skill')).toHaveAttribute('data-skill-agent-id', 'agent-a')
   })
 
-  it('renders history records outside AgentChat runtime and toggles them from the sidebar', () => {
+  it('renders history records without remounting the session sidebar', () => {
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
 
+    fireEvent.change(screen.getByRole('textbox', { name: 'Session sidebar query' }), {
+      target: { value: 'keep this query' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'true')
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Session sidebar query' })).toHaveValue('keep this query')
+    expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
-    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.getByTestId('active-session')).toBeInTheDocument()
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'false')
   })
 
@@ -1129,7 +1130,7 @@ describe('AgentPage', () => {
 
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
   })
 
   it('keeps the agent resource view open while opening the classic-layout agent create dialog', () => {
@@ -1145,7 +1146,8 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
   })
 
   it('keeps the agent resource view open until the created agent session is ready', async () => {
@@ -1182,7 +1184,8 @@ describe('AgentPage', () => {
     )
     expect(screen.queryByTestId('agent-create-dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
 
     await act(async () => {
       resolveSession({
@@ -1254,17 +1257,17 @@ describe('AgentPage', () => {
     render(<AgentPage />)
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
-    const shell = screen.getByTestId('agent-conversation-page-shell')
-    expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true')
+    const shell = screen.getByTestId('agent-chat')
+    expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
 
     const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
 
     // Collapse the pane from the resource toolbar toggle, then confirm the toggle survives the collapse.
     fireEvent.click(within(toolbarLeading).getByRole('button'))
-    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('false'))
+    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('false'))
 
     fireEvent.click(within(toolbarLeading).getByRole('button'))
-    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true'))
+    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true'))
   })
 
   it('preserves a manually closed classic-layout agent right pane across remounts', async () => {

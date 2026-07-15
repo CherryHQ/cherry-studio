@@ -27,6 +27,7 @@ import {
 } from './ResourceListContext'
 import {
   GroupHeader,
+  GroupLoading,
   GroupShowMore,
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
@@ -36,6 +37,7 @@ import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_ROW_HEIGHT_CLASS } from '
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
 const END_REACHED_THRESHOLD = RESOURCE_LIST_DEFAULT_ROW_SIZE * 4
+const MAX_GROUP_LOADING_ITEM_COUNT = 5
 const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_ROW_HEIGHT_CLASS}`
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
@@ -89,7 +91,15 @@ type ResourceListVirtualFooter = {
   group: ResourceListGroup
   groupCollapsed: boolean
   groupId: string
-}
+} & (
+  | {
+      kind: 'loading'
+      itemCount: number
+    }
+  | {
+      kind: 'controls'
+    }
+)
 
 type ResourceListVirtualGroupData = ResourceListGroup & {
   __resourceListKind?: 'section'
@@ -120,6 +130,8 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
 >
 
 const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
+const estimateResourceListFooterSize = (footer: ResourceListVirtualFooter) =>
+  footer.kind === 'loading' ? footer.itemCount * RESOURCE_LIST_DEFAULT_ROW_SIZE : RESOURCE_LIST_DEFAULT_ROW_SIZE
 
 function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtualGroupData {
   return { ...section, __resourceListKind: 'section' }
@@ -186,7 +198,8 @@ function VirtualItemRow({
 
 function buildVirtualGroups<T extends ResourceListItemBase>(
   view: ResourceListContextValue<T>['view'],
-  usesScrollPagination = false
+  usesScrollPagination = false,
+  defaultGroupVisibleCount = 5
 ) {
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
@@ -194,6 +207,10 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
   const appendGroup = (group: ResourceListContextValue<T>['view']['groups'][number]) => {
     const items: ResourceListVirtualItem<T>[] = []
     const usesScrollPaginationForGroup = usesScrollPagination && !group.group.label && group.status !== 'error'
+    const loadingItemCount =
+      group.group.label && !group.collapsed && group.items.length === 0 && group.status === 'loading'
+        ? Math.min(group.totalCount, defaultGroupVisibleCount, MAX_GROUP_LOADING_ITEM_COUNT)
+        : 0
 
     for (const item of group.items) {
       items.push({ group: group.group, groupCollapsed: group.collapsed, item, itemIndex })
@@ -205,9 +222,22 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
       header: group.group.label ? { type: 'group', group: group.group } : undefined,
       items,
       footer:
-        (!usesScrollPaginationForGroup && group.hasMore) || group.canCollapseToDefault
-          ? { group: group.group, groupCollapsed: group.collapsed, groupId: group.group.id }
-          : undefined
+        loadingItemCount > 0
+          ? {
+              kind: 'loading',
+              group: group.group,
+              groupCollapsed: group.collapsed,
+              groupId: group.group.id,
+              itemCount: loadingItemCount
+            }
+          : (!usesScrollPaginationForGroup && group.hasMore) || group.canCollapseToDefault
+            ? {
+                kind: 'controls',
+                group: group.group,
+                groupCollapsed: group.collapsed,
+                groupId: group.group.id
+              }
+            : undefined
     })
   }
 
@@ -489,10 +519,13 @@ export function VirtualItems<T extends ResourceListItemBase>({
   renderItem
 }: VirtualItemsProps<T>) {
   const meta = useResourceListMeta<T>()
-  const { estimateItemSize, getItemId, revealRequest } = meta
+  const { defaultGroupVisibleCount, estimateItemSize, getItemId, revealRequest } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view, !!onEndReached), [onEndReached, view])
+  const groups = useMemo(
+    () => buildVirtualGroups(view, !!onEndReached, defaultGroupVisibleCount),
+    [defaultGroupVisibleCount, onEndReached, view]
+  )
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
@@ -533,14 +566,17 @@ export function VirtualItems<T extends ResourceListItemBase>({
     [meta, renderContext, renderItem]
   )
   const renderGroupFooter = useCallback(
-    (footer: ResourceListVirtualFooter) => (
-      <div>
-        <GroupShowMore
-          groupId={footer.groupId}
-          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined}
-        />
-      </div>
-    ),
+    (footer: ResourceListVirtualFooter) => {
+      const groupHeaderIconVisible = getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed)
+      if (footer.kind === 'loading') {
+        return <GroupLoading groupHeaderIconVisible={groupHeaderIconVisible} itemCount={footer.itemCount} />
+      }
+      return (
+        <div>
+          <GroupShowMore groupId={footer.groupId} className={!groupHeaderIconVisible ? 'pl-2.5' : undefined} />
+        </div>
+      )
+    },
     [meta]
   )
   const getVirtualRowKey = useCallback(
@@ -579,7 +615,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
         overscan={6}
         estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
-        estimateGroupFooterSize={estimateResourceListChromeSize}
+        estimateGroupFooterSize={estimateResourceListFooterSize}
         renderGroupHeader={renderGroupHeader}
         renderItem={renderVirtualItem}
         renderGroupFooter={renderGroupFooter}
@@ -612,13 +648,17 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     canDropGroup: canDropGroupMeta,
     canDropItem: canDropItemMeta,
     dragCapabilities,
+    defaultGroupVisibleCount,
     estimateItemSize,
     getItemId,
     revealRequest
   } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view, !!onEndReached), [onEndReached, view])
+  const groups = useMemo(
+    () => buildVirtualGroups(view, !!onEndReached, defaultGroupVisibleCount),
+    [defaultGroupVisibleCount, onEndReached, view]
+  )
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
@@ -776,14 +816,17 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     [meta, renderContext, renderItem]
   )
   const renderGroupFooter = useCallback(
-    (footer: ResourceListVirtualFooter) => (
-      <div>
-        <GroupShowMore
-          groupId={footer.groupId}
-          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined}
-        />
-      </div>
-    ),
+    (footer: ResourceListVirtualFooter) => {
+      const groupHeaderIconVisible = getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed)
+      if (footer.kind === 'loading') {
+        return <GroupLoading groupHeaderIconVisible={groupHeaderIconVisible} itemCount={footer.itemCount} />
+      }
+      return (
+        <div>
+          <GroupShowMore groupId={footer.groupId} className={!groupHeaderIconVisible ? 'pl-2.5' : undefined} />
+        </div>
+      )
+    },
     [meta]
   )
   const getVirtualRowKey = useCallback(
@@ -825,7 +868,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         dragCapabilities={dragCapabilities}
         estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
-        estimateGroupFooterSize={estimateResourceListChromeSize}
+        estimateGroupFooterSize={estimateResourceListFooterSize}
         canDragGroup={canDragGroup}
         canDragItem={canDragVirtualItem}
         canDropGroup={canDropGroup}

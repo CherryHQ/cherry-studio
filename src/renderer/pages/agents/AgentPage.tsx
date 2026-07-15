@@ -1,10 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import {
   createRecentSessionEntryFromSession,
@@ -217,10 +217,8 @@ const AgentPage = () => {
       return currentActiveSessionId
     })
   }, [routeActiveSessionId])
-  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
@@ -386,10 +384,12 @@ const AgentPage = () => {
     if (lastRecordedRecentSessionRef.current === signature) return
 
     lastRecordedRecentSessionRef.current = signature
-    setRecentItems((prev) =>
-      upsertGlobalSearchRecentEntry(prev ?? [], createRecentSessionEntryFromSession(activeSession))
+    const recentItems = cacheService.getPersist('ui.global_search.recent_items')
+    cacheService.setPersist(
+      'ui.global_search.recent_items',
+      upsertGlobalSearchRecentEntry(recentItems ?? [], createRecentSessionEntryFromSession(activeSession))
     )
-  }, [activeSession, isMessageOnlyView, setRecentItems])
+  }, [activeSession, isMessageOnlyView])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
@@ -401,9 +401,9 @@ const AgentPage = () => {
     // so background tabs must not clobber it and switching tabs must update it.
     if (!isActiveTab) return
     if (activeSession?.id && activeSessionSource === 'query') {
-      setLastUsedSessionId(activeSession.id)
+      cacheService.setPersist('ui.agent.last_used_session_id', activeSession.id)
     }
-  }, [isActiveTab, activeSession, activeSessionSource, setLastUsedSessionId])
+  }, [isActiveTab, activeSession, activeSessionSource])
 
   useEffect(() => {
     void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
@@ -1045,47 +1045,37 @@ const AgentPage = () => {
   return (
     <Container>
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        {centerSurface ? (
-          <ConversationPageShell
-            center={centerSurface}
-            pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          />
-        ) : (
-          <AgentChat
-            activeSession={visibleSession}
-            activeSessionLoading={isActiveSessionLoading}
-            activeSessionSource={activeSessionSource}
-            pane={pane}
-            lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
-            lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-            showResourceListControls={!isMessageOnlyView}
-            sidebarOpen={effectiveShowSidebar}
-            onSidebarToggle={toggleResourceListOpen}
-            missingAgentSelection={!isMessageOnlyView && missingAgentSelection && !visibleSession}
-            onCreateEmptySession={isMessageOnlyView ? undefined : createAndActivateEmptySession}
-            onMissingAgentSelectionAgentChange={isMessageOnlyView ? undefined : handleMissingAgentSelectionAgentChange}
-            onSessionWorkspaceChange={isMessageOnlyView ? undefined : replaceSessionWorkspace}
-            onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
-            onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
-            locateMessageId={pendingLocateMessageId}
-            onLocateMessageHandled={handleLocateMessageHandled}
-            selectingMissingAgent={selectingMissingAgent}
-            replacingSessionWorkspace={replacingSessionWorkspace}
-            resourcePane={resourcePane}
-            resourcePaneCount={sessionResourcePaneCount}
-            resourcePaneRevealRequest={sessionRevealRequest}
-            sessionPaneOpen={isAgentResourceLayout ? sessionPaneOpen : undefined}
-            onSessionPaneOpenChange={isAgentResourceLayout ? setSessionPaneOpen : undefined}
-          />
-        )}
+        <AgentChat
+          activeSession={visibleSession}
+          activeSessionLoading={isActiveSessionLoading}
+          activeSessionSource={activeSessionSource}
+          pane={pane}
+          lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
+          lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
+          paneOpen={effectiveShowSidebar}
+          panePosition={shellPanePosition}
+          centerSurface={centerSurface}
+          onPaneCollapse={() => setResourceListOpen(false)}
+          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+          showResourceListControls={!isMessageOnlyView}
+          sidebarOpen={effectiveShowSidebar}
+          onSidebarToggle={toggleResourceListOpen}
+          missingAgentSelection={!isMessageOnlyView && missingAgentSelection && !visibleSession}
+          onCreateEmptySession={isMessageOnlyView ? undefined : createAndActivateEmptySession}
+          onMissingAgentSelectionAgentChange={isMessageOnlyView ? undefined : handleMissingAgentSelectionAgentChange}
+          onSessionWorkspaceChange={isMessageOnlyView ? undefined : replaceSessionWorkspace}
+          onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
+          onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
+          locateMessageId={pendingLocateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
+          selectingMissingAgent={selectingMissingAgent}
+          replacingSessionWorkspace={replacingSessionWorkspace}
+          resourcePane={resourcePane}
+          resourcePaneCount={sessionResourcePaneCount}
+          resourcePaneRevealRequest={sessionRevealRequest}
+          sessionPaneOpen={isAgentResourceLayout ? sessionPaneOpen : undefined}
+          onSessionPaneOpenChange={isAgentResourceLayout ? setSessionPaneOpen : undefined}
+        />
       </div>
       <AgentCreateDialog
         open={agentCreateOpen}

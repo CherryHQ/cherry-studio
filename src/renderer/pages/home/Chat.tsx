@@ -5,9 +5,7 @@ import { loggerService } from '@logger'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
-import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import ConversationShell, { type ConversationCenterSurface } from '@renderer/components/chat/shell/ConversationShell'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
@@ -32,7 +30,7 @@ const logger = loggerService.withContext('Chat')
 
 interface Props {
   activeTopic?: Topic
-  centerSurface?: ConversationCenterSlot | null
+  centerFallback?: ReactNode
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
@@ -46,6 +44,7 @@ interface Props {
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   resourcePaneCount?: ResourcePaneCountButtonProps
+  centerSurface?: ConversationCenterSurface | null
 }
 
 const Chat: FC<Props> = (props) => {
@@ -63,20 +62,17 @@ const Chat: FC<Props> = (props) => {
   const contentSearchRef = useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
   const { setTimeoutTimer } = useTimer()
-  const activeTopic = props.activeTopic
-  const centerSurface = props.centerSurface
-  const showConversation = Boolean(activeTopic && !centerSurface)
-  const activeTopicId = activeTopic?.id
+  const activeTopicId = props.activeTopic?.id
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
   useEffect(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
-    setBranchLocateMessageId(undefined)
     if (!activeTopicId) return
 
+    branchDraftAnchorIdRef.current = null
+    branchSendAnchorOverrideIdRef.current = null
     setTopicBranchLiveState(activeTopicId, null)
+    setBranchLocateMessageId(undefined)
     return () => {
       branchDraftAnchorIdRef.current = null
       branchSendAnchorOverrideIdRef.current = null
@@ -84,50 +80,33 @@ const Chat: FC<Props> = (props) => {
     }
   }, [activeTopicId, setTopicBranchLiveState])
 
-  useHotkeys(
-    'esc',
-    () => {
-      contentSearchRef.current?.disable()
-    },
-    { enabled: showConversation },
-    [showConversation]
-  )
+  useHotkeys('esc', () => {
+    contentSearchRef.current?.disable()
+  })
 
-  useCommandHandler(
-    'chat.message.search',
-    () => {
-      if (!showConversation) return
+  useCommandHandler('chat.message.search', () => {
+    try {
+      const selectedText = window.getSelection()?.toString().trim()
+      contentSearchRef.current?.enable(selectedText)
+    } catch (error) {
+      logger.error('Error enabling content search:', error as Error)
+    }
+  })
 
-      try {
-        const selectedText = window.getSelection()?.toString().trim()
-        contentSearchRef.current?.enable(selectedText)
-      } catch (error) {
-        logger.error('Error enabling content search:', error as Error)
-      }
-    },
-    { enabled: showConversation }
-  )
+  useCommandHandler('topic.rename', async () => {
+    const topic = props.activeTopic
+    if (!topic) return
 
-  useCommandHandler(
-    'topic.rename',
-    async () => {
-      if (!showConversation) return
-
-      const topic = activeTopic
-      if (!topic) return
-
-      const name = await PromptPopup.show({
-        title: t('chat.topics.edit.title'),
-        message: '',
-        defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-foreground-secondary">{t('chat.topics.edit.title_tip')}</div>
-      })
-      if (name && topic.name !== name) {
-        await patchTopic(topic.id, { name, isNameManuallyEdited: true })
-      }
-    },
-    { enabled: showConversation }
-  )
+    const name = await PromptPopup.show({
+      title: t('chat.topics.edit.title'),
+      message: '',
+      defaultValue: topic.name || '',
+      extraNode: <div className="mt-2 text-foreground-secondary">{t('chat.topics.edit.title_tip')}</div>
+    })
+    if (name && topic.name !== name) {
+      await patchTopic(topic.id, { name, isNameManuallyEdited: true })
+    }
+  })
 
   const contentSearchFilter: NodeFilter = {
     acceptNode(node) {
@@ -180,9 +159,10 @@ const Chat: FC<Props> = (props) => {
   }, [])
   const handleCancelBranchDraft = useCallback(
     (nextActiveNodeId?: string | null) => {
+      if (!activeTopicId) return
+
       branchDraftAnchorIdRef.current = null
       branchSendAnchorOverrideIdRef.current = nextActiveNodeId ?? null
-      if (!activeTopicId) return
 
       if (nextActiveNodeId === undefined) {
         setTopicBranchLiveState(activeTopicId, null)
@@ -231,6 +211,7 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, invalidateCache, setTopicBranchLiveState, t]
   )
+  const branchPaneDisabled = false
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -238,37 +219,19 @@ const Chat: FC<Props> = (props) => {
       onLocateMessageHandledProp?.()
     }
   }, [locateMessageIdProp, onLocateMessageHandledProp])
-  const center =
-    centerSurface?.content ??
-    (activeTopic ? (
-      <ChatContent
-        key={activeTopic.id}
-        topic={activeTopic}
-        onOpenCitationsPanel={handleOpenCitationsPanel}
-        onNewTopic={props.onNewTopic}
-        onCreateEmptyTopic={props.onCreateEmptyTopic}
-        locateMessageId={locateMessageId}
-        onLocateMessageHandled={handleLocateMessageHandled}
-        onBranchLiveStateChange={handleBranchLiveStateChange}
-        clearBranchDraft={clearBranchDraft}
-        getBranchDraftAnchorId={getBranchDraftAnchorId}
-        onStartBranchDraft={handleStartBranchDraft}
-      />
-    ) : (
-      <ConversationCenterState state="loading" />
-    ))
 
   return (
     <ConversationShell
       id="chat"
-      className={activeTopic || centerSurface ? messageStyle : undefined}
+      className={messageStyle}
       pane={props.pane}
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
+      centerSurface={props.centerSurface}
       onPaneCollapse={props.onPaneCollapse}
       onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
       topBar={
-        showConversation ? (
+        props.activeTopic ? (
           <ChatNavbar
             showSidebarControls={props.showResourceListControls}
             sidebarOpen={props.sidebarOpen}
@@ -277,16 +240,18 @@ const Chat: FC<Props> = (props) => {
         ) : undefined
       }
       topRightTool={
-        showConversation ? (
+        props.activeTopic ? (
           <>
-            {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
-            <TopicRightPane.Shortcuts />
+            {props.resourcePaneCount && (
+              <ResourcePaneCountButton {...props.resourcePaneCount} openBehavior="toggle-active" />
+            )}
+            <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
           </>
         ) : undefined
       }
       showTopRightToolWhenPaneOpen
       sidePanel={
-        showConversation ? (
+        props.activeTopic ? (
           <CitationsPanel
             open={citationsPanelOpen}
             onClose={() => setCitationPanelCitations(null)}
@@ -294,9 +259,27 @@ const Chat: FC<Props> = (props) => {
           />
         ) : undefined
       }
-      center={center}
+      center={
+        props.activeTopic ? (
+          <ChatContent
+            key={props.activeTopic.id}
+            topic={props.activeTopic}
+            onOpenCitationsPanel={handleOpenCitationsPanel}
+            onNewTopic={props.onNewTopic}
+            onCreateEmptyTopic={props.onCreateEmptyTopic}
+            locateMessageId={locateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            onBranchLiveStateChange={handleBranchLiveStateChange}
+            clearBranchDraft={clearBranchDraft}
+            getBranchDraftAnchorId={getBranchDraftAnchorId}
+            onStartBranchDraft={handleStartBranchDraft}
+          />
+        ) : (
+          props.centerFallback
+        )
+      }
       centerTopOverlay={
-        showConversation ? (
+        props.activeTopic ? (
           <ContentSearch
             ref={contentSearchRef}
             searchTarget={mainRef as React.RefObject<HTMLElement>}
@@ -307,19 +290,33 @@ const Chat: FC<Props> = (props) => {
           />
         ) : undefined
       }
+      centerOverlay={
+        props.activeTopic && !branchPaneDisabled ? (
+          <TopicRightPane.MaximizedOverlay
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+            traceId={props.activeTopic.traceId}
+            onLocateMessage={setBranchLocateMessageId}
+            onStartBranchDraft={handleStartBranchDraft}
+            onCancelBranchDraft={handleCancelBranchDraft}
+          />
+        ) : undefined
+      }
       rightPane={
-        <TopicRightPane.Viewport
-          onLocateMessage={setBranchLocateMessageId}
-          onStartBranchDraft={handleStartBranchDraft}
-          onCancelBranchDraft={handleCancelBranchDraft}
-        />
+        props.activeTopic && !branchPaneDisabled ? (
+          <TopicRightPane.Host
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+            traceId={props.activeTopic.traceId}
+            onLocateMessage={setBranchLocateMessageId}
+            onStartBranchDraft={handleStartBranchDraft}
+            onCancelBranchDraft={handleCancelBranchDraft}
+          />
+        ) : undefined
       }
-      centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
-      centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
-      centerClassName={
-        centerSurface?.className ??
-        (showConversation ? 'transform-[translateZ(0)] relative justify-between' : undefined)
-      }
+      centerId={props.activeTopic ? 'chat-main' : undefined}
+      centerRef={props.activeTopic ? mainRef : undefined}
+      centerClassName={props.activeTopic ? 'transform-[translateZ(0)] relative justify-between' : undefined}
     />
   )
 }

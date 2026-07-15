@@ -3,8 +3,10 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -155,42 +157,6 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 vi.mock('@renderer/components/chat/shell/ChatAppShell', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>
-  )
-}))
-
-vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
-  default: ({
-    center,
-    pane,
-    paneOpen,
-    panePosition,
-    topBar,
-    onPaneAutoCollapseChange
-  }: {
-    center?: { content?: ReactNode }
-    pane?: ReactNode
-    paneOpen?: boolean
-    panePosition?: string
-    topBar?: ReactNode
-    onPaneAutoCollapseChange?: (collapsed: boolean) => void
-  }) => (
-    <section data-testid="home-conversation-page-shell">
-      <output data-testid="pane-open">{String(paneOpen)}</output>
-      <output data-testid="pane-position">{panePosition ?? ''}</output>
-      {onPaneAutoCollapseChange && (
-        <>
-          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
-            Auto collapse pane
-          </button>
-          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
-            Auto restore pane
-          </button>
-        </>
-      )}
-      <div>{topBar}</div>
-      <div>{pane}</div>
-      <div>{center?.content}</div>
-    </section>
   )
 }))
 
@@ -416,6 +382,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
 vi.mock('../Chat', () => ({
   default: ({
     activeTopic,
+    centerFallback,
+    centerSurface,
     pane,
     paneOpen,
     panePosition,
@@ -429,7 +397,9 @@ vi.mock('../Chat', () => ({
     onPaneCollapse,
     onPaneAutoCollapseChange
   }: {
-    activeTopic: Topic
+    activeTopic?: Topic
+    centerFallback?: ReactNode
+    centerSurface?: { content?: ReactNode } | null
     pane?: ReactNode
     paneOpen?: boolean
     panePosition?: string
@@ -443,48 +413,58 @@ vi.mock('../Chat', () => ({
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
-    <section>
-      <output data-testid="active-topic">{activeTopic.id}</output>
-      <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
+    <section data-testid="home-chat">
+      {centerSurface?.content ?? (
+        <>
+          {activeTopic ? (
+            <>
+              <output data-testid="active-topic">{activeTopic.id}</output>
+              <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
+              <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+              <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+              {showResourceListControls && onSidebarToggle && (
+                <button type="button" onClick={onSidebarToggle}>
+                  Toggle sidebar
+                </button>
+              )}
+              {resourcePaneCount && (
+                <output data-testid="resource-pane-count">
+                  {resourcePaneCount.label}:{resourcePaneCount.count}
+                </output>
+              )}
+              {onNewTopic && (
+                <button type="button" onClick={() => onNewTopic()}>
+                  New topic
+                </button>
+              )}
+              {onNewTopic && (
+                <button type="button" onClick={() => onNewTopic({ assistantId: 'assistant-2' })}>
+                  New topic with assistant 2
+                </button>
+              )}
+              {onNewTopic && (
+                <button type="button" onClick={() => onNewTopic({ assistantId: 'missing-assistant' })}>
+                  New topic with missing assistant
+                </button>
+              )}
+              {onCreateEmptyTopic && (
+                <button type="button" onClick={() => onCreateEmptyTopic({ assistantId: activeTopic.assistantId })}>
+                  Create empty topic from composer
+                </button>
+              )}
+              {onLocateMessageHandled && (
+                <button type="button" onClick={() => onLocateMessageHandled()}>
+                  Locate handled
+                </button>
+              )}
+            </>
+          ) : (
+            centerFallback
+          )}
+        </>
+      )}
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="pane-position">{panePosition ?? ''}</output>
-      <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
-      <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
-      {showResourceListControls && onSidebarToggle && (
-        <button type="button" onClick={onSidebarToggle}>
-          Toggle sidebar
-        </button>
-      )}
-      {resourcePaneCount && (
-        <output data-testid="resource-pane-count">
-          {resourcePaneCount.label}:{resourcePaneCount.count}
-        </output>
-      )}
-      {onNewTopic && (
-        <button type="button" onClick={() => onNewTopic()}>
-          New topic
-        </button>
-      )}
-      {onNewTopic && (
-        <button type="button" onClick={() => onNewTopic({ assistantId: 'assistant-2' })}>
-          New topic with assistant 2
-        </button>
-      )}
-      {onNewTopic && (
-        <button type="button" onClick={() => onNewTopic({ assistantId: 'missing-assistant' })}>
-          New topic with missing assistant
-        </button>
-      )}
-      {onCreateEmptyTopic && (
-        <button type="button" onClick={() => onCreateEmptyTopic({ assistantId: activeTopic.assistantId })}>
-          Create empty topic from composer
-        </button>
-      )}
-      {onLocateMessageHandled && (
-        <button type="button" onClick={() => onLocateMessageHandled()}>
-          Locate handled
-        </button>
-      )}
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
@@ -517,8 +497,8 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../Tabs/HomeTabs', () => ({
-  default: ({
+vi.mock('../Tabs/HomeTabs', () => {
+  const HomeTabsMock = ({
     historyRecordsActive,
     assistantTopicsSource,
     onOpenHistoryRecords,
@@ -528,12 +508,18 @@ vi.mock('../Tabs/HomeTabs', () => ({
     setActiveTopic
   }: any) => {
     homeMocks.homeTabsTopicsSource = assistantTopicsSource
+    const [sidebarQuery, setSidebarQuery] = useState('')
 
     return (
       <div
         data-history-active={String(Boolean(historyRecordsActive))}
         data-reveal-request={JSON.stringify(revealRequest ?? null)}
         data-testid="home-tabs">
+        <input
+          aria-label="Topic sidebar query"
+          value={sidebarQuery}
+          onChange={(event) => setSidebarQuery(event.target.value)}
+        />
         <button
           type="button"
           onClick={() => {
@@ -573,7 +559,9 @@ vi.mock('../Tabs/HomeTabs', () => ({
       </div>
     )
   }
-}))
+
+  return { default: HomeTabsMock }
+})
 
 vi.mock('../Tabs/components/Topics', () => ({
   Topics: ({
@@ -787,6 +775,7 @@ import HomePage from '../HomePage'
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }]
@@ -1031,18 +1020,22 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
-    expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('home-chat')).toBeInTheDocument()
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 
   it('renders history records in the chat center and toggles them from the sidebar', () => {
     render(<HomePage />)
 
+    fireEvent.change(screen.getByRole('textbox', { name: 'Topic sidebar query' }), {
+      target: { value: 'keep this query' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
-    expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('home-chat')).toBeInTheDocument()
     expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'true')
+    expect(screen.getByRole('textbox', { name: 'Topic sidebar query' })).toHaveValue('keep this query')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
@@ -1127,7 +1120,7 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
-    const shell = screen.getByTestId('home-conversation-page-shell')
+    const shell = screen.getByTestId('home-chat')
     expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
 
     const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')

@@ -1,12 +1,8 @@
-import {
-  RightPanel,
-  type RightPanelCapability,
-  RightPanelProvider,
-  RightPanelShortcut
-} from '@renderer/components/chat/panes/Shell'
+import { Shell } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ConversationShell from '../ConversationShell'
@@ -16,9 +12,11 @@ const shellProps = vi.hoisted(() => ({
   current: null as {
     centerContent?: ReactNode
     topBar?: ReactNode
+    pane?: ReactNode
     sidePanel?: ReactNode
     centerOverlay?: ReactNode
-    rightPane?: ReactNode
+    centerTopOverlay?: ReactNode
+    overlay?: ReactNode
   } | null
 }))
 
@@ -33,38 +31,38 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       {children}
     </button>
   ),
+  Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  HorizontalScrollContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
-
-const rightPanelCapabilities = [
-  {
-    component: () => <div>resource panel</div>,
-    resolve: () => ({
-      id: 'files',
-      instanceKey: 'files',
-      title: '对话',
-      readiness: 'ready' as const,
-      canMaximize: true
-    })
-  }
-] satisfies readonly RightPanelCapability<null>[]
 
 vi.mock('../ChatAppShell', () => ({
   ChatAppShell: (props: {
     centerContent?: ReactNode
     topBar?: ReactNode
+    pane?: ReactNode
     sidePanel?: ReactNode
     centerOverlay?: ReactNode
-    rightPane?: ReactNode
+    centerTopOverlay?: ReactNode
+    overlay?: ReactNode
   }) => {
     shellProps.current = props
     return (
       <div data-testid="chat-app-shell">
         {props.topBar}
+        {props.pane}
         {props.sidePanel}
         {props.centerContent}
         {props.centerOverlay}
-        {props.rightPane}
+        {props.centerTopOverlay}
+        {props.overlay}
       </div>
     )
   }
@@ -90,6 +88,62 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
     expect(document.getElementById('conversation')).toHaveClass('message-style')
+  })
+
+  it('replaces only the center surface and preserves the pane instance', () => {
+    const paneMounts: string[] = []
+
+    function StatefulPane() {
+      const [query, setQuery] = useState('')
+
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
+      return <input aria-label="Pane query" value={query} onChange={(event) => setQuery(event.target.value)} />
+    }
+
+    const { rerender } = render(
+      <ConversationShell
+        pane={<StatefulPane />}
+        paneOpen
+        topBar={<div data-testid="regular-top-bar" />}
+        sidePanel={<div data-testid="regular-side-panel" />}
+        center={<div data-testid="regular-center" />}
+        centerOverlay={<div data-testid="regular-center-overlay" />}
+        centerTopOverlay={<div data-testid="regular-center-top-overlay" />}
+        overlay={<div data-testid="regular-overlay" />}
+        rightPane={<div data-testid="regular-right-pane" />}
+      />
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Pane query' }), { target: { value: 'persisted' } })
+
+    rerender(
+      <ConversationShell
+        pane={<StatefulPane />}
+        paneOpen
+        topBar={<div data-testid="regular-top-bar" />}
+        sidePanel={<div data-testid="regular-side-panel" />}
+        center={<div data-testid="regular-center" />}
+        centerSurface={{ content: <div data-testid="alternate-center" /> }}
+        centerOverlay={<div data-testid="regular-center-overlay" />}
+        centerTopOverlay={<div data-testid="regular-center-top-overlay" />}
+        overlay={<div data-testid="regular-overlay" />}
+        rightPane={<div data-testid="regular-right-pane" />}
+      />
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Pane query' })).toHaveValue('persisted')
+    expect(paneMounts).toEqual(['mounted'])
+    expect(screen.getByTestId('alternate-center')).toBeInTheDocument()
+    expect(screen.queryByTestId('regular-center')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('regular-top-bar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('regular-side-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('regular-center-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('regular-center-top-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('regular-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('regular-right-pane')).not.toBeInTheDocument()
   })
 
   it('renders conversation controls into the top bar host', () => {
@@ -198,17 +252,26 @@ describe('ConversationShell', () => {
 
   it('keeps the top-right tool visible while the docked right pane is open when requested', () => {
     const { container } = render(
-      <RightPanelProvider capabilities={rightPanelCapabilities} scope={null} defaultPanelId="files">
+      <Shell defaultTab="files">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
           topRightTool={
-            <RightPanelShortcut tab="files" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
+            <Shell.TabShortcut
+              tab="files"
+              label="对话"
+              icon={<span data-testid="resource-shortcut-icon" />}
+              openBehavior="toggle-active"
+            />
           }
           showTopRightToolWhenPaneOpen
           center={<div />}
         />
-        <RightPanel />
-      </RightPanelProvider>
+        <Shell.Tabs>
+          <Shell.TabList canMaximize title="对话" showTabs={false}>
+            <Shell.Tab value="files">对话</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+      </Shell>
     )
 
     const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')

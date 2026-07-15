@@ -9,7 +9,7 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import ConversationShell, { type ConversationCenterSurface } from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
@@ -76,6 +76,7 @@ interface AgentChatProps {
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
+  centerSurface?: ConversationCenterSurface | null
 }
 
 const AgentChat = ({
@@ -106,7 +107,8 @@ const AgentChat = ({
   resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
-  onSessionPaneOpenChange
+  onSessionPaneOpenChange,
+  centerSurface
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -158,6 +160,7 @@ const AgentChat = ({
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
+          centerSurface={centerSurface}
           onPaneCollapse={onPaneCollapse}
           onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topRightTool={resourcePaneTopRightTool}
@@ -178,6 +181,7 @@ const AgentChat = ({
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
+          centerSurface={centerSurface}
           onPaneCollapse={onPaneCollapse}
           onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
@@ -198,6 +202,7 @@ const AgentChat = ({
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
+          centerSurface={centerSurface}
           onPaneCollapse={onPaneCollapse}
           onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topBar={
@@ -236,6 +241,7 @@ const AgentChat = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        centerSurface={centerSurface}
         onPaneCollapse={onPaneCollapse}
         onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         topRightTool={resourcePaneTopRightTool}
@@ -274,6 +280,7 @@ const AgentChat = ({
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
+      centerSurface={centerSurface}
       showResourceListControls={showResourceListControls}
       sidebarOpen={sidebarOpen}
       onSidebarToggle={onSidebarToggle}
@@ -347,6 +354,7 @@ interface AgentChatSessionFrameProps {
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
+  centerSurface?: ConversationCenterSurface | null
 }
 
 const AgentChatSessionFrame = ({
@@ -377,7 +385,8 @@ const AgentChatSessionFrame = ({
   resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
-  onSessionPaneOpenChange
+  onSessionPaneOpenChange,
+  centerSurface
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
@@ -505,6 +514,7 @@ const AgentChatSessionFrame = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        centerSurface={centerSurface}
         onPaneCollapse={onPaneCollapse}
         onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         topBar={

@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { type ResourcePaneConfig, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
@@ -6,8 +7,6 @@ import { AssistantResourceList } from '@renderer/components/chat/resourceList/As
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -142,8 +141,6 @@ const HomePage: FC = () => {
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [rightPaneAssistantScopeId, setRightPaneAssistantScopeId] = useState<string | null | undefined>(undefined)
   const [isSelectedAssistantScopeEmpty, setIsSelectedAssistantScopeEmpty] = useState(false)
@@ -364,9 +361,9 @@ const HomePage: FC = () => {
     // at now", so background tabs (also mounted) must not clobber it.
     if (!isActiveTab) return
     if (activeTopic?.id && activeTopicSource === 'query') {
-      setLastUsedTopicId(activeTopic.id)
+      cacheService.setPersist('ui.chat.last_used_topic_id', activeTopic.id)
     }
-  }, [isActiveTab, activeTopic, activeTopicSource, setLastUsedTopicId])
+  }, [isActiveTab, activeTopic, activeTopicSource])
 
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
@@ -410,8 +407,12 @@ const HomePage: FC = () => {
     if (lastRecordedRecentTopicRef.current === signature) return
 
     lastRecordedRecentTopicRef.current = signature
-    setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev ?? [], createRecentTopicEntryFromTopic(activeTopic)))
-  }, [activeTopic, isMessageOnlyView, setRecentItems])
+    const recentItems = cacheService.getPersist('ui.global_search.recent_items')
+    cacheService.setPersist(
+      'ui.global_search.recent_items',
+      upsertGlobalSearchRecentEntry(recentItems ?? [], createRecentTopicEntryFromTopic(activeTopic))
+    )
+  }, [activeTopic, isMessageOnlyView])
 
   const setResourceListOpen = useCallback(
     (open: boolean) => {
@@ -940,55 +941,16 @@ const HomePage: FC = () => {
 
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
-  if (centerSurface) {
-    return (
-      <Container id="home-page">
-        <ContentContainer $detached={isWindowFrame}>
-          <ConversationPageShell
-            id="chat"
-            center={centerSurface}
-            pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          />
-        </ContentContainer>
-        {assistantPickerDialog}
-      </Container>
-    )
-  }
-
-  const chatTopic = visibleTopic
-  if (!chatTopic) {
-    // First-entry has not resolved a topic yet (waiting on `/latest`). Mirror AgentChat's
-    // `isInitializing` branch: keep the rail + shell and show a loading center rather than a blank frame.
-    return renderWithRightPane(
-      <Container id="home-page">
-        <ContentContainer $detached={isWindowFrame}>
-          <ConversationShell
-            id="chat"
-            pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-            center={<ConversationCenterState state={isSelectedAssistantScopeEmpty ? 'empty' : 'loading'} />}
-          />
-        </ContentContainer>
-        {assistantPickerDialog}
-      </Container>
-    )
-  }
-
   return renderWithRightPane(
     <Container id="home-page">
       <ContentContainer $detached={isWindowFrame}>
         <Chat
-          activeTopic={chatTopic}
+          activeTopic={visibleTopic}
+          centerFallback={<ConversationCenterState state={isSelectedAssistantScopeEmpty ? 'empty' : 'loading'} />}
           pane={pane}
           paneOpen={effectiveShowSidebar}
           panePosition={shellPanePosition}
+          centerSurface={centerSurface}
           onPaneCollapse={() => setResourceListOpen(false)}
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}

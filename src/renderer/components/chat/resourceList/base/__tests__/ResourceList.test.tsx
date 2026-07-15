@@ -1984,6 +1984,62 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
   })
 
+  it('keeps an expanded remote group at its resolved height while its first page is loading', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const loadedItems = Array.from({ length: 3 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: 3 - index
+    }))
+    const renderList = (items: TestItem[], status: 'idle' | 'loading') => (
+      <Provider
+        items={items}
+        collapsedState={[]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 3 }]}
+        remoteData={{
+          query: '',
+          groupStates: { remote: { totalCount: 3, hasMore: status === 'loading', status } },
+          onQueryChange: vi.fn()
+        }}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    const view = render(renderList([], 'loading'))
+
+    const loadingGroup = document.querySelector('[data-resource-list-group-loading]')
+    expect(screen.getByRole('button', { name: 'Remote' })).toHaveAttribute('aria-expanded', 'true')
+    expect(loadingGroup).toBeInTheDocument()
+    expect(loadingGroup?.querySelectorAll('[data-resource-list-group-loading-item]')).toHaveLength(3)
+    expect(lastVirtualizerOptions().estimateSize(1)).toBe(3 * 38)
+    expect(
+      Array.from({ length: lastVirtualizerOptions().count }, (_, index) => index).reduce(
+        (total, index) => total + lastVirtualizerOptions().estimateSize(index),
+        0
+      )
+    ).toBe(4 * 38)
+
+    view.rerender(renderList(loadedItems, 'idle'))
+
+    expect(document.querySelector('[data-resource-list-group-loading]')).not.toBeInTheDocument()
+    expect(screen.getByText('Remote 3')).toBeInTheDocument()
+    expect(
+      Array.from({ length: lastVirtualizerOptions().count }, (_, index) => index).reduce(
+        (total, index) => total + lastVirtualizerOptions().estimateSize(index),
+        0
+      )
+    ).toBe(4 * 38)
+  })
+
   it('loads an empty remote group before selecting its first item', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onGroupHeaderSelectItem = vi.fn()
