@@ -2,6 +2,45 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { shikiStreamService } from '../ShikiStreamService'
 
+const workerMocks = vi.hoisted(() => ({
+  failInit: false,
+  terminate: vi.fn()
+}))
+
+vi.mock('../../workers/shikiStream.worker?worker', () => ({
+  default: class MockShikiStreamWorker {
+    onmessage: ((event: MessageEvent) => void) | null = null
+
+    postMessage(message: { id: number; type: string; chunk?: string }) {
+      if (message.type === 'init' && workerMocks.failInit) {
+        queueMicrotask(() => {
+          this.onmessage?.({ data: { id: message.id, type: 'error', error: 'init failed' } } as MessageEvent)
+        })
+        return
+      }
+
+      const result =
+        message.type === 'highlight'
+          ? { lines: [[{ content: message.chunk ?? '', color: '#000000', offset: 0 }]], recall: 0 }
+          : { success: true }
+
+      queueMicrotask(() => {
+        this.onmessage?.({
+          data: {
+            id: message.id,
+            type: `${message.type}-result`,
+            result
+          }
+        } as MessageEvent)
+      })
+    }
+
+    terminate() {
+      workerMocks.terminate()
+    }
+  }
+}))
+
 describe('ShikiStreamService', () => {
   const language = 'typescript'
   const theme = 'one-light'
@@ -9,6 +48,8 @@ describe('ShikiStreamService', () => {
 
   // 保证每次测试环境干净
   beforeEach(() => {
+    workerMocks.failInit = false
+    workerMocks.terminate.mockClear()
     shikiStreamService.dispose()
   })
   afterEach(() => {
@@ -19,21 +60,10 @@ describe('ShikiStreamService', () => {
     it('should initialize worker and highlight via worker', async () => {
       const code = 'const x = 1;'
 
-      // 这里不 mock Worker，直接走真实逻辑
       const result = await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
 
-      // Wait a bit for worker initialization to complete
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // In test environment, worker initialization might fail, so we should check if it actually succeeded
-      // If worker initialization succeeded, it should be true, otherwise it falls back to main thread
-      const hasWorker = shikiStreamService.hasWorkerHighlighter()
-      const hasMain = shikiStreamService.hasMainHighlighter()
-
-      // Either worker or main thread should be working, but not both
-      expect(hasWorker || hasMain).toBe(true)
-      expect(hasWorker && hasMain).toBe(false)
-
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(true)
+      expect(shikiStreamService.hasMainHighlighter()).toBe(false)
       expect(result.lines.length).toBeGreaterThan(0)
       expect(result.recall).toBe(0)
     })
@@ -55,21 +85,15 @@ describe('ShikiStreamService', () => {
     })
 
     it('should not retry worker after too many init failures', async () => {
-      // 模拟多次初始化失败
-      const spy = vi.spyOn(shikiStreamService as any, 'initWorker').mockImplementation(() => {
-        return Promise.reject(new Error('init failed'))
-      })
+      workerMocks.failInit = true
 
-      // @ts-ignore: access private
-      const maxRetryCount = shikiStreamService.MAX_WORKER_INIT_RETRY
+      await shikiStreamService.highlightCodeChunk('const a = 1', language, theme, callerId)
+      await shikiStreamService.highlightCodeChunk('const a = 2', language, theme, callerId)
+      await shikiStreamService.highlightCodeChunk('const a = 3', language, theme, callerId)
 
-      // 连续多次调用
-      for (let i = 1; i < maxRetryCount + 2; i++) {
-        shikiStreamService.highlightCodeChunk('const a = ' + i, language, theme, callerId).catch(() => {})
-        // @ts-ignore: access private
-        expect(shikiStreamService.workerInitRetryCount).toBe(Math.min(i, maxRetryCount))
-      }
-      spy.mockRestore()
+      expect(workerMocks.terminate).toHaveBeenCalledTimes(2)
+      expect((shikiStreamService as any).workerInitRetryCount).toBe(2)
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(false)
     })
   })
 

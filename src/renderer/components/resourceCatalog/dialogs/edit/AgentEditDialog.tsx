@@ -31,9 +31,9 @@ import {
   type ClaudeToolCategory,
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
-import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Wrench } from 'lucide-react'
+import type { InstalledSkill } from '@shared/types/skill'
+import { Sparkles, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -50,10 +50,10 @@ import {
   FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
-  TextInputField
+  TextInputField,
+  useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
-import { SkillCatalogPicker } from '../skill'
 
 export type AgentEditDialogProps = EditDialogBaseProps<AgentDetail> & {
   resource: AgentDetail | null
@@ -209,7 +209,6 @@ function AgentEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
-  const initializedResourceIdRef = useRef<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -253,39 +252,11 @@ function AgentEditDialogContent({
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
-  // Cache refresh can replace `resource` before the controlled dialog closes.
-  // Initialize once per open resource id so that refresh cannot flash the initial form.
-  // A same-id refresh instead merges the fresh values into pristine fields (dirty
-  // fields keep the user's edits) so that saving cannot write stale data back over
-  // the refresh; `saveIntent` diffs against the refreshed resource, so merged fields
-  // stay out of the PATCH. `skillIds` is excluded: its baseline comes from the
-  // installed-skills query, not `resource`.
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) {
-      initializedResourceIdRef.current = null
-      return
-    }
-    if (initializedResourceIdRef.current === resource.id) {
-      if (!form.formState.isSubmitting) {
-        const dirtyModelFields = {
-          modelId: form.getFieldState('modelId').isDirty,
-          planModelId: form.getFieldState('planModelId').isDirty,
-          smallModelId: form.getFieldState('smallModelId').isDirty
-        }
-        form.reset(
-          { ...defaultValues, skillIds: form.getValues('skillIds') },
-          { keepDirtyValues: true, keepErrors: true }
-        )
-        const refreshedModelLabels = modelLabelsForAgent(resource)
-        setModelLabels((currentLabels) => ({
-          modelId: dirtyModelFields.modelId ? currentLabels.modelId : refreshedModelLabels.modelId,
-          planModelId: dirtyModelFields.planModelId ? currentLabels.planModelId : refreshedModelLabels.planModelId,
-          smallModelId: dirtyModelFields.smallModelId ? currentLabels.smallModelId : refreshedModelLabels.smallModelId
-        }))
-      }
-      return
-    }
-    initializedResourceIdRef.current = resource.id
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
@@ -308,44 +279,69 @@ function AgentEditDialogContent({
     setActiveTab('basic')
   }, [activeTab, leafTabIds])
 
-  const isSubmitting = form.formState.isSubmitting
-  const canSave = Boolean(saveIntent) && !isSubmitting
   const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  // Tracks whether the most recent save attempt failed, so the close path can
+  // keep the dialog open (and the error visible) instead of closing over a loss.
+  const saveFailedRef = useRef(false)
 
-  const handleSubmit = form.handleSubmit(async () => {
+  const persist = async () => {
     const pending = saveIntent
     if (!pending) return
 
     form.clearErrors('root')
+    saveFailedRef.current = false
 
     let updated: Awaited<ReturnType<typeof updateAgent>>
     try {
       updated = await updateAgent(pending.payload)
     } catch (error) {
-      logger.error('Failed to save agent edit dialog', error as Error, { agentId: resource.id })
+      logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      saveFailedRef.current = true
       return
     }
 
-    onOpenChange(false)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /agents/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  const flush = useDebouncedAutoSave({
+    enabled: open,
+    changeKey: canPersist ? JSON.stringify(values) : null,
+    onSave: persist
   })
 
-  const closeBeforeAction = useCloseBeforeAction(onOpenChange)
+  // On close with a pending edit, flush through the same serialized save queue and
+  // only close once it settles — so a failed final save stays visible instead of
+  // being silently dropped, and we never race a second concurrent save.
+  const handleOpenChange = (next: boolean) => {
+    if (next || !canPersist) {
+      onOpenChange(next)
+      return
+    }
+    void (async () => {
+      await flush()
+      if (saveFailedRef.current) return
+      onOpenChange(false)
+    })()
+  }
+  // Route the settings-navigate close through handleOpenChange so it flushes too.
+  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
   return (
     <EditDialogShell
       activeTab={activeTab}
-      canSave={canSave}
       form={form}
-      isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
-      onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
@@ -366,7 +362,11 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
           />
         </TabsContent>
-        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
           <AgentPromptField form={form} portalContainer={dialogContentElement} />
         </TabsContent>
         {isToolTab(activeTab) ? (
@@ -414,7 +414,7 @@ function AgentBasicFields({
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="grid grid-cols-[auto_1fr] gap-4">
         <AvatarField
           form={form}
@@ -502,7 +502,9 @@ function PermissionModeField({
       render={({ field }) => (
         <FormItem>
           <div className="flex items-center justify-between gap-3">
-            <FormLabel>{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <FormLabel className="font-normal text-[13px]">
+              {t('library.config.agent.field.permission_mode.label')}
+            </FormLabel>
             <Select
               value={field.value || 'default'}
               onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
@@ -549,7 +551,7 @@ function HeartbeatSettingsField({
         render={({ field }) => (
           <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel>{label}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{label}</FormLabel>
               <FormControl>
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
               </FormControl>
@@ -565,7 +567,9 @@ function HeartbeatSettingsField({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center justify-between gap-3">
-                <FormLabel>{t('library.config.agent.field.heartbeat_interval.label')}</FormLabel>
+                <FormLabel className="font-normal text-[13px]">
+                  {t('library.config.agent.field.heartbeat_interval.label')}
+                </FormLabel>
                 <FormControl>
                   <EditableNumber
                     min={1}
@@ -614,6 +618,7 @@ function AgentPromptField({
           value={field.value}
           onChange={field.onChange}
           placeholder={t('library.config.agent.field.instructions.placeholder')}
+          fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />
@@ -680,6 +685,24 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
+  const skillCatalog = useMemo<CatalogItem[]>(
+    () =>
+      skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+        icon: <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" />
+      })),
+    [skills]
+  )
+  const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
+  const setSkillEnabled = (id: string, enabled: boolean) =>
+    form.setValue(
+      'skillIds',
+      enabled ? Array.from(new Set([...skillIds, id])) : skillIds.filter((skillId) => skillId !== id),
+      { shouldDirty: true }
+    )
+
   return (
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
@@ -708,19 +731,18 @@ function AgentToolsFields({
         />
       ) : null}
       {activeToolTab === 'tools.skills' ? (
-        <SkillCatalogPicker
-          mode="edit"
-          skills={skills}
+        <CatalogToggleGrid
+          items={skillCatalog}
+          enabledIds={enabledSkillIds}
           loading={skillsLoading}
-          selectedIds={skillIds}
-          onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
+          disabled={!canManageSkills}
+          onToggle={setSkillEnabled}
           emptyLabel={
             canManageSkills
               ? t('library.config.agent.section.tools.no_skills_enabled')
               : t('library.config.agent.section.tools.skills_require_save')
           }
           portalContainer={portalContainer}
-          disabled={!canManageSkills}
         />
       ) : null}
     </div>
