@@ -253,10 +253,12 @@ export class CacheService extends BaseService {
         }
       }
 
-      // Clean shared cache
+      // Clean shared cache — evict (not plain delete) so renderer mirrors, which
+      // have no GC of their own, receive the deletion instead of holding the
+      // entry for the rest of the session.
       for (const [key, entry] of this.sharedCache.entries()) {
         if (entry.expireAt && now > entry.expireAt) {
-          this.sharedCache.delete(key)
+          this.evictExpiredShared(key)
           removedCount++
         }
       }
@@ -368,11 +370,27 @@ export class CacheService extends BaseService {
 
     // Check TTL (lazy cleanup)
     if (entry.expireAt && Date.now() > entry.expireAt) {
-      this.sharedCache.delete(key)
+      this.evictExpiredShared(key)
       return undefined
     }
 
     return entry.value as InferSharedCacheValue<K>
+  }
+
+  /**
+   * Physically remove an expired shared entry and broadcast the deletion so
+   * renderer mirrors drop their copy too — renderers have no GC of their own, so
+   * a silent delete here would leave the entry in every open window for the rest
+   * of the session. Main-side subscribers deliberately do NOT fire (see the
+   * subscribe contract: no fire on lazy TTL cleanup or GC sweeps).
+   */
+  private evictExpiredShared(key: string): void {
+    this.sharedCache.delete(key)
+    this.broadcastSync({
+      type: 'shared',
+      key,
+      value: undefined // undefined means deletion
+    })
   }
 
   /**
@@ -382,15 +400,26 @@ export class CacheService extends BaseService {
    * @param ttl - Time to live in milliseconds (optional)
    */
   setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+    const oldExpireAt = this.sharedCache.get(key)?.expireAt
     const oldValue = this.peekShared(key)
     const expireAt = ttl ? Date.now() + ttl : undefined
     const entry: CacheEntry = { value, expireAt }
 
     this.sharedCache.set(key, entry)
 
-    // Skip broadcast + notify when value hasn't changed.
-    // TTL-only refresh updates the entry silently (aligned with set() semantics).
+    // Same value: skip the notifier, but a changed expiry must still reach renderer
+    // mirrors (they store the absolute expireAt and lazily expire on their own) —
+    // otherwise a TTL-only refresh leaves every mirror holding the value TTL-free
+    // for the rest of the session. Mirrors renderer setSharedInternal's semantics.
     if (isEqual(oldValue, value)) {
+      if (!Object.is(oldExpireAt, expireAt)) {
+        this.broadcastSync({
+          type: 'shared',
+          key,
+          value,
+          expireAt
+        })
+      }
       return
     }
 
@@ -416,7 +445,7 @@ export class CacheService extends BaseService {
 
     // Check TTL
     if (entry.expireAt && Date.now() > entry.expireAt) {
-      this.sharedCache.delete(key)
+      this.evictExpiredShared(key)
       return false
     }
 
@@ -518,9 +547,10 @@ export class CacheService extends BaseService {
     const result: Record<string, CacheEntry> = {}
 
     for (const [key, entry] of this.sharedCache.entries()) {
-      // Skip expired entries
+      // Evict (not plain delete) expired entries — silently removing them here
+      // would hide them from the GC sweep, stranding older windows' mirrors.
       if (entry.expireAt && now > entry.expireAt) {
-        this.sharedCache.delete(key)
+        this.evictExpiredShared(key)
         continue
       }
       result[key] = entry

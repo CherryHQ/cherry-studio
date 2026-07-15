@@ -40,9 +40,9 @@ Template keys share one default value across all instances — all `web_search.p
 Non-obvious rules the code enforces; assume them when designing consumers.
 
 1. **Same-value write is a no-op.** Equality via `isEqual` (es-toolkit/compat). No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier) — Corollary for the hooks' functional updater `setX(prev => …)`: it must return a **new** value. Mutating `prev` in place and returning the same reference compares the stored value against itself, so this no-op short-circuit silently swallows the update (the hooks type `prev` shallow-readonly to block the common top-level case).
-2. **TTL-only refresh does not fire subscribers.** Updating `expireAt` on the same value is silent.
-3. **Subscribers fire only on explicit writes.** Lazy TTL cleanup, the 10-min GC sweep, and `onStop` do not fire.
-4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/data/hooks/useCache.ts:186-192,289-295`) — values can expire between renders.
+2. **TTL-only refresh does not fire subscribers.** Updating `expireAt` on the same value fires no subscribers — but on the shared tier it still broadcasts the new absolute expiry cross-process (both Main→renderer and renderer→Main directions), so every mirror expires in step.
+3. **Subscribers fire only on explicit writes.** Lazy TTL cleanup, the 10-min GC sweep, and `onStop` do not fire. Shared-tier expiry on Main (lazy or GC) does, however, broadcast a *deletion* to renderer mirrors — renderers have no GC of their own, so a silent delete would strand the entry in every open window for the rest of the session.
+4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/data/hooks/useCache.ts:236-243,356-366`) — values can expire between renders. To *observe* a TTL'd key another process owns end-to-end, use the read-only `useSharedCacheValue` (`useCache.ts:392-413`): it neither writes a default nor pins the key, so the owner's writes, expiry, and deletion propagate cleanly (the value simply becomes `undefined`).
 5. **Hooks pin cache entries.** `registerHook` / `unregisterHook` refcount keys; `delete` / `deleteShared` return `false` while any hook is active.
 6. **Persist presence means "overridden", not "stored".** Both persist tiers (Main JSON + renderer localStorage) have no absent state — `getPersist` always returns the stored override or the schema default (never undefined). `hasPersist` reports whether the effective value *differs from the default* (i.e. has been overridden), and `deletePersist` resets a key to its default rather than removing it. Keys are fixed by schema. Change subscription differs by process in API shape only: Main exposes a dedicated `subscribePersistChange` (main-local, same model as `subscribeChange`; never relayed to renderers), while the renderer routes persist changes through its unified `subscribe(key, cb)`.
 7. **TTL uses absolute `expireAt` (Unix ms).** Every process expires the same entry at the same instant, regardless of clock skew in IPC delivery.
@@ -82,7 +82,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 | Init sync for new windows       | Serves `getAllShared()`                          | Calls `getAllShared()` on startup                    |
 | `subscribeChange` / `subscribeSharedChange` | Main-only API; template-aware | —                                                    |
 | Hook refcounting                | —                                                | `registerHook` / `unregisterHook`                    |
-| GC (10-min sweep of expired)    | Yes                                              | —                                                    |
+| GC (10-min sweep of expired)    | Yes (shared-tier evictions broadcast a deletion to renderer mirrors) | —                               |
 
 ## API Reference
 
@@ -92,7 +92,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 | ---------------------------------------------------- | ------- | ----------------------- |
 | `useCache` / `get` / `set` / `has` / `delete` / `hasTTL` | Memory  | Fixed + Template        |
 | `getCasual` / `setCasual` / `hasCasual` / `deleteCasual` / `hasTTLCasual` | Memory | Dynamic only (schema keys blocked) |
-| `useSharedCache` / `getShared` / `setShared` / `hasShared` / `deleteShared` / `hasSharedTTL` | Shared | Fixed + Template |
+| `useSharedCache` / `useSharedCacheValue` (read-only) / `getShared` / `setShared` / `hasShared` / `deleteShared` / `hasSharedTTL` | Shared | Fixed + Template |
 | `usePersistCache` / `getPersist` / `setPersist` / `hasPersist` / `deletePersist` | Persist | Fixed only |
 | `isSharedCacheReady` / `onSharedCacheReady`          | Shared  | —                       |
 | `getStats(includeDetails?: boolean)`                 | All     | —                       |

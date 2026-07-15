@@ -20,6 +20,8 @@ vi.unmock('@main/data/CacheService')
 // The mocked BaseService captures ipcMain handlers we can invoke directly.
 const ipcListeners = new Map<string, (event: IpcMainEvent, ...args: any[]) => void>()
 const ipcHandlers = new Map<string, (event: IpcMainEvent, ...args: any[]) => unknown>()
+// Captures registerInterval callbacks (e.g. the GC sweep) so tests can drive them directly.
+const intervalCallbacks: Array<() => void> = []
 
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
@@ -34,7 +36,8 @@ vi.mock('@main/core/lifecycle', () => ({
     protected registerDisposable(d: unknown) {
       return d
     }
-    protected registerInterval() {
+    protected registerInterval(fn: () => void) {
+      intervalCallbacks.push(fn)
       return { dispose: () => {} }
     }
     get isReady() {
@@ -72,6 +75,7 @@ describe('CacheService subscription', () => {
     vi.clearAllMocks()
     ipcListeners.clear()
     ipcHandlers.clear()
+    intervalCallbacks.length = 0
 
     const { CacheService } = await import('../CacheService')
     service = new CacheService()
@@ -241,6 +245,98 @@ describe('CacheService subscription', () => {
       service.setShared(SHARED_EXACT, 'fresh')
 
       expect(cb).toHaveBeenCalledWith('fresh', undefined, SHARED_EXACT)
+      nowSpy.mockRestore()
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Shared cache — TTL sync & expiry eviction reach renderer mirrors
+  // ---------------------------------------------------------------------------
+
+  describe('shared TTL sync and expiry eviction', () => {
+    let webContents: { send: ReturnType<typeof vi.fn> }
+
+    beforeEach(async () => {
+      const { BrowserWindow } = (await import('electron')) as any
+      webContents = { send: vi.fn() }
+      BrowserWindow.getAllWindows.mockReturnValue([{ isDestroyed: () => false, id: 99, webContents }])
+    })
+
+    const sharedMessages = () =>
+      webContents.send.mock.calls.filter(([, message]) => message?.type === 'shared').map(([, message]) => message)
+
+    it('broadcasts a same-value write whose TTL changed, without firing subscribers', () => {
+      const cb = vi.fn()
+      service.setShared(SHARED_EXACT, 'api-key-1')
+      service.subscribeSharedChange(SHARED_EXACT, cb)
+      webContents.send.mockClear()
+
+      service.setShared(SHARED_EXACT, 'api-key-1', 60_000) // same value, TTL added
+
+      expect(cb).not.toHaveBeenCalled()
+      const messages = sharedMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).toMatchObject({ key: SHARED_EXACT, value: 'api-key-1' })
+      expect(messages[0].expireAt).toBeGreaterThan(Date.now())
+    })
+
+    it('stays fully silent when value and TTL are both unchanged', () => {
+      service.setShared(SHARED_EXACT, 'api-key-1')
+      webContents.send.mockClear()
+
+      service.setShared(SHARED_EXACT, 'api-key-1') // no TTL either time
+
+      expect(webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('lazy expiry on getShared broadcasts the deletion to renderer mirrors', () => {
+      service.setShared(SHARED_EXACT, 'short-lived', 1)
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+      webContents.send.mockClear()
+
+      expect(service.getShared(SHARED_EXACT)).toBeUndefined()
+
+      const messages = sharedMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).toMatchObject({ key: SHARED_EXACT, value: undefined })
+      nowSpy.mockRestore()
+    })
+
+    it('lazy expiry on hasShared broadcasts the deletion to renderer mirrors', () => {
+      service.setShared(SHARED_EXACT, 'short-lived', 1)
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+      webContents.send.mockClear()
+
+      expect(service.hasShared(SHARED_EXACT)).toBe(false)
+
+      const messages = sharedMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).toMatchObject({ key: SHARED_EXACT, value: undefined })
+      nowSpy.mockRestore()
+    })
+
+    it('GC sweep broadcasts deletions for expired shared entries, silently for internal ones', () => {
+      const gc = intervalCallbacks[0]
+      expect(gc).toBeDefined()
+
+      service.setShared(SHARED_EXACT, 'expires', 1)
+      service.setShared(SHARED_OTHER, 'stays', 60_000)
+      service.set('internal-key', 'expires-too', 1)
+      const cb = vi.fn()
+      service.subscribeSharedChange(SHARED_EXACT, cb)
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+      webContents.send.mockClear()
+
+      gc()
+
+      // Only the expired shared entry is broadcast-deleted; the still-alive one is
+      // untouched and internal-cache expiry never crosses the process boundary.
+      const messages = sharedMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).toMatchObject({ key: SHARED_EXACT, value: undefined })
+      expect(service.getShared(SHARED_OTHER)).toBe('stays')
+      // GC eviction must not fire main-side subscribers (documented contract).
+      expect(cb).not.toHaveBeenCalled()
       nowSpy.mockRestore()
     })
   })

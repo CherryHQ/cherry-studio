@@ -13,7 +13,7 @@
  */
 
 import { cacheService } from '@data/CacheService'
-import { useCache, usePersistCache, useSharedCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache, useSharedCache, useSharedCacheValue } from '@data/hooks/useCache'
 import type {
   ExpandTemplateKey,
   InferSharedCacheValue,
@@ -290,6 +290,42 @@ describe('functional updater (runtime)', () => {
         result.current[1](true)
       })
       expect(cacheService.getShared('feature.api_gateway.running')).toBe(true)
+    })
+  })
+
+  describe('read-only shared tier (useSharedCacheValue)', () => {
+    const READONLY_KEY = 'topic.stream.last_seen_completion.readonly-test' as const
+
+    afterEach(() => {
+      cacheService.deleteShared(READONLY_KEY)
+    })
+
+    it('reads undefined for a missing key without creating or pinning it', () => {
+      const registerHookSpy = vi.spyOn(cacheService, 'registerHook')
+
+      const { result } = renderHook(() => useSharedCacheValue(READONLY_KEY))
+
+      // Unlike useSharedCache, mounting writes nothing: no schema-default
+      // initialization (the template default is null) and no hook registration.
+      expect(result.current).toBeUndefined()
+      expect(cacheService.hasShared(READONLY_KEY)).toBe(false)
+      expect(registerHookSpy).not.toHaveBeenCalled()
+    })
+
+    it('re-renders with live writes and reads undefined again after deletion', () => {
+      const { result } = renderHook(() => useSharedCacheValue(READONLY_KEY))
+      expect(result.current).toBeUndefined()
+
+      act(() => {
+        cacheService.setShared(READONLY_KEY, 40)
+      })
+      expect(result.current).toBe(40)
+
+      // The writer stays free to delete the key while the hook is mounted.
+      act(() => {
+        cacheService.deleteShared(READONLY_KEY)
+      })
+      expect(result.current).toBeUndefined()
     })
   })
 

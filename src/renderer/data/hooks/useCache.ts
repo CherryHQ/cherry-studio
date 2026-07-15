@@ -390,6 +390,28 @@ export function useSharedCache<K extends SharedCacheKey>(
 }
 
 /**
+ * Read-only subscription to a shared cache key.
+ *
+ * Unlike {@link useSharedCache}, mounting this hook never writes: it does not
+ * initialize a missing key with the schema default, and it does not register the
+ * key as hook-backed — so the writer stays free to delete it (or let a TTL expire
+ * it) while this hook is mounted, at which point the value becomes `undefined`.
+ *
+ * Use it to observe a key some other process owns end-to-end (e.g. main-driven
+ * job progress) without every mounted subscriber creating an entry of its own.
+ *
+ * @param key - Cache key from the predefined schema (fixed or matching template)
+ * @returns The current shared value, or `undefined` while the key does not exist
+ */
+export function useSharedCacheValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+  return useSyncExternalStore(
+    useCallback((callback) => cacheService.subscribe(key, callback), [key]),
+    useCallback(() => cacheService.getShared(key), [key]),
+    useCallback(() => cacheService.getShared(key), [key]) // SSR snapshot
+  )
+}
+
+/**
  * React hook for persistent cache with localStorage
  *
  * Use this for data that needs to persist across app restarts and be shared between all windows.

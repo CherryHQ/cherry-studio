@@ -96,6 +96,38 @@ describe('renderer CacheService equality semantics', () => {
     })
   })
 
+  // Main evicts expired shared entries by broadcasting a deletion (renderer has no
+  // GC of its own) — the receive path must actually drop the local mirror.
+  describe('incoming shared sync messages (mirror maintenance)', () => {
+    it('deletes the local mirror and notifies subscribers when Main broadcasts a deletion', async () => {
+      const service = await createService()
+      const key = 'chat.web_search.active_searches'
+      const listener = onSync.mock.calls[0][0]
+
+      listener({ type: 'shared', key, value: { topic1: { status: 'running' } } })
+      expect(service.getShared(key)).toEqual({ topic1: { status: 'running' } })
+
+      const sub = vi.fn()
+      service.subscribe(key, sub)
+      listener({ type: 'shared', key, value: undefined }) // undefined means deletion
+
+      expect(service.getShared(key)).toBeUndefined()
+      expect(sub).toHaveBeenCalledTimes(1)
+    })
+
+    it('applies the absolute expireAt from a TTL-only refresh so the mirror expires on its own', async () => {
+      const service = await createService()
+      const key = 'chat.web_search.active_searches'
+      const listener = onSync.mock.calls[0][0]
+      const value = { topic1: { status: 'running' } }
+
+      listener({ type: 'shared', key, value }) // no expiry
+      listener({ type: 'shared', key, value, expireAt: Date.now() - 1 }) // TTL-only refresh, already past
+
+      expect(service.getShared(key)).toBeUndefined()
+    })
+  })
+
   describe('setPersist', () => {
     it('skips persist save when array value has same content (new reference)', async () => {
       const service = await createService()
