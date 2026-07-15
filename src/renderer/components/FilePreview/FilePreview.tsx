@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { FilePath } from '@shared/types/file'
 import { FileQuestion, FileWarning, FileX2, LoaderCircle } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -13,7 +13,7 @@ import type { FilePreviewPlugin } from './types'
 
 const logger = loggerService.withContext('FilePreview')
 
-type FilePreviewStateKind = 'invalid_path' | 'load_error' | 'probe_error' | 'unsupported'
+type FilePreviewStateKind = 'invalid_path' | 'load_error' | 'unsupported'
 
 const FILE_PREVIEW_STATE_KEYS = {
   invalid_path: {
@@ -23,10 +23,6 @@ const FILE_PREVIEW_STATE_KEYS = {
   load_error: {
     description: 'file_preview.load_error.description',
     title: 'file_preview.load_error.title'
-  },
-  probe_error: {
-    description: 'file_preview.probe_error.description',
-    title: 'file_preview.probe_error.title'
   },
   unsupported: {
     description: 'file_preview.unsupported.description',
@@ -92,41 +88,6 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin }: FilePreviewPl
   )
 }
 
-interface TextFallbackPreviewProps {
-  fileName: string
-  filePath: FilePath
-  plugin: FilePreviewPlugin
-}
-
-function TextFallbackPreview({ fileName, filePath, plugin }: TextFallbackPreviewProps) {
-  const [state, setState] = useState<'binary' | 'error' | 'pending' | 'text'>('pending')
-
-  useEffect(() => {
-    let cancelled = false
-
-    void window.api.file
-      .isTextFile(filePath)
-      .then((isText) => {
-        if (!cancelled) setState(isText ? 'text' : 'binary')
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error(`Failed to detect preview file type: ${filePath}`, normalized)
-        setState('error')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [filePath])
-
-  if (state === 'pending') return <FilePreviewLoading />
-  if (state === 'error') return <FilePreviewState kind="probe_error" />
-  if (state === 'binary') return <FilePreviewState kind="unsupported" />
-  return <FilePreviewPluginRenderer fileName={fileName} filePath={filePath} plugin={plugin} />
-}
-
 interface FilePreviewProps {
   filePath: FilePath
 }
@@ -146,10 +107,6 @@ export function FilePreview({ filePath }: FilePreviewProps) {
   const extensionPlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
   if (extensionPlugin) {
     return <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} />
-  }
-
-  if (filePreviewRegistry.textFallbackPlugin) {
-    return <TextFallbackPreview key={file.filePath} {...file} plugin={filePreviewRegistry.textFallbackPlugin} />
   }
 
   return <FilePreviewState kind="unsupported" />

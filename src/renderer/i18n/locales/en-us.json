@@ -2451,10 +2451,6 @@
       "title": "Preview failed"
     },
     "loading": "Loading preview...",
-    "probe_error": {
-      "description": "The file could not be read for preview.",
-      "title": "File unavailable"
-    },
     "unsupported": {
       "description": "This file type cannot be previewed yet.",
       "title": "Preview unavailable"

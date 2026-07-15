@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type { FilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ComponentType } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
   EmptyState: ({
@@ -29,12 +29,6 @@ vi.mock('react-i18next', () => ({
 
 import { FilePreview } from '../FilePreview'
 
-const isTextFile = vi.fn()
-
-beforeEach(() => {
-  Object.assign(window.api.file, { isTextFile })
-})
-
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -46,7 +40,6 @@ describe('FilePreview', () => {
 
     expect(screen.getByText('file_preview.unsupported.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.unsupported.description')).toBeInTheDocument()
-    expect(isTextFile).not.toHaveBeenCalled()
   })
 
   it('contains invalid paths in an inline state', () => {

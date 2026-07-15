@@ -26,7 +26,6 @@ describe('file preview registry', () => {
     const registry = createFilePreviewRegistry({ extensionPlugins: [] })
 
     expect(resolveExtensionPlugin('/tmp/report.pdf', registry)).toBeNull()
-    expect(registry.textFallbackPlugin).toBeNull()
   })
 
   it('rejects duplicate extensions instead of relying on registration order', () => {

@@ -5,18 +5,13 @@ import type { FilePreviewPlugin } from './types'
 
 export interface FilePreviewRegistry {
   extensionPlugins: ReadonlyMap<string, FilePreviewPlugin>
-  textFallbackPlugin: FilePreviewPlugin | null
 }
 
 interface CreateFilePreviewRegistryOptions {
   extensionPlugins: readonly FilePreviewPlugin[]
-  textFallbackPlugin?: FilePreviewPlugin | null
 }
 
-export function createFilePreviewRegistry({
-  extensionPlugins,
-  textFallbackPlugin = null
-}: CreateFilePreviewRegistryOptions): FilePreviewRegistry {
+export function createFilePreviewRegistry({ extensionPlugins }: CreateFilePreviewRegistryOptions): FilePreviewRegistry {
   const pluginsByExtension = new Map<string, FilePreviewPlugin>()
 
   for (const plugin of extensionPlugins) {
@@ -31,7 +26,7 @@ export function createFilePreviewRegistry({
     }
   }
 
-  return { extensionPlugins: pluginsByExtension, textFallbackPlugin }
+  return { extensionPlugins: pluginsByExtension }
 }
 
 export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRegistry): FilePreviewPlugin | null {

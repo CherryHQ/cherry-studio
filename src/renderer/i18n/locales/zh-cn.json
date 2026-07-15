@@ -2451,10 +2451,6 @@
       "title": "预览失败"
     },
     "loading": "正在加载预览...",
-    "probe_error": {
-      "description": "无法读取此文件以生成预览。",
-      "title": "文件不可用"
-    },
     "unsupported": {
       "description": "此文件类型暂不支持预览。",
       "title": "暂不支持预览"
