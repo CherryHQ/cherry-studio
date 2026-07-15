@@ -18,8 +18,11 @@ const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
   editorInstance: undefined as any,
   stabilizeEditor: false,
+  simulateDeferredEditorStyle: false,
   actions: undefined as ComposerSurfaceActions | undefined,
   editorClientHeight: 28,
+  deferredEditorMinHeight: 46,
+  editorContentLineCount: 1,
   editorViewComposing: false,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
@@ -61,6 +64,22 @@ const mocks = vi.hoisted(() => ({
 
 function clearMockTimers() {
   mocks.timeoutCleanups.splice(0).forEach((cleanup) => cleanup())
+}
+
+function getMockEditorMinHeight(node: HTMLElement) {
+  if (!mocks.simulateDeferredEditorStyle) return mocks.editorClientHeight
+
+  const inheritedMinHeight = Number.parseFloat(
+    node.parentElement?.style.getPropertyValue('--composer-editor-min-height') ?? ''
+  )
+  return Number.isFinite(inheritedMinHeight) ? inheritedMinHeight : mocks.deferredEditorMinHeight
+}
+
+function getMockEditorScrollHeight(node: HTMLElement) {
+  if (!mocks.simulateDeferredEditorStyle) return mocks.editorScrollHeight
+
+  const contentHeight = mocks.editorContentLineCount > 1 ? 42 : 26
+  return Math.max(getMockEditorMinHeight(node), contentHeight)
 }
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -238,8 +257,8 @@ vi.mock('@tiptap/react', () => ({
         ref={(node) => {
           if (!node) return
           Object.defineProperties(node, {
-            clientHeight: { configurable: true, get: () => mocks.editorClientHeight },
-            scrollHeight: { configurable: true, get: () => mocks.editorScrollHeight }
+            clientHeight: { configurable: true, get: () => getMockEditorMinHeight(node) },
+            scrollHeight: { configurable: true, get: () => getMockEditorScrollHeight(node) }
           })
         }}
         data-testid="composer-editor"
@@ -408,8 +427,11 @@ describe('ComposerSurface', () => {
     mocks.editorOptions = undefined
     mocks.editorInstance = undefined
     mocks.stabilizeEditor = false
+    mocks.simulateDeferredEditorStyle = false
     mocks.actions = undefined
     mocks.editorClientHeight = 28
+    mocks.deferredEditorMinHeight = 46
+    mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
@@ -506,10 +528,14 @@ describe('ComposerSurface', () => {
     expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
     expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
     expect(screen.getByTestId('editor-content').parentElement).toHaveStyle({ minHeight: '26px' })
-    expect(screen.getByTestId('editor-content')).toHaveStyle({ minHeight: '26px' })
-    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain(
-      '--composer-editor-min-height: 26px'
-    )
+    const editorContent = screen.getByTestId('editor-content')
+    const editorElementStyle = screen.getByTestId('composer-editor').getAttribute('data-editor-style')
+    expect(editorContent).toHaveStyle({ minHeight: '26px', height: '26px' })
+    expect(editorContent.style.getPropertyValue('--composer-editor-min-height')).toBe('26px')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('26px')
+    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
+    expect(editorElementStyle).toContain('max-height: var(--composer-editor-max-height) !important')
+    expect(editorElementStyle).not.toContain('--composer-editor-min-height: 26px')
     const addToolButton = screen.getByRole('button', { name: 'add tool' })
     const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
     const contextUsage = screen.getByLabelText('context usage')
@@ -575,6 +601,32 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
   })
 
+  it('measures rapid line breaks from React-owned compact variables before Tiptap style effects settle', async () => {
+    mocks.simulateDeferredEditorStyle = true
+    mocks.stabilizeEditor = true
+
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+
+    act(() => {
+      mocks.editorContentLineCount = 1
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorContentLineCount = 2
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+
+    act(() => {
+      mocks.editorContentLineCount = 1
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+  })
+
   it('remeasures through the shared path when the editor DOM changes', async () => {
     render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
 
@@ -620,12 +672,14 @@ describe('ComposerSurface', () => {
     const editorContainer = editorContent.parentElement
     const inputbar = document.getElementById('inputbar')
     const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+    const stableEditorElementStyle = editor.getAttribute('data-editor-style')
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
     expect(editorContainer).not.toHaveStyle({ height: 'max(220px, 50vh)' })
     expect(editorContainer).toHaveClass('transition-[height]', 'ease-out')
     expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 40vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 40vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
     expect(editor.className).toContain('max-h-[max(220px,40vh)]')
     expect(editor.className).not.toContain('max-h-[max(220px,50vh)]')
     expect(editor.className).not.toContain('max-h-[500px]')
@@ -639,11 +693,9 @@ describe('ComposerSurface', () => {
     expect(editorContent).toHaveStyle({ height: '100%' })
     expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
     expect(screen.getByTestId('composer-editor').className).toContain('h-full')
-    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain(
-      'max-height: max(220px, 50vh)'
-    )
-    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('height: 100%')
-    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 50vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
+    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toBe(stableEditorElementStyle)
     expect(inputbar).toHaveClass('expanded')
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.restore' }))
@@ -653,7 +705,8 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
     expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 40vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 40vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
     expect(inputbar).not.toHaveClass('expanded')
   })
 
@@ -738,7 +791,8 @@ describe('ComposerSurface', () => {
     expect(editorContainer).toHaveStyle({ height: '146px', transitionDuration: '0ms' })
     expect(editorContent).toHaveStyle({ height: '100%' })
     expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
-    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('max-height: 146px')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('146px')
+    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
     expect(inputbar).not.toHaveClass('expanded')
 

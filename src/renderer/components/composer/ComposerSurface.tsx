@@ -681,10 +681,9 @@ export default function ComposerSurface({
 
   const {
     compactEditorContentStyle,
-    compactEditorStyle,
     compactFrameStyle,
     editorContentStyle,
-    editorStyle,
+    editorElementStyle,
     frameRef,
     frameStyle,
     handleResizeKeyDown,
@@ -1332,7 +1331,7 @@ export default function ComposerSurface({
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
-        style: isCompact ? compactEditorStyle : editorStyle
+        style: editorElementStyle
       },
       handleKeyDown: (view, event) => {
         if (
