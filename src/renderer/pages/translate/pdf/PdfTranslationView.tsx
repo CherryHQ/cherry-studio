@@ -271,7 +271,10 @@ const PdfTranslationView = ({
   const roundedProgress = progress ? Math.round(progress.progress) : null
   const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
   const ocrRequired = error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED
-  const errorDescription = ocrRequired ? t('translate.pdf.error.ocr_required') : error?.message
+  // Only localized domain errors are shown verbatim. Any other failure carries the raw sidecar
+  // stderr/traceback (local paths, internal diagnostics) in its message — kept in the main-process
+  // log, never surfaced here — so it falls back to a generic, localized message.
+  const errorDescription = ocrRequired ? t('translate.pdf.error.ocr_required') : t('translate.pdf.error.generic')
   const showBabelDocPrompt = babelDocAvailability === 'missing' || dependencyMissing
 
   return (

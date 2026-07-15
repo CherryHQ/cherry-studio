@@ -23,22 +23,28 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
   private readonly internalRequestToken = uuidv4()
-  /** Latest desired running state. The `enabled` preference is its ONLY source: nothing auto-starts
-   *  the gateway, so a user who turns it off keeps it off across restarts (issue #18521). */
+  /** Latest persistent desired state. Its only source is the `enabled` preference. */
   private desiredEnabled = false
   /**
-   * Converges the gateway's running state to `desiredEnabled`. The reconciler is the SOLE caller
-   * of activate/deactivate (start/stop/restart route through it too), so transitions are never
-   * concurrent and the lifecycle's `_activating` short-circuit can't race two owners and leave the
-   * running state diverged from `desiredEnabled`. It is level-triggered against the ACTUAL
-   * `isActivated` state, latest-wins (an opposing toggle landing mid-transition is honoured on the
-   * next pass), and a transition that throws for a still-current target is recorded — see
-   * {@link LatestReconciler.getLastError} — and not retried, so a persistent failure (e.g. port in
-   * use) can't spin the loop.
+   * Count of active temporary run leases (see {@link acquireLease}). Transient consumers (e.g. PDF
+   * translation) hold a lease instead of toggling `desiredEnabled`, so the effective running target
+   * is `desiredEnabled || leaseCount > 0`: a lease keeps the gateway up without persisting an
+   * "enabled" intent, and it never overrides a user who enables/disables the gateway mid-lease.
+   */
+  private leaseCount = 0
+  /**
+   * Converges the gateway's running state to the effective target (`desiredEnabled || leaseCount`).
+   * The reconciler is the SOLE caller of activate/deactivate (start/stop/restart and lease
+   * acquire/release route through it too), so transitions are never concurrent and the lifecycle's
+   * `_activating` short-circuit can't race two owners and leave the running state diverged from the
+   * target. It is level-triggered against the ACTUAL `isActivated` state, latest-wins (an opposing
+   * toggle landing mid-transition is honoured on the next pass), and a transition that throws for a
+   * still-current target is recorded — see {@link LatestReconciler.getLastError} — and not retried,
+   * so a persistent failure (e.g. port in use) can't spin the loop.
    */
   private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
     name: 'apiGateway',
-    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    getSnapshot: () => ({ desired: this.desiredEnabled || this.leaseCount > 0, actual: this.isActivated }),
     isSettled: ({ desired, actual }) => desired === actual,
     apply: async ({ desired }) => {
       // Discard activate/deactivate's returned state — the reconciler re-reads `isActivated`.
@@ -190,6 +196,39 @@ export class ApiGatewayService extends BaseService implements Activatable {
       logger.error('Failed to start API Gateway:', error)
       throw error
     }
+  }
+
+  /**
+   * Acquire a temporary run lease: keep the gateway running for a transient consumer without
+   * touching the persistent `enabled` state. Bumps the effective target (`|| leaseCount > 0`) and
+   * converges; throws if the gateway could not be brought up (rolling the lease back first). Every
+   * successful `acquireLease()` MUST be paired with a `releaseLease()` (in a `finally`).
+   *
+   * Unlike `start()`/`stop()`, this never rewrites `desiredEnabled`, so it cannot stop a
+   * user-enabled gateway on release, and a user disabling the gateway mid-lease cannot cut a
+   * running consumer off (the lease still pins the target true until released).
+   */
+  async acquireLease(): Promise<void> {
+    this.leaseCount += 1
+    this.reconciler.request()
+    await this.reconciler.flush()
+    if (!this.isActivated) {
+      this.leaseCount = Math.max(0, this.leaseCount - 1)
+      this.reconciler.request()
+      const error = this.failureError('Failed to start API Gateway for a temporary lease')
+      logger.error('Failed to acquire API Gateway lease:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Release a lease taken by {@link acquireLease}. Fire-and-forget convergence (matching the
+   * preference-subscription path): once the last lease drops and `desiredEnabled` is false, the
+   * reconciler stops the gateway on its own.
+   */
+  releaseLease(): void {
+    this.leaseCount = Math.max(0, this.leaseCount - 1)
+    this.reconciler.request()
   }
 
   /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */
