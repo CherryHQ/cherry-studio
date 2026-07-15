@@ -665,7 +665,7 @@ const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${
 const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as never
 
-function setTopicStreamCacheStatus(topicId: string, status: 'done' | 'pending' | 'streaming') {
+function setTopicStreamCacheStatus(topicId: string, status: 'aborted' | 'done' | 'error' | 'pending' | 'streaming') {
   cacheService.setShared(topicStreamStatusCacheKey(topicId), { status } as never)
   cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
 }
@@ -1962,10 +1962,15 @@ describe('Topics', () => {
 
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-    let indicator = indicatorRoot?.querySelector('.animation-pulse')
-    expect(indicatorRoot).not.toHaveClass('absolute')
-    expect(indicator).toHaveClass('bg-(--color-warning)')
-    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    // Pending renders a spinner (not the old pulsing amber dot).
+    let indicator = indicatorRoot?.querySelector('.animate-spin')
+    // The indicator is an absolute overlay in every layout now; it fades out on
+    // hover so the pin + delete actions take its resting spot.
+    expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
+    expect(indicator).toHaveClass('text-(--color-foreground-muted)')
+    // The delete button always renders now (revealed on hover); assert only
+    // that the row is not in the delete-confirm state.
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
     setTopicStreamCacheStatus('topic-c', 'done')
@@ -1976,10 +1981,14 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     indicator = indicatorRoot?.querySelector('span')
-    expect(indicatorRoot).not.toHaveClass('absolute')
+    // The indicator is an absolute overlay in every layout now; it fades out on
+    // hover so the pin + delete actions take its resting spot.
+    expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
     expect(indicator).toHaveClass('bg-(--color-success)')
-    expect(indicator).not.toHaveClass('animation-pulse')
-    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    expect(indicator).not.toHaveClass('animate-spin')
+    // The delete button always renders now (revealed on hover); assert only
+    // that the row is not in the delete-confirm state.
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
 
     fireEvent.click(topicRow)
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -2007,8 +2016,25 @@ describe('Topics', () => {
 
     expect(indicator).toBeInTheDocument()
     expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-(--color-warning)')
+    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-(--color-foreground-muted)')
     expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
+  })
+
+  it('shows a red dot for an errored topic stream and none for an aborted one', () => {
+    setTopicStreamCacheStatus('topic-c', 'error')
+    let view = renderTopicList()
+
+    let topicRow = getTopicRow('Gamma topic')
+    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')?.querySelector('span')
+    expect(indicator).toHaveClass('bg-(--color-error-base)')
+    expect(indicator).not.toHaveClass('animate-spin')
+
+    setTopicStreamCacheStatus('topic-c', 'aborted')
+    view.unmount()
+    view = renderTopicList()
+
+    topicRow = getTopicRow('Gamma topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {

@@ -77,7 +77,7 @@ import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
-import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
+import { Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -1403,11 +1403,13 @@ export function Topics({
 
 type TopicListBodyVariant = 'draggable' | 'plain'
 type TopicStreamState = {
+  isErrored: boolean
   isFulfilled: boolean
   isPending: boolean
 }
 
 const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
+  isErrored: false,
   isFulfilled: false,
   isPending: false
 })
@@ -1424,13 +1426,16 @@ const selectTopicStreamState = (
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const streamStatus = {
+    isErrored: status === 'error',
     isFulfilled: status === 'done' && lastCompletedAt !== lastSeenCompletion,
     isPending: status === 'pending' || status === 'streaming'
   }
 
   // Normalize the idle case to a module constant; the non-idle object is
   // rebuilt per run and bails out via the default shallowEqual.
-  return streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
+  return streamStatus.isPending || streamStatus.isFulfilled || streamStatus.isErrored
+    ? streamStatus
+    : EMPTY_TOPIC_STREAM_STATE
 }
 
 const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
@@ -1467,7 +1472,10 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<
+  TopicListBodyProps,
+  'activeTopic' | 'isRightPanel' | 'listRef' | 'variant'
+>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1507,7 +1515,6 @@ function TopicListBody(props: TopicListBodyProps) {
       exportMenuOptions,
       isNewlyRenamed,
       isRenaming,
-      isRightPanel,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1531,7 +1538,6 @@ function TopicListBody(props: TopicListBodyProps) {
       exportMenuOptions,
       isNewlyRenamed,
       isRenaming,
-      isRightPanel,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1587,7 +1593,6 @@ const TopicRow = memo(function TopicRow({
   isActive,
   isNewlyRenamed,
   isRenaming,
-  isRightPanel,
   notesPath,
   onAutoRename,
   onClearMessages,
@@ -1618,14 +1623,19 @@ const TopicRow = memo(function TopicRow({
     : isNewlyRenamed(topic.id)
       ? 'animation-reveal'
       : ''
-  const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
-  const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+  const {
+    isErrored: isTopicStreamErrored,
+    isFulfilled: isTopicStreamFulfilled,
+    isPending: isTopicStreamPending
+  } = streamStatus
+  // Running (spinner) and errored (red) are ongoing states that stay on the
+  // selected row too — only the completion dot (green) is a read-receipt that
+  // clears once the row is opened (`!isActive`). All yield to hover actions.
+  const hasTopicStreamIndicator = isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = !topic.pinned
-  const showDetachedStreamIndicator = isRightPanel && hasTopicStreamIndicator
-  const showInlineStreamIndicator = hasTopicStreamIndicator && !showDetachedStreamIndicator
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1677,9 +1687,11 @@ const TopicRow = memo(function TopicRow({
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
             RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
-            // The detached indicator is absolutely positioned (keeps no flex
-            // space), so the title needs a standing yield for its dot zone.
-            showDetachedStreamIndicator && 'mr-7'
+            // The stream indicator is an absolute overlay (keeps no flex space),
+            // so the title needs a standing yield for its dot zone; on hover the
+            // overlay fades out and the actions (pin + delete) take over via
+            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin.
+            hasTopicStreamIndicator && 'mr-7'
           )}
           onDoubleClick={(event) => {
             event.stopPropagation()
@@ -1688,10 +1700,14 @@ const TopicRow = memo(function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {showDetachedStreamIndicator && (
-        <TopicStreamIndicator detached isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+      {hasTopicStreamIndicator && (
+        <TopicStreamIndicator
+          isErrored={isTopicStreamErrored}
+          isFulfilled={isTopicStreamFulfilled}
+          isPending={isTopicStreamPending}
+        />
       )}
-      <ResourceList.ItemActions active={showInlineStreamIndicator || isConfirmingDeletion}>
+      <ResourceList.ItemActions active={isConfirmingDeletion}>
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
@@ -1705,9 +1721,7 @@ const TopicRow = memo(function TopicRow({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {showInlineStreamIndicator ? (
-          <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
-        ) : canDeleteTopic ? (
+        {canDeleteTopic && (
           <Tooltip title={t('common.delete')} delay={500}>
             <ResourceList.ItemAction
               aria-label={t('common.delete')}
@@ -1726,7 +1740,7 @@ const TopicRow = memo(function TopicRow({
               )}
             </ResourceList.ItemAction>
           </Tooltip>
-        ) : null}
+        )}
       </ResourceList.ItemActions>
     </ResourceList.Item>
   )
@@ -1749,32 +1763,33 @@ const TopicRow = memo(function TopicRow({
 })
 
 const TopicStreamIndicator = ({
-  detached = false,
+  isErrored,
   isFulfilled,
   isPending
 }: {
-  detached?: boolean
+  isErrored: boolean
   isFulfilled: boolean
   isPending: boolean
 }) => {
-  const dotClassName = cn(
-    'size-1.25 rounded-full',
-    isPending ? 'animation-pulse bg-(--color-warning)' : 'bg-(--color-success)'
-  )
-
-  if (!isPending && !isFulfilled) return null
+  if (!isPending && !isFulfilled && !isErrored) return null
 
   return (
+    // Absolute overlay at the actions' resting spot: it fades out on hover /
+    // focus / delete-confirm so the pin + delete buttons take its place (the
+    // dot/spinner and the actions are mutually exclusive, never side by side).
     <span
       aria-hidden="true"
-      className={cn(
-        'flex size-5 shrink-0 items-center justify-center',
-        detached &&
-          '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 opacity-100 transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0',
-        !detached && isFulfilled && 'opacity-100 group-hover:opacity-100'
-      )}
+      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
       data-testid="topic-stream-indicator">
-      <span className={dotClassName} />
+      {isPending ? (
+        // A spinner reads as "running", where the old pulsing amber dot looked
+        // like a warning. Errored/done collapse to a red/green dot.
+        <Loader2 className="size-3 animate-spin text-(--color-foreground-muted)" />
+      ) : (
+        <span
+          className={cn('size-1.25 rounded-full', isErrored ? 'bg-(--color-error-base)' : 'bg-(--color-success)')}
+        />
+      )}
     </span>
   )
 }

@@ -2236,16 +2236,21 @@ describe('Sessions', () => {
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
   })
 
-  it('keeps fulfilled session stream indicators static while pending indicators pulse', () => {
+  it('shows a green dot when fulfilled and a spinner while pending', () => {
+    // Only session-b carries a status; session-a is the selected row and a
+    // green completion dot is suppressed there (read-receipt).
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isFulfilled: true } : { isPending: true })
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isFulfilled: true } : {})
     )
 
     const { unmount } = render(<SessionsForTest />)
 
     const indicator = screen.getByTestId('agent-session-stream-indicator')
     expect(indicator.firstElementChild).toHaveClass('bg-success')
-    expect(indicator.firstElementChild).not.toHaveClass('animation-pulse')
+    expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
+    // The indicator is an absolute overlay that fades out on hover so the
+    // pin + delete actions take its resting spot (not swapped out of the DOM).
+    expect(indicator).toHaveClass('absolute', 'group-hover:opacity-0')
 
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isPending: true } : {})
@@ -2254,7 +2259,60 @@ describe('Sessions', () => {
     unmount()
     render(<SessionsForTest />)
 
-    expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animation-pulse')
+    // Pending now renders a spinner (not the old pulsing amber dot).
+    expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animate-spin')
+  })
+
+  it('keeps the running spinner on the selected session row but suppresses the completion dot', () => {
+    // session-a is the selected row in the default fixture.
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isPending: true } : {})
+    )
+
+    const { unmount } = render(<SessionsForTest />)
+
+    const selectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(selectedRow).toBeDefined()
+    // Running is an ongoing state — the spinner stays on the selected row.
+    expect(
+      within(selectedRow as HTMLElement).getByTestId('agent-session-stream-indicator').firstElementChild
+    ).toHaveClass('animate-spin')
+
+    // A completion dot on the same selected row IS suppressed (read-receipt).
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isFulfilled: true } : {})
+    )
+    unmount()
+    render(<SessionsForTest />)
+
+    const reselectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(within(reselectedRow as HTMLElement).queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+  })
+
+  it('shows a red dot when the last turn errored', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'error' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    const indicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(indicator.firstElementChild).toHaveClass('bg-error-base')
+    expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
+  })
+
+  it('does not show a stream indicator for an aborted turn', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'aborted' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
   })
 
   it('shows an awaiting-approval badge that yields to hover actions', () => {
@@ -2267,13 +2325,16 @@ describe('Sessions', () => {
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
     expect(badges[0]).toHaveTextContent('Waiting for approval')
-    // Fades out (keeping its space, so the title never reflows) while hover actions are visible
-    // (hover / focus-within / forced-active), like the stream dot swap.
-    expect(badges[0]).toHaveClass('group-hover:opacity-0')
-    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
-    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
     // Warning tint matches the composer's approval pill.
     expect(badges[0]).toHaveClass('text-warning')
+    // The whole cluster (pill + optional spinner) collapses while hover actions
+    // are visible (hover / focus-within / forced-active), like the stream dot swap.
+    const clusters = screen.getAllByTestId('agent-session-awaiting-approval')
+    expect(clusters[0]).toHaveClass('group-hover:opacity-0')
+    expect(clusters[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
+    expect(clusters[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
+    // Terminal awaiting-approval (MCP): the turn is paused, not running — no spinner.
+    expect(clusters[0].querySelector('.animate-spin')).toBeNull()
   })
 
   it('shows the badge and hides the stream dot while a live stream pauses for approval', () => {
@@ -2289,12 +2350,23 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getAllByTestId('agent-session-awaiting-approval-badge')).toHaveLength(1)
+    const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
+    expect(badges).toHaveLength(1)
     expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+    // The turn is still running behind the pause, so a separate normal-size
+    // spinner sits alongside the pill (not shrunk inside it).
+    const cluster = screen.getByTestId('agent-session-awaiting-approval')
+    const spinner = cluster.querySelector('.animate-spin')
+    expect(spinner).not.toBeNull()
+    // It is a sibling of the pill, not a child — the two are distinct elements.
+    expect(badges[0].querySelector('.animate-spin')).toBeNull()
+    expect(spinner).toHaveClass('size-3')
   })
 
-  it('suppresses the awaiting-approval badge on the selected session row', () => {
-    // session-a is the active session in the default fixture.
+  it('keeps the awaiting-approval badge on the selected session row', () => {
+    // session-a is the active session in the default fixture. Awaiting-approval
+    // is an ongoing state (unlike the completion dot), so it stays on the
+    // selected row too — it only yields to hover actions.
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'awaiting-approval' } : {})
     )
@@ -2306,7 +2378,8 @@ describe('Sessions', () => {
       .getAllByTestId('agent-session-row')
       .find((row) => row.getAttribute('data-selected') === 'true')
     expect(selectedRow).toBeDefined()
-    expect(screen.queryByTestId('agent-session-awaiting-approval-badge')).not.toBeInTheDocument()
+    const badge = within(selectedRow as HTMLElement).getByTestId('agent-session-awaiting-approval-badge')
+    expect(badge).toHaveTextContent('Waiting for approval')
   })
 
   it('persists display mode selection from the header menu', async () => {
