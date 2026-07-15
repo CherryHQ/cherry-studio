@@ -172,7 +172,6 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileEditor', () => ({
   useArtifactFileEditor: () => ({
-    session: undefined,
     hasUnsavedChanges: fileEditorState.hasUnsavedChanges,
     getSession: vi.fn(),
     setMode: vi.fn(),

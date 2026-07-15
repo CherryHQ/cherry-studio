@@ -192,8 +192,8 @@ function useAgentFileEditorNavigation(): AgentFileEditorNavigation {
   return value
 }
 
-function AgentFileEditorProvider({ children, resetKey }: { children: ReactNode; resetKey: string }) {
-  const fileEditor = useArtifactFileEditor(resetKey)
+function AgentFileEditorProvider({ children }: { children: ReactNode }) {
+  const fileEditor = useArtifactFileEditor()
   const fileEditorRef = useRef(fileEditor)
   useLayoutEffect(() => {
     fileEditorRef.current = fileEditor
@@ -472,7 +472,6 @@ function AgentRightPaneStateProvider({
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
   const { children, resourcePane, revealRequest, defaultOpen = false, onOpenChange, ...rest } = props
   const shellModeKey = resourcePane ? 'resource-pane' : 'files-pane'
-  const workspaceKey = `${rest.workspaceId ?? ''}\0${rest.workspacePath ?? ''}`
 
   return (
     <Shell
@@ -482,7 +481,7 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
       onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <AgentFileEditorProvider resetKey={workspaceKey}>
+        <AgentFileEditorProvider>
           <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
         </AgentFileEditorProvider>
       </ResourcePaneProvider>

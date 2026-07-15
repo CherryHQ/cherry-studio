@@ -1,4 +1,4 @@
-import { Button, CodeEditor, ConfirmDialog, Markdown, PreviewEditor, Tooltip } from '@cherrystudio/ui'
+import { Button, CodeEditor, ConfirmDialog, Markdown, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import ImagePreviewPanel from '@renderer/components/ArtifactPreview/image/ImagePreviewPanel'
@@ -25,7 +25,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FilePath } from '@shared/types/file'
 import { TEXT_FILE_EDIT_MAX_BYTES } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
-import { AlertCircle, FileText, FolderOpen, RotateCw, Sparkles, X } from 'lucide-react'
+import { AlertCircle, Eye, FileText, FolderOpen, RotateCw, Save, Sparkles, SquarePen, Undo2, X } from 'lucide-react'
 import {
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -40,7 +40,7 @@ import { useTranslation } from 'react-i18next'
 
 import { type ArtifactPaneFileSelection, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import { type ArtifactFileEditor, useArtifactFileEditor } from './useArtifactFileEditor'
+import type { ArtifactFileEditor } from './useArtifactFileEditor'
 import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
@@ -66,8 +66,6 @@ export interface ArtifactPaneProps {
   onFileTreeSearchKeywordChange?: (keyword: string) => void
   /** Show a search input inside the file tree that filters nodes by name. */
   enableFileSearch?: boolean
-  /** Optional lifted editor controller. When omitted, the standalone pane owns one. */
-  fileEditor?: ArtifactFileEditor
 }
 
 interface ArtifactFilePreviewProps {
@@ -456,11 +454,6 @@ interface ArtifactPaneViewProps {
   fileEditor?: ArtifactFileEditor
 }
 
-interface PendingArtifactPaneTransition {
-  file: string | null
-  closePreview: boolean
-}
-
 /**
  * Presentational artifact pane: renders file tree and selected-file overlay
  * preview from the supplied model.
@@ -798,6 +791,12 @@ export function ArtifactPaneView({
       isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
         ? 'overflow-hidden'
         : 'overflow-auto'
+    const editorMode = editSession?.mode ?? 'preview'
+    const editorLoading = editSession?.status === 'loading'
+    const editorSaving = editSession?.status === 'saving'
+    const nextEditorMode = editorMode === 'preview' ? 'edit' : 'preview'
+    const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
+    const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
 
     return (
       <div
@@ -806,62 +805,94 @@ export function ArtifactPaneView({
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
         className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
-        {canEditSelection && fileEditor ? (
-          <PreviewEditor
-            mode={editSession?.mode ?? 'preview'}
-            onModeChange={handleEditorModeChange}
-            title={getPreviewFileTitle(overlaySelection.filePath)}
-            actions={overlayActions}
-            labels={{
-              preview: t('common.preview'),
-              edit: t('common.edit'),
-              save: t('common.save'),
-              discard: t('agent.preview_pane.edit.discard'),
-              unsaved: t('agent.preview_pane.edit.unsaved')
-            }}
-            isDirty={isEditDirty}
-            isLoading={editSession?.status === 'loading'}
-            isSaving={editSession?.status === 'saving'}
-            onSave={handleSaveEdit}
-            onDiscard={handleDiscardEdit}
-            contentClassName={contentClassName}
-            preview={previewContent}
-            editor={
-              editSession?.status === 'ready' ||
-              editSession?.status === 'saving' ||
-              editSession?.status === 'conflict' ? (
-                <CodeEditor
-                  key={previewKey}
-                  value={editSession.draft}
-                  language={getLanguageByFilePath(overlaySelection.filePath)}
-                  theme={activeCmTheme}
-                  editable={editSession.status !== 'saving'}
-                  onChange={(content) => fileEditor.updateDraft(overlaySelection, content)}
-                  onSave={() => void handleSaveEdit()}
-                  height="100%"
-                  expanded={false}
-                  wrapped={false}
-                  style={{ minHeight: 0 }}
-                  options={{ keymap: true, lineNumbers: true }}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <LoadingState label={t('common.loading')} />
-                </div>
-              )
-            }
-          />
-        ) : (
-          <>
-            <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-2 pl-3">
-              <div className="min-w-0 truncate font-medium text-foreground text-sm">
-                {getPreviewFileTitle(overlaySelection.filePath)}
+        <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
+            <span className="truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
+            {isEditDirty && (
+              <span
+                className="size-1.5 shrink-0 rounded-full bg-warning"
+                aria-label={t('agent.preview_pane.edit.unsaved')}
+                title={t('agent.preview_pane.edit.unsaved')}
+              />
+            )}
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {canEditSelection && fileEditor && (
+              <>
+                <Tooltip content={modeActionLabel} delay={800}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label={modeActionLabel}
+                    disabled={editorLoading || editorSaving}
+                    onClick={() => handleEditorModeChange(nextEditorMode)}>
+                    <ModeActionIcon size={14} />
+                  </Button>
+                </Tooltip>
+                {isEditDirty && (
+                  <>
+                    <Tooltip content={t('agent.preview_pane.edit.discard')} delay={800}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                        aria-label={t('agent.preview_pane.edit.discard')}
+                        disabled={editorSaving}
+                        onClick={handleDiscardEdit}>
+                        <Undo2 size={14} />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content={t('common.save')} delay={800}>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="icon-sm"
+                        aria-label={t('common.save')}
+                        loading={editorSaving}
+                        disabled={editorLoading}
+                        onClick={() => void handleSaveEdit()}>
+                        {editorSaving ? null : <Save size={14} />}
+                      </Button>
+                    </Tooltip>
+                  </>
+                )}
+                <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
+              </>
+            )}
+            {overlayActions}
+          </div>
+        </div>
+        <div className={cn('min-h-0 flex-1', contentClassName)}>
+          {canEditSelection && fileEditor && editorMode === 'edit' ? (
+            editSession?.status === 'ready' ||
+            editSession?.status === 'saving' ||
+            editSession?.status === 'conflict' ? (
+              <CodeEditor
+                key={previewKey}
+                value={editSession.draft}
+                language={getLanguageByFilePath(overlaySelection.filePath)}
+                theme={activeCmTheme}
+                editable={editSession.status !== 'saving'}
+                onChange={(content) => fileEditor.updateDraft(overlaySelection, content)}
+                onSave={() => void handleSaveEdit()}
+                height="100%"
+                expanded={false}
+                wrapped={false}
+                style={{ minHeight: 0 }}
+                options={{ keymap: true, lineNumbers: true }}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <LoadingState label={t('common.loading')} />
               </div>
-              <div className="flex shrink-0 items-center gap-1">{overlayActions}</div>
-            </div>
-            <div className={cn('min-h-0 flex-1', contentClassName)}>{previewContent}</div>
-          </>
-        )}
+            )
+          ) : (
+            previewContent
+          )}
+        </div>
         <ConfirmDialog
           open={editConflictOpen}
           onOpenChange={setEditConflictOpen}
@@ -975,20 +1006,14 @@ const ArtifactPane = ({
   onFileTreeExpandedIdsChange,
   fileTreeSearchKeyword: fileTreeSearchKeywordProp,
   onFileTreeSearchKeywordChange,
-  enableFileSearch = false,
-  fileEditor: fileEditorProp
+  enableFileSearch = false
 }: ArtifactPaneProps) => {
-  const { t } = useTranslation()
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [internalPreviewFileSelection, setInternalPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(
     null
   )
   const [internalFileTreeExpandedIds, setInternalFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [internalFileTreeSearchKeyword, setInternalFileTreeSearchKeyword] = useState('')
-  const internalFileEditor = useArtifactFileEditor(workspacePath)
-  const fileEditor = fileEditorProp ?? internalFileEditor
-  const { clear: clearFileEditor } = fileEditor
-  const [pendingTransition, setPendingTransition] = useState<PendingArtifactPaneTransition | null>(null)
   const previousWorkspacePathRef = useRef(workspacePath)
   const hasMountedRef = useRef(false)
   const selectedFileControlled = selectedFileProp !== undefined
@@ -997,63 +1022,21 @@ const ArtifactPane = ({
   const effectivePreviewFileSelection = previewFileSelectionControlled
     ? previewFileSelection
     : internalPreviewFileSelection
-  const activeFileSelection = useMemo(
-    () =>
-      effectivePreviewFileSelection ??
-      (workspacePath && selectedFile ? { workspacePath, filePath: selectedFile } : null),
-    [effectivePreviewFileSelection, selectedFile, workspacePath]
-  )
   const fileTreeExpandedIdsControlled = fileTreeExpandedIdsProp !== undefined
   const expandedIds = fileTreeExpandedIdsProp ?? internalFileTreeExpandedIds
   const fileTreeSearchKeywordControlled = fileTreeSearchKeywordProp !== undefined
   const fileSearchKeyword = fileTreeSearchKeywordProp ?? internalFileTreeSearchKeyword
 
-  const applySelectedFile = useCallback(
-    ({ file, closePreview }: PendingArtifactPaneTransition) => {
-      clearFileEditor()
+  const setSelectedFile = useCallback(
+    (file: string | null) => {
       if (!selectedFileControlled) setInternalSelectedFile(file)
       if (!previewFileSelectionControlled) {
         setInternalPreviewFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
       }
       onSelectedFileChange?.(file)
-      if (closePreview) onPreviewClose?.()
     },
-    [
-      clearFileEditor,
-      onPreviewClose,
-      onSelectedFileChange,
-      previewFileSelectionControlled,
-      selectedFileControlled,
-      workspacePath
-    ]
+    [onSelectedFileChange, previewFileSelectionControlled, selectedFileControlled, workspacePath]
   )
-  const requestSelectedFile = useCallback(
-    (file: string | null, closePreview = false) => {
-      const isCurrentSelection = file
-        ? Boolean(
-            activeFileSelection &&
-              activeFileSelection.workspacePath === workspacePath &&
-              activeFileSelection.filePath === file
-          )
-        : !activeFileSelection
-      if (isCurrentSelection) return
-
-      const transition = { file, closePreview }
-      if (fileEditor.hasUnsavedChanges) {
-        setPendingTransition(transition)
-        return
-      }
-      applySelectedFile(transition)
-    },
-    [activeFileSelection, applySelectedFile, fileEditor.hasUnsavedChanges, workspacePath]
-  )
-  const confirmPendingTransition = useCallback(() => {
-    if (!pendingTransition) return
-    const transition = pendingTransition
-    setPendingTransition(null)
-    applySelectedFile(transition)
-  }, [applySelectedFile, pendingTransition])
-  const handlePreviewClose = useCallback(() => requestSelectedFile(null, true), [requestSelectedFile])
   const setExpandedIdsState = useCallback(
     (ids: ReadonlySet<string>) => {
       if (!fileTreeExpandedIdsControlled) setInternalFileTreeExpandedIds(ids)
@@ -1084,12 +1067,7 @@ const ArtifactPane = ({
   useEffect(() => {
     const workspaceChanged = previousWorkspacePathRef.current !== workspacePath
     if (workspaceChanged) {
-      clearFileEditor()
-      setPendingTransition(null)
-      if (!selectedFileControlled) {
-        setInternalSelectedFile(null)
-        onSelectedFileChange?.(null)
-      }
+      if (!selectedFileControlled) setSelectedFile(null)
       if (!previewFileSelectionControlled) setInternalPreviewFileSelection(null)
       resetLazyChildren()
     }
@@ -1103,12 +1081,11 @@ const ArtifactPane = ({
   }, [
     fileTreeExpandedIdsControlled,
     fileTreeSearchKeywordControlled,
-    clearFileEditor,
-    onSelectedFileChange,
     previewFileSelectionControlled,
     selectedFileControlled,
     setExpandedIdsState,
     setFileSearchKeyword,
+    setSelectedFile,
     resetLazyChildren,
     workspacePath
   ])
@@ -1116,39 +1093,24 @@ const ArtifactPane = ({
   useEffect(() => {
     if (!selectedFile || !model.hasLoaded) return
     if (isSelectableFileNode(model.nodeById, selectedFile)) return
-    applySelectedFile({ file: null, closePreview: false })
-  }, [applySelectedFile, model.hasLoaded, model.nodeById, selectedFile])
+    setSelectedFile(null)
+  }, [model.hasLoaded, model.nodeById, selectedFile, setSelectedFile])
 
   return (
-    <>
-      <ArtifactPaneView
-        workspacePath={workspacePath}
-        maximized={maximized}
-        previewFileSelection={effectivePreviewFileSelection}
-        onPreviewClose={handlePreviewClose}
-        pdfLayoutPending={pdfLayoutPending}
-        pdfLayoutRefreshKey={pdfLayoutRefreshKey}
-        enableFileSearch={enableFileSearch}
-        model={model}
-        selectedFile={selectedFile}
-        onSelectedFileChange={requestSelectedFile}
-        searchKeyword={fileSearchKeyword}
-        onSearchKeywordChange={setFileSearchKeyword}
-        fileEditor={fileEditor}
-      />
-      <ConfirmDialog
-        open={pendingTransition !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingTransition(null)
-        }}
-        title={t('agent.preview_pane.edit.leave.title')}
-        description={t('agent.preview_pane.edit.leave.description')}
-        confirmText={t('agent.preview_pane.edit.leave.confirm')}
-        cancelText={t('common.cancel')}
-        destructive
-        onConfirm={confirmPendingTransition}
-      />
-    </>
+    <ArtifactPaneView
+      workspacePath={workspacePath}
+      maximized={maximized}
+      previewFileSelection={effectivePreviewFileSelection}
+      onPreviewClose={onPreviewClose}
+      pdfLayoutPending={pdfLayoutPending}
+      pdfLayoutRefreshKey={pdfLayoutRefreshKey}
+      enableFileSearch={enableFileSearch}
+      model={model}
+      selectedFile={selectedFile}
+      onSelectedFileChange={setSelectedFile}
+      searchKeyword={fileSearchKeyword}
+      onSearchKeywordChange={setFileSearchKeyword}
+    />
   )
 }
 

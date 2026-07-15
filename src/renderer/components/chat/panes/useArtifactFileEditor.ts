@@ -4,20 +4,23 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
 
-export type ArtifactFileEditorMode = 'preview' | 'edit'
+type ArtifactFileEditorMode = 'preview' | 'edit'
 
 type TextEditSnapshot = OutputFor<'file.read_text_snapshot'>
 
-export interface ArtifactFileEditSession {
-  filePath: FilePath
+interface ArtifactFileEditSession {
   mode: ArtifactFileEditorMode
   status: 'loading' | 'ready' | 'saving' | 'conflict'
   draft: string
   savedContent: string
+}
+
+interface StoredArtifactFileEditSession extends ArtifactFileEditSession {
+  filePath: FilePath
   version?: TextEditSnapshot['version']
   contentHash?: string
   lineEnding?: TextEditSnapshot['lineEnding']
@@ -25,7 +28,6 @@ export interface ArtifactFileEditSession {
 }
 
 export interface ArtifactFileEditor {
-  session: ArtifactFileEditSession | undefined
   hasUnsavedChanges: boolean
   getSession: (selection: ArtifactPaneFileSelection) => ArtifactFileEditSession | undefined
   setMode: (selection: ArtifactPaneFileSelection, mode: ArtifactFileEditorMode) => Promise<void>
@@ -48,21 +50,14 @@ function isDirty(session: ArtifactFileEditSession): boolean {
  * Controller for the one file currently being edited. Callers may lift this
  * hook above layout remounts, but must clear it when the file is closed or changed.
  */
-export function useArtifactFileEditor(resetKey?: string): ArtifactFileEditor {
-  const [session, setSession] = useState<ArtifactFileEditSession>()
+export function useArtifactFileEditor(): ArtifactFileEditor {
+  const [session, setSession] = useState<StoredArtifactFileEditSession>()
   const requestVersionRef = useRef(0)
-  const previousResetKeyRef = useRef(resetKey)
 
   const clear = useCallback(() => {
     requestVersionRef.current += 1
     setSession(undefined)
   }, [])
-
-  useEffect(() => {
-    if (previousResetKeyRef.current === resetKey) return
-    previousResetKeyRef.current = resetKey
-    clear()
-  }, [clear, resetKey])
 
   const getSession = useCallback(
     (selection: ArtifactPaneFileSelection) => {
@@ -209,7 +204,6 @@ export function useArtifactFileEditor(resetKey?: string): ArtifactFileEditor {
 
   return useMemo(
     () => ({
-      session,
       hasUnsavedChanges: session ? isDirty(session) : false,
       getSession,
       setMode,

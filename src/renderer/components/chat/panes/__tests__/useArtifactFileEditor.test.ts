@@ -41,17 +41,11 @@ describe('useArtifactFileEditor', () => {
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.read_text_snapshot', { kind: 'path', path: '/ws/notes.txt' })
     expect(result.current.getSession(selection)).toMatchObject({
-      filePath: '/ws/notes.txt',
       mode: 'edit',
       status: 'ready',
       draft: 'hello\n',
-      savedContent: 'hello\n',
-      version: snapshot.version,
-      contentHash: snapshot.contentHash,
-      lineEnding: 'lf',
-      hasBom: false
+      savedContent: 'hello\n'
     })
-    expect(result.current.session).toBe(result.current.getSession(selection))
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
@@ -80,9 +74,7 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.getSession(selection)).toMatchObject({
       status: 'ready',
       draft: 'changed\n',
-      savedContent: 'changed\n',
-      version: saved.version,
-      contentHash: saved.contentHash
+      savedContent: 'changed\n'
     })
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
@@ -169,7 +161,7 @@ describe('useArtifactFileEditor', () => {
       await result.current.setMode(selection, 'edit')
     })
     expect(result.current.getSession(otherSelection)).toBeUndefined()
-    expect(result.current.session).toMatchObject({ filePath: '/ws/notes.txt', draft: 'hello\n' })
+    expect(result.current.getSession(selection)).toMatchObject({ draft: 'hello\n' })
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
@@ -188,7 +180,7 @@ describe('useArtifactFileEditor', () => {
       await load
     })
 
-    expect(result.current.session).toBeUndefined()
+    expect(result.current.getSession(selection)).toBeUndefined()
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
@@ -223,21 +215,6 @@ describe('useArtifactFileEditor', () => {
         await result.current.setMode(selection, 'edit')
       })
     ).rejects.toBe(unsupported)
-
-    expect(result.current.getSession(selection)).toBeUndefined()
-  })
-
-  it('clears the active session when the reset key changes', async () => {
-    ipcMocks.request.mockResolvedValueOnce(snapshot)
-    const { result, rerender } = renderHook(({ resetKey }) => useArtifactFileEditor(resetKey), {
-      initialProps: { resetKey: 'ws-a' }
-    })
-    await act(async () => {
-      await result.current.setMode(selection, 'edit')
-    })
-    expect(result.current.getSession(selection)).toBeDefined()
-
-    rerender({ resetKey: 'ws-b' })
 
     expect(result.current.getSession(selection)).toBeUndefined()
   })

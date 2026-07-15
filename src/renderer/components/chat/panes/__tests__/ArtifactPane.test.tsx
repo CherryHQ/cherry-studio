@@ -251,27 +251,6 @@ vi.mock('@cherrystudio/ui', async () => {
     Popover: ({ children }: PropsWithChildren) => <div>{children}</div>,
     PopoverContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
     PopoverTrigger: ({ children }: PropsWithChildren) => <>{children}</>,
-    PreviewEditor: ({
-      actions,
-      editor,
-      mode,
-      preview,
-      title
-    }: {
-      actions?: React.ReactNode
-      editor: React.ReactNode
-      mode: 'preview' | 'edit'
-      preview: React.ReactNode
-      title?: React.ReactNode
-    }) => (
-      <div data-testid="preview-editor">
-        <div>
-          {title}
-          {actions}
-        </div>
-        {mode === 'edit' ? editor : preview}
-      </div>
-    ),
     Tooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
       <div data-testid="tooltip" data-content={content}>
         {children}
