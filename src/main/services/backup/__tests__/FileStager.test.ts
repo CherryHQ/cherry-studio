@@ -183,9 +183,7 @@ describe('SqliteFileStager', () => {
     const filesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-dest-'))
     try {
-      await dbh.db.insert(fileEntryTable).values([
-        { id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 1 }
-      ])
+      await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 1 }])
       await writeFile(join(filesRoot, 'f1.txt'), 'x')
       // Strip x permission on filesRoot so stat(<filesRoot>/f1.txt) raises EACCES.
       // The file exists — this is NOT a missing source. Old code silently dropped it

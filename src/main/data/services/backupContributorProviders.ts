@@ -42,10 +42,20 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       { table: table('user_model'), column: column('providerId'), referencedDomain: 'PROVIDERS', kind: 'owning' },
       // provider_logo_file_ref.sourceId → user_provider.providerId: same-domain owning
       // (cascade). The logo ref follows its provider on clone/prune (single-file ref).
-      { table: table('provider_logo_file_ref'), column: column('sourceId'), referencedDomain: 'PROVIDERS', kind: 'owning' },
+      {
+        table: table('provider_logo_file_ref'),
+        column: column('sourceId'),
+        referencedDomain: 'PROVIDERS',
+        kind: 'owning'
+      },
       // provider_logo_file_ref.fileEntryId → file_entry (FILE_STORAGE): cross-domain
       // junction (cascade-prune with FILE_STORAGE, mirrors chat_message_file_ref).
-      { table: table('provider_logo_file_ref'), column: column('fileEntryId'), referencedDomain: 'FILE_STORAGE', kind: 'junction' }
+      {
+        table: table('provider_logo_file_ref'),
+        column: column('fileEntryId'),
+        referencedDomain: 'FILE_STORAGE',
+        kind: 'junction'
+      }
     ],
     primaryKeys: [mirrorPk('user_provider'), mirrorPk('user_model'), mirrorPk('provider_logo_file_ref')],
     aggregates: [
@@ -68,7 +78,12 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // PROVIDERS owns the sourceType so finalize #11 (FileRefSourceType coverage) passes.
     // Logo blob staging follows the full single-file-ref backup track (follow-up).
     fileRefSourcePolicies: [
-      { sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner', sourceTable: table('user_provider') }
+      {
+        sourceType: 'provider_logo',
+        ownerDomain: 'PROVIDERS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: table('user_provider')
+      }
     ],
     jsonSoftReferences: [],
     // Every JSON column on user_provider/user_model is structural config — none

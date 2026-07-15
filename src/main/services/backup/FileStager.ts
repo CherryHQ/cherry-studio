@@ -54,8 +54,7 @@ const isSourceGone = async (src: string): Promise<boolean> => {
  * silently drop a blob the DB references (pruneMissingRows would otherwise delete
  * the row → silent data loss, #16683 P1).
  */
-const isMissingPath = (e: unknown): boolean =>
-  isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'ENOTDIR')
+const isMissingPath = (e: unknown): boolean => isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'ENOTDIR')
 
 /** Result of staging file blobs: how many copied, total bytes, which ids were missing. */
 export interface StageFilesResult {
@@ -274,8 +273,7 @@ export class SqliteFileStager implements FileStager {
       // Containment guard: reject `..` path segments and any resolve that escapes
       // notesRoot — treat as missing (same as an absent source) so a crafted rel
       // cannot copy a file from outside the Notes tree into the archive.
-      const escapes =
-        rel.split(/[/\\]/).includes('..') || !isPathInside(resolve(notesRoot, rel), notesRoot)
+      const escapes = rel.split(/[/\\]/).includes('..') || !isPathInside(resolve(notesRoot, rel), notesRoot)
       if (escapes) {
         logger.warn('stageNotes: path outside notes root skipped', { rel, notesRoot })
         missing.push(rel)

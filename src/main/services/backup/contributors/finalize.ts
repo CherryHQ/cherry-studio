@@ -24,12 +24,12 @@ import {
   type DbTableName
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
-import { deepFreeze } from '@main/data/db/backup/freeze'
 import {
   ALWAYS_STRIP_TABLES,
   INFRASTRUCTURE_TABLES,
   RUNTIME_EXCLUDED_FILE_REF_SOURCES
 } from '@main/data/db/backup/exclusions'
+import { deepFreeze } from '@main/data/db/backup/freeze'
 import { allSourceTypes, type FileRefSourceType } from '@shared/data/types/file'
 
 import { ContributorFinalizeError, type ContributorFinalizePayload } from './ContributorFinalizeError'
@@ -500,19 +500,18 @@ export function finalize(
   // consumers never see a half-specified aggregate.
   const finalizedAggregatesByDomain = new Map<BackupDomain, readonly AggregateBoundary[]>()
   for (const c of contributors) {
-    finalizedAggregatesByDomain.set(
-      c.domain,
-      deepFreeze(c.schema.aggregates.map((agg) => finalizeAggregate(agg, c)))
-    )
+    finalizedAggregatesByDomain.set(c.domain, deepFreeze(c.schema.aggregates.map((agg) => finalizeAggregate(agg, c))))
   }
 
   // ── Build the immutable registry data and wrap it in the read-only view ──────
   const data: FinalizedRegistryData = {
     contributors: byDomain,
     tableOwner,
-    domainDependencies: new Map([...domainDependencies.entries()].map(([d, deps]) => [d, deepFreeze([...deps])] as const)),
+    domainDependencies: new Map(
+      [...domainDependencies.entries()].map(([d, deps]) => [d, deepFreeze([...deps])] as const)
+    ),
     finalizedAggregatesByDomain,
-    finalizedAt: meta.finalizedAt,
+    finalizedAt: meta.finalizedAt
   }
   return new ReadonlyBackupRegistryImpl(data)
 }

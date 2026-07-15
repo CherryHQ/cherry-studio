@@ -6,7 +6,11 @@ import { PROVIDERS_CONTRIBUTOR } from '../backupContributorProviders'
 
 describe('PROVIDERS contributor', () => {
   it('owns user_provider + user_model + provider_logo_file_ref', () => {
-    expect(PROVIDERS_CONTRIBUTOR.schema.tables).toEqual([table('user_provider'), table('user_model'), table('provider_logo_file_ref')])
+    expect(PROVIDERS_CONTRIBUTOR.schema.tables).toEqual([
+      table('user_provider'),
+      table('user_model'),
+      table('provider_logo_file_ref')
+    ])
   })
 
   it('declares owning + junction references (user_model.providerId + logo_file_ref sourceId/fileEntryId)', () => {
@@ -14,15 +18,30 @@ describe('PROVIDERS contributor', () => {
     expect(refs).toHaveLength(3)
     // user_model.providerId → user_provider: same-domain owning (cascade).
     expect(refs).toContainEqual(
-      expect.objectContaining({ table: table('user_model'), column: 'providerId', referencedDomain: 'PROVIDERS', kind: 'owning' })
+      expect.objectContaining({
+        table: table('user_model'),
+        column: 'providerId',
+        referencedDomain: 'PROVIDERS',
+        kind: 'owning'
+      })
     )
     // provider_logo_file_ref.sourceId → user_provider: same-domain owning (cascade).
     expect(refs).toContainEqual(
-      expect.objectContaining({ table: table('provider_logo_file_ref'), column: 'sourceId', referencedDomain: 'PROVIDERS', kind: 'owning' })
+      expect.objectContaining({
+        table: table('provider_logo_file_ref'),
+        column: 'sourceId',
+        referencedDomain: 'PROVIDERS',
+        kind: 'owning'
+      })
     )
     // provider_logo_file_ref.fileEntryId → file_entry (FILE_STORAGE): cross-domain junction.
     expect(refs).toContainEqual(
-      expect.objectContaining({ table: table('provider_logo_file_ref'), column: 'fileEntryId', referencedDomain: 'FILE_STORAGE', kind: 'junction' })
+      expect.objectContaining({
+        table: table('provider_logo_file_ref'),
+        column: 'fileEntryId',
+        referencedDomain: 'FILE_STORAGE',
+        kind: 'junction'
+      })
     )
   })
 
@@ -44,7 +63,11 @@ describe('PROVIDERS contributor', () => {
 
   it('declares provider_logo fileRefSourcePolicy + no jsonSoftReferences', () => {
     expect(PROVIDERS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([
-      expect.objectContaining({ sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner' })
+      expect.objectContaining({
+        sourceType: 'provider_logo',
+        ownerDomain: 'PROVIDERS',
+        resourcePolicy: 'include-with-owner'
+      })
     ])
     expect(PROVIDERS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
   })

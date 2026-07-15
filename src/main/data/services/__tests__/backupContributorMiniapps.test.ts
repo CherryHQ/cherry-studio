@@ -13,10 +13,20 @@ describe('MINIAPPS contributor', () => {
     const refs = MINIAPPS_CONTRIBUTOR.schema.references
     expect(refs).toHaveLength(2)
     expect(refs).toContainEqual(
-      expect.objectContaining({ table: table('mini_app_logo_file_ref'), column: 'sourceId', referencedDomain: 'MINIAPPS', kind: 'owning' })
+      expect.objectContaining({
+        table: table('mini_app_logo_file_ref'),
+        column: 'sourceId',
+        referencedDomain: 'MINIAPPS',
+        kind: 'owning'
+      })
     )
     expect(refs).toContainEqual(
-      expect.objectContaining({ table: table('mini_app_logo_file_ref'), column: 'fileEntryId', referencedDomain: 'FILE_STORAGE', kind: 'junction' })
+      expect.objectContaining({
+        table: table('mini_app_logo_file_ref'),
+        column: 'fileEntryId',
+        referencedDomain: 'FILE_STORAGE',
+        kind: 'junction'
+      })
     )
   })
 
@@ -32,7 +42,11 @@ describe('MINIAPPS contributor', () => {
 
   it('declares mini_app_logo fileRefSourcePolicy', () => {
     expect(MINIAPPS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([
-      expect.objectContaining({ sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' })
+      expect.objectContaining({
+        sourceType: 'mini_app_logo',
+        ownerDomain: 'MINIAPPS',
+        resourcePolicy: 'include-with-owner'
+      })
     ])
   })
 

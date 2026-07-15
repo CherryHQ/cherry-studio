@@ -56,20 +56,18 @@ const ASSISTANT_SETTINGS = {
 async function seedAll(dbh: ReturnType<typeof setupTestDatabase>): Promise<void> {
   // Included anchors (MUST survive strip).
   await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
-  await dbh.db
-    .insert(messageTable)
-    .values([
-      {
-        id: 'msg1',
-        topicId: 'tpc1',
-        role: 'root',
-        parentId: null,
-        data: { parts: [] },
-        searchableText: '',
-        status: 'success',
-        siblingsGroupId: 0
-      }
-    ])
+  await dbh.db.insert(messageTable).values([
+    {
+      id: 'msg1',
+      topicId: 'tpc1',
+      role: 'root',
+      parentId: null,
+      data: { parts: [] },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 0
+    }
+  ])
   await dbh.db
     .insert(assistantTable)
     .values([

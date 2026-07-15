@@ -25,10 +25,7 @@ describe('backupHandlers', () => {
     // startBackup may resolve a richer result; the handler must surface only the 2
     // route-output fields (the zod output schema is exactly { backupId, archivePath }).
     backupService.startBackup.mockResolvedValue({ backupId: 'b1', archivePath: '/out/full.cbu', extra: 'ignored' })
-    const result = await backupHandlers['backup.start_backup'](
-      { preset: 'full', outputPath: '/out/full.cbu' },
-      ctx
-    )
+    const result = await backupHandlers['backup.start_backup']({ preset: 'full', outputPath: '/out/full.cbu' }, ctx)
     expect(backupService.startBackup).toHaveBeenCalledWith({ preset: 'full', outputPath: '/out/full.cbu' })
     expect(result).toEqual({ backupId: 'b1', archivePath: '/out/full.cbu' })
   })

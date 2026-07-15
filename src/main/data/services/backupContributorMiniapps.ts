@@ -26,9 +26,19 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     references: [
       // mini_app_logo_file_ref.sourceId → mini_app.appId: same-domain owning (cascade).
       // The logo ref follows its mini_app on clone/prune (single-file ref).
-      { table: table('mini_app_logo_file_ref'), column: column('sourceId'), referencedDomain: 'MINIAPPS', kind: 'owning' },
+      {
+        table: table('mini_app_logo_file_ref'),
+        column: column('sourceId'),
+        referencedDomain: 'MINIAPPS',
+        kind: 'owning'
+      },
       // mini_app_logo_file_ref.fileEntryId → file_entry (FILE_STORAGE): cross-domain junction.
-      { table: table('mini_app_logo_file_ref'), column: column('fileEntryId'), referencedDomain: 'FILE_STORAGE', kind: 'junction' }
+      {
+        table: table('mini_app_logo_file_ref'),
+        column: column('fileEntryId'),
+        referencedDomain: 'FILE_STORAGE',
+        kind: 'junction'
+      }
     ],
     primaryKeys: [mirrorPk('mini_app'), mirrorPk('mini_app_logo_file_ref')],
     aggregates: [
@@ -50,7 +60,12 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // MINIAPPS owns the sourceType so finalize #11 (FileRefSourceType coverage) passes.
     // Logo blob staging follows the full single-file-ref backup track (follow-up).
     fileRefSourcePolicies: [
-      { sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner', sourceTable: table('mini_app') }
+      {
+        sourceType: 'mini_app_logo',
+        ownerDomain: 'MINIAPPS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: table('mini_app')
+      }
     ],
     jsonSoftReferences: [],
     // mini_app JSON columns hold config/region data — no embedded fileId/entityId

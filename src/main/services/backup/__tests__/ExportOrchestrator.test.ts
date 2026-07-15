@@ -454,33 +454,29 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         customParameters: []
       }
       await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
-      await dbh.db
-        .insert(messageTable)
-        .values([
-          {
-            id: 'msg1',
-            topicId: 'tpc1',
-            role: 'root',
-            parentId: null,
-            data: { parts: [] },
-            searchableText: '',
-            status: 'success',
-            siblingsGroupId: 0
-          }
-        ])
-      await dbh.db
-        .insert(assistantTable)
-        .values([
-          {
-            id: 'ast1',
-            name: 'A',
-            prompt: '',
-            emoji: '🤖',
-            description: '',
-            settings: ASSISTANT_SETTINGS,
-            orderKey: 'a'
-          }
-        ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'msg1',
+          topicId: 'tpc1',
+          role: 'root',
+          parentId: null,
+          data: { parts: [] },
+          searchableText: '',
+          status: 'success',
+          siblingsGroupId: 0
+        }
+      ])
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'ast1',
+          name: 'A',
+          prompt: '',
+          emoji: '🤖',
+          description: '',
+          settings: ASSISTANT_SETTINGS,
+          orderKey: 'a'
+        }
+      ])
       await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'test', ext: 'txt', size: 5 }])
       await dbh.db
         .insert(chatMessageFileRefTable)
@@ -594,7 +590,7 @@ const STUB_REGISTRY_WITH_ROWSCOPES = {
   getOperations: () => undefined,
   getSchema: (d: string) =>
     d === 'AGENTS'
-      ? ({
+      ? {
           tables: [],
           rowScopes: [
             {
@@ -603,7 +599,7 @@ const STUB_REGISTRY_WITH_ROWSCOPES = {
               filter: { column: 'type', op: 'eq', value: 'agent.task' }
             }
           ]
-        })
+        }
       : { tables: [], rowScopes: undefined }
 } as unknown as ReadonlyBackupRegistry
 
