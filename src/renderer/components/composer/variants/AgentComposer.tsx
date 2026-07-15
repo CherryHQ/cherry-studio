@@ -390,15 +390,15 @@ const AgentComposerContextControls = ({
       {agent ? (
         <AgentLabel
           agent={agent}
+          avatarSize={20}
           classNames={{
             name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
-            avatar: 'h-4.5 w-4.5',
             container: 'gap-1.5'
           }}
         />
       ) : (
         <>
-          {iconOnly ? <Bot size={16} aria-hidden /> : null}
+          {iconOnly ? <Bot size={20} aria-hidden /> : null}
           <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
         </>
       )}
@@ -458,9 +458,9 @@ const AgentComposerModelControl = ({
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
-        <ModelAvatar model={model} size={16} className="shrink-0" />
+        <ModelAvatar model={model} size={20} className="shrink-0" />
       ) : (
-        <Sparkles size={16} aria-hidden className="text-muted-foreground" />
+        <Sparkles size={20} aria-hidden className="text-muted-foreground" />
       )}
       <span
         className={cn(
@@ -523,10 +523,10 @@ const AgentComposerWorkspaceControl = ({
         )}
         aria-label={workspaceWarning}>
         {hasWarning ? (
-          <TriangleAlert size={14} aria-hidden />
+          <TriangleAlert size={20} aria-hidden />
         ) : (
-          <span className="relative flex size-4 shrink-0 items-center justify-center">
-            <Folder size={14} aria-hidden className="shrink-0 text-muted-foreground" />
+          <span className="relative flex size-5 shrink-0 items-center justify-center">
+            <Folder size={20} aria-hidden className="shrink-0 text-muted-foreground" />
           </span>
         )}
         <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
@@ -561,13 +561,13 @@ const AgentComposerWorkspaceControl = ({
         if (!workspaceChanging) void onWorkspaceChange?.(null)
       }}>
       {hasWarning ? (
-        <TriangleAlert size={14} aria-hidden />
+        <TriangleAlert size={20} aria-hidden />
       ) : isSystemWorkspace ? (
-        <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
+        <CircleSlash size={20} aria-hidden className="text-muted-foreground" />
       ) : (
-        <span className="relative flex size-4 shrink-0 items-center justify-center">
+        <span className="relative flex size-5 shrink-0 items-center justify-center">
           <Folder
-            size={14}
+            size={20}
             aria-hidden
             className={cn(
               'shrink-0 text-muted-foreground transition-all duration-200',
