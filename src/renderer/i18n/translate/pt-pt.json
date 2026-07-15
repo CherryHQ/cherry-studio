@@ -4650,6 +4650,7 @@
     "prompt_placeholder_edit": "Digite sua descrição da imagem, use aspas \"duplas\" para desenho textual",
     "prompt_placeholder_en": "Insira a descrição da imagem em \"inglês\". Atualmente, o Imagen suporta apenas prompts em inglês",
     "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Por favor, insira um prompt",
     "proxy_required": "Atualmente é necessário ativar um proxy para visualizar as imagens geradas, no futuro será suportada a conexão direta dentro do país",
     "quality": "Qualidade",

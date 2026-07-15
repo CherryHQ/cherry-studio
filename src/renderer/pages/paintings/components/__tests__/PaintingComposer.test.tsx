@@ -172,6 +172,27 @@ describe('PaintingComposer', () => {
     expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
   })
 
+  it('gates send and shows a reason for edit-only models missing an image', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    // edit mode but no `generate` mode ⇒ image required.
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
+    // Blocked even with prompt text, because no image is attached (files mock is empty).
+    expect(captured.surfaceProps?.sendDisabled).toBe(true)
+    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
+    expect(captured.surfaceProps?.placeholder).toBe('paintings.prompt_placeholder_upload_required')
+  })
+
+  it('does not gate on image for edit models that can also generate from text', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({
+      modes: { generate: { supports: {} }, edit: { supports: {} } }
+    })
+    renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
+    expect(captured.surfaceProps?.sendDisabled).toBe(false)
+    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
   it('renders the model selector control in the toolbar', () => {
     renderComposer()
     expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()

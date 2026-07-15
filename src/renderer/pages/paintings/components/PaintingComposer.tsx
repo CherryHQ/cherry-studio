@@ -191,10 +191,20 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
-  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities
-  // includes image), the single source for "this model takes an image" — so
-  // nudge the user to upload one. Intentionally does NOT read `imageGeneration.modes`.
-  const placeholder = couldAddImageFile ? t('paintings.prompt_placeholder_upload') : t('paintings.prompt_placeholder')
+  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
+  // image): whether the model takes an image at all. Whether an image is *required* —
+  // the model can only edit, not generate from text — is the one thing modality can't
+  // answer, so it reads the registry's modes (no `generate` mode ⇒ image mandatory).
+  const support = useImageGenerationSupport(painting.providerId, painting.model)
+  const imageRequired =
+    couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
+  const missingRequiredImage = imageRequired && files.length === 0
+
+  const placeholder = !couldAddImageFile
+    ? t('paintings.prompt_placeholder')
+    : imageRequired
+      ? t('paintings.prompt_placeholder_upload_required')
+      : t('paintings.prompt_placeholder_upload')
 
   usePaintingComposerInputFiles({
     paintingId: painting.id,
@@ -238,7 +248,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         onTokensChange={handleTokensChange}
         leadingContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
         placeholder={placeholder}
-        sendDisabled={generating || (text.trim().length === 0 && files.length === 0) || !model}
+        sendDisabled={generating || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage}
+        sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
         isLoading={generating}
         onSendDraft={handleSendDraft}
         onPause={onCancel}

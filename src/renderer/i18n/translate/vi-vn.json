@@ -4650,6 +4650,7 @@
     "prompt_placeholder_edit": "Nhập mô tả hình ảnh của bạn, vẽ văn bản dùng \"dấu ngoặc kép\" để bao quanh",
     "prompt_placeholder_en": "Nhập mô tả hình ảnh của bạn, hiện tại chỉ hỗ trợ lời nhắc bằng tiếng Anh",
     "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Vui lòng nhập một l",
     "proxy_required": "Mở proxy và bật \"chế độ TUN\" để xem ảnh đã tạo hoặc sao chép chúng sang trình duyệt để mở. Trong tương lai, sẽ hỗ trợ kết nối trực tiếp trong nước.",
     "quality": "Chất lượng",

@@ -4650,6 +4650,7 @@
     "prompt_placeholder_edit": "Введите ваше описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
     "prompt_placeholder_en": "Введите описание изображения, в настоящее время поддерживает только английские подсказки",
     "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Пожалуйста, введите подсказку",
     "proxy_required": "Сейчас необходимо открыть прокси для просмотра сгенерированных изображений, в будущем будет поддерживаться прямое соединение",
     "quality": "Качество",

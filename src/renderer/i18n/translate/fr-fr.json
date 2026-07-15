@@ -4650,6 +4650,7 @@
     "prompt_placeholder_edit": "Entrez votre description d'image, utilisez des guillemets « \"\" » pour le texte à dessiner",
     "prompt_placeholder_en": "Saisissez une description d'image en « anglais », actuellement Imagen ne prend en charge que les invites en anglais",
     "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Veuillez saisir une invite",
     "proxy_required": "Actuellement, un proxy doit être activé pour afficher les images générées. Le support pour une connexion directe depuis la Chine sera ajouté ultérieurement.",
     "quality": "Qualité",
