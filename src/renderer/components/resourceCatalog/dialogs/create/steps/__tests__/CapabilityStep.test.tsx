@@ -199,7 +199,7 @@ describe('CapabilityStep', () => {
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('system-skill-id')
   })
 
-  it('removes a referenced system skill from the skill list', async () => {
+  it('uninstalls a system skill from the skill list', async () => {
     const user = userEvent.setup()
     installedSkillsState.skills = [
       ...installedSkillsState.skills,
@@ -210,8 +210,8 @@ describe('CapabilityStep', () => {
     act(() => systemSkillDialogState.current?.onRegistered?.({ id: 'system-skill-id' } as InstalledSkill))
     expect(screen.getByRole('checkbox', { name: 'System Skill' })).toBeChecked()
 
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.remove_reference_aria' }))
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.remove_reference' }))
+    await user.click(screen.getByRole('button', { name: 'library.action.uninstall' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'library.action.uninstall' }))
 
     await waitFor(() => expect(uninstallSkillMock).toHaveBeenCalledWith('system-skill-id'))
     expect(screen.getByTestId('skill-ids').textContent).toBe('')

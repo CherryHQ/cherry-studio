@@ -170,7 +170,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
   }
 }
 
-/** Discover and register zero-copy skills from known system-level CLI directories. */
+/** Discover and install skills from known system-level CLI directories. */
 export function useSystemSkills(agentId?: string, enabled = true) {
   const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
   const [loading, setLoading] = useState(false)

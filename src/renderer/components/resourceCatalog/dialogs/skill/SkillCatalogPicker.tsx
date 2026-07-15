@@ -88,11 +88,7 @@ export function SkillCatalogPicker({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label={
-                skill.source === 'system'
-                  ? t('library.system_skill.remove_reference_aria', { name: skill.name })
-                  : t('library.action.uninstall')
-              }
+              aria-label={t('library.action.uninstall')}
               disabled={disabled || removing}
               onClick={() => setRemoveTarget(skill)}
               className="shrink-0 text-foreground-muted hover:text-destructive">
@@ -195,19 +191,9 @@ export function SkillCatalogPicker({
         onOpenChange={(open) => {
           if (!open && !removing) setRemoveTarget(null)
         }}
-        title={
-          removeTarget?.source === 'system'
-            ? t('library.system_skill.remove_reference_title')
-            : t('library.delete.skill.title')
-        }
-        description={
-          removeTarget?.source === 'system'
-            ? t('library.system_skill.remove_reference_description', { name: removeTarget.name })
-            : t('library.delete.skill.content')
-        }
-        confirmText={
-          removeTarget?.source === 'system' ? t('library.system_skill.remove_reference') : t('library.action.uninstall')
-        }
+        title={t('library.delete.skill.title')}
+        description={t('library.delete.skill.content')}
+        confirmText={t('library.action.uninstall')}
         cancelText={t('common.cancel')}
         destructive
         confirmLoading={removing}

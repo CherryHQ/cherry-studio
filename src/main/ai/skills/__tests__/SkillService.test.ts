@@ -366,7 +366,7 @@ describe('SkillService', () => {
       )
     })
 
-    it('registers and enables a system skill by symlink without copying its directory', async () => {
+    it('copies and enables a system skill in the managed library', async () => {
       await seedAgent()
 
       const result = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })
@@ -378,10 +378,14 @@ describe('SkillService', () => {
         namespace: 'codex',
         isEnabled: true
       })
-      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
-        await fs.promises.realpath(sourceSkillDir)
+      await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'large-skill', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# Large skill'
       )
-      await expect(fs.promises.access(path.join(dataSkillsRoot, 'large-skill'))).rejects.toThrow()
+      expect((await fs.promises.lstat(path.join(dataSkillsRoot, 'large-skill'))).isSymbolicLink()).toBe(false)
+      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
+        await fs.promises.realpath(path.join(dataSkillsRoot, 'large-skill'))
+      )
+      expect(skillService.getInstalledSkillDirectory(result)).toBe(path.join(dataSkillsRoot, 'large-skill'))
       const joins = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
       expect(joins).toEqual([expect.objectContaining({ skillId: result.id, isEnabled: true })])
     })
@@ -395,20 +399,21 @@ describe('SkillService', () => {
         isEnabled: false
       })
       expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
-        await fs.promises.realpath(sourceSkillDir)
+        await fs.promises.realpath(path.join(dataSkillsRoot, 'large-skill'))
       )
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
     })
 
-    it('unregisters an external skill without deleting its source directory', async () => {
+    it('uninstalls the managed copy without deleting the system source directory', async () => {
       await seedAgent()
       const registered = await skillService.registerSystem({ directoryPath: sourceSkillDir, agentId: AGENT_ID })
       const uninstallSpy = vi.spyOn(skillService['installer'], 'uninstall')
 
       await skillService.uninstall(registered.id)
 
-      expect(uninstallSpy).not.toHaveBeenCalled()
+      expect(uninstallSpy).toHaveBeenCalledWith(path.join(dataSkillsRoot, 'large-skill'))
       await expect(fs.promises.access(path.join(sourceSkillDir, 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'large-skill'))).rejects.toThrow()
       await expect(fs.promises.access(path.join(mirrorRoot, 'large-skill'))).rejects.toThrow()
     })
   })

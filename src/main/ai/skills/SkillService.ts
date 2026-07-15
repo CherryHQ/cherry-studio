@@ -146,15 +146,8 @@ export class SkillService {
     return this.getSkillStoragePath(this.sanitizeFolderName(name))
   }
 
-  /** Resolve the canonical editable directory for an installed skill. */
+  /** Resolve the app-owned directory for an installed skill. */
   getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
-    if (skill.source === 'system') {
-      if (!skill.sourceUrl?.startsWith('file:')) {
-        throw new Error(`System skill has no file source: ${skill.folderName}`)
-      }
-      return fileURLToPath(skill.sourceUrl)
-    }
-
     return this.getSkillStoragePath(skill.folderName)
   }
 
@@ -169,12 +162,8 @@ export class SkillService {
       throw new Error(`Skill not found: ${skillId}`)
     }
 
-    // External system skills are references: uninstall only removes Cherry's
-    // mirror and DB state, never the user-owned source directory.
-    if (skill.source !== 'system') {
-      const skillPath = this.getSkillStoragePath(skill.folderName)
-      await this.installer.uninstall(skillPath)
-    }
+    const skillPath = this.getSkillStoragePath(skill.folderName)
+    await this.installer.uninstall(skillPath)
     await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skillId)
     logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
@@ -360,7 +349,7 @@ export class SkillService {
     return Array.from(candidates.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  /** Register a discovered system skill by reference, optionally enabling it for one agent. */
+  /** Copy a discovered system skill into the managed library, optionally enabling it for one agent. */
   async registerSystem(options: SkillRegisterSystemOptions): Promise<InstalledSkill> {
     const canonicalPath = await fs.promises.realpath(options.directoryPath)
     const candidates = await this.discoverSystem(options.agentId)
@@ -372,52 +361,18 @@ export class SkillService {
       throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
     }
 
-    const existing = candidate.registeredSkillId ? agentGlobalSkillService.getById(candidate.registeredSkillId) : null
-    if (existing) {
-      await this.linkExternalMirror(existing.folderName, canonicalPath)
-      if (options.agentId) agentGlobalSkillService.upsertJoin(options.agentId, existing.id, true)
-      return { ...existing, isEnabled: Boolean(options.agentId) }
-    }
+    const installed = await this.installSkillDir(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
+      namespace: candidate.placements[0]?.sourceId ?? null,
+      agentId: options.agentId
+    })
 
-    const metadata = await parseSkillMetadata(canonicalPath, candidate.filename, 'skills', { calculateSize: false })
-    const mirrorCreated = await this.linkExternalMirror(candidate.filename, canonicalPath)
-    let insertedId: string | undefined
-
-    try {
-      application.get('DbService').withWriteTx((tx) => {
-        const inserted = agentGlobalSkillService.insertTx(tx, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          folderName: candidate.filename,
-          source: 'system',
-          sourceUrl: pathToFileURL(canonicalPath).href,
-          namespace: candidate.placements[0]?.sourceId ?? null,
-          author: metadata.author ?? null,
-          tags: metadata.tags ?? [],
-          contentHash: metadata.contentHash,
-          isEnabled: false
-        })
-        insertedId = inserted.id
-        if (options.agentId) agentGlobalSkillService.upsertJoinTx(tx, options.agentId, inserted.id, true)
-      })
-    } catch (error) {
-      if (mirrorCreated) await this.unlinkMirror(candidate.filename)
-      throw error
-    }
-
-    const inserted = insertedId ? agentGlobalSkillService.getById(insertedId) : null
-    if (!inserted) {
-      if (mirrorCreated) await this.unlinkMirror(candidate.filename)
-      throw new Error(`Failed to register system skill: ${metadata.name}`)
-    }
-
-    logger.info('System skill registered by reference', {
-      skillId: inserted.id,
-      folderName: inserted.folderName,
+    logger.info('System skill installed from local CLI', {
+      skillId: installed.id,
+      folderName: installed.folderName,
       directoryPath: canonicalPath,
       agentId: options.agentId
     })
-    return { ...inserted, isEnabled: Boolean(options.agentId) }
+    return installed
   }
 
   /**
@@ -566,7 +521,12 @@ export class SkillService {
   // Core install logic
   // ===========================================================================
 
-  private async installSkillDir(skillDir: string, source: string, sourceUrl: string | null): Promise<InstalledSkill> {
+  private async installSkillDir(
+    skillDir: string,
+    source: string,
+    sourceUrl: string | null,
+    registration: { namespace?: string | null; agentId?: string } = {}
+  ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
@@ -574,8 +534,8 @@ export class SkillService {
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
     const existing = agentGlobalSkillService.getByFolderName(folderName)
-    if (existing?.source === 'system') {
-      throw new Error(`Cannot replace externally referenced skill with a managed copy: ${folderName}`)
+    if (existing?.source === 'system' && source !== 'system') {
+      throw new Error(`Cannot replace a system skill with a different install source: ${folderName}`)
     }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
@@ -589,35 +549,46 @@ export class SkillService {
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
-      agentGlobalSkillService.update(existing.id, {
-        name: metadata.name,
-        description: metadata.description ?? null,
-        author: metadata.author ?? null,
-        tags,
-        contentHash
+      application.get('DbService').withWriteTx((tx) => {
+        agentGlobalSkillService.updateTx(tx, existing.id, {
+          name: metadata.name,
+          description: metadata.description ?? null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash,
+          ...(source === 'system' ? { sourceUrl, namespace: registration.namespace ?? null } : {})
+        })
+        if (registration.agentId) {
+          agentGlobalSkillService.upsertJoinTx(tx, registration.agentId, existing.id, true)
+        }
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
-      return updated
+      return { ...updated, isEnabled: registration.agentId ? true : updated.isEnabled }
     }
 
     const isBuiltin = source === 'builtin'
 
     let inserted: InstalledSkill | undefined
     try {
-      const insertedRow = agentGlobalSkillService.insert({
-        name: metadata.name,
-        description: metadata.description ?? null,
-        folderName,
-        source,
-        sourceUrl,
-        namespace: null,
-        author: metadata.author ?? null,
-        tags,
-        contentHash,
-        isEnabled: false
+      application.get('DbService').withWriteTx((tx) => {
+        const insertedRow = agentGlobalSkillService.insertTx(tx, {
+          name: metadata.name,
+          description: metadata.description ?? null,
+          folderName,
+          source,
+          sourceUrl,
+          namespace: registration.namespace ?? null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash,
+          isEnabled: false
+        })
+        if (registration.agentId) {
+          agentGlobalSkillService.upsertJoinTx(tx, registration.agentId, insertedRow.id, true)
+        }
+        inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
-      inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
     } catch (error) {
       try {
         await this.installer.uninstall(destPath)
@@ -640,7 +611,7 @@ export class SkillService {
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName, source })
-    return inserted
+    return { ...inserted, isEnabled: registration.agentId ? true : inserted.isEnabled }
   }
 
   // ===========================================================================
@@ -847,41 +818,6 @@ export class SkillService {
     }
   }
 
-  /**
-   * Link an external system skill directly into the SDK discovery directory.
-   * This is deliberately strict: it never copies and never overwrites another
-   * entry with the same folder name.
-   *
-   * @returns true when a new link was created, false when the correct link already existed.
-   */
-  async linkExternalMirror(folderName: string, sourceDirectory: string): Promise<boolean> {
-    const sourceDir = await fs.promises.realpath(sourceDirectory)
-    const rootDir = path.resolve(this.getMirrorRoot())
-    const targetDir = path.resolve(rootDir, folderName)
-    const relativeTarget = path.relative(rootDir, targetDir)
-    if (!relativeTarget || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
-      throw new Error(`Refusing to link skill outside Claude config root: ${folderName}`)
-    }
-
-    const skillMdPath = await findSkillMdPath(sourceDir)
-    if (!skillMdPath) throw new Error(`SKILL.md not found in ${sourceDir}`)
-    await fs.promises.access(skillMdPath, fs.constants.R_OK)
-    await fs.promises.mkdir(rootDir, { recursive: true })
-
-    const targetStat = await fs.promises.lstat(targetDir).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return null
-      throw error
-    })
-    if (targetStat) {
-      const targetRealPath = await fs.promises.realpath(targetDir).catch(() => null)
-      if (targetRealPath === sourceDir) return false
-      throw new Error(`Skill mirror entry already exists: ${folderName}`)
-    }
-
-    await fs.promises.symlink(sourceDir, targetDir, isWin ? 'junction' : 'dir')
-    return true
-  }
-
   /** Remove the CLAUDE_CONFIG_DIR/skills mirror entry for a skill. */
   async unlinkMirror(folderName: string): Promise<void> {
     const targetDir = this.getMirrorPath(folderName)
@@ -916,20 +852,7 @@ export class SkillService {
     const known = new Set(all.map((s) => s.folderName))
 
     for (const skill of all) {
-      if (skill.source === 'system' && skill.sourceUrl?.startsWith('file:')) {
-        try {
-          await this.linkExternalMirror(skill.folderName, fileURLToPath(skill.sourceUrl))
-        } catch (error) {
-          logger.warn('External system skill is unavailable', {
-            skillId: skill.id,
-            folderName: skill.folderName,
-            sourceUrl: skill.sourceUrl,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      } else {
-        await this.linkMirror(skill.folderName)
-      }
+      await this.linkMirror(skill.folderName)
     }
 
     const root = this.getMirrorRoot()

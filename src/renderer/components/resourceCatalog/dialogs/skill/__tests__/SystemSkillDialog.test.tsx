@@ -90,22 +90,22 @@ describe('SystemSkillDialog', () => {
     const onRegistered = vi.fn()
     render(<SystemSkillDialog open onOpenChange={vi.fn()} onRegistered={onRegistered} />)
 
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.reference_select' }))
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.install_select' }))
 
     expect(useSystemSkillsMock).toHaveBeenCalledWith(undefined, true)
     expect(registerMock).toHaveBeenCalledWith(candidate)
     expect(onRegistered).toHaveBeenCalledWith(installed)
-    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.reference_select_success:System Skill')
+    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.install_select_success:System Skill')
   })
 
   it('keeps register-and-enable behavior for an existing agent', async () => {
     const user = userEvent.setup()
     render(<SystemSkillDialog agentId="agent-1" open onOpenChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'library.system_skill.reference_enable' }))
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.install_enable' }))
 
     expect(useSystemSkillsMock).toHaveBeenCalledWith('agent-1', true)
-    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.reference_enable_success:System Skill')
+    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.install_enable_success:System Skill')
   })
 
   it('filters system skills by the search query', async () => {

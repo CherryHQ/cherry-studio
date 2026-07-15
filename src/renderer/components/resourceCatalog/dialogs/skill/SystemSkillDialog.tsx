@@ -3,7 +3,7 @@ import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
-import { Check, FolderSearch, Link2, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Check, Download, FolderSearch, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,7 +33,7 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered, s
       const installed = await register(skill)
       if (!installed) return
       toast.success(
-        t(agentId ? 'library.system_skill.reference_enable_success' : 'library.system_skill.reference_select_success', {
+        t(agentId ? 'library.system_skill.install_enable_success' : 'library.system_skill.install_select_success', {
           name: installed.name
         })
       )
@@ -133,7 +133,7 @@ function SystemSkillRow({
         ? t('library.system_skill.conflict')
         : skill.status === 'registered'
           ? t(selecting ? 'common.select' : 'library.system_skill.enable')
-          : t(selecting ? 'library.system_skill.reference_select' : 'library.system_skill.reference_enable')
+          : t(selecting ? 'library.system_skill.install_select' : 'library.system_skill.install_enable')
 
   return (
     <div
@@ -158,7 +158,7 @@ function SystemSkillRow({
         ) : selected || skill.status === 'enabled' ? (
           <Check className="size-3" />
         ) : (
-          <Link2 className="size-3" />
+          <Download className="size-3" />
         )}
         {buttonLabel}
       </Button>
