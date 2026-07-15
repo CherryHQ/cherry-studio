@@ -7242,6 +7242,21 @@
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
       },
+      "reasoning_dialect": {
+        "anthropic": "thinking(Claude)",
+        "dashscope": "enable_thinking + 串流(DashScope)",
+        "default": "預設(自動)",
+        "disable-reasoning": "disable_reasoning 參數",
+        "enable-thinking": "enable_thinking(Qwen / 混元系)",
+        "gemini": "thinkingConfig(Gemini)",
+        "label": "推理方言",
+        "none": "不支援推理參數",
+        "openai-chat": "reasoning_effort(OpenAI Chat)",
+        "openai-responses": "reasoning.effort(OpenAI Responses)",
+        "openrouter": "reasoning(OpenRouter)",
+        "self-hosted": "chat_template_kwargs(vLLM / SGLang)",
+        "thinking-type": "thinking 欄位(GLM / 豆包 / Kimi 系)"
+      },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",
