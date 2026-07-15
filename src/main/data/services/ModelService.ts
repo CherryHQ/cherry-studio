@@ -39,7 +39,6 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { inferReasoningFromModelId } from '@shared/utils/model'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -395,15 +394,13 @@ class ModelService {
     // a reasoning descriptor but the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
     // descriptor-driven like catalog rows (#16598).
-    if (
-      dtoValues.reasoning == null &&
-      ((dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING) || inferReasoningFromModelId(dto.modelId))
-    ) {
+    if (dtoValues.reasoning == null) {
       const inferred = inferCustomModelReasoning(
         dto.modelId,
         dtoValues.endpointTypes ?? undefined,
         registryData?.reasoningFormatTypes,
-        registryData?.defaultChatEndpoint
+        registryData?.defaultChatEndpoint,
+        { declaredReasoning: (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING) }
       )
       if (inferred) dtoValues.reasoning = inferred
     }
@@ -570,15 +567,13 @@ class ModelService {
               reasoningFormatTypes,
               defaultChatEndpoint
             ).reasoning
-          } else if (
-            model.reasoning == null &&
-            (capabilities.includes(MODEL_CAPABILITY.REASONING) || inferReasoningFromModelId(model.apiModelId ?? ''))
-          ) {
+          } else if (model.reasoning == null) {
             reasoning = inferCustomModelReasoning(
               model.apiModelId ?? presetId,
               model.endpointTypes,
               reasoningFormatTypes,
-              defaultChatEndpoint
+              defaultChatEndpoint,
+              { declaredReasoning: capabilities.includes(MODEL_CAPABILITY.REASONING) }
             )
           }
           if (reasoning) updates.reasoning = reasoning

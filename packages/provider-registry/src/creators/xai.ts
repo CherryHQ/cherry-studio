@@ -6,6 +6,7 @@ export default defineCreator({
   name: 'xAI',
   fetchModels: openaiCompatible('grok', 'XAI_API_KEY'),
   modelsDevProviders: ['xai'],
+  reasoningMembership: ['\\bgrok-(?:3-mini|4|4-fast)(?:-[\\w-]+)?\\b', 'grok-build'],
   reasoningFamilies: [
     { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
     // grok-4-fast's on/off knob exists ONLY on OpenRouter's rebroadcast (the

@@ -26,6 +26,7 @@ import {
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
   inferReasoningControls,
+  inferReasoningMembership,
   REASONING_EFFORT
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
@@ -34,7 +35,6 @@ import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
-import { inferReasoningFromModelId } from '@shared/utils/model'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -134,16 +134,18 @@ export function extractReasoningFormatTypes(
 
 /**
  * Infer a reasoning descriptor for a model the catalog doesn't know, from the
- * registry's ID-pattern heuristics (ingest-time only, #16598). Callers gate on
- * the model actually being reasoning-capable (capability flag /
- * `inferReasoningFromModelId`) — this only supplies the knobs.
+ * registry's ID-pattern heuristics (ingest-time only, #16598). The membership
+ * gate is built in: pass `declaredReasoning: true` to skip it when the
+ * model's REASONING capability is already declared.
  */
 export function inferCustomModelReasoning(
   modelId: string,
   endpointTypes: EndpointType[] | undefined,
   reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | null | undefined,
-  defaultChatEndpoint: EndpointType | undefined
+  defaultChatEndpoint: EndpointType | undefined,
+  options?: { declaredReasoning?: boolean }
 ): RuntimeReasoning | undefined {
+  if (!options?.declaredReasoning && !inferReasoningMembership(modelId)) return undefined
   const controls = inferReasoningControls(modelId)
   if (!controls) return undefined
   const proto: ProtoReasoningSupport = { controls, ...deriveLegacyReasoningFields(controls) }
@@ -188,9 +190,7 @@ export function createCustomModel(
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
   // are descriptor-driven like catalog rows (#16598).
-  const reasoning = inferReasoningFromModelId(modelId)
-    ? inferCustomModelReasoning(modelId, undefined, reasoningFormatTypes, defaultChatEndpoint)
-    : undefined
+  const reasoning = inferCustomModelReasoning(modelId, undefined, reasoningFormatTypes, defaultChatEndpoint)
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,

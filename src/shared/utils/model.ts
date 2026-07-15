@@ -269,9 +269,9 @@ export const isMistralModel = vendorCheck(VENDOR_PATTERNS.mistral)
 
 /**
  * OpenAI reasoning model = OpenAI vendor + REASONING capability.
- * The registry populates REASONING via `inferOpenAIReasoningFromId`
- * (o-series, GPT-5 non-chat, gpt-oss), so the capability is the right
- * source of truth here — no need to re-check IDs at runtime.
+ * The registry populates REASONING via the registry membership
+ * heuristics (o-series, GPT-5 non-chat, gpt-oss), so the capability is the
+ * right source of truth here — no need to re-check IDs at runtime.
  */
 export const isOpenAIReasoningModel = (model: Model): boolean => isOpenAIModel(model) && isReasoningModel(model)
 
@@ -348,8 +348,8 @@ export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
 
 /**
  * Claude reasoning model = Anthropic vendor + REASONING capability. The
- * registry populates REASONING via `inferClaudeReasoningFromId` (3.7-sonnet,
- * 4-series), so the capability is the right source of truth.
+ * registry populates REASONING via the registry membership heuristics
+ * (3.7-sonnet, 4-series), so the capability is the right source of truth.
  */
 export const isClaudeReasoningModel = (model: Model): boolean => isAnthropicModel(model) && isReasoningModel(model)
 
@@ -403,8 +403,8 @@ export const isGemini3ThinkingTokenModel = (model: Model): boolean => {
 /**
  * Gemini thinking-token support = Gemini vendor + `thinkingTokenLimits`.
  * `THINKING_TOKEN_MAP` covers the 2.5/3.x flash / pro / flash-lite families
- * (including the `*-latest` aliases) that `inferGeminiReasoningFromId`
- * recognises, so the capability is populated on exactly the same SKUs the
+ * (including the `*-latest` aliases) that the registry membership heuristics
+ * recognise, so the capability is populated on exactly the same SKUs the
  * legacy regex used to gate on.
  */
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean =>
@@ -440,8 +440,8 @@ export const isQwen35to39Model = (model: Model): boolean =>
 
 /**
  * Qwen reasoning model = Qwen vendor + REASONING capability. The registry
- * populates REASONING via `inferQwenReasoningFromId` (QwQ / QVQ / qwen3*
- * thinking / qwen3-max / qwen-plus / etc.), so the capability is the right
+ * populates REASONING via the registry membership heuristics (QwQ / QVQ /
+ * qwen3* thinking / qwen3-max / qwen-plus / etc.), so the capability is the right
  * source of truth.
  */
 export const isQwenReasoningModel = (model: Model): boolean => isQwenModel(model) && isReasoningModel(model)
@@ -492,7 +492,7 @@ export const isDoubaoSeed18Model = (model: Model): boolean =>
 
 /**
  * Doubao thinking-token support = Doubao vendor + `thinkingTokenLimits`.
- * THINKING_TOKEN_MAP mirrors DOUBAO_THINKING_MODEL_REGEX for SKU coverage.
+ * THINKING_TOKEN_MAP mirrors the doubao membership pattern for SKU coverage.
  */
 export const isSupportedThinkingTokenDoubaoModel = (model: Model): boolean =>
   isDoubaoModel(model) && isSupportedThinkingTokenModel(model)
@@ -645,16 +645,7 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
 // Regex constants (used by inference helpers)
 // ---------------------------------------------------------------------------
 
-export const REASONING_REGEX =
-  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
-
 export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
-
-export const GEMINI_THINKING_MODEL_REGEX =
-  /gemini-(?:2\.5.*(?:-latest)?|3(?:\.\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
-
-export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?|seed-2[.-]0(?:-[\w-]+)?)(?:-[\w-]+)*/i
 
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
   /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-lite)?(?!-251015)(?:-\d+)?$/i
@@ -662,53 +653,6 @@ export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
 // ---------------------------------------------------------------------------
 // Inference functions — populate model schema from raw ID
 // ---------------------------------------------------------------------------
-
-/** Infer whether a raw model ID represents a reasoning model */
-export function inferReasoningFromModelId(rawModelId: string): boolean {
-  const id = getLowerBaseModelName(rawModelId)
-  return (
-    REASONING_REGEX.test(id) ||
-    inferClaudeReasoningFromId(id) ||
-    inferGeminiReasoningFromId(id) ||
-    inferQwenReasoningFromId(id) ||
-    inferDoubaoReasoningFromId(id) ||
-    inferOpenAIReasoningFromId(id) ||
-    id.includes('hunyuan-t1') ||
-    id.includes('hunyuan-a13b') ||
-    /glm-?5|glm-4\.[567]|glm-z1/.test(id) ||
-    /mimo-v2\.5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)/.test(id) ||
-    /^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2\.[5-9]\d*|[3-9]\d*(?:\.\d+)?)(?:-[\w-]+)?$/.test(id) ||
-    id.includes('magistral') ||
-    id.includes('mistral-small-2603') ||
-    id.includes('grok-build') ||
-    id.includes('pangu-pro-moe') ||
-    id.includes('seed-oss') ||
-    id.includes('deepseek-v3.2-speciale') ||
-    id.includes('gemma-4') ||
-    id.includes('gemma4') ||
-    id.includes('step-3') ||
-    id.includes('step-r1-v-mini') ||
-    ['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m3'].some((m) => id.includes(m)) ||
-    id === 'baichuan-m2' ||
-    id === 'baichuan-m3' ||
-    ['ring-1t', 'ring-mini', 'ring-flash'].some((m) => id.includes(m)) ||
-    id.includes('sonar-deep-research') ||
-    inferDeepSeekHybridFromId(id)
-  )
-}
-
-/**
- * OpenAI reasoning variants: o-series (except preview / mini), GPT-5
- * non-chat, gpt-oss. Mirrors `isSupportedReasoningEffortOpenAIModel`.
- */
-function inferOpenAIReasoningFromId(id: string): boolean {
-  if (id.includes('o1') && !id.includes('o1-preview') && !id.includes('o1-mini')) return true
-  if (id.includes('o3') && !id.includes('o3-mini')) return true
-  if (id.startsWith('o3') || id.startsWith('o4')) return true
-  if (id.includes('gpt-oss')) return true
-  if (id.includes('gpt-5') && !id.includes('chat')) return true
-  return false
-}
 
 /** Infer whether a raw model ID represents a vision model */
 export function inferVisionFromModelId(rawModelId: string): boolean {
@@ -840,53 +784,6 @@ export const findTokenLimit = findHeuristicTokenLimits
 // ---------------------------------------------------------------------------
 // Internal inference sub-functions
 // ---------------------------------------------------------------------------
-
-function inferClaudeReasoningFromId(id: string): boolean {
-  return (
-    id.includes('claude-3-7-sonnet') ||
-    id.includes('claude-3.7-sonnet') ||
-    id.includes('claude-sonnet-4') ||
-    id.includes('claude-opus-4') ||
-    id.includes('claude-haiku-4')
-  )
-}
-
-function inferGeminiReasoningFromId(id: string): boolean {
-  if (id.startsWith('gemini') && id.includes('thinking')) return true
-  if (GEMINI_THINKING_MODEL_REGEX.test(id)) {
-    if (id.includes('gemini-3-pro-image')) return true
-    if (id.includes('image') || id.includes('tts')) return false
-    return true
-  }
-  return false
-}
-
-function inferQwenReasoningFromId(id: string): boolean {
-  if (id.startsWith('qwen3') && id.includes('thinking')) return true
-  if (id.includes('qwq') || id.includes('qvq')) return true
-  // Check thinking token support
-  if (['coder', 'asr', 'tts', 'reranker', 'embedding', 'instruct', 'thinking'].some((f) => id.includes(f))) {
-    return false
-  }
-  if (/^qwen3\.[5-9]/.test(id)) return true
-  if (/^(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)/i.test(id)) return true
-  if (/^qwen(?:3\.[5-9])?-(?:plus|flash|turbo)(?:-|$)/i.test(id)) return true
-  if (/^qwen3-\d/i.test(id)) return true
-  return false
-}
-
-function inferDoubaoReasoningFromId(id: string): boolean {
-  return DOUBAO_THINKING_MODEL_REGEX.test(id) || REASONING_REGEX.test(id)
-}
-
-function inferDeepSeekHybridFromId(id: string): boolean {
-  return (
-    /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(id) ||
-    id.includes('deepseek-chat-v3.1') ||
-    id.includes('deepseek-chat') ||
-    isDeepSeekV4PlusId(id)
-  )
-}
 
 function inferOpenAIWebSearchFromId(id: string): boolean {
   return (
@@ -1053,7 +950,7 @@ function getRawModelId(model: Model): string {
 
 // All "<vendor>ReasoningModel" checks compose the ID-based vendor check
 // with the schema-driven capability check. The registry populates the
-// REASONING capability at model-creation time via inferReasoningFromModelId,
+// REASONING capability at model-creation time via the registry membership heuristics,
 // so these functions read truth from the schema rather than duplicating
 // regex patterns here.
 
@@ -1067,7 +964,7 @@ export const isZhipuReasoningModel = (model: Model): boolean => isZhipuModel(mod
 
 /**
  * Kimi reasoning identifier. Kept stricter than `isKimiModel && isReasoningModel`:
- * `REASONING_REGEX` matches any id containing "thinking", which overshoots onto
+ * the generic membership shapes match any id containing "thinking", overshooting onto
  * variants like `kimi-k2-thinking-extra` that are not official reasoning SKUs.
  * Pinning to the canonical IDs avoids that false positive.
  */

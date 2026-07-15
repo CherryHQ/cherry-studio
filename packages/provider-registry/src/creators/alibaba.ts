@@ -6,6 +6,14 @@ export default defineCreator({
   modelsDevProviders: ['alibaba', 'alibaba-cn'],
   families: ['qwen', 'qvq'],
   idPrefixes: ['qwen', 'qvq', 'tongyi'],
+  reasoningMembership: [
+    '^qwen3.*thinking',
+    'qwq|qvq',
+    '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen3[.-][5-9](?!\\d)',
+    '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)',
+    '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen(?:3[.-][5-9])?-(?:plus|flash|turbo)(?:-|$)',
+    '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen3-\\d'
+  ],
   reasoningFamilies: [
     // Always-think SKUs: thinking cannot be disabled — the explicit
     // `toggle: false` stops the generic qwen rule below; budget still applies.

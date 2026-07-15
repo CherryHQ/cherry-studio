@@ -5,6 +5,10 @@ export default defineCreator({
   name: 'ByteDance (Doubao)',
   families: ['doubao', 'seed'],
   idPrefixes: ['doubao', 'skylark'],
+  reasoningMembership: [
+    'doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\\d+)?|seed-2[.-]\\d(?:-[\\w-]+)?)(?:-[\\w-]+)*',
+    'seed-oss'
+  ],
   reasoningFamilies: [
     {
       pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',

@@ -21,7 +21,7 @@ import { matchReasoningControls, matchTokenLimits } from '../src/patterns/reason
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
-import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
+import { ReasoningFamilyRuleSchema, ReasoningMembershipPatternSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { canonOf, prefixHit } from './canonicalize'
@@ -42,6 +42,7 @@ const MODELS_PATH = process.env.MODELS_OUT || path.join(__dirname, '../data/mode
 const PROVIDERS_PATH = path.join(__dirname, '../data/providers.json')
 const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json')
 const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
+const REASONING_MEMBERSHIP_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-membership.gen.ts')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
@@ -90,6 +91,34 @@ function buildReasoningFamiliesGen(): string {
     if (rules.length === 0) continue
     lines.push(`  // ${creator.id}`)
     for (const rule of rules) lines.push(`  ${JSON.stringify(rule)},`)
+  }
+  lines.push(']', '')
+  return lines.join('\n')
+}
+
+/** The reasoning-membership runtime artifact: creator gate patterns compiled to a TS module. */
+function buildReasoningMembershipGen(): string {
+  const lines = [
+    '/**',
+    ' * GENERATED FILE — DO NOT EDIT.',
+    ' *',
+    ' * Compiled from `Creator.reasoningMembership` declarations (creators/*.ts)',
+    ' * by scripts/generate-catalog.ts — edit the creator and run `pnpm generate`.',
+    ' */',
+    '',
+    'export const REASONING_MEMBERSHIP_PATTERNS: readonly string[] = ['
+  ]
+  for (const creator of CREATORS) {
+    const patterns = creator.reasoningMembership ?? []
+    if (patterns.length === 0) continue
+    for (const pattern of patterns) {
+      const parsed = ReasoningMembershipPatternSchema.safeParse(pattern)
+      if (!parsed.success) {
+        throw new Error(`invalid reasoningMembership pattern in creator '${creator.id}': ${parsed.error.message}`)
+      }
+    }
+    lines.push(`  // ${creator.id}`)
+    for (const pattern of patterns) lines.push(`  ${JSON.stringify(pattern)},`)
   }
   lines.push(']', '')
   return lines.join('\n')
@@ -437,4 +466,7 @@ void (async () => {
   const familiesGen = buildReasoningFamiliesGen()
   fs.writeFileSync(REASONING_FAMILIES_GEN_PATH, familiesGen)
   console.log(`WROTE ${REASONING_FAMILIES_GEN_PATH}.`)
+  const membershipGen = buildReasoningMembershipGen()
+  fs.writeFileSync(REASONING_MEMBERSHIP_GEN_PATH, membershipGen)
+  console.log(`WROTE ${REASONING_MEMBERSHIP_GEN_PATH}.`)
 })()

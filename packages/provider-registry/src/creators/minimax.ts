@@ -4,5 +4,6 @@ export default defineCreator({
   id: 'minimax',
   name: 'MiniMax',
   modelsDevProviders: ['minimax', 'minimax-cn'],
-  idPrefixes: ['minimax', 'abab']
+  idPrefixes: ['minimax', 'abab'],
+  reasoningMembership: ['minimax-m[123]']
 })

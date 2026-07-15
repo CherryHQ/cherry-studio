@@ -2311,7 +2311,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 262144,
+      "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-vl-235b-a22b-instruct",
       "inputModalities": ["text", "image"],
@@ -3033,7 +3033,7 @@
     },
     {
       "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 131072,
+      "contextWindow": 262144,
       "id": "qwen3-30b-a3b-instruct",
       "inputModalities": ["text"],
       "metadata": {},
@@ -3043,11 +3043,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.04815
+          "perMillionTokens": 0.09999999999999999
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19305
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -6658,11 +6658,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.24
+          "perMillionTokens": 0.27
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.8999999999999999
+          "perMillionTokens": 1.12
         }
       }
     },
@@ -10662,7 +10662,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.39999999999999997
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
@@ -11777,7 +11777,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output"],
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "id": "mistral-small-3-2-24b-instruct",
       "inputModalities": ["image", "text"],
       "metadata": {},
@@ -11787,11 +11787,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09999999999999999
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -16414,11 +16414,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.19999999999999998
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.58
+          "perMillionTokens": 0.7999999999999999
         }
       }
     },
@@ -18592,7 +18592,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 202752,
+      "contextWindow": 200000,
       "family": "glm",
       "id": "glm-4-7-flash",
       "inputModalities": ["text"],
@@ -19897,5 +19897,5 @@
       }
     }
   ],
-  "version": "576eeb61fa7f0897"
+  "version": "2710418511ba0dde"
 }

@@ -49,6 +49,15 @@ export interface Creator {
    * dialect follows the serving provider, not the model family.
    */
   reasoningFamilies?: ReasoningFamilyRule[]
+  /**
+   * Curated reasoning MEMBERSHIP as DATA: id patterns of THIS creator's
+   * SKUs that reason at all — the ingest gate consulted before
+   * `reasoningFamilies` supplies the knobs, for ids the catalog doesn't
+   * know. Vendor-specific patterns only; creator-agnostic id shapes
+   * (`\bthinking\b`, `-r\d`, …) live in the matcher's generic list.
+   * Compiled into `patterns/reasoning-membership.gen.ts`.
+   */
+  reasoningMembership?: string[]
   /** Hand-written models — always merged in and winning over the API/sources. */
   models?: CreatorModel[]
   /**

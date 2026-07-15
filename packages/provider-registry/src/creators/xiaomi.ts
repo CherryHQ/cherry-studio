@@ -6,6 +6,7 @@ export default defineCreator({
   modelsDevProviders: ['xiaomi'],
   families: ['mimo'],
   idPrefixes: ['mimo'],
+  reasoningMembership: ['mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)'],
   reasoningFamilies: [
     { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
     { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)', budget: { min: 0, max: 30720 } },

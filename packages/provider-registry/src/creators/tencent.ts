@@ -10,6 +10,7 @@ export default defineCreator({
   name: 'Tencent (Hunyuan)',
   families: ['hunyuan'],
   idPrefixes: ['hunyuan', 'hy'],
+  reasoningMembership: ['hunyuan-t1', 'hunyuan-a13b'],
   reasoningFamilies: [
     // Only hunyuan-a13b exposes the knob today.
     { pattern: '^hunyuan-a13b', toggle: true },

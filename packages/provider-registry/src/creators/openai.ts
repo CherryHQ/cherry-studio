@@ -6,6 +6,15 @@ export default defineCreator({
   name: 'OpenAI',
   fetchModels: openaiCompatible('openai', 'OPENAI_API_KEY'),
   modelsDevProviders: ['openai'],
+  reasoningMembership: [
+    '^o\\d+(?:-[\\w-]+)?$',
+    '^(?!.*o1-(?:preview|mini)).*o1',
+    '^(?!.*o3-mini).*o3',
+    '^o3',
+    '^o4',
+    'gpt-oss',
+    '^(?!.*chat).*gpt-5'
+  ],
   reasoningFamilies: [
     { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
     { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },

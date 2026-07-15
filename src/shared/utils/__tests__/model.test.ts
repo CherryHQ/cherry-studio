@@ -4,7 +4,6 @@ import {
   inferEmbeddingFromModelId,
   inferFunctionCallingFromModelId,
   inferImageGenerationFromModelId,
-  inferReasoningFromModelId,
   inferRerankFromModelId,
   inferVisionFromModelId,
   inferWebSearchFromModelId,
@@ -147,30 +146,6 @@ describe('shared model capability helpers', () => {
     expect(inferVisionFromModelId('gemini-3-flash-image')).toBe(true)
     expect(inferImageGenerationFromModelId('gemini-3-flash-image')).toBe(true)
   })
-
-  it.each([
-    'claude-3.7-sonnet',
-    'claude-sonnet-4-5',
-    'gemini-2.5-flash',
-    'gemini-3-pro-preview',
-    'gpt-5.1',
-    'gpt-oss',
-    'o3-mini',
-    'qwen-plus',
-    'qwen3.5-plus',
-    'deepseek-r1',
-    'hunyuan-a13b',
-    'kimi-k2.5'
-  ])('infers reasoning capability for %s', (modelId) => {
-    expect(inferReasoningFromModelId(modelId)).toBe(true)
-  })
-
-  it.each(['gpt-5.1-chat', 'gemini-3-flash-image', 'text-embedding-3-small', 'bge-reranker-v2'])(
-    'does not infer reasoning capability for %s',
-    (modelId) => {
-      expect(inferReasoningFromModelId(modelId)).toBe(false)
-    }
-  )
 
   it.each([
     'gpt-4o-mini',

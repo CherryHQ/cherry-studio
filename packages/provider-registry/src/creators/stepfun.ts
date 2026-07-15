@@ -6,5 +6,6 @@ export default defineCreator({
   name: 'StepFun',
   fetchModels: openaiCompatible('stepfun', 'STEPFUN_API_KEY'),
   modelsDevProviders: ['stepfun', 'stepfun-ai'],
-  idPrefixes: ['step']
+  idPrefixes: ['step'],
+  reasoningMembership: ['step-3', 'step-r1-v-mini']
 })

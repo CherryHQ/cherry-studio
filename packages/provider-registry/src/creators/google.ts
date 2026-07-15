@@ -6,6 +6,12 @@ export default defineCreator({
   name: 'Google',
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
+  reasoningMembership: [
+    '^gemini.*thinking',
+    'gemini-3(?:\\.\\d+)?-pro-image',
+    '^(?!.*(?:image|tts)).*gemini-(?:2\\.5.*(?:-latest)?|3(?:\\.\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
+    'gemma-?4'
+  ],
   reasoningFamilies: [
     { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
     {

@@ -91,20 +91,37 @@ export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
  * vendor-specific (same discipline as `idPrefixes`). Within a creator,
  * declaration order is match priority — first rule wins per part.
  */
+const compilableRegexSource = z.string().refine(
+  (source) => {
+    try {
+      new RegExp(source, 'i')
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'pattern must be a valid regular expression' }
+)
+
+/**
+ * A creator-declared reasoning MEMBERSHIP pattern — answers "is this id a
+ * reasoning model at all?" for ids the catalog doesn't know (#16598). This
+ * is the ingest gate BEFORE the knob rules: family rules only say which
+ * knobs a reasoning SKU has, and some (e.g. the broad `^qwen` toggle) rely
+ * on this gate to not over-claim non-reasoning siblings.
+ *
+ * A case-insensitive regex source tested against the lowercased,
+ * namespace-stripped id. Must be vendor-specific (same discipline as
+ * `idPrefixes`); creator-agnostic id shapes (`\bthinking\b`, `-r\d`, …)
+ * live in the matcher's generic list instead.
+ */
+export const ReasoningMembershipPatternSchema = compilableRegexSource
+export type ReasoningMembershipPattern = z.infer<typeof ReasoningMembershipPatternSchema>
+
 export const ReasoningFamilyRuleSchema = z
   .object({
     /** Case-insensitive regex source. Must compile. */
-    pattern: z.string().refine(
-      (source) => {
-        try {
-          new RegExp(source, 'i')
-          return true
-        } catch {
-          return false
-        }
-      },
-      { message: 'pattern must be a valid regular expression' }
-    ),
+    pattern: compilableRegexSource,
     /** Native effort vocabulary, in UI display order. */
     effort: z.array(ReasoningEffortSchema).min(1).optional(),
     /**

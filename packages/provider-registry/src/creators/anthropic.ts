@@ -7,6 +7,12 @@ export default defineCreator({
   fetchModels: anthropicModels(),
   modelsDevProviders: ['anthropic'],
   idPrefixes: ['claude'],
+  reasoningMembership: [
+    'claude-3-7-sonnet|claude-3\\.7-sonnet',
+    'claude-(?:sonnet|opus|haiku)-4',
+    // Post-4.5 generations (5+ / latest aliases / fable) — mirrors the adaptive family rule.
+    '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-[5-9](?!\\d)|(?:opus|sonnet|haiku)-latest|fable)'
+  ],
   reasoningFamilies: [
     // Adaptive-effort generations: 4.6+ minors, the 5.x/Fable line, and the
     // -latest aliases (which track the newest flagship).

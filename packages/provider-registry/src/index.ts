@@ -95,4 +95,8 @@ export { isVendor, matchVendor, VENDOR_PATTERNS } from './patterns/vendor-patter
 
 // Reasoning-control heuristics — INGEST-time only (generation enrichment,
 // custom-model creation); never a runtime capability source.
-export { findHeuristicTokenLimits, inferReasoningControls } from './patterns/reasoning-heuristics'
+export {
+  findHeuristicTokenLimits,
+  inferReasoningControls,
+  inferReasoningMembership
+} from './patterns/reasoning-heuristics'
