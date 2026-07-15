@@ -14,7 +14,13 @@ import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/m
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import {
+  CURRENCY,
+  ENDPOINT_TYPE,
+  MODEL_CAPABILITY,
+  parseUniqueModelId,
+  UniqueModelIdSchema
+} from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -62,6 +68,15 @@ export interface OpenClawModelConfig {
   id: string
   name: string
   contextWindow?: number
+  maxTokens?: number
+  reasoning?: boolean
+  input?: string[]
+  cost?: {
+    input: number
+    output: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
   [key: string]: unknown
 }
 
@@ -69,8 +84,13 @@ export interface OpenClawProviderConfig {
   baseUrl: string
   apiKey: string
   api: string
+  headers?: Record<string, string>
   models: OpenClawModelConfig[]
 }
+
+type OpenClawSyncModel = Model &
+  Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
+type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
 
 /**
  * OpenClaw API types
@@ -520,7 +540,9 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private async resolveSyncConfig(uniqueModelId: unknown): Promise<{ provider: Provider; primaryModel: Model }> {
+  private async resolveSyncConfig(
+    uniqueModelId: unknown
+  ): Promise<{ provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel }> {
     const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
     if (!parsed.success) {
       throw new Error('Invalid OpenClaw model selection')
@@ -565,8 +587,9 @@ export class OpenClawService extends BaseService {
               !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
           )
           .map((model) => this.toOpenClawModel(model)),
-        presetProviderId: provider.presetProviderId
-      } as Provider,
+        presetProviderId: provider.presetProviderId,
+        headers: provider.settings?.extraHeaders
+      },
       primaryModel: this.toOpenClawModel(primaryModel)
     }
   }
@@ -617,15 +640,42 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): Model {
+  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
+    const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
+    const cost = this.toOpenClawCost(model)
     return {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0])
+      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+      ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
+      ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
+      ...(input?.length ? { input } : {}),
+      ...(cost ? { cost } : {})
     }
+  }
+
+  private toOpenClawCost(model: DataModel): OpenClawModelConfig['cost'] | undefined {
+    const pricing = model.pricing
+    if (!pricing) return undefined
+    const isUsd = (currency?: string) => currency === undefined || currency === CURRENCY.USD
+    if (!isUsd(pricing.input.currency) || !isUsd(pricing.output.currency)) return undefined
+    if (pricing.input.perMillionTokens === null || pricing.output.perMillionTokens === null) return undefined
+
+    const cost: NonNullable<OpenClawModelConfig['cost']> = {
+      input: pricing.input.perMillionTokens,
+      output: pricing.output.perMillionTokens
+    }
+    if (pricing.cacheRead?.perMillionTokens != null && isUsd(pricing.cacheRead.currency)) {
+      cost.cacheRead = pricing.cacheRead.perMillionTokens
+    }
+    if (pricing.cacheWrite?.perMillionTokens != null && isUsd(pricing.cacheWrite.currency)) {
+      cost.cacheWrite = pricing.cacheWrite.perMillionTokens
+    }
+    return cost
   }
 
   private toOpenClawEndpointType(endpointType?: EndpointType): Model['endpoint_type'] {
@@ -709,23 +759,34 @@ export class OpenClawService extends BaseService {
       // (e.g., vision, custom context window, extra parameters)
       config.models = config.models || { mode: 'merge', providers: {} }
       config.models.providers = config.models.providers || {}
-      const existingModels = config.models.providers[providerKey]?.models || []
+      const existingProvider = config.models.providers[providerKey]
+      const existingModels = existingProvider?.models || []
       const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
+      const providerHeaders = (provider as OpenClawSyncProvider).headers
 
       // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
+        ...existingProvider,
         baseUrl,
         apiKey,
         api: apiType,
         models: provider.models.map((m) => {
           const existing = existingModelMap.get(m.id)
+          const synced = m as OpenClawSyncModel
           return {
+            ...(synced.maxTokens ? { maxTokens: synced.maxTokens } : {}),
+            ...(synced.reasoning !== undefined ? { reasoning: synced.reasoning } : {}),
+            ...(synced.input ? { input: synced.input } : {}),
+            ...(synced.cost ? { cost: synced.cost } : {}),
             ...existing,
             id: m.id,
             name: m.name,
-            contextWindow: existing?.contextWindow ?? 128000
+            contextWindow: existing?.contextWindow ?? synced.contextWindow ?? 128000
           }
         })
+      }
+      if (providerHeaders && Object.keys(providerHeaders).length > 0) {
+        openclawProvider.headers = { ...providerHeaders, ...existingProvider?.headers }
       }
 
       // Set gateway mode to local (required for gateway to start)

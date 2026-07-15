@@ -190,6 +190,16 @@ describe('OpenExternalAppButton', () => {
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode')
   })
 
+  it('opens targets from a custom workspace trigger', () => {
+    mocks.externalApps = [vscodeApp, cursorApp]
+
+    render(<OpenExternalAppButton workdir="/tmp/workspace" menuTrigger={<button type="button">Workspace 1</button>} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cursor' }))
+    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://cursor/tmp/workspace')
+  })
+
   it('opens targets from the menu and persists the selected target', async () => {
     mocks.externalApps = [vscodeApp, cursorApp]
 

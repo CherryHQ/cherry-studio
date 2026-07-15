@@ -35,6 +35,13 @@ interface OpenCodeProviderIdentity {
   name: string
 }
 
+function openCodeProviderRequestOptions(options: Record<string, any>): Record<string, any> {
+  const headers = Object.fromEntries(
+    Object.entries(asRecord(options.providerHeaders)).filter(([, value]) => typeof value === 'string')
+  )
+  return Object.keys(headers).length > 0 ? { headers } : {}
+}
+
 export function buildClaudeConfig(
   existing: Record<string, any>,
   userBlob: Record<string, any>,
@@ -158,6 +165,13 @@ function buildOpenCodeModelOptions(
   }
 }
 
+function openCodeModelLimit(options: Record<string, any>): Record<string, number> | undefined {
+  const limit: Record<string, number> = {}
+  if (Number.isInteger(options.contextWindow) && options.contextWindow > 0) limit.context = options.contextWindow
+  if (Number.isInteger(options.maxOutputTokens) && options.maxOutputTokens > 0) limit.output = options.maxOutputTokens
+  return Object.keys(limit).length > 0 ? limit : undefined
+}
+
 export function buildOpenCodeConfig(
   existing: Record<string, any>,
   provider: OpenCodeProviderIdentity,
@@ -170,6 +184,8 @@ export function buildOpenCodeConfig(
   // The models map key is the addressing id sent to the API; `name` is only what
   // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
   const modelConfig: Record<string, any> = { name: resolved.modelLabel ?? resolved.model }
+  const limit = openCodeModelLimit(options)
+  if (limit) modelConfig.limit = limit
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
@@ -189,7 +205,11 @@ export function buildOpenCodeConfig(
       [providerKey]: {
         npm: npmInfo.npm,
         name: providerKey,
-        options: { apiKey: resolved.apiKey, baseURL: resolved.baseUrl },
+        options: {
+          apiKey: resolved.apiKey,
+          baseURL: resolved.baseUrl,
+          ...openCodeProviderRequestOptions(options)
+        },
         models: { [resolved.model]: modelConfig }
       }
     }
@@ -201,12 +221,16 @@ export function buildOpenCodeConfig(
 
 export function buildGeminiEnvConfig(
   envMap: Map<string, string>,
-  resolved: { apiKey: string; baseUrl: string }
+  resolved: { apiKey: string; baseUrl: string; gateway?: boolean }
 ): Map<string, string> {
   const next = new Map(envMap)
   for (const key of GEMINI_MANAGED_ENV_KEYS) next.delete(key)
   if (resolved.apiKey) next.set('GEMINI_API_KEY', resolved.apiKey)
   if (resolved.baseUrl) next.set('GOOGLE_GEMINI_BASE_URL', resolved.baseUrl)
+  // The gateway serves only `/v1beta`. Force the SDK's API version so a stale
+  // `GOOGLE_GENAI_API_VERSION=v1` left in the user's ~/.gemini/.env can't redirect
+  // gemini-cli's @google/genai to the unsupported `/v1` prefix and break launch.
+  if (resolved.gateway) next.set('GOOGLE_GENAI_API_VERSION', 'v1beta')
   return next
 }
 

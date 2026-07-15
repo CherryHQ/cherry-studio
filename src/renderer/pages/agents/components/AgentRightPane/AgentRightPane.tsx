@@ -33,7 +33,6 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -576,8 +575,6 @@ function AgentRightPaneSurface() {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const shellState = useShellState()
-  const { mode, chrome } = useWindowFrame()
-  const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
   const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
   const hasFiles = meta.filesEnabled !== false
@@ -596,12 +593,9 @@ function AgentRightPaneSurface() {
             ? t('trace.label')
             : (activeFlowTab?.title ?? t('agent.right_pane.tabs.files'))
 
-  // In sub-windows the topbar is hidden by the maximized overlay, so the header owns trailing controls then.
-  const tabListTrailing = isWindow && shellState.maximized ? chrome?.titleTrailing : null
-
   return (
     <Shell.Tabs>
-      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false}>
         <ResourcePaneTab />
         {hasFiles && (
           <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>

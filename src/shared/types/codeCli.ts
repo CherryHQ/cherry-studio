@@ -58,13 +58,14 @@ export function isApiGatewayProviderId(id: string): boolean {
 
 /**
  * CLI tools that can be backed by the Cherry API gateway. The gateway exposes
- * Anthropic (`/v1/messages`) and OpenAI (`/v1/chat/completions`, `/v1/responses`)
- * dialects only, so Gemini CLI (needs a Google endpoint) and OpenClaw (its own
- * gateway sync path) are excluded.
+ * Anthropic (`/v1/messages`), OpenAI (`/v1/chat/completions`, `/v1/responses`),
+ * and Gemini (`/v1beta/models/*`) dialects, so Gemini CLI routes through the
+ * gateway too. OpenClaw is excluded (it has its own gateway sync path).
  */
 export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.CLAUDE_CODE,
   CodeCli.OPENAI_CODEX,
+  CodeCli.GEMINI_CLI,
   CodeCli.OPEN_CODE,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE

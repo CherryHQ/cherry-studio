@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
-import { createDirectoryItem, createFileItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
 
@@ -25,6 +25,19 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    type = 'button',
+    ...props
+  }: {
+    children: ReactNode
+    type?: 'button' | 'submit' | 'reset'
+    [key: string]: unknown
+  }) => (
+    <button type={type} {...props}>
+      {children}
+    </button>
+  ),
   Checkbox: ({
     checked,
     onCheckedChange,
@@ -105,6 +118,43 @@ vi.mock('@renderer/components/command', async () => {
           ) : null}
         </>
       )
+    },
+    // The hover "more" button opens the same item model on click. Stub it as a toggle on the
+    // trigger (mirroring the real asChild) so tests can open the menu and click an action.
+    CommandPopupMenu: ({ children, extraItems = [] }: { children: ReactNode; extraItems?: StubExtraItem[] }) => {
+      const [open, setOpen] = React.useState(false)
+      const trigger = React.isValidElement(children)
+        ? // eslint-disable-next-line @eslint-react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
+          React.cloneElement(children as React.ReactElement<{ onClick?: (event: unknown) => void }>, {
+            onClick: (event: unknown) => {
+              ;(children.props as { onClick?: (event: unknown) => void }).onClick?.(event)
+              setOpen((value) => !value)
+            }
+          })
+        : children
+
+      return (
+        <>
+          {trigger}
+          {open ? (
+            <div role="menu">
+              {extraItems
+                .filter((item) => item.type === 'item')
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      item.onSelect?.()
+                      setOpen(false)
+                    }}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </>
+      )
     }
   }
 })
@@ -135,7 +185,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.filters.directory': '目录',
           'knowledge.data_source.filters.url': '链接',
           'knowledge.data_source.table.select_row': '选择行',
-          'knowledge.data_source.table.view_chunks_row': '查看 Chunks 行',
+          'knowledge.data_source.table.open_row': '打开行',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'
         }) as Record<string, string>
@@ -238,21 +288,40 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call onClick for non-completed items', () => {
+  it('does not activate a non-completed note (no external target until its chunk view is ready)', () => {
     const handleClick = vi.fn()
 
     render(
       <KnowledgeItemRow
-        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status: 'processing' })}
+        item={createNoteItem({ id: 'note-1', status: 'processing' })}
         {...defaultHandlers}
         onClick={handleClick}
       />
     )
 
-    fireEvent.click(screen.getByText('https://example.com/product-docs'))
+    fireEvent.click(screen.getByRole('row'))
 
     expect(handleClick).not.toHaveBeenCalled()
   })
+
+  it.each(['processing', 'failed'] as const)(
+    'activates a non-completed url row (%s) so its source can be opened regardless of index state',
+    (status) => {
+      const handleClick = vi.fn()
+
+      render(
+        <KnowledgeItemRow
+          item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status })}
+          {...defaultHandlers}
+          onClick={handleClick}
+        />
+      )
+
+      fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+      expect(handleClick).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('exposes a completed row as a focusable element with an accessible name', () => {
     render(
@@ -262,7 +331,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    const row = screen.getByRole('row', { name: '查看 Chunks 行' })
+    const row = screen.getByRole('row', { name: '打开行' })
 
     expect(row).toHaveAttribute('tabindex', '0')
   })
@@ -299,12 +368,31 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('is not keyboard-activatable for non-completed items', () => {
+  it('toggles selection without opening the row when the checkbox column is clicked', () => {
+    const handleClick = vi.fn()
+    const handleToggle = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+        onToggleSelect={handleToggle}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择行' }))
+
+    expect(handleToggle).toHaveBeenCalledWith(true)
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('is not keyboard-activatable for a non-completed note', () => {
     const handleClick = vi.fn()
 
     render(
       <KnowledgeItemRow
-        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status: 'processing' })}
+        item={createNoteItem({ id: 'note-1', status: 'processing' })}
         {...defaultHandlers}
         onClick={handleClick}
       />
@@ -319,7 +407,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('does not render a more button and only reveals actions on right-click', () => {
+  it('reveals the same actions via the more button and right-click', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
@@ -327,12 +415,37 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+    // The more button is always mounted (revealed on hover via CSS); its menu is closed at rest.
+    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
 
-    fireEvent.contextMenu(screen.getByRole('row'))
-
+    // Clicking the more button opens the same actions as a right-click on the row.
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
     expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
+    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+  })
+
+  it('does not activate the row when a more-menu action is clicked', () => {
+    const handleClick = vi.fn()
+    const handlePreviewSource = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+        onPreviewSource={handlePreviewSource}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
+
+    expect(handlePreviewSource).toHaveBeenCalledTimes(1)
+    expect(handleClick).not.toHaveBeenCalled()
   })
 
   it('does not open the row when it is right-clicked', () => {

@@ -255,6 +255,30 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
+      // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
+      // normalization can't rewrite names ending in "flash"; the route must strip it.
+      await read(
+        await post(app, '/v1beta/models/618d8838:agent/deepseek-v4-flash@cherry:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
+    it('rejects a model still ending in the reserved @cherry suffix after one strip → 400', async () => {
+      // The sentinel is reserved: the route strips exactly one trailing `@cherry`, so a model that
+      // STILL ends in it (a real id ending in the reserved marker, or a doubled sentinel) is
+      // ambiguous and never advertised by GET /models — reject rather than route to the wrong id.
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/weird:model@cherry@cherry:generateContent', geminiBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
     it('countTokens: returns a local estimate without calling processMessage', async () => {
       const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', geminiBody)

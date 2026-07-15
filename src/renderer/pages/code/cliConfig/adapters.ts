@@ -1,6 +1,7 @@
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
+import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import {
   CLAUDE_SETTINGS_PATH,
   type CliConfigWriteFile,
@@ -406,7 +407,10 @@ const openCodeAdapter: CliConfigAdapter = {
               reasoning: env.OPENCODE_REASONING === 'true',
               supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
               autoCompact: configBlob.autoCompact === true,
-              permissionMode: configBlob.permissionMode
+              permissionMode: configBlob.permissionMode,
+              providerHeaders: provider.settings?.extraHeaders,
+              contextWindow: modelRecord?.contextWindow,
+              maxOutputTokens: modelRecord?.maxOutputTokens
             }
           )
         )
@@ -423,6 +427,9 @@ const openCodeAdapter: CliConfigAdapter = {
     const providers = asRecord(existing.provider)
     const providerKey = cherryProviderKeyFrom(providers)
     const provider = asRecord(providers[providerKey])
+    const providerOptions = asRecord(provider.options)
+    const existingModel = asRecord(asRecord(provider.models)[connection.model ?? ''])
+    const existingLimit = asRecord(existingModel.limit)
     const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
     const env = asRecord(configBlob.env)
     const model = requireDraftValue(connection.model, 'OpenCode model')
@@ -442,7 +449,10 @@ const openCodeAdapter: CliConfigAdapter = {
         reasoning: env.OPENCODE_REASONING === 'true',
         supportsReasoningEffort: true,
         autoCompact: configBlob.autoCompact === true,
-        permissionMode: configBlob.permissionMode
+        permissionMode: configBlob.permissionMode,
+        providerHeaders: providerOptions.headers,
+        contextWindow: existingLimit.context,
+        maxOutputTokens: existingLimit.output
       }
     )
     return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))
@@ -502,12 +512,20 @@ const geminiAdapter: CliConfigAdapter = {
     const envText = await readDraftFileText('gemini-env', args.files)
     const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files)
     const baseUrl = resolveGeminiBaseUrl(provider)
+    const isGateway = isApiGatewayProviderId(provider.id)
+    // Gateway addresses carry the sentinel suffix so gemini-cli's model
+    // normalization can't rewrite them (see GEMINI_GATEWAY_MODEL_SUFFIX);
+    // extractConnection strips it back off for connection matching.
+    const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
     return [
       await makeDraftFile(
         'gemini-env',
-        renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl }), envText)
+        renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl, gateway: isGateway }), envText)
       ),
-      await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiSettingsConfig(settings, { model }, configBlob)))
+      await makeDraftFile(
+        'gemini-settings',
+        renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
+      )
     ]
   },
   assertCredentials(context) {
@@ -520,6 +538,14 @@ const geminiAdapter: CliConfigAdapter = {
   updateDraftConfig(files, connection, configBlob) {
     const envText = getDraftFile(files, 'gemini-env')?.content ?? ''
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
+    const model = requireDraftValue(connection.model, 'Gemini model')
+    // A gateway draft carries the sentinel in settings.model.name; extractConnection
+    // strips it for connection matching, so re-append it here (and re-force the API
+    // version) to preserve the gateway identity through a foreign-edit round trip —
+    // gemini-cli reads settings.model.name, so a bare `flash`-ending address written
+    // back would be re-normalized on a direct terminal launch.
+    const isGateway = (stringValue(asRecord(settings.model).name) ?? '').endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)
+    const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
     return replaceDraftContent(
       replaceDraftContent(
         files,
@@ -527,15 +553,14 @@ const geminiAdapter: CliConfigAdapter = {
         renderDotenvFile(
           buildGeminiEnvConfig(parseDotenv(envText), {
             apiKey: connection.apiKey ?? '',
-            baseUrl: connection.baseUrl ?? ''
+            baseUrl: connection.baseUrl ?? '',
+            gateway: isGateway
           }),
           envText
         )
       ),
       'gemini-settings',
-      renderJsonFile(
-        buildGeminiSettingsConfig(settings, { model: requireDraftValue(connection.model, 'Gemini model') }, configBlob)
-      )
+      renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
     )
   },
   async buildClearFiles() {
@@ -563,10 +588,11 @@ const geminiAdapter: CliConfigAdapter = {
   extractConnection(files) {
     const env = parseDotenv(getDraftFile(files, 'gemini-env')?.content ?? '')
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
+    const model = stringValue(asRecord(settings.model).name)
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
-      model: stringValue(asRecord(settings.model).name)
+      model: model === undefined ? model : stripGeminiGatewayModelSuffix(model)
     }
   },
   extractConfig(files) {

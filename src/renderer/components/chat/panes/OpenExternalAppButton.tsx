@@ -20,7 +20,7 @@ import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
 import { ChevronDown, FileText, FolderOpen } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const FILE_MANAGER_TARGET = 'file_manager' as const
@@ -31,12 +31,14 @@ const SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
 type OpenExternalAppButtonProps = {
   workdir: string
   filePath?: string | null
+  menuTrigger?: ReactNode
+  tooltip?: string
   className?: string
 }
 
 type OpenTarget = ExternalAppId | typeof FILE_MANAGER_TARGET
 
-const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalAppButtonProps) => {
+const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, className }: OpenExternalAppButtonProps) => {
   const { t } = useTranslation()
   const fileTargetPath = filePath ? joinPath(workdir, filePath) : null
   const openTargetPath = fileTargetPath ?? workdir
@@ -120,12 +122,51 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
   const selectedName = selectedEditor?.name ?? fileManagerName
   const primaryIcon = selectedEditor ? getEditorIcon(selectedEditor) : renderFileManagerIcon()
   const primaryLabel = t('common.open_in', { name: selectedName })
+  const primaryTooltip = tooltip ?? primaryLabel
   const defaultAppName = t('agent.preview_pane.default_app')
   const hasAlternativeTargets = Boolean(fileTargetPath) || availableEditors.length > 0
+  const menu = (
+    <PopoverContent className="w-56 p-1" align={menuTrigger ? 'start' : 'end'}>
+      <MenuList>
+        {fileTargetPath && (
+          <MenuItem
+            label={defaultAppName}
+            icon={<FileText size={16} />}
+            onClick={() => void openFileWithDefaultApp()}
+          />
+        )}
+        <MenuItem
+          label={fileManagerName}
+          icon={renderFileManagerIcon()}
+          active={selectedTarget === FILE_MANAGER_TARGET}
+          onClick={() => void openFileManager()}
+        />
+        {availableEditors.map((app) => (
+          <MenuItem
+            key={app.id}
+            label={app.name}
+            icon={getEditorIcon(app)}
+            active={selectedTarget === app.id}
+            onClick={() => openInEditor(app)}
+          />
+        ))}
+      </MenuList>
+    </PopoverContent>
+  )
+
+  if (menuTrigger) {
+    const trigger = <PopoverTrigger asChild>{menuTrigger}</PopoverTrigger>
+    return (
+      <Popover>
+        {tooltip ? <NormalTooltip content={tooltip}>{trigger}</NormalTooltip> : trigger}
+        {menu}
+      </Popover>
+    )
+  }
 
   if (!hasAlternativeTargets) {
     return (
-      <NormalTooltip content={primaryLabel} delayDuration={500}>
+      <NormalTooltip content={primaryTooltip} delayDuration={500}>
         <Button
           type="button"
           variant="ghost"
@@ -141,7 +182,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
 
   return (
     <ButtonGroup attached={false} className={cn(SPLIT_BUTTON_GROUP_CLASS, 'gap-0', className)}>
-      <NormalTooltip content={primaryLabel} delayDuration={500}>
+      <NormalTooltip content={primaryTooltip} delayDuration={500}>
         <Button
           type="button"
           className={`w-8 min-w-8 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
@@ -163,32 +204,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
             <ChevronDown size={14} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-56 p-1" align="end">
-          <MenuList>
-            {fileTargetPath && (
-              <MenuItem
-                label={defaultAppName}
-                icon={<FileText size={16} />}
-                onClick={() => void openFileWithDefaultApp()}
-              />
-            )}
-            <MenuItem
-              label={fileManagerName}
-              icon={renderFileManagerIcon()}
-              active={selectedTarget === FILE_MANAGER_TARGET}
-              onClick={() => void openFileManager()}
-            />
-            {availableEditors.map((app) => (
-              <MenuItem
-                key={app.id}
-                label={app.name}
-                icon={getEditorIcon(app)}
-                active={selectedTarget === app.id}
-                onClick={() => openInEditor(app)}
-              />
-            ))}
-          </MenuList>
-        </PopoverContent>
+        {menu}
       </Popover>
     </ButtonGroup>
   )

@@ -365,7 +365,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
-const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrotask(resolve))
+const flushCommandMenuAction = flushAnimationFrame
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(() => {
