@@ -152,10 +152,26 @@ describe('EmojiPicker', () => {
     expect(emojiPickerPropsMock.value.categoryIcons).toBeUndefined()
   })
 
-  it('leaves category label layout to emoji-picker-react', () => {
+  it('keeps category label paint aligned with its sticky layout box', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
 
-    expect(css).not.toContain('.cherry-emoji-picker-react .epr-emoji-category-label')
+    expect(css).not.toMatch(/\.cherry-emoji-picker-react \.epr-emoji-category-label\s*\{[^}]*transform:/)
+  })
+
+  it('applies the category label paint guard on every platform', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
+    const categoryLabelRule = css.match(
+      /(?:^|\n)\.cherry-emoji-picker-react \.epr-emoji-category-label\s*\{([^}]*)\}/
+    )?.[1]
+
+    expect(categoryLabelRule).toContain('backdrop-filter: none')
+    expect(categoryLabelRule).toContain('box-shadow: 0 -1px 0 var(--epr-category-label-bg-color)')
+  })
+
+  it('does not keep a Windows-only category label override', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
+
+    expect(css).not.toContain("body[os='windows'] .cherry-emoji-picker-react .epr-emoji-category-label")
   })
 
   it('centers custom category icons inside their buttons', () => {

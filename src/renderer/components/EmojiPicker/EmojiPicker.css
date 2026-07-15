@@ -5,6 +5,12 @@ body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
     'Noto Color Emoji', 'EmojiOne Color', 'Android Emoji' !important;
 }
 
+/* The opaque label background makes the vendor blur redundant; overscan the sticky paint edge by 1px. */
+.cherry-emoji-picker-react .epr-emoji-category-label {
+  backdrop-filter: none;
+  box-shadow: 0 -1px 0 var(--epr-category-label-bg-color);
+}
+
 .cherry-emoji-picker-react .epr-cat-btn {
   display: flex;
   align-items: center;
