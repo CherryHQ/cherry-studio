@@ -928,7 +928,7 @@ const Sessions = ({
     setOptimisticAgentOrderIds(null)
   }, [agentOrderSignature])
 
-  const ordinarySessionGroupLabel = isRightPanel ? '' : t('agent.session.list.title')
+  const ordinarySessionGroupLabel = t('agent.session.list.title')
   const sessionGroupBy = useMemo(
     () =>
       createSessionDisplayGroupResolver({

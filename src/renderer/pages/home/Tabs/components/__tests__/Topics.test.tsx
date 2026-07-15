@@ -1294,27 +1294,52 @@ describe('Topics', () => {
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
   })
 
-  it('keeps the right panel flat without date or collapse controls', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(6) }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
+  it('shows independently collapsible pinned and conversation groups in the right panel', () => {
+    const topics = withPinnedTopics(
+      [
+        createApiTopic({ id: 'topic-pinned', name: 'Pinned topic', assistantId: 'assistant-1', orderKey: 'a' }),
+        createApiTopic({ id: 'topic-ordinary', name: 'Ordinary topic', assistantId: 'assistant-1', orderKey: 'b' })
+      ],
+      ['topic-pinned']
+    )
+    setScopedTopicInfiniteQuery(topics)
+    applyTopicStats(topics, ['topic-pinned'])
+
+    renderTopicList({
+      activeTopic: createRendererTopic({
+        id: 'topic-pinned',
+        name: 'Pinned topic',
+        assistantId: 'assistant-1',
+        pinned: true
+      }),
+      assistantIdFilter: 'assistant-1',
+      presentation: 'right-panel'
     })
 
-    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
-
+    const pinnedGroup = screen.getByRole('button', { name: 'Pinned' })
+    const conversationGroup = screen.getByRole('button', { name: 'Conversations' })
+    expect(pinnedGroup.compareDocumentPosition(conversationGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(pinnedGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(conversationGroup).toHaveAttribute('aria-expanded', 'true')
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { expanded: true })).not.toBeInTheDocument()
-    expect(screen.queryByText('Show more conversations')).not.toBeInTheDocument()
-    expect(screen.queryByText('Collapse conversations')).not.toBeInTheDocument()
-    expect(screen.getByText('Topic 1')).toBeInTheDocument()
-    expect(screen.getByText('Topic 6')).toBeInTheDocument()
+    expect(screen.getByText('Pinned topic')).toBeInTheDocument()
+    expect(screen.getByText('Ordinary topic')).toBeInTheDocument()
+
+    fireEvent.click(pinnedGroup)
+    expect(pinnedGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(conversationGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByText('Pinned topic')).not.toBeInTheDocument()
+    expect(screen.getByText('Ordinary topic')).toBeInTheDocument()
+
+    fireEvent.click(conversationGroup)
+    expect(conversationGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Ordinary topic')).not.toBeInTheDocument()
+
+    fireEvent.click(pinnedGroup)
+    expect(pinnedGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(conversationGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('Pinned topic')).toBeInTheDocument()
+    expect(screen.queryByText('Ordinary topic')).not.toBeInTheDocument()
   })
 
   it('forces the flat time mode in the right panel even when assistant mode is stored', () => {

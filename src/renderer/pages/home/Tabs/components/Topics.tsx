@@ -848,7 +848,7 @@ export function Topics({
     [t, updateTopic]
   )
 
-  const ordinaryTopicGroupLabel = isRightPanel ? '' : t('chat.topics.title')
+  const ordinaryTopicGroupLabel = t('chat.topics.title')
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
@@ -1631,7 +1631,6 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
-        groupHeaderClickBehavior={isRightPanel ? 'none' : 'toggle'}
         dragCapabilities={{
           groups: isAssistantDisplayMode,
           items: isAssistantDisplayMode && topicSortBy === 'orderKey',

@@ -1028,6 +1028,47 @@ describe('Sessions', () => {
     expect(screen.getByPlaceholderText('Search tasks')).toBeInTheDocument()
   })
 
+  it('shows independently collapsible pinned and task groups in the right panel', () => {
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-pinned',
+          name: 'Pinned task',
+          agentId: 'agent-a',
+          pinned: true,
+          pinId: 'pin-session-pinned'
+        }),
+        createSession({ id: 'session-ordinary', name: 'Ordinary task', agentId: 'agent-a' })
+      ]
+    })
+
+    render(<SessionsForTest activeSessionId="session-pinned" agentIdFilter="agent-a" presentation="right-panel" />)
+
+    const pinnedGroup = screen.getByRole('button', { name: 'Pinned' })
+    const taskGroup = screen.getByRole('button', { name: 'Tasks' })
+    expect(pinnedGroup.compareDocumentPosition(taskGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(pinnedGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(taskGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Pinned task')).toBeInTheDocument()
+    expect(screen.getByText('Ordinary task')).toBeInTheDocument()
+
+    fireEvent.click(pinnedGroup)
+    expect(pinnedGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(taskGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByText('Pinned task')).not.toBeInTheDocument()
+    expect(screen.getByText('Ordinary task')).toBeInTheDocument()
+
+    fireEvent.click(taskGroup)
+    expect(taskGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Ordinary task')).not.toBeInTheDocument()
+
+    fireEvent.click(pinnedGroup)
+    expect(pinnedGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(taskGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('Pinned task')).toBeInTheDocument()
+    expect(screen.queryByText('Ordinary task')).not.toBeInTheDocument()
+  })
+
   it('forces the flat time mode in the right panel even when the agent display mode is stored', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setupSessions()
