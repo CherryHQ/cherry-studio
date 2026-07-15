@@ -110,7 +110,7 @@ vi.mock('@cherrystudio/ui', () => {
     Badge: passthrough('span'),
     Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
       React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
-    ConfirmDialog: ({ open, title, description, confirmText, onConfirm }: any) =>
+    ConfirmDialog: ({ open, title, description, confirmText, cancelText, onConfirm }: any) =>
       open
         ? React.createElement(
             'div',
@@ -121,7 +121,8 @@ vi.mock('@cherrystudio/ui', () => {
               'button',
               { onClick: () => onConfirm?.(), 'data-testid': 'confirm-dialog-confirm' },
               confirmText ?? 'confirm'
-            )
+            ),
+            React.createElement('button', { 'data-testid': 'confirm-dialog-cancel' }, cancelText ?? 'cancel')
           )
         : null,
     Dialog: dialog,
@@ -719,5 +720,8 @@ describe('EnvironmentDependencies', () => {
 
     fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
     expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.removeConfirmMessage')
+    // Confirm/cancel buttons must be localized, not the component's English defaults.
+    expect(screen.getByTestId('confirm-dialog-confirm')).toHaveTextContent('common.delete')
+    expect(screen.getByTestId('confirm-dialog-cancel')).toHaveTextContent('common.cancel')
   })
 })

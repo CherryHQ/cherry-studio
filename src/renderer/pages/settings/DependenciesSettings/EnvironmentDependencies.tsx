@@ -411,6 +411,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             : 'settings.dependencies.removeConfirmMessage',
           { name: deleteTargetRef.current.name }
         )}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
         destructive
         onConfirm={async () => {
           if (deleteTarget) await handleRemoveTool(deleteTarget.name)
