@@ -15,6 +15,12 @@ describe('formatErrorDetails', () => {
     expect(result).toContain('"status": "Internal Server Error"')
   })
 
+  it('returns an empty string for falsy/empty errors without throwing', () => {
+    expect(formatErrorDetails(null)).toBe('')
+    expect(formatErrorDetails(undefined)).toBe('')
+    expect(formatErrorDetails('')).toBe('')
+  })
+
   it('strips headers, stack and request_id from the details dump', () => {
     const result = formatErrorDetails({
       code: 500,

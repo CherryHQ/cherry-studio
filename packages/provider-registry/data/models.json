@@ -18640,7 +18640,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 262144,
+      "contextWindow": 202800,
       "family": "glm",
       "id": "glm-5-turbo",
       "inputModalities": ["text"],
@@ -19897,5 +19897,5 @@
       }
     }
   ],
-  "version": "2710418511ba0dde"
+  "version": "42be5818ffb57071"
 }

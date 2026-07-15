@@ -19,6 +19,13 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /**
+   * Rotation-insensitive identity of the credentials the options were built with (e.g. a hash of the
+   * provider's enabled key SET). The raw rotated key is stripped from the signature — `getRotatedApiKey`
+   * advances per build, so prewarm/consume would otherwise never match on multi-key providers — while
+   * this fingerprint keeps the signature sensitive to the key set actually changing.
+   */
+  credentialsFingerprint?: string
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -72,12 +79,29 @@ function sanitizeMcpServersForSignature(mcpServers: Options['mcpServers']): unkn
   return sanitized
 }
 
-export function createClaudeCodeWarmQuerySignature(options: Options): string {
-  const stripped = stripWarmQueryOptions(options)
+const CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const
+
+/**
+ * Drop the injected credential env vars from the signature source WITHOUT mutating the caller's
+ * options — `stripWarmQueryOptions` shallow-copies, so `env` is shared with the live spawn options.
+ */
+function stripCredentialEnvForSignature(options: Options): Options {
+  const env = options.env
+  if (!env || !CREDENTIAL_ENV_KEYS.some((key) => key in env)) return options
+  const cleanedEnv = { ...env }
+  for (const key of CREDENTIAL_ENV_KEYS) delete cleanedEnv[key]
+  return { ...options, env: cleanedEnv }
+}
+
+export function createClaudeCodeWarmQuerySignature(options: Options, credentialsFingerprint?: string): string {
+  const stripped = stripCredentialEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
     ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
     : stripped
-  return JSON.stringify(normalizeForSignature(signatureSource))
+  return JSON.stringify({
+    options: normalizeForSignature(signatureSource),
+    credentials: credentialsFingerprint ?? null
+  })
 }
 
 @Injectable('ClaudeCodeWarmQueryManager')
@@ -113,7 +137,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   prewarm(request: WarmQueryRequest): void {
     const warmOptions = stripWarmQueryOptions(request.options)
-    const signature = createClaudeCodeWarmQuerySignature(warmOptions)
+    const signature = createClaudeCodeWarmQuerySignature(warmOptions, request.credentialsFingerprint)
     const existing = this.entries.get(request.key)
 
     if (existing?.signature === signature) {
@@ -142,7 +166,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   async consume(request: WarmQueryRequest): Promise<WarmQuery | undefined> {
     const warmOptions = stripWarmQueryOptions(request.options)
-    const signature = createClaudeCodeWarmQuerySignature(warmOptions)
+    const signature = createClaudeCodeWarmQuerySignature(warmOptions, request.credentialsFingerprint)
     const entry = this.entries.get(request.key)
     if (!entry) return undefined
 

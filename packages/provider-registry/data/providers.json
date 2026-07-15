@@ -76,6 +76,7 @@
       "name": "AiHubMix"
     },
     {
+      "authOptional": true,
       "description": "OpenVINO Model Server - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -413,6 +414,7 @@
       "name": "OpenRouter"
     },
     {
+      "authOptional": true,
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -462,6 +464,7 @@
       "name": "New API"
     },
     {
+      "authOptional": true,
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1256,6 +1259,7 @@
       "name": "Baidu Cloud"
     },
     {
+      "authOptional": true,
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "GPUStack - AI model provider",
       "endpointConfigs": {
@@ -1506,5 +1510,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "43e3aec5e53392a1"
+  "version": "46358edb016a4165"
 }

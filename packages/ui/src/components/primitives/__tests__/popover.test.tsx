@@ -124,4 +124,15 @@ describe('PopoverContent', () => {
       portalContainer.remove()
     }
   })
+
+  it('marks content as no-drag so it stays clickable over titlebar drag regions', () => {
+    render(
+      <Popover open>
+        <PopoverTrigger>Open</PopoverTrigger>
+        <PopoverContent data-testid="content">Content</PopoverContent>
+      </Popover>
+    )
+
+    expect(screen.getByTestId('content')).toHaveClass('[-webkit-app-region:no-drag]')
+  })
 })

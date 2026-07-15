@@ -137,7 +137,7 @@
     "tsdown": "^0.15.5",
     "tsx": "^4.20.6",
     "typescript": "^5.6.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.7"
   },
   "sideEffects": [
     "**/*.css"

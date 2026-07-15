@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
 import type { ModelSelectorModelItem } from '../types'
 
-const { mockHoverCardContentProps, mockHoverCardOpenChange } = vi.hoisted(() => ({
+const { mockHoverCardContentProps, mockHoverCardProps, mockHoverCardOpenChange } = vi.hoisted(() => ({
   mockHoverCardContentProps: [] as Array<{
     className?: string
     side?: string
@@ -16,6 +16,10 @@ const { mockHoverCardContentProps, mockHoverCardOpenChange } = vi.hoisted(() => 
     collisionPadding?: number
     avoidCollisions?: boolean
     portalContainer?: DocumentFragment | Element | null
+  }>,
+  mockHoverCardProps: [] as Array<{
+    openDelay?: number
+    closeDelay?: number
   }>,
   mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
 }))
@@ -50,7 +54,18 @@ vi.mock('@renderer/components/tags/Model', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  HoverCard: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => {
+  HoverCard: ({
+    children,
+    openDelay,
+    closeDelay,
+    onOpenChange
+  }: {
+    children: ReactNode
+    openDelay?: number
+    closeDelay?: number
+    onOpenChange?: (open: boolean) => void
+  }) => {
+    mockHoverCardProps.push({ openDelay, closeDelay })
     mockHoverCardOpenChange.current = onOpenChange
     return <>{children}</>
   },
@@ -133,6 +148,7 @@ describe('ModelSelectorDetailCard', () => {
 
   beforeEach(() => {
     mockHoverCardContentProps.length = 0
+    mockHoverCardProps.length = 0
     mockHoverCardOpenChange.current = undefined
   })
 
@@ -168,9 +184,13 @@ describe('ModelSelectorDetailCard', () => {
     })
     expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
     expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
+    expect(mockHoverCardProps.at(-1)).toMatchObject({
+      openDelay: 1500,
+      closeDelay: 100
+    })
   })
 
-  it('keeps the hover card horizontal when neither side has enough room', () => {
+  it('keeps the hover card on the wider horizontal side when neither side fully fits', () => {
     const model = makeModel()
 
     vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(280)

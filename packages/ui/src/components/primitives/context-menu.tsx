@@ -11,13 +11,15 @@ import { usePortalContainer } from './portal-container'
 /* ─── Style variants ──────────────────────────────────────────────────────── */
 
 const menuContentStyles = cn(
-  'z-50 max-h-(--radix-context-menu-content-available-height) min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+  // no-drag punches the popup's area out of any titlebar drag region it overlaps,
+  // so hover/click reach the items instead of the window-drag hit test (Electron).
+  'z-50 max-h-(--radix-context-menu-content-available-height) min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md [-webkit-app-region:no-drag]',
   'data-[state=open]:animate-in data-[state=closed]:animate-out',
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
   'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
 )
 const menuSubContentStyles = cn(
-  'z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg',
+  'z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg [-webkit-app-region:no-drag]',
   'data-[state=open]:animate-in data-[state=closed]:animate-out',
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
   'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
@@ -35,8 +37,12 @@ const menuItemVariants = cva(
     variants: {
       variant: {
         default: '',
+        // The icon selector is a descendant (`[&_svg]`), not a direct-child (`*:[svg]`) match:
+        // ContextMenuItemContent wraps the icon in extra spans, so a direct-child rule never
+        // reaches it and the base `text-muted-foreground` rule would win, leaving destructive
+        // icons gray. Mirror the base rule's `:not([class*='text-'])` so callers can still opt out.
         destructive:
-          'text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 data-[variant=destructive]:*:[svg]:text-destructive!'
+          "text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!"
       },
       inset: {
         true: 'pl-8',

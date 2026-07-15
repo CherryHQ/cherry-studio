@@ -67,6 +67,11 @@ const channelDataMock = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>
 }))
 
+const translationMock = vi.hoisted(() => ({
+  i18n: { language: 'en-US' },
+  t: (key: string) => key
+}))
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
@@ -127,19 +132,10 @@ vi.mock('@renderer/components/ListItem', () => ({
   )
 }))
 
-vi.mock('react-i18next', () => {
-  // Stable `t` reference (matches real i18next) so callbacks/effects depending
-  // on `t` don't churn — an unstable `t` re-runs TasksSettings' loadData effect
-  // on every render, causing a refetch storm that flakes waitFor under CI load.
-  const t = (key: string) => key
-  return {
-    initReactI18next: { type: '3rdParty', init: vi.fn() },
-    useTranslation: () => ({
-      i18n: { language: 'en-US' },
-      t
-    })
-  }
-})
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => translationMock
+}))
 
 vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext<{
@@ -524,6 +520,7 @@ describe('TasksSettings task logs', () => {
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
     )
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledTimes(4))
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {

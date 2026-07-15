@@ -31,6 +31,11 @@
       "submit": "送信",
       "title": "エージェントからの質問"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "内蔵のCherry Studioアドバイザー。問題の診断、操作ガイド、FAQの収集、バグ/機能リクエストの提出、およびスキルの検索/作成を行います。"
+      }
+    },
     "channels": {
       "add": "追加",
       "bindAgent": "バインドエージェント",
@@ -1902,7 +1907,8 @@
         "permissions_deny": "拒否（カンマ区切り）",
         "permissions_hint": "ツールパターンを事前承認または拒否します。ワイルドカード（例：Read(secrets-*/config.json)）をサポートします。",
         "role_column": "役割",
-        "sonnet_model": "ソネット"
+        "sonnet_model": "ソネット",
+        "subagent_model": "サブエージェント"
       },
       "codex": {
         "disable_response_storage": "応答の保存を無効にする",
@@ -1960,6 +1966,11 @@
         "xhigh": "エクストラハイ"
       },
       "select_placeholder": "選択…"
+    },
+    "api_gateway": {
+      "description": "あらゆるCLI、すべてのモデル",
+      "requires_running": "有効化後、Cherry Studio を実行し続けてください — 外部 CLI は、Cherry Studio がホストするゲートウェイに接続します。",
+      "title": "統合ゲートウェイ"
     },
     "apply_failed": "システムファイルへのCLI設定の書き込みに失敗しました",
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
@@ -2040,6 +2051,7 @@
     "model_required": "モデルを選択してください",
     "model_selection": "モデル選択",
     "more": "もっと",
+    "move_provider_to_top": "プロバイダーをトップに移動",
     "no_matching_providers": "一致するプロバイダーがありません",
     "no_model_for_provider": "このプロバイダーには利用可能なモデルがありません",
     "no_providers_description": "設定 → モデルサービスで対応しているプロバイダーを有効にする",
@@ -3145,6 +3157,7 @@
             "no_skills_enabled": "スキルが有効になっていません",
             "search_placeholder": "検索ツールまたはサーバー...",
             "skills_coming_soon": "スキルバインディング、近日公開",
+            "skills_enable_all": "すべて有効にする",
             "skills_require_save": "スキルを有効にする前に保存してください",
             "tab": {
               "mcp": "MCPサーバー",
@@ -3267,6 +3280,7 @@
       },
       "knowledge": {
         "add": "ナレッジベースを追加",
+        "create_first": "オープンな知識で一つを作る",
         "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",
         "doc_count": "{{count}} 件のドキュメント",
         "empty_desc": "リンクが完了すると、アシスタントはドキュメントの内容に基づいて回答できます",
@@ -3280,6 +3294,7 @@
         "title": "ナレッジベース"
       },
       "prompt": {
+        "copy_variable": "{{variable}}をコピー",
         "create_title": "新しいプロンプト",
         "dblclick_hint": "プレビューをダブルクリックすると編集に戻ります",
         "desc": "システムプロンプトはアシスタントの最初の文脈として送信されます",
@@ -3594,7 +3609,7 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "画像が大きすぎます（最大 {{limit}}）",
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
@@ -3616,7 +3631,7 @@
         "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "画像の処理に失敗しました。もう一度お試しください。",
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",
@@ -3781,6 +3796,8 @@
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
       "activity": {
+        "analyze": "分析",
+        "analyzing": "分析",
         "archive": "アーカイブ",
         "assistantTask": "タスク",
         "availableFeatures": "利用可能な機能",
@@ -3788,24 +3805,28 @@
         "branch": "コードブランチ",
         "build": "ビルド",
         "building": "建築",
+        "calendar": "カレンダー",
         "check": "確認",
         "checking": "確認中",
         "codeFiles": "コードファイル",
         "codeHostInfo": "コードホスティング情報",
-        "commandName": "{{name}} コマンド",
         "configFiles": "プロジェクトのドキュメントと設定ファイル",
         "copy": "コピー",
         "copying": "コピー",
         "create": "作成",
         "creating": "作成",
         "currentFolder": "現在のフォルダ",
+        "data": "データ",
         "delete": "削除",
         "deleting": "削除",
         "documentFiles": "ドキュメントファイル",
         "download": "ダウンロード",
         "downloading": "ダウンロード中",
+        "email": "メール",
+        "environmentInfo": "環境情報",
         "executeCommand": "コマンドを実行",
         "executingCommand": "コマンドを実行中",
+        "extensionFailed": "拡張機能が失敗しました",
         "extract": "抽出",
         "extracting": "抽出",
         "file": "ファイル",
@@ -3834,6 +3855,10 @@
         "repository": "コードリポジトリ",
         "search": "見つける",
         "searching": "見つける",
+        "send": "送信",
+        "sending": "送信",
+        "start": "開始",
+        "starting": "開始",
         "switch": "スイッチ",
         "switching": "切り替え",
         "sync": "同期",
@@ -3843,6 +3868,8 @@
         "translationFiles": "翻訳ファイル",
         "upload": "アップロード",
         "uploading": "アップロード中",
+        "usedExtension": "拡張機能を使用しました",
+        "usingExtension": "拡張機能を使用する",
         "view": "表示",
         "viewing": "閲覧",
         "webPage": "ウェブページ",
@@ -4036,6 +4063,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "カスタムモデルを設定",
       "pin": "このモデルをピン留め",
       "unpin": "モデルのピン留めを解除"
     },
@@ -5535,75 +5563,6 @@
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "バックアップファイルを選択"
-        },
-        "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
-        "file": {
-          "button": "ファイルにエクスポート",
-          "content": "モバイルでファイル経由でインポートできるバックアップファイルとしてデータをエクスポートします。",
-          "export_failed": "エクスポートに失敗しました",
-          "export_success": "エクスポート成功",
-          "title": "ファイルとしてエクスポート"
-        },
-        "lan": {
-          "button": "転送を開始",
-          "connected": "接続済み",
-          "connection_failed": "接続に失敗しました",
-          "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
-          "device_list_title": "ローカルネットワークデバイス",
-          "discovered_devices": "発見されたデバイス",
-          "error": {
-            "file_too_large": "ファイルが大きすぎます。最大500MBまでサポートされています。",
-            "init_failed": "初期化に失敗しました",
-            "invalid_file_type": "ZIPファイルのみがサポートされています",
-            "no_file": "ファイルが選択されていません",
-            "no_ip": "IPアドレスを取得できません",
-            "not_connected": "まずハンドシェイクを完了してください",
-            "send_failed": "ファイルの送信に失敗しました"
-          },
-          "file_transfer": {
-            "cancelled": "転送がキャンセルされました",
-            "failed": "ファイル転送に失敗しました: {{message}}",
-            "progress": "送信中... {{progress}}%",
-            "success": "ファイルは正常に送信されました"
-          },
-          "handshake": {
-            "button": "握手",
-            "failed": "ハンドシェイクに失敗しました: {{message}}",
-            "in_progress": "ハンドシェイク中...",
-            "success": "{{device}}とのハンドシェイクが完了しました",
-            "test_message_received": "{{device}}からpongを受信しました",
-            "test_message_sent": "hello world テストペイロードを送信しました"
-          },
-          "idle_hint": "スキャンが一時停止されました。スキャンを開始して、LAN上のCherry Studioピアを検索してください。",
-          "ip_addresses": "IPアドレス",
-          "last_seen": "最後に見たのは{{time}}",
-          "metadata": "メタデータ",
-          "no_connection_warning": "Cherry StudioモバイルでLAN転送を開いてください",
-          "no_devices": "まだLANピアが見つかっていません",
-          "scan_devices": "デバイスをスキャン",
-          "scanning_hint": "ローカルネットワークでCherry Studioのピアをスキャンしています...",
-          "send_file": "ファイルを送信",
-          "status": {
-            "completed": "転送完了",
-            "connected": "接続済み",
-            "connecting": "接続中...",
-            "disconnected": "切断されました",
-            "error": "接続エラー",
-            "initializing": "接続を初期化中...",
-            "preparing": "転送準備中...",
-            "sending": "転送中 {{progress}}%"
-          },
-          "status_badge_idle": "アイドル",
-          "status_badge_scanning": "スキャン",
-          "stop_scan": "スキャンを停止",
-          "title": "LAN転送",
-          "transfer_progress": "転送進行"
-        },
-        "title": "スマートフォンにエクスポート"
-      },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",
       "import_settings": {
@@ -6799,6 +6758,7 @@
           "confirm": "すべてのモデルをリストに追加しますか？",
           "label": "すべてのモデルを追加"
         },
+        "add_success_enable_failed": "モデルが追加されましたが、プロバイダーを有効化できませんでした。",
         "add_whole_group": "グループ全体を追加",
         "clean_stale_models": "無効なモデルをクリーンアップ",
         "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
@@ -7210,6 +7170,7 @@
         "fill_after_create": "認証フィールドは作成後に入力できます",
         "menu_label": "インスタンスを追加"
       },
+      "enable_failed_after_connection": "接続は成功しましたが、プロバイダーを有効にすることができませんでした。",
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",

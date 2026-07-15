@@ -37,14 +37,14 @@ function CatalogBadges({ item }: { item: CatalogItem }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {item.inactiveBadge ? (
-        <Badge className="h-4 rounded-3xs border-0 bg-warning/10 px-1 py-0 font-normal text-warning text-xs">
+        <Badge className="h-4 border-0 bg-warning/10 px-1.5 py-0 font-normal text-warning text-xs">
           {item.inactiveBadge}
         </Badge>
       ) : null}
       {item.statusBadge ? (
         <Badge
           className={cn(
-            'h-4 rounded-3xs border-0 px-1 py-0 font-normal text-xs',
+            'h-4 border-0 px-1.5 py-0 font-normal text-xs',
             item.statusBadgeClassName ?? 'bg-muted text-muted-foreground'
           )}>
           {item.statusBadge}
@@ -84,7 +84,12 @@ export const CatalogToggleGrid: FC<{
 
         const info = (
           <div className="min-w-0">
-            <div className={cn('flex min-w-0 items-center gap-1.5 text-sm', toggleDisabled && 'text-muted-foreground')}>
+            <div
+              className={cn(
+                'flex min-w-0 items-center gap-1.5',
+                variant === 'checkbox' ? 'text-sm' : 'text-[13px]',
+                toggleDisabled && 'text-muted-foreground'
+              )}>
               <span className="truncate" title={item.name}>
                 {item.name}
               </span>
@@ -121,7 +126,9 @@ export const CatalogToggleGrid: FC<{
         }
 
         return (
-          <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1">
+          <div
+            key={item.id}
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-muted px-2.5 py-1.5">
             {info}
             <Tooltip
               content={disabledReason}
@@ -228,13 +235,17 @@ export const AddCatalogPopover: FC<{
         align={align}
         portalContainer={portalContainer ?? undefined}
         className="w-72 max-w-[calc(100vw-2rem)] rounded-md p-0">
-        <Command shouldFilter={false}>
+        {/* Pill search row: style CommandInput's own wrapper via its data-slot so the
+            shared CommandInput stays untouched. */}
+        <Command
+          shouldFilter={false}
+          className="[&_[data-slot=command-input-wrapper]]:mx-2 [&_[data-slot=command-input-wrapper]]:mt-2 [&_[data-slot=command-input-wrapper]]:mb-1 [&_[data-slot=command-input-wrapper]]:h-7 [&_[data-slot=command-input-wrapper]]:rounded-full [&_[data-slot=command-input-wrapper]]:border-[0.5px] [&_[data-slot=command-input-wrapper]]:border-border-subtle [&_[data-slot=command-input-wrapper]]:px-2.5">
           <CommandInput
             value={search}
             onValueChange={setSearch}
             disabled={disabled}
             placeholder={searchPlaceholder}
-            className="h-8 text-xs"
+            className="h-7 text-xs placeholder:text-muted-foreground/40"
           />
           <CommandList>
             {filteredOptions.length === 0 ? (
@@ -254,7 +265,7 @@ export const AddCatalogPopover: FC<{
                     }}>
                     {option.item.icon ? <span className="shrink-0">{option.item.icon}</span> : null}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-foreground/90">{option.item.name}</div>
+                      <div className="truncate text-foreground/70">{option.item.name}</div>
                       {option.item.description ? (
                         <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
                       ) : null}
