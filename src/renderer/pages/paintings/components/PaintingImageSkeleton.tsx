@@ -99,28 +99,35 @@ const PaintingImageSkeleton: FC<{
     lockedSize = { width: naturalWidth * scale, height: naturalHeight * scale }
   }
 
-  // Match the real image's `max-h-full max-w-full` + `object-contain` — constrain
-  // whichever axis is the tighter fit, same as the browser does for the `<img>`.
-  // Pixel values (not `%`) once measured so the top bar's height comes out of
-  // the constrained axis the same way `lockedSize` already does; falls back to
-  // `SKELETON_MAX_SIZE` before the first measurement (avoids a collapsed box).
-  const boxStyle: CSSProperties | undefined = lockedSize
-    ? { width: lockedSize.width, height: lockedSize.height }
+  // Match the real image's `max-h-full max-w-full` + `object-contain` — resolve
+  // the box to explicit pixels wherever its size is known (locked to the decoded
+  // natural size, or derived from the declared ratio once measured), constraining
+  // whichever axis is the tighter fit: height when the image is narrower than the
+  // container (portrait), width otherwise.
+  let boxSize: { width: number; height: number } | null = lockedSize
+  if (!boxSize && ratio != null && container) {
+    if (containerRatio != null && ratio < containerRatio && availableHeight != null) {
+      boxSize = { width: availableHeight * ratio, height: availableHeight }
+    } else if (hasMeasuredWidth) {
+      boxSize = { width: container.width, height: container.width / ratio }
+    }
+  }
+
+  // Explicit px once sized; `SKELETON_MAX_SIZE` before the first measurement
+  // (avoids a collapsed box); `undefined` when no ratio is known at all.
+  const boxStyle: CSSProperties | undefined = boxSize
+    ? { width: boxSize.width, height: boxSize.height }
     : ratio == null
       ? undefined
-      : containerRatio != null && ratio < containerRatio && availableHeight != null
-        ? { height: availableHeight, width: 'auto', aspectRatio: String(ratio) }
-        : {
-            width: hasMeasuredWidth && container ? container.width : SKELETON_MAX_SIZE,
-            height: 'auto',
-            aspectRatio: String(ratio)
-          }
+      : { width: SKELETON_MAX_SIZE, height: 'auto', aspectRatio: String(ratio) }
 
-  // The box's size is known (locked or ratio-derived) whenever boxStyle is set —
-  // shrink-wrap the [topBar, box] column to it so the bar matches the box's width
-  // instead of the full available area. Falls back to filling the area (box grows
-  // via flex-1) when no ratio is known at all.
   const hasKnownSize = boxStyle != null
+  // Pin the [topBar, box] column to the box's pixel width so the top bar tracks
+  // the image edges, instead of a long prompt's intrinsic width stretching the
+  // column out to the full canvas (with only the box carrying the width, the
+  // column is free to grow past a narrow/portrait image). Undefined in the
+  // pre-measurement fallback, where the column fills the available width.
+  const columnWidth = boxSize?.width
 
   return (
     <div
@@ -129,9 +136,11 @@ const PaintingImageSkeleton: FC<{
       role="status"
       aria-live="polite"
       aria-label={t(imageUrl ? 'paintings.revealing' : 'paintings.generating')}>
-      <div className={cn('flex flex-col items-stretch', hasKnownSize ? 'max-h-full max-w-full' : 'h-full w-full')}>
+      <div
+        className={cn('flex flex-col items-stretch', hasKnownSize ? 'max-h-full max-w-full' : 'h-full w-full')}
+        style={columnWidth != null ? { width: columnWidth } : undefined}>
         {topBar && (
-          <div ref={setTopBarRef} data-testid="painting-skeleton-top-bar-measure">
+          <div ref={setTopBarRef} className="min-w-0" data-testid="painting-skeleton-top-bar-measure">
             {topBar}
           </div>
         )}

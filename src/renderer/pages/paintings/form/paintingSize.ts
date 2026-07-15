@@ -1,6 +1,7 @@
 import type { PaintingData } from '../model/types/paintingData'
 import type { BaseConfigItem } from './baseConfigItem'
 import { deriveChipLabel, parseRatio } from './fields/SizeChipsField'
+import { resolveOptions } from './resolveOptions'
 
 /**
  * Size-bearing canonical keys — the fields that carry image dimensions. Shared by
@@ -52,12 +53,16 @@ export function resolveRatio(params: PaintingData['params'], items: BaseConfigIt
 /**
  * Human-readable size label for the same effective value `resolveRatio` reads
  * (`params[key] ?? item.initialValue` over the size-bearing field) — e.g.
- * `1024×1024` or `auto`. Used by the artboard's prompt bar; distinct from
- * `resolveRatio` in that it keeps `auto` as a label instead of collapsing it
- * to a 1:1 ratio. Returns undefined when the model declares no size field or
+ * `1024×1024` or (localized) `自动`. Used by the artboard's prompt bar; distinct
+ * from `resolveRatio` in that it keeps `auto` as a label instead of collapsing
+ * it to a 1:1 ratio. Returns undefined when the model declares no size field or
  * a custom size has no explicit dimensions yet.
  */
-export function resolveSizeLabel(params: PaintingData['params'], items: BaseConfigItem[]): string | undefined {
+export function resolveSizeLabel(
+  params: PaintingData['params'],
+  items: BaseConfigItem[],
+  translate: (key: string) => string
+): string | undefined {
   for (const item of items) {
     if (!item.key || !(SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)) continue
     if (item.condition && !item.condition(params ?? {})) continue
@@ -70,7 +75,12 @@ export function resolveSizeLabel(params: PaintingData['params'], items: BaseConf
     }
 
     if (typeof value !== 'string' || value === '') continue
-    return deriveChipLabel(value, value)
+    // Localize the selected option the same way the composer's chips do
+    // (`resolveOptions` maps each option's `labelKey`), so a value like `auto`
+    // reads `自动` on a localized UI instead of the raw enum, then reduce it to
+    // the concise chip label.
+    const selected = resolveOptions(item, params ?? {}, translate).find((option) => String(option.value) === value)
+    return deriveChipLabel(selected?.label ?? value, value)
   }
 
   return undefined

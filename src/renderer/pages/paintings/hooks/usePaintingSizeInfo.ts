@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { resolveRatio, resolveSizeLabel } from '../form/paintingSize'
@@ -21,12 +22,13 @@ export interface PaintingSizeInfo {
  * so two consumers don't double-fetch.
  */
 export function usePaintingSizeInfo(painting: PaintingData): PaintingSizeInfo {
+  const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
     () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
     [registrySupport, painting.mode]
   )
   const ratio = useMemo(() => resolveRatio(painting.params, configItems), [painting.params, configItems])
-  const sizeLabel = useMemo(() => resolveSizeLabel(painting.params, configItems), [painting.params, configItems])
+  const sizeLabel = useMemo(() => resolveSizeLabel(painting.params, configItems, t), [painting.params, configItems, t])
   return { ratio, sizeLabel }
 }

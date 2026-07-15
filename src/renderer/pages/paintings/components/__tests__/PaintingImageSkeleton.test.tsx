@@ -175,4 +175,60 @@ describe('PaintingImageSkeleton', () => {
       expect(box.style.height).toBe('240px')
     })
   })
+
+  describe('prompt bar alignment', () => {
+    let clientWidth: ReturnType<typeof vi.spyOn>
+    let clientHeight: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400)
+      clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
+        this: HTMLElement
+      ) {
+        return this.dataset.testid === 'painting-skeleton-top-bar-measure' ? 40 : 300
+      })
+    })
+
+    afterEach(() => {
+      clientWidth.mockRestore()
+      clientHeight.mockRestore()
+    })
+
+    it('pins the [topBar, box] column to the box width so a long prompt cannot stretch it past a narrow image', () => {
+      // Portrait 768×1024 (ratio 0.75) in a 400×(300−40 bar) container is
+      // height-constrained: box width = availableHeight(260) × 0.75 = 195. The
+      // column must be that 195px — the image width — not the 400px canvas nor
+      // the long prompt's intrinsic width. (Without the fix the column is only
+      // `max-w-full`, so the prompt's intrinsic width stretches it out.)
+      mockUseImageGenerationSupport.mockReturnValue(supportWith('size', ['768x1024'], '768x1024'))
+
+      const { getByRole } = render(
+        <PaintingImageSkeleton painting={makePainting()} topBar={<div>{'a very long prompt '.repeat(50)}</div>} />
+      )
+
+      const column = getByRole('status').firstElementChild as HTMLElement
+      expect(column.style.width).toBe('195px')
+      // The box carries the same width, so the bar (stretched to the column) aligns with it.
+      expect((column.lastElementChild as HTMLElement).style.width).toBe('195px')
+      // The bar wrapper keeps `min-w-0` so its content truncates rather than
+      // forcing the column wider (jsdom can't render the stretch, so pin the guard).
+      expect(column.firstElementChild).toHaveClass('min-w-0')
+    })
+
+    it('tracks the full canvas width for an image wider than the container (width-constrained)', () => {
+      // Wide 1600×800 (ratio 2.0) exceeds the container's 400/260≈1.54 aspect, so
+      // it's width-constrained: box = 400 × (400/2 = 200). The column spans the
+      // full 400px canvas, and box height comes from `container.width / ratio` —
+      // pinning that formula, which the portrait branch above never exercises.
+      mockUseImageGenerationSupport.mockReturnValue(supportWith('size', ['1600x800'], '1600x800'))
+
+      const { getByRole } = render(<PaintingImageSkeleton painting={makePainting()} topBar={<div>prompt</div>} />)
+
+      const column = getByRole('status').firstElementChild as HTMLElement
+      expect(column.style.width).toBe('400px')
+      const box = column.lastElementChild as HTMLElement
+      expect(box.style.width).toBe('400px')
+      expect(box.style.height).toBe('200px')
+    })
+  })
 })
