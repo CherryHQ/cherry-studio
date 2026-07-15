@@ -273,6 +273,17 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toContain('edit')
   })
 
+  it('keeps edit actions for editable assistant replies', () => {
+    const context = createActionContext({
+      actions: {
+        editMessage: vi.fn()
+      } as MessageListActions
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toContain('user-edit')
+    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).toContain('edit')
+  })
+
   it('resolves assistant toolbar actions from capabilities', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({

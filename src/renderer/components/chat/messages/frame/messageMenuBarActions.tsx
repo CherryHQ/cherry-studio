@@ -290,7 +290,8 @@ registerToolbarAction({
   icon: <EditIcon size={15} />,
   availability: toolbarAvailability(
     'user-edit',
-    ({ actions, isUserMessage, startEditingMessage }) => isUserMessage && !!actions.editMessage && !!startEditingMessage
+    ({ actions, isAssistantMessage, isEditable, isUserMessage, startEditingMessage }) =>
+      (isUserMessage || (isAssistantMessage && isEditable)) && !!actions.editMessage && !!startEditingMessage
   )
 })
 
@@ -403,8 +404,8 @@ registerAction({
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isEditable, isUserMessage, startEditingMessage }) =>
-    isEditable && !!actions.editMessage && !!startEditingMessage && isUserMessage
+  availability: ({ actions, isAssistantMessage, isEditable, isUserMessage, startEditingMessage }) =>
+    isEditable && !!actions.editMessage && !!startEditingMessage && (isUserMessage || isAssistantMessage)
 })
 
 registerAction({
