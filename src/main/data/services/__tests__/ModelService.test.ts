@@ -191,6 +191,63 @@ describe('ModelService.update', () => {
     expect(row.parameters).toEqual(params)
   })
 
+  it('normalizes a user-declared reasoning patch: dialect from the provider, legacy fields re-derived', async () => {
+    await seedExistingModel()
+
+    lookupModelMock.mockReturnValueOnce({
+      presetModel: null,
+      registryOverride: null,
+      reasoningFormatTypes: { 'openai-chat-completions': 'thinking-type' },
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as any)
+
+    // Model editor shape: knobs only — blank type, no derived fields.
+    modelService.update('openai', 'gpt-4o', {
+      reasoning: {
+        type: '',
+        controls: [
+          { kind: 'effort', values: ['low', 'high'] },
+          { kind: 'budget', min: 1024, max: 8192 }
+        ],
+        supportedEfforts: []
+      }
+    } as UpdateModelDto)
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.reasoning).toMatchObject({
+      type: 'thinking-type',
+      controls: [
+        { kind: 'effort', values: ['low', 'high'] },
+        { kind: 'budget', min: 1024, max: 8192 }
+      ],
+      supportedEfforts: ['low', 'high'],
+      thinkingTokenLimits: { min: 1024, max: 8192 }
+    })
+    expect(row.userOverrides).toContain('reasoning')
+  })
+
+  it('preserves a concrete caller-supplied reasoning dialect', async () => {
+    await seedExistingModel()
+
+    modelService.update('openai', 'gpt-4o', {
+      reasoning: { type: 'anthropic', controls: [{ kind: 'toggle' }], supportedEfforts: [] }
+    } as UpdateModelDto)
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.reasoning).toMatchObject({
+      type: 'anthropic',
+      supportedEfforts: ['none', 'auto']
+    })
+  })
+
   it('throws NOT_FOUND when model does not exist', async () => {
     let err: unknown
     try {

@@ -6831,6 +6831,23 @@
         "setting_title": "快速模型設定",
         "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
       },
+      "reasoning_controls": {
+        "budget": {
+          "label": "思考預算",
+          "max": "最大 Token",
+          "min": "最小 Token",
+          "tooltip": "該模型支援在此範圍內設定思考 Token 預算。"
+        },
+        "effort": {
+          "label": "努力檔位"
+        },
+        "label": "推理控制",
+        "toggle": {
+          "label": "思考開關",
+          "tooltip": "該模型支援思考的開啟/關閉切換。"
+        },
+        "tooltip": "宣告該模型支援的推理旋鈕。請求格式跟隨服務商,不在此處設定。"
+      },
       "toolbar": {
         "custom_add": "自訂",
         "filter_close": "關閉篩選",

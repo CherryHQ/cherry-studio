@@ -699,4 +699,115 @@ describe('Model drawers', () => {
 
     expect(updateModelMock).not.toHaveBeenCalled()
   })
+
+  it('shows reasoning controls only for reasoning-capable models and auto-saves declared knobs', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'my-compat', name: 'My Compat' }
+    })
+
+    const baseModel = {
+      id: 'my-compat::my-thinker',
+      providerId: 'my-compat',
+      name: 'my-thinker',
+      group: 'Custom',
+      capabilities: [],
+      supportsStreaming: true
+    } as any
+
+    const { rerender } = render(<EditModelDrawer providerId="my-compat" open onClose={vi.fn()} model={baseModel} />)
+
+    expect(screen.queryByTestId('model-reasoning-controls')).not.toBeInTheDocument()
+
+    rerender(
+      <EditModelDrawer
+        providerId="my-compat"
+        open
+        onClose={vi.fn()}
+        model={{ ...baseModel, capabilities: ['reasoning'] }}
+      />
+    )
+
+    expect(screen.getByTestId('model-reasoning-controls')).toBeInTheDocument()
+
+    // Effort chips commit immediately, with the legacy pair derived UI-side.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.low' }))
+    })
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'my-compat',
+      'my-thinker',
+      expect.objectContaining({
+        reasoning: expect.objectContaining({
+          type: '',
+          controls: [{ kind: 'effort', values: ['low'] }],
+          supportedEfforts: ['low']
+        })
+      })
+    )
+
+    // Budget range: enable the switch, then min/max text commits on blur.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch', { name: 'settings.models.reasoning_controls.budget.label' }))
+    })
+    await act(async () => {
+      const min = screen.getByLabelText('settings.models.reasoning_controls.budget.min')
+      fireEvent.change(min, { target: { value: '1024' } })
+      fireEvent.blur(min)
+    })
+    await act(async () => {
+      const max = screen.getByLabelText('settings.models.reasoning_controls.budget.max')
+      fireEvent.change(max, { target: { value: '8192' } })
+      fireEvent.blur(max)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'my-compat',
+      'my-thinker',
+      expect.objectContaining({
+        reasoning: expect.objectContaining({
+          controls: [
+            { kind: 'effort', values: ['low'] },
+            { kind: 'budget', min: 1024, max: 8192 }
+          ],
+          thinkingTokenLimits: { min: 1024, max: 8192 }
+        })
+      })
+    )
+  })
+
+  it('omits reasoning from unrelated auto-saves until the user touches the controls', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'my-compat', name: 'My Compat' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="my-compat"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'my-compat::my-thinker',
+            providerId: 'my-compat',
+            name: 'my-thinker',
+            group: 'Custom',
+            capabilities: ['reasoning'],
+            reasoning: { type: 'openai-chat', supportedEfforts: ['low', 'high'] },
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, { target: { value: 'Renamed' } })
+      fireEvent.blur(modelName)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'my-compat',
+      'my-thinker',
+      expect.objectContaining({ name: 'Renamed', reasoning: undefined })
+    )
+  })
 })
