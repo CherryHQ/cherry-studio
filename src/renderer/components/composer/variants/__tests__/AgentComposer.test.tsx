@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
@@ -1420,6 +1421,34 @@ describe('AgentComposer', () => {
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
   })
 
+  it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const initialSuggestionSources = mocks.surfaceProps?.suggestionSources
+    expect(initialSuggestionSources).toEqual([])
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    expect(mocks.surfaceProps?.isLoading).toBe(true)
+    expect(mocks.surfaceProps?.suggestionSources).toBe(initialSuggestionSources)
+  })
+
   it('changes the unified panel resource provider when the workspace scope changes', () => {
     const { rerender } = render(
       <AgentComposer
@@ -1952,6 +1981,78 @@ describe('AgentComposer', () => {
         }
       }
     )
+  })
+
+  it('batches workspace attachment metadata while preserving attachment order', async () => {
+    const workspaceFileA = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'alpha.md',
+      origin_name: 'alpha.md',
+      path: '/workspace/docs/alpha.md'
+    } as FileMetadata
+    const localFile = {
+      id: 'local-file-1',
+      fileTokenSourceId: 'source-local-file-1',
+      name: 'local.md',
+      origin_name: 'local.md',
+      path: '/tmp/local.md'
+    } as FileMetadata
+    const workspaceFileB = {
+      id: 'workspace-file-2',
+      fileTokenSourceId: 'source-workspace-file-2',
+      name: 'beta.md',
+      origin_name: 'beta.md',
+      path: '/workspace/docs/beta.md'
+    } as FileMetadata
+    mocks.files = [workspaceFileA, localFile, workspaceFileB]
+    mocks.draftTokens = [workspaceFileA, localFile, workspaceFileB].map(
+      (attachedFile, index) =>
+        ({
+          id: `file:${attachedFile.fileTokenSourceId}`,
+          kind: 'file',
+          label: attachedFile.name,
+          payload: attachedFile,
+          index,
+          textOffset: mocks.draftText.length
+        }) as ComposerSerializedToken
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.ipcApiRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
+      items: [
+        { key: '/workspace/docs/alpha.md', handle: { kind: 'path', path: '/workspace/docs/alpha.md' } },
+        { key: '/workspace/docs/beta.md', handle: { kind: 'path', path: '/workspace/docs/beta.md' } }
+      ]
+    })
+    expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/local.md' })
+
+    const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
+    expect(userMessageParts?.map((part) => part.type)).toEqual(['text', 'file', 'file', 'file'])
+    expect(userMessageParts?.slice(1).map((part) => (part as FileUIPart).filename)).toEqual([
+      'alpha.md',
+      'local.md',
+      'beta.md'
+    ])
+    expect(userMessageParts?.slice(1).map((part) => (part as FileUIPart).url)).toEqual([
+      'file:///workspace/docs/alpha.md',
+      'file:///p/fe-1.png',
+      'file:///workspace/docs/beta.md'
+    ])
   })
 
   it('sends Windows drive-slash workspace resource file references without internalizing them', async () => {

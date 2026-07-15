@@ -18,6 +18,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
@@ -55,6 +56,7 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
@@ -110,13 +112,45 @@ const ResourceEditDialogHost = React.lazy(() =>
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
+const FILE_IPC_BATCH_SIZE = 500
 
-const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
-  const filePath = canonicalizeAbsolutePath(attachment.path) as FilePath
-  const metadataById = await ipcApi.request('file.batch_get_metadata', {
-    items: [{ key: filePath, handle: createFilePathHandle(filePath) }]
-  })
-  const metadata = metadataById[filePath]
+type AccessibleAttachment = {
+  attachment: ComposerAttachment
+  filePath: FilePath
+  index: number
+}
+
+const requestAccessiblePathMetadata = async (
+  attachments: readonly AccessibleAttachment[]
+): Promise<OutputFor<'file.batch_get_metadata'>> => {
+  if (attachments.length === 0) return {}
+
+  const chunks: AccessibleAttachment[][] = []
+  for (let i = 0; i < attachments.length; i += FILE_IPC_BATCH_SIZE) {
+    chunks.push(attachments.slice(i, i + FILE_IPC_BATCH_SIZE))
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      ipcApi.request('file.batch_get_metadata', {
+        items: chunk.map(({ filePath }) => ({
+          key: filePath,
+          handle: createFilePathHandle(filePath)
+        }))
+      })
+    )
+  )
+
+  return Object.assign({}, ...results)
+}
+
+const buildAccessiblePathFilePart = (
+  attachment: ComposerAttachment,
+  filePath: FilePath,
+  metadataByPath: OutputFor<'file.batch_get_metadata'>
+): FileUIPart => {
+  const metadata = metadataByPath[filePath]
   if (!metadata || metadata.kind !== 'file') {
     throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
   }
@@ -132,23 +166,48 @@ const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Prom
   )
 }
 
-const buildAgentFilePartsForAttachments = (
+const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
   accessiblePaths: readonly string[]
 ): Promise<FileUIPart[]> => {
-  return Promise.all(
-    attachments.map((attachment) =>
-      isPathWithinAccessiblePath(attachment.path, accessiblePaths)
-        ? buildAccessiblePathFilePart(attachment)
-        : buildFilePartsForAttachments([attachment]).then((fileParts) => {
-            const [filePart] = fileParts
-            if (!filePart) {
-              throw new Error(`Failed to build file part for attachment: ${attachment.path}`)
-            }
-            return filePart
-          })
-    )
-  )
+  const accessibleAttachments: AccessibleAttachment[] = []
+  const internalizedAttachments: ComposerAttachment[] = []
+  const internalizedIndexes: number[] = []
+
+  attachments.forEach((attachment, index) => {
+    if (isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
+      accessibleAttachments.push({
+        attachment,
+        filePath: canonicalizeAbsolutePath(attachment.path) as FilePath,
+        index
+      })
+      return
+    }
+
+    internalizedAttachments.push(attachment)
+    internalizedIndexes.push(index)
+  })
+
+  const [metadataByPath, internalizedFileParts] = await Promise.all([
+    requestAccessiblePathMetadata(accessibleAttachments),
+    buildFilePartsForAttachments(internalizedAttachments)
+  ])
+
+  const fileParts = new Array<FileUIPart>(attachments.length)
+
+  accessibleAttachments.forEach(({ attachment, filePath, index }) => {
+    fileParts[index] = buildAccessiblePathFilePart(attachment, filePath, metadataByPath)
+  })
+
+  internalizedFileParts.forEach((filePart, offset) => {
+    const originalIndex = internalizedIndexes[offset]
+    if (originalIndex === undefined || !filePart) {
+      throw new Error(`Failed to build file part for attachment: ${internalizedAttachments[offset]?.path ?? ''}`)
+    }
+    fileParts[originalIndex] = filePart
+  })
+
+  return fileParts
 }
 
 const createSkillQuickPanelItems = (
@@ -1221,7 +1280,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
         toast.error(t('code.model_required'))
@@ -1248,18 +1307,17 @@ const AgentComposerInner = ({
       const previousDraftTokens = draftTokensRef.current
 
       clearCurrentDraft()
-      void sendQueuedPayload(payload).then((sent) => {
-        if (!sent) {
-          clearTimeoutTimer('agentComposerSendMessage')
-          setText(previousText)
-          setFiles(previousFiles)
-          setSelectedSkills(previousSkills)
-          setDraftTokens(previousDraftTokens)
-          draftTokensRef.current = previousDraftTokens
-          writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          toast.error(t('chat.input.send_failed'))
-        }
-      })
+      const sent = await sendQueuedPayload(payload)
+      if (!sent) {
+        clearTimeoutTimer('agentComposerSendMessage')
+        setText(previousText)
+        setFiles(previousFiles)
+        setSelectedSkills(previousSkills)
+        setDraftTokens(previousDraftTokens)
+        draftTokensRef.current = previousDraftTokens
+        writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
+        toast.error(t('chat.input.send_failed'))
+      }
     },
     [
       buildQueuedPayload,
@@ -1406,7 +1464,7 @@ const AgentComposerInner = ({
         onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
-        suggestionSources={[]}
+        suggestionSources={EMPTY_SUGGESTION_SOURCES}
         resourceProvider={resourceProvider}
         rootPanelLeadingItems={rootPanelNewSessionItems}
         rootPanelAdditionalItems={rootPanelSkillItems}
