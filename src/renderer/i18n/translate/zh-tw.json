@@ -887,6 +887,10 @@
           "description": "管理應用內的定時排程",
           "label": "定時任務"
         },
+        "CherryGenerateImage": {
+          "description": "使用你設定的繪圖模型根據文字提示生成圖片",
+          "label": "生成圖片"
+        },
         "CherryKbManage": {
           "description": "新增、刪除或重新整理知識庫中的文件",
           "label": "知識庫管理"
@@ -1397,7 +1401,7 @@
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
-      "generate_image_not_supported": "模型不支援產生圖片",
+      "generate_image_no_model": "請在 設定 › 預設模型 中設定繪圖模型",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
@@ -1483,6 +1487,11 @@
         "collapse_out": "移出折疊",
         "expand": "展開",
         "file_not_found": "檔案不存在: {{path}}",
+        "generate_image": {
+          "failed": "圖片產生失敗",
+          "generating": "正在產生圖片…",
+          "title": "已產生圖片"
+        },
         "open_file": "開啟檔案",
         "open_file_error": "無法開啟檔案: {{path}}",
         "reveal_in_finder": "在檔案管理器中顯示"
@@ -6843,6 +6852,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已停用",
+      "painting_model": "繪圖模型",
+      "painting_model_description": "圖像生成使用的模型",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",

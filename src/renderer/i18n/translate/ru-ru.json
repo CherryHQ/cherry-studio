@@ -887,6 +887,10 @@
           "description": "Управляет встроенным планировщиком",
           "label": "Планировщик"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
           "label": "Управление знаниями"
@@ -1397,7 +1401,7 @@
         "title": "В очереди ({{count}})"
       },
       "generate_image": "Сгенерировать изображение",
-      "generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "База знаний",
       "knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
       "knowledge_base_unavailable": "Выберите модель с поддержкой инструментов или включите использование инструментов в запросе",
@@ -1483,6 +1487,11 @@
         "collapse_out": "Развернуть",
         "expand": "Развернуть",
         "file_not_found": "Файл не найден: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Открыть файл",
         "open_file_error": "Не удалось открыть файл: {{path}}",
         "reveal_in_finder": "Показать в Finder"
@@ -6843,6 +6852,8 @@
       },
       "more_actions": "Дополнительные действия со списком моделей",
       "not_enabled_models": "Отключены",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",
