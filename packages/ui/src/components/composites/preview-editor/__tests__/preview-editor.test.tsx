@@ -38,11 +38,11 @@ describe('PreviewEditor', () => {
     expect(screen.getByText('Rendered preview')).toBeInTheDocument()
     expect(screen.queryByText('Editor')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(onModeChange).toHaveBeenCalledWith('edit')
   })
 
-  it('enables save and discard only for a dirty draft', () => {
+  it('shows save and discard only for a dirty draft', () => {
     const onSave = vi.fn()
     const onDiscard = vi.fn()
 
@@ -58,8 +58,8 @@ describe('PreviewEditor', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument()
 
     rerender(
       <PreviewEditor

@@ -1,6 +1,10 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { SegmentedControl } from '@cherrystudio/ui/components/primitives/segmented-control'
+import { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import Eye from 'lucide-react/dist/esm/icons/eye'
+import Save from 'lucide-react/dist/esm/icons/save'
+import SquarePen from 'lucide-react/dist/esm/icons/square-pen'
+import Undo2 from 'lucide-react/dist/esm/icons/undo-2'
 import * as React from 'react'
 
 export type PreviewEditorMode = 'preview' | 'edit'
@@ -29,6 +33,10 @@ export interface PreviewEditorProps extends Omit<React.ComponentPropsWithoutRef<
   contentClassName?: string
 }
 
+function getAccessibleLabel(label: React.ReactNode): string | undefined {
+  return typeof label === 'string' ? label : undefined
+}
+
 /**
  * Controlled preview/edit work surface.
  *
@@ -53,22 +61,17 @@ function PreviewEditor({
   className,
   ...props
 }: PreviewEditorProps) {
-  const showDraftActions = mode === 'edit' || isDirty
-  const modeOptions = React.useMemo(
-    () => [
-      { value: 'preview' as const, label: labels.preview },
-      { value: 'edit' as const, label: labels.edit }
-    ],
-    [labels.edit, labels.preview]
-  )
+  const nextMode = mode === 'preview' ? 'edit' : 'preview'
+  const modeActionLabel = nextMode === 'edit' ? labels.edit : labels.preview
+  const ModeActionIcon = nextMode === 'edit' ? SquarePen : Eye
 
   return (
     <div data-slot="preview-editor" className={cn('flex min-h-0 flex-1 flex-col', className)} {...props}>
       <div
         data-slot="preview-editor-toolbar"
-        className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-2">
+        className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
         {title && (
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-1 font-medium text-foreground text-sm">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
             <span className="truncate">{title}</span>
             {isDirty && labels.unsaved && (
               <span
@@ -79,31 +82,54 @@ function PreviewEditor({
             )}
           </div>
         )}
-        <SegmentedControl
-          aria-label={typeof labels.edit === 'string' ? labels.edit : undefined}
-          options={modeOptions}
-          value={mode}
-          size="sm"
-          disabled={isLoading || isSaving}
-          onValueChange={onModeChange}
-        />
-        {showDraftActions && (
-          <div className="flex shrink-0 items-center gap-1">
-            <Button type="button" variant="ghost" size="sm" disabled={!isDirty || isSaving} onClick={onDiscard}>
-              {labels.discard}
-            </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Tooltip content={modeActionLabel} delay={800}>
             <Button
               type="button"
-              variant="default"
-              size="sm"
-              loading={isSaving}
-              disabled={!isDirty || isLoading}
-              onClick={() => void onSave()}>
-              {labels.save}
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={getAccessibleLabel(modeActionLabel)}
+              disabled={isLoading || isSaving}
+              onClick={() => onModeChange(nextMode)}>
+              <ModeActionIcon size={14} />
             </Button>
-          </div>
-        )}
-        {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+          </Tooltip>
+          {isDirty && (
+            <>
+              <Tooltip content={labels.discard} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={getAccessibleLabel(labels.discard)}
+                  disabled={isSaving}
+                  onClick={onDiscard}>
+                  <Undo2 size={14} />
+                </Button>
+              </Tooltip>
+              <Tooltip content={labels.save} delay={800}>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="icon-sm"
+                  aria-label={getAccessibleLabel(labels.save)}
+                  loading={isSaving}
+                  disabled={isLoading}
+                  onClick={() => void onSave()}>
+                  {isSaving ? null : <Save size={14} />}
+                </Button>
+              </Tooltip>
+            </>
+          )}
+          {actions && (
+            <>
+              <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
+              <div className="flex shrink-0 items-center gap-1">{actions}</div>
+            </>
+          )}
+        </div>
       </div>
       <div data-slot="preview-editor-content" className={cn('min-h-0 flex-1', contentClassName)}>
         {mode === 'edit' ? editor : preview}
