@@ -56,6 +56,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
       application.get('PreferenceService').subscribeChange('feature.api_gateway.enabled', (enabled) => {
         this.desiredEnabled = enabled
         this.reconciler.request()
+        // Reflect the new persistent intent immediately. Matters when a lease already holds the
+        // server up: no activate/deactivate transition fires, so `onActivate`/`onDeactivate` won't
+        // re-publish, and the running state would otherwise stay stale against the toggle.
+        this.publishRunningState(this.isActivated && this.desiredEnabled)
       })
     )
   }
@@ -71,7 +75,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
       await this.ensureValidApiKey()
       this.apiGateway = new ApiGateway()
       await this.apiGateway.start()
-      this.publishRunningState(true)
+      // The server just bound, so "running" now tracks the persistent intent: `desiredEnabled` is
+      // true for an enabled/auto-started gateway and false when only a transient lease brought it up.
+      this.publishRunningState(this.desiredEnabled)
       logger.info('API Gateway activated')
     } catch (error) {
       // Activatable failure contract: clean up partial state before throwing
@@ -97,6 +103,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * Publish the running state to the shared cache (Main is authoritative). The
    * renderer reads it reactively via `useSharedCache('feature.api_gateway.running')`.
    * This replaces the previous IPC ready-broadcast + EventEmitter listener.
+   *
+   * "Running" means the gateway is up for a PERSISTENT reason (`desiredEnabled` — enabled or
+   * auto-started), NOT merely held open by a transient lease. Callers pass `isActivated &&
+   * desiredEnabled` (or `desiredEnabled` from within `onActivate`, where the server has just
+   * bound). Keeping a lease-only activation out of this state stops the renderer's
+   * running→enabled inference from promoting a temporary lease into a persisted "enabled" pref.
    */
   private publishRunningState(running: boolean): void {
     try {
@@ -112,6 +124,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
     this.desiredEnabled = true
     this.reconciler.request()
     await this.reconciler.flush()
+    // Re-publish in case a lease already held the gateway up: no activate transition fires, so
+    // `onActivate` wouldn't have promoted the (previously lease-only) running state to persistent.
+    this.publishRunningState(this.isActivated && this.desiredEnabled)
     if (!this.isActivated) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
@@ -124,7 +139,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     this.desiredEnabled = false
     this.reconciler.request()
     await this.reconciler.flush()
+    // Persistent intent is now off regardless of whether a lease still pins the server up.
+    this.publishRunningState(this.isActivated && this.desiredEnabled)
     if (this.isActivated) {
+      if (this.leaseCount > 0) {
+        // A transient lease still holds the server open; the reconciler will stop it once the last
+        // lease releases. Persistent intent is cleared, so this is a success, not a failure.
+        logger.info('API Gateway persistent intent cleared; server stays up for active lease(s)')
+        return
+      }
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
       throw error

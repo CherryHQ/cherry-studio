@@ -714,6 +714,29 @@ describe('TranslatePage', () => {
     expect(pdfHandleMock.start).toHaveBeenCalledWith('en-us')
   })
 
+  it('warns and skips layout-preserving translation when source and target language are the same', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'en-us'
+    })
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
+    const translateButton = screen.getByRole('button', { name: 'translate.button.translate' })
+    await waitFor(() => expect(translateButton).toBeEnabled())
+    fireEvent.click(translateButton)
+
+    // A same-language layout translation is a no-op that still spawns BabelDOC and bills a run —
+    // guard it exactly like the text path, so it never reaches the sidecar.
+    expect(toast.warning).toHaveBeenCalledWith('translate.language.same')
+    expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
   it('falls back to streamed text translation when BabelDOC is not installed', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',

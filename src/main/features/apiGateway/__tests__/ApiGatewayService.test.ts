@@ -10,9 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, captured } = vi.hoisted(() => ({
+const { mockStart, mockStop, mockSetShared, captured } = vi.hoisted(() => ({
   mockStart: vi.fn(),
   mockStop: vi.fn(),
+  mockSetShared: vi.fn(),
   captured: { prefHandler: undefined as ((enabled: boolean) => void) | undefined }
 }))
 
@@ -36,7 +37,7 @@ vi.mock('@application', async () => {
       getMultiple: vi.fn(() => ({ enabled: false, host: '127.0.0.1', port: 23333, apiKey: 'existing-key' })),
       set: vi.fn(async () => {})
     },
-    CacheService: { setShared: vi.fn() }
+    CacheService: { setShared: mockSetShared }
   })
 })
 
@@ -52,6 +53,7 @@ beforeEach(() => {
   rejectStart = false
   mockStart.mockReset()
   mockStop.mockReset()
+  mockSetShared.mockClear()
   mockStart.mockImplementation(() =>
     rejectStart
       ? Promise.reject(new Error('port in use'))
@@ -219,5 +221,83 @@ describe('ApiGatewayService lease', () => {
 
     await expect(service.acquireLease()).rejects.toThrow('port in use')
     expect(service.isActivated).toBe(false)
+  })
+})
+
+describe('ApiGatewayService running-state publication', () => {
+  /** Latest value published to the shared `feature.api_gateway.running` cache, or undefined. */
+  const lastPublishedRunning = (): boolean | undefined => {
+    const calls = mockSetShared.mock.calls.filter((call) => call[0] === 'feature.api_gateway.running')
+    return calls.length ? (calls[calls.length - 1][1] as boolean) : undefined
+  }
+
+  it('never publishes running=true for a lease-only activation (no promotion to persisted enabled)', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const acquired = service.acquireLease()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await acquired
+    expect(service.isActivated).toBe(true)
+
+    // The server is physically up, but only a transient lease holds it — so the renderer's
+    // running→enabled inference must never see `running=true` and persist an "enabled" pref.
+    const runningCalls = mockSetShared.mock.calls.filter((call) => call[0] === 'feature.api_gateway.running')
+    expect(runningCalls.every((call) => call[1] === false)).toBe(true)
+    expect(lastPublishedRunning()).toBe(false)
+  })
+
+  it('publishes running=true when the gateway is up for a persistent (enabled) reason', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    captured.prefHandler!(true)
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    expect(lastPublishedRunning()).toBe(true)
+  })
+
+  it('promotes running to true when the user enables the gateway while a lease holds it up', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const acquired = service.acquireLease()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await acquired
+    expect(lastPublishedRunning()).toBe(false) // lease-only so far
+
+    // Turning the toggle on while the lease pins the server up fires no activate transition,
+    // so the pref subscription itself must publish the now-persistent running state.
+    captured.prefHandler!(true)
+    expect(lastPublishedRunning()).toBe(true)
+  })
+
+  it('stop() during a lease clears persistent intent without throwing and keeps the server up', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    // Start from a user-enabled, running gateway, then hold a transient lease on top of it.
+    captured.prefHandler!(true)
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    await service.acquireLease()
+
+    // A user-driven stop while a lease is held must resolve (not throw), publish running=false,
+    // and leave the physical server up for the lease.
+    await expect(service.stop()).resolves.toBeUndefined()
+    expect(lastPublishedRunning()).toBe(false)
+    expect(service.isActivated).toBe(true)
+    expect(mockStop).not.toHaveBeenCalled()
+
+    // Releasing the last lease now converges to the stopped state.
+    service.releaseLease()
+    await vi.waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+    expect(service.isActivated).toBe(false)
+    expect(lastPublishedRunning()).toBe(false)
   })
 })
