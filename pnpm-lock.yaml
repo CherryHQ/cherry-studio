@@ -289,6 +289,9 @@ importers:
       '@codemirror/lang-json':
         specifier: 6.0.2
         version: 6.0.2
+      '@codemirror/language':
+        specifier: 6.12.2
+        version: 6.12.2
       '@codemirror/lint':
         specifier: 6.9.5
         version: 6.9.5
@@ -373,6 +376,9 @@ importers:
       '@j178/prek':
         specifier: ^0.3.4
         version: 0.3.4
+      '@lezer/highlight':
+        specifier: 1.2.3
+        version: 1.2.3
       '@mistralai/mistralai':
         specifier: ^1.7.5
         version: 1.11.0
