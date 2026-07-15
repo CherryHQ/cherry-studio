@@ -1,9 +1,7 @@
-import { TITLE_BAR_HEIGHT_CLASS, TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { CSSProperties, ReactNode, Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
 import { useOptionalShellState } from '../panes/Shell'
@@ -55,34 +53,23 @@ export default function ConversationShell({
   onPaneCollapse,
   onPaneAutoCollapseChange
 }: ConversationShellProps) {
-  const { mode, chrome } = useWindowFrame()
+  const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
 
-  // In window mode the page navbar IS the window title bar, so wrap it even without a
-  // right tool to pick up the drag region and traffic-light inset. Conversation navbars
-  // place the injected title after their own leading controls; when no navbar exists, the
-  // shell renders the title directly as a fallback.
-  const fallbackLeading = topBar == null ? chrome?.titleLeading : undefined
-  const resolvedTopBar =
-    topRightTool || isWindow ? (
-      <ConversationShellTopBar
-        isWindow={isWindow}
-        leading={fallbackLeading}
-        trailing={chrome?.titleTrailing}
-        topRightTool={topRightTool}
-        showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
-        {topBar}
-      </ConversationShellTopBar>
-    ) : (
-      topBar
-    )
+  const resolvedTopBar = topRightTool ? (
+    <ConversationShellTopBar topRightTool={topRightTool} showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
+      {topBar}
+    </ConversationShellTopBar>
+  ) : (
+    topBar
+  )
   return (
     <ChatMaximizedOverlayInsetProvider>
       <div
         id={id}
         className={cn(
           'relative flex flex-1 overflow-hidden bg-background',
-          isWindow ? 'h-screen' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
+          isWindow ? 'h-full' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
           className
         )}>
         <QuickPanelProvider>
@@ -112,45 +99,20 @@ export default function ConversationShell({
 }
 
 type TopBarProps = {
-  isWindow: boolean
-  leading?: ReactNode
-  trailing?: ReactNode
   topRightTool?: ReactNode
   showTopRightToolWhenPaneOpen: boolean
   children?: ReactNode
 }
 
-const ConversationShellTopBar = ({
-  isWindow,
-  leading,
-  trailing,
-  topRightTool,
-  showTopRightToolWhenPaneOpen,
-  children
-}: TopBarProps) => {
+const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, children }: TopBarProps) => {
   const shellState = useOptionalShellState()
   const maximized = shellState?.maximized ?? false
   const open = shellState?.open ?? false
-  const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
-  const shouldReserveTrafficLightInset = isWindow && isMac
-  const shouldShowTopRightTool =
-    Boolean(trailing || topRightTool) && (isWindow || (!maximized && (!open || showTopRightToolWhenPaneOpen)))
-  const shouldReserveRightInset = isWindow || (!maximized && shouldShowTopRightTool)
+  const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
   return (
     <div
       data-conversation-shell-topbar
-      style={windowNavbarHeightStyle}
-      className={cn(
-        'relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]',
-        // Window mode: the navbar spans above every pane, so it always owns the macOS
-        // traffic-light inset regardless of whether the conversation list is open.
-        isWindow && [
-          TITLE_BAR_HEIGHT_CLASS,
-          '[-webkit-app-region:drag]',
-          shouldReserveTrafficLightInset ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
-        ]
-      )}>
-      {leading}
+      className='relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]'>
       <div data-conversation-shell-topbar-content className="min-w-0 flex-1">
         {children}
       </div>
@@ -158,20 +120,12 @@ const ConversationShellTopBar = ({
         <div
           data-conversation-shell-topbar-right
           data-navbar-right-occupant
-          className={cn(
-            'z-20 flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]',
-            isWindow ? TITLE_BAR_HEIGHT_CLASS : 'h-(--navbar-height)'
-          )}>
-          {trailing}
+          className="z-20 flex h-(--navbar-height) shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
           {topRightTool}
         </div>
       )}
-      {shouldReserveRightInset && (
-        <div
-          data-conversation-shell-right-spacer
-          aria-hidden="true"
-          className={cn('shrink-0', isWindow ? 'w-[calc(0.5rem+var(--window-controls-width,0px))]' : 'w-2')}
-        />
+      {shouldShowTopRightTool && (
+        <div data-conversation-shell-right-spacer aria-hidden="true" className="w-2 shrink-0" />
       )}
     </div>
   )

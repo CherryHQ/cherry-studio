@@ -1,5 +1,4 @@
 import type * as CherryUi from '@cherrystudio/ui'
-import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,18 +57,13 @@ describe('ChatNavbar', () => {
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
-  it('places only the detached-window sidebar toggle before the title', () => {
-    render(
-      <WindowFrameProvider
-        value={{ mode: 'window', chrome: { titleLeading: <span data-testid="window-title">Topic title</span> } }}>
-        <ChatNavbar />
-      </WindowFrameProvider>
-    )
+  it('places the conversation controls host after the sidebar toggle', () => {
+    const { container } = render(<ChatNavbar />)
 
-    const title = screen.getByTestId('window-title')
     const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+    const controls = container.querySelector('[data-conversation-topbar-controls]')
 
-    expect(toggle.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 

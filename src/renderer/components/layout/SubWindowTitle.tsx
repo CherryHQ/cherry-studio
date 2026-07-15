@@ -4,9 +4,8 @@ import { cn } from '@renderer/utils/style'
 import { TabIcon } from './TabIcon'
 
 /**
- * Detached-window title: the single tab's emoji/icon + name, shown after the conversation
- * controls in chat/agent navbars. Reads the tab directly — its title/icon are kept in sync
- * by the hosted page (HomePage / AgentPage).
+ * Detached-window title: the single tab's emoji/icon + name, shown in the standalone window
+ * title bar. Reads the tab directly — its title/icon are kept in sync by the hosted page.
  */
 export const SubWindowTitle = ({ className }: { className?: string }) => {
   const { tabs, activeTabId } = useTabs()

@@ -13,10 +13,9 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('SubWindowControls')
 
 /**
- * Detached-window navbar controls: pin (always-on-top) + back-to-main. Rendered by
- * ConversationShell only when the page lives in a sub-window, immediately left of the
- * page's right-side tool. Self-contained — the back action re-attaches the window's
- * single tab via Tab_Attach (SubWindowService closes this window after broadcasting).
+ * Detached-window title-bar controls: pin (always-on-top) + back-to-main. Self-contained —
+ * the back action re-attaches the window's single tab via the tab IPC API (SubWindowService
+ * closes this window after broadcasting).
  */
 export const SubWindowControls = () => {
   const { t } = useTranslation()

@@ -219,12 +219,13 @@ describe('ChatAppShell', () => {
     )
   })
 
-  it('places the window title bar above the left resource pane', () => {
+  it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <ChatAppShell
           contentId="conversation-content"
-          topBar={<header data-testid="window-titlebar" />}
+          centerId="conversation-center"
+          topBar={<header data-testid="conversation-navbar" />}
           pane={<aside>topics</aside>}
           paneOpen
           main={<div />}
@@ -233,15 +234,19 @@ describe('ChatAppShell', () => {
     )
 
     const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')
-    const titlebar = screen.getByTestId('window-titlebar').parentElement
+    const navbar = screen.getByTestId('conversation-navbar')
+    const center = document.getElementById('conversation-center')
     const content = document.getElementById('conversation-content')
 
-    if (!pane || !titlebar || !content) {
-      throw new Error('Expected resource pane, window title bar, and conversation content')
+    if (!pane || !center || !content) {
+      throw new Error('Expected resource pane, conversation center, and conversation content')
     }
 
     expect(pane.style.paddingTop).toBe('')
-    expect(titlebar.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(content).toContainElement(pane)
+    expect(content).toContainElement(center)
+    expect(center).toContainElement(navbar)
+    expect(pane.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {

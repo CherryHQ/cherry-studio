@@ -1,7 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { ReactNode } from 'react'
 
@@ -24,7 +23,6 @@ const AgentContent = ({
 }: AgentContentProps) => {
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
-  const { mode, chrome } = useWindowFrame()
 
   return (
     <div className="flex w-full justify-between">
@@ -36,9 +34,6 @@ const AgentContent = ({
             tooltipPlacement={showSidebar ? undefined : 'right'}
           />
         )}
-        {mode === 'window' && chrome?.titleLeading ? (
-          <div className={showSidebarControls ? 'ml-2 min-w-0' : 'min-w-0'}>{chrome.titleLeading}</div>
-        ) : null}
         <ConversationTopBarPortalHost />
       </div>
       <div data-navbar-right-occupant className="flex shrink-0 items-center">

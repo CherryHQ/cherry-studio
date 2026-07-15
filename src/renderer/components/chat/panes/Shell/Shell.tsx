@@ -439,7 +439,7 @@ function ShellTabList({
       className={cn(
         // Match ConversationShell's edge inset so the closed-state expand button and
         // opened-state close button keep the same distance from the nearest edge.
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))] pl-2 [-webkit-app-region:no-drag]'
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]'
       )}>
       {showTabs ? (
         <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>

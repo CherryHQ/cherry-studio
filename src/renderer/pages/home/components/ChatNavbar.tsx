@@ -2,7 +2,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { NavbarHeader } from '@renderer/components/Navbar'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { FC } from 'react'
 
 interface HeaderNavbarProps {
@@ -14,7 +13,6 @@ interface HeaderNavbarProps {
 const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sidebarOpen, onSidebarToggle }) => {
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
-  const { mode, chrome } = useWindowFrame()
 
   return (
     <NavbarHeader className="home-navbar relative" style={{ height: 'var(--navbar-height)' }}>
@@ -27,9 +25,6 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
               tooltipPlacement="bottom"
             />
           )}
-          {mode === 'window' && chrome?.titleLeading ? (
-            <div className={showSidebarControls ? 'ml-2 min-w-0' : 'min-w-0'}>{chrome.titleLeading}</div>
-          ) : null}
           <ConversationTopBarPortalHost />
         </div>
       </div>

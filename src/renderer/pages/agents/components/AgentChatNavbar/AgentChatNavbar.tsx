@@ -23,8 +23,8 @@ const AgentChatNavbar = ({
   onSidebarToggle
 }: Props) => {
   return (
-    <NavbarHeader className={cn('agent-navbar relative h-(--navbar-height)', className)}>
-      <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
+    <NavbarHeader className={cn('agent-navbar relative', className)} style={{ height: 'var(--navbar-height)' }}>
+      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
         <AgentContent
           activeAgent={activeAgent}
           tools={tools}

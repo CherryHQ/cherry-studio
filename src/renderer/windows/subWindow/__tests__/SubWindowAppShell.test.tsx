@@ -104,5 +104,6 @@ describe('SubWindowAppShell', () => {
     await waitFor(() => {
       expect(updateTab).toHaveBeenCalledWith('home', { url: '/app/chat?topicId=current-topic' })
     })
+    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
   })
 })

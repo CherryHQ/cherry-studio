@@ -4,7 +4,6 @@ import {
   resolveImmersiveNavbar
 } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
@@ -20,8 +19,6 @@ import {
   RESOURCE_LIST_PANE_MIN_WIDTH
 } from './paneLayout'
 import { RightPaneHost } from './RightPaneHost'
-
-const STATIC_NAVBAR = { floating: false, insetHeight: 0 } as const
 
 interface ChatAppShellBaseProps {
   topBar?: ReactNode
@@ -105,15 +102,14 @@ export function ChatAppShell({
   // (centered) and the center is wide enough for the navbar's edge clusters. Decided from a single
   // self-measurement (the center's own width) + a `narrow` boolean the list reports up — no probe,
   // no occupant scraping. When floating, a CSS clamp keeps the navbar's clusters inside the gutters.
-  const isWindow = useWindowFrame().mode === 'window'
   const [centerWidth, setCenterWidth] = useState(0)
   const [narrow, setNarrow] = useState(false)
   const reportNarrow = useCallback((next: boolean) => {
     setNarrow((current) => (current === next ? current : next))
   }, [])
   const immersive = useMemo(
-    () => (isWindow ? STATIC_NAVBAR : resolveImmersiveNavbar({ narrow, centerWidth, isWindow: false })),
-    [narrow, centerWidth, isWindow]
+    () => resolveImmersiveNavbar({ narrow, centerWidth, isWindow: false }),
+    [narrow, centerWidth]
   )
   const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
     const reasons = autoCollapseReasonsRef.current
@@ -211,7 +207,7 @@ export function ChatAppShell({
     <div
       data-chat-navbar-floating={immersive.floating ? '' : undefined}
       className={cn(
-        'z-10 bg-background',
+        'z-10 bg-card',
         immersive.floating
           ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
           : 'relative shrink-0'
@@ -226,7 +222,6 @@ export function ChatAppShell({
       data-chat-app-shell-root
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
-      {isWindow ? navbar : null}
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
           {pane}
@@ -240,7 +235,7 @@ export function ChatAppShell({
             layout
             transition={CHAT_SHELL_TRANSITION}
             className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
-            {isWindow ? null : navbar}
+            {navbar}
             <ImmersiveNarrowReportProvider value={reportNarrow}>
               <ImmersiveNavbarStateProvider value={immersive}>
                 {hasCenterContent ? (
