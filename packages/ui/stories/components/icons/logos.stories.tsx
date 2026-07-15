@@ -23,8 +23,14 @@ function toIconEntries(mod: Record<string, unknown>): IconEntry[] {
 const providerIcons: IconEntry[] = toIconEntries(Providers)
 const modelIcons: IconEntry[] = toIconEntries(Models)
 
+type AvatarShape = 'circle' | 'rounded'
+
 interface ShowcaseProps {
   fontSize?: number
+}
+
+interface AvatarShowcaseProps extends ShowcaseProps {
+  shape?: AvatarShape
 }
 
 const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
@@ -82,37 +88,30 @@ const LightVsDarkGrid = ({ icons, fontSize }: LightVsDarkGridProps) => (
   </div>
 )
 
-const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
+const AvatarGrid = ({ icons, size, shape }: { icons: IconEntry[]; size: number; shape: AvatarShape }) => (
   <div className="flex flex-wrap gap-6 p-2">
     {icons.map(({ Component, name }) => {
       const AvatarComponent = Component.Avatar
       return (
         <div key={name} className="flex flex-col items-center gap-1 w-24">
-          <div className="flex gap-2">
-            <AvatarComponent size={size} shape="circle" />
-            <AvatarComponent size={size} shape="rounded" />
-          </div>
-          <div className="flex gap-2 text-xs text-gray-400">
-            <span>Circle</span>
-            <span>Rounded</span>
-          </div>
-          <p className="text-sm">{name}</p>
+          <AvatarComponent size={size} shape={shape} />
+          <p className="text-sm text-center">{name}</p>
         </div>
       )
     })}
   </div>
 )
 
-const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
+const AvatarShowcase = ({ fontSize = 32, shape = 'circle' }: AvatarShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
-        <AvatarGrid icons={providerIcons} size={fontSize} />
+        <AvatarGrid icons={providerIcons} size={fontSize} shape={shape} />
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Models ({modelIcons.length})</h2>
-        <AvatarGrid icons={modelIcons} size={fontSize} />
+        <AvatarGrid icons={modelIcons} size={fontSize} shape={shape} />
       </div>
     </div>
   )
@@ -216,10 +215,21 @@ export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {
  * <Anthropic.Avatar size={32} />
  * <Anthropic.Avatar size={48} shape="rounded" />
  * ```
+ *
+ * 用 Controls 面板的 `shape` 开关在圆形（circle）和圆角矩形（rounded）之间切换，
+ * 整个网格会一起切换形状，方便核对每个 logo 在两种容器下的裁切效果。
  */
 export const Avatars: StoryObj<typeof AvatarShowcase> = {
   render: (args) => <AvatarShowcase {...args} />,
+  argTypes: {
+    shape: {
+      control: { type: 'inline-radio' },
+      options: ['circle', 'rounded'],
+      description: '头像容器形状：circle（圆形）/ rounded（圆角矩形）'
+    }
+  },
   args: {
-    fontSize: 32
+    fontSize: 32,
+    shape: 'circle'
   }
 }
