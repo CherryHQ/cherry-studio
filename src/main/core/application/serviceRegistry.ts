@@ -27,6 +27,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { BinaryManager } from '@main/services/BinaryManager'
+import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
@@ -84,6 +85,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  CitationPreviewService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

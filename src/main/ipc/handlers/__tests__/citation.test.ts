@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchPreview } = vi.hoisted(() => ({
+const service = vi.hoisted(() => ({
+  cancelPreviews: vi.fn(),
   fetchPreview: vi.fn()
 }))
-vi.mock('@main/services/CitationPreviewService', () => ({ citationPreviewService: { fetchPreview } }))
+const applicationGet = vi.hoisted(() => vi.fn(() => service))
+
+vi.mock('@application', () => ({ application: { get: applicationGet } }))
 
 import { citationHandlers } from '../citation'
 
@@ -14,29 +17,34 @@ beforeEach(() => {
 })
 
 describe('citationHandlers', () => {
-  it('forwards the URL unchanged and returns only the preview content', async () => {
-    fetchPreview.mockResolvedValue('Short preview')
+  it('forwards URL, requestId, and trusted senderId and returns only preview content', async () => {
+    service.fetchPreview.mockResolvedValue('Short preview')
 
-    const result = await citationHandlers['citation.fetch_preview']({ url: 'https://example.com/article' }, ctx)
+    const result = await citationHandlers['citation.fetch_preview'](
+      { url: 'https://example.com/article', requestId: 'panel-1' },
+      ctx
+    )
 
-    expect(fetchPreview).toHaveBeenCalledWith('https://example.com/article')
+    expect(applicationGet).toHaveBeenCalledWith('CitationPreviewService')
+    expect(service.fetchPreview).toHaveBeenCalledWith('https://example.com/article', {
+      requestId: 'panel-1',
+      senderId: 'w1'
+    })
     expect(result).toEqual({ content: 'Short preview' })
     expect(Object.keys(result)).toEqual(['content'])
   })
 
-  it('returns empty content when the service resolves empty', async () => {
-    fetchPreview.mockResolvedValue('')
+  it('returns empty content when the service rejects', async () => {
+    service.fetchPreview.mockRejectedValue(new Error('network unavailable'))
 
     await expect(
-      citationHandlers['citation.fetch_preview']({ url: 'https://example.com/empty' }, ctx)
+      citationHandlers['citation.fetch_preview']({ url: 'https://example.com/unavailable', requestId: 'panel-1' }, ctx)
     ).resolves.toEqual({ content: '' })
   })
 
-  it('returns empty content when the service rejects', async () => {
-    fetchPreview.mockRejectedValue(new Error('network unavailable'))
+  it('cancels only previews owned by the caller window and requestId', async () => {
+    await citationHandlers['citation.cancel_previews']({ requestId: 'panel-1' }, ctx)
 
-    await expect(
-      citationHandlers['citation.fetch_preview']({ url: 'https://example.com/unavailable' }, ctx)
-    ).resolves.toEqual({ content: '' })
+    expect(service.cancelPreviews).toHaveBeenCalledWith({ requestId: 'panel-1', senderId: 'w1' })
   })
 })

@@ -177,7 +177,10 @@ describe('CitationsList', () => {
 
     expect(await screen.findByText('Fetched citation preview')).toBeInTheDocument()
     expect(ipcRequest).toHaveBeenCalledTimes(1)
-    expect(ipcRequest).toHaveBeenCalledWith('citation.fetch_preview', { url: 'https://example.com' })
+    expect(ipcRequest).toHaveBeenCalledWith('citation.fetch_preview', {
+      url: 'https://example.com',
+      requestId: expect.any(String)
+    })
     expect(fetchMocks.fetchXOEmbed).not.toHaveBeenCalled()
   })
 
@@ -253,16 +256,27 @@ describe('CitationsList', () => {
     const a: Citation = { number: 1, url: 'https://dup.com', title: 'A', type: 'websearch' }
     const b: Citation = { number: 2, url: 'https://dup.com', title: 'B', type: 'websearch' }
 
-    render(
-      <>
-        <CitationsPanelContent citations={[a]} actions={{ openPath: vi.fn() }} />
-        <CitationsPanelContent citations={[b]} actions={{ openPath: vi.fn() }} />
-      </>,
-      { wrapper }
-    )
+    render(<CitationsPanelContent citations={[a, b]} actions={{ openPath: vi.fn() }} />, { wrapper })
 
     expect(await screen.findAllByText('Fetched citation preview')).toHaveLength(2)
     expect(ipcRequest).toHaveBeenCalledTimes(1)
-    expect(ipcRequest).toHaveBeenCalledWith('citation.fetch_preview', { url: 'https://dup.com' })
+    expect(ipcRequest).toHaveBeenCalledWith('citation.fetch_preview', {
+      url: 'https://dup.com',
+      requestId: expect.any(String)
+    })
+  })
+
+  it('cancels the panel preview request group when the panel unmounts', async () => {
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    const { unmount } = render(<CitationsPanelContent citations={citations} />, { wrapper })
+
+    await waitFor(() => expect(ipcRequest).toHaveBeenCalledWith('citation.fetch_preview', expect.any(Object)))
+    const fetchInput = ipcRequest.mock.calls.find(([route]) => route === 'citation.fetch_preview')?.[1] as {
+      requestId: string
+    }
+
+    unmount()
+
+    expect(ipcRequest).toHaveBeenCalledWith('citation.cancel_previews', { requestId: fetchInput.requestId })
   })
 })

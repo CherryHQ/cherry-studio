@@ -1,19 +1,26 @@
 import type { MockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as CitationPreviewModule from '../CitationPreviewService'
+import type { CitationPreviewService as CitationPreviewServiceType } from '../CitationPreviewService'
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
+const extractReadableTextMock = vi.hoisted(() => vi.fn())
 let mockMainLoggerService: MockMainLoggerService
-let fetchPreview: typeof CitationPreviewModule.citationPreviewService.fetchPreview
+let service: CitationPreviewServiceType
 
 vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: fetchRemoteTextMock
 }))
 
+vi.mock('@main/utils/readableContent', () => ({
+  extractReadableText: extractReadableTextMock
+}))
+
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 const MAX_RESPONSE_BYTES = 1024 * 1024
+
+const requestContext = (requestId: string, senderId: string | null = 'window-1') => ({ requestId, senderId })
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -30,13 +37,15 @@ describe('CitationPreviewService', () => {
   beforeEach(async () => {
     vi.resetModules()
     fetchRemoteTextMock.mockReset()
+    extractReadableTextMock.mockReset()
+    extractReadableTextMock.mockResolvedValue('Readable article text')
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
     mockMainLoggerService.error.mockClear()
+    const { BaseService } = await import('@main/core/lifecycle')
+    BaseService.resetInstances()
     const citationPreviewModule = await import('../CitationPreviewService')
-    fetchPreview = citationPreviewModule.citationPreviewService.fetchPreview.bind(
-      citationPreviewModule.citationPreviewService
-    )
+    service = new citationPreviewModule.CitationPreviewService()
   })
 
   afterEach(() => {
@@ -47,175 +56,177 @@ describe('CitationPreviewService', () => {
     const body = `![hero](https://example.com/hero.png)\n[Visible](https://example.com/link)\nhttps://hidden.test --- ${'x'.repeat(110)}`
     fetchRemoteTextMock.mockResolvedValue(body)
 
-    await expect(fetchPreview('https://example.com')).resolves.toBe(`Visible ${'x'.repeat(92)}...`)
+    await expect(service.fetchPreview('https://example.com', requestContext('request-1'))).resolves.toBe(
+      `Visible ${'x'.repeat(92)}...`
+    )
 
     const [safeUrl, requestInit] = fetchRemoteTextMock.mock.calls[0]
     expect(safeUrl).toBe('https://example.com/')
     expect(requestInit).toEqual({
       headers: { 'User-Agent': USER_AGENT },
+      signal: expect.any(AbortSignal),
       timeoutMs: 8000,
       maxBytes: MAX_RESPONSE_BYTES,
       maxRedirects: 5
     })
   })
 
-  it('extracts article text from real HTML with Readability', async () => {
-    const html = `
-      <!doctype html>
-      <html>
-        <head><title>Example article</title></head>
-        <body>
-          <nav>Navigation that is not part of the article</nav>
-          <article>
-            <h1>Readable headline</h1>
-            <p>The primary citation sentence is extracted from the article body.</p>
-          </article>
-          <footer>Footer that is not part of the article</footer>
-        </body>
-      </html>
-    `
+  it('extracts HTML through the shared worker with the task abort signal', async () => {
+    const html = '<!doctype html><html><body><article><p>Article</p></article></body></html>'
     fetchRemoteTextMock.mockResolvedValue(html)
 
-    await expect(fetchPreview('https://example.com/article')).resolves.toBe(
-      'Readable headline The primary citation sentence is extracted from the article body'
+    await expect(service.fetchPreview('https://example.com/article', requestContext('request-1'))).resolves.toBe(
+      'Readable article text'
     )
-  })
 
-  it('extracts article text from XHTML with Readability', async () => {
-    const xhtml = `
-      <?xml version="1.0" encoding="UTF-8"?>
-      <html xmlns="http://www.w3.org/1999/xhtml">
-        <head><title>XHTML article</title></head>
-        <body>
-          <article>
-            <h1>XHTML headline</h1>
-            <p>The citation preview is extracted from XHTML content.</p>
-          </article>
-        </body>
-      </html>
-    `
-    fetchRemoteTextMock.mockResolvedValue(xhtml)
-
-    await expect(fetchPreview('https://example.com/article.xhtml')).resolves.toBe(
-      'XHTML headline The citation preview is extracted from XHTML content'
-    )
-  })
-
-  it('keeps the main event loop responsive while parsing a large HTML response', async () => {
-    const paragraph = '<p>The citation preview contains readable article text for the worker regression.</p>'
-    const html = `<!doctype html><html><body><article>${paragraph.repeat(10_000)}</article></body></html>`
-    fetchRemoteTextMock.mockResolvedValue(html)
-    let settled = false
-
-    const previewPromise = fetchPreview('https://example.com/large-article').finally(() => {
-      settled = true
-    })
-    await new Promise<void>((resolve) => setImmediate(resolve))
-
-    expect(settled).toBe(false)
-    await expect(previewPromise).resolves.toContain('The citation preview contains readable article text')
+    const signal = fetchRemoteTextMock.mock.calls[0]?.[1]?.signal as AbortSignal
+    expect(extractReadableTextMock).toHaveBeenCalledWith(html, { signal })
   })
 
   it('rejects private and invalid URLs before calling the remote fetch helper', async () => {
-    await expect(fetchPreview('http://127.0.0.1/private')).resolves.toBe('')
-    await expect(fetchPreview('not a URL')).resolves.toBe('')
+    await expect(service.fetchPreview('http://127.0.0.1/private', requestContext('request-1'))).resolves.toBe('')
+    await expect(service.fetchPreview('not a URL', requestContext('request-2'))).resolves.toBe('')
 
     expect(fetchRemoteTextMock).not.toHaveBeenCalled()
   })
 
-  it('shares in-flight requests for the same sanitized URL without caching completed results', async () => {
+  it('shares one underlying task for the same sanitized URL across subscribers', async () => {
     const deferredResponse = createDeferred<string>()
     fetchRemoteTextMock.mockImplementationOnce(() => deferredResponse.promise)
-    fetchRemoteTextMock.mockResolvedValueOnce('fresh preview')
 
-    const firstRequest = fetchPreview('https://EXAMPLE.com:443/single-flight')
-    const secondRequest = fetchPreview('https://example.com/single-flight')
+    const firstRequest = service.fetchPreview(
+      'https://EXAMPLE.com:443/single-flight',
+      requestContext('panel-a', 'window-a')
+    )
+    const secondRequest = service.fetchPreview(
+      'https://example.com/single-flight',
+      requestContext('panel-b', 'window-b')
+    )
 
-    expect(secondRequest).toBe(firstRequest)
     expect(fetchRemoteTextMock).toHaveBeenCalledOnce()
+    deferredResponse.resolve('shared preview')
+
+    await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual(['shared preview', 'shared preview'])
+  })
+
+  it('keeps a shared task alive when only one subscriber cancels', async () => {
+    const deferredResponse = createDeferred<string>()
+    let taskSignal: AbortSignal | undefined
+    fetchRemoteTextMock.mockImplementation((_url, options) => {
+      taskSignal = options.signal
+      return deferredResponse.promise
+    })
+
+    const firstContext = requestContext('panel-a', 'window-a')
+    const secondContext = requestContext('panel-b', 'window-b')
+    const firstRequest = service.fetchPreview('https://example.com/shared', firstContext)
+    const secondRequest = service.fetchPreview('https://example.com/shared', secondContext)
+
+    service.cancelPreviews(firstContext)
+
+    await expect(firstRequest).resolves.toBe('')
+    expect(taskSignal?.aborted).toBe(false)
 
     deferredResponse.resolve('shared preview')
-    await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual(['shared preview', 'shared preview'])
+    await expect(secondRequest).resolves.toBe('shared preview')
+  })
 
-    await expect(fetchPreview('https://example.com/single-flight')).resolves.toBe('fresh preview')
+  it('aborts the underlying task when its last subscriber cancels', async () => {
+    let taskSignal: AbortSignal | undefined
+    fetchRemoteTextMock.mockImplementation((_url, options) => {
+      taskSignal = options.signal
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+      })
+    })
+    const context = requestContext('panel-a')
+    const request = service.fetchPreview('https://example.com/active', context)
+
+    service.cancelPreviews(context)
+
+    await expect(request).resolves.toBe('')
+    expect(taskSignal?.aborted).toBe(true)
+  })
+
+  it('starts a fresh task when a new subscriber arrives while the cancelled task is still settling', async () => {
+    let rejectCancelledTask!: (reason?: unknown) => void
+    fetchRemoteTextMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectCancelledTask = reject
+          })
+      )
+      .mockResolvedValueOnce('fresh preview')
+    const cancelledContext = requestContext('panel-a')
+    const cancelledRequest = service.fetchPreview('https://example.com/reopen', cancelledContext)
+
+    await vi.waitFor(() => expect(fetchRemoteTextMock).toHaveBeenCalledOnce())
+    service.cancelPreviews(cancelledContext)
+    await expect(cancelledRequest).resolves.toBe('')
+
+    const freshRequest = service.fetchPreview('https://example.com/reopen', requestContext('panel-b'))
+
     expect(fetchRemoteTextMock).toHaveBeenCalledTimes(2)
+    await expect(freshRequest).resolves.toBe('fresh preview')
+
+    rejectCancelledTask(Object.assign(new Error('cancelled'), { name: 'AbortError' }))
+  })
+
+  it('removes a cancelled queued task before it starts', async () => {
+    const deferredResponses = Array.from({ length: 3 }, () => createDeferred<string>())
+    let fetchIndex = 0
+    fetchRemoteTextMock.mockImplementation(() => deferredResponses[fetchIndex++].promise)
+
+    const activeRequests = Array.from({ length: 3 }, (_, index) =>
+      service.fetchPreview(`https://example.com/active/${index}`, requestContext(`active-${index}`))
+    )
+    const queuedContext = requestContext('queued')
+    const queuedRequest = service.fetchPreview('https://example.com/queued', queuedContext)
+
+    await vi.waitFor(() => expect(fetchRemoteTextMock).toHaveBeenCalledTimes(3))
+    service.cancelPreviews(queuedContext)
+
+    await expect(queuedRequest).resolves.toBe('')
+    expect(fetchRemoteTextMock).toHaveBeenCalledTimes(3)
+
+    deferredResponses.forEach((deferred, index) => deferred.resolve(`preview ${index}`))
+    await Promise.all(activeRequests)
   })
 
   it('limits concurrency to three and starts the fourth request only after dequeue', async () => {
     const deferredResponses = Array.from({ length: 4 }, () => createDeferred<string>())
     let fetchIndex = 0
-    let activeFetches = 0
-    let maxActiveFetches = 0
+    fetchRemoteTextMock.mockImplementation(() => deferredResponses[fetchIndex++].promise)
 
-    fetchRemoteTextMock.mockImplementation(async () => {
-      const deferredResponse = deferredResponses[fetchIndex]
-      fetchIndex += 1
-      if (!deferredResponse) {
-        throw new Error('Unexpected fetch call')
-      }
+    const requests = Array.from({ length: 4 }, (_, index) =>
+      service.fetchPreview(`https://example.com/queued/${index + 1}`, requestContext(`request-${index + 1}`))
+    )
 
-      activeFetches += 1
-      maxActiveFetches = Math.max(maxActiveFetches, activeFetches)
-      try {
-        return await deferredResponse.promise
-      } finally {
-        activeFetches -= 1
-      }
-    })
-
-    const requests = Array.from({ length: 4 }, (_, index) => fetchPreview(`https://example.com/queued/${index + 1}`))
-
-    await vi.waitFor(() => {
-      expect(fetchRemoteTextMock).toHaveBeenCalledTimes(3)
-    })
-
+    await vi.waitFor(() => expect(fetchRemoteTextMock).toHaveBeenCalledTimes(3))
     deferredResponses[0].resolve('preview 1')
-    await vi.waitFor(() => {
-      expect(fetchRemoteTextMock).toHaveBeenCalledTimes(4)
-    })
+    await vi.waitFor(() => expect(fetchRemoteTextMock).toHaveBeenCalledTimes(4))
 
     deferredResponses[1].resolve('preview 2')
     deferredResponses[2].resolve('preview 3')
     deferredResponses[3].resolve('preview 4')
-
     await expect(Promise.all(requests)).resolves.toEqual(['preview 1', 'preview 2', 'preview 3', 'preview 4'])
-    expect(maxActiveFetches).toBe(3)
   })
 
-  it('releases a queue slot when an active fetch times out', async () => {
-    const deferredResponses = Array.from({ length: 4 }, () => createDeferred<string>())
-    let fetchIndex = 0
-    fetchRemoteTextMock.mockImplementation(() => {
-      const deferredResponse = deferredResponses[fetchIndex]
-      fetchIndex += 1
-      if (!deferredResponse) {
-        throw new Error('Unexpected fetch call')
-      }
-
-      return deferredResponse.promise
+  it('aborts all active work when the lifecycle service stops', async () => {
+    let taskSignal: AbortSignal | undefined
+    fetchRemoteTextMock.mockImplementation((_url, options) => {
+      taskSignal = options.signal
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+      })
     })
+    const request = service.fetchPreview('https://example.com/active', requestContext('panel-a'))
 
-    const requests = Array.from({ length: 4 }, (_, index) => fetchPreview(`https://example.com/timeout/${index + 1}`))
+    await service._doStop()
 
-    await vi.waitFor(() => {
-      expect(fetchRemoteTextMock).toHaveBeenCalledTimes(3)
-    })
-
-    const abortError = new Error('request timed out')
-    abortError.name = 'AbortError'
-    deferredResponses[0].reject(abortError)
-    await expect(requests[0]).resolves.toBe('')
-
-    await vi.waitFor(() => {
-      expect(fetchRemoteTextMock).toHaveBeenCalledTimes(4)
-    })
-
-    deferredResponses[3].resolve('preview 4')
-    await expect(requests[3]).resolves.toBe('preview 4')
-
-    deferredResponses[1].resolve('preview 2')
-    deferredResponses[2].resolve('preview 3')
-    await expect(Promise.all(requests)).resolves.toEqual(['', 'preview 2', 'preview 3', 'preview 4'])
+    await expect(request).resolves.toBe('')
+    expect(taskSignal?.aborted).toBe(true)
   })
 
   it('redacts URL path, query, and the original error message from network error logs', async () => {
@@ -224,7 +235,7 @@ describe('CitationPreviewService', () => {
     const url = `https://example.com${path}?access_token=${secret}`
     fetchRemoteTextMock.mockRejectedValue(new Error(`network unavailable for ${url}`))
 
-    await expect(fetchPreview(url)).resolves.toBe('')
+    await expect(service.fetchPreview(url, requestContext('request-1'))).resolves.toBe('')
 
     expect(mockMainLoggerService.error).toHaveBeenCalledWith('Failed to fetch citation preview', {
       origin: 'https://example.com',
@@ -235,11 +246,5 @@ describe('CitationPreviewService', () => {
     expect(serializedLogArguments).not.toContain(secret)
     expect(serializedLogArguments).not.toContain(path)
     expect(serializedLogArguments).not.toContain('access_token')
-  })
-
-  it('returns empty when the remote fetch helper rejects', async () => {
-    fetchRemoteTextMock.mockRejectedValue(new Error('HTTP error: 503'))
-
-    await expect(fetchPreview('https://example.com/http-error')).resolves.toBe('')
   })
 })

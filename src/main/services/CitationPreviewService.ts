@@ -1,9 +1,10 @@
-import { createRequire } from 'node:module'
-import { Worker } from 'node:worker_threads'
-
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isAbortError } from '@main/utils/error'
+import { extractReadableText } from '@main/utils/readableContent'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import type { WindowId } from '@shared/ipc/types'
 import PQueue from 'p-queue'
 
 const logger = loggerService.withContext('CitationPreview')
@@ -11,37 +12,24 @@ const logger = loggerService.withContext('CitationPreview')
 const FETCH_TIMEOUT_MS = 8000
 const MAX_RESPONSE_BYTES = 1024 * 1024
 const MAX_PREVIEW_LENGTH = 100
-const SAFE_JSDOM_URL = 'http://localhost/'
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-const moduleRequire = createRequire(import.meta.url)
-const JSDOM_MODULE_PATH = moduleRequire.resolve('jsdom')
-const READABILITY_MODULE_PATH = moduleRequire.resolve('@mozilla/readability')
-const CITATION_PREVIEW_WORKER_SOURCE = `
-const { parentPort, workerData } = require('node:worker_threads')
 
-try {
-  const { JSDOM } = require(workerData.jsdomModulePath)
-  const { Readability } = require(workerData.readabilityModulePath)
-  const dom = new JSDOM(workerData.html, { url: workerData.baseUrl })
-  let content
-
-  try {
-    content = new Readability(dom.window.document).parse()?.textContent ?? ''
-  } finally {
-    dom.window.close()
-  }
-
-  parentPort.postMessage({ type: 'result', content })
-} catch (error) {
-  parentPort.postMessage({
-    type: 'error',
-    message: error instanceof Error ? error.message : String(error)
-  })
+export type CitationPreviewRequestContext = {
+  readonly requestId: string
+  readonly senderId: WindowId | null
 }
-`
 
-type CitationPreviewWorkerMessage = { type: 'result'; content: string } | { type: 'error'; message: string }
+type PreviewRequestState = {
+  readonly controller: AbortController
+  readonly urls: Set<string>
+}
+
+type PreviewJob = {
+  readonly consumers: Set<string>
+  readonly controller: AbortController
+  readonly promise: Promise<string>
+}
 
 function cleanMarkdownContent(text: string): string {
   if (!text) return ''
@@ -60,43 +48,6 @@ function formatPreview(text: string): string {
   return cleaned.length > MAX_PREVIEW_LENGTH ? `${cleaned.slice(0, MAX_PREVIEW_LENGTH)}...` : cleaned
 }
 
-function extractHtmlText(html: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(CITATION_PREVIEW_WORKER_SOURCE, {
-      eval: true,
-      workerData: {
-        baseUrl: SAFE_JSDOM_URL,
-        html,
-        jsdomModulePath: JSDOM_MODULE_PATH,
-        readabilityModulePath: READABILITY_MODULE_PATH
-      }
-    })
-    let settled = false
-
-    const finish = (callback: () => void): void => {
-      if (settled) return
-      settled = true
-      worker.removeAllListeners()
-      callback()
-    }
-
-    worker.unref()
-    worker.once('message', (message: CitationPreviewWorkerMessage) => {
-      finish(() => {
-        if (message.type === 'result') {
-          resolve(message.content)
-        } else {
-          reject(new Error(message.message))
-        }
-      })
-    })
-    worker.once('error', (error) => finish(() => reject(error)))
-    worker.once('exit', (code) => {
-      finish(() => reject(new Error(`Citation preview worker exited before responding (code ${code})`)))
-    })
-  })
-}
-
 function looksLikeHtml(text: string): boolean {
   return /<\s*(?:!doctype|html|head|body|article|main|section|div|p|h[1-6])\b/i.test(text)
 }
@@ -108,29 +59,45 @@ function createErrorLogContext(safeUrl: string, error: unknown): { origin: strin
   }
 }
 
-async function fetchQueuedPreview(safeUrl: string): Promise<string> {
+function createAbortError(message: string): Error {
+  const error = new Error(message)
+  error.name = 'AbortError'
+  return error
+}
+
+function getRequestKey(context: CitationPreviewRequestContext): string {
+  return JSON.stringify([context.senderId, context.requestId])
+}
+
+async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise<string> {
   try {
     const responseText = await fetchRemoteText(safeUrl, {
       headers: { 'User-Agent': USER_AGENT },
+      signal,
       timeoutMs: FETCH_TIMEOUT_MS,
       maxBytes: MAX_RESPONSE_BYTES,
       maxRedirects: 5
     })
 
-    const content = looksLikeHtml(responseText) ? await extractHtmlText(responseText) : responseText
+    const content = looksLikeHtml(responseText) ? await extractReadableText(responseText, { signal }) : responseText
 
     return formatPreview(content)
   } catch (error) {
-    logger.error('Failed to fetch citation preview', createErrorLogContext(safeUrl, error))
+    if (!isAbortError(error)) {
+      logger.error('Failed to fetch citation preview', createErrorLogContext(safeUrl, error))
+    }
     return ''
   }
 }
 
-class CitationPreviewService {
+@Injectable('CitationPreviewService')
+@ServicePhase(Phase.WhenReady)
+export class CitationPreviewService extends BaseService {
   private readonly queue = new PQueue({ concurrency: 3 })
-  private readonly inFlightRequests = new Map<string, Promise<string>>()
+  private readonly jobs = new Map<string, PreviewJob>()
+  private readonly requests = new Map<string, PreviewRequestState>()
 
-  fetchPreview(url: string): Promise<string> {
+  fetchPreview(url: string, context: CitationPreviewRequestContext): Promise<string> {
     let safeUrl: string
     try {
       safeUrl = sanitizeRemoteUrl(url)
@@ -138,28 +105,134 @@ class CitationPreviewService {
       return Promise.resolve('')
     }
 
-    const existingRequest = this.inFlightRequests.get(safeUrl)
-    if (existingRequest) {
-      return existingRequest
+    const requestKey = getRequestKey(context)
+    const request = this.getOrCreateRequest(requestKey)
+    const job = this.getOrCreateJob(safeUrl)
+    request.urls.add(safeUrl)
+    job.consumers.add(requestKey)
+
+    return this.waitForPreview(job.promise, request.controller.signal).finally(() => {
+      this.detachRequest(requestKey, safeUrl, request)
+    })
+  }
+
+  cancelPreviews(context: CitationPreviewRequestContext): void {
+    this.cancelRequest(getRequestKey(context), createAbortError('Citation preview panel closed'))
+  }
+
+  protected onStop(): void {
+    const error = createAbortError('Citation preview service stopped')
+
+    for (const request of this.requests.values()) {
+      request.controller.abort(error)
+    }
+    for (const job of this.jobs.values()) {
+      job.controller.abort(error)
     }
 
-    const request = this.queue
-      .add(() => fetchQueuedPreview(safeUrl))
+    this.requests.clear()
+    this.jobs.clear()
+  }
+
+  private getOrCreateRequest(requestKey: string): PreviewRequestState {
+    const existing = this.requests.get(requestKey)
+    if (existing) {
+      return existing
+    }
+
+    const request = { controller: new AbortController(), urls: new Set<string>() }
+    this.requests.set(requestKey, request)
+    return request
+  }
+
+  private getOrCreateJob(safeUrl: string): PreviewJob {
+    const existing = this.jobs.get(safeUrl)
+    if (existing) {
+      return existing
+    }
+
+    const controller = new AbortController()
+    const promise = this.queue
+      .add(() => fetchQueuedPreview(safeUrl, controller.signal), { signal: controller.signal })
       .then((preview) => preview ?? '')
       .catch((error) => {
-        logger.error('Failed to queue citation preview', createErrorLogContext(safeUrl, error))
+        if (!isAbortError(error)) {
+          logger.error('Failed to queue citation preview', createErrorLogContext(safeUrl, error))
+        }
         return ''
       })
+    const job = { consumers: new Set<string>(), controller, promise }
+    this.jobs.set(safeUrl, job)
 
-    this.inFlightRequests.set(safeUrl, request)
-    void request.then(() => {
-      if (this.inFlightRequests.get(safeUrl) === request) {
-        this.inFlightRequests.delete(safeUrl)
+    void promise.then(() => {
+      if (this.jobs.get(safeUrl) === job) {
+        this.jobs.delete(safeUrl)
       }
     })
 
-    return request
+    return job
+  }
+
+  private waitForPreview(preview: Promise<string>, signal: AbortSignal): Promise<string> {
+    if (signal.aborted) {
+      return Promise.resolve('')
+    }
+
+    return new Promise((resolve) => {
+      const handleAbort = (): void => {
+        cleanup()
+        resolve('')
+      }
+      const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
+
+      signal.addEventListener('abort', handleAbort, { once: true })
+      void preview.then(
+        (content) => {
+          cleanup()
+          resolve(content)
+        },
+        () => {
+          cleanup()
+          resolve('')
+        }
+      )
+    })
+  }
+
+  private cancelRequest(requestKey: string, error: Error): void {
+    const request = this.requests.get(requestKey)
+    if (!request) {
+      return
+    }
+
+    this.requests.delete(requestKey)
+    request.controller.abort(error)
+
+    for (const safeUrl of request.urls) {
+      this.detachConsumer(requestKey, safeUrl, error)
+    }
+  }
+
+  private detachRequest(requestKey: string, safeUrl: string, request: PreviewRequestState): void {
+    if (this.requests.get(requestKey) === request) {
+      request.urls.delete(safeUrl)
+      if (request.urls.size === 0) {
+        this.requests.delete(requestKey)
+      }
+    }
+
+    this.detachConsumer(requestKey, safeUrl, createAbortError('Citation preview has no subscribers'))
+  }
+
+  private detachConsumer(requestKey: string, safeUrl: string, error: Error): void {
+    const job = this.jobs.get(safeUrl)
+    if (!job) {
+      return
+    }
+
+    job.consumers.delete(requestKey)
+    if (job.consumers.size === 0) {
+      job.controller.abort(error)
+    }
   }
 }
-
-export const citationPreviewService = new CitationPreviewService()

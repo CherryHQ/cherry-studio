@@ -9,6 +9,7 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
+import { v4 as uuid } from 'uuid'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
 import type { MessageListActions } from '../types'
@@ -81,15 +82,28 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 }
 
 export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, actions }) => {
+  const [requestId] = React.useState<string>(() => uuid())
+  const hasCancelablePreviews = citations.some(
+    (citation) => citation.type === 'websearch' && Boolean(citation.url) && !isXPostUrl(citation.url)
+  )
+
+  React.useEffect(() => {
+    if (!hasCancelablePreviews) return
+
+    return () => {
+      void ipcApi.request('citation.cancel_previews', { requestId }).catch(() => undefined)
+    }
+  }, [hasCancelablePreviews, requestId])
+
   return (
     <Scrollbar className="min-h-0 flex-1">
       {citations.map((citation) => (
         <div
-          key={citation.url || citation.number || citation.title}
+          key={`${citation.number}-${citation.url || citation.title}`}
           className="border-border border-b-[0.5px] last:border-b-0">
           {citation.type === 'websearch' && (
             <div className="max-w-[min(400px,60vw)] px-3">
-              <WebSearchCitation citation={citation} actions={actions} />
+              <WebSearchCitation citation={citation} requestId={requestId} actions={actions} />
             </div>
           )}
           {citation.type === 'memory' && (
@@ -159,7 +173,11 @@ const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> =
   )
 }
 
-const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelActions }> = ({ citation, actions }) => {
+const WebSearchCitation: React.FC<{
+  citation: Citation
+  requestId: string
+  actions?: CitationPanelActions
+}> = ({ citation, requestId, actions }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
@@ -168,13 +186,13 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
   }
 
   const { data: fetchedContent, isLoading } = useSWRImmutable(
-    citation.url ? (isXPost ? `webContent/${citation.url}` : `citationPreview/${citation.url}`) : null,
+    citation.url ? (isXPost ? `webContent/${citation.url}` : `citationPreview/${requestId}/${citation.url}`) : null,
     async () => {
       if (isXPost) {
         const oembed = await fetchXOEmbed(citation.url)
         return oembed ? truncateText(`@${oembed.author}: ${oembed.text}`) : ''
       }
-      const { content } = await ipcApi.request('citation.fetch_preview', { url: citation.url })
+      const { content } = await ipcApi.request('citation.fetch_preview', { url: citation.url, requestId })
       return content
     },
     { shouldRetryOnError: false }
