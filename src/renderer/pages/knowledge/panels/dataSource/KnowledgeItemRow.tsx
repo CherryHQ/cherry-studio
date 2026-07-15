@@ -1,6 +1,7 @@
 import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -94,6 +95,10 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
+  // Left-click activates the row: file/url open with the system tool and a directory drills into
+  // its children — all status-independent (the source exists regardless of index state). A note
+  // has no external target, so it only activates once its in-app chunk view is ready (`completed`).
+  const canActivate = item.type === 'note' ? canViewChunks : true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
   const fullTitle = 'source' in item.data ? item.data.source : title
@@ -144,7 +149,9 @@ const KnowledgeItemRow = ({
       type: 'item',
       id: 'delete',
       label: t('knowledge.data_source.actions.delete'),
-      icon: <Trash2 className="size-3.5" />,
+      // Explicit destructive color: the menu's default svg rule mutes uncolored icons, so the
+      // trash icon would otherwise stay gray while the label is red.
+      icon: <Trash2 className="size-3.5 text-destructive" />,
       destructive: true,
       onSelect: () => {
         void Promise.resolve(onDelete()).catch((error) => {
@@ -173,16 +180,17 @@ const KnowledgeItemRow = ({
       <div
         role="row"
         data-state={selected ? 'selected' : undefined}
-        tabIndex={canViewChunks ? 0 : undefined}
-        aria-label={canViewChunks ? t('knowledge.data_source.table.view_chunks_row', { title }) : undefined}
-        onClick={canViewChunks ? onClick : undefined}
-        onKeyDown={canViewChunks ? handleRowKeyDown : undefined}
+        tabIndex={canActivate ? 0 : undefined}
+        aria-label={canActivate ? t('knowledge.data_source.table.open_row', { title }) : undefined}
+        onClick={canActivate ? onClick : undefined}
+        onKeyDown={canActivate ? handleRowKeyDown : undefined}
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
           'group/row min-h-12 rounded-lg transition-colors',
-          canViewChunks &&
+          canActivate &&
             'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-          selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
+          // No hover highlight; only a checked row gets the solid accent background.
+          selected && 'bg-accent'
         )}>
         <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
           <Checkbox
@@ -209,6 +217,9 @@ const KnowledgeItemRow = ({
         </div>
         <div role="gridcell" className="truncate text-foreground-muted text-xs">
           {updatedAt}
+        </div>
+        <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
+          <KnowledgeRowActionsMenu items={contextMenuItems} />
         </div>
       </div>
     </CommandContextMenu>

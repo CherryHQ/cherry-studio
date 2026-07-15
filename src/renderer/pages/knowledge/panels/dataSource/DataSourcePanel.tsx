@@ -1,7 +1,8 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
+import { ChevronLeft } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +12,7 @@ import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
+import { getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
@@ -23,7 +25,14 @@ export interface DataSourcePanelProps {
   onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
+  /** View a non-directory item's chunks in-app (note left-click + the row's context menu). */
   onItemClick?: (itemId: string) => void
+  /** Drill into a directory item to list its children. */
+  onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
+  /** The directory currently drilled into, or null/undefined at the base root. */
+  currentDirectory?: KnowledgeItemOf<'directory'> | null
+  /** Navigate one level up out of {@link currentDirectory}. */
+  onNavigateUp?: () => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
 }
@@ -71,6 +80,9 @@ const DataSourcePanel = ({
   updatedAt,
   onAdd,
   onItemClick,
+  onDrillIntoDirectory,
+  currentDirectory,
+  onNavigateUp,
   onDelete,
   onReindex
 }: DataSourcePanelProps) => {
@@ -90,6 +102,23 @@ const DataSourcePanel = ({
   }, [items])
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
+
+  // Left-click dispatch by item type: a directory drills in, a file/url opens with the system
+  // tool (`previewSource` toasts its own errors), and a note falls back to the in-app chunk view.
+  const handleActivateItem = useCallback(
+    (item: KnowledgeItem) => {
+      if (item.type === 'directory') {
+        onDrillIntoDirectory?.(item)
+        return
+      }
+      if (item.type === 'file' || item.type === 'url') {
+        void previewSource(item)
+        return
+      }
+      onItemClick?.(item.id)
+    },
+    [onDrillIntoDirectory, onItemClick, previewSource]
+  )
 
   const handleToggleOne = useCallback((itemId: string, next: boolean) => {
     setSelectedIds((prev) => {
@@ -167,8 +196,30 @@ const DataSourcePanel = ({
         </div>
       }>
       <div className="flex min-h-0 flex-1 flex-col">
+        {currentDirectory && onNavigateUp && (
+          <div className="flex shrink-0 items-center gap-2 px-3 py-2">
+            {/* No button chrome: sits flush-left so the chevron lines up with the row checkboxes,
+                and hints interactivity with an opacity shift instead of a hover background. */}
+            <button
+              type="button"
+              onClick={onNavigateUp}
+              className="flex cursor-pointer items-center gap-1 text-foreground text-sm opacity-70 transition-opacity hover:opacity-100">
+              <ChevronLeft className="size-4" />
+              {t('knowledge.data_source.back_to_parent')}
+            </button>
+            <span className="min-w-0 truncate text-foreground-secondary text-sm" title={getItemTitle(currentDirectory)}>
+              {getItemTitle(currentDirectory)}
+            </span>
+          </div>
+        )}
         {!isLoading && items.length === 0 ? (
-          <DataSourceEmptyState onAddSource={handleAddSource} />
+          currentDirectory ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-muted text-sm">
+              {t('knowledge.data_source.empty_folder')}
+            </div>
+          ) : (
+            <DataSourceEmptyState onAddSource={handleAddSource} />
+          )
         ) : (
           <KnowledgeItemList
             items={items}
@@ -179,7 +230,7 @@ const DataSourcePanel = ({
             selectedIds={selectedIds}
             onToggleOne={handleToggleOne}
             onToggleAll={handleToggleAll}
-            onItemClick={handleItemClick}
+            onActivate={handleActivateItem}
             onDelete={setPendingDeleteItem}
             onPreviewSource={previewSource}
             onReindex={onReindex}
