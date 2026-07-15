@@ -35,10 +35,7 @@ export type ResourceListRemoteGroupState = {
   status: ResourceListStatus
 }
 
-export type ResourceListRemoteRevealTarget = {
-  groupId?: string | null
-  sectionId?: string | null
-}
+export type ResourceListRemoteRevealFailure = { kind: 'not-found' } | { kind: 'error'; error: unknown }
 
 /**
  * Optional server-backed mode for ResourceList. The caller owns query state,
@@ -52,8 +49,9 @@ export type ResourceListRemoteData = {
   /** Load an unopened group and return its first item id when header selection should navigate. */
   loadGroup?: (groupId: string) => Promise<string | null | void>
   loadMoreGroup?: (groupId: string) => Promise<void>
-  /** Ensure an unloaded item is present and return its group/section placement. */
-  revealItem?: (request: ResourceListRevealRequest) => Promise<ResourceListRemoteRevealTarget | null>
+  /** Ensure an unloaded item is present and report whether it still exists. */
+  revealItem?: (request: ResourceListRevealRequest) => Promise<boolean>
+  onRevealError?: (failure: ResourceListRemoteRevealFailure, request: ResourceListRevealRequest) => void
 }
 
 export type ResourceListSection = {

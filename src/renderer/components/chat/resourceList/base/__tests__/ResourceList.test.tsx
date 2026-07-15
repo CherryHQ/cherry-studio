@@ -1997,15 +1997,16 @@ describe('ResourceList', () => {
 
   it('resolves a remote reveal outside the loaded window and clears the controlled query', async () => {
     const Provider = ResourceList.Provider<TestItem>
-    const revealItem = vi.fn().mockResolvedValue({ groupId: 'remote' })
+    const revealItem = vi.fn()
 
     function RemoteRevealHarness() {
+      const [items, setItems] = useState<TestItem[]>([])
       const [query, setQuery] = useState('needle')
       const [collapsed, setCollapsed] = useState<string[]>(['remote'])
 
       return (
         <Provider
-          items={[]}
+          items={items}
           collapsedState={collapsed}
           onCollapsedStateChange={setCollapsed}
           groupBy={() => ({ id: 'remote', label: 'Remote' })}
@@ -2015,7 +2016,11 @@ describe('ResourceList', () => {
             query,
             groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
             onQueryChange: setQuery,
-            revealItem
+            revealItem: async (request) => {
+              revealItem(request)
+              setItems([{ id: 'outside-window', name: 'Outside window', kind: 'topic', updatedAt: 1 }])
+              return true
+            }
           }}>
           <Inspector />
         </Provider>
@@ -2031,6 +2036,69 @@ describe('ResourceList', () => {
         collapsedGroups: []
       })
     )
+  })
+
+  it('reports a missing remote reveal without clearing the controlled query', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onQueryChange = vi.fn()
+    const onRevealError = vi.fn()
+    const revealItem = vi.fn().mockResolvedValue(false)
+
+    render(
+      <Provider
+        items={[]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        revealRequest={{ itemId: 'missing', requestId: 1, clearQuery: true }}
+        remoteData={{
+          query: 'needle',
+          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
+          onQueryChange,
+          onRevealError,
+          revealItem
+        }}>
+        <Inspector />
+      </Provider>
+    )
+
+    await waitFor(() =>
+      expect(onRevealError).toHaveBeenCalledWith({ kind: 'not-found' }, expect.objectContaining({ itemId: 'missing' }))
+    )
+    expect(onQueryChange).not.toHaveBeenCalled()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'needle' })
+  })
+
+  it('reports a remote reveal request error without clearing the controlled query', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const error = new Error('request failed')
+    const onQueryChange = vi.fn()
+    const onRevealError = vi.fn()
+
+    render(
+      <Provider
+        items={[]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        revealRequest={{ itemId: 'unavailable', requestId: 1, clearQuery: true }}
+        remoteData={{
+          query: 'needle',
+          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
+          onQueryChange,
+          onRevealError,
+          revealItem: vi.fn().mockRejectedValue(error)
+        }}>
+        <Inspector />
+      </Provider>
+    )
+
+    await waitFor(() =>
+      expect(onRevealError).toHaveBeenCalledWith(
+        { kind: 'error', error },
+        expect.objectContaining({ itemId: 'unavailable' })
+      )
+    )
+    expect(onQueryChange).not.toHaveBeenCalled()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'needle' })
   })
 
   it('bounds remote expand-all group loading concurrency', async () => {

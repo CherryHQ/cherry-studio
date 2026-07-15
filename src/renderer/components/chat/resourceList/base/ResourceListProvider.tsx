@@ -20,6 +20,7 @@ import {
   ResourceListMetaContext,
   type ResourceListRemoteData,
   type ResourceListRemoteGroupState,
+  type ResourceListRemoteRevealFailure,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -700,12 +701,18 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     if (!remoteData?.revealItem || pendingRevealRequestRef.current === requestKey) return
 
     pendingRevealRequestRef.current = requestKey
+    const reportRevealFailure = (failure: ResourceListRemoteRevealFailure) => {
+      if (currentRevealRequestKeyRef.current !== requestKey) return
+      handledRevealRequestRef.current = requestKey
+      remoteData.onRevealError?.(failure, revealRequest)
+    }
     void remoteData
       .revealItem(revealRequest)
-      .then((target) => {
-        if (currentRevealRequestKeyRef.current === requestKey && target) applyRevealTarget(target)
+      .then((found) => {
+        if (currentRevealRequestKeyRef.current !== requestKey) return
+        if (!found) reportRevealFailure({ kind: 'not-found' })
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => reportRevealFailure({ kind: 'error', error }))
       .finally(() => {
         if (pendingRevealRequestRef.current === requestKey) pendingRevealRequestRef.current = null
       })

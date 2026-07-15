@@ -12,6 +12,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListRemoteData,
   type ResourceListRemoteGroupState,
+  type ResourceListRemoteRevealFailure,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -758,6 +759,19 @@ const Sessions = ({
     if (revealedSession && !byId.has(revealedSession.id)) byId.set(revealedSession.id, revealedSession)
     return [...byId.values()]
   }, [ordinarySessions, displayMode, pinnedSessions, revealedSession, sessionGroupWindowItems])
+  useEffect(() => {
+    if (!revealedSession) return
+    const ordinarySource = displayMode === 'time' ? ordinarySessions : sessionGroupWindowItems
+    if (
+      pinnedSessions.some((session) => session.id === revealedSession.id) ||
+      ordinarySource.some((session) => session.id === revealedSession.id)
+    ) {
+      setRevealedSession(null)
+    }
+  }, [ordinarySessions, displayMode, pinnedSessions, revealedSession, sessionGroupWindowItems])
+  useEffect(() => {
+    if (revealedSession && activeSessionId !== revealedSession.id) setRevealedSession(null)
+  }, [activeSessionId, revealedSession])
   const { items: sessionItems, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
     disabled: isSessionPinMutating,
     items: sourceSessionItems,
@@ -1710,33 +1724,40 @@ const Sessions = ({
       reloadOrdinarySessions
     ]
   )
-  const revealSession = useCallback(
-    async (request: ResourceListRevealRequest) => {
-      const query = { ids: [request.itemId], limit: 1, sortBy: 'createdAt' as const }
-      const [pinnedPage, ordinaryPage] = await Promise.all([
-        dataApiService.get('/agent-sessions', { query: { ...query, pinned: true } }),
-        dataApiService.get('/agent-sessions', { query: { ...query, pinned: false } })
-      ])
-      const session = pinnedPage.items[0] ?? ordinaryPage.items[0]
-      if (!session) return null
+  const revealSession = useCallback(async (request: ResourceListRevealRequest) => {
+    const query = { ids: [request.itemId], limit: 1, sortBy: 'createdAt' as const }
+    const [pinnedPage, ordinaryPage] = await Promise.all([
+      dataApiService.get('/agent-sessions', { query: { ...query, pinned: true } }),
+      dataApiService.get('/agent-sessions', { query: { ...query, pinned: false } })
+    ])
+    const session = pinnedPage.items[0] ?? ordinaryPage.items[0]
+    if (!session) return false
 
-      setRevealedSession(session)
-      const group = sessionGroupBy(session)
-      const section = sessionSectionBy?.(session)
-      return { groupId: group?.id, sectionId: section?.id }
+    setRevealedSession(session)
+    return true
+  }, [])
+  const handleSessionRevealError = useCallback(
+    (failure: ResourceListRemoteRevealFailure, request: ResourceListRevealRequest) => {
+      if (failure.kind === 'not-found') {
+        toast.error(t('agent.session.get.error.not_found'))
+        return
+      }
+      logger.error('Failed to reveal agent session', { err: failure.error, sessionId: request.itemId })
+      toast.error(formatErrorMessageWithPrefix(failure.error, t('common.error')))
     },
-    [sessionGroupBy, sessionSectionBy]
+    [t]
   )
   const sessionListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
       groupStates: sessionGroupStates,
       loadGroup: loadSessionGroup,
       loadMoreGroup: loadMoreSessionGroup,
+      onRevealError: handleSessionRevealError,
       onQueryChange: setRemoteQuery,
       query: remoteQuery,
       revealItem: revealSession
     }),
-    [loadMoreSessionGroup, loadSessionGroup, remoteQuery, revealSession, sessionGroupStates]
+    [handleSessionRevealError, loadMoreSessionGroup, loadSessionGroup, remoteQuery, revealSession, sessionGroupStates]
   )
   const canDragSessionItem = useCallback(
     ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,

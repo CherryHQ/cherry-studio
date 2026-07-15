@@ -30,7 +30,7 @@ export type {
   ResourceListMeta,
   ResourceListRemoteData,
   ResourceListRemoteGroupState,
-  ResourceListRemoteRevealTarget,
+  ResourceListRemoteRevealFailure,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
   ResourceListSection,

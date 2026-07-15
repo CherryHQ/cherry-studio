@@ -19,6 +19,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListRemoteData,
   type ResourceListRemoteGroupState,
+  type ResourceListRemoteRevealFailure,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -576,6 +577,19 @@ export function Topics({
     if (revealedTopic && !byId.has(revealedTopic.id)) byId.set(revealedTopic.id, revealedTopic)
     return [...byId.values()]
   }, [assistantWindowTopics, ordinaryTopics, isAssistantDisplayMode, pinnedTopics, revealedTopic])
+  useEffect(() => {
+    if (!revealedTopic) return
+    const ordinarySource = isAssistantDisplayMode ? assistantWindowTopics : ordinaryTopics
+    if (
+      pinnedTopics.some((topic) => topic.id === revealedTopic.id) ||
+      ordinarySource.some((topic) => topic.id === revealedTopic.id)
+    ) {
+      setRevealedTopic(null)
+    }
+  }, [assistantWindowTopics, ordinaryTopics, isAssistantDisplayMode, pinnedTopics, revealedTopic])
+  useEffect(() => {
+    if (revealedTopic && activeTopic?.id !== revealedTopic.id) setRevealedTopic(null)
+  }, [activeTopic?.id, revealedTopic])
   const { items: topics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
     disabled: isPinsMutating,
     items: sourceTopics,
@@ -1086,34 +1100,41 @@ export function Topics({
       refetchPinnedTopics
     ]
   )
-  const revealTopic = useCallback(
-    async (request: ResourceListRevealRequest) => {
-      const query = { ids: [request.itemId], limit: 1, sortBy: 'createdAt' as const }
-      const [pinnedPage, ordinaryPage] = await Promise.all([
-        dataApiService.get('/topics', { query: { ...query, pinned: true } }),
-        dataApiService.get('/topics', { query: { ...query, pinned: false } })
-      ])
-      const item = pinnedPage.items[0] ?? ordinaryPage.items[0]
-      if (!item) return null
+  const revealTopic = useCallback(async (request: ResourceListRevealRequest) => {
+    const query = { ids: [request.itemId], limit: 1, sortBy: 'createdAt' as const }
+    const [pinnedPage, ordinaryPage] = await Promise.all([
+      dataApiService.get('/topics', { query: { ...query, pinned: true } }),
+      dataApiService.get('/topics', { query: { ...query, pinned: false } })
+    ])
+    const item = pinnedPage.items[0] ?? ordinaryPage.items[0]
+    if (!item) return false
 
-      const topic = mapApiTopicListItem(item)
-      setRevealedTopic(topic)
-      const group = topicGroupBy(topic)
-      const section = topicSectionBy?.(topic)
-      return { groupId: group?.id, sectionId: section?.id }
+    const topic = mapApiTopicListItem(item)
+    setRevealedTopic(topic)
+    return true
+  }, [])
+  const handleTopicRevealError = useCallback(
+    (failure: ResourceListRemoteRevealFailure, request: ResourceListRevealRequest) => {
+      if (failure.kind === 'not-found') {
+        toast.error(t('history.error.topic_not_found'))
+        return
+      }
+      logger.error('Failed to reveal topic', { err: failure.error, topicId: request.itemId })
+      toast.error(formatErrorMessageWithPrefix(failure.error, t('common.error')))
     },
-    [topicGroupBy, topicSectionBy]
+    [t]
   )
   const topicListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
       groupStates: topicGroupStates,
       loadGroup: loadTopicGroup,
       loadMoreGroup: loadMoreTopicGroup,
+      onRevealError: handleTopicRevealError,
       onQueryChange: setRemoteQuery,
       query: remoteQuery,
       revealItem: revealTopic
     }),
-    [loadMoreTopicGroup, loadTopicGroup, remoteQuery, revealTopic, topicGroupStates]
+    [handleTopicRevealError, loadMoreTopicGroup, loadTopicGroup, remoteQuery, revealTopic, topicGroupStates]
   )
   // Stream failures are recoverable at their remote group footer. Keeping them out of the
   // top-level status is what leaves that error group mounted even before any rows have loaded.
