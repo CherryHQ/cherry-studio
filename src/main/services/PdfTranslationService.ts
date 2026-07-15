@@ -7,6 +7,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
@@ -22,7 +23,6 @@ import type {
   PdfTranslationStage
 } from '@shared/ipc/schemas/translate'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { Mutex } from 'async-mutex'
 import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
 
@@ -146,9 +146,6 @@ const gatewayHostForClient = (host: string): string => {
 export class PdfTranslationService extends BaseService {
   private readonly activeJobs = new Map<string, ActivePdfTranslation>()
   private readonly activeRuns = new Set<Promise<PdfTranslationResult>>()
-  private readonly gatewayMutex = new Mutex()
-  private gatewayLeaseCount = 0
-  private gatewayStartedByService = false
 
   protected async onInit(): Promise<void> {
     // Success-path output dirs are cleaned only by the renderer effect, which never runs
@@ -198,6 +195,7 @@ export class PdfTranslationService extends BaseService {
     const job: ActivePdfTranslation = { cancelled: false, child: null, progress: 0, progressStage: null }
     this.activeJobs.set(request.jobId, job)
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
+    const gateway = application.get('ApiGatewayService')
     let gatewayLeaseAcquired = false
     let completed = false
 
@@ -215,11 +213,12 @@ export class PdfTranslationService extends BaseService {
       const model = modelService.getByKey(providerId, modelId)
       const gatewayModelId = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
 
-      await this.acquireGateway()
+      // Hold a temporary run lease instead of toggling the gateway's persistent enabled state, so a
+      // user enabling/disabling the gateway mid-translation is neither overridden nor able to cut us off.
+      await gateway.acquireLease()
       gatewayLeaseAcquired = true
       this.throwIfCancelled(job)
 
-      const gateway = application.get('ApiGatewayService')
       const apiKey = await gateway.ensureValidApiKey()
       const config = gateway.getCurrentConfig()
       const baseUrl = `http://${gatewayHostForClient(config.host)}:${config.port}/v1`
@@ -231,7 +230,10 @@ export class PdfTranslationService extends BaseService {
       await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onStage, onProgress)
       this.throwIfCancelled(job)
 
-      const fileName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
+      // BabelDOC 0.6.3 inserts a `.no_watermark` segment into the mono filename whenever the
+      // watermark mode is not `watermarked` (we pass `--watermark-output-mode no_watermark`), e.g.
+      // `paper.no_watermark.zh-CN.mono.pdf`. Omitting it would ENOENT here and delete the artifact.
+      const fileName = `${path.parse(request.sourcePath).name}.no_watermark.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
       const outputPath = path.join(outputDir, fileName)
       await fs.promises.access(outputPath, fs.constants.R_OK)
       this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
@@ -254,7 +256,7 @@ export class PdfTranslationService extends BaseService {
           logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
         })
       }
-      if (gatewayLeaseAcquired) await this.releaseGateway()
+      if (gatewayLeaseAcquired) gateway.releaseLease()
     }
   }
 
@@ -344,7 +346,11 @@ export class PdfTranslationService extends BaseService {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        const child = crossPlatformSpawn(executable, args, { cwd: outputDir, env })
+        // POSIX: run BabelDOC as its own process-group leader so `killProcessTree` can signal the
+        // whole group (negative PID) and reap the multiprocessing workers it forks for rendering,
+        // font subsetting, and saving. Windows relies on `taskkill /T` instead — and `detached`
+        // there would pop a console window — so it stays off.
+        const child = crossPlatformSpawn(executable, args, { cwd: outputDir, env, detached: !isWin })
         job.child = child
         // A cancel that landed during the pre-spawn await window (resolveSidecar →
         // gateway → mkdir → writeFile) killed a still-null child; re-check now so the
@@ -431,14 +437,15 @@ export class PdfTranslationService extends BaseService {
             reject(new Error('PDF translation cancelled'))
           } else if (sidecarError) {
             reject(sidecarError)
+          } else if (/ScannedPDFError|Scanned PDF detected/i.test(stderr)) {
+            // Checked BEFORE `code === 0`: BabelDOC 0.6.3 only logs the error event and breaks, so a
+            // scanned PDF can still exit 0. A broken adapter can't emit the structured
+            // ScannedPDFError, so match the raw traceback (class name or exact message) and still
+            // surface the friendly OCR hint. Kept narrow so an unrelated failure whose stderr merely
+            // mentions "scanned PDF" isn't misreported as OCR-required.
+            reject(createOcrRequiredError())
           } else if (code === 0) {
             resolve()
-          } else if (/ScannedPDFError|Scanned PDF detected/i.test(stderr)) {
-            // A broken adapter can't emit the structured ScannedPDFError, so match the raw
-            // traceback (class name or exact message) and still surface the friendly OCR hint.
-            // Kept narrow so an unrelated failure whose stderr merely mentions "scanned PDF"
-            // isn't misreported as OCR-required.
-            reject(createOcrRequiredError())
           } else {
             reject(new Error(stderr.trim() || `BabelDOC exited with code ${code ?? 'null'} (${signal ?? 'no signal'})`))
           }
@@ -497,33 +504,6 @@ export class PdfTranslationService extends BaseService {
 
   private throwIfCancelled(job: ActivePdfTranslation): void {
     if (job.cancelled) throw new Error('PDF translation cancelled')
-  }
-
-  private async acquireGateway(): Promise<void> {
-    await this.gatewayMutex.runExclusive(async () => {
-      const gateway = application.get('ApiGatewayService')
-      if (this.gatewayLeaseCount === 0 && !gateway.isRunning()) {
-        await gateway.start()
-        this.gatewayStartedByService = true
-      }
-      this.gatewayLeaseCount += 1
-    })
-  }
-
-  private async releaseGateway(): Promise<void> {
-    await this.gatewayMutex.runExclusive(async () => {
-      this.gatewayLeaseCount = Math.max(0, this.gatewayLeaseCount - 1)
-      if (this.gatewayLeaseCount > 0 || !this.gatewayStartedByService) return
-
-      try {
-        const gateway = application.get('ApiGatewayService')
-        await gateway.stop()
-      } catch (error) {
-        logger.warn('Failed to stop temporary API gateway', error as Error)
-      } finally {
-        this.gatewayStartedByService = false
-      }
-    })
   }
 
   private async buildSidecarEnv(): Promise<Record<string, string>> {

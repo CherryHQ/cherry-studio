@@ -7904,6 +7904,7 @@
         "title": "偵測到 PDF"
       },
       "error": {
+        "generic": "翻譯過程中發生錯誤，請重試。",
         "ocr_required": "暫不支援掃描版 PDF",
         "title": "PDF 翻譯失敗"
       },

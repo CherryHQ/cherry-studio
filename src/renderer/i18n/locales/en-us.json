@@ -7904,6 +7904,7 @@
         "title": "PDF detected"
       },
       "error": {
+        "generic": "Something went wrong during translation. Please try again.",
         "ocr_required": "Scanned PDFs are not supported yet.",
         "title": "PDF translation failed"
       },

@@ -131,3 +131,93 @@ describe('ApiGatewayService reconcile', () => {
     expect(service.isActivated).toBe(false) // converged to desiredEnabled === false
   })
 })
+
+describe('ApiGatewayService lease', () => {
+  it('starts the gateway for a lease when disabled, and stops it once released', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    expect(service.isActivated).toBe(false)
+
+    const acquired = service.acquireLease()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await acquired
+    expect(service.isActivated).toBe(true)
+
+    service.releaseLease()
+    await vi.waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+    expect(service.isActivated).toBe(false)
+  })
+
+  it('does not stop a gateway the user enabled while a lease was held', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const acquired = service.acquireLease()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await acquired
+
+    // User turns the gateway on mid-lease; releasing the lease must not undo their choice.
+    captured.prefHandler!(true)
+    service.releaseLease()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(mockStop).not.toHaveBeenCalled()
+    expect(service.isActivated).toBe(true)
+  })
+
+  it('keeps the gateway running while a lease is held even if the user disables it', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    // Start from a user-enabled, running gateway.
+    captured.prefHandler!(true)
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    await service.acquireLease()
+    // User disables the gateway mid-lease — the lease must keep it up (don't cut off the consumer).
+    captured.prefHandler!(false)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(mockStop).not.toHaveBeenCalled()
+    expect(service.isActivated).toBe(true)
+
+    // Releasing the last lease now lets it converge to the user's disabled state.
+    service.releaseLease()
+    await vi.waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+    expect(service.isActivated).toBe(false)
+  })
+
+  it('holds the gateway up until the last of several leases is released', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    const first = service.acquireLease()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await first
+    await service.acquireLease() // gateway already running → settles without another start
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(service.isActivated).toBe(true)
+
+    service.releaseLease()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(mockStop).not.toHaveBeenCalled() // one lease still held
+    expect(service.isActivated).toBe(true)
+
+    service.releaseLease()
+    await vi.waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+    expect(service.isActivated).toBe(false)
+  })
+
+  it('rolls back the lease and throws when the gateway fails to start', async () => {
+    rejectStart = true
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await expect(service.acquireLease()).rejects.toThrow('port in use')
+    expect(service.isActivated).toBe(false)
+  })
+})

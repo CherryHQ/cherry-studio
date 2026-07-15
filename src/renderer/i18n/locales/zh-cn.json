@@ -7904,6 +7904,7 @@
         "title": "检测到 PDF"
       },
       "error": {
+        "generic": "翻译过程中出现错误，请重试。",
         "ocr_required": "暂不支持扫描版 PDF",
         "title": "PDF 翻译失败"
       },

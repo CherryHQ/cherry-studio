@@ -329,6 +329,41 @@ describe('PdfTranslationView', () => {
     expect(await screen.findByText('translate.pdf.error.ocr_required')).toBeInTheDocument()
   })
 
+  it('shows a generic message for an unknown sidecar failure instead of the raw stderr', async () => {
+    const rawStderr =
+      'Traceback (most recent call last):\n  /Users/secret/proj/babeldoc/main.py line 42\nRuntimeError: boom'
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') {
+        return Promise.reject(new IpcError('INTERNAL', rawStderr))
+      }
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
+        onClose={vi.fn()}
+        onHandleChange={(next) => {
+          handle = next
+        }}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+
+    // The localized generic message is shown; the raw stderr/traceback never reaches the UI.
+    expect(await screen.findByText('translate.pdf.error.generic')).toBeInTheDocument()
+    expect(screen.queryByText(rawStderr)).not.toBeInTheDocument()
+  })
+
   it('shows the BabelDOC install prompt before translation when the dependency is missing', () => {
     const onInstallBabelDoc = vi.fn()
 

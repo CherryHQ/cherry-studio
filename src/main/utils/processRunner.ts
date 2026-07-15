@@ -88,8 +88,11 @@ export function crossPlatformSpawn(
  *
  * On Windows, `crossPlatformSpawn` runs non-`.exe` commands through `shell: true`
  * (cmd.exe), so a plain `child.kill()` only reaps the cmd.exe wrapper and leaves the
- * real process orphaned. `taskkill /T /F` terminates the whole tree by PID. Best-effort:
- * falls back to `child.kill()` when the pid is missing or taskkill is unavailable.
+ * real process orphaned. `taskkill /T /F` terminates the whole tree by PID. On POSIX,
+ * signalling the negative PID reaps the child's whole process group — but only if the
+ * child was spawned `detached` (as its own group leader); otherwise the group send hits
+ * ESRCH and we fall back to a direct `child.kill()`. Best-effort throughout: also falls
+ * back when the pid is missing or taskkill is unavailable.
  */
 export function killProcessTree(child: ChildProcess): void {
   if (isWin && child.pid) {
@@ -102,6 +105,17 @@ export function killProcessTree(child: ChildProcess): void {
       }
     })
     return
+  }
+  if (child.pid) {
+    try {
+      // Negative PID → signal the whole process group (the detached child is its group leader),
+      // so descendants a plain child.kill() would orphan are terminated too.
+      process.kill(-child.pid, 'SIGTERM')
+      return
+    } catch (error) {
+      // No such group (child not detached, or already exited): fall back to a direct kill.
+      logger.debug('Could not signal the process group, falling back to child.kill()', error as Error)
+    }
   }
   child.kill()
 }
