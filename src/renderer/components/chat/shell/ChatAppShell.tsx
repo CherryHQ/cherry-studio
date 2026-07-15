@@ -1,15 +1,10 @@
-import {
-  ImmersiveNarrowReportProvider,
-  ImmersiveNavbarStateProvider,
-  resolveImmersiveNavbar
-} from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
@@ -100,20 +95,7 @@ export function ChatAppShell({
   const previousShellWidthRef = useRef<number | null>(null)
   const previousCenterWidthRef = useRef<number | null>(null)
 
-  // Immersive navbar owner: the top bar floats over the message list when the list is narrow
-  // (centered) and the center is wide enough for the navbar's edge clusters. Decided from a single
-  // self-measurement (the center's own width) + a `narrow` boolean the list reports up — no probe,
-  // no occupant scraping. When floating, a CSS clamp keeps the navbar's clusters inside the gutters.
   const isWindow = useWindowFrame().mode === 'window'
-  const [centerWidth, setCenterWidth] = useState(0)
-  const [narrow, setNarrow] = useState(false)
-  const reportNarrow = useCallback((next: boolean) => {
-    setNarrow((current) => (current === next ? current : next))
-  }, [])
-  const immersive = useMemo(
-    () => resolveImmersiveNavbar({ narrow, centerWidth, isWindow }),
-    [narrow, centerWidth, isWindow]
-  )
   const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
     const reasons = autoCollapseReasonsRef.current
     const wasCollapsed = reasons.center || reasons.shell
@@ -154,12 +136,10 @@ export function ChatAppShell({
     if (!center || typeof ResizeObserver === 'undefined') return
     const initialCenterWidth = center.getBoundingClientRect().width
     previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : null
-    setCenterWidth(initialCenterWidth)
     const observer = new ResizeObserver(([entry]) => {
       const previousCenterWidth = previousCenterWidthRef.current
       const nextCenterWidth = entry.contentRect.width
       previousCenterWidthRef.current = nextCenterWidth
-      setCenterWidth(nextCenterWidth)
 
       if (previousCenterWidth === null) return
 
@@ -229,31 +209,20 @@ export function ChatAppShell({
             transition={CHAT_SHELL_TRANSITION}
             className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
             {topBar && (
-              <div
-                data-chat-navbar-floating={immersive.floating ? '' : undefined}
-                className={cn(
-                  'z-10 bg-background',
-                  immersive.floating
-                    ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
-                    : 'relative shrink-0'
-                )}>
+              <div className="relative z-10 shrink-0 bg-background">
                 <ErrorBoundary>{topBar}</ErrorBoundary>
               </div>
             )}
-            <ImmersiveNarrowReportProvider value={reportNarrow}>
-              <ImmersiveNavbarStateProvider value={immersive}>
-                {hasCenterContent ? (
-                  <ErrorBoundary>{centerContent}</ErrorBoundary>
-                ) : (
-                  <>
-                    <ErrorBoundary>
-                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                    </ErrorBoundary>
-                    {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                  </>
-                )}
-              </ImmersiveNavbarStateProvider>
-            </ImmersiveNarrowReportProvider>
+            {hasCenterContent ? (
+              <ErrorBoundary>{centerContent}</ErrorBoundary>
+            ) : (
+              <>
+                <ErrorBoundary>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                </ErrorBoundary>
+                {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+              </>
+            )}
             {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
           </motion.div>
           {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
