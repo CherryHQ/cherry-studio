@@ -98,6 +98,7 @@ export const KNOWLEDGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
   // .cherry/index.sqlite). restoreResources (copy verbatim, no reindex on restore
   // since the embedded index is part of the base) lands with the C/D restore track.
   operations: {
-    collectFileResources: (ctx) => collectKnowledgeBaseIds(ctx.liveDb)
+    collectFileResources: async (ctx) =>
+      [...(await collectKnowledgeBaseIds(ctx.liveDb))].map((baseId) => ({ kind: 'knowledge-base' as const, baseId }))
   }
 })

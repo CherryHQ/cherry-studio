@@ -84,7 +84,9 @@ const contributor = (
 const buildFixture = (): BackupContributor[] => [
   contributor('PREFERENCES', ['preference']),
   contributor('PROVIDERS', ['user_provider'], {
-    fileRefSourcePolicies: [{ sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner' }]
+    fileRefSourcePolicies: [
+      { sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner' }
+    ]
   }),
   contributor('PROMPTS', ['prompt']),
   contributor('MCP_SERVERS', ['mcp_server']),
@@ -98,7 +100,9 @@ const buildFixture = (): BackupContributor[] => [
     ]
   }),
   contributor('MINIAPPS', ['mini_app'], {
-    fileRefSourcePolicies: [{ sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' }]
+    fileRefSourcePolicies: [
+      { sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' }
+    ]
   }),
   contributor('SKILLS', ['agent_workspace']),
   contributor('TOPICS', ['note'], {
@@ -697,7 +701,9 @@ describe('ReadonlyBackupRegistry queries', () => {
     expect(Object.isFrozen(agg.identityKey)).toBe(true)
     expect(Object.isFrozen(agg.members)).toBe(true)
     expect(() => (aggs as AggregateBoundary[]).push(agg)).toThrow(TypeError)
-    expect(() => ((agg as AggregateBoundary).renamable = true)).toThrow(TypeError)
+    expect(() => {
+      ;(agg as { renamable: boolean }).renamable = true
+    }).toThrow(TypeError)
   })
 
   it('resolves the table owner for an owned table', () => {

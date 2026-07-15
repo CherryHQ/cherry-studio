@@ -76,6 +76,7 @@ export const FILE_STORAGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // Export blob set = non-deleted file_entry ids (internal + external). Staging
     // resolves each id to its source path and copies the blob into files/<id>;
     // a missing external source is skipped, not fatal.
-    collectFileResources: (ctx) => collectFileEntryIds(ctx.liveDb)
+    collectFileResources: async (ctx) =>
+      [...(await collectFileEntryIds(ctx.liveDb))].map((fileEntryId) => ({ kind: 'file-entry' as const, fileEntryId }))
   }
 })

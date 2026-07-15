@@ -88,6 +88,10 @@ export const PAINTINGS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   // (deduped). restoreResources (blob restore runs before DB import, returns
   // skippedFileEntryIds) lands with the C/D restore track (like FILE_STORAGE / KNOWLEDGE).
   operations: {
-    collectFileResources: (ctx) => collectPaintingFileIds(ctx.liveDb)
+    collectFileResources: async (ctx) =>
+      [...(await collectPaintingFileIds(ctx.liveDb))].map((fileEntryId) => ({
+        kind: 'file-entry' as const,
+        fileEntryId
+      }))
   }
 })

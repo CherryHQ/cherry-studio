@@ -64,7 +64,12 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // reference carrier). Declared so finalize #12 exhaustiveness passes. (note has
     // no JSON columns.)
     exemptJsonCols: [
-      { table: table('preference'), column: column('value'), reason: 'no soft refs — holds the preference key-value store payload (arbitrary settings JSON), not entity references' }
+      {
+        table: table('preference'),
+        column: column('value'),
+        reason:
+          'no soft refs — holds the preference key-value store payload (arbitrary settings JSON), not entity references'
+      }
     ]
   },
   backupPolicy: {
@@ -95,7 +100,8 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // bodies (full mode). undefined notesRoot = "no notes configured" (empty set);
     // a provided but unreadable root throws — never a silent empty backup.
     // restoreResources (dir-swap preboot promotion) is the D restore track (#16714).
-    collectFileResources: collectNotesMarkdown
+    collectFileResources: async (ctx) =>
+      [...(await collectNotesMarkdown(ctx))].map((relPath) => ({ kind: 'notes-file' as const, relPath }))
   }
 })
 
@@ -177,10 +183,11 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
         try {
           const realDir = realpathSync(full)
           if (!isPathInside(realDir, realRoot)) {
-            logger.warn(
-              'PREFERENCES collectFileResources: subdirectory realpath outside notes root skipped',
-              { full, realDir, notesRoot: root }
-            )
+            logger.warn('PREFERENCES collectFileResources: subdirectory realpath outside notes root skipped', {
+              full,
+              realDir,
+              notesRoot: root
+            })
             continue
           }
         } catch {
@@ -201,10 +208,11 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
         try {
           const realFile = realpathSync(full)
           if (!isPathInside(realFile, realRoot)) {
-            logger.warn(
-              'PREFERENCES collectFileResources: note realpath outside notes root skipped',
-              { rel, realFile, notesRoot: root }
-            )
+            logger.warn('PREFERENCES collectFileResources: note realpath outside notes root skipped', {
+              rel,
+              realFile,
+              notesRoot: root
+            })
             continue
           }
         } catch {
@@ -225,9 +233,7 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
     stack = processLevel(root, await readdir(root, { withFileTypes: true }))
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code
-    throw new Error(
-      `PREFERENCES collectFileResources: cannot read notes root (${code ?? 'unknown'}): ${root}`
-    )
+    throw new Error(`PREFERENCES collectFileResources: cannot read notes root (${code ?? 'unknown'}): ${root}`)
   }
 
   // Iterative DFS — symlinks/junctions were filtered in processLevel, so the

@@ -253,15 +253,30 @@ export class ExportOrchestrator {
           this.emitProgress(options, 'collect', collected, domains.length, 'Collecting file resources')
           continue
         }
-        const ids = (await registry.getOperations(d)?.collectFileResources?.(ctx)) ?? new Set<string>()
-        // Route by domain shape: KNOWLEDGE → baseIds, PREFERENCES → notes relpaths,
-        // everything else → file_entry ids.
-        if (d === 'KNOWLEDGE') {
-          for (const id of ids) baseIds.add(id)
-        } else if (d === 'PREFERENCES') {
-          for (const id of ids) notesRelPaths.add(id)
-        } else {
-          for (const id of ids) fileIds.add(id)
+        const descs = (await registry.getOperations(d)?.collectFileResources?.(ctx)) ?? []
+        // Route by descriptor kind (not producing domain) — new resource forms extend
+        // the union without a domain switch.
+        for (const desc of descs) {
+          switch (desc.kind) {
+            case 'file-entry':
+              fileIds.add(desc.fileEntryId)
+              break
+            case 'knowledge-base':
+              baseIds.add(desc.baseId)
+              break
+            case 'notes-file':
+              notesRelPaths.add(desc.relPath)
+              break
+            case 'skill-dir':
+            case 'mcp-package-dir':
+            case 'agent-workspace-dir':
+              // Directory-resource staging lands with F2; no contributor emits these yet.
+              throw new Error(`backup: directory resource staging not implemented (${desc.kind})`)
+            default: {
+              const _exhaustive: never = desc
+              throw new Error(`backup: unknown ResourceDescriptor kind ${(_exhaustive as { kind: string }).kind}`)
+            }
+          }
         }
         collected += 1
         this.emitProgress(options, 'collect', collected, domains.length, 'Collecting file resources')

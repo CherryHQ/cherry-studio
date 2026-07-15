@@ -70,7 +70,7 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
     const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
     // Act — undefined notesRoot must NOT throw (so stub-registry tests still pass).
     const out = await collect(ctx(undefined))
-    expect(out).toEqual(new Set<string>())
+    expect(out).toEqual([])
   })
 
   it('returns an empty set when notesRoot is an empty directory', async () => {
@@ -78,7 +78,7 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
     try {
       const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
       const out = await collect(ctx(dir))
-      expect(out).toEqual(new Set<string>())
+      expect(out).toEqual([])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -104,7 +104,7 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
       const out = await collect(ctx(dir))
 
       // Assert — relative POSIX paths; .txt excluded; nested sub-dir preserved.
-      expect(out).toEqual(new Set(['note1.md', 'sub/note2.md']))
+      expect([...out].map((p) => (p as { relPath: string }).relPath).sort()).toEqual(['note1.md', 'sub/note2.md'])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -119,7 +119,7 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
       await writeFile(join(dir, 'a.md'), '# a')
       const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
       const out = await collect(ctx(dir))
-      expect(out).toEqual(new Set(['a.md']))
+      expect([...out].map((p) => (p as { relPath: string }).relPath).sort()).toEqual(['a.md'])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -136,13 +136,13 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
       await writeFile(join(notesRoot, 'safe.md'), '# safe')
 
       const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
-      const out = await collect(ctx(notesRoot))
+      const out = (await collect(ctx(notesRoot))) as readonly { kind: 'notes-file'; relPath: string }[]
 
       // Assert — only the in-root note; no `..` segments and no escape.md.
-      expect(out).toEqual(new Set(['safe.md']))
+      expect(out).toEqual([{ kind: 'notes-file', relPath: 'safe.md' }])
       for (const p of out) {
-        expect(p.split('/').includes('..')).toBe(false)
-        expect(p).not.toContain('escape.md')
+        expect(p.relPath.split('/').includes('..')).toBe(false)
+        expect(p.relPath).not.toContain('escape.md')
       }
     } finally {
       await rm(parent, { recursive: true, force: true })
@@ -163,10 +163,10 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
       await symlink(outside, join(notesRoot, 'link'))
 
       const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
-      const out = await collect(ctx(notesRoot))
+      const out = (await collect(ctx(notesRoot))) as readonly { kind: 'notes-file'; relPath: string }[]
 
-      expect(out).toEqual(new Set(['safe.md']))
-      expect([...out].some((p) => p.includes('secret'))).toBe(false)
+      expect(out).toEqual([{ kind: 'notes-file', relPath: 'safe.md' }])
+      expect([...out].some((p) => p.relPath.includes('secret'))).toBe(false)
     } finally {
       await rm(parent, { recursive: true, force: true })
     }

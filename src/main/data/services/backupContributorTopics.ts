@@ -143,7 +143,11 @@ export const TOPICS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // Export blob set = chat_message_file_ref.fileEntryId (deduped). Staging
     // resolves each id + skips soft-deleted / missing sources (chat attachments
     // follow their owning message in full backups, contributor-spec §5a / backup-architecture §5).
-    collectFileResources: (ctx) => collectChatMessageFileIds(ctx.liveDb),
+    collectFileResources: async (ctx) =>
+      [...(await collectChatMessageFileIds(ctx.liveDb))].map((fileEntryId) => ({
+        kind: 'file-entry' as const,
+        fileEntryId
+      })),
     // Renamable aggregate (RENAME on conflict) → cloneAggregate is required (#16).
     // Pure: no db on the context. The root PK column is read from the registry
     // (#26 guarantees a single-column root PK). The importer remaps member rows
