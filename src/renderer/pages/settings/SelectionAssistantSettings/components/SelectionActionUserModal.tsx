@@ -305,7 +305,7 @@ const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) 
 const IconPreview = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex h-8 w-8 items-center justify-center rounded border border-border bg-background-subtle',
+      'flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background-subtle',
       className
     )}
     {...props}

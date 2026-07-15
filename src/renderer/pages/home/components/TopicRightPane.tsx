@@ -16,7 +16,6 @@ import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
@@ -162,8 +161,6 @@ function TopicRightPaneSurface({
   const resourcePane = useResourcePane()
   const hasBranchPanel = !!topicId
   const branchLiveState = useTopicBranchLiveState(topicId ?? '')
-  const { mode, chrome } = useWindowFrame()
-  const isWindow = mode === 'window'
   const canvasFocusKey = `${topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
   const handleLocateMessage = useCallback(
@@ -179,12 +176,9 @@ function TopicRightPaneSurface({
         ? t('trace.label')
         : t('chat.message.flow.title')
 
-  // In sub-windows the topbar is hidden by the maximized overlay, so the header owns trailing controls then.
-  const tabListTrailing = isWindow && shellState.maximized ? chrome?.titleTrailing : null
-
   return (
     <Shell.Tabs>
-      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false}>
         <ResourcePaneTab />
         {hasBranchPanel && (
           <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>

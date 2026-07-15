@@ -121,6 +121,7 @@ const tabsContextMocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
+const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
@@ -129,6 +130,10 @@ vi.mock('@renderer/hooks/tab', () => ({
     setActiveTab: tabsContextMocks.setActiveTab,
     tabs: tabsContextMocks.tabs
   })
+}))
+
+vi.mock('@renderer/hooks/useWindowFrame', () => ({
+  useWindowFrame: () => ({ mode: windowFrameMocks.mode })
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
@@ -388,7 +393,7 @@ import {
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 
 import {
   clearPendingTopicImageActionsForTest,
@@ -677,6 +682,7 @@ describe('Topics', () => {
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
     tabsContextMocks.tabs = []
+    windowFrameMocks.mode = 'embedded'
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/pins') {
         return { trigger: pinMutationMocks.createPin, isLoading: false, error: undefined }
@@ -1143,6 +1149,22 @@ describe('Topics', () => {
     })
   })
 
+  it('hides topic position actions when pane position is controlled without a setter', () => {
+    const { getByText } = renderTopicList({ panePosition: 'left' })
+    const panePositionHookIndex = MockUsePreference.usePreference.mock.calls.findIndex(
+      ([key]) => key === 'topic.tab.position'
+    )
+    const setStoredPanePosition = MockUsePreference.usePreference.mock.results[panePositionHookIndex]?.value[1] as Mock
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Conversation position')
+    expect(setStoredPanePosition).not.toHaveBeenCalled()
+  })
+
   it('hides topic position actions from the time-mode topic context menu', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { getByText } = renderTopicList()
@@ -1329,6 +1351,18 @@ describe('Topics', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
     expect(menuContent).not.toHaveTextContent('Open in new tab')
+  })
+
+  it('hides open-in-new-tab but keeps open-in-new-window for inactive topics in a detached window', () => {
+    windowFrameMocks.mode = 'window'
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Gamma topic'))
+    const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
+    const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent).not.toHaveTextContent('Open in new tab')
+    expect(menuContent).toHaveTextContent('Open in New Window')
   })
 
   it('shows loading while exporting a right-clicked topic as an image without switching topics', async () => {

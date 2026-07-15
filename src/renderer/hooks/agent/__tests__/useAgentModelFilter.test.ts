@@ -1,16 +1,8 @@
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
-
-const providersMock = vi.hoisted(() => ({
-  providers: [] as Array<Record<string, unknown>>
-}))
-
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: providersMock.providers })
-}))
 
 function model(capabilities: Model['capabilities'] = []): Model {
   return {
@@ -25,34 +17,6 @@ function model(capabilities: Model['capabilities'] = []): Model {
 }
 
 describe('useAgentModelFilter', () => {
-  beforeEach(() => {
-    providersMock.providers = [
-      {
-        id: 'gemini',
-        presetProviderId: 'gemini',
-        defaultChatEndpoint: 'google-generate-content',
-        authType: 'api-key'
-      },
-      {
-        id: 'google-custom',
-        presetProviderId: 'gemini',
-        defaultChatEndpoint: 'google-generate-content',
-        authType: 'api-key'
-      },
-      {
-        id: 'vertex',
-        defaultChatEndpoint: 'google-generate-content',
-        authType: 'iam-gcp'
-      },
-      {
-        id: 'cherryai',
-        presetProviderId: 'cherryai',
-        defaultChatEndpoint: 'openai-chat-completions',
-        authType: 'api-key'
-      }
-    ]
-  })
-
   it('allows chat-capable models from non-Anthropic providers for Claude Code agents', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 
@@ -62,11 +26,11 @@ describe('useAgentModelFilter', () => {
     expect(result.current({ ...model(), providerId: 'vertex', id: 'vertex::gemini-2.5-pro' })).toBe(true)
   })
 
-  it('filters Gemini provider models for Claude Code agents', () => {
+  it('allows Gemini provider models for Claude Code agents', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 
-    expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(false)
-    expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(false)
+    expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(true)
+    expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(true)
   })
 
   it('filters the managed CherryAI default model for Claude Code agents', () => {
@@ -75,6 +39,12 @@ describe('useAgentModelFilter', () => {
     expect(
       result.current({ ...model(), providerId: 'cherryai', id: 'cherryai::qwen', apiModelId: 'qwen', name: 'Qwen' })
     ).toBe(false)
+  })
+
+  it('filters provider IDs that the API Gateway cannot route for Claude Code agents', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(result.current({ ...model(), providerId: 'corp:west', id: 'corp:west::gpt-4o' })).toBe(false)
   })
 
   it('marks its predicate as an agent picker so selectors surface agent-only providers', () => {
