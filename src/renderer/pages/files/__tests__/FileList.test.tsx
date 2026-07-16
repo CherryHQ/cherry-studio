@@ -39,6 +39,7 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     files: [file],
     selectedIds: new Set(),
     onSelect: vi.fn(),
+    onPreview: vi.fn(),
     onOpen: vi.fn(),
     onSelectAll: vi.fn(),
     visibleSelectionState: false,
@@ -116,6 +117,18 @@ describe('FileList', () => {
     expect(onSelect).toHaveBeenCalledWith(file.id)
   })
 
+  it('previews files through the dedicated action', () => {
+    const onPreview = vi.fn()
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onPreview={onPreview} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.preview.open' }))
+
+    expect(onPreview).toHaveBeenCalledWith(file)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it('shows the row show-in-folder action for active files', () => {
     const externalFile: FileItem = {
       ...file,
@@ -160,6 +173,7 @@ describe('FileList', () => {
     render(<FileList {...fileListProps(null)} files={[missingExternalFile]} />)
 
     expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.preview.open' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()

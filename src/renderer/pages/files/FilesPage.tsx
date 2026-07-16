@@ -15,9 +15,11 @@ import {
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useOpenFilePreviewTab } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
@@ -354,6 +356,7 @@ const FileToolbar = memo(function FileToolbar({
 
 function FilesPage() {
   const { t } = useTranslation()
+  const openFilePreviewTab = useOpenFilePreviewTab()
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -572,6 +575,23 @@ function FilesPage() {
       })
     },
     [t]
+  )
+
+  const handlePreview = useCallback(
+    (file: FileItem) => {
+      void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
+        .then((physicalPaths) => {
+          const filePath = physicalPaths[file.id]
+          if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
+          openFilePreviewTab(normalizeFilePreviewPath(filePath))
+        })
+        .catch((error: unknown) => {
+          const normalized = error instanceof Error ? error : new Error(String(error))
+          logger.error('Failed to open file preview', normalized)
+          toast.error(t('files.preview.error'))
+        })
+    },
+    [openFilePreviewTab, t]
   )
 
   const handleShowInFolder = useCallback((id: string) => {
@@ -991,6 +1011,7 @@ function FilesPage() {
                   files={filteredFiles}
                   selectedIds={selectedIds}
                   onSelect={handleSelect}
+                  onPreview={handlePreview}
                   onOpen={handleOpen}
                   onSelectAll={handleSelectAllVisible}
                   visibleSelectionState={visibleSelectionState}

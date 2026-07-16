@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
@@ -16,6 +17,14 @@ const platformState = vi.hoisted(() => ({
 
 const ipcMocks = vi.hoisted(() => ({
   request: vi.fn()
+}))
+
+const filePreviewMocks = vi.hoisted(() => ({
+  openFilePreviewTab: vi.fn()
+}))
+
+vi.mock('@renderer/components/FilePreview', () => ({
+  useOpenFilePreviewTab: () => filePreviewMocks.openFilePreviewTab
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -407,6 +416,36 @@ describe('FilesPage file operations', () => {
       if (route === 'file.rename') return Promise.resolve({})
       return Promise.resolve(input)
     })
+  })
+
+  it('opens a file preview tab after resolving the physical path', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [entry.id]: '/tmp/report.md' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.preview.open' }))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: [entry.id] })
+      expect(filePreviewMocks.openFilePreviewTab).toHaveBeenCalledWith('/tmp/report.md')
+    })
+  })
+
+  it('reports a file preview path resolution failure', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.preview.open' }))
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
+      expect(toast.error).toHaveBeenCalledWith('files.preview.error')
+    })
+    expect(filePreviewMocks.openFilePreviewTab).not.toHaveBeenCalled()
   })
 
   it('routes mixed active delete to trash internal files and remove external entries', async () => {

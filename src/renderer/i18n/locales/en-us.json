@@ -2539,7 +2539,8 @@
       "title": "Permanently delete files?"
     },
     "preview": {
-      "error": "Failed to open file"
+      "error": "Failed to open file",
+      "open": "Preview"
     },
     "remove_from_library": "Remove from library",
     "rename": "Rename",

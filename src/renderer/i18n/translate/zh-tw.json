@@ -2539,7 +2539,8 @@
       "title": "永久刪除檔案？"
     },
     "preview": {
-      "error": "開啟檔案失敗"
+      "error": "開啟檔案失敗",
+      "open": "預覽"
     },
     "remove_from_library": "從庫中移除",
     "rename": "重新命名",

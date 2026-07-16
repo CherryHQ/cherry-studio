@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Pencil,
   RotateCcw,
+  ScanSearch,
   SquareArrowOutUpRight,
   Trash2
 } from 'lucide-react'
@@ -56,6 +57,7 @@ export const FileList = memo(function FileList({
   files,
   selectedIds,
   onSelect,
+  onPreview,
   onOpen,
   onSelectAll,
   visibleSelectionState,
@@ -75,6 +77,7 @@ export const FileList = memo(function FileList({
   files: FileItem[]
   selectedIds: Set<string>
   onSelect: (id: string) => void
+  onPreview: (file: FileItem) => void
   onOpen: (file: FileItem) => void
   onSelectAll: (checked: boolean) => void
   visibleSelectionState: CheckedState
@@ -122,7 +125,7 @@ export const FileList = memo(function FileList({
             onSort={onSort}
           />
         </div>
-        <div className="w-[116px] text-right text-muted-foreground/40 text-xs uppercase tracking-wider">
+        <div className="w-[146px] text-right text-muted-foreground/40 text-xs uppercase tracking-wider">
           {t('files.actions')}
         </div>
       </div>
@@ -132,6 +135,7 @@ export const FileList = memo(function FileList({
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
         const canRestore = isTrash && canUseFileActions
+        const canPreview = !isTrash && canUseFileActions
         const canOpen = !isTrash && canUseFileActions
         const canRename = !isTrash && canUseFileActions
         const canShowInFolder = !isTrash && canUseFileActions
@@ -184,7 +188,23 @@ export const FileList = memo(function FileList({
               <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
               <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
               <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
-              <div className="grid w-[116px] shrink-0 grid-cols-4 justify-items-center gap-0.5">
+              <div className="grid w-[146px] shrink-0 grid-cols-5 justify-items-center gap-0.5">
+                {canPreview ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.preview.open')}
+                    title={t('files.preview.open')}
+                    className="text-muted-foreground/55 hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onPreview(file)
+                    }}>
+                    <ScanSearch size={12} />
+                  </Button>
+                ) : (
+                  renderActionPlaceholder('preview')
+                )}
                 {canOpen ? (
                   <Button
                     variant="ghost"
