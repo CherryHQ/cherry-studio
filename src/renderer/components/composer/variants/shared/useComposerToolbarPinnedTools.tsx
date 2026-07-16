@@ -1,4 +1,3 @@
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
@@ -13,7 +12,7 @@ type ComposerToolbarPinnedToolsKey = 'chat.input.toolbar.pinned_tools' | 'agent.
  * Single entry point for a composer variant's pinned toolbar tools preference:
  * the ordered launcher/custom-tool ids rendered as persistent shortcut buttons.
  * Also owns the customize-popover open state, opened via the "+" panel's
- * trailing item.
+ * bottom-fixed item.
  */
 export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedToolsKey) {
   const { t } = useTranslation()
@@ -42,9 +41,7 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
       id: 'composer:customize-toolbar',
       label,
       icon: <Settings2 size={16} />,
-      filterText: label,
-      // Index the English name too so it stays searchable in non-English locales.
-      searchAliases: getQuickPanelSearchAliases(t, 'chat.input.toolbar.customize'),
+      fixedToBottom: true,
       action: () => setCustomizeOpen(true)
     }
   }, [t])

@@ -86,7 +86,7 @@ const reconcileCustomizeOrder = (
  * Renders the pinned tool ids that resolve to a live candidate (launcher registered
  * for the current scope/model, or a variant-provided custom tool); stale ids stay in
  * the preference untouched. The customize popover (opened from the "+" panel's
- * trailing item) keeps all candidates in one draggable list, with a switch toggling
+ * bottom-fixed item) keeps all candidates in one draggable list, with a switch toggling
  * whether each tool is pinned.
  */
 export const ComposerToolbarShortcuts = ({
