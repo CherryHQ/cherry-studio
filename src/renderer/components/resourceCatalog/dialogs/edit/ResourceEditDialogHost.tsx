@@ -4,7 +4,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AgentEditDialog } from './AgentEditDialog'
@@ -41,14 +41,17 @@ function AssistantEditDialogHost({
 }: ResourceEditDialogHostProps & { target: Extract<ResourceEditDialogTarget, { kind: 'assistant' }> }) {
   const { t } = useTranslation()
   const { assistant, error, refetch } = useAssistantApiById(target.id)
+  const handledLoadErrorRef = useRef<unknown>(undefined)
 
   useEffect(() => {
-    if (!error) return
+    if (!open || !error || handledLoadErrorRef.current === error) return
+
+    handledLoadErrorRef.current = error
 
     logger.error('Failed to load assistant for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
     onOpenChange(false)
-  }, [error, onOpenChange, t, target.id])
+  }, [error, onOpenChange, open, t, target.id])
 
   const handleSaved = useCallback(async () => {
     try {
@@ -80,14 +83,17 @@ function AgentEditDialogHost({
   const { t } = useTranslation()
   const modelFilter = useAgentModelFilter('claude-code')
   const { agent, error, revalidate } = useAgent(target.id)
+  const handledLoadErrorRef = useRef<unknown>(undefined)
 
   useEffect(() => {
-    if (!error) return
+    if (!open || !error || handledLoadErrorRef.current === error) return
+
+    handledLoadErrorRef.current = error
 
     logger.error('Failed to load agent for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
     onOpenChange(false)
-  }, [error, onOpenChange, t, target.id])
+  }, [error, onOpenChange, open, t, target.id])
 
   const handleSaved = useCallback(async () => {
     try {

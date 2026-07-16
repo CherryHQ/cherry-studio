@@ -8,6 +8,7 @@ import MessageHeader from '../MessageHeader'
 const providerState = vi.hoisted(() => ({
   actions: {} as {
     openMessageAuthorEditor?: (authorId: string) => void
+    openUserProfile?: () => void
     selectMessage?: (messageId: string, selected: boolean) => void
   },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
@@ -228,6 +229,22 @@ describe('MessageHeader', () => {
 
     rerender(<MessageHeader message={createMessage('assistant')} />)
     expect(() => getByRole('button', { name: 'common.edit' })).toThrow()
+  })
+
+  it('keeps the user profile avatar accessible from click, Enter, and Space', async () => {
+    const user = userEvent.setup()
+    const openUserProfile = vi.fn()
+    providerState.actions = { openUserProfile }
+
+    const { getByRole } = render(<MessageHeader message={createMessage('user')} />)
+
+    const avatar = getByRole('button', { name: 'common.edit' })
+    await user.click(avatar)
+    avatar.focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+
+    expect(openUserProfile).toHaveBeenCalledTimes(3)
   })
 
   it('marks the real message selection checkbox for drag selection lookup', () => {

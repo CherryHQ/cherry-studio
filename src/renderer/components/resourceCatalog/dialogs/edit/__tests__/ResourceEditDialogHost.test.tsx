@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   agentRevalidate: vi.fn(),
   onOpenChange: vi.fn(),
   onSaved: vi.fn(),
+  toastError: vi.fn(),
   useAgent: vi.fn(),
   useAssistantApiById: vi.fn()
 }))
@@ -38,6 +39,12 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true)
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: mocks.toastError
+  }
 }))
 
 vi.mock('../AssistantEditDialog', () => ({
@@ -97,6 +104,7 @@ describe('ResourceEditDialogHost', () => {
     mocks.onOpenChange.mockReset()
     mocks.onSaved.mockReset()
     mocks.onSaved.mockResolvedValue(undefined)
+    mocks.toastError.mockReset()
     mocks.useAssistantApiById.mockReset()
     mocks.useAssistantApiById.mockReturnValue({
       assistant: { id: 'assistant-1' },
@@ -160,9 +168,15 @@ describe('ResourceEditDialogHost', () => {
     const target: ResourceEditDialogTarget =
       kind === 'assistant' ? { kind: 'assistant', id: 'assistant-missing' } : { kind: 'agent', id: 'agent-missing' }
 
-    render(<ResourceEditDialogHost target={target} onOpenChange={mocks.onOpenChange} />)
+    const { rerender } = render(
+      <ResourceEditDialogHost target={target} open onOpenChange={(open) => mocks.onOpenChange(open)} />
+    )
 
     await waitFor(() => expect(mocks.onOpenChange).toHaveBeenCalledWith(false))
+
+    rerender(<ResourceEditDialogHost target={target} open={false} onOpenChange={(open) => mocks.onOpenChange(open)} />)
+
+    expect(mocks.toastError).toHaveBeenCalledTimes(1)
   })
 
   it('keeps assistant post-save refresh failures inside the host', async () => {

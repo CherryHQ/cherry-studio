@@ -127,7 +127,11 @@ const MessageHeader: FC<Props> = memo(
             />
           )
         ) : (
-          <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
+          <MessageAvatar
+            avatar={userAvatar}
+            aria-label={canOpenUserProfile ? t('common.edit') : undefined}
+            onClick={canOpenUserProfile ? openUserProfile : undefined}
+          />
         )}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
