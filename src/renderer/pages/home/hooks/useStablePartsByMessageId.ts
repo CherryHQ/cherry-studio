@@ -65,7 +65,9 @@ function partsContentEqual(a: CherryMessagePart[], b: CherryMessagePart[]): bool
       previousPart.data.content !== nextPart.data.content ||
       previousPart.data.targetLanguage !== nextPart.data.targetLanguage ||
       previousPart.data.sourceLanguage !== nextPart.data.sourceLanguage ||
-      previousPart.data.sourceBlockId !== nextPart.data.sourceBlockId
+      previousPart.data.sourceBlockId !== nextPart.data.sourceBlockId ||
+      (previousPart.data as { isStreaming?: boolean }).isStreaming !==
+        (nextPart.data as { isStreaming?: boolean }).isStreaming
     ) {
       return false
     }
@@ -84,6 +86,7 @@ function appendTranslation(
     data: {
       content: trEntry.content,
       targetLanguage: trEntry.targetLanguage,
+      isStreaming: true,
       ...(trEntry.sourceLanguage && { sourceLanguage: trEntry.sourceLanguage })
     }
   } as CherryMessagePart

@@ -56,7 +56,7 @@ import {
   projectCompletedMessageParts,
   projectLiveMessageParts
 } from './messagePartLayouts'
-import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
+import { useMessageParts } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
@@ -1345,7 +1345,9 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const isStreamLive =
     isActiveTurnProcessing &&
     (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
-  const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
+  const isTranslationOverlayActive = messageParts.some(
+    (part) => part.type === 'data-translation' && (part.data as { isStreaming?: boolean }).isStreaming === true
+  )
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 
   return (

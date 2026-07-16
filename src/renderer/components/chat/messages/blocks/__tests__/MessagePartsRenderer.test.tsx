@@ -5,10 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
-import { PartsProvider } from '../MessagePartsContext'
+import { MessagePartsScopeProvider, PartsProvider, TranslationOverlayProvider } from '../MessagePartsContext'
 
 const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
 const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
+const mockTopicStreamStatusRender = vi.hoisted(() => vi.fn())
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockReadText = vi.hoisted(() => vi.fn())
@@ -29,14 +30,17 @@ vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
   useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
 }))
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: mockTopicStreamState.status,
-    activeExecutions: [],
-    awaitingApprovalAnchors: [],
-    isPending: mockTopicStreamState.status === 'pending' || mockTopicStreamState.status === 'streaming',
-    isFulfilled: false,
-    markSeen: vi.fn()
-  })
+  useTopicStreamStatus: (topicId: string) => {
+    mockTopicStreamStatusRender(topicId)
+    return {
+      status: mockTopicStreamState.status,
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      isPending: mockTopicStreamState.status === 'pending' || mockTopicStreamState.status === 'streaming',
+      isFulfilled: false,
+      markSeen: vi.fn()
+    }
+  }
 }))
 vi.mock('@renderer/types/file', () => ({
   COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
@@ -408,6 +412,7 @@ describe('MessagePartsRenderer', () => {
   beforeEach(() => {
     mockIsActiveTurnTarget.mockReturnValue(false)
     mockTopicStreamState.status = undefined
+    mockTopicStreamStatusRender.mockClear()
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockReadText.mockReset()
@@ -425,6 +430,69 @@ describe('MessagePartsRenderer', () => {
     mockUsePlaceholderElapsedMs.mockClear()
     mockToolBlockGroupRender.mockClear()
     mockMessageToolsRender.mockClear()
+  })
+
+  it('keeps unrelated renderer identity stable during a streamed translation update', () => {
+    const target = msg({ id: 'target-message', topicId: 'target-topic' })
+    const unrelated = msg({ id: 'unrelated-message', topicId: 'unrelated-topic' })
+    const targetBaseParts = [{ type: 'text', text: 'answer' }] as CherryMessagePart[]
+    const targetParts = [
+      ...targetBaseParts,
+      { type: 'data-translation', data: { content: '', targetLanguage: 'en-US', isStreaming: true } }
+    ] as CherryMessagePart[]
+    const unrelatedParts = [{ type: 'text', text: 'other answer' }] as CherryMessagePart[]
+    const providerValue: MessageListProviderValue = {
+      state: {
+        topic: { id: target.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
+        messages: [target, unrelated],
+        partsByMessageId: { [target.id]: targetParts, [unrelated.id]: unrelatedParts },
+        messageNavigation: 'none',
+        estimateSize: 400,
+        overscan: 0,
+        loadOlderDelayMs: 0,
+        loadingResetDelayMs: 0,
+        renderConfig: defaultMessageRenderConfig,
+        getMessageActivityState: () => ({
+          isProcessing: false,
+          isStreamTarget: false,
+          isApprovalAnchor: false
+        })
+      },
+      actions: {},
+      meta: { selectionLayer: false }
+    }
+
+    const Tree = ({ translatedParts }: { translatedParts: CherryMessagePart[] }) => (
+      <MessageListProvider value={providerValue}>
+        <TranslationOverlayProvider
+          value={{
+            [target.id]: {
+              content: (translatedParts[1] as { data: { content: string } }).data.content,
+              targetLanguage: 'en-US'
+            }
+          }}>
+          <MessagePartsScopeProvider messageId={target.id} parts={translatedParts}>
+            <MessagePartsRenderer message={target} />
+          </MessagePartsScopeProvider>
+          <MessagePartsScopeProvider messageId={unrelated.id} parts={unrelatedParts}>
+            <MessagePartsRenderer message={unrelated} />
+          </MessagePartsScopeProvider>
+        </TranslationOverlayProvider>
+      </MessageListProvider>
+    )
+
+    const view = render(<Tree translatedParts={targetParts} />)
+    expect(mockTopicStreamStatusRender.mock.calls.filter(([topicId]) => topicId === target.topicId)).toHaveLength(1)
+    expect(mockTopicStreamStatusRender.mock.calls.filter(([topicId]) => topicId === unrelated.topicId)).toHaveLength(1)
+
+    const streamedTranslationParts = [
+      ...targetBaseParts,
+      { type: 'data-translation', data: { content: 'translated chunk', targetLanguage: 'en-US', isStreaming: true } }
+    ] as CherryMessagePart[]
+    view.rerender(<Tree translatedParts={streamedTranslationParts} />)
+
+    expect(mockTopicStreamStatusRender.mock.calls.filter(([topicId]) => topicId === target.topicId)).toHaveLength(2)
+    expect(mockTopicStreamStatusRender.mock.calls.filter(([topicId]) => topicId === unrelated.topicId)).toHaveLength(1)
   })
 
   describe('leaf rendering', () => {

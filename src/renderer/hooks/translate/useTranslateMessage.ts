@@ -6,7 +6,8 @@
  *   - `ipcApi.request('translate.open', { ..., messageId })` opens a stream with a
  *     `TranslationBackend` attached on main.
  *   - chunks land via `ai.stream_chunk` → we accumulate locally and write into
- *     the renderer-side `TranslationOverlayContext` (no SWR PATCH).
+ *     the renderer-side translation overlay, which is projected into the
+ *     target message's scoped parts (no SWR PATCH).
  *   - `ai.stream_done` is dispatched after main's persistence listener
  *     completes the DB write (listener order in `TranslateService.open` puts
  *     Persistence before WebContents, and the manager awaits each terminal
