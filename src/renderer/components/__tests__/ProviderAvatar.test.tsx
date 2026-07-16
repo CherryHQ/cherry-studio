@@ -43,7 +43,7 @@ describe('ProviderAvatarPrimitive', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
-  it('sizes built-in icons relative to the avatar container', () => {
+  it('fills the avatar container with built-in icons', () => {
     render(
       <ProviderAvatarPrimitive
         providerId="custom"
@@ -53,7 +53,7 @@ describe('ProviderAvatarPrimitive', () => {
       />
     )
 
-    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '70%', height: '70%' })
+    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '100%', height: '100%' })
   })
 
   it('falls back to the name initial when an `icon:<id>` reference is unknown', () => {
