@@ -3,6 +3,7 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
@@ -11,11 +12,7 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  getMessageEnterMotionAttributes,
-  getMessageEnterMotionVariant,
-  useMessageEnterMotionActive
-} from '../../motion/messageEnterMotion'
+import { getMessageEnterMotionAttributes, getMessageEnterMotionVariant } from '../../motion/messageEnterMotion'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -52,6 +49,7 @@ interface Props {
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
   lockedMentionedModels?: Model[]
+  enterMotionActive?: boolean
 }
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
@@ -65,7 +63,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
-  lockedMentionedModels
+  lockedMentionedModels,
+  enterMotionActive = false
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -88,21 +87,24 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
+  const isAssistantMessage = message.role === 'assistant'
+  const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
+  const canStartEditing =
+    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
-      if (canEditMessage && messageId === message.id) {
+      if (canStartEditing && messageId === message.id) {
         actions.startEditing?.(message, messageParts, {
           lockedMentionedModels:
             lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
         })
       }
     },
-    [actions, canEditMessage, lockedMentionedModels, message, messageParts]
+    [actions, canStartEditing, lockedMentionedModels, message, messageParts]
   )
 
   const isLastMessage = index === 0 || !!isGrouped
-  const isAssistantMessage = message.role === 'assistant'
 
   const activityState = messageUi.getMessageActivityState?.(message)
   const isProcessing = activityState?.isProcessing ?? false
@@ -110,7 +112,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const enterMotionActive = useMessageEnterMotionActive(message.id)
   const enterMotionVariant = getMessageEnterMotionVariant({
     active: enterMotionActive,
     role: message.role,

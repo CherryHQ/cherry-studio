@@ -169,7 +169,7 @@ describe('AppShellTabBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
-    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad' })
+    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
   it('moves a normal tab to the first slot', async () => {
