@@ -30,9 +30,10 @@ const mocks = vi.hoisted(() => ({
   },
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
-  MessageContent: vi.fn(({ parts }: { parts: CherryMessagePart[] }) => (
+  MessageContent: vi.fn(({ messageId, parts }: { messageId: string; parts: CherryMessagePart[] }) => (
     <div
       data-testid="message-parts-content"
+      data-message-id={messageId}
       data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
       style={{ minHeight: 600 }}>
       Long message content
@@ -156,7 +157,7 @@ vi.mock('../frame/MessageContent', async () => {
 
   function MessageContentMock({ message }: { message: MessageListItem }) {
     const parts = useMessageParts(message.id)
-    return mocks.MessageContent({ parts })
+    return mocks.MessageContent({ messageId: message.id, parts })
   }
 
   return {
@@ -713,7 +714,7 @@ describe('MessageGroup', () => {
     expect(messageElement).toHaveClass('animation-chat-message-enter-inline')
   })
 
-  it('rerenders only when enter motion changes for a message in the group', () => {
+  it('keeps sibling frames stable when enter motion changes within the group', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',
       gridColumns: 2,
@@ -724,26 +725,34 @@ describe('MessageGroup', () => {
       showMessageOutline: false
     })
 
-    const messages = [
-      {
-        ...createMessage('user-inline-1', 0, 'vertical'),
-        role: 'user'
-      } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
-    ]
+    const messages = ['user-inline-a', 'user-inline-b'].map(
+      (id, index) =>
+        ({
+          ...createMessage(id, index, 'vertical'),
+          role: 'user'
+        }) as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    )
     const topic = { id: 'topic-1' } as Topic
     const view = render(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
-    const initialRenderCount = mocks.MessageContent.mock.calls.length
+    const getRenderCount = (messageId: string) =>
+      mocks.MessageContent.mock.calls.filter(([props]) => props.messageId === messageId).length
 
-    view.rerender(
-      <MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['unrelated-message'])} />
-    )
-    expect(mocks.MessageContent).toHaveBeenCalledTimes(initialRenderCount)
+    expect(getRenderCount('user-inline-a')).toBe(1)
+    expect(getRenderCount('user-inline-b')).toBe(1)
 
-    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['user-inline-1'])} />)
-    expect(mocks.MessageContent.mock.calls.length).toBeGreaterThan(initialRenderCount)
-    expect(view.container.querySelector('#message-user-inline-1 .message')).toHaveAttribute(
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['user-inline-a'])} />)
+    expect(getRenderCount('user-inline-a')).toBe(2)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+    expect(view.container.querySelector('#message-user-inline-a .message')).toHaveAttribute(
       'data-message-enter-motion',
       'user-inline'
+    )
+
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
+    expect(getRenderCount('user-inline-a')).toBe(3)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+    expect(view.container.querySelector('#message-user-inline-a .message')).not.toHaveAttribute(
+      'data-message-enter-motion'
     )
   })
 
