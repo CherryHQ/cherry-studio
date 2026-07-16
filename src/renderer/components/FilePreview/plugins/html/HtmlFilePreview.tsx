@@ -1,6 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
+import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_SANDBOX } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import FileCode from 'lucide-react/dist/esm/icons/file-code'
@@ -107,7 +107,16 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
 
   if (loadState.content.trim().length === 0) return <HtmlPreviewEmpty />
 
-  return <HtmlPreviewFrame html={loadState.content} title={fileName} baseUrl={baseUrl} />
+  // Local files are untrusted: use the restricted sandbox (no `allow-same-origin`)
+  // so page scripts can't reach `parent.api` to read/exfiltrate other local files.
+  return (
+    <HtmlPreviewFrame
+      html={loadState.content}
+      title={fileName}
+      baseUrl={baseUrl}
+      sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
+    />
+  )
 }
 
 export default function HtmlFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {

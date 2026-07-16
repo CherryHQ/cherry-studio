@@ -19,20 +19,28 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   }
 }))
 
-vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
-  default: (props: { html: string; title: string; baseUrl?: string }) => {
-    mocks.htmlFrame(props)
-    return (
-      <iframe
-        data-testid="html-frame"
-        data-base-url={props.baseUrl}
-        title={props.title}
-        srcDoc={props.html}
-        sandbox=""
-      />
-    )
+vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
+  // Keep the real named exports (incl. HTML_PREVIEW_RESTRICTED_SANDBOX) so the
+  // sandbox assertion checks the actual constant, not a mock stand-in.
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    default: (props: { html: string; title: string; baseUrl?: string; sandbox?: string }) => {
+      mocks.htmlFrame(props)
+      // The sandbox assertion reads the captured `sandbox` prop (via mocks.htmlFrame),
+      // not this DOM attribute, so a static value here keeps the mock lint-clean.
+      return (
+        <iframe
+          data-testid="html-frame"
+          data-base-url={props.baseUrl}
+          title={props.title}
+          srcDoc={props.html}
+          sandbox=""
+        />
+      )
+    }
   }
-}))
+})
 
 vi.mock('@cherrystudio/ui', () => ({
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
@@ -105,6 +113,17 @@ describe('HtmlFilePreview', () => {
     expect(frame.getAttribute('data-base-url')).toMatch(/^file:\/\/.*index\.html$/)
     expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: filePath })
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
+  })
+
+  it('previews untrusted local HTML in a restricted sandbox (no same-origin)', async () => {
+    renderPreview()
+    await screen.findByTestId('html-frame')
+
+    const sandbox = mocks.htmlFrame.mock.calls.at(-1)?.[0]?.sandbox
+    // Local files are untrusted: dropping allow-same-origin blocks a malicious
+    // file's scripts from reaching parent.api to read/exfiltrate other local files.
+    expect(sandbox).toBe('allow-scripts allow-forms')
+    expect(sandbox).not.toContain('allow-same-origin')
   })
 
   it('shows the empty state for empty content', async () => {

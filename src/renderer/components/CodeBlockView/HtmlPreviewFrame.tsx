@@ -1,4 +1,4 @@
-/* eslint-disable @eslint-react/dom/no-unsafe-iframe-sandbox -- HTML artifact capture needs contentDocument access. */
+/* eslint-disable @eslint-react/dom/no-missing-iframe-sandbox -- sandbox is always supplied via the (defaulted) prop; the rule can't statically resolve the dynamic value. */
 import { memo, type Ref } from 'react'
 
 export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'
@@ -8,11 +8,21 @@ export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'
 
 export const HTML_PREVIEW_IFRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms'
 
+// Restricted sandbox for previewing untrusted local files. It intentionally drops
+// `allow-same-origin`, so a malicious file's scripts run in an opaque origin and
+// cannot reach the parent window's preload APIs (`parent.api`) to read/exfiltrate
+// arbitrary local files. Use this — never the artifact sandbox above — for any
+// on-disk file whose contents we don't control.
+export const HTML_PREVIEW_RESTRICTED_SANDBOX = 'allow-scripts allow-forms'
+
 interface HtmlPreviewFrameProps {
   html: string
   title: string
   baseUrl?: string
   emptyText?: string
+  /** iframe `sandbox` value. Defaults to the artifact sandbox (same-origin, for
+   *  screenshot capture); pass {@link HTML_PREVIEW_RESTRICTED_SANDBOX} for untrusted files. */
+  sandbox?: string
   iframeRef?: Ref<HTMLIFrameElement>
 }
 
@@ -45,7 +55,14 @@ export function injectHtmlPreviewBase(html: string, baseUrl = HTML_PREVIEW_DEFAU
 }
 
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
-  ({ html, title, baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL, emptyText, iframeRef }) => {
+  ({
+    html,
+    title,
+    baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL,
+    emptyText,
+    sandbox = HTML_PREVIEW_IFRAME_SANDBOX,
+    iframeRef
+  }) => {
     return (
       <div className="h-full w-full overflow-hidden bg-background">
         {html.trim() ? (
@@ -53,7 +70,7 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
             ref={iframeRef}
             srcDoc={injectHtmlPreviewBase(html, baseUrl)}
             title={title}
-            sandbox={HTML_PREVIEW_IFRAME_SANDBOX}
+            sandbox={sandbox}
             className="h-full w-full border-0 bg-background"
           />
         ) : emptyText ? (

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { HtmlPreviewFrame, injectHtmlPreviewBase } from '../HtmlPreviewFrame'
+import { HTML_PREVIEW_RESTRICTED_SANDBOX, HtmlPreviewFrame, injectHtmlPreviewBase } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
   it('renders non-empty HTML in an iframe with the shared sandbox and default srcdoc base', () => {
@@ -15,6 +15,18 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'common.html_preview')
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
+  })
+
+  it('renders untrusted local files in a restricted sandbox without same-origin', () => {
+    const { container } = render(
+      <HtmlPreviewFrame html="<p>hi</p>" title="common.html_preview" sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX} />
+    )
+
+    const iframe = container.querySelector('iframe')
+
+    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-forms')
+    // The exfiltration guard: local-file scripts must not be same-origin with the app.
+    expect(iframe?.getAttribute('sandbox')).not.toContain('allow-same-origin')
   })
 
   it('uses the provided file base URL for relative links in local artifact previews', () => {
