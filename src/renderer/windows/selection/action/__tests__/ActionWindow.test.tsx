@@ -62,11 +62,11 @@ describe('ActionWindow surface', () => {
     HTMLElement.prototype.scrollTo = vi.fn()
   })
 
-  it('uses an opaque card surface at 100% window opacity', () => {
+  it('uses an opaque popover surface at 100% window opacity', () => {
     const { container } = render(<ActionWindow />)
     const windowFrame = container.firstElementChild
 
-    expect(windowFrame).toHaveClass('bg-card')
+    expect(windowFrame).toHaveClass('bg-popover')
     expect(windowFrame).not.toHaveClass('bg-background')
     expect(windowFrame).toHaveStyle({ opacity: '1' })
   })

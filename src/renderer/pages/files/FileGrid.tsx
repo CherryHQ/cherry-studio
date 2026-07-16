@@ -8,19 +8,23 @@ import type { FileItem } from './fileDisplay'
 import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
+// Decorative placeholder gradients for image thumbnails, keyed by a hash of the
+// file name. Each stop uses a primitive color token from the design system
+// (DESIGN.md §2 — decorative color must come from the primitive scales, never
+// raw hex) so these tints stay consistent with the rest of the palette.
 const GALLERY_GRADIENTS = [
-  'linear-gradient(135deg,#ffd3a5,#fd6585)',
-  'linear-gradient(135deg,#a1c4fd,#c2e9fb)',
-  'linear-gradient(135deg,#fbc2eb,#a6c1ee)',
-  'linear-gradient(135deg,#fad0c4,#ffd1ff)',
-  'linear-gradient(135deg,#a8edea,#fed6e3)',
-  'linear-gradient(135deg,#ffecd2,#fcb69f)',
-  'linear-gradient(135deg,#84fab0,#8fd3f4)',
-  'linear-gradient(135deg,#fccb90,#d57eeb)',
-  'linear-gradient(135deg,#e0c3fc,#8ec5fc)',
-  'linear-gradient(135deg,#f6d365,#fda085)',
-  'linear-gradient(135deg,#cfd9df,#e2ebf0)',
-  'linear-gradient(135deg,#43cea2,#185a9d)'
+  'linear-gradient(135deg,var(--color-orange-200),var(--color-rose-400))',
+  'linear-gradient(135deg,var(--color-blue-300),var(--color-cyan-200))',
+  'linear-gradient(135deg,var(--color-pink-200),var(--color-indigo-300))',
+  'linear-gradient(135deg,var(--color-rose-200),var(--color-fuchsia-200))',
+  'linear-gradient(135deg,var(--color-teal-200),var(--color-pink-200))',
+  'linear-gradient(135deg,var(--color-amber-200),var(--color-orange-300))',
+  'linear-gradient(135deg,var(--color-green-300),var(--color-sky-300))',
+  'linear-gradient(135deg,var(--color-amber-300),var(--color-purple-400))',
+  'linear-gradient(135deg,var(--color-violet-200),var(--color-sky-300))',
+  'linear-gradient(135deg,var(--color-amber-300),var(--color-orange-400))',
+  'linear-gradient(135deg,var(--color-slate-200),var(--color-slate-100))',
+  'linear-gradient(135deg,var(--color-emerald-400),var(--color-blue-600))'
 ]
 
 function gradientFor(name: string): string {

@@ -887,6 +887,10 @@
           "description": "Quản lý trình lên lịch trong ứng dụng",
           "label": "Trình lập lịch"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
           "label": "Quản lý kiến thức"
@@ -1397,7 +1401,7 @@
         "title": "Đã xếp hàng ({{count}})"
       },
       "generate_image": "Tạo hình ảnh",
-      "generate_image_not_supported": "Mô hình không hỗ trợ tạo hình ảnh.",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
       "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
@@ -1471,6 +1475,11 @@
         "collapse_out": "Gỡ khỏi trạng thái thu gọn",
         "expand": "Mở rộng",
         "file_not_found": "Không tìm thấy tệp: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Mở Tệp",
         "open_file_error": "Không mở được tệp: {{path}}",
         "reveal_in_finder": "Hiển thị trong Finder"
@@ -6827,6 +6836,8 @@
       },
       "more_actions": "Thêm hành động cho danh sách mô hình",
       "not_enabled_models": "Đã tắt",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
       "provider_key_add_failed_by_empty_data": "Không thể thêm khóa API của nhà cung cấp, dữ liệu trống",
