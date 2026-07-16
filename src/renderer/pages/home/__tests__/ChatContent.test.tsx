@@ -1,3 +1,4 @@
+import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -31,6 +32,11 @@ const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
 )
+type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
+type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
+const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
+  current: undefined as ToolApprovalOverridesOptions | undefined
+}))
 const mockInvalidateCache = vi.fn<(keys?: string | string[] | boolean) => Promise<void>>(async () => undefined)
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
@@ -63,6 +69,17 @@ vi.mock('@renderer/services/EventService', () => ({
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
+
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', async (importOriginal) => {
+  const actual = await importOriginal<ToolApprovalOverridesModuleType>()
+
+  function useToolApprovalComposerOverrides(options: ToolApprovalOverridesOptions) {
+    mockToolApprovalOverridesOptions.current = options
+    return actual.useToolApprovalComposerOverrides(options)
+  }
+
+  return { ...actual, useToolApprovalComposerOverrides }
+})
 
 vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
@@ -289,6 +306,7 @@ describe('ChatContent', () => {
       reset: vi.fn()
     }
     mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockToolApprovalOverridesOptions.current = undefined
 
     ;(window as any).api = { ...originalApi }
   })
@@ -598,6 +616,7 @@ describe('ChatContent', () => {
       text: 'persisted seed'
     })
     expect(firstStreamingLayers.liveMessageIds).toEqual([pendingMessage.id])
+    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
 
     const secondLiveAssistant = {
       ...pendingMessage,
@@ -617,6 +636,7 @@ describe('ChatContent', () => {
       })
     })
     expect(mockMessageListValue.current.state.streamingLayers).toBe(firstStreamingLayers)
+    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
   })
 
   it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {

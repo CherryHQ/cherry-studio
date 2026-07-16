@@ -205,6 +205,7 @@ export function useChatRuntimeState({
   const respondToolApproval = useToolApprovalBridge(topic.id)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    streamingLayers,
     onRespond: respondToolApproval
   })
   const composerContext = useMemo<ComposerContextValue>(
