@@ -31,7 +31,7 @@ const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number })
   <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-8">
     {icons.map(({ Component, name }) => (
       <div key={name} className="flex min-w-0 flex-col items-center justify-center">
-        <div className="w-min rounded-md border border-gray-200" style={{ fontSize }}>
+        <div className="w-min overflow-hidden rounded-md border border-gray-200" style={{ fontSize }}>
           <Component />
         </div>
         <p className="mt-2 w-full break-words text-center text-sm">{name}</p>
@@ -65,11 +65,11 @@ const LightVsDarkGrid = ({ icons, fontSize }: LightVsDarkGridProps) => (
     {icons.map(({ Component, name }) => (
       <div key={name} className="flex min-w-0 flex-col items-center gap-1">
         <div className="grid grid-cols-2 gap-2" style={{ fontSize }}>
-          <div className="rounded-md border border-gray-200 bg-white">
-            <Component variant="light" />
+          <div className="overflow-hidden rounded-md bg-white ring-1 ring-inset ring-gray-200">
+            <Component className="block" variant="light" />
           </div>
-          <div className="rounded-md border border-gray-700 bg-neutral-900">
-            <Component variant="dark" />
+          <div className="overflow-hidden rounded-md bg-neutral-900">
+            <Component className="block" variant="dark" />
           </div>
           <span className="text-center text-xs text-gray-400">Light</span>
           <span className="text-center text-xs text-gray-400">Dark</span>
@@ -87,8 +87,8 @@ const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
       return (
         <div key={name} className="flex min-w-0 flex-col items-center gap-1">
           <div className="grid grid-cols-2 gap-2">
-            <AvatarComponent className="border border-gray-200" size={size} shape="circle" />
-            <AvatarComponent className="border border-gray-200" size={size} shape="rounded" />
+            <AvatarComponent className="overflow-hidden border border-gray-200" size={size} shape="circle" />
+            <AvatarComponent className="overflow-hidden border border-gray-200" size={size} shape="rounded" />
             <span className="text-center text-xs text-gray-400">Circle</span>
             <span className="text-center text-xs text-gray-400">Rounded</span>
           </div>
