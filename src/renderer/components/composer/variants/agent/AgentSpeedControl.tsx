@@ -9,8 +9,8 @@ import { useTranslation } from 'react-i18next'
 
 const AGENT_EFFORTS = new Set<AgentReasoningEffort>(AGENT_REASONING_EFFORTS)
 const AGENT_EFFORT_ORDER: readonly AgentReasoningEffort[] = [
-  'auto',
   'none',
+  'auto',
   'minimal',
   'low',
   'medium',
@@ -165,7 +165,7 @@ export function AgentSpeedControl({
                 size="lg"
                 className={cn(
                   'h-8',
-                  '[&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
+                  '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
                   '[&_[data-slot=slider-range]]:bg-primary',
                   '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
                   '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover [&_[data-slot=slider-thumb]]:shadow-sm',

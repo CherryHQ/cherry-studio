@@ -52,7 +52,8 @@ vi.mock('@cherrystudio/ui', () => ({
       data-value={value[0]}
       data-thumb-label={thumbAriaLabel}
       data-thumb-value-text={getThumbAriaValueText(value[0])}
-      data-min-value-text={getThumbAriaValueText(0)}>
+      data-min-value-text={getThumbAriaValueText(0)}
+      data-second-value-text={max >= 1 ? getThumbAriaValueText(1) : undefined}>
       <button type="button" data-testid="select-slider-min" onClick={() => onValueChange([0])}>
         select minimum
       </button>
@@ -123,7 +124,8 @@ describe('AgentSpeedControl UI', () => {
     const slider = screen.getByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '3')
     expect(slider).toHaveAttribute('data-value', '2')
-    expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.auto')
+    expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.off')
+    expect(slider).toHaveAttribute('data-second-value-text', 'assistants.settings.reasoning_effort.auto')
   })
 
   it('shows the compact slider with the Fast lightning action', async () => {
@@ -133,12 +135,13 @@ describe('AgentSpeedControl UI', () => {
     expect(slider).toHaveAttribute('data-max', '3')
     expect(slider).toHaveAttribute('data-mark-count', '0')
     expect(slider).toHaveAttribute('data-value', '3')
-    expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.auto')
+    expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.off')
     expect(slider).toHaveClass('[&_[data-slot=slider-thumb]]:shadow-sm')
     expect(slider).not.toHaveClass('[&_[data-slot=slider-thumb]]:shadow-none')
     expect(slider).toHaveClass(
       '[&_[data-slot=slider-thumb]]:rounded-full',
       '[&_[data-slot=slider-thumb]]:bg-popover',
+      '[&_[data-slot=slider-track]]:h-2.5',
       '[&_[data-slot=slider-track]]:bg-muted',
       '[&_[data-slot=slider-track]]:shadow-inner'
     )
@@ -150,11 +153,11 @@ describe('AgentSpeedControl UI', () => {
     )
     fireEvent.click(screen.getByTestId('select-slider-min'))
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.auto'
+      'assistants.settings.reasoning_effort.off'
     )
     await waitFor(() =>
       expect(screen.getByTestId('agent-effort-slider-label')).toHaveTextContent(
-        'assistants.settings.reasoning_effort.auto'
+        'assistants.settings.reasoning_effort.off'
       )
     )
 
@@ -177,9 +180,9 @@ describe('AgentSpeedControl UI', () => {
 
     render(<AgentSpeedControl model={model} reasoningEffort="auto" onReasoningEffortChange={onReasoningEffortChange} />)
 
-    fireEvent.click(screen.getByTestId('select-slider-max'))
-    expect(onReasoningEffortChange).toHaveBeenCalledWith('none')
     fireEvent.click(screen.getByTestId('select-slider-min'))
+    expect(onReasoningEffortChange).toHaveBeenCalledWith('none')
+    fireEvent.click(screen.getByTestId('select-slider-max'))
     expect(onReasoningEffortChange).toHaveBeenCalledWith('auto')
   })
 })
