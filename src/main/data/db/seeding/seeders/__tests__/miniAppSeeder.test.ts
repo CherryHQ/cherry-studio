@@ -60,6 +60,42 @@ describe('MiniAppSeeder', () => {
     expect(row.orderKey).toBe('z9')
   })
 
+  it('should preserve user order for an enabled preset on re-run', async () => {
+    const preset = PRESETS_MINI_APPS[0]
+    await dbh.db.insert(miniAppTable).values({
+      appId: preset.id,
+      presetMiniAppId: preset.id,
+      name: preset.name,
+      url: preset.url,
+      status: 'enabled',
+      orderKey: 'z9'
+    })
+
+    const seed = new MiniAppSeeder()
+    seed.run(dbh.db)
+
+    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
+    expect(row.orderKey).toBe('z9')
+  })
+
+  it('should place the first preset before existing visible apps on initial insert', async () => {
+    const preset = PRESETS_MINI_APPS[0]
+    await dbh.db.insert(miniAppTable).values({
+      appId: 'my-existing-app',
+      presetMiniAppId: null,
+      name: 'My Existing App',
+      url: 'https://existing.example',
+      status: 'enabled',
+      orderKey: 'a0'
+    })
+
+    const seed = new MiniAppSeeder()
+    seed.run(dbh.db)
+
+    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
+    expect(row.orderKey < 'a0').toBe(true)
+  })
+
   it('should leave custom (non-preset) rows untouched', async () => {
     await dbh.db.insert(miniAppTable).values({
       appId: 'my-custom-app',

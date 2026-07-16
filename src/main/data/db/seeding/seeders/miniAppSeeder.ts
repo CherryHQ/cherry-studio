@@ -1,7 +1,7 @@
 import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
-import { and, asc, eq, inArray, isNotNull, ne } from 'drizzle-orm'
+import { asc, eq, inArray, isNotNull } from 'drizzle-orm'
 
 import type { DbOrTx, DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -71,8 +71,6 @@ export class MiniAppSeeder implements ISeeder {
         })
         .run()
     }
-
-    this.applyFirstPresetOrder(db)
   }
 
   private isFirstPresetMissing(db: DbOrTx, presetId: string): boolean {
@@ -97,32 +95,5 @@ export class MiniAppSeeder implements ISeeder {
       .all()
 
     return generateOrderKeyBetween(null, firstVisibleRow?.orderKey ?? null)
-  }
-
-  private applyFirstPresetOrder(db: DbOrTx): void {
-    const [firstPresetRow] = db
-      .select({ orderKey: miniAppTable.orderKey, presetMiniAppId: miniAppTable.presetMiniAppId, status: miniAppTable.status })
-      .from(miniAppTable)
-      .where(eq(miniAppTable.appId, this.firstPresetMiniAppId))
-      .limit(1)
-      .all()
-
-    if (!firstPresetRow?.presetMiniAppId || !['enabled', 'pinned'].includes(firstPresetRow.status)) return
-
-    const [firstVisibleRow] = db
-      .select({ orderKey: miniAppTable.orderKey })
-      .from(miniAppTable)
-      .where(and(inArray(miniAppTable.status, ['enabled', 'pinned']), ne(miniAppTable.appId, this.firstPresetMiniAppId)))
-      .orderBy(asc(miniAppTable.orderKey))
-      .limit(1)
-      .all()
-
-    if (!firstVisibleRow || firstPresetRow.orderKey < firstVisibleRow.orderKey) return
-
-    db
-      .update(miniAppTable)
-      .set({ orderKey: generateOrderKeyBetween(null, firstVisibleRow.orderKey) })
-      .where(eq(miniAppTable.appId, this.firstPresetMiniAppId))
-      .run()
   }
 }
