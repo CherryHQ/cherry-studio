@@ -96,7 +96,7 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 
 - **Only operates on `order_key`**: business validation (does `:id` exist in the resource sense) lives in the service/handler layer, not here.
 - **Must run inside an outer transaction**: helpers take `tx` and never open their own transaction.
-- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `topic.groupId`, `userModel.providerId`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
+- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `userModel.providerId`, `group.entityType`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
 - **`pkColumn` is required**: tables have heterogeneous primary-key column names (`miniapp.appId`, `mcpServer.id`, `topic.id`, `group.id`). Helpers make zero assumptions.
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
