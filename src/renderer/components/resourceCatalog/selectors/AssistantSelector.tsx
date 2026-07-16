@@ -5,6 +5,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
@@ -14,8 +15,8 @@ import { useTranslation } from 'react-i18next'
 
 import {
   ResourceSelectorShell,
-  type ResourceSelectorShellItem,
-  type ResourceSelectorShellTag
+  type ResourceSelectorShellGroup,
+  type ResourceSelectorShellItem
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
@@ -28,8 +29,7 @@ const AssistantEditDialog = lazy(() =>
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
  * returns values of this shape (not the raw Assistant) so the selector never leaks DB columns the
- * caller didn't ask about. A user tag name may be present so the selector can filter by assistant
- * tag.
+ * caller didn't ask about. Group IDs drive filtering while group names are display-only.
  */
 export type AssistantSelectorItem = ResourceSelectorShellItem
 
@@ -112,6 +112,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   // `limit: 500` matches ListAssistantsQuerySchema's max; realistic libraries sit well under it.
   // If a user ever exceeds this we should move to usePaginatedQuery + scroll-load inside the popover.
   const { data, isLoading, refetch } = useQuery('/assistants', { query: { limit: 500 } })
+  const { groups, isLoading: isGroupsLoading } = useGroups('assistant')
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -125,33 +126,26 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   } = usePins('assistant')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
+  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
   const items: AssistantSelectorItem[] = useMemo(
     () => [
-      ...(data?.items ?? []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        emoji: a.emoji,
-        description: a.description,
-        tag: a.tags?.[0]?.name
+      ...(data?.items ?? []).map((assistant) => ({
+        id: assistant.id,
+        name: assistant.name,
+        emoji: assistant.emoji,
+        description: assistant.description,
+        groupId: assistant.groupId ?? undefined,
+        groupName: assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
       })),
       ...(additionalItems ?? [])
     ],
-    [additionalItems, data]
+    [additionalItems, data?.items, groupById]
   )
 
-  const tags = useMemo<ResourceSelectorShellTag[]>(() => {
-    const byName = new Map<string, string | undefined>()
-    for (const assistant of data?.items ?? []) {
-      const tag = assistant.tags?.[0]
-      if (tag) {
-        if (!byName.has(tag.name)) {
-          byName.set(tag.name, tag.color ?? undefined)
-        }
-      }
-    }
-
-    return Array.from(byName, ([name, color]) => ({ name, color })).sort((a, b) => a.name.localeCompare(b.name, 'zh'))
-  }, [data])
+  const selectorGroups = useMemo<ResourceSelectorShellGroup[]>(
+    () => groups.map((group) => ({ id: group.id, name: group.name })),
+    [groups]
+  )
 
   const handleTogglePin = useCallback(
     async (id: string) => {
@@ -224,8 +218,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
             id: created.id,
             name: created.name,
             emoji: created.emoji,
-            description: created.description,
-            tag: created.tags?.[0]?.name
+            description: created.description
           })
         } else {
           props.onChange(created.id)
@@ -283,8 +276,8 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     mountStrategy,
     onOpen: refetchPins,
     items,
-    tags,
-    loading: isLoading || isPinnedLoading,
+    groups: selectorGroups,
+    loading: isLoading || isGroupsLoading || isPinnedLoading,
     pinnedIds,
     emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
@@ -299,7 +292,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       createNew: t('selector.assistant.create_new'),
       emptyText: t('selector.assistant.empty_text'),
       pinnedTitle: t('selector.common.pinned_title'),
-      tagFilter: t('models.filter.by_tag')
+      groupFilter: t('selector.assistant.group_filter')
     }
   }
 

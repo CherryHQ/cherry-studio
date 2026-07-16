@@ -71,6 +71,30 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({
+    groups: [
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        entityType: 'assistant',
+        name: 'work',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        entityType: 'assistant',
+        name: 'personal',
+        orderKey: 'a1',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }
+    ],
+    isLoading: false
+  })
+}))
+
 vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
   ...(await importOriginal<typeof UseModelModule>()),
   useDefaultModel: () => ({ defaultModel: undefined })
@@ -103,6 +127,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_pick': 'Pick model',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
+          'library.config.basic.group': 'Group',
+          'library.config.basic.group_empty': 'No groups',
+          'library.config.basic.group_placeholder': 'Select group',
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_placeholder': 'Select tag',
           'library.config.basic.tag_search': 'Search tags',
@@ -110,6 +137,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.assistant.create_new': 'Create assistant',
           'selector.assistant.empty_text': 'No assistants yet. Create one first.',
+          'selector.assistant.group_filter': 'Filter by group',
           'selector.assistant.multi_hint': 'Select multiple assistants',
           'selector.assistant.multi_label': 'Multiple',
           'selector.assistant.search_placeholder': 'Search assistants',
@@ -147,8 +175,6 @@ import { AssistantSelector } from '../AssistantSelector'
 
 const ALPHA_ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const BETA_ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'
-const TAG_TIMESTAMP = '2024-01-01T00:00:00.000Z'
-
 const ASSISTANTS_RESPONSE = {
   items: [
     {
@@ -176,17 +202,9 @@ const ASSISTANTS_RESPONSE = {
       orderKey: 'a0',
       mcpServerIds: [],
       knowledgeBaseIds: [],
+      groupId: '33333333-3333-4333-8333-333333333333',
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z',
-      tags: [
-        {
-          id: '33333333-3333-4333-8333-333333333333',
-          name: 'work',
-          color: '#8b5cf6',
-          createdAt: TAG_TIMESTAMP,
-          updatedAt: TAG_TIMESTAMP
-        }
-      ],
       modelName: 'Old Model'
     },
     {
@@ -214,17 +232,9 @@ const ASSISTANTS_RESPONSE = {
       orderKey: 'a1',
       mcpServerIds: [],
       knowledgeBaseIds: [],
+      groupId: '44444444-4444-4444-8444-444444444444',
       createdAt: '2024-01-02T00:00:00.000Z',
       updatedAt: '2024-01-02T00:00:00.000Z',
-      tags: [
-        {
-          id: '44444444-4444-4444-8444-444444444444',
-          name: 'personal',
-          color: '#10b981',
-          createdAt: TAG_TIMESTAMP,
-          updatedAt: TAG_TIMESTAMP
-        }
-      ],
       modelName: 'Old Model'
     }
   ],
@@ -278,7 +288,7 @@ beforeEach(() => {
     name: 'Created Assistant',
     emoji: '💬',
     description: 'Created from selector',
-    tags: []
+    groupId: null
   })
   updateAssistantMock.mockResolvedValue({
     ...ASSISTANTS_RESPONSE.items[0],
@@ -355,7 +365,7 @@ describe('AssistantSelector', () => {
     expect(screen.getByRole('button', { name: 'Create assistant' })).toBeInTheDocument()
   })
 
-  it('renders assistant tag chips and filters rows by selected tag', () => {
+  it('renders assistant group chips and filters rows by selected group', () => {
     renderSelector()
     openPopover()
 

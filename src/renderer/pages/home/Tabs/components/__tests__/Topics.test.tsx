@@ -349,9 +349,9 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
         if (key === 'assistants.icon.type') return 'Assistant icon'
         if (key === 'chat.add.assistant.title') return 'Add Assistant'
-        if (key === 'assistants.tags.group_by') return 'Group by tag'
-        if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
-        if (key === 'assistants.tags.untagged') return 'Untagged'
+        if (key === 'assistants.groups.group_by') return 'Show in groups'
+        if (key === 'assistants.groups.ungroup') return 'Stop grouping'
+        if (key === 'assistants.groups.ungrouped') return 'Ungrouped'
         if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
         if (key === 'settings.assistant.icon.type.model') return 'Model'
         if (key === 'settings.assistant.icon.type.none') return 'None'
@@ -528,7 +528,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
     name: 'Alpha Assistant',
     emoji: '🧪',
     orderKey: 'a',
-    tags: [{ id: 'tag-work', name: 'Work' }],
+    groupId: 'group-work',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
@@ -753,11 +753,38 @@ describe('Topics', () => {
                 name: 'Beta Assistant',
                 emoji: '✍️',
                 orderKey: 'b',
-                tags: [{ id: 'tag-home', name: 'Home' }]
+                groupId: 'group-home'
               })
             ],
             total: 2
           },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/groups') {
+        return {
+          data: [
+            {
+              id: 'group-work',
+              entityType: 'assistant',
+              name: 'Work',
+              orderKey: 'a',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            },
+            {
+              id: 'group-home',
+              entityType: 'assistant',
+              name: 'Home',
+              orderKey: 'b',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            }
+          ],
           isLoading: false,
           isRefreshing: false,
           error: undefined,

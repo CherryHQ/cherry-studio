@@ -159,30 +159,31 @@ describe('AssistantMappings', () => {
       expect(result.assistant.description).toBe('')
       // mcpMode/enableWebSearch were null/undefined upstream, so settings stays at the default.
       expect(result.assistant.settings).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
-      expect(result.tags).toStrictEqual([])
+      expect(result.legacyTagName).toBeNull()
     })
 
-    it('should extract valid tags and filter invalid entries', () => {
+    it('should normalize the legacy assistant group name', () => {
       const result = transformAssistant({
         id: 'ast-10',
-        tags: ['work', '', 'coding', null as any, 42 as any, 'personal']
+        tags: [' work ']
       })
-      expect(result.tags).toStrictEqual(['work', 'coding', 'personal'])
+      expect(result.legacyTagName).toBe('work')
     })
 
-    it('should return empty tags when tags is not an array', () => {
+    it('should return no legacy group when tags is not an array', () => {
       const result = transformAssistant({ id: 'ast-11', tags: 'not-an-array' as any })
-      expect(result.tags).toStrictEqual([])
+      expect(result.legacyTagName).toBeNull()
     })
 
-    it('should return empty tags when tags is null or undefined', () => {
-      expect(transformAssistant({ id: 'ast-12', tags: null }).tags).toStrictEqual([])
-      expect(transformAssistant({ id: 'ast-13' }).tags).toStrictEqual([])
+    it('should return no legacy group when tags is empty, null, or undefined', () => {
+      expect(transformAssistant({ id: 'ast-12', tags: [] }).legacyTagName).toBeNull()
+      expect(transformAssistant({ id: 'ast-13', tags: null }).legacyTagName).toBeNull()
+      expect(transformAssistant({ id: 'ast-14' }).legacyTagName).toBeNull()
     })
 
     it('should build settings from top-level fields when settings object is absent', () => {
       const result = transformAssistant({
-        id: 'ast-14',
+        id: 'ast-15',
         mcpMode: 'auto',
         enableWebSearch: true
       })

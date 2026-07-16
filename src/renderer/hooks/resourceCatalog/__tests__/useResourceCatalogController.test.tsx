@@ -11,8 +11,16 @@ type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
+  createGroup: vi.fn(),
   duplicateAssistant: vi.fn(),
-  ensureTags: vi.fn(),
+  groups: [] as Array<{
+    id: string
+    entityType: 'assistant'
+    name: string
+    orderKey: string
+    createdAt: string
+    updatedAt: string
+  }>,
   refetch: vi.fn(),
   resourceLibraryOptions: [] as unknown[],
   resourceLibraryState: {
@@ -55,9 +63,9 @@ vi.mock('../agentAdapter', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: controllerMocks.ensureTags }),
-  useTagList: () => ({ tags: [] })
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({ groups: controllerMocks.groups }),
+  useGroupMutations: () => ({ createGroup: controllerMocks.createGroup })
 }))
 
 const createValues = {
@@ -78,7 +86,7 @@ const assistantResource = {
   avatar: 'A',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
-  raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', tags: [] }
+  raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', groupId: null }
 } as unknown as ResourceItem
 
 describe('useResourceCatalogController', () => {
@@ -181,31 +189,31 @@ describe('useResourceCatalogController', () => {
     })
   })
 
-  it('clears the active tag when the resource type changes', async () => {
+  it('clears the active group when the resource type changes', async () => {
     const { result, rerender } = renderHook(
       ({ resourceType }: { resourceType: ControllerResourceType }) => useResourceCatalogController(resourceType),
       { initialProps: { resourceType: 'assistant' as ControllerResourceType } }
     )
 
     act(() => {
-      result.current.gridProps.onTagFilter('stale-tag')
+      result.current.gridProps.onGroupFilter('11111111-1111-4111-8111-111111111111')
     })
 
     await waitFor(() => {
-      expect(result.current.gridProps.activeTag).toBe('stale-tag')
+      expect(result.current.gridProps.activeGroupId).toBe('11111111-1111-4111-8111-111111111111')
     })
 
     rerender({ resourceType: 'agent' })
 
     await waitFor(() => {
-      expect(result.current.gridProps.activeTag).toBeNull()
+      expect(result.current.gridProps.activeGroupId).toBeNull()
     })
 
     rerender({ resourceType: 'assistant' })
 
     await waitFor(() => {
       expect(controllerMocks.resourceLibraryOptions.at(-1)).toEqual(
-        expect.objectContaining({ activeTag: null, resourceType: 'assistant' })
+        expect.objectContaining({ activeGroupId: null, resourceType: 'assistant' })
       )
     })
   })

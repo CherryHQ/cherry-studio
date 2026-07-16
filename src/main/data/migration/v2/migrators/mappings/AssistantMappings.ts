@@ -4,13 +4,13 @@
  * Transforms legacy Redux Assistant/AssistantPreset objects to:
  * - assistant table row (with modelId from model/defaultModel)
  * - junction table rows (assistant_mcp_server, assistant_knowledge_base)
- * - tag/entity_tag rows (via tags[] field)
+ * - normalized legacy tag name (converted to assistant.groupId by AssistantMigrator)
  *
  * Field mapping:
  * - model/defaultModel -> assistant.modelId (primary model, composite format)
  * - mcpServers[] -> assistant_mcp_server junction rows
  * - knowledge_bases[] -> assistant_knowledge_base junction rows
- * - tags[] -> tag + entity_tag tables
+ * - tags[0] -> assistant group name
  * - type -> dropped (design flaw)
  * - messages -> dropped (feature removed)
  * - topics -> dropped (decoupled)
@@ -129,10 +129,10 @@ export interface OldAssistant {
 // ============================================================================
 
 export interface AssistantTransformResult {
-  assistant: Omit<InsertAssistantRow, 'orderKey'>
+  assistant: Omit<InsertAssistantRow, 'groupId' | 'orderKey'>
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
-  tags: string[]
+  legacyTagName: string | null
 }
 
 // ============================================================================
@@ -163,6 +163,14 @@ function extractKnowledgeBaseIds(source: OldAssistant): string[] {
     if (kb.id) ids.push(kb.id)
     return ids
   }, [])
+}
+
+function extractLegacyTagName(source: OldAssistant): string | null {
+  const tag = Array.isArray(source.tags) ? source.tags[0] : undefined
+  if (typeof tag !== 'string') return null
+
+  const name = tag.trim()
+  return name || null
 }
 
 /**
@@ -206,8 +214,6 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),
-    tags: Array.isArray(source.tags)
-      ? source.tags.filter((t): t is string => typeof t === 'string' && t.length > 0)
-      : []
+    legacyTagName: extractLegacyTagName(source)
   }
 }

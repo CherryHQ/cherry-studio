@@ -1,6 +1,6 @@
 # AssistantMigrator
 
-The `AssistantMigrator` migrates assistants and presets from the v1 Redux state into the v2 `assistant` table (plus the `assistant_mcp_server`, `assistant_knowledge_base`, `tag`, and `entity_tag` junction tables).
+The `AssistantMigrator` migrates assistants and presets from the v1 Redux state into the v2 `assistant` table (plus `group`, `assistant_mcp_server`, and `assistant_knowledge_base`). Legacy assistant tags were the v1 grouping mechanism, so they become `group` rows with `entityType='assistant'` and `assistant.groupId` references rather than v2 tags.
 
 ## Data Sources
 
@@ -9,6 +9,7 @@ The `AssistantMigrator` migrates assistants and presets from the v1 Redux state 
 | User assistants | Redux `state.assistants.assistants[]` | Includes the v1 initial-state copy of the default assistant (id=`default`) |
 | Saved presets | Redux `state.assistants.presets[]` | |
 | Default assistant slot | Redux `state.assistants.defaultAssistant` | Standalone slot, id=`default` — has its own update path (`updateDefaultAssistant`) and can drift from `assistants[0]` |
+| Assistant group order | Redux `state.assistants.tagsOrder[]` | Orders the migrated assistant groups; stale names without a grouped assistant are ignored |
 
 ### Why the v1 Slice Has Two Default Slots
 
@@ -61,6 +62,14 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 | Dangling knowledge base ref | `knowledgeBaseTable` lookup miss | Drop the `assistant_knowledge_base` row, log warning |
 | Missing `mcpServerIdMapping` while assistants reference MCP servers | `sharedData.get('mcpServerIdMapping') === undefined` | Throw — `McpServerMigrator` must run before this one |
 
+## Legacy tag → group migration
+
+The v1 UI treated assistant tags as named, ordered groups. Each assistant had at most one group, stored as either `tags: [name]` or `tags: []`, while `tagsOrder` stored the group order. During preparation the migrator normalizes that optional name and orders the unique used names by `tagsOrder` followed by first appearance.
+
+During execution it inserts one `group` row per used name with `entityType='assistant'`, then writes the generated group ID to each matching `assistant.groupId`. Assistants without a tag remain ungrouped (`groupId = NULL`). The group and assistant rows are inserted in the same transaction.
+
+Before a retry, `MigrationEngine` clears `group` plus the obsolete `entity_tag` / `tag` targets used by the previous implementation, so a failed older attempt cannot leave the same v1 grouping data classified both ways.
+
 ## Legacy default-assistant remap
 
 v2 has **no system-reserved `'default'` assistant row**. New installs get the managed default assistant through `DefaultAssistantSeeder`; upgraded profiles get only user-created/migrated rows from this migrator.
@@ -82,6 +91,8 @@ If v1 had no `'default'` source at all (no `assistants[0]/defaultAssistant`), no
 
 Legacy Redux assistants have no stable per-row fractional key, so `transformAssistant()` omits `orderKey`. `AssistantMigrator.execute()` stamps the prepared assistant rows with `assignOrderKeysInSequence()` immediately before insert, preserving the merged source order used by `recordSource()`.
 
+Legacy group names are also stamped with `assignOrderKeysInSequence()` in `tagsOrder` order before insertion into `group`.
+
 ## Dropped Relationship Rows
 
 The migrator keeps assistant rows even when optional relationship targets are missing, but drops junction rows that would violate foreign keys:
@@ -94,4 +105,4 @@ Both cases are logged. The dropped relationship does not drop the assistant itse
 ## Implementation Files
 
 - `AssistantMigrator.ts` - Main migrator class (prepare / execute / validate)
-- `mappings/AssistantMappings.ts` - Pure transform functions and `OldAssistant` type
+- `mappings/AssistantMappings.ts` - Pure transform functions, normalized legacy tag name, and `OldAssistant` type

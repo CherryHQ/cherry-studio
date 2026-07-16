@@ -949,5 +949,38 @@ describe('ResourceSelectorShell', () => {
       expect(screen.queryByRole('option', { name: /Alpha/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /Gamma/ })).not.toBeInTheDocument()
     })
+
+    it('uses a single active group filter at a time', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={[
+            { ...ITEMS[0], groupId: 'group-cherry', groupName: 'Cherry' },
+            { ...ITEMS[1], groupId: 'group-dev', groupName: 'DEV' },
+            { ...ITEMS[2], groupId: 'group-cherry', groupName: 'Cherry' }
+          ]}
+          groups={[
+            { id: 'group-cherry', name: 'Cherry' },
+            { id: 'group-dev', name: 'DEV' }
+          ]}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cherry' }))
+      expect(screen.queryByRole('option', { name: /Alpha/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Gamma/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Beta/ })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'DEV' }))
+      expect(screen.queryByRole('option', { name: /Beta/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Alpha/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Gamma/ })).not.toBeInTheDocument()
+    })
   })
 })

@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback } from 'react'
 
@@ -14,6 +15,10 @@ export interface TagListResult {
 export interface CreateTagOptions {
   name: string
   color?: string | null
+}
+
+export interface TagMutationOptions {
+  refresh?: ConcreteApiPaths[]
 }
 
 export interface UseTagsOptions {
@@ -36,9 +41,9 @@ export function useTagList(): TagListResult {
   }
 }
 
-export function useRenameTag() {
+export function useRenameTag(options: TagMutationOptions = {}) {
   const { trigger } = useMutation('PATCH', '/tags/:id', {
-    refresh: ['/tags', '/assistants']
+    refresh: ['/tags', ...(options.refresh ?? [])]
   })
 
   const renameTag = useCallback(
@@ -53,16 +58,13 @@ export function useRenameTag() {
   return { renameTag }
 }
 
-export function useDeleteTag() {
+export function useDeleteTag(options: TagMutationOptions = {}) {
   const { trigger } = useMutation('DELETE', '/tags/:id', {
-    refresh: ['/tags', '/assistants']
+    refresh: ['/tags', ...(options.refresh ?? [])]
   })
 
   const deleteTag = useCallback(
-    (id: string): Promise<void> =>
-      trigger({
-        params: { id }
-      }).then(() => undefined),
+    (id: string): Promise<void> => trigger({ params: { id } }).then(() => undefined),
     [trigger]
   )
 

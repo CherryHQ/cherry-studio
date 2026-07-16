@@ -12,7 +12,6 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 
 const {
   agentTools,
-  ensureTagsMock,
   fetchGenerateMock,
   mcpStatusState,
   openSettingsTabMock,
@@ -49,7 +48,6 @@ const {
     { id: 'WebSearch', name: 'WebSearch', description: 'Search web', origin: 'builtin', approval: 'prompt' },
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
-  ensureTagsMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
@@ -145,21 +143,22 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: ensureTagsMock }),
-  useTagList: () => ({
-    tags: [
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({
+    groups: [
       {
-        id: 'tag-work',
+        id: 'group-work',
+        entityType: 'assistant',
         name: 'work',
-        color: '#8b5cf6',
+        orderKey: 'a0',
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z'
       },
       {
-        id: 'tag-personal',
+        id: 'group-personal',
+        entityType: 'assistant',
         name: 'personal',
-        color: '#10b981',
+        orderKey: 'a1',
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z'
       }
@@ -299,6 +298,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.precise': 'Precise',
           'library.config.basic.stream_output': 'Stream output',
+          'library.config.basic.group': 'Group',
+          'library.config.basic.group_empty': 'No groups',
+          'library.config.basic.group_placeholder': 'Select group',
           'library.config.basic.tags': 'Tags',
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_placeholder': 'Select tag',
@@ -405,17 +407,9 @@ const ASSISTANT: Assistant = {
   orderKey: 'a0',
   mcpServerIds: [],
   knowledgeBaseIds: [],
+  groupId: 'group-work',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
-  tags: [
-    {
-      id: 'tag-work',
-      name: 'work',
-      color: '#8b5cf6',
-      createdAt: '2024-01-01T00:00:00.000Z',
-      updatedAt: '2024-01-01T00:00:00.000Z'
-    }
-  ],
   modelName: 'Old Model'
 }
 
@@ -517,7 +511,6 @@ beforeEach(() => {
   })
   updateAssistantMock.mockResolvedValue({ ...ASSISTANT, name: 'Updated Assistant' })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
-  ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
 })
 
@@ -630,33 +623,33 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('submits assistant tag changes through ensureTags', async () => {
-    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-personal', name: 'personal', color: '#10b981' }])
+  it('submits assistant group changes directly', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     openTagSelect()
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['personal']))
-    expect(updateAssistantMock).toHaveBeenCalledWith({
-      body: expect.objectContaining({
-        tagIds: ['tag-personal']
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: 'group-personal'
+        })
       })
-    })
+    )
   })
 
   it('clears the assistant tag from the single-select tag field', async () => {
-    ensureTagsMock.mockResolvedValueOnce([])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
     expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith([]))
-    expect(updateAssistantMock).toHaveBeenCalledWith({
-      body: expect.objectContaining({
-        tagIds: []
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: null
+        })
       })
-    })
+    )
   })
 
   it('limits assistant tag editing to existing tags', async () => {

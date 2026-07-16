@@ -2,8 +2,6 @@ import type { ResourceType, ResourceTypeUIConfig } from '@renderer/types/resourc
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { Bot, FileText, MessageCircle, Zap } from 'lucide-react'
 
-export { DEFAULT_TAG_COLOR, getRandomTagColor, TAG_COLOR_PALETTE } from '@renderer/utils/resourceTags'
-
 export type AssistantConfigMcpMode = AssistantSettings['mcpMode']
 
 type ResourceTypeMeta = ResourceTypeUIConfig & { labelKey: string }

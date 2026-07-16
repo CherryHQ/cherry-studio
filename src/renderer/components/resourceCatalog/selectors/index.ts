@@ -22,6 +22,7 @@ export {
 } from './ConversationPickerDialog'
 export {
   ResourceSelectorShell,
+  type ResourceSelectorShellGroup,
   type ResourceSelectorShellItem,
   type ResourceSelectorShellLabels,
   type ResourceSelectorShellProps,

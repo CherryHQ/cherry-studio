@@ -19,8 +19,8 @@ vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
   useAssistantMutations: () => ({ createAssistant: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: vi.fn() })
+vi.mock('@renderer/hooks/useEnsureAssistantGroup', () => ({
+  useEnsureAssistantGroupByName: () => ({ ensureGroup: vi.fn() })
 }))
 
 import { ImportAssistantDialog } from '../ImportAssistantDialog'

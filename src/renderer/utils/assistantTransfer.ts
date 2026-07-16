@@ -1,14 +1,9 @@
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
-export interface AssistantTransferTag {
-  name: string
-  color: string | null
-}
-
 export interface ImportedAssistantDraft {
   dto: CreateAssistantDto
-  tags: AssistantTransferTag[]
+  groupName?: string
 }
 
 export class AssistantTransferError extends Error {
@@ -55,7 +50,7 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
     throw new AssistantTransferError('invalid_format')
   }
 
-  const tagName = readStringArray(record.group)[0]
+  const groupName = readStringArray(record.group)[0]
 
   // `modelId` is intentionally omitted — backend fills it from
   // `chat.default_model_id` preference. See AssistantService.resolveCreateModelId.
@@ -67,17 +62,15 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
       description: readString(record.description),
       settings: DEFAULT_ASSISTANT_SETTINGS
     },
-    tags: tagName ? [{ name: tagName, color: null }] : []
+    groupName
   }
 }
 
-function buildExportRecord(assistant: Assistant): AssistantExportRecord {
-  const tagName = assistant.tags[0]?.name
-
+function buildExportRecord(assistant: Assistant, groupName?: string): AssistantExportRecord {
   return {
     name: assistant.name,
     emoji: assistant.emoji,
-    group: tagName ? [tagName] : [],
+    group: groupName ? [groupName] : [],
     prompt: assistant.prompt,
     description: assistant.description,
     regularPhrases: [],
@@ -85,8 +78,8 @@ function buildExportRecord(assistant: Assistant): AssistantExportRecord {
   }
 }
 
-export function serializeAssistantForExport(assistant: Assistant): string {
-  return JSON.stringify([buildExportRecord(assistant)], null, 2)
+export function serializeAssistantForExport(assistant: Assistant, groupName?: string): string {
+  return JSON.stringify([buildExportRecord(assistant, groupName)], null, 2)
 }
 
 export function parseAssistantImportContent(content: string): ImportedAssistantDraft[] {

@@ -165,7 +165,7 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('custom')).toBeInTheDocument()
-    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+    expect(screen.queryByText('models.group.ungrouped')).not.toBeInTheDocument()
     expect(screen.queryByText('__ungrouped__')).not.toBeInTheDocument()
   })
 

@@ -18,11 +18,8 @@ export {
 export { isSelectableAssistantModel } from './assistantModelFilter'
 export {
   type AssistantConfigMcpMode,
-  DEFAULT_TAG_COLOR,
-  getRandomTagColor,
   MCP_MODE_OPTIONS,
   RESOURCE_TYPE_META,
-  RESOURCE_TYPE_ORDER,
-  TAG_COLOR_PALETTE
+  RESOURCE_TYPE_ORDER
 } from './constants'
 export { buildCreateAgentDto, buildCreateAssistantDto } from './resourceCreate'

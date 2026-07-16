@@ -26,7 +26,7 @@ import { assistantHandlers } from '../assistants'
 
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_ASSISTANT_ID = '33333333-3333-4333-8333-333333333333'
-const TAG_ID = '22222222-2222-4222-8222-222222222222'
+const GROUP_ID = '22222222-2222-4222-8222-222222222222'
 
 describe('assistantHandlers', () => {
   beforeEach(() => {
@@ -39,6 +39,7 @@ describe('assistantHandlers', () => {
 
       await assistantHandlers['/assistants'].GET({
         query: {
+          groupId: GROUP_ID,
           updatedAtFrom: '2026-05-01T00:00:00.000Z',
           sortBy: 'updatedAt',
           sortOrder: 'desc'
@@ -46,6 +47,7 @@ describe('assistantHandlers', () => {
       } as never)
 
       expect(listMock).toHaveBeenCalledWith({
+        groupId: GROUP_ID,
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
         sortBy: 'updatedAt',
         sortOrder: 'desc',
@@ -111,17 +113,17 @@ describe('assistantHandlers', () => {
   })
 
   describe('/assistants/:id', () => {
-    it('should forward tag-only PATCH bodies without defaulted column fields', async () => {
+    it('should forward group-only PATCH bodies without defaulted column fields', async () => {
       updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
 
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
-          body: { tagIds: [TAG_ID] }
+          body: { groupId: GROUP_ID }
         } as never)
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { tagIds: [TAG_ID] })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID })
     })
 
     it('should forward relation-only PATCH bodies without defaulted column fields', async () => {
@@ -166,11 +168,22 @@ describe('assistantHandlers', () => {
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
     })
 
-    it('should reject invalid tag ids before calling the service', async () => {
+    it('should reject an invalid group id before calling the service', async () => {
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
-          body: { tagIds: ['not-a-uuid'] }
+          body: { groupId: 'not-a-uuid' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject the removed tagIds field before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { tagIds: [GROUP_ID] }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
