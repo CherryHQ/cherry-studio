@@ -400,6 +400,7 @@ vi.mock('../AgentChat', () => ({
     resourcePaneCount,
     resourcePane,
     showResourceListControls,
+    onSidebarToggle,
     sessionPaneOpen,
     onSessionPaneOpenChange,
     onPaneCollapse,
@@ -423,6 +424,7 @@ vi.mock('../AgentChat', () => ({
     resourcePaneCount?: { label: string; count: number }
     resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
+    onSidebarToggle?: () => void
     sessionPaneOpen?: boolean
     onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
@@ -437,6 +439,11 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-position">{panePosition ?? ''}</output>
       <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+      {showResourceListControls && onSidebarToggle && (
+        <button type="button" onClick={onSidebarToggle}>
+          Toggle sidebar
+        </button>
+      )}
       {onPaneAutoCollapseChange && (
         <>
           <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
@@ -539,12 +546,16 @@ vi.mock('../AgentSidePanel', () => ({
           }}>
           Select session next
         </button>
-        <button type="button" onClick={() => onOpenHistoryRecords?.()}>
-          Open history records
-        </button>
-        <button type="button" onClick={() => void onSetPanePosition?.('right')}>
-          Move sessions right
-        </button>
+        {onOpenHistoryRecords && (
+          <button type="button" onClick={onOpenHistoryRecords}>
+            Open history records
+          </button>
+        )}
+        {onSetPanePosition && (
+          <button type="button" onClick={() => void onSetPanePosition('right')}>
+            Move sessions right
+          </button>
+        )}
         <button type="button" onClick={() => void onAddAgent?.()}>
           Open agent picker
         </button>
@@ -2120,30 +2131,54 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
-  it('removes the session sidebar entirely in a detached agent window, shortcut included', () => {
+  it('keeps detached session sidebar state local, default-closed, and fixed on the left', async () => {
     agentPageMocks.showSidebar = true
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
 
-    render(
+    const { unmount } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <AgentPage />
       </WindowFrameProvider>
     )
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-    // Detached windows show no sidebar toggle / new-session button in the navbar.
-    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
+    expect(screen.getByTestId('agent-side-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-resource-list')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('session-resource-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('resource-pane-count')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Move sessions right' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open history records' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.manage.title' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.resource_view.menu.skill' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle sidebar' }))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select session next' }))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
 
     const shortcutHandler = vi
       .mocked(useCommandHandler)
-      .mock.calls.find(([command]) => command === 'app.sidebar.toggle')?.[1]
+      .mock.calls.filter(([command]) => command === 'app.sidebar.toggle')
+      .at(-1)?.[1]
 
     act(() => {
       void shortcutHandler?.()
     })
 
-    // The sidebar-toggle shortcut is inert in a detached window — the pane stays closed.
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
     expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+
+    unmount()
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <AgentPage />
+      </WindowFrameProvider>
+    )
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
   it('uses the compact minimum window width even while the agent sidebar is open', async () => {

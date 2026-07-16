@@ -1,3 +1,4 @@
+import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -30,14 +31,7 @@ export type ResourceCreateWizardFormValues = {
  * Validated submit payload handed to the caller's `onSubmit`. `modelId` is
  * guaranteed non-null (basic-step validation gates submission).
  */
-export type ResourceCreateWizardValues = {
-  avatar: string
-  name: string
-  /** Agent runtime driver (agent kind only; assistant callers ignore it). */
+export type ResourceCreateWizardValues = ResourceCreateValues & {
+  /** Agent runtime driver. Assistant callers ignore it. */
   agentType: AgentType
-  modelId: UniqueModelId
-  description: string
-  prompt: string
-  knowledgeBaseIds: string[]
-  skillIds: string[]
 }

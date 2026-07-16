@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageInputSchema,
+  generateImageStrictInputSchema,
   KB_LIST_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
@@ -97,6 +100,30 @@ describe('builtin tool contracts', () => {
     expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', type: 'note', content: 'hi' }).success).toBe(
       true
     )
+  })
+
+  it('keeps generate_image strict-path fields in `required` so strict providers accept the schema', () => {
+    // Same regression as kb_list / kb_manage: PaintingTool runs strict:true, so an optional `n` would
+    // serialize `required` down to just `prompt` and a strict OpenAI-compatible provider would reject
+    // the tool schema before generation. The strict variant makes `n` `.nullable()` (null = "use the
+    // model default") so it stays in `required`.
+    expect(GENERATE_IMAGE_TOOL_NAME).toBe('generate_image')
+    const json = z.toJSONSchema(generateImageStrictInputSchema) as { required?: unknown }
+
+    expect(Array.isArray(json.required)).toBe(true)
+    expect(json.required).toEqual(expect.arrayContaining(['prompt', 'n']))
+    // No `size`: pixel dimensions aren't portable across painting providers, so the tool omits it.
+    expect(json.required).not.toContain('size')
+    // null is the "use default" signal for n; an explicit null payload must still parse.
+    expect(generateImageStrictInputSchema.safeParse({ prompt: 'a cat', n: null }).success).toBe(true)
+  })
+
+  it('lets the MCP generate_image path omit n', () => {
+    // The Claude Code bridge parses raw args with generateImageInputSchema; an agent may send only a
+    // prompt, so the optional shape must accept that (making it `.nullable()` for the strict path
+    // would break this — hence the separate strict variant).
+    expect(generateImageInputSchema.safeParse({ prompt: 'a cat' }).success).toBe(true)
+    expect(generateImageInputSchema.safeParse({ prompt: 'a cat', n: 2 }).success).toBe(true)
   })
 
   it('validates final report artifacts', () => {

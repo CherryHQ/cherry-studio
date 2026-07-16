@@ -15,10 +15,11 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentConfiguration } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../asyncEventQueue'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
@@ -26,7 +27,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimePolicyUpdate,
+  AgentRuntimeReconcileResult,
   AgentRuntimeUserInput
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
@@ -61,6 +62,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Live tool policy read by the approval extension at fire-time (plan D4). */
   private permissionMode: AgentPermissionMode = 'default'
   private disabledTools = new Set<string>()
+  /** Spawn-frozen agent/model facts, excluding the live permission gate. */
+  private connectionSignature?: string
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -89,6 +92,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
+    this.connectionSignature = buildPiConnectionSignature(agent, this.input.modelId)
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
     this.modelId = injection.modelId
@@ -291,19 +295,24 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /**
-   * Live policy changes. pi has no native permission modes, so both updates only
-   * mutate the state the approval gate reads at fire-time — no pi round-trip.
-   * A tool disabled mid-session is enforced by the gate's block even though it was
-   * not `excludeTools`-baked at create; a tool re-enabled after being baked out at
-   * create stays absent for this session (revisit if live re-enable is needed).
+   * Reconcile Pi against the current agent snapshot. Permission and disabled-tool
+   * changes reach the approval extension before the rebuild decision, so a policy
+   * tighten takes effect during a live turn; any spawn-frozen difference is rebuilt
+   * by the host at the next safe boundary.
    */
-  applyPolicyUpdate(update: AgentRuntimePolicyUpdate): boolean {
-    if (update.type === 'permission-mode') {
-      this.permissionMode = update.permissionMode ?? 'default'
-      return true
-    }
-    this.disabledTools = normalizeDisabledTools(update.agent.disabledTools)
-    return true
+  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+    const agent = agentService.getAgent(this.input.agentId)
+    if (!agent?.model) return 'invalid'
+
+    const nextPermissionMode = agent.configuration?.permission_mode ?? 'default'
+    const nextDisabledTools = normalizeDisabledTools(agent.disabledTools)
+    const policyChanged =
+      nextPermissionMode !== this.permissionMode || !setsEqual(nextDisabledTools, this.disabledTools)
+    this.permissionMode = nextPermissionMode
+    this.disabledTools = nextDisabledTools
+
+    if (buildPiConnectionSignature(agent, input.modelId) !== this.connectionSignature) return 'rebuild'
+    return policyChanged ? 'patched' : 'current'
   }
 
   /**
@@ -552,6 +561,20 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
  */
 function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set<string> {
   return new Set((disabledTools ?? []).map((tool) => tool.toLowerCase()))
+}
+
+function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return left.size === right.size && [...left].every((value) => right.has(value))
+}
+
+/** Spawn-frozen Pi inputs, intentionally excluding the approval gate's live permission mode. */
+function buildPiConnectionSignature(agent: AgentEntity, modelId: UniqueModelId): string {
+  const { updatedAt: _updatedAt, configuration, ...agentFacts } = agent
+  const { permission_mode: _permissionMode, ...configurationFacts } = configuration ?? {}
+  return JSON.stringify({
+    agent: { ...agentFacts, configuration: configurationFacts },
+    modelId
+  })
 }
 
 /**

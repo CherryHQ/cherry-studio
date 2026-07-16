@@ -9,7 +9,7 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { Bot, Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -107,12 +107,7 @@ export function AssistantConversationPickerDialog({
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAssistant({
-          body: {
-            name: values.name,
-            emoji: values.avatar,
-            modelId: values.modelId,
-            description: values.description
-          }
+          body: buildCreateAssistantDto(values)
         })
         setCreateDialogOpen(false)
         // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant

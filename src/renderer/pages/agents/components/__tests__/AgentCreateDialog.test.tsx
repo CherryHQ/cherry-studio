@@ -21,30 +21,22 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/create', async () => {
-  const { buildAgentCreateBody } = await vi.importActual<
-    typeof import('@renderer/components/resourceCatalog/dialogs/create/agentCreateBody')
-  >('@renderer/components/resourceCatalog/dialogs/create/agentCreateBody')
-  return {
-    buildAgentCreateBody,
-    ResourceCreateWizard: (props: any) => {
-      mocks.createDialogProps = props
-      return (
-        <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
-          <button type="button" onClick={() => props.onSubmit(wizardValues)}>
-            submit-create
-          </button>
-        </div>
-      )
-    }
+vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
+  ResourceCreateWizard: (props: any) => {
+    mocks.createDialogProps = props
+    return (
+      <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
+        <button type="button" onClick={() => props.onSubmit(wizardValues)}>
+          submit-create
+        </button>
+      </div>
+    )
   }
-})
+}))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
 }))
-
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
 
 import { AgentCreateDialog } from '../AgentCreateDialog'
 

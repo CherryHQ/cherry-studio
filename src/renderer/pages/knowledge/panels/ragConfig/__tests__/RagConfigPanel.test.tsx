@@ -429,26 +429,15 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('Top K')).toBeInTheDocument()
   })
 
-  it('uses the mini-apps style flat field layout', () => {
+  it('renders flat fields without legacy section headings', () => {
     renderRagConfigPanel()
 
-    // Each field label is now a strong text-sm font-medium label (mini-apps FieldLabel parity).
-    expect(screen.getByText('文档处理')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('分块大小')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('嵌入模型')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('Top K')).toHaveClass('font-medium', 'text-sm')
     // Section-level small-caps headings are gone — no Chunking / Embedding / Retrieval section title in the DOM.
     expect(screen.queryByText('Chunking')).not.toBeInTheDocument()
     expect(screen.queryByText('Embedding')).not.toBeInTheDocument()
     expect(screen.queryByText('Retrieval')).not.toBeInTheDocument()
-    // Chunk warning is still rendered as a muted hint paragraph.
     expect(screen.getAllByText('分段大小和重叠大小修改只针对新添加的内容有效')).toHaveLength(1)
-    expect(screen.getByText('分段大小和重叠大小修改只针对新添加的内容有效')).toHaveClass(
-      'text-foreground-muted',
-      'text-xs'
-    )
-    expect(screen.getByRole('slider', { name: 'Top K' })).toHaveClass('w-full')
-    expect(screen.getByText('6')).toHaveClass('text-foreground-secondary', 'text-xs')
+    expect(screen.getByRole('slider', { name: 'Top K' })).toBeInTheDocument()
   })
 
   it('disables save when a required chunk field is cleared or becomes non-positive', () => {

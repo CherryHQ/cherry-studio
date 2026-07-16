@@ -787,12 +787,25 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
-  it('applyPolicyUpdate flips permission mode and disabled tools', async () => {
+  it('reconciles a live permission update before requesting rebuild for baked tool changes', async () => {
     const conn = await new PiRuntimeConnection(input).start()
-    expect(conn.applyPolicyUpdate({ type: 'permission-mode', permissionMode: 'bypassPermissions' })).toBe(true)
-    expect(
-      conn.applyPolicyUpdate({ type: 'tool-policy', agent: { mcps: [], disabledTools: ['edit'], configuration: {} } })
-    ).toBe(true)
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('patched')
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { permission_mode: 'bypassPermissions' },
+      disabledTools: ['edit']
+    })
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('rebuild')
   })
 
   describe('MCP bridging', () => {

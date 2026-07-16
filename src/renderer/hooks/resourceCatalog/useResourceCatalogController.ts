@@ -3,6 +3,7 @@ import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
+import { buildCreateAgentDto, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -189,20 +190,9 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       setCreatingResource(true)
       try {
         if (kind === 'assistant') {
-          await createAssistant({
-            name: values.name,
-            emoji: values.avatar,
-            modelId: values.modelId,
-            description: values.description,
-            prompt: values.prompt,
-            knowledgeBaseIds: values.knowledgeBaseIds
-          })
+          await createAssistant(buildCreateAssistantDto(values))
         } else {
-          // Load the create-body builder lazily so this controller's static module graph stays
-          // free of the create-dialog UI barrel (§6.4: code-split a heavy boundary at the call
-          // site). The barrel is already loaded here — the create wizard is open on submit.
-          const { buildAgentCreateBody } = await import('@renderer/components/resourceCatalog/dialogs/create')
-          await createAgent(buildAgentCreateBody(values))
+          await createAgent(buildCreateAgentDto(values, values.agentType))
         }
 
         setCreateDialogOpen(false)

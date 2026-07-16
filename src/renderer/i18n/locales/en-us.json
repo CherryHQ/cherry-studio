@@ -887,6 +887,10 @@
           "description": "Manages the in-app scheduler",
           "label": "Scheduler"
         },
+        "CherryGenerateImage": {
+          "description": "Generates an image from a text prompt using your configured painting model",
+          "label": "Generate Image"
+        },
         "CherryKbManage": {
           "description": "Adds, deletes, or refreshes documents in your knowledge bases",
           "label": "Manage Knowledge"
@@ -1425,7 +1429,7 @@
         "title": "Queued ({{count}})"
       },
       "generate_image": "Generate image",
-      "generate_image_not_supported": "The model does not support generating images.",
+      "generate_image_no_model": "Configure a painting model in Settings › Default Model",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
@@ -1499,6 +1503,11 @@
         "collapse_out": "Remove from collapse",
         "expand": "Expand",
         "file_not_found": "File not found: {{path}}",
+        "generate_image": {
+          "failed": "Image generation failed",
+          "generating": "Generating image…",
+          "title": "Generated image"
+        },
         "open_file": "Open File",
         "open_file_error": "Failed to open file: {{path}}",
         "reveal_in_finder": "Reveal in Finder"
@@ -1935,7 +1944,8 @@
         "permissions_deny": "Deny (comma-separated)",
         "permissions_hint": "Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
         "role_column": "Role",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "Disable Response Storage",
@@ -2806,6 +2816,7 @@
           "title": "Import a single webpage"
         }
       },
+      "back_to_parent": "Back",
       "bulk": {
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
@@ -2833,6 +2844,7 @@
         "title": "Upload Your First Data Source"
       },
       "empty_description": "No data sources yet",
+      "empty_folder": "This folder is empty",
       "filters": {
         "all": "All",
         "directory": "Folders",
@@ -2865,9 +2877,9 @@
           "type": "Type",
           "updated_at": "Updated"
         },
+        "open_row": "Open {{title}}",
         "select_all": "Select all",
-        "select_row": "Select row",
-        "view_chunks_row": "View chunks for {{title}}"
+        "select_row": "Select row"
       },
       "toolbar": {
         "add": "Add Data Source"
@@ -2878,6 +2890,8 @@
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
+    "empty_action": "Create Knowledge Base",
+    "empty_description": "You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
@@ -3192,6 +3206,7 @@
             "no_skills_enabled": "No skills enabled",
             "search_placeholder": "Search tools or servers...",
             "skills_coming_soon": "Skill bindings coming soon",
+            "skills_enable_all": "Enable all",
             "skills_require_save": "Save before enabling skills",
             "tab": {
               "mcp": "MCP",
@@ -3830,31 +3845,37 @@
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
       "activity": {
+        "analyze": "Analyze",
+        "analyzing": "Analyzing",
         "archive": "archive",
         "assistantTask": "task",
         "availableFeatures": "available features",
         "availableResources": "available resources",
-        "branch": "code branch",
+        "branch": "project version",
         "build": "Build",
         "building": "Building",
+        "calendar": "calendar",
         "check": "Check",
         "checking": "Checking",
-        "codeFiles": "code files",
-        "codeHostInfo": "code hosting information",
-        "commandName": "{{name}} command",
-        "configFiles": "project docs and config files",
+        "codeFiles": "program files",
+        "codeHostInfo": "online project information",
+        "configFiles": "project docs and settings",
         "copy": "Copy",
         "copying": "Copying",
         "create": "Create",
         "creating": "Creating",
         "currentFolder": "current folder",
+        "data": "data",
         "delete": "Delete",
         "deleting": "Deleting",
         "documentFiles": "document files",
         "download": "Download",
         "downloading": "Downloading",
-        "executeCommand": "Run command",
-        "executingCommand": "Running command",
+        "email": "email",
+        "environmentInfo": "environment information",
+        "executeCommand": "Run task",
+        "executingCommand": "Running task",
+        "extensionFailed": "Extension failed",
         "extract": "Extract",
         "extracting": "Extracting",
         "file": "file",
@@ -3875,28 +3896,34 @@
         "plan": "execution plan",
         "projectChanges": "project changes",
         "projectChecks": "project checks",
-        "projectDependencies": "project dependencies",
+        "projectDependencies": "project requirements",
         "projectFiles": "project files",
-        "projectRootFiles": "project root files",
+        "projectRootFiles": "top-level project files",
         "projectTask": "project task",
         "relatedContent": "related content",
-        "repository": "code repository",
+        "repository": "project content",
         "search": "Find",
         "searching": "Finding",
+        "send": "Send",
+        "sending": "Sending",
+        "start": "Start",
+        "starting": "Starting",
         "switch": "Switch",
         "switching": "Switching",
         "sync": "Sync",
         "syncing": "Syncing",
         "taskId": "Task {{id}}",
         "taskList": "task list",
-        "translationFiles": "translation files",
+        "translationFiles": "language files",
         "upload": "Upload",
         "uploading": "Uploading",
+        "usedExtension": "Used an extension",
+        "usingExtension": "Using an extension",
         "view": "View",
         "viewing": "Viewing",
         "webPage": "web page",
         "webSearch": "web content",
-        "workspace": "workspace",
+        "workspace": "work area",
         "write": "Save",
         "writing": "Saving"
       },
@@ -3909,7 +3936,7 @@
       "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
       "labels": {
-        "bash": "Bash",
+        "bash": "Run task",
         "edit": "Edit",
         "exitPlanMode": "ExitPlanMode",
         "glob": "Glob",
@@ -6849,6 +6876,8 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "painting_model": "Painting Model",
+      "painting_model_description": "Model used for image generation",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",

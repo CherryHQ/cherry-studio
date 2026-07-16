@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import {
-  buildAgentCreateBody,
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
@@ -11,6 +10,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -160,7 +160,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent({ body: buildAgentCreateBody(values) })
+        created = await createAgent({ body: buildCreateAgentDto(values, values.agentType) })
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error

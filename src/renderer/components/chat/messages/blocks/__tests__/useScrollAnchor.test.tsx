@@ -3,11 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  ScrollOwnershipProvider,
-  useRequestScrollFollowRecovery,
-  useScrollViewportMaxHeight
-} from '../ScrollOwnershipContext'
+import { ScrollOwnershipProvider, useRequestScrollFollowRecovery } from '../ScrollOwnershipContext'
 import { useScrollAnchor } from '../useScrollAnchor'
 
 /**
@@ -92,6 +88,7 @@ describe('useScrollAnchor', () => {
 
   afterEach(() => {
     document.body.innerHTML = ''
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -124,6 +121,28 @@ describe('useScrollAnchor', () => {
     expect(update).toHaveBeenCalledOnce()
     // scrollBefore(200) + drift(60 - 100) = 160
     expect(scrollTopWrites).toEqual([160])
+  })
+
+  it('applies a final correction after an animated disclosure settles', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0)
+      return 0
+    })
+    const { anchorEl, scrollTopWrites } = setupScroller({
+      initialScrollTop: 200,
+      anchorTops: [100, 100, 60]
+    })
+    const { result } = renderScrollAnchor({})
+    result.current.anchorRef.current = anchorEl
+
+    act(() => result.current.withScrollAnchor(vi.fn(), { settleAfterMs: 220 }))
+    expect(scrollTopWrites).toEqual([200])
+
+    act(() => {
+      vi.advanceTimersByTime(220)
+    })
+    expect(scrollTopWrites).toEqual([200, 160])
   })
 
   it('applies the update without writes when standalone but no anchor element is attached', () => {
@@ -202,33 +221,5 @@ describe('useScrollAnchor', () => {
     act(() => lifecycleRecovery.result.current())
 
     expect(requestFollowRecovery).toHaveBeenCalledOnce()
-  })
-
-  it.each([
-    ['caps to half of the viewport left after the bottom inset', 300, 200],
-    ['uses the real remaining space below the trigger', 550, 146]
-  ])('%s', (_label, triggerBottom, expectedHeight) => {
-    const { scroller, anchorEl, rectSpy } = setupScroller()
-    vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
-    rectSpy.mockReturnValue({ bottom: triggerBottom } as DOMRect)
-    const scrollContainerRef = { current: scroller }
-    const triggerRef = { current: anchorEl }
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} viewportBottomInset={100}>
-        {children}
-      </ScrollOwnershipProvider>
-    )
-    const { result } = renderHook(
-      () =>
-        useScrollViewportMaxHeight(triggerRef, {
-          bottomGap: 4,
-          enabled: true,
-          maxViewportRatio: 0.5,
-          minHeight: 120
-        }),
-      { wrapper }
-    )
-
-    expect(result.current).toBe(expectedHeight)
   })
 })

@@ -31,7 +31,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -47,7 +47,8 @@ import {
   FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
-  TextInputField
+  TextInputField,
+  useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 
@@ -261,8 +262,11 @@ function AgentEditDialogContent({
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
@@ -285,44 +289,69 @@ function AgentEditDialogContent({
     setActiveTab('basic')
   }, [activeTab, leafTabIds])
 
-  const isSubmitting = form.formState.isSubmitting
-  const canSave = Boolean(saveIntent) && !isSubmitting
   const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  // Tracks whether the most recent save attempt failed, so the close path can
+  // keep the dialog open (and the error visible) instead of closing over a loss.
+  const saveFailedRef = useRef(false)
 
-  const handleSubmit = form.handleSubmit(async () => {
+  const persist = async () => {
     const pending = saveIntent
     if (!pending) return
 
     form.clearErrors('root')
+    saveFailedRef.current = false
 
     let updated: Awaited<ReturnType<typeof updateAgent>>
     try {
       updated = await updateAgent(pending.payload)
     } catch (error) {
-      logger.error('Failed to save agent edit dialog', error as Error, { agentId: resource.id })
+      logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      saveFailedRef.current = true
       return
     }
 
-    onOpenChange(false)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /agents/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  const flush = useDebouncedAutoSave({
+    enabled: open,
+    changeKey: canPersist ? JSON.stringify(values) : null,
+    onSave: persist
   })
 
-  const closeBeforeAction = useCloseBeforeAction(onOpenChange)
+  // On close with a pending edit, flush through the same serialized save queue and
+  // only close once it settles — so a failed final save stays visible instead of
+  // being silently dropped, and we never race a second concurrent save.
+  const handleOpenChange = (next: boolean) => {
+    if (next || !canPersist) {
+      onOpenChange(next)
+      return
+    }
+    void (async () => {
+      await flush()
+      if (saveFailedRef.current) return
+      onOpenChange(false)
+    })()
+  }
+  // Route the settings-navigate close through handleOpenChange so it flushes too.
+  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
   return (
     <EditDialogShell
       activeTab={activeTab}
-      canSave={canSave}
       form={form}
-      isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
-      onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
@@ -344,7 +373,11 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
           />
         </TabsContent>
-        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
           <AgentPromptField form={form} portalContainer={dialogContentElement} />
         </TabsContent>
         {isToolTab(activeTab) ? (
@@ -395,7 +428,7 @@ function AgentBasicFields({
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="grid grid-cols-[auto_1fr] gap-4">
         <AvatarField
           form={form}
@@ -496,7 +529,9 @@ function PermissionModeField({
       render={({ field }) => (
         <FormItem>
           <div className="flex items-center justify-between gap-3">
-            <FormLabel>{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <FormLabel className="font-normal text-[13px]">
+              {t('library.config.agent.field.permission_mode.label')}
+            </FormLabel>
             <Select
               value={field.value || 'default'}
               onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
@@ -543,7 +578,7 @@ function HeartbeatSettingsField({
         render={({ field }) => (
           <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel>{label}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{label}</FormLabel>
               <FormControl>
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
               </FormControl>
@@ -559,7 +594,9 @@ function HeartbeatSettingsField({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center justify-between gap-3">
-                <FormLabel>{t('library.config.agent.field.heartbeat_interval.label')}</FormLabel>
+                <FormLabel className="font-normal text-[13px]">
+                  {t('library.config.agent.field.heartbeat_interval.label')}
+                </FormLabel>
                 <FormControl>
                   <EditableNumber
                     min={1}
@@ -608,6 +645,7 @@ function AgentPromptField({
           value={field.value}
           onChange={field.onChange}
           placeholder={t('library.config.agent.field.instructions.placeholder')}
+          fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />

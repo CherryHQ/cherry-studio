@@ -9,7 +9,8 @@ import { useResourceCatalogController } from '../useResourceCatalogController'
 type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 
 const controllerMocks = vi.hoisted(() => ({
-  buildAgentCreateBody: vi.fn(),
+  buildCreateAgentDto: vi.fn(),
+  buildCreateAssistantDto: vi.fn(),
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   duplicateAssistant: vi.fn(),
@@ -29,11 +30,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-// The controller lazily imports the create barrel only for `buildAgentCreateBody`; mock it so the
-// wizard's heavy UI graph never loads into this hook test's worker. The real per-runtime body shape
-// is covered by agentCreateBody.test.ts — here we only assert the controller delegates to it.
-vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
-  buildAgentCreateBody: controllerMocks.buildAgentCreateBody
+vi.mock('@renderer/utils/resourceCatalog', () => ({
+  buildCreateAgentDto: controllerMocks.buildCreateAgentDto,
+  buildCreateAssistantDto: controllerMocks.buildCreateAssistantDto
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -93,7 +92,8 @@ const assistantResource = {
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    controllerMocks.buildAgentCreateBody.mockImplementation((values) => ({ builtFrom: values }))
+    controllerMocks.buildCreateAgentDto.mockImplementation((values, agentType) => ({ builtFrom: values, agentType }))
+    controllerMocks.buildCreateAssistantDto.mockImplementation((values) => ({ builtFrom: values }))
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.refetch.mockResolvedValue(undefined)
@@ -125,19 +125,13 @@ describe('useResourceCatalogController', () => {
       await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
 
-    expect(controllerMocks.createAssistant).toHaveBeenCalledWith({
-      description: createValues.description,
-      emoji: createValues.avatar,
-      knowledgeBaseIds: createValues.knowledgeBaseIds,
-      modelId: createValues.modelId,
-      name: createValues.name,
-      prompt: createValues.prompt
-    })
+    expect(controllerMocks.buildCreateAssistantDto).toHaveBeenCalledWith(createValues)
+    expect(controllerMocks.createAssistant).toHaveBeenCalledWith({ builtFrom: createValues })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
   })
 
-  it('creates an agent by delegating the body to buildAgentCreateBody', async () => {
+  it('creates an agent through the centralized runtime-aware DTO mapper', async () => {
     const { result } = renderHook(() => useResourceCatalogController('agent'))
 
     act(() => {
@@ -148,10 +142,8 @@ describe('useResourceCatalogController', () => {
       await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
 
-    // The controller must derive the create body from the wizard values (runtime-aware) rather
-    // than hardcode a claude-code DTO — buildAgentCreateBody owns the per-runtime shape.
-    expect(controllerMocks.buildAgentCreateBody).toHaveBeenCalledWith(createValues)
-    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: createValues })
+    expect(controllerMocks.buildCreateAgentDto).toHaveBeenCalledWith(createValues, 'claude-code')
+    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: createValues, agentType: 'claude-code' })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
   })
@@ -168,10 +160,8 @@ describe('useResourceCatalogController', () => {
       await result.current.dialogs.handleSubmitCreateResource(piValues)
     })
 
-    // The runtime the user picked (pi) must reach buildAgentCreateBody, which produces the pi-specific
-    // body (no soul/skills/model tiers, gated permission mode — verified in agentCreateBody.test).
-    expect(controllerMocks.buildAgentCreateBody).toHaveBeenCalledWith(piValues)
-    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: piValues })
+    expect(controllerMocks.buildCreateAgentDto).toHaveBeenCalledWith(piValues, 'pi')
+    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: piValues, agentType: 'pi' })
   })
 
   it('reports assistant duplicate failures without refetching', async () => {

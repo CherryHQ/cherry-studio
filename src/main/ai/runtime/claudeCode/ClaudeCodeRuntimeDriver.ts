@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import {
   type Options,
   type Query,
@@ -9,12 +11,16 @@ import {
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 type BetaUsage = SDKResultMessage['usage']
 type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
+import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -27,18 +33,28 @@ import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCo
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { readCherryMeta } from '@shared/data/types/uiParts'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { AsyncEventQueue } from '../asyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimePolicyUpdate,
+  AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
 } from '../types'
-import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
+import {
+  buildClaudeCodeQueryRequestForAgentSession,
+  type ConnectionConfig,
+  deriveConnectionConfig,
+  toolPolicyFactsEqual
+} from './agentSessionWarmup'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -49,7 +65,7 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
-// Re-exported from its relocated neutral home so existing importers/tests keep working.
+// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
 export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
@@ -105,6 +121,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private sessionTornDown = false
+  /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
+  private connectionConfig?: ConnectionConfig
+  /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
+  private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
@@ -126,6 +146,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
+    this.connectionConfig = request.connectionConfig
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -145,7 +166,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : await application.get('ClaudeCodeWarmQueryManager').consume({
           key: request.key,
           options,
-          initializeTimeoutMs: request.initializeTimeoutMs
+          initializeTimeoutMs: request.initializeTimeoutMs,
+          credentialsFingerprint: request.credentialsFingerprint
         })
 
     this.query = warmQuery
@@ -176,7 +198,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
   }
 
-  send(input: AgentRuntimeUserInput): void {
+  async send(input: AgentRuntimeUserInput): Promise<void> {
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
@@ -184,32 +206,65 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInitMessage = undefined
     }
 
-    this.sdkInputQueue.push(toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
+    this.sdkInputQueue.push(await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
-    // No active turn (no live adapter) → can't steer; the host queues this as the next turn.
-    if (!this.adapter || !this.steerHolder) return false
+    // The hook can only inject text. Decline attachments so the host owns them immediately and queues
+    // them as the next SDK turn instead of leaving them in session-scoped state until this turn ends.
+    const hasAttachments = input.message.data?.parts?.some((part) => part.type !== 'text') ?? false
+    if (!this.adapter || !this.steerHolder || hasAttachments) return false
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
     return true
   }
 
-  async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
-    if (!this.query) return false
-    if (update.type === 'tool-policy') {
-      await this.toolPolicySnapshot?.update(update.agent)
-      return true
+  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+    // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
+    // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
+    // gate and the subprocess on different policies.
+    const run = this.reconcileChain.then(
+      () => this.reconcileOnce(input),
+      () => this.reconcileOnce(input)
+    )
+    this.reconcileChain = run.catch(() => undefined)
+    return run
+  }
+
+  private async reconcileOnce(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+    if (!this.query) return 'rebuild'
+    const derived = await deriveConnectionConfig(this.input.sessionId, input.modelId)
+    if (!derived.ok) return 'invalid'
+    const baseline = this.connectionConfig
+    // A connection without its materialized baseline cannot prove what the subprocess serves.
+    if (!baseline) return 'rebuild'
+
+    const fresh = derived.config
+    let patched = false
+    // Live-first: apply the tool-policy facts BEFORE the rebuild verdict, so a combined update
+    // (e.g. a wholesale configuration edit touching max_turns AND tightening the permission mode)
+    // can't defer the tighten behind a rebuild that a live turn postpones.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
+      try {
+        const agent = agentService.getAgent(this.input.agentId)
+        if (!agent) return 'invalid'
+        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
+          await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
+        }
+        // Refresh the entire snapshot only after the SDK confirms the permission mode. update()
+        // itself changes the snapshot mode, so doing it first would make the SDK call look redundant.
+        await this.toolPolicySnapshot?.update(agent)
+      } catch (error) {
+        logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
+        return 'failed'
+      }
+      this.connectionConfig = { ...baseline, live: fresh.live }
+      patched = true
     }
-    // Unchanged mode → no SDK round-trip, no snapshot churn.
-    if (this.toolPolicySnapshot?.getPermissionMode() === update.permissionMode) return true
-    // Await the SDK call FIRST, mutate the snapshot only on success. The snapshot's `permissionMode`
-    // gates `canUseTool`; mutating it before the SDK confirms would leave `canUseTool` enforcing a
-    // mode the running query never adopted (and on a rejection, a tightened mode silently abandoned).
-    await this.query.setPermissionMode(update.permissionMode ?? 'default')
-    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
-    return true
+
+    if (baseline.rebuildSignature !== fresh.rebuildSignature) return 'rebuild'
+    return patched ? 'patched' : 'current'
   }
 
   async getContextUsage(): Promise<AgentSessionContextUsage | null> {
@@ -310,8 +365,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // and denied with "Approval emitter not ready" (the approval never reached the renderer).
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
-          const undelivered = this.steerHolder?.pending.splice(0) ?? []
-          if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+          this.emitPendingSteersAsUndelivered()
           this.eventQueue.push({ type: 'turn-complete' })
         }
       }
@@ -331,6 +385,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
+      this.emitPendingSteersAsUndelivered()
       this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
@@ -349,6 +404,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata
     })
+  }
+
+  private emitPendingSteersAsUndelivered(): void {
+    const undelivered = this.steerHolder?.pending.splice(0) ?? []
+    if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
   }
 
   private bindApprovalEmitter(): void {
@@ -458,17 +518,184 @@ function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is
   return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
-function toSdkUserMessage(
+async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false
-): SDKUserMessage {
-  const content = buildAgentUserContent(message)
+): Promise<SDKUserMessage> {
+  let content = await materializeUserContent(message)
+  if (systemReminder) {
+    content = applySteerReminder(content)
+  }
+
   return {
     type: 'user',
-    message: { role: 'user', content: systemReminder && content.trim() ? wrapSteerReminder(content) : content },
+    message: { role: 'user', content },
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
+  }
+}
+
+/**
+ * Wrap a steer reminder into user content so the model re-reads the system
+ * prompt before its next action. Handles both string and array (text+image)
+ * content shapes.
+ */
+function applySteerReminder(content: SDKUserMessage['message']['content']): SDKUserMessage['message']['content'] {
+  if (Array.isArray(content)) {
+    let wrappedText = false
+    const wrapped = content.map((part) => {
+      if (part.type !== 'text' || !part.text.trim()) return part
+      wrappedText = true
+      return { ...part, text: wrapSteerReminder(part.text) }
+    })
+    return wrappedText ? wrapped : [{ type: 'text', text: wrapSteerReminder('') }, ...wrapped]
+  }
+  return content.trim() ? wrapSteerReminder(content) : content
+}
+
+/**
+ * Build SDK user content from a message entity. Supported image attachments
+ * (png, jpeg, gif, webp) are materialized into native Anthropic image blocks;
+ * first-party non-image files use the shared extracted-text routing. External
+ * files and images that cannot be materialized fall back to local paths when available.
+ *
+ * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
+ */
+async function materializeUserContent(
+  message: AgentSessionMessageEntity
+): Promise<SDKUserMessage['message']['content']> {
+  const parts = message.data?.parts ?? []
+  const firstPartyParts = parts.filter(
+    (part) => part.type === 'text' || (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId))
+  )
+  const externalFileParts = parts.filter(
+    (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
+  )
+  const originalFirstPartyFiles = new Map(
+    firstPartyParts
+      .filter((part): part is FileUIPart => part.type === 'file')
+      .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
+      .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
+  )
+
+  let routedParts = firstPartyParts
+  if (firstPartyParts.some((part) => part.type === 'file')) {
+    const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+    const [prepared] = await prepareChatMessages([userMessage], {
+      attachments: collectFileAttachments([userMessage]),
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
+    routedParts = prepared.parts
+  }
+
+  const text = routedParts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+  const images: ImageBlockParam[] = []
+  const fallbackParts: FileUIPart[] = []
+  const unavailableParts: FileUIPart[] = []
+
+  for (const part of [
+    ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...externalFileParts
+  ]) {
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
+    if (!canBeClaudeImage(part)) {
+      const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
+      target.push(originalPart)
+      continue
+    }
+
+    const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
+    let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
+    if (!parsed) {
+      const materialized = await materializeNativeFilePart(part)
+      if (!materialized) {
+        unavailableParts.push(originalPart)
+        continue
+      }
+      parsed = materialized.url ? parseDataUrl(materialized.url) : null
+    }
+
+    if (!parsed?.isBase64 || parsed.data.length === 0) {
+      unavailableParts.push(originalPart)
+      continue
+    }
+
+    const claudeType = toClaudeImageMediaType(parsed.mediaType)
+    if (claudeType) {
+      images.push({
+        type: 'image',
+        source: { type: 'base64', media_type: claudeType, data: parsed.data }
+      })
+      continue
+    }
+
+    if (originalPart.url?.startsWith('file://')) {
+      fallbackParts.push(originalPart)
+    } else {
+      unavailableParts.push(originalPart)
+    }
+  }
+
+  const paths = extractAttachmentPaths(fallbackParts)
+  let textContent = appendAttachmentPaths(text, paths)
+  if (unavailableParts.length > 0) {
+    const names = unavailableParts.map((part) => part.filename || 'attachment')
+    logger.warn('Claude Code attachments could not be sent', { attachments: names })
+    const note = `Unavailable attachments: ${names.join(', ')}`
+    textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
+  }
+  if (images.length === 0) return textContent
+  return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendAttachmentPaths(text: string, paths: string[]): string {
+  if (paths.length === 0) return text
+
+  const list = paths.map((path) => `- ${path}`).join('\n')
+  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
+}
+
+/** Absolute local paths of `file://`-backed attachment parts (shared path extraction). */
+function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): string[] {
+  const paths: string[] = []
+  for (const part of parts) {
+    if (part.type !== 'file' || !part.url?.startsWith('file://')) continue
+    paths.push(fileURLToPath(part.url))
+  }
+  return paths
+}
+
+function canBeClaudeImage(part: FileUIPart): boolean {
+  const mediaType = part.mediaType?.toLowerCase()
+  if (!mediaType || mediaType === 'application/octet-stream' || mediaType.startsWith('image/')) return true
+
+  const filename = part.filename?.toLowerCase()
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(
+    (extension) => filename?.endsWith(extension) || url?.endsWith(extension)
+  )
+}
+
+function toClaudeImageMediaType(value: string | undefined) {
+  switch (value?.toLowerCase()) {
+    case 'image/jpg':
+    case 'image/jpeg':
+      return 'image/jpeg'
+    case 'image/png':
+      return 'image/png'
+    case 'image/gif':
+      return 'image/gif'
+    case 'image/webp':
+      return 'image/webp'
+    default:
+      return null
   }
 }
 

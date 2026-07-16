@@ -7,7 +7,7 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isAgentRuntimeSupportedModel } from '@shared/utils/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type { SlashCommand } from './slashCommands'
 
@@ -79,8 +79,9 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'bypassPermissions' },
-    // Orphan models stay allowed: isAgentRuntimeSupportedModel skips the provider check when provider is undefined.
-    isModelCompatible: (provider, model) => isAgentRuntimeSupportedModel(model, provider),
+    // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
+    // the same routability rule as the gateway model catalog.
+    isModelCompatible: (_provider, model) => isGatewayRoutableModel(model),
     transport: 'claude-agent',
     builtinTools: () =>
       claudeUserFacingTools().map((tool) => ({

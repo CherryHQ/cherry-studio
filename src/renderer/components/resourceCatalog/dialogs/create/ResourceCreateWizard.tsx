@@ -1,20 +1,11 @@
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  EmojiAvatar,
-  Form,
-  Scrollbar
-} from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
+import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BasicInfoStep } from './steps/BasicInfoStep'
@@ -51,19 +42,6 @@ function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardF
     knowledgeBaseIds: [],
     skillIds: []
   }
-}
-
-/**
- * Header avatar — watches `avatar` in isolation so emoji changes re-render only
- * this leaf, never the dialog shell.
- */
-function HeaderAvatar({ control, fallback }: { control: Control<ResourceCreateWizardFormValues>; fallback: string }) {
-  const avatar = useWatch({ control, name: 'avatar' })
-  return (
-    <EmojiAvatar size={40} className="shrink-0 cursor-default hover:opacity-100">
-      {avatar || fallback}
-    </EmojiAvatar>
-  )
 }
 
 /**
@@ -143,6 +121,9 @@ export function ResourceCreateWizard({
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
   const { defaultModel } = useDefaultModel()
+  const selectableDefaultModelId =
+    open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
+  const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
@@ -171,24 +152,45 @@ export function ResourceCreateWizard({
     setStepIndex((index) => Math.min(index, steps.length - 1))
   }, [steps.length])
 
-  const defaultCreateModelId = useMemo<UniqueModelId | null>(() => {
-    if (!defaultModel) return null
-    if (modelFilter && !modelFilter(defaultModel)) return null
-    return defaultModel.id
-  }, [defaultModel, modelFilter])
-
   useEffect(() => {
     if (!open) return
+    autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
 
+  // Preference/model hydration may finish after the dialog opens. Seed only an
+  // empty field, and retract only a value that this effect auto-selected if it
+  // later falls outside the active model filter.
   useEffect(() => {
-    if (!open || !defaultCreateModelId) return
-    if (form.getValues('modelId')) return
-    form.setValue('modelId', defaultCreateModelId, { shouldDirty: false, shouldTouch: false })
-  }, [defaultCreateModelId, form, open])
+    if (!open) {
+      autoSelectedDefaultModelIdRef.current = null
+      return
+    }
+
+    const currentModelId = form.getValues('modelId')
+    const autoSelectedModelId = autoSelectedDefaultModelIdRef.current
+    if (
+      autoSelectedModelId &&
+      currentModelId === autoSelectedModelId &&
+      selectableDefaultModelId !== autoSelectedModelId
+    ) {
+      autoSelectedDefaultModelIdRef.current = null
+      form.setValue('modelId', null, { shouldDirty: false, shouldTouch: false })
+      return
+    }
+
+    if (currentModelId || !selectableDefaultModelId) {
+      if (autoSelectedModelId && currentModelId !== autoSelectedModelId) {
+        autoSelectedDefaultModelIdRef.current = null
+      }
+      return
+    }
+
+    autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
+    form.setValue('modelId', selectableDefaultModelId, { shouldDirty: false, shouldTouch: false })
+  }, [form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
 
@@ -266,14 +268,10 @@ export function ResourceCreateWizard({
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
-        {/* Header — avatar + title + step progress */}
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
-          <HeaderAvatar control={form.control} fallback={getDefaultAvatar(kind)} />
+        {/* Header — title */}
+        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base">{title}</DialogTitle>
-            <DialogDescription className="truncate text-muted-foreground text-xs">
-              {t('library.config.dialogs.create.guided_progress', { current: stepIndex + 1, total: steps.length })}
-            </DialogDescription>
           </div>
         </div>
 
