@@ -1,7 +1,8 @@
 import type { Citation } from '@renderer/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
-import { SWRConfig } from 'swr'
+import type { Cache } from 'swr'
+import { SWRConfig, unstable_serialize } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CitationsList, { CitationsPanelContent } from '../CitationsList'
@@ -77,13 +78,16 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+let swrCache: Cache
+
 // Isolate SWR's global cache per render so cached previews do not bleed across tests.
 const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>
+  <SWRConfig value={{ provider: () => swrCache, dedupingInterval: 0 }}>{children}</SWRConfig>
 )
 
 describe('CitationsList', () => {
   beforeEach(() => {
+    swrCache = new Map()
     vi.clearAllMocks()
     fetchMocks.isXPostUrl.mockReturnValue(false)
     fetchMocks.fetchXOEmbed.mockResolvedValue(null)
@@ -181,6 +185,9 @@ describe('CitationsList', () => {
       url: 'https://example.com',
       requestId: expect.any(String)
     })
+    expect([...swrCache.keys()].filter((key) => key.includes('citationPreview'))).toEqual([
+      unstable_serialize(['citationPreview', 'https://example.com'])
+    ])
     expect(fetchMocks.fetchXOEmbed).not.toHaveBeenCalled()
   })
 
@@ -355,7 +362,7 @@ describe('CitationsList', () => {
     expect(screen.getByText('Fetched citation preview')).toBeInTheDocument()
   })
 
-  it('uses a fresh request group and cache when a panel remounts', async () => {
+  it('reuses a successful citation preview when a panel remounts', async () => {
     const citation: Citation = { number: 1, url: 'https://remount.com', title: 'Remount', type: 'websearch' }
     const Panel = ({ visible }: { visible: boolean }) =>
       visible ? <CitationsPanelContent citations={[citation]} /> : null
@@ -371,10 +378,30 @@ describe('CitationsList', () => {
     )
     rerender(<Panel visible />)
 
+    expect(await screen.findByText('Fetched citation preview')).toBeInTheDocument()
+    expect(ipcRequest.mock.calls.filter(([route]) => route === 'citation.fetch_preview')).toHaveLength(1)
+  })
+
+  it('retries after remount when the previous preview result was empty', async () => {
+    ipcRequest.mockImplementation((route) =>
+      Promise.resolve(route === 'citation.fetch_preview' ? { content: '' } : undefined)
+    )
+    const citation: Citation = { number: 1, url: 'https://empty.com', title: 'Empty', type: 'websearch' }
+    const Panel = ({ visible }: { visible: boolean }) =>
+      visible ? <CitationsPanelContent citations={[citation]} /> : null
+    const { rerender } = render(<Panel visible />, { wrapper })
+
     await waitFor(() => {
       const fetchCalls = ipcRequest.mock.calls.filter(([route]) => route === 'citation.fetch_preview')
-      expect(fetchCalls).toHaveLength(2)
-      expect(fetchCalls[1]?.[1].requestId).not.toBe(firstRequestId)
+      expect(fetchCalls).toHaveLength(1)
     })
+    await waitFor(() => expect(screen.queryByTestId('citation-preview-loading')).not.toBeInTheDocument())
+
+    rerender(<Panel visible={false} />)
+    rerender(<Panel visible />)
+
+    await waitFor(() =>
+      expect(ipcRequest.mock.calls.filter(([route]) => route === 'citation.fetch_preview')).toHaveLength(2)
+    )
   })
 })

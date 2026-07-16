@@ -8,6 +8,7 @@ import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
 import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSWRConfig } from 'swr'
 import useSWRImmutable from 'swr/immutable'
 import { v4 as uuid } from 'uuid'
 
@@ -27,6 +28,76 @@ interface CitationsListProps {
 interface CitationsPanelContentProps {
   citations: Citation[]
   actions?: CitationPanelActions
+}
+
+interface CitationPreviewSession {
+  load(url: string): Promise<void>
+}
+
+const citationPreviewKey = (url: string) => ['citationPreview', url] as const
+
+const useCitationPreviewSession = (): CitationPreviewSession => {
+  const { mutate } = useSWRConfig()
+  const [requestId] = React.useState<string>(() => uuid())
+  const requestsRef = React.useRef(new Map<string, Promise<void>>())
+
+  const load = React.useCallback(
+    (url: string): Promise<void> => {
+      const existing = requestsRef.current.get(url)
+      if (existing) return existing
+
+      const request = ipcApi
+        .request('citation.fetch_preview', { url, requestId })
+        .then(async ({ content }) => {
+          if (content) {
+            await mutate(citationPreviewKey(url), content, { revalidate: false })
+          }
+        })
+        .catch(() => undefined)
+
+      requestsRef.current.set(url, request)
+      return request
+    },
+    [mutate, requestId]
+  )
+
+  React.useEffect(() => {
+    const requests = requestsRef.current
+
+    return () => {
+      const hasRequests = requests.size > 0
+      requests.clear()
+
+      if (hasRequests) {
+        void ipcApi.request('citation.cancel_previews', { requestId }).catch(() => undefined)
+      }
+    }
+  }, [requestId])
+
+  return React.useMemo(() => ({ load }), [load])
+}
+
+const useCitationPreview = (url: string | undefined, session: CitationPreviewSession) => {
+  const { data } = useSWRImmutable<string>(url ? citationPreviewKey(url) : null, null)
+  const [settledUrl, setSettledUrl] = React.useState<string>()
+
+  React.useEffect(() => {
+    if (!url || data !== undefined) return
+
+    let active = true
+    void session.load(url).finally(() => {
+      if (active) setSettledUrl(url)
+    })
+
+    return () => {
+      active = false
+    }
+  }, [data, session, url])
+
+  return {
+    content: data,
+    isLoading: Boolean(url) && data === undefined && settledUrl !== url
+  }
 }
 
 const truncateText = (text: string, maxLength = 100) =>
@@ -82,18 +153,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 }
 
 export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, actions }) => {
-  const [requestId] = React.useState<string>(() => uuid())
-  const hasCancelablePreviews = citations.some(
-    (citation) => citation.type === 'websearch' && Boolean(citation.url) && !isXPostUrl(citation.url)
-  )
-
-  React.useEffect(() => {
-    if (!hasCancelablePreviews) return
-
-    return () => {
-      void ipcApi.request('citation.cancel_previews', { requestId }).catch(() => undefined)
-    }
-  }, [hasCancelablePreviews, requestId])
+  const previewSession = useCitationPreviewSession()
 
   return (
     <Scrollbar className="min-h-0 flex-1">
@@ -103,7 +163,7 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
           className="border-border border-b-[0.5px] last:border-b-0">
           {citation.type === 'websearch' && (
             <div className="max-w-[min(400px,60vw)] px-3">
-              <WebSearchCitation citation={citation} requestId={requestId} actions={actions} />
+              <WebSearchCitation citation={citation} previewSession={previewSession} actions={actions} />
             </div>
           )}
           {citation.type === 'memory' && (
@@ -175,24 +235,18 @@ const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> =
 
 const WebSearchCitation: React.FC<{
   citation: Citation
-  requestId: string
+  previewSession: CitationPreviewSession
   actions?: CitationPanelActions
-}> = ({ citation, requestId, actions }) => {
+}> = ({ citation, previewSession, actions }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
+  const previewUrl = citation.url && !isXPost ? citation.url : undefined
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
     openPath: actions?.openPath ?? providerActions?.openPath,
     openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
 
-  const { data: previewContent, isLoading: isPreviewLoading } = useSWRImmutable(
-    citation.url && !isXPost ? ['citationPreview', requestId, citation.url] : null,
-    async () => {
-      const { content } = await ipcApi.request('citation.fetch_preview', { url: citation.url, requestId })
-      return content
-    },
-    { shouldRetryOnError: false }
-  )
+  const { content: previewContent, isLoading: isPreviewLoading } = useCitationPreview(previewUrl, previewSession)
 
   const { data: oembedData, isLoading: isOembedLoading } = useSWRImmutable(
     isXPost && citation.url ? xOembedKey(citation.url) : null,
