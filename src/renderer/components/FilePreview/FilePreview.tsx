@@ -3,12 +3,13 @@ import { loggerService } from '@logger'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { FilePath } from '@shared/types/file'
 import { FileQuestion, FileWarning, FileX2, LoaderCircle } from 'lucide-react'
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, type ReactNode, Suspense, useMemo } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
+import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import type { FilePreviewPlugin } from './types'
 
 const logger = loggerService.withContext('FilePreview')
@@ -74,6 +75,29 @@ interface FilePreviewPluginRendererProps {
   refreshKey: number
 }
 
+interface FilePreviewShellProps {
+  children: ReactNode
+  header?: ReactNode
+}
+
+function FilePreviewShell({ children, header }: FilePreviewShellProps) {
+  if (header === undefined) return children
+
+  return (
+    <FilePreviewToolbarPortalProvider>
+      <FilePreviewLayout.Frame>
+        <div
+          data-testid="file-preview-header"
+          className="flex h-10 min-h-10 shrink-0 items-center border-border-muted border-b px-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
+          <FilePreviewToolbarPortalHost />
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+      </FilePreviewLayout.Frame>
+    </FilePreviewToolbarPortalProvider>
+  )
+}
+
 function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: FilePreviewPluginRendererProps) {
   const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
 
@@ -91,10 +115,11 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: F
 
 export interface FilePreviewProps {
   filePath: FilePath
+  header?: ReactNode
   refreshKey?: number
 }
 
-export function FilePreview({ filePath, refreshKey = 0 }: FilePreviewProps) {
+export function FilePreview({ filePath, header, refreshKey = 0 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -104,12 +129,18 @@ export function FilePreview({ filePath, refreshKey = 0 }: FilePreviewProps) {
     }
   }, [filePath])
 
-  if (!file) return <FilePreviewState kind="invalid_path" />
+  let preview: ReactNode
 
-  const extensionPlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
-  if (extensionPlugin) {
-    return <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} refreshKey={refreshKey} />
+  if (!file) {
+    preview = <FilePreviewState kind="invalid_path" />
+  } else {
+    const extensionPlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+    preview = extensionPlugin ? (
+      <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} refreshKey={refreshKey} />
+    ) : (
+      <FilePreviewState kind="unsupported" />
+    )
   }
 
-  return <FilePreviewState kind="unsupported" />
+  return <FilePreviewShell header={header}>{preview}</FilePreviewShell>
 }

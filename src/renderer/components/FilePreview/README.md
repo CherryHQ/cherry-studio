@@ -23,24 +23,42 @@ const filePath = normalizeFilePreviewPath(physicalPath)
 Import `FilePreview` from the module root and place it in a parent with a defined available height. The component fills its parent, and the plugin content area handles scrolling.
 
 ```tsx
+import { Button } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
 import type { FilePath } from '@shared/types/file'
+import { useTranslation } from 'react-i18next'
 
 interface FileDetailsProps {
+  fileName: string
   filePath: FilePath
+  onBack: () => void
   refreshKey?: number
 }
 
-export function FileDetails({ filePath, refreshKey }: FileDetailsProps) {
+export function FileDetails({ fileName, filePath, onBack, refreshKey }: FileDetailsProps) {
+  const { t } = useTranslation()
+
   return (
     <section className="flex min-h-0 flex-1">
-      <FilePreview filePath={filePath} refreshKey={refreshKey} />
+      <FilePreview
+        filePath={filePath}
+        refreshKey={refreshKey}
+        header={
+          <>
+            <Button onClick={onBack}>{t('common.back')}</Button>
+            <span className="truncate">{fileName}</span>
+          </>
+        }
+      />
     </section>
   )
 }
 ```
 
-The embedded host owns page-level interactions such as back, close, and file selection. Do not add `embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
+The embedded host owns page-level interactions such as back, close, and file selection. Pass those controls as
+`header` content when they should share the fixed top row with the plugin toolbar. `FilePreview` keeps caller content
+on the left and portals the active plugin toolbar to the right. Do not pass format controls through `header` or add
+`embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
 
 ## Tab Preview
 
@@ -139,14 +157,17 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 
 ## Composition Rules
 
-Keep the public `FilePreview` props minimal: `filePath` and optional `refreshKey`. Follow these boundaries when adding formats or capabilities:
+Keep the public `FilePreview` props minimal: `filePath`, optional `header`, and optional `refreshKey`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
 - Put every plugin toolbar in a separate `<Format>FilePreviewToolbar.tsx` component. When a plugin has no controls, omit the toolbar completely instead of rendering an empty row.
 - Compose toolbar content with `FilePreviewToolbar`. Use `FilePreviewToolbarButton` for icon commands and an appropriate UI primitive such as `SegmentedControl` for mode selection.
+- Keep the renderer and file-loading lifecycle inside the plugin directory. Do not wrap an existing page or legacy preview panel; migrate that caller to `FilePreview` later instead of coupling the new plugin back to it.
 - Represent mutually exclusive plugin views with an explicit union such as `'preview' | 'source'`, not several interacting booleans.
 - Keep plugin capabilities inside the plugin. Do not expose a toolbar slot to callers or make calling pages manage format-specific state.
+- Treat `header` as host-owned navigation and identity content only. When it is absent, the plugin toolbar remains
+  centered in its own row for Tab and standalone previews.
 
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
 

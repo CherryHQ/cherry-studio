@@ -30,7 +30,10 @@ describe('FilePreview layout composition', () => {
       </FilePreviewLayout.Frame>
     )
 
-    expect(screen.getByRole('toolbar', { name: 'PDF preview tools' })).toBeInTheDocument()
+    const toolbar = screen.getByRole('toolbar', { name: 'PDF preview tools' })
+    expect(toolbar).toHaveClass('h-10')
+    expect(toolbar).not.toHaveClass('bg-background')
+    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument()
     expect(screen.getByTestId('file-preview-content')).toHaveTextContent('PDF content')
   })

@@ -7,6 +7,7 @@ import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformState = vi.hoisted(() => ({
@@ -22,9 +23,13 @@ const filePreviewMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: (props: { filePath: string; refreshKey?: number }) => {
+  FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
     filePreviewMocks.render(props)
-    return <div data-testid="file-preview" data-file-path={props.filePath} />
+    return (
+      <div data-testid="file-preview" data-file-path={props.filePath}>
+        {header}
+      </div>
+    )
   }
 }))
 

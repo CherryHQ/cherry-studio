@@ -4,7 +4,9 @@ import type { FilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FilePreviewLayout } from '../FilePreviewLayout'
 import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
+import { FilePreviewToolbar } from '../FilePreviewToolbar'
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn()
@@ -44,12 +46,19 @@ beforeEach(() => {
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
     default: ({ filePath, fileName, refreshKey }: { filePath: FilePath; fileName: string; refreshKey: number }) => (
-      <div
-        data-testid="plugin-preview"
-        data-file-path={filePath}
-        data-file-name={fileName}
-        data-refresh-key={refreshKey}
-      />
+      <FilePreviewLayout.Frame>
+        <FilePreviewToolbar aria-label="Preview tools">
+          <button type="button">Zoom in</button>
+        </FilePreviewToolbar>
+        <FilePreviewLayout.Content>
+          <div
+            data-testid="plugin-preview"
+            data-file-path={filePath}
+            data-file-name={fileName}
+            data-refresh-key={refreshKey}
+          />
+        </FilePreviewLayout.Content>
+      </FilePreviewLayout.Frame>
     )
   })
 })
@@ -76,6 +85,24 @@ describe('FilePreview plugin loading', () => {
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-name', 'README.md')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-refresh-key', '4')
     expect(mocks.load).toHaveBeenCalledTimes(1)
+  })
+
+  it('places an embedded header on the left and the plugin toolbar on the right of one row', async () => {
+    render(
+      <FilePreview
+        filePath={'/tmp/README.md' as FilePath}
+        header={<span data-testid="preview-title">README.md</span>}
+      />
+    )
+
+    const toolbar = await screen.findByRole('toolbar', { name: 'Preview tools' })
+    const header = screen.getByTestId('file-preview-header')
+    const toolbarHost = screen.getByTestId('file-preview-toolbar-host')
+
+    expect(header).toHaveClass('h-10')
+    expect(header.firstElementChild).toContainElement(screen.getByTestId('preview-title'))
+    expect(header.lastElementChild).toBe(toolbarHost)
+    expect(toolbarHost).toContainElement(toolbar)
   })
 
   it('contains plugin loader failures inside the preview surface', async () => {

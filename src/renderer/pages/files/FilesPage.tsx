@@ -891,21 +891,24 @@ function FilesPage() {
       <section
         aria-label={embeddedPreview.fileName}
         className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-border-muted border-b px-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('common.back')}
-            className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
-            onClick={() => setEmbeddedPreview(null)}>
-            <ArrowLeft className="size-3.5" />
-          </Button>
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <FilePreview filePath={embeddedPreview.filePath} refreshKey={embeddedPreview.refreshKey} />
-        </div>
+        <FilePreview
+          filePath={embeddedPreview.filePath}
+          refreshKey={embeddedPreview.refreshKey}
+          header={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.back')}
+                className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                onClick={() => setEmbeddedPreview(null)}>
+                <ArrowLeft className="size-3.5" />
+              </Button>
+              <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+            </>
+          }
+        />
       </section>
     )
   }
