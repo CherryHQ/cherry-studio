@@ -83,6 +83,10 @@ import {
 } from './useComposerEditorFrameSizing'
 
 const COMPOSER_INPUT_MAX_LENGTH = 40000
+/** Matches NarrowLayout's `px-6` (and the message column's base) — the inline
+ * override is invisible until the rail gutter adds onto it; only applied when
+ * the caller wires `railGutterPx`. */
+const COMPOSER_SIDE_PADDING_PX = 24
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
@@ -147,6 +151,9 @@ export interface ComposerSurfaceProps {
   editable?: boolean
   fontSize: number
   narrowMode: boolean
+  /** Extra padding on both sides matching the message column's anchor-rail gutter,
+   * keeping the composer centred and its margins symmetric while the rail shows. */
+  railGutterPx?: number
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
@@ -528,6 +535,7 @@ export default function ComposerSurface({
   editable = true,
   fontSize,
   narrowMode,
+  railGutterPx,
   onFocus,
   onActionsChange,
   onInputHistoryNavigate,
@@ -2030,7 +2038,21 @@ export default function ComposerSurface({
   )
 
   return (
-    <NarrowLayout narrowMode={narrowMode} withSidePadding style={{ width: '100%' }}>
+    <NarrowLayout
+      narrowMode={narrowMode}
+      withSidePadding
+      // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
+      // gutter mirrored on both sides keeps the composer centred and aligned with
+      // the message column. Other callers keep NarrowLayout's default padding.
+      style={{
+        width: '100%',
+        ...(railGutterPx != null
+          ? {
+              paddingLeft: COMPOSER_SIDE_PADDING_PX + railGutterPx,
+              paddingRight: COMPOSER_SIDE_PADDING_PX + railGutterPx
+            }
+          : {})
+      }}>
       <div className="w-full">
         <div
           className="inputbar relative z-2 flex flex-col pt-0"

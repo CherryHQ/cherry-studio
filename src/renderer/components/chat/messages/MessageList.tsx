@@ -42,6 +42,17 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+/** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
+ * override is invisible until the rail gutter adds onto it. */
+const CHAT_SIDE_PADDING_PX = 24
+/** Max gutter the content yields on both sides as the column widens. The total
+ * (base + max = 48px) exactly covers the rail's 32px hit strip + its margin, so
+ * hover growth never touches the content nor does content enter the strip. */
+const RAIL_GUTTER_MAX_PX = 24
+/** Below this chat-column width the content keeps its full width and the rail is gone. */
+const RAIL_GUTTER_START_PX = 700
+/** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
+const RAIL_GUTTER_FADE_PX = 120
 
 interface ActiveMessageOutline {
   messageId: string
@@ -90,14 +101,21 @@ const MessageList = () => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
-  const { setForceWideLayout } = useChatLayoutMode()
+  const { setForceWideLayout, setRailGutterPx: publishRailGutter } = useChatLayoutMode()
   const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
+  const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
+  const [railGutterPx, setRailGutterPx] = useState(0)
   const bottomOverlayInsets = useChatBottomOverlayInset()
+
+  // The gutter follows only the width (and the anchor preference) — NOT the turn
+  // count. With anchor navigation on, a wide window always yields the gutter, so
+  // when the conversation grows past the rail's turn threshold the rail simply
+  // fades into space that was already there, with no content jump.
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -145,6 +163,13 @@ const MessageList = () => {
     setForceWideLayout(useWideMessageLayout)
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
+
+  // Publish the rail gutter so the composer yields the same right-hand space and
+  // stays aligned with the message column as it shifts.
+  useEffect(() => {
+    publishRailGutter(railGutterPx)
+    return () => publishRailGutter(0)
+  }, [publishRailGutter, railGutterPx])
 
   const enteringMessageIds = useMessageEnterMotionIds({
     messages,
@@ -249,6 +274,51 @@ const MessageList = () => {
   }, [messageById, shouldTrackMessageOutline])
   const updateActiveMessageOutlineRef = useRef(updateActiveMessageOutline)
   updateActiveMessageOutlineRef.current = updateActiveMessageOutline
+
+  const shouldTrackAnchorPosition = messageNavigation === 'anchor'
+
+  // Anchor rail counterpart of the outline tracker: resolve the message near
+  // the viewport top (any role) so the rail can darken the current turn's tick.
+  // Top-aligned so a turn jumped to via its tick immediately reads as current;
+  // at the very bottom the last turn wins regardless of its height.
+  const updateActiveAnchorMessage = useCallback(() => {
+    if (!shouldTrackAnchorPosition) return
+
+    const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
+    if (!scrollElement) return
+
+    const containerRect = scrollElement.getBoundingClientRect()
+    const scrollRange = scrollElement.scrollHeight - scrollElement.clientHeight
+    const atBottom = scrollElement.scrollTop >= scrollRange - 2
+    const viewportCenter = atBottom
+      ? containerRect.bottom - 1
+      : containerRect.top + Math.min(120, containerRect.height * 0.25)
+    let bestMatch: { messageId: string; distance: number } | null = null
+
+    for (const [messageId, element] of messageElements.current) {
+      const message = messageById.get(messageId)
+      if (!message || message.type === 'clear') continue
+      if (!element.isConnected || !scrollElement.contains(element)) continue
+
+      const rect = element.getBoundingClientRect()
+      const visibleHeight = Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top)
+      if (visibleHeight <= 0) continue
+
+      const distance =
+        rect.top <= viewportCenter && rect.bottom >= viewportCenter
+          ? 0
+          : Math.min(Math.abs(rect.top - viewportCenter), Math.abs(rect.bottom - viewportCenter))
+
+      if (!bestMatch || distance < bestMatch.distance) {
+        bestMatch = { messageId, distance }
+      }
+    }
+
+    const nextId = bestMatch?.messageId ?? null
+    setActiveAnchorMessageId((current) => (current === nextId ? current : nextId))
+  }, [messageById, shouldTrackAnchorPosition])
+  const updateActiveAnchorMessageRef = useRef(updateActiveAnchorMessage)
+  updateActiveAnchorMessageRef.current = updateActiveAnchorMessage
 
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
@@ -426,6 +496,54 @@ const MessageList = () => {
   }, [data.isInitialLoading, data.listKey, shouldTrackMessageOutline, topic.id])
 
   useEffect(() => {
+    if (!shouldTrackAnchorPosition) {
+      setActiveAnchorMessageId((current) => (current ? null : current))
+      return
+    }
+    updateActiveAnchorMessage()
+  }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
+
+  useEffect(() => {
+    if (!shouldTrackAnchorPosition) {
+      setRailGutterPx(0)
+      return
+    }
+    const scrollElement = messageListRef.current?.getScrollElement()
+    if (!scrollElement) return
+
+    const updateRailGutter = () => {
+      // The content yields a right-hand gutter that grows smoothly with the column
+      // width; the rail fades in within it. Tracking width continuously (rather
+      // than toggling at a threshold) means the content shifts smoothly and never
+      // jumps, and the gutter collapses to 0 when narrow so no space is wasted.
+      const ramp = (scrollElement.clientWidth - RAIL_GUTTER_START_PX) / RAIL_GUTTER_FADE_PX
+      const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
+      setRailGutterPx((current) => (current === gutter ? current : gutter))
+    }
+    updateRailGutter()
+    const resizeObserver = new ResizeObserver(updateRailGutter)
+    resizeObserver.observe(scrollElement)
+
+    let frame: number | null = null
+    const handleAnchorUpdate = () => {
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        updateActiveAnchorMessageRef.current()
+      })
+    }
+    scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
+    window.addEventListener('resize', handleAnchorUpdate)
+
+    return () => {
+      resizeObserver.disconnect()
+      if (frame !== null) cancelAnimationFrame(frame)
+      scrollElement.removeEventListener('scroll', handleAnchorUpdate)
+      window.removeEventListener('resize', handleAnchorUpdate)
+    }
+  }, [data.isInitialLoading, data.listKey, shouldTrackAnchorPosition, topic.id])
+
+  useEffect(() => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
@@ -474,7 +592,14 @@ const MessageList = () => {
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
       key={data.listKey}>
       {beforeList && (
-        <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding className="shrink-0">
+        <NarrowLayout
+          narrowMode={messageListNarrowMode}
+          withSidePadding
+          className="shrink-0"
+          style={{
+            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+          }}>
           {beforeList}
         </NarrowLayout>
       )}
@@ -500,7 +625,15 @@ const MessageList = () => {
               onReachTop={loadMoreMessages}
               renderItem={([key, groupMessages]) => {
                 return (
-                  <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding>
+                  <NarrowLayout
+                    narrowMode={messageListNarrowMode}
+                    withSidePadding
+                    // The gutter is mirrored on the left so the column stays
+                    // centred and both margins match while the rail fades in.
+                    style={{
+                      paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+                      paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+                    }}>
                     <MessageGroup
                       key={key}
                       isLatestAssistantGroup={key === latestAssistantGroupKey}
@@ -557,8 +690,10 @@ const MessageList = () => {
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
           messages={messages}
+          activeMessageId={activeAnchorMessageId}
+          hasOlder={hasOlder}
+          railOpacity={railGutterPx / RAIL_GUTTER_MAX_PX}
           scrollToMessageId={scrollToMessageById}
-          scrollToBottom={scrollToBottom}
         />
       )}
       {activeOutline && activeOutlineMessage && (

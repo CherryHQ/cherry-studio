@@ -2,6 +2,7 @@ import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import {
   ConversationTopBarPortal,
@@ -924,6 +925,8 @@ const AgentComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
@@ -1460,6 +1463,7 @@ const AgentComposerInner = ({
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
         narrowMode={forceNarrowLayout || narrowMode}
+        railGutterPx={railGutterPx}
         onActionsChange={handleSurfaceActionsChange}
         onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
@@ -1500,6 +1504,8 @@ const MissingAgentHomeComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -1575,6 +1581,7 @@ const MissingAgentHomeComposerInner = ({
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
         narrowMode={narrowMode}
+        railGutterPx={railGutterPx}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}

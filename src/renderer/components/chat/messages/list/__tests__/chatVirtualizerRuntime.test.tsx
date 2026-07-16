@@ -638,6 +638,91 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('jumps instantly to a key more than a few viewports away', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b sits 2000px away — beyond 3 viewports (3 * 400), so the
+      // animation is skipped and the scroller lands on the target immediately.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 2000),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+
+      expect(scrollTop).toBe(2000)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('scrolls smoothly to a nearby key within a few viewports', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b sits 500px away — within 3 viewports, so it animates.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 500),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+      expect(scrollTop).toBe(0)
+
+      raf.tick(60)
+      expect(scrollTop).toBe(500)
+    } finally {
+      raf.restore()
+    }
+  })
+
   it('keeps the requested heading anchored when content before it grows inside a block wrapper', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

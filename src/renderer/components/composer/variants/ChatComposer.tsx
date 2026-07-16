@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -587,6 +588,8 @@ const ChatComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
@@ -1377,6 +1380,7 @@ const ChatComposerInner = ({
         editable={!searching}
         fontSize={fontSize}
         narrowMode={forceNarrowLayout || narrowMode}
+        railGutterPx={railGutterPx}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         onInputHistoryNavigate={handleInputHistoryNavigate}
