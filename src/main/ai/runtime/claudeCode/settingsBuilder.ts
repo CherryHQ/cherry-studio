@@ -684,11 +684,7 @@ async function buildToolPermissions(
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
-  const conditionContext: ClaudeToolContext | undefined = cwd
-    ? {
-        cwd
-      }
-    : undefined
+  const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
