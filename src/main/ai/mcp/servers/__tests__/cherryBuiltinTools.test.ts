@@ -11,6 +11,9 @@ const kbDeleteConcepts = vi.fn()
 const kbRefreshConcepts = vi.fn()
 const listBases = vi.fn()
 const listRootItems = vi.fn()
+const getPreference = vi.fn()
+const generateImage = vi.fn()
+const fileRead = vi.fn()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -35,6 +38,9 @@ vi.mock('@application', () => ({
           listRootItems
         }
       }
+      if (name === 'PreferenceService') return { get: getPreference }
+      if (name === 'AiService') return { generateImage }
+      if (name === 'FileManager') return { read: fileRead }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -74,11 +80,15 @@ describe('cherryBuiltinTools', () => {
     kbRefreshConcepts.mockReset()
     listBases.mockReset()
     listRootItems.mockReset()
+    getPreference.mockReset()
+    generateImage.mockReset()
+    fileRead.mockReset()
   })
 
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
     const tools = listCherryBuiltinTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
+      'generate_image',
       'kb_list',
       'kb_manage',
       'kb_read',
@@ -433,6 +443,56 @@ describe('cherryBuiltinTools', () => {
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Error:')
+  })
+
+  it('routes generate_image through AiService, summarizes it, and attaches the image inline', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
+    fileRead.mockResolvedValue({ content: 'BASE64DATA', mime: 'image/png', version: 1 })
+
+    const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat' })
+    )
+    // Model-facing text summary comes first…
+    expect(textOf(result)).toContain('Generated 1 image(s)')
+    expect(textOf(result)).toContain('image-1.png')
+    // …followed by the base64 image content block the agent renderer shows inline.
+    expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
+    expect(result.content[1]).toEqual({ type: 'image', data: 'BASE64DATA', mimeType: 'image/png' })
+  })
+
+  it('still summarizes generate_image when reading the file back for inline rendering fails', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
+    fileRead.mockRejectedValue(new Error('file gone'))
+
+    const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
+
+    // A failed read drops the inline image but must not fail the generation.
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('Generated 1 image(s)')
+    expect(result.content).toHaveLength(1)
+  })
+
+  it('steers the model to configure a painting model when none is set', async () => {
+    getPreference.mockReturnValue(null)
+
+    const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('No painting model is configured')
+    expect(textOf(result)).toContain('do not retry')
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('propagates AbortError from generate_image instead of converting it to an MCP error', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+
+    await expect(callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)).rejects.toThrow()
   })
 
   it('returns an error result for an unknown tool', async () => {

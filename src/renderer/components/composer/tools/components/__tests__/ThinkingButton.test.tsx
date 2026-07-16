@@ -78,6 +78,7 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 
 const DEFAULT_TEST_SETTINGS = {
   customParameters: [],
+  enableGenerateImage: false,
   enableMaxToolCalls: true,
   enableMaxTokens: false,
   enableTemperature: false,
