@@ -5,9 +5,9 @@ export default openaiCompatible({
   name: 'AMD GPU Cloud',
   baseUrl: 'https://developer.amd.com.cn/radeon/v1',
   website: {
-    apiKey: 'https://developer.amd.com.cn/radeon/tokenfactory',
+    apiKey: 'https://developer.amd.com.cn/radeon/modelapis',
     docs: 'https://developer.amd.com.cn/radeon/',
-    models: 'https://developer.amd.com.cn/radeon/tokenfactory',
+    models: 'https://developer.amd.com.cn/radeon/modelapis',
     official: 'https://developer.amd.com.cn/radeon/'
   }
 })
