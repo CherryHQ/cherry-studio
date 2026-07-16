@@ -179,6 +179,7 @@ export function RightPanelProvider<TScope>({
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const [mountedInstances, setMountedInstances] = useState<ReadonlyMap<string, string>>(() => new Map())
   const openRef = useRef(open)
+  const previousDefaultOpenRef = useRef(defaultOpen)
   const onOpenChangeRef = useRef(onOpenChange)
 
   useEffect(() => {
@@ -190,6 +191,8 @@ export function RightPanelProvider<TScope>({
   }, [open])
 
   useEffect(() => {
+    if (previousDefaultOpenRef.current === defaultOpen) return
+    previousDefaultOpenRef.current = defaultOpen
     if (openRef.current === defaultOpen) return
 
     openRef.current = defaultOpen

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
-import { useState } from 'react'
+import { Activity, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -229,6 +229,36 @@ describe('RightPanel', () => {
       </Harness>
     )
     expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+  })
+
+  it('preserves user-opened state when Activity reconnects effects', () => {
+    function ActivityHarness({ visible }: { visible: boolean }) {
+      return (
+        <Activity mode={visible ? 'visible' : 'hidden'}>
+          <Harness />
+        </Activity>
+      )
+    }
+
+    const { rerender } = render(<ActivityHarness visible />)
+    fireEvent.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+
+    rerender(<ActivityHarness visible={false} />)
+    rerender(<ActivityHarness visible />)
+
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+  })
+
+  it('syncs open state when defaultOpen actually changes', () => {
+    const { rerender } = render(<Harness />)
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('false')
+
+    rerender(<Harness defaultOpen />)
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+
+    rerender(<Harness />)
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('false')
   })
 
   it('uses one toggle behavior for shortcuts', () => {
