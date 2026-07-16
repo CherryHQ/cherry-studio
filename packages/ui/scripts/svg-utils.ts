@@ -31,8 +31,7 @@ export function parseLogoTypeArg(): LogoType {
  * Tighten the SVG root viewBox to the bounding box of its visible content.
  *
  * Many designer-exported SVGs (e.g. from Figma frames) carry ~10-15% of empty
- * padding inside the viewBox. Combined with the Avatar wrapper's own padding,
- * the rendered logo ends up only filling ~40% of the visible container.
+ * padding inside the viewBox, which makes the rendered logo unnecessarily small.
  *
  * This helper unions the bounding boxes of every `<path d="...">` and `<rect>`
  * element in the file. When `minimumFrameRatio` is provided, it expands that

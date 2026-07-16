@@ -11,8 +11,8 @@ export function OpencodeAvatar({ size = 32, shape = 'circle', className }: Omit<
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <OpencodeLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
-        <OpencodeDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <OpencodeLight className="dark:hidden" style={{ width: size, height: size }} />
+        <OpencodeDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

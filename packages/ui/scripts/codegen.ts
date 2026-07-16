@@ -89,7 +89,7 @@ export default ${colorName}Icon
 export function generateAvatar(opts: {
   outPath: string
   colorName: string
-  variant: 'full-bleed' | 'padded'
+  variant: 'full-bleed' | 'neutral-background'
   hasDark: boolean
 }): void {
   const { outPath, colorName, variant, hasDark } = opts
@@ -124,18 +124,19 @@ export function generateAvatar(opts: {
     namedImports: [`${colorName}Light`]
   })
 
-  const iconSize = variant === 'full-bleed' ? 'size * 0.82' : 'size * 0.7'
-  const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
+  const fallbackClasses = ['text-foreground', variant === 'neutral-background' ? 'bg-background' : '']
+    .filter(Boolean)
+    .join(' ')
   const iconRender = hasDark
     ? `<${colorName}Light
           className="dark:hidden"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />
         <${colorName}Dark
           className="hidden dark:block"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />`
-    : `<${colorName}Light style={{ width: ${iconSize}, height: ${iconSize} }} />`
+    : `<${colorName}Light style={{ width: size, height: size }} />`
 
   sf.addFunction({
     isExported: true,

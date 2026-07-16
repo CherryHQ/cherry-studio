@@ -204,7 +204,7 @@ export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {
  * Avatar 展示
  *
  * 每个 Logo 以 Avatar 形式展示，带有圆形边框。
- * 通过 `size` 控制头像大小，图标自动缩放为容器的 75%。
+ * 通过 `size` 控制头像大小，图标填满 Avatar 容器。
  *
  * ```tsx
  * import { Anthropic } from '@cherrystudio/ui/icons'

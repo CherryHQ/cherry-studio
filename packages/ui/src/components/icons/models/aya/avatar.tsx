@@ -10,7 +10,7 @@ export function AyaAvatar({ size = 32, shape = 'circle', className }: Omit<IconA
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <AyaLight style={{ width: size * 0.82, height: size * 0.82 }} />
+        <AyaLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

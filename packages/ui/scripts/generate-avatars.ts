@@ -5,8 +5,8 @@
  * then updates the per-icon index.ts to include the Avatar export.
  *
  * Smart background detection:
- *   - SVGs with a detected background shape → full-bleed Color icon (100% fill)
- *   - SVGs without background → padded Color icon (75%) on neutral bg-background
+ *   - SVGs with a detected background shape → full-size Color icon
+ *   - SVGs without background → full-size Color icon on neutral bg-background
  *
  * Usage:
  *   pnpm tsx scripts/generate-avatars.ts --type=providers
@@ -225,15 +225,15 @@ function generateFullBleedAvatar(baseDir: string, dirName: string): void {
 }
 
 /**
- * Generate avatar.tsx with padded rendering (for SVGs without background).
+ * Generate avatar.tsx with a neutral background (for SVGs without background).
  */
-function generatePaddedAvatar(baseDir: string, dirName: string): void {
+function generateNeutralBackgroundAvatar(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
   const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
   codegenAvatar({
     outPath: path.join(baseDir, dirName, 'avatar.tsx'),
     colorName,
-    variant: 'padded',
+    variant: 'neutral-background',
     hasDark
   })
 }
@@ -299,7 +299,7 @@ function main() {
   const iconDirs = collectIconDirs(baseDir)
   const selectedIconDirs = only ? iconDirs.filter((dirName) => only.has(dirName)) : iconDirs
   let fullBleedCount = 0
-  let paddedCount = 0
+  let neutralBackgroundCount = 0
 
   for (const dirName of selectedIconDirs) {
     const colorName = getComponentName(baseDir, dirName)
@@ -313,9 +313,9 @@ function main() {
       console.log(`  ${dirName}/ -> ${avatarName} (full-bleed)`)
       fullBleedCount++
     } else {
-      generatePaddedAvatar(baseDir, dirName)
-      console.log(`  ${dirName}/ -> ${avatarName} (padded)`)
-      paddedCount++
+      generateNeutralBackgroundAvatar(baseDir, dirName)
+      console.log(`  ${dirName}/ -> ${avatarName} (neutral-background)`)
+      neutralBackgroundCount++
     }
 
     generateIconIndex(baseDir, dirName)
@@ -347,7 +347,7 @@ function main() {
   console.log(`Generated catalog.ts (${catalogName}) with ${catalogEntries.length} entries`)
 
   console.log(
-    `\nDone! Generated ${fullBleedCount + paddedCount} avatar components (${fullBleedCount} full-bleed, ${paddedCount} padded)`
+    `\nDone! Generated ${fullBleedCount + neutralBackgroundCount} avatar components (${fullBleedCount} full-bleed, ${neutralBackgroundCount} neutral-background)`
   )
 }
 
