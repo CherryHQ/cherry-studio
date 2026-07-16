@@ -311,21 +311,25 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     void fetchResult()
   }
 
+  const detectedLanguageLabel = detectedLanguage?.value || t('translate.detected.language')
+
   return (
     <>
       <div className="flex w-full flex-1 flex-col items-center">
-        <div className="flex w-full flex-row items-center justify-between">
+        <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
-            <div className="flex shrink-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
+            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
               {isDetecting ? (
-                <span>{t('translate.detecting')}</span>
+                <span className="min-w-0 truncate">{t('translate.detecting')}</span>
               ) : (
                 <>
-                  <span className="mr-1">
+                  <span className="mr-1 shrink-0">
                     {detectedLanguage?.emoji || <Globe2 className="inline size-3.5 align-[-2px]" />}
                   </span>
-                  <span>{detectedLanguage?.value || t('translate.detected.language')}</span>
+                  <span className="min-w-0 truncate" title={detectedLanguageLabel}>
+                    {detectedLanguageLabel}
+                  </span>
                 </>
               )}
             </div>
@@ -342,7 +346,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               onChange={handleDirectTargetChange}
               disabled={isStreaming}
             />
+          </div>
 
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <Tooltip content={t('translate.language_settings')} placement="bottom">
                 <PopoverTrigger asChild>
@@ -355,7 +361,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                   </Button>
                 </PopoverTrigger>
               </Tooltip>
-              <PopoverContent align="end" className="w-[220px] p-2">
+              <PopoverContent
+                align="end"
+                className="w-[220px] p-2"
+                onOpenAutoFocus={(event) => {
+                  event.preventDefault()
+                  const content = event.currentTarget as HTMLElement
+                  content.focus()
+                }}>
                 {settingsContent}
               </PopoverContent>
             </Popover>
@@ -363,17 +376,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
               <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-muted-foreground" />
             </Tooltip>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-foreground-secondary text-xs transition-colors hover:text-primary">
-            <span>
-              {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
-            </span>
-            <ChevronDown size={14} className={cn('transition-transform', showOriginal && 'rotate-180')} />
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowOriginal(!showOriginal)}
+              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-foreground-secondary text-xs transition-colors hover:text-primary">
+              <span>
+                {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
+              </span>
+              <ChevronDown size={14} className={cn('transition-transform', showOriginal && 'rotate-180')} />
+            </button>
+          </div>
         </div>
         {showOriginal && (
           <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">

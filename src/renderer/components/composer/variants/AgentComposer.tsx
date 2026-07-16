@@ -19,6 +19,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
@@ -37,7 +38,6 @@ import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -56,6 +56,7 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
@@ -113,13 +114,45 @@ const ResourceEditDialogHost = React.lazy(() =>
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
+const FILE_IPC_BATCH_SIZE = 500
 
-const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
-  const filePath = canonicalizeAbsolutePath(attachment.path) as FilePath
-  const metadataById = await ipcApi.request('file.batch_get_metadata', {
-    items: [{ key: filePath, handle: createFilePathHandle(filePath) }]
-  })
-  const metadata = metadataById[filePath]
+type AccessibleAttachment = {
+  attachment: ComposerAttachment
+  filePath: FilePath
+  index: number
+}
+
+const requestAccessiblePathMetadata = async (
+  attachments: readonly AccessibleAttachment[]
+): Promise<OutputFor<'file.batch_get_metadata'>> => {
+  if (attachments.length === 0) return {}
+
+  const chunks: AccessibleAttachment[][] = []
+  for (let i = 0; i < attachments.length; i += FILE_IPC_BATCH_SIZE) {
+    chunks.push(attachments.slice(i, i + FILE_IPC_BATCH_SIZE))
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      ipcApi.request('file.batch_get_metadata', {
+        items: chunk.map(({ filePath }) => ({
+          key: filePath,
+          handle: createFilePathHandle(filePath)
+        }))
+      })
+    )
+  )
+
+  return Object.assign({}, ...results)
+}
+
+const buildAccessiblePathFilePart = (
+  attachment: ComposerAttachment,
+  filePath: FilePath,
+  metadataByPath: OutputFor<'file.batch_get_metadata'>
+): FileUIPart => {
+  const metadata = metadataByPath[filePath]
   if (!metadata || metadata.kind !== 'file') {
     throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
   }
@@ -135,23 +168,48 @@ const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Prom
   )
 }
 
-const buildAgentFilePartsForAttachments = (
+const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
   accessiblePaths: readonly string[]
 ): Promise<FileUIPart[]> => {
-  return Promise.all(
-    attachments.map((attachment) =>
-      isPathWithinAccessiblePath(attachment.path, accessiblePaths)
-        ? buildAccessiblePathFilePart(attachment)
-        : buildFilePartsForAttachments([attachment]).then((fileParts) => {
-            const [filePart] = fileParts
-            if (!filePart) {
-              throw new Error(`Failed to build file part for attachment: ${attachment.path}`)
-            }
-            return filePart
-          })
-    )
-  )
+  const accessibleAttachments: AccessibleAttachment[] = []
+  const internalizedAttachments: ComposerAttachment[] = []
+  const internalizedIndexes: number[] = []
+
+  attachments.forEach((attachment, index) => {
+    if (isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
+      accessibleAttachments.push({
+        attachment,
+        filePath: canonicalizeAbsolutePath(attachment.path) as FilePath,
+        index
+      })
+      return
+    }
+
+    internalizedAttachments.push(attachment)
+    internalizedIndexes.push(index)
+  })
+
+  const [metadataByPath, internalizedFileParts] = await Promise.all([
+    requestAccessiblePathMetadata(accessibleAttachments),
+    buildFilePartsForAttachments(internalizedAttachments)
+  ])
+
+  const fileParts = new Array<FileUIPart>(attachments.length)
+
+  accessibleAttachments.forEach(({ attachment, filePath, index }) => {
+    fileParts[index] = buildAccessiblePathFilePart(attachment, filePath, metadataByPath)
+  })
+
+  internalizedFileParts.forEach((filePart, offset) => {
+    const originalIndex = internalizedIndexes[offset]
+    if (originalIndex === undefined || !filePart) {
+      throw new Error(`Failed to build file part for attachment: ${internalizedAttachments[offset]?.path ?? ''}`)
+    }
+    fileParts[originalIndex] = filePart
+  })
+
+  return fileParts
 }
 
 const createSkillQuickPanelItems = (
@@ -356,7 +414,6 @@ interface AgentComposerWorkspaceControlProps {
 
 interface AgentComposerModelControlProps {
   model?: Model
-  modelProviderName?: string
   selectModelLabel: string
   canChangeModel: boolean
   side: 'top' | 'bottom'
@@ -396,15 +453,15 @@ const AgentComposerContextControls = ({
       {agent ? (
         <AgentLabel
           agent={agent}
+          avatarSize={20}
           classNames={{
             name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
-            avatar: 'h-4.5 w-4.5',
             container: 'gap-1.5'
           }}
         />
       ) : (
         <>
-          {iconOnly ? <Bot size={16} aria-hidden /> : null}
+          {iconOnly ? <Bot size={20} aria-hidden /> : null}
           <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
         </>
       )}
@@ -449,7 +506,6 @@ const AgentComposerContextControls = ({
 
 const AgentComposerModelControl = ({
   model,
-  modelProviderName,
   selectModelLabel,
   canChangeModel,
   side,
@@ -460,13 +516,13 @@ const AgentComposerModelControl = ({
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelLabel = model ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}` : selectModelLabel
+  const modelLabel = model ? model.name : selectModelLabel
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
-        <ModelAvatar model={model} size={16} className="shrink-0" />
+        <ModelAvatar model={model} size={20} className="shrink-0" />
       ) : (
-        <Sparkles size={16} aria-hidden className="text-muted-foreground" />
+        <Sparkles size={20} aria-hidden className="text-muted-foreground" />
       )}
       <span
         className={cn(
@@ -529,10 +585,10 @@ const AgentComposerWorkspaceControl = ({
         )}
         aria-label={workspaceWarning}>
         {hasWarning ? (
-          <TriangleAlert size={14} aria-hidden />
+          <TriangleAlert size={20} aria-hidden />
         ) : (
-          <span className="relative flex size-4 shrink-0 items-center justify-center">
-            <Folder size={14} aria-hidden className="shrink-0 text-muted-foreground" />
+          <span className="relative flex size-5 shrink-0 items-center justify-center">
+            <Folder size={20} aria-hidden className="shrink-0 text-muted-foreground" />
           </span>
         )}
         <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
@@ -567,13 +623,13 @@ const AgentComposerWorkspaceControl = ({
         if (!workspaceChanging) void onWorkspaceChange?.(null)
       }}>
       {hasWarning ? (
-        <TriangleAlert size={14} aria-hidden />
+        <TriangleAlert size={20} aria-hidden />
       ) : isSystemWorkspace ? (
-        <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
+        <CircleSlash size={20} aria-hidden className="text-muted-foreground" />
       ) : (
-        <span className="relative flex size-4 shrink-0 items-center justify-center">
+        <span className="relative flex size-5 shrink-0 items-center justify-center">
           <Folder
-            size={14}
+            size={20}
             aria-hidden
             className={cn(
               'shrink-0 text-muted-foreground transition-all duration-200',
@@ -675,7 +731,6 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   topBarPortalAvailable: boolean
   topBarPortalIconOnly: boolean
   model?: Model
-  modelProviderName?: string
   selectModelLabel: string
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
@@ -848,7 +903,6 @@ const AgentComposerInner = ({
     customizePanelItem
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
-  const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
@@ -1199,7 +1253,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
         toast.error(t('code.model_required'))
@@ -1226,18 +1280,17 @@ const AgentComposerInner = ({
       const previousDraftTokens = draftTokensRef.current
 
       clearCurrentDraft()
-      void sendQueuedPayload(payload).then((sent) => {
-        if (!sent) {
-          clearTimeoutTimer('agentComposerSendMessage')
-          setText(previousText)
-          setFiles(previousFiles)
-          setSelectedSkills(previousSkills)
-          setDraftTokens(previousDraftTokens)
-          draftTokensRef.current = previousDraftTokens
-          writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          toast.error(t('chat.input.send_failed'))
-        }
-      })
+      const sent = await sendQueuedPayload(payload)
+      if (!sent) {
+        clearTimeoutTimer('agentComposerSendMessage')
+        setText(previousText)
+        setFiles(previousFiles)
+        setSelectedSkills(previousSkills)
+        setDraftTokens(previousDraftTokens)
+        draftTokensRef.current = previousDraftTokens
+        writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
+        toast.error(t('chat.input.send_failed'))
+      }
     },
     [
       buildQueuedPayload,
@@ -1284,10 +1337,10 @@ const AgentComposerInner = ({
         type="button"
         variant="ghost"
         size="icon-sm"
-        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
         aria-label={t('agent.session.new')}
         onClick={handleCreateEmptySession}>
-        <NewConversationIcon size={18} aria-hidden />
+        <NewConversationIcon size={20} aria-hidden />
       </Button>
     </Tooltip>
   ) : undefined
@@ -1338,7 +1391,6 @@ const AgentComposerInner = ({
   const controlSlots = renderControls({
     agent: agentBase,
     model,
-    modelProviderName,
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
     agentChanging,
@@ -1417,7 +1469,7 @@ const AgentComposerInner = ({
           onInputHistoryNavigate={handleInputHistoryNavigate}
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
-          suggestionSources={[]}
+          suggestionSources={EMPTY_SUGGESTION_SOURCES}
           resourceProvider={resourceProvider}
           rootPanelLeadingItems={rootPanelNewSessionItems}
           rootPanelAdditionalItems={rootPanelTrailingItems}
@@ -1485,7 +1537,6 @@ const MissingAgentHomeComposerInner = ({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
     model: undefined,
-    modelProviderName: undefined,
     selectModelLabel: t('button.select_model'),
     agentChanging,
     agentTriggerMode: 'selector',

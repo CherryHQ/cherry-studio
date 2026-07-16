@@ -3,8 +3,6 @@ import { CommandTooltip } from '@renderer/components/command'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { Maximize2, Minimize2, X } from 'lucide-react'
@@ -410,14 +408,9 @@ function ShellTabList({
 }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
-  const { mode } = useWindowFrame()
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
   const closeLabel = t('common.close_sidebar')
-  // When the pane is maximized inside a sub-window, this header becomes the window's top edge
-  // — clear the macOS traffic lights and let the user drag the window from the tab strip,
-  // matching ConversationShellTopBar.
-  const isWindowTopBar = state.maximized && mode === 'window'
   const maximizeButton =
     canMaximize || state.maximized ? (
       <Tooltip content={maximizeLabel} delay={800}>
@@ -438,17 +431,14 @@ function ShellTabList({
       </NavbarIcon>
     </Tooltip>
   )
-
   return (
     <div
       data-testid="shell-tab-list"
       className={cn(
         // Match ConversationShell's edge inset so the closed-state expand button and
         // opened-state close button keep the same distance from the nearest edge.
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
-        state.maximized && 'bg-card',
-        isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
-        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]',
+        state.maximized && 'bg-card'
       )}>
       {showTabs ? (
         <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
