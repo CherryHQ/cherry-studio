@@ -15,7 +15,7 @@
 - 在 `knowledge_base` 上增加 `groupId` 字段，关联到 `groupTable.id`。
 - 如果上层为 Knowledge 创建专用分组，`group.entityType` 约定使用：
   - 建议值：`knowledge_base`
-- 当前 `KnowledgeBaseService` 不额外强校验 `entityType`，行为与现有 `topic.groupId` 一致。
+- 当前 `KnowledgeBaseService` 不额外强校验 `entityType`，由 SQLite 外键约束负责 `groupId` 的引用完整性。
 
 #### 目的
 
@@ -40,10 +40,9 @@
 3. Data Service / Handler 约束
    - `KnowledgeBaseService`
    - knowledge 相关 handler
-   - 保持与 `topic.groupId` 一致：
-     - service 层不额外增加 `groupId` / `entityType` 业务校验
-     - create / update 对 `groupId` 直接透传，不做 trim 或空值归一化
-     - 由 SQLite 外键约束负责引用完整性
+   - service 层不额外增加 `groupId` / `entityType` 业务校验
+   - create / update 对 `groupId` 直接透传，不做 trim 或空值归一化
+   - 由 SQLite 外键约束负责引用完整性
 
 4. Migration / 兼容策略
    - 旧知识库数据当前没有 `groupId`
