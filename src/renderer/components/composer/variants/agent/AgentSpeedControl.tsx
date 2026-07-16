@@ -168,7 +168,7 @@ export function AgentSpeedControl({
                   '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
                   '[&_[data-slot=slider-range]]:bg-primary',
                   '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
-                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover [&_[data-slot=slider-thumb]]:shadow-sm',
+                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm dark:[&_[data-slot=slider-thumb]]:bg-neutral-100!',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
                 onValueChange={([index]) => {
@@ -177,13 +177,17 @@ export function AgentSpeedControl({
                 }}
               />
               <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-                {sliderEfforts.map((effort, index) => (
-                  <span
-                    key={effort}
-                    className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
-                    style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
-                  />
-                ))}
+                {sliderEfforts.map((effort, index) =>
+                  index === currentIndex ? null : (
+                    <span
+                      key={effort}
+                      data-slot="agent-effort-step"
+                      data-index={index}
+                      className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
+                      style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
+                    />
+                  )
+                )}
               </div>
             </div>
           </div>

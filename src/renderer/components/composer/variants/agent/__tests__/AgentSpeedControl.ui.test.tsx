@@ -129,7 +129,7 @@ describe('AgentSpeedControl UI', () => {
   })
 
   it('shows the compact slider with the Fast lightning action', async () => {
-    render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="max" />)
+    const { container } = render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="max" />)
 
     const slider = await screen.findByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '3')
@@ -140,12 +140,15 @@ describe('AgentSpeedControl UI', () => {
     expect(slider).not.toHaveClass('[&_[data-slot=slider-thumb]]:shadow-none')
     expect(slider).toHaveClass(
       '[&_[data-slot=slider-thumb]]:rounded-full',
-      '[&_[data-slot=slider-thumb]]:bg-popover',
+      '[&_[data-slot=slider-thumb]]:bg-popover!',
+      'dark:[&_[data-slot=slider-thumb]]:bg-neutral-100!',
       '[&_[data-slot=slider-track]]:h-2.5',
       '[&_[data-slot=slider-track]]:bg-muted',
       '[&_[data-slot=slider-track]]:shadow-inner'
     )
     expect(slider).not.toHaveClass('agent-effort-slider')
+    expect(container.querySelectorAll('[data-slot="agent-effort-step"]')).toHaveLength(3)
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="3"]')).not.toBeInTheDocument()
     expect(screen.getByText('agent.speed.faster')).toBeInTheDocument()
     expect(screen.getByText('agent.speed.smarter')).toBeInTheDocument()
     expect(screen.getByTestId('agent-effort-slider-label')).toHaveTextContent(
