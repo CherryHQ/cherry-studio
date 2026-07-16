@@ -4,7 +4,30 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { generateIconIndex } from '../codegen'
+import { generateAvatar, generateIconIndex } from '../codegen'
+
+describe('generateAvatar', () => {
+  it('renders icons at the full avatar size', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cherry-ui-codegen-'))
+    const outPath = join(dir, 'avatar.tsx')
+
+    try {
+      generateAvatar({
+        outPath,
+        colorName: 'Example',
+        variant: 'neutral-background',
+        hasDark: true
+      })
+
+      const content = readFileSync(outPath, 'utf-8')
+      expect(content).toContain('style={{ width: size, height: size }}')
+      expect(content).not.toContain('size * 0.7')
+      expect(content).not.toContain('size * 0.82')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('generateIconIndex', () => {
   it('applies text-foreground to currentColor single-source logos', () => {
