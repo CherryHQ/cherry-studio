@@ -295,7 +295,7 @@ export default function PowerPointFilePreview({ filePath, fileName, refreshKey }
             data-testid="pptx-viewer-container"
             role="region"
             aria-label={fileName}
-            className="absolute inset-0 overflow-auto bg-background px-6 py-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             tabIndex={0}
           />
           {loading ? (

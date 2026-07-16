@@ -240,7 +240,7 @@ export default function WordFilePreview({ filePath, fileName, refreshKey }: File
             ref={containerRef}
             role="region"
             aria-label={fileName}
-            className="absolute inset-0 overflow-auto bg-background px-6 py-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             tabIndex={0}>
             <div ref={styleRef} />
             <div

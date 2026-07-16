@@ -48,7 +48,7 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
     <FilePreviewLayout.Frame>
       <ImageFilePreviewToolbar disabled={status !== 'ready'} transformControls={transformControls} />
       <FilePreviewLayout.Content>
-        <div className="relative flex h-full min-h-full min-w-full items-center justify-center p-4">
+        <div className="relative flex h-full min-h-full min-w-full items-center justify-center">
           {status === 'loading' && (
             <div
               role="status"
