@@ -964,6 +964,7 @@ const AgentPage = () => {
             content: (
               <ConversationResourceView
                 kind={activeResourceKind}
+                skillAgentId={activeResourceAgentId ?? undefined}
                 toolbarLeading={
                   !isMessageOnlyView && !isWindowFrame ? (
                     <ConversationSidebarToggleButton
@@ -977,7 +978,14 @@ const AgentPage = () => {
             )
           }
         : null,
-    [activeResourceKind, effectiveShowSidebar, isMessageOnlyView, isWindowFrame, toggleResourceListOpen]
+    [
+      activeResourceAgentId,
+      activeResourceKind,
+      effectiveShowSidebar,
+      isMessageOnlyView,
+      isWindowFrame,
+      toggleResourceListOpen
+    ]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
