@@ -118,9 +118,14 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
-  RightPaneHost: ({ children, keepMounted, open }: PropsWithChildren<{ keepMounted?: boolean; open?: boolean }>) => (
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
-      {open || keepMounted ? children : null}
+      {open ? children : null}
+    </section>
+  ),
+  PersistentRightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
+      {children}
     </section>
   )
 }))

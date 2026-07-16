@@ -93,7 +93,10 @@ interface AgentChatLayoutProps {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   partsByMessageId: Record<string, CherryMessagePart[]>
+  resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
+  rightPanelDefaultOpen?: boolean
+  onRightPanelOpenChange?: (open: boolean) => void
   sessionSnapshot: AgentSessionEntity | null
   sidePanel?: ReactNode
   topBar?: ReactNode
@@ -223,7 +226,7 @@ const AgentChat = ({
   const rightPaneTools =
     !centerSurface && (sessionSnapshot || resourcePane) ? (
       <>
-        {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
+        {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
         <AgentRightPane.Shortcuts />
       </>
     ) : undefined
@@ -316,21 +319,17 @@ const AgentChat = ({
     paneOpen,
     panePosition,
     partsByMessageId: sessionSnapshot ? runtime.partsByMessageId : EMPTY_PARTS,
+    resourcePane,
     resourcePaneRevealRequest,
+    rightPanelDefaultOpen: sessionPaneOpen,
+    onRightPanelOpenChange: onSessionPaneOpenChange,
     sessionSnapshot,
     sidePanel,
     topBar,
     topRightTool: rightPaneTools
   }
 
-  return (
-    <AgentRightPane.Shell
-      defaultOpen={sessionPaneOpen}
-      onOpenChange={onSessionPaneOpenChange}
-      resourcePane={resourcePane}>
-      <AgentChatLayout {...layoutProps} />
-    </AgentRightPane.Shell>
-  )
+  return <AgentChatLayout {...layoutProps} />
 }
 
 interface AgentChatSessionCenterProps {
@@ -421,7 +420,10 @@ function AgentChatLayout({
   paneOpen,
   panePosition,
   partsByMessageId,
+  resourcePane,
   resourcePaneRevealRequest,
+  rightPanelDefaultOpen,
+  onRightPanelOpenChange,
   sessionSnapshot,
   sidePanel,
   topBar,
@@ -434,6 +436,9 @@ function AgentChatLayout({
       workspacePath={sessionSnapshot?.workspace?.path}
       messages={messages}
       partsByMessageId={partsByMessageId}
+      resourcePane={resourcePane}
+      defaultOpen={rightPanelDefaultOpen}
+      onOpenChange={onRightPanelOpenChange}
       sessionId={sessionSnapshot?.id}
       sessionName={sessionSnapshot?.name}
       traceId={sessionSnapshot?.traceId ?? undefined}

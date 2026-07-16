@@ -77,39 +77,16 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  RightPaneHost: ({ children, keepMounted, open }: PropsWithChildren<{ keepMounted?: boolean; open?: boolean }>) => (
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
-      {open || keepMounted ? children : null}
+      {open ? children : null}
+    </div>
+  ),
+  PersistentRightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
+      {children}
     </div>
   )
-}))
-
-vi.mock('@renderer/components/chat/panes/Shell/Shell', () => ({
-  useShellActions: () => ({
-    close: vi.fn()
-  }),
-  useOptionalShellState: () => ({
-    activeTab: 'files',
-    maximized: false,
-    open: false,
-    pdfLayoutPending: false,
-    pdfLayoutRefreshKey: 0
-  }),
-  useOptionalRightPanelState: () => undefined
-}))
-
-vi.mock('@renderer/components/chat/panes/Shell', () => ({
-  useShellActions: () => ({
-    close: vi.fn()
-  }),
-  useOptionalShellState: () => ({
-    activeTab: 'files',
-    maximized: false,
-    open: false,
-    pdfLayoutPending: false,
-    pdfLayoutRefreshKey: 0
-  }),
-  useOptionalRightPanelState: () => undefined
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({

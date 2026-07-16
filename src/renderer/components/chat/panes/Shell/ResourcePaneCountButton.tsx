@@ -5,36 +5,28 @@ import { useCallback } from 'react'
 
 import { RESOURCE_PANE_TAB } from './resourcePane'
 import { useRightPanelActions, useRightPanelState } from './RightPanel'
-import type { ShellTabShortcutOpenBehavior } from './Shell'
 
 export interface ResourcePaneCountButtonProps {
   label: string
   count: number
   className?: string
-  openBehavior?: ShellTabShortcutOpenBehavior
 }
 
-export function ResourcePaneCountButton({
-  label,
-  count,
-  className,
-  openBehavior = 'hide'
-}: ResourcePaneCountButtonProps) {
+export function ResourcePaneCountButton({ label, count, className }: ResourcePaneCountButtonProps) {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
   const title = `${label} ${count}`
-  const togglesActive = openBehavior === 'toggle-active'
   const active = state.isActive(RESOURCE_PANE_TAB)
   const handleClick = useCallback(() => {
-    if (togglesActive && active) {
+    if (active) {
       actions.close()
       return
     }
     actions.tryOpen(RESOURCE_PANE_TAB)
-  }, [actions, active, togglesActive])
+  }, [actions, active])
 
   if (!actions.canOpen(RESOURCE_PANE_TAB)) return null
-  if (state.presentationMaximized || (state.presentationOpen && openBehavior === 'hide')) return null
+  if (state.presentationMaximized) return null
 
   return (
     <Tooltip content={title} delay={800}>
@@ -49,7 +41,7 @@ export function ResourcePaneCountButton({
           '[&_svg]:!size-3.5 [-webkit-app-region:none]',
           className
         )}
-        aria-pressed={togglesActive ? active : undefined}
+        aria-pressed={active}
         onClick={handleClick}>
         <List />
         <span>{label}</span>

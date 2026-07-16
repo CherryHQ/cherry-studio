@@ -9,8 +9,6 @@ import TraceTree from './TraceTree'
 export interface TracePageProps {
   topicId: string
   traceId: string
-  /** Keeps local UI state while pausing the polling resource for an inactive retained panel. */
-  active?: boolean
   /**
    * Opaque restart token. Each new value tears down the current poll loop and
    * starts a fresh one, so callers must pass something that changes whenever
@@ -21,7 +19,7 @@ export interface TracePageProps {
   reload?: string | number | boolean
 }
 
-export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, active = true, reload = false }) => {
+export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
   const [spans, setSpans] = useState<TraceNode[]>([])
   const [selectedNode, setSelectedNode] = useState<TraceNode | null>(null)
   const [showList, setShowList] = useState(true)
@@ -109,8 +107,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, active =
   }, [topicId, traceId])
 
   useEffect(() => {
-    if (!active) return
-
     // Interval is local to this effect run, never a shared ref: an effect re-run
     // during the first `await poll()` would otherwise let the new run's interval
     // be created after this run's cleanup, leaking it (and let one run's stop
@@ -182,7 +178,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, active =
         intervalId = null
       }
     }
-  }, [active, topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
+  }, [topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
 
   useEffect(() => {
     if (selectedNode) {

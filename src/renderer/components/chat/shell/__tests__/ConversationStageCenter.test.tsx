@@ -4,9 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationStageCenter from '../ConversationStageCenter'
 
-const optionalShellState = vi.hoisted(() => ({
-  value: undefined as { maximized: boolean } | undefined
-}))
 const optionalPresentationState = vi.hoisted(() => ({
   value: undefined as { presentationMaximized: boolean } | undefined
 }))
@@ -35,13 +32,11 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
-  useOptionalRightPanelState: () => optionalPresentationState.value,
-  useOptionalShellState: () => optionalShellState.value
+  useOptionalRightPanelState: () => optionalPresentationState.value
 }))
 
 describe('ConversationStageCenter', () => {
   beforeEach(() => {
-    optionalShellState.value = undefined
     optionalPresentationState.value = undefined
   })
 
@@ -60,16 +55,16 @@ describe('ConversationStageCenter', () => {
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-welcome', 'Welcome')
   })
 
-  it('elevates the composer when an optional right pane shell is maximized', () => {
-    optionalShellState.value = { maximized: true }
+  it('elevates the composer when the right panel is maximized', () => {
+    optionalPresentationState.value = { presentationMaximized: true }
 
     render(<ConversationStageCenter placement="docked" main={<div />} composer={<div />} />)
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
   })
 
-  it('hides the main message area when an optional right pane shell is maximized', () => {
-    optionalShellState.value = { maximized: true }
+  it('hides the main message area when the right panel is maximized', () => {
+    optionalPresentationState.value = { presentationMaximized: true }
 
     render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
 
@@ -78,7 +73,6 @@ describe('ConversationStageCenter', () => {
   })
 
   it('uses effective presentation state while maximized intent is temporarily hidden', () => {
-    optionalShellState.value = { maximized: true }
     optionalPresentationState.value = { presentationMaximized: false }
 
     render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)

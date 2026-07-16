@@ -32,30 +32,39 @@ export type { RightPaneLayoutMode } from './rightPaneTransition'
 
 type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
 
-export interface RightPaneHostProps {
+interface RightPaneFrameProps {
   children?: ReactNode
-  open?: boolean
-  /** Keeps the child subtree mounted while the pane is closed or maximized. */
-  keepMounted?: boolean
-  maximized?: boolean
-  maximizedBottomInset?: number
   width?: string | number
   className?: string
   style?: CSSProperties
+}
+
+interface ResizableRightPaneProps extends RightPaneFrameProps {
   resizable?: boolean
   minWidth?: number
   defaultWidth?: number
   maxWidth?: number
   cacheKey?: RightPaneResizeCacheKey
   reservedCenterWidth?: number
-  onReservedSpaceUnavailable?: () => void
-  onOpenAnimationComplete?: () => void
-  onCloseAnimationComplete?: () => void
+}
+
+export interface RightPaneHostProps extends RightPaneFrameProps {
+  open: boolean
+}
+
+export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
+  open: boolean
+  maximized?: boolean
+  maximizedBottomInset?: number
   onLayoutAnimationComplete?: (mode: RightPaneLayoutMode) => void
 }
 
 function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number): number {
   return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
+}
+
+function toCssLength(value: string | number): string {
+  return typeof value === 'number' ? `${value}px` : value
 }
 
 function useRightPaneResize({
@@ -160,11 +169,6 @@ function useRightPaneResize({
   }
 }
 
-export function RightPaneHost({ keepMounted = false, ...props }: RightPaneHostProps) {
-  if (keepMounted) return <PersistentRightPaneHost {...props} />
-  return <TransientRightPaneHost {...props} />
-}
-
 function RightPaneContents({
   children,
   paneWidth,
@@ -212,95 +216,29 @@ function RightPaneContents({
   )
 }
 
-function TransientRightPaneHost({
-  children,
-  open,
-  width = CHAT_SHELL_PANE_WIDTH,
-  className,
-  style,
-  resizable = false,
-  minWidth = ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  defaultWidth,
-  maxWidth = ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  reservedCenterWidth,
-  onReservedSpaceUnavailable,
-  onOpenAnimationComplete,
-  onCloseAnimationComplete
-}: RightPaneHostProps) {
-  const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
-  const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useRightPaneResize({
-    cacheKey,
-    defaultWidth: resolvedDefaultWidth,
-    minWidth,
-    maxWidth
-  })
-  const resolvedWidth = resizable ? paneWidth : width
-  const constrainedStyle =
-    reservedCenterWidth === undefined
-      ? style
-      : { ...style, maxWidth: `max(0px, calc(100% - ${reservedCenterWidth}px))` }
+export function RightPaneHost({ children, open, width = CHAT_SHELL_PANE_WIDTH, className, style }: RightPaneHostProps) {
   const hasVisiblePane = Boolean(open && children !== null && children !== undefined)
 
-  useEffect(() => {
-    if (!hasVisiblePane || reservedCenterWidth === undefined || !onReservedSpaceUnavailable) return
-    if (typeof ResizeObserver === 'undefined') return
-
-    const container = paneRef.current?.parentElement
-    if (!container) return
-
-    // The pane minimum and reserved center width are independent constraints; the container must fit both.
-    const minContainerWidth = minWidth + reservedCenterWidth
-    const notifyIfUnavailable = (containerWidth: number) => {
-      if (containerWidth > 0 && containerWidth < minContainerWidth) onReservedSpaceUnavailable()
-    }
-
-    notifyIfUnavailable(container.getBoundingClientRect().width)
-
-    const observer = new ResizeObserver(([entry]) => {
-      notifyIfUnavailable(entry.contentRect.width)
-    })
-    observer.observe(container)
-    return () => observer.disconnect()
-  }, [hasVisiblePane, minWidth, onReservedSpaceUnavailable, paneRef, reservedCenterWidth])
-
   return (
-    <AnimatePresence initial={false} onExitComplete={onCloseAnimationComplete}>
+    <AnimatePresence initial={false}>
       {hasVisiblePane && (
         <motion.div
-          ref={paneRef}
           key="right-pane"
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: resolvedWidth, opacity: 1 }}
+          animate={{ width, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
-          transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
-          onAnimationComplete={() => {
-            if (!isResizing) onOpenAnimationComplete?.()
-          }}
+          transition={CHAT_SHELL_TRANSITION}
           data-right-pane
-          data-resizing={isResizing || undefined}
-          className={cn(
-            'group/right-pane h-full min-h-0 shrink-0 overflow-hidden',
-            resizable && 'relative [border-left:0.5px_solid_var(--color-border)]',
-            className
-          )}
-          style={constrainedStyle}>
-          <RightPaneContents
-            paneWidth={paneWidth}
-            minWidth={minWidth}
-            maxWidth={maxWidth}
-            resizeHandleVisible={resizable}
-            startResizing={startResizing}
-            setPaneWidth={setPaneWidth}>
-            {children}
-          </RightPaneContents>
+          className={cn('h-full min-h-0 shrink-0 overflow-hidden', className)}
+          style={style}>
+          <ErrorBoundary>{children}</ErrorBoundary>
         </motion.div>
       )}
     </AnimatePresence>
   )
 }
 
-function PersistentRightPaneHost({
+export function PersistentRightPaneHost({
   children,
   open,
   maximized = false,
@@ -314,11 +252,8 @@ function PersistentRightPaneHost({
   maxWidth = ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
   reservedCenterWidth,
-  onReservedSpaceUnavailable,
-  onOpenAnimationComplete,
-  onCloseAnimationComplete,
   onLayoutAnimationComplete
-}: RightPaneHostProps) {
+}: PersistentRightPaneHostProps) {
   const reduceMotion = useReducedMotion()
   const animationControls = useAnimationControls()
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
@@ -329,7 +264,12 @@ function PersistentRightPaneHost({
     maxWidth
   })
   const resolvedWidth = resizable ? paneWidth : width
-  const dockedClip = getRightPaneDockedClip(resolvedWidth)
+  const dockedMaxWidth =
+    reservedCenterWidth === undefined ? undefined : `max(0px, calc(100% - ${reservedCenterWidth}px))`
+  const effectiveDockedWidth = dockedMaxWidth
+    ? `min(${toCssLength(resolvedWidth)}, ${dockedMaxWidth})`
+    : toCssLength(resolvedWidth)
+  const dockedClip = getRightPaneDockedClip(effectiveDockedWidth)
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
   const [visualState, setVisualStateState] = useState<PersistentRightPaneVisualState>(() =>
@@ -340,16 +280,11 @@ function PersistentRightPaneHost({
   const previousTargetModeRef = useRef(targetMode)
   const transitionTokenRef = useRef(0)
   const scheduledAnimationFrameRef = useRef<number | null>(null)
-  const animationFrameScheduledRef = useRef(false)
   const [initialAnimationState] = useState(() => ({
     clipPath: targetMode === 'closed' ? RIGHT_PANE_CLIP_COLLAPSED : RIGHT_PANE_CLIP_REVEALED,
     opacity: targetMode === 'closed' ? 0 : 1
   }))
-  const callbacksRef = useRef({
-    onCloseAnimationComplete,
-    onLayoutAnimationComplete,
-    onOpenAnimationComplete
-  })
+  const onLayoutAnimationCompleteRef = useRef(onLayoutAnimationComplete)
 
   const setVisualState = useCallback((nextState: PersistentRightPaneVisualState) => {
     visualStateRef.current = nextState
@@ -357,8 +292,8 @@ function PersistentRightPaneHost({
   }, [])
 
   useLayoutEffect(() => {
-    callbacksRef.current = { onCloseAnimationComplete, onLayoutAnimationComplete, onOpenAnimationComplete }
-  }, [onCloseAnimationComplete, onLayoutAnimationComplete, onOpenAnimationComplete])
+    onLayoutAnimationCompleteRef.current = onLayoutAnimationComplete
+  }, [onLayoutAnimationComplete])
 
   useLayoutEffect(() => {
     if (previousTargetModeRef.current === targetMode) return
@@ -369,7 +304,6 @@ function PersistentRightPaneHost({
       cancelAnimationFrame(scheduledAnimationFrameRef.current)
       scheduledAnimationFrameRef.current = null
     }
-    animationFrameScheduledRef.current = false
     animationControls.stop()
 
     const plan = planPersistentRightPaneTransition(visualStateRef.current.phase, targetMode, {
@@ -381,9 +315,7 @@ function PersistentRightPaneHost({
     const complete = () => {
       if (transitionTokenRef.current !== token) return
       setVisualState(plan.settledState)
-      callbacksRef.current.onLayoutAnimationComplete?.(plan.completedMode)
-      if (plan.completedMode === 'closed') callbacksRef.current.onCloseAnimationComplete?.()
-      if (plan.completedMode === 'docked') callbacksRef.current.onOpenAnimationComplete?.()
+      onLayoutAnimationCompleteRef.current?.(plan.completedMode)
     }
     const start = (
       definition: Parameters<typeof animationControls.start>[0],
@@ -391,16 +323,13 @@ function PersistentRightPaneHost({
       deferUntilNextFrame = false
     ) => {
       const run = () => {
-        animationFrameScheduledRef.current = false
         scheduledAnimationFrameRef.current = null
         if (transitionTokenRef.current !== token) return
         void animationControls.start(definition).then(onComplete)
       }
 
       if (deferUntilNextFrame && !reduceMotion && typeof requestAnimationFrame !== 'undefined') {
-        animationFrameScheduledRef.current = true
-        const animationFrame = requestAnimationFrame(run)
-        if (animationFrameScheduledRef.current) scheduledAnimationFrameRef.current = animationFrame
+        scheduledAnimationFrameRef.current = requestAnimationFrame(run)
       } else {
         run()
       }
@@ -440,36 +369,14 @@ function PersistentRightPaneHost({
         cancelAnimationFrame(scheduledAnimationFrameRef.current)
         scheduledAnimationFrameRef.current = null
       }
-      animationFrameScheduledRef.current = false
       animationControls.stop()
     }
   }, [animationControls])
 
   const isDocked = phase === 'docked' && targetMode === 'docked'
-  useEffect(() => {
-    if (!isDocked || reservedCenterWidth === undefined || !onReservedSpaceUnavailable) return
-    if (typeof ResizeObserver === 'undefined') return
-
-    const container = paneRef.current?.parentElement
-    if (!container) return
-
-    const minContainerWidth = minWidth + reservedCenterWidth
-    const notifyIfUnavailable = (containerWidth: number) => {
-      if (containerWidth > 0 && containerWidth < minContainerWidth) onReservedSpaceUnavailable()
-    }
-
-    notifyIfUnavailable(container.getBoundingClientRect().width)
-    const observer = new ResizeObserver(([entry]) => notifyIfUnavailable(entry.contentRect.width))
-    observer.observe(container)
-    return () => observer.disconnect()
-  }, [isDocked, minWidth, onReservedSpaceUnavailable, paneRef, reservedCenterWidth])
-
   const fullWidthLayout = isFullWidthRightPanePhase(phase)
   const closed = isClosedRightPanePhase(phase)
-  const closing = phase === 'closing-docked' || phase === 'closing-maximized'
-  const interactionHidden = closed || closing
-  const dockedMaxWidth =
-    reservedCenterWidth === undefined ? undefined : `max(0px, calc(100% - ${reservedCenterWidth}px))`
+  const interactionHidden = targetMode === 'closed'
   const spacerTransition = isResizing || fullWidthLayout ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const surfaceHeight =
     fullWidthLayout && maximizedBottomInset > 0 ? `max(0px, calc(100% - ${maximizedBottomInset}px))` : undefined

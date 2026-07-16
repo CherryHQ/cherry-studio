@@ -32,7 +32,7 @@ export function useResourcePane(): ResourcePaneConfig | null {
  * Opens the right resource pane when a *locate* request arrives (history records / global search),
  * so the located topic/session is actually visible. Passive "reveal current" requests don't set
  * `clearFilters`, so ordinary topic/tab switches never force the pane open. Classic layout only —
- * outside it there is no resource pane to open. Mount inside the Shell tree.
+ * outside it there is no resource pane to open. Mount inside RightPanelProvider.
  */
 export function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
   const actions = useRightPanelActions()

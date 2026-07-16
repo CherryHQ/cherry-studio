@@ -8,21 +8,19 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
-  defineRightPanelCapabilities,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
   ResourcePaneProvider,
   RightPanel,
+  type RightPanelCapability,
   type RightPanelComponentProps,
   RightPanelProvider,
   type RightPanelReadiness,
   RightPanelShortcut,
-  Shell,
-  useResourcePane,
+  RightPanelViewport,
   useRightPanelActions,
-  useRightPanelState,
-  useShellState
+  useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import {
   isSelectableFileNode,
@@ -35,8 +33,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
-import { useCommandHandler } from '@renderer/hooks/command'
-import { useIsActiveTab } from '@renderer/hooks/tab'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -68,9 +64,7 @@ import {
   buildAgentToolFlowProjection
 } from './agentRightPaneProjection'
 
-// ── Agent-specific composition over the generic RightPane shell ─────────────
-// Owns the agent business logic — the current subagent tool-flow slot, task/status
-// projections, agent session metadata — and feeds it into Shell.* slots.
+// ── Agent-specific composition over the generic right panel ─────────────────
 
 const FLOW_TAB_PREFIX = 'flow:'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
@@ -142,20 +136,14 @@ type AgentConversationState = 'pending' | 'ready' | 'unavailable'
 interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversationState'> {
   children: ReactNode
   conversationState?: AgentConversationState
-  /** Controls effective presentation without clearing Shell intent. */
+  /** Controls effective presentation without clearing panel intent. */
   present?: boolean
+  resourcePane?: ResourcePaneConfig | null
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
-}
-
-interface AgentRightPaneShellProps {
-  children: ReactNode
-  /** In classic layout the session list is available as a right-panel capability. */
-  resourcePane?: ResourcePaneConfig | null
-  defaultOpen?: boolean
-  /** Persist explicit open changes for classic-layout re-entry. */
-  onOpenChange?: (open: boolean) => void
 }
 
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
@@ -276,11 +264,13 @@ function AgentRightPaneStateProvider({
   agentAvatar,
   conversationState = 'ready',
   present = true,
+  resourcePane = null,
+  defaultOpen = false,
+  onOpenChange,
   revealRequest
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const resourcePane = useResourcePane()
   const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tab: AgentFlowTab | null }>(() => ({
     sessionId,
     tab: null
@@ -369,36 +359,36 @@ function AgentRightPaneStateProvider({
   )
 
   return (
-    <AgentRightPaneMetaContext value={meta}>
-      <AgentRightPaneFileStateContext value={fileState}>
-        <AgentRightPaneRuntimeContext value={runtime}>
-          <RightPanelProvider capabilities={AGENT_RIGHT_PANEL_CAPABILITIES} scope={scope} present={present}>
-            <ResourcePaneLocateOpener revealRequest={revealRequest} />
-            <AgentRightPaneActionsProvider
-              conversationState={conversationState}
-              sessionId={sessionId}
-              workspacePath={workspacePath}
-              replaceFlowTab={replaceFlowTab}
-              closeFilePreview={closeFilePreview}
-              selectFile={selectFile}
-              setPreviewFileSelection={setPreviewFileSelection}
-              setSelectedFile={setSelectedFile}
-              setFileTreeExpandedIds={setFileTreeExpandedIds}
-              setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
-              {children}
-            </AgentRightPaneActionsProvider>
-          </RightPanelProvider>
-        </AgentRightPaneRuntimeContext>
-      </AgentRightPaneFileStateContext>
-    </AgentRightPaneMetaContext>
-  )
-}
-
-function AgentRightPaneShell({ children, resourcePane, defaultOpen = false, onOpenChange }: AgentRightPaneShellProps) {
-  return (
-    <Shell defaultTab={RESOURCE_PANE_TAB} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
-      <ResourcePaneProvider value={resourcePane ?? null}>{children}</ResourcePaneProvider>
-    </Shell>
+    <ResourcePaneProvider value={resourcePane}>
+      <AgentRightPaneMetaContext value={meta}>
+        <AgentRightPaneFileStateContext value={fileState}>
+          <AgentRightPaneRuntimeContext value={runtime}>
+            <RightPanelProvider
+              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+              scope={scope}
+              defaultPanelId={RESOURCE_PANE_TAB}
+              defaultOpen={defaultOpen}
+              onOpenChange={onOpenChange}
+              present={present}>
+              <ResourcePaneLocateOpener revealRequest={revealRequest} />
+              <AgentRightPaneActionsProvider
+                conversationState={conversationState}
+                sessionId={sessionId}
+                workspacePath={workspacePath}
+                replaceFlowTab={replaceFlowTab}
+                closeFilePreview={closeFilePreview}
+                selectFile={selectFile}
+                setPreviewFileSelection={setPreviewFileSelection}
+                setSelectedFile={setSelectedFile}
+                setFileTreeExpandedIds={setFileTreeExpandedIds}
+                setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
+                {children}
+              </AgentRightPaneActionsProvider>
+            </RightPanelProvider>
+          </AgentRightPaneRuntimeContext>
+        </AgentRightPaneFileStateContext>
+      </AgentRightPaneMetaContext>
+    </ResourcePaneProvider>
   )
 }
 
@@ -410,7 +400,7 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
-  const shellState = useShellState()
+  const panelState = useRightPanelState()
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
     workspacePath: meta.workspacePath,
@@ -451,8 +441,8 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
       workspacePath={meta.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={shellState.pdfLayoutPending}
-      pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
+      pdfLayoutPending={panelState.pdfLayoutPending}
+      pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
       enableFileSearch
       model={model}
       selectedFile={state.selectedFile}
@@ -601,7 +591,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
-    <div className="space-y-4 p-3 text-sm">
+    <div className="h-full space-y-4 overflow-auto p-3 text-sm">
       {status.tasks.length > 0 && (
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -646,13 +636,9 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   )
 }
 
-function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+function AgentTraceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
-  return <TracePane active={active} payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
-}
-
-function resolveAgentConversationReadiness(state: AgentConversationState): RightPanelReadiness {
-  return state
+  return <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
 }
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
@@ -667,7 +653,7 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 }
 
 /** Stable capability registry; runtime messages are intentionally absent. */
-const AGENT_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<AgentRightPanelScope>()([
+const AGENT_RIGHT_PANEL_CAPABILITIES = [
   {
     component: AgentResourceRightPanel,
     resolve: (scope) => ({
@@ -692,9 +678,8 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<AgentRightPa
       id: 'status',
       instanceKey: `session:${scope.meta.sessionId ?? ''}`,
       title: scope.statusTitle,
-      readiness: resolveAgentConversationReadiness(scope.meta.conversationState)
-    }),
-    className: 'overflow-auto'
+      readiness: scope.meta.conversationState
+    })
   },
   {
     component: AgentTraceRightPanel,
@@ -714,45 +699,17 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<AgentRightPa
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
         title: tab.title,
-        readiness: resolveAgentConversationReadiness(scope.meta.conversationState)
+        readiness: scope.meta.conversationState
       }
     }
   }
-])
-
-const AgentRightPaneSurface = memo(function AgentRightPaneSurface() {
-  return <RightPanel />
-})
-
-function AgentRightPaneKeyboardShortcut() {
-  const state = useRightPanelState()
-  const actions = useRightPanelActions()
-  const isActiveTab = useIsActiveTab()
-  const targetTab = state.defaultPanelId
-  const enabled = state.presentationEnabled && isActiveTab && Boolean(targetTab && actions.canOpen(targetTab))
-  const handleToggle = useCallback(() => {
-    if (state.presentationOpen) {
-      actions.close()
-      return
-    }
-    if (targetTab) actions.tryOpen(targetTab)
-  }, [actions, state.presentationOpen, targetTab])
-
-  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
-
-  return null
-}
+] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
 const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
-  const state = useRightPanelState()
-
   return (
-    <>
-      <AgentRightPaneKeyboardShortcut />
-      <Shell.Viewport open={state.presentationOpen}>
-        <AgentRightPaneSurface />
-      </Shell.Viewport>
-    </>
+    <RightPanelViewport>
+      <RightPanel />
+    </RightPanelViewport>
   )
 })
 
@@ -915,7 +872,6 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
       label={t('agent.right_pane.tabs.status')}
       icon={<Activity className="size-3.5" />}
       tooltip={false}
-      openBehavior="toggle-active"
     />
   )
 
@@ -940,22 +896,15 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         tab="files"
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
-        openBehavior="toggle-active"
       />
       <AgentRightPaneStatusShortcut />
-      <RightPanelShortcut
-        tab="trace"
-        label={t('trace.label')}
-        icon={<Waypoints className="size-3.5" />}
-        openBehavior="toggle-active"
-      />
+      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>
   )
 })
 
 export const AgentRightPane = {
   Scope: AgentRightPaneStateProvider,
-  Shell: AgentRightPaneShell,
   Viewport: AgentRightPaneViewport,
   Shortcuts: AgentRightPaneShortcuts
 }

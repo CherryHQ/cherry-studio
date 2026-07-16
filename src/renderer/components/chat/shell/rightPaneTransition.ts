@@ -5,8 +5,7 @@ import { CHAT_SHELL_TRANSITION } from './paneLayout'
 export type RightPaneLayoutMode = 'closed' | 'docked' | 'maximized'
 
 export type PersistentRightPanePhase =
-  | 'closed-docked'
-  | 'closed-maximized'
+  | 'closed'
   | 'opening-docked'
   | 'docked'
   | 'closing-docked'
@@ -39,23 +38,17 @@ export function getRightPaneDockedClip(width: string | number): string {
 }
 
 export function isClosedRightPanePhase(phase: PersistentRightPanePhase): boolean {
-  return phase === 'closed-docked' || phase === 'closed-maximized'
+  return phase === 'closed'
 }
 
 export function isFullWidthRightPanePhase(phase: PersistentRightPanePhase): boolean {
-  return (
-    phase === 'closed-maximized' ||
-    phase === 'maximizing' ||
-    phase === 'maximized' ||
-    phase === 'minimizing' ||
-    phase === 'closing-maximized'
-  )
+  return phase === 'maximizing' || phase === 'maximized' || phase === 'minimizing' || phase === 'closing-maximized'
 }
 
 export function getInitialPersistentRightPaneState(targetMode: RightPaneLayoutMode): PersistentRightPaneVisualState {
   if (targetMode === 'docked') return { phase: 'docked', reservesDockedSpace: true }
   if (targetMode === 'maximized') return { phase: 'maximized', reservesDockedSpace: false }
-  return { phase: 'closed-docked', reservesDockedSpace: false }
+  return { phase: 'closed', reservesDockedSpace: false }
 }
 
 export function planPersistentRightPaneTransition(
@@ -90,7 +83,7 @@ export function planPersistentRightPaneTransition(
         reservesDockedSpace: false
       },
       settledState: {
-        phase: closingFromMaximized ? 'closed-maximized' : 'closed-docked',
+        phase: 'closed',
         reservesDockedSpace: false
       }
     }

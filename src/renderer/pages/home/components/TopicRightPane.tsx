@@ -1,24 +1,20 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
-  defineRightPanelCapabilities,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
   ResourcePaneProvider,
   RightPanel,
+  type RightPanelCapability,
   type RightPanelComponentProps,
   RightPanelProvider,
   RightPanelShortcut,
-  Shell,
-  useRightPanelActions,
-  useRightPanelState,
-  useShellState
+  RightPanelViewport,
+  useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useCommandHandler } from '@renderer/hooks/command'
-import { useIsActiveTab } from '@renderer/hooks/tab'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
@@ -122,11 +118,11 @@ function TopicResourceRightPanel({ scope }: RightPanelComponentProps<TopicRightP
 }
 
 function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  const shellState = useShellState()
+  const panelState = useRightPanelState()
   const branchLiveState = useTopicBranchLiveState(scope.topicId ?? '')
   const callbacks = useTopicRightPaneViewport()
-  const canvasFocusKey = `${scope.topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
-  const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
+  const canvasFocusKey = `${scope.topicId ?? ''}:${panelState.maximized ? 'maximized' : 'docked'}:${panelState.pdfLayoutRefreshKey}`
+  const canvasLayoutReady = panelState.maximized || !panelState.pdfLayoutPending
 
   if (!scope.topicId) return null
 
@@ -145,12 +141,12 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   )
 }
 
-function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  return <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} active={active} />
+function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  return <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
-const TOPIC_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<TopicRightPanelScope>()([
+const TOPIC_RIGHT_PANEL_CAPABILITIES = [
   {
     component: TopicResourceRightPanel,
     resolve: (scope) => ({
@@ -178,7 +174,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<TopicRightPa
       readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
     })
   }
-])
+] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
 function TopicRightPaneProvider({
   children,
@@ -217,34 +213,19 @@ function TopicRightPaneProvider({
   )
 
   return (
-    <Shell defaultTab={RESOURCE_PANE_TAB} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
-      <ResourcePaneProvider value={resourcePane ?? null}>
-        <RightPanelProvider capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES} scope={scope} present={present}>
-          <ResourcePaneLocateOpener revealRequest={revealRequest} />
-          <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
-        </RightPanelProvider>
-      </ResourcePaneProvider>
-    </Shell>
+    <ResourcePaneProvider value={resourcePane ?? null}>
+      <RightPanelProvider
+        capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES}
+        scope={scope}
+        defaultPanelId={RESOURCE_PANE_TAB}
+        defaultOpen={defaultOpen}
+        onOpenChange={onOpenChange}
+        present={present}>
+        <ResourcePaneLocateOpener revealRequest={revealRequest} />
+        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+      </RightPanelProvider>
+    </ResourcePaneProvider>
   )
-}
-
-function TopicRightPaneKeyboardShortcut() {
-  const state = useRightPanelState()
-  const actions = useRightPanelActions()
-  const isActiveTab = useIsActiveTab()
-  const targetPanelId = state.defaultPanelId
-  const enabled = state.presentationEnabled && isActiveTab && Boolean(targetPanelId && actions.canOpen(targetPanelId))
-  const handleToggle = useCallback(() => {
-    if (state.presentationOpen) {
-      actions.close()
-      return
-    }
-    if (targetPanelId) actions.tryOpen(targetPanelId)
-  }, [actions, state.presentationOpen, targetPanelId])
-
-  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
-
-  return null
 }
 
 function TopicRightPaneViewport({
@@ -252,7 +233,6 @@ function TopicRightPaneViewport({
   onStartBranchDraft,
   onCancelBranchDraft
 }: TopicRightPaneViewportCallbacks) {
-  const { presentationOpen } = useRightPanelState()
   const callbacks = useMemo<TopicRightPaneViewportCallbacks>(
     () => ({ onLocateMessage, onStartBranchDraft, onCancelBranchDraft }),
     [onCancelBranchDraft, onLocateMessage, onStartBranchDraft]
@@ -260,10 +240,9 @@ function TopicRightPaneViewport({
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>
-      <TopicRightPaneKeyboardShortcut />
-      <Shell.Viewport open={presentationOpen}>
+      <RightPanelViewport>
         <RightPanel />
-      </Shell.Viewport>
+      </RightPanelViewport>
     </TopicRightPaneViewportContext>
   )
 }
@@ -273,18 +252,8 @@ function TopicRightPaneShortcuts() {
 
   return (
     <>
-      <RightPanelShortcut
-        tab="branch"
-        label={t('chat.message.flow.title')}
-        icon={<GitBranch className="size-3.5" />}
-        openBehavior="toggle-active"
-      />
-      <RightPanelShortcut
-        tab="trace"
-        label={t('trace.label')}
-        icon={<Activity className="size-3.5" />}
-        openBehavior="toggle-active"
-      />
+      <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
+      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>
   )
 }

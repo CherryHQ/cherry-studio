@@ -279,9 +279,7 @@ const Chat: FC<Props> = (props) => {
       topRightTool={
         showConversation ? (
           <>
-            {props.resourcePaneCount && (
-              <ResourcePaneCountButton {...props.resourcePaneCount} openBehavior="toggle-active" />
-            )}
+            {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
             <TopicRightPane.Shortcuts />
           </>
         ) : undefined

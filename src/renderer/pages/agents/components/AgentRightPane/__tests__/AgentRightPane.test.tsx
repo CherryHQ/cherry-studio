@@ -65,15 +65,13 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
-  RightPaneHost: ({
+  PersistentRightPaneHost: ({
     children,
-    keepMounted,
     maximized,
     onLayoutAnimationComplete,
     open,
     style
   }: PropsWithChildren<{
-    keepMounted?: boolean
     maximized?: boolean
     onLayoutAnimationComplete?: (mode: 'closed' | 'docked' | 'maximized') => void
     open?: boolean
@@ -89,7 +87,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
         data-open={String(Boolean(open))}
         data-maximized={String(Boolean(maximized))}
         style={style}>
-        {open || keepMounted ? children : null}
+        {children}
       </section>
     )
   }
@@ -163,9 +161,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
 }))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: ({ active }: { active?: boolean }) => (
-    <div data-testid="trace-pane" data-active={String(Boolean(active))} />
-  )
+  TracePane: () => <div data-testid="trace-pane" />
 }))
 
 vi.mock('@renderer/components/command', () => ({
@@ -229,8 +225,7 @@ vi.mock('react-i18next', () => ({
 
 import { AgentRightPane, useAgentRightPaneActions } from '../AgentRightPane'
 
-type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope> &
-  Pick<ComponentProps<typeof AgentRightPane.Shell>, 'defaultOpen' | 'onOpenChange' | 'resourcePane'>
+type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
 
 function TestAgentRightPane({
   children,
@@ -240,9 +235,13 @@ function TestAgentRightPane({
   ...scopeProps
 }: TestAgentRightPaneProps) {
   return (
-    <AgentRightPane.Shell defaultOpen={defaultOpen} onOpenChange={onOpenChange} resourcePane={resourcePane}>
-      <AgentRightPane.Scope {...scopeProps}>{children}</AgentRightPane.Scope>
-    </AgentRightPane.Shell>
+    <AgentRightPane.Scope
+      {...scopeProps}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      resourcePane={resourcePane}>
+      {children}
+    </AgentRightPane.Scope>
   )
 }
 
@@ -549,7 +548,7 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('keeps a visited trace capability mounted while pausing it when inactive', () => {
+  it('keeps a visited trace capability mounted while inactive', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -559,11 +558,9 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
     const tracePane = screen.getByTestId('trace-pane')
-    expect(tracePane).toHaveAttribute('data-active', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     expect(screen.getByTestId('trace-pane')).toBe(tracePane)
-    expect(tracePane).toHaveAttribute('data-active', 'false')
   })
 
   it('keeps a visited files instance through pending and removes it when unavailable', () => {

@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
-import { useOptionalShellState } from '../panes/Shell'
+import { useOptionalRightPanelState } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
@@ -88,11 +88,11 @@ export function ChatAppShell({
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
-  const shellState = useOptionalShellState()
+  const rightPanelState = useOptionalRightPanelState()
   // While the right pane maximizes/minimizes, its docked spacer snaps under the
   // covering surface; a FLIP layout animation would smear that snap across the
   // wipe as visible scale distortion, so the center reflows instantly instead.
-  const centerTransition = shellState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
+  const centerTransition = rightPanelState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const rootRef = useRef<HTMLDivElement>(null)
   const centerInnerRef = useRef<HTMLDivElement | null>(null)
   const leftPaneOpenRef = useRef(leftPaneOpen)
@@ -234,7 +234,7 @@ export function ChatAppShell({
           {rightPane}
         </div>
 
-        <RightPaneHost open={paneOpen && panePosition === 'right'}>{pane}</RightPaneHost>
+        <RightPaneHost open={Boolean(paneOpen && panePosition === 'right')}>{pane}</RightPaneHost>
       </div>
 
       {sidePanel && (

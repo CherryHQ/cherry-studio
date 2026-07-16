@@ -7,7 +7,6 @@ export {
 } from './resourcePane'
 export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
 export {
-  defineRightPanelCapabilities,
   RightPanel,
   type RightPanelActions,
   type RightPanelCapability,
@@ -17,15 +16,9 @@ export {
   type RightPanelReadiness,
   RightPanelShortcut,
   type RightPanelState,
+  RightPanelViewport,
+  useOptionalRightPanelActions,
   useOptionalRightPanelState,
   useRightPanelActions,
   useRightPanelState
 } from './RightPanel'
-export {
-  Shell,
-  type ShellTabShortcutOpenBehavior,
-  useOptionalShellActions,
-  useOptionalShellState,
-  useShellActions,
-  useShellState
-} from './Shell'

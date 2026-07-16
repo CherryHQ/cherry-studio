@@ -1,11 +1,24 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { RightSidebarCollapseIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { cn } from '@renderer/utils/style'
-import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
-import { Activity, createContext, use, useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { Maximize2, Minimize2 } from 'lucide-react'
+import type { ComponentType, ReactNode } from 'react'
+import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { Shell, type ShellTabShortcutOpenBehavior, useShellActions, useShellState } from './Shell'
+import { useChatMaximizedOverlayBottomInset } from '../../layout/ChatViewportInsetContext'
+import {
+  ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  CHAT_CENTER_MIN_USABLE_WIDTH
+} from '../../shell/paneLayout'
+import { PersistentRightPaneHost, type RightPaneLayoutMode } from '../../shell/RightPaneHost'
 
 export type RightPanelReadiness = 'ready' | 'pending' | 'unavailable'
 
@@ -24,19 +37,14 @@ export interface RightPanelInstance {
   readiness: RightPanelReadiness
 }
 
-/**
- * A stable, module-level declaration for one panel slot. It resolves at most one
- * concrete instance from domain-owned scope; null means the slot has no identity.
- */
+/** Resolves one panel slot from domain-owned scope; null means the slot has no identity. */
 export interface RightPanelCapability<TScope> {
   component: ComponentType<RightPanelComponentProps<TScope>>
   resolve: (scope: TScope) => RightPanelInstance | null
-  className?: string
 }
 
 interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
   component: ComponentType<RightPanelComponentProps<TScope>>
-  className?: string
 }
 
 export interface RightPanelState {
@@ -44,12 +52,18 @@ export interface RightPanelState {
   activePanelId?: string
   /** First ready entry, then first pending entry, then the first catalog entry. */
   defaultPanelId?: string
-  /** True only when the shell is open and a ready panel is being presented. */
+  /** Raw maximize intent, retained while environmental presentation is disabled. */
+  maximized: boolean
+  /** True only when the panel is open and a ready entry is being presented. */
   presentationOpen: boolean
   /** Maximized layout is effective only while a ready panel is presented. */
   presentationMaximized: boolean
   /** Whether the current page environment allows a panel to be presented. */
   presentationEnabled: boolean
+  /** True while maximize/minimize layout is moving to its settled mode. */
+  layoutAnimationPending: boolean
+  pdfLayoutPending: boolean
+  pdfLayoutRefreshKey: number
   isActive: (panelId: string) => boolean
 }
 
@@ -57,12 +71,15 @@ export interface RightPanelActions {
   canOpen: (panelId: string) => boolean
   /** Opens a currently ready panel and returns whether the request was accepted. */
   tryOpen: (panelId: string) => boolean
-  /**
-   * Records raw selection intent. Domain owners use this only for compound
-   * transitions that create a dynamic instance and select it in one batch.
-   */
+  /** Records selection intent for a dynamic entry created in the same React batch. */
   requestOpen: (panelId: string) => void
-  close: (afterClose?: () => void) => void
+  close: () => void
+  minimize: () => void
+}
+
+interface RightPanelControllerActions extends RightPanelActions {
+  completeLayoutAnimation: (mode: RightPaneLayoutMode) => void
+  toggleMaximized: () => void
 }
 
 interface RightPanelRenderContextValue {
@@ -73,11 +90,7 @@ interface RightPanelRenderContextValue {
 
 const RightPanelRenderContext = createContext<RightPanelRenderContextValue | null>(null)
 const RightPanelStateContext = createContext<RightPanelState | null>(null)
-const RightPanelActionsContext = createContext<RightPanelActions | null>(null)
-
-export function defineRightPanelCapabilities<TScope>() {
-  return <TCapabilities extends readonly RightPanelCapability<TScope>[]>(capabilities: TCapabilities) => capabilities
-}
+const RightPanelActionsContext = createContext<RightPanelControllerActions | null>(null)
 
 function resolveRightPanelEntries<TScope>(
   capabilities: readonly RightPanelCapability<TScope>[],
@@ -93,7 +106,6 @@ function resolveRightPanelEntries<TScope>(
     panelIds.add(instance.id)
     entries.push({
       ...instance,
-      className: capability.className,
       component: capability.component as ComponentType<RightPanelComponentProps<unknown>>
     })
   }
@@ -101,8 +113,8 @@ function resolveRightPanelEntries<TScope>(
   return entries
 }
 
-function findEntry(entries: readonly ResolvedRightPanelEntry[], panelId: string): ResolvedRightPanelEntry | undefined {
-  return entries.find((entry) => entry.id === panelId)
+function findEntry(entries: readonly ResolvedRightPanelEntry[], panelId?: string): ResolvedRightPanelEntry | undefined {
+  return panelId ? entries.find((entry) => entry.id === panelId) : undefined
 }
 
 function getDefaultEntry(entries: readonly ResolvedRightPanelEntry[]): ResolvedRightPanelEntry | undefined {
@@ -143,22 +155,58 @@ function updateMountedInstances(
 export function RightPanelProvider<TScope>({
   capabilities,
   children,
+  defaultOpen = false,
+  defaultPanelId,
+  onOpenChange,
   present = true,
   scope
 }: {
   capabilities: readonly RightPanelCapability<TScope>[]
   children: ReactNode
-  /** Environmental visibility; false hides presentation while preserving shell intent and visited instances. */
+  defaultOpen?: boolean
+  defaultPanelId?: string
+  onOpenChange?: (open: boolean) => void
+  /** Environmental visibility; false hides presentation while preserving intent and visited instances. */
   present?: boolean
   scope: TScope
 }) {
-  const shellState = useShellState()
-  const shellActions = useShellActions()
   const entries = useMemo(() => resolveRightPanelEntries(capabilities, scope), [capabilities, scope])
-  const requestedEntry = findEntry(entries, shellState.activeTab)
+  const [open, setOpen] = useState(defaultOpen)
+  const [maximized, setMaximized] = useState(false)
+  const [requestedPanelId, setRequestedPanelId] = useState(defaultPanelId)
+  const [layoutAnimationPending, setLayoutAnimationPending] = useState(false)
+  const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
+  const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
+  const [mountedInstances, setMountedInstances] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const openRef = useRef(open)
+  const onOpenChangeRef = useRef(onOpenChange)
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange
+  }, [onOpenChange])
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  useEffect(() => {
+    if (openRef.current === defaultOpen) return
+
+    openRef.current = defaultOpen
+    setOpen(defaultOpen)
+    if (defaultOpen) {
+      setRequestedPanelId(defaultPanelId)
+      setPdfLayoutPending(true)
+    } else {
+      setMaximized(false)
+      setLayoutAnimationPending(false)
+      setPdfLayoutPending(false)
+    }
+  }, [defaultOpen, defaultPanelId])
+
+  const requestedEntry = findEntry(entries, requestedPanelId)
   const defaultEntry = getDefaultEntry(entries)
   const fallbackEntry = entries.find((entry) => entry.readiness === 'ready')
-
   const activeEntry =
     requestedEntry?.readiness === 'ready'
       ? requestedEntry
@@ -172,14 +220,13 @@ export function RightPanelProvider<TScope>({
         ? defaultEntry
         : undefined
   const reconciledEntry = activeEntry ?? pendingEntry
-  const presentationOpen = present && shellState.open && Boolean(activeEntry)
-  const presentationMaximized = presentationOpen && shellState.maximized
-  const [mountedInstances, setMountedInstances] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const presentationOpen = present && open && Boolean(activeEntry)
+  const presentationMaximized = presentationOpen && maximized
 
   useLayoutEffect(() => {
-    if (!reconciledEntry || reconciledEntry.id === shellState.activeTab) return
-    shellActions.reconcileTab(reconciledEntry.id)
-  }, [reconciledEntry, shellActions, shellState.activeTab])
+    if (!reconciledEntry || reconciledEntry.id === requestedPanelId) return
+    setRequestedPanelId(reconciledEntry.id)
+  }, [reconciledEntry, requestedPanelId])
 
   useLayoutEffect(() => {
     setMountedInstances((current) => updateMountedInstances(current, entries, activeEntry, presentationOpen))
@@ -189,19 +236,15 @@ export function RightPanelProvider<TScope>({
     (panelId: string) => presentationOpen && activeEntry?.id === panelId,
     [activeEntry?.id, presentationOpen]
   )
-  const state = useMemo<RightPanelState>(
-    () => ({
-      activePanelId: activeEntry?.id,
-      defaultPanelId: defaultEntry?.id,
-      presentationOpen,
-      presentationMaximized,
-      presentationEnabled: present,
-      isActive
-    }),
-    [activeEntry?.id, defaultEntry?.id, isActive, present, presentationMaximized, presentationOpen]
-  )
   const canOpen = useCallback((panelId: string) => findEntry(entries, panelId)?.readiness === 'ready', [entries])
-  const requestOpen = useCallback((panelId: string) => shellActions.openTab(panelId), [shellActions])
+  const requestOpen = useCallback((panelId: string) => {
+    const wasOpen = openRef.current
+    openRef.current = true
+    setRequestedPanelId(panelId)
+    setOpen(true)
+    if (!wasOpen) setPdfLayoutPending(true)
+    onOpenChangeRef.current?.(true)
+  }, [])
   const tryOpen = useCallback(
     (panelId: string) => {
       if (!canOpen(panelId)) return false
@@ -210,14 +253,68 @@ export function RightPanelProvider<TScope>({
     },
     [canOpen, requestOpen]
   )
-  const actions = useMemo<RightPanelActions>(
+  const close = useCallback(() => {
+    if (!openRef.current) return
+    openRef.current = false
+    setOpen(false)
+    setMaximized(false)
+    setPdfLayoutPending(false)
+    onOpenChangeRef.current?.(false)
+  }, [])
+  const minimize = useCallback(() => {
+    setLayoutAnimationPending(true)
+    setPdfLayoutPending(false)
+    setMaximized(false)
+  }, [])
+  const toggleMaximized = useCallback(() => {
+    setLayoutAnimationPending(true)
+    setPdfLayoutPending(false)
+    setMaximized((current) => !current)
+  }, [])
+  const completeLayoutAnimation = useCallback((mode: RightPaneLayoutMode) => {
+    setLayoutAnimationPending(false)
+    if (mode === 'closed') return
+    setPdfLayoutPending(false)
+    setPdfLayoutRefreshKey((key) => key + 1)
+  }, [])
+
+  const state = useMemo<RightPanelState>(
+    () => ({
+      activePanelId: activeEntry?.id,
+      defaultPanelId: defaultEntry?.id,
+      maximized,
+      presentationOpen,
+      presentationMaximized,
+      presentationEnabled: present,
+      layoutAnimationPending,
+      pdfLayoutPending,
+      pdfLayoutRefreshKey,
+      isActive
+    }),
+    [
+      activeEntry?.id,
+      defaultEntry?.id,
+      isActive,
+      layoutAnimationPending,
+      maximized,
+      pdfLayoutPending,
+      pdfLayoutRefreshKey,
+      present,
+      presentationMaximized,
+      presentationOpen
+    ]
+  )
+  const actions = useMemo<RightPanelControllerActions>(
     () => ({
       canOpen,
       tryOpen,
       requestOpen,
-      close: shellActions.close
+      close,
+      minimize,
+      completeLayoutAnimation,
+      toggleMaximized
     }),
-    [canOpen, requestOpen, shellActions.close, tryOpen]
+    [canOpen, close, completeLayoutAnimation, minimize, requestOpen, toggleMaximized, tryOpen]
   )
   const renderValue = useMemo<RightPanelRenderContextValue>(
     () => ({ entries, mountedInstances, scope }),
@@ -243,10 +340,56 @@ export function useOptionalRightPanelState(): RightPanelState | undefined {
   return use(RightPanelStateContext) ?? undefined
 }
 
-export function useRightPanelActions(): RightPanelActions {
+function useRightPanelControllerActions(): RightPanelControllerActions {
   const actions = use(RightPanelActionsContext)
   if (!actions) throw new Error('useRightPanelActions must be used within <RightPanelProvider>')
   return actions
+}
+
+export function useRightPanelActions(): RightPanelActions {
+  return useRightPanelControllerActions()
+}
+
+export function useOptionalRightPanelActions(): RightPanelActions | undefined {
+  return use(RightPanelActionsContext) ?? undefined
+}
+
+function RightPanelHeader({ title }: { title?: ReactNode }) {
+  const state = useRightPanelState()
+  const actions = useRightPanelControllerActions()
+  const { t } = useTranslation()
+  const maximizeLabel = t(state.presentationMaximized ? 'common.minimize' : 'common.maximize')
+  const MaximizeIcon = state.presentationMaximized ? Minimize2 : Maximize2
+  const closeLabel = t('common.close_sidebar')
+
+  return (
+    <div
+      data-testid="shell-tab-list"
+      className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]">
+      <div
+        data-testid="shell-tab-title"
+        className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
+        {title}
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
+        <Tooltip content={maximizeLabel} delay={800}>
+          <NavbarIcon
+            tone="conversation"
+            className="[&_svg]:!size-3.5 shrink-0"
+            aria-label={maximizeLabel}
+            aria-pressed={state.presentationMaximized}
+            onClick={actions.toggleMaximized}>
+            <MaximizeIcon />
+          </NavbarIcon>
+        </Tooltip>
+        <Tooltip content={closeLabel} delay={800}>
+          <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
+            <RightSidebarCollapseIcon />
+          </NavbarIcon>
+        </Tooltip>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -261,25 +404,71 @@ export function RightPanel() {
   const mountedEntries = context.entries.filter(
     (entry) => context.mountedInstances.get(entry.id) === entry.instanceKey && entry.readiness !== 'unavailable'
   )
-  const activeEntry = state.activePanelId ? findEntry(context.entries, state.activePanelId) : undefined
+  const activeEntry = findEntry(context.entries, state.activePanelId)
 
   return (
-    <Shell.Tabs value={state.activePanelId ?? ''}>
-      <Shell.TabList title={activeEntry?.title} showTabs={false} />
-      {mountedEntries.map((entry) => {
-        const Panel = entry.component
-        const active = state.isActive(entry.id)
-        return (
-          <Shell.Panel key={`${entry.id}:${entry.instanceKey}`} value={entry.id} className={entry.className} forceMount>
-            <Activity mode={active ? 'visible' : 'hidden'}>
-              <ErrorBoundary>
-                <Panel active={active} panelId={entry.id} scope={context.scope} />
-              </ErrorBoundary>
+    <div className="flex h-full flex-col gap-0 overflow-hidden text-card-foreground">
+      <RightPanelHeader title={activeEntry?.title} />
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {mountedEntries.map((entry) => {
+          const Panel = entry.component
+          const active = state.isActive(entry.id)
+          return (
+            <Activity key={`${entry.id}:${entry.instanceKey}`} mode={active ? 'visible' : 'hidden'}>
+              <div className="h-full min-h-0 overflow-hidden">
+                <ErrorBoundary>
+                  <Panel active={active} panelId={entry.id} scope={context.scope} />
+                </ErrorBoundary>
+              </div>
             </Activity>
-          </Shell.Panel>
-        )
-      })}
-    </Shell.Tabs>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function RightPanelKeyboardShortcut() {
+  const state = useRightPanelState()
+  const actions = useRightPanelActions()
+  const isActiveTab = useIsActiveTab()
+  const targetPanelId = state.defaultPanelId
+  const enabled = state.presentationEnabled && isActiveTab && Boolean(targetPanelId && actions.canOpen(targetPanelId))
+  const handleToggle = useCallback(() => {
+    if (state.presentationOpen) {
+      actions.close()
+    } else if (targetPanelId) {
+      actions.tryOpen(targetPanelId)
+    }
+  }, [actions, state.presentationOpen, targetPanelId])
+
+  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
+  return null
+}
+
+export function RightPanelViewport({ children }: { children: ReactNode }) {
+  const state = useRightPanelState()
+  const actions = useRightPanelControllerActions()
+  const bottomInset = useChatMaximizedOverlayBottomInset()
+
+  return (
+    <>
+      <RightPanelKeyboardShortcut />
+      <PersistentRightPaneHost
+        open={state.presentationOpen}
+        maximized={state.presentationMaximized}
+        maximizedBottomInset={bottomInset}
+        width={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
+        resizable
+        minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
+        defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
+        maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
+        cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
+        reservedCenterWidth={CHAT_CENTER_MIN_USABLE_WIDTH}
+        onLayoutAnimationComplete={actions.completeLayoutAnimation}>
+        {children}
+      </PersistentRightPaneHost>
+    </>
   )
 }
 
@@ -289,48 +478,38 @@ export function RightPanelShortcut({
   icon,
   disabled = false,
   tooltip,
-  openBehavior = 'hide',
-  className,
-  onClick,
-  ...buttonProps
-}: Omit<ComponentProps<typeof NavbarIcon>, 'aria-label' | 'children' | 'onClick'> & {
+  className
+}: {
   tab: string
   label: string
   icon: ReactNode
+  disabled?: boolean
   tooltip?: ReactNode | false
-  openBehavior?: ShellTabShortcutOpenBehavior
-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+  className?: string
 }) {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
   const ready = actions.canOpen(tab)
   const active = state.isActive(tab)
-  const togglesActive = openBehavior === 'toggle-active'
   const tooltipContent = tooltip === false ? false : (tooltip ?? label)
-  const handleClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      onClick?.(event)
-      if (event.defaultPrevented) return
-      if (togglesActive && active) {
-        actions.close()
-        return
-      }
-      actions.tryOpen(tab)
-    },
-    [actions, active, onClick, tab, togglesActive]
-  )
+  const handleClick = useCallback(() => {
+    if (active) {
+      actions.close()
+      return
+    }
+    actions.tryOpen(tab)
+  }, [actions, active, tab])
 
-  if (!ready || state.presentationMaximized || (state.presentationOpen && openBehavior === 'hide')) return null
+  if (!ready || state.presentationMaximized) return null
 
   const button = (
     <NavbarIcon
-      {...buttonProps}
       tone="conversation"
       className={cn('[&_svg]:!size-3.5 shrink-0', className)}
       active={active}
       disabled={disabled}
       aria-label={label}
-      aria-pressed={togglesActive ? active : undefined}
+      aria-pressed={active}
       data-shell-tab-shortcut={tab}
       onClick={handleClick}>
       {icon}

@@ -91,10 +91,14 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
-  RightPaneHost: ({
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="session-right-pane" data-open={String(Boolean(open))}>
+      {open ? children : null}
+    </section>
+  ),
+  PersistentRightPaneHost: ({
     children,
     open,
-    keepMounted,
     maximized,
     width,
     resizable,
@@ -105,7 +109,6 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
     className
   }: PropsWithChildren<{
     open?: boolean
-    keepMounted?: boolean
     maximized?: boolean
     width?: string | number
     resizable?: boolean
@@ -126,7 +129,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
       data-max-width={String(maxWidth)}
       data-cache-key={cacheKey}
       data-class-name={className ?? ''}>
-      {open || keepMounted ? children : null}
+      {children}
     </section>
   )
 }))

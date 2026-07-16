@@ -20,7 +20,7 @@ function plan(currentPhase: PersistentRightPanePhase, targetMode: RightPaneLayou
 
 describe('planPersistentRightPaneTransition', () => {
   it.each([
-    ['closed', { phase: 'closed-docked', reservesDockedSpace: false }],
+    ['closed', { phase: 'closed', reservesDockedSpace: false }],
     ['docked', { phase: 'docked', reservesDockedSpace: true }],
     ['maximized', { phase: 'maximized', reservesDockedSpace: false }]
   ] as const)('creates the %s initial state', (targetMode, expected) => {
@@ -39,7 +39,7 @@ describe('planPersistentRightPaneTransition', () => {
   })
 
   it('plans a closed-to-maximized reveal without reserving docked space', () => {
-    expect(plan('closed-docked', 'maximized')).toMatchObject({
+    expect(plan('closed', 'maximized')).toMatchObject({
       runningState: { phase: 'maximizing', reservesDockedSpace: false },
       setBeforeStart: { clipPath: RIGHT_PANE_CLIP_COLLAPSED, opacity: 1 }
     })
@@ -56,20 +56,20 @@ describe('planPersistentRightPaneTransition', () => {
   })
 
   it.each([
-    ['docked', 'closing-docked', 'closed-docked'],
-    ['maximizing', 'closing-maximized', 'closed-maximized'],
-    ['maximized', 'closing-maximized', 'closed-maximized']
-  ] as const)('plans %s to close through the matching layout', (phase, runningPhase, settledPhase) => {
+    ['docked', 'closing-docked'],
+    ['maximizing', 'closing-maximized'],
+    ['maximized', 'closing-maximized']
+  ] as const)('plans %s to close through the matching layout', (phase, runningPhase) => {
     expect(plan(phase, 'closed')).toMatchObject({
       animateTo: { clipPath: RIGHT_PANE_CLIP_COLLAPSED, opacity: 0 },
       completedMode: 'closed',
       runningState: { phase: runningPhase, reservesDockedSpace: false },
-      settledState: { phase: settledPhase, reservesDockedSpace: false }
+      settledState: { phase: 'closed', reservesDockedSpace: false }
     })
   })
 
   it('plans a closed pane opening directly into the docked layout', () => {
-    expect(plan('closed-maximized', 'docked')).toMatchObject({
+    expect(plan('closed', 'docked')).toMatchObject({
       animateTo: { clipPath: RIGHT_PANE_CLIP_REVEALED, opacity: 1 },
       completedMode: 'docked',
       runningState: { phase: 'opening-docked', reservesDockedSpace: true }
@@ -77,7 +77,7 @@ describe('planPersistentRightPaneTransition', () => {
   })
 
   it.each([
-    ['closed-docked', 'closed'],
+    ['closed', 'closed'],
     ['docked', 'docked'],
     ['maximized', 'maximized']
   ] as const)('returns no plan when %s already satisfies %s', (phase, targetMode) => {

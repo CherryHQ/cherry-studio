@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils/style'
 import type { ReactNode, Ref } from 'react'
 
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
-import { useOptionalRightPanelState, useOptionalShellState } from '../panes/Shell'
+import { useOptionalRightPanelState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
@@ -105,10 +105,9 @@ type TopBarProps = {
 }
 
 const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, children }: TopBarProps) => {
-  const shellState = useOptionalShellState()
   const presentationState = useOptionalRightPanelState()
-  const maximized = presentationState?.presentationMaximized ?? shellState?.maximized ?? false
-  const open = presentationState?.presentationOpen ?? shellState?.open ?? false
+  const maximized = presentationState?.presentationMaximized ?? false
+  const open = presentationState?.presentationOpen ?? false
   const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
   return (
     <div

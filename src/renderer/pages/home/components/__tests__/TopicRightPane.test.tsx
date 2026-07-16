@@ -71,33 +71,25 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => {
     ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
     ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
     ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
-    RightPaneHost: ({
+    PersistentRightPaneHost: ({
       children,
-      keepMounted,
       maximized,
       open
-    }: PropsWithChildren<{ keepMounted?: boolean; maximized?: boolean; open?: boolean }>) => (
+    }: PropsWithChildren<{ maximized?: boolean; open?: boolean }>) => (
       <section
         data-testid="right-pane"
         data-open={String(Boolean(open))}
         data-maximized={String(Boolean(maximized))}
         hidden={!open}>
-        {open || keepMounted ? children : null}
+        {children}
       </section>
     )
   }
 })
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: ({ active, payload }: { active?: boolean; payload: { topicId: string; traceId: string } | null }) =>
-    payload ? (
-      <div
-        data-active={String(active)}
-        data-testid="trace-pane"
-        data-topic-id={payload.topicId}
-        data-trace-id={payload.traceId}
-      />
-    ) : null
+  TracePane: ({ payload }: { payload: { topicId: string; traceId: string } | null }) =>
+    payload ? <div data-testid="trace-pane" data-topic-id={payload.topicId} data-trace-id={payload.traceId} /> : null
 }))
 
 vi.mock('../TopicBranchPanel', () => ({
@@ -362,7 +354,7 @@ describe('TopicRightPane', () => {
         topicId="topic-a"
         traceId="trace-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
-        <ResourcePaneCountButton label="chat.topics.title" count={3} openBehavior="toggle-active" />
+        <ResourcePaneCountButton label="chat.topics.title" count={3} />
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
       </TopicRightPane>
@@ -375,7 +367,6 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'false')
-    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-active', 'true')
     expect(branchPane.parentElement).toHaveAttribute('hidden')
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
@@ -384,7 +375,6 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-active', 'false')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
     expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeNull()
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeNull()
@@ -402,7 +392,7 @@ describe('TopicRightPane', () => {
     render(
       <TopicRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
-        <ResourcePaneCountButton label="chat.topics.title" count={3} openBehavior="toggle-active" />
+        <ResourcePaneCountButton label="chat.topics.title" count={3} />
         <TopicRightPane.Viewport />
       </TopicRightPane>
     )
