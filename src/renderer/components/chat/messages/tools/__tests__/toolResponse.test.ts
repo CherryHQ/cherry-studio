@@ -196,6 +196,48 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('bash')
   })
 
+  it('routes a stamped ai-sdk-agent tool part to the generic provider card', () => {
+    // Real ai-sdk shape (from streamAdapter's transport stamp on tool-input/output
+    // chunks): a typed `tool-<name>` part whose cherry metadata carries only the
+    // transport tag — no `cherry.tool` descriptor — so it resolves as `provider`
+    // and renders on the generic agent tool card.
+    const part = {
+      type: 'tool-write',
+      toolCallId: 'ai-sdk-call-1',
+      state: 'output-available',
+      input: { path: 'a.txt' },
+      output: 'wrote',
+      callProviderMetadata: {
+        cherry: { transport: 'ai-sdk-agent' }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.status).toBe('done')
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('write')
+  })
+
+  it('renders a stamped ai-sdk-agent approval request as a pending provider card', () => {
+    // Approval shape: the part reaches `approval-requested` via the SDK reducer;
+    // the transport stamp arrived on the earlier tool-input chunks.
+    const part = {
+      type: 'tool-bash',
+      toolCallId: 'ai-sdk-call-2',
+      state: 'approval-requested',
+      input: { command: 'pnpm build' },
+      approval: { id: 'ai-sdk-approval-1' },
+      callProviderMetadata: {
+        cherry: { transport: 'ai-sdk-agent', toolName: 'bash' }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.status).toBe('pending')
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('bash')
+  })
+
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {
     const part = {
       type: 'dynamic-tool',

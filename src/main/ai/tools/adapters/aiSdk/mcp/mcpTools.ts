@@ -25,8 +25,9 @@ function resolveActiveServerById(serverId: string): McpServer | undefined {
   return server?.isActive ? server : undefined
 }
 
-/** Build the AI SDK Tool wrapper around a single McpTool. */
-function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
+/** Build the AI SDK Tool wrapper around a single McpTool. Exported for the
+ *  agent runtime's MCP tool set, which layers its own policy over `needsApproval`. */
+export function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,

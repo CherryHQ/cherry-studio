@@ -971,6 +971,10 @@
           "description": "查找文件",
           "label": "查找文件"
         },
+        "glob": {
+          "description": "按模式查找文件",
+          "label": "按模式查找文件"
+        },
         "grep": {
           "description": "搜索文件内容",
           "label": "搜索文件内容"
@@ -982,6 +986,10 @@
         "read": {
           "description": "读取文件",
           "label": "读取文件"
+        },
+        "skill": {
+          "description": "运行智能体技能",
+          "label": "运行智能体技能"
         },
         "write": {
           "description": "写入文件",
@@ -3155,8 +3163,10 @@
             "label": "Plan 模型"
           },
           "runtime": {
+            "ai_sdk_hint": "通过内置 AI SDK 智能体运行时驱动所选服务商/模型，支持工作区工具、技能与 MCP 服务器；工具没有系统级沙箱，默认保留审批提示。",
             "label": "运行时",
             "option": {
+              "ai_sdk": "AI SDK Agent",
               "claude_code": "Claude Code",
               "pi": "pi"
             },

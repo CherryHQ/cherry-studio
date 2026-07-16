@@ -4,22 +4,13 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import fs from 'fs/promises'
 import path from 'path'
 
-import {
-  deleteToolDefinition,
-  editToolDefinition,
-  globToolDefinition,
-  grepToolDefinition,
-  handleDeleteTool,
-  handleEditTool,
-  handleGlobTool,
-  handleGrepTool,
-  handleLsTool,
-  handleReadTool,
-  handleWriteTool,
-  lsToolDefinition,
-  readToolDefinition,
-  writeToolDefinition
-} from './tools'
+import { deleteToolDefinition, handleDeleteTool } from './tools/delete'
+import { editToolDefinition, handleEditTool } from './tools/edit'
+import { globToolDefinition, handleGlobTool } from './tools/glob'
+import { grepToolDefinition, handleGrepTool } from './tools/grep'
+import { handleLsTool, lsToolDefinition } from './tools/ls'
+import { handleReadTool, readToolDefinition } from './tools/read'
+import { handleWriteTool, writeToolDefinition } from './tools/write'
 import { expandHome, logger, normalizePath } from './types'
 
 export class FileSystemServer {

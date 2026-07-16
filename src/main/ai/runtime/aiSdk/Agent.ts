@@ -2,6 +2,7 @@
  * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
  */
 
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
@@ -17,6 +18,22 @@ type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 type ObserverMap = {
   [K in keyof AgentLoopHooks]?: Array<NonNullable<AgentLoopHooks[K]>>
+}
+
+/**
+ * Cherry never uses OpenAI's server-side response storage, but the Responses
+ * conversion defaults `store` to true and then replays prior assistant items
+ * as `item_reference`s — which the stateless Responses proxies routed through
+ * this adapter (grok-cli, openai-codex) reject outright. Defaulting it off
+ * here covers every consumer (chat's capability layer restates the same
+ * value); an explicit caller value still wins.
+ */
+export function withResponsesStoreDefault(
+  providerId: string,
+  providerOptions: ProviderOptions | undefined
+): ProviderOptions | undefined {
+  if (providerId !== 'openai') return providerOptions
+  return { ...providerOptions, openai: { store: false, ...providerOptions?.openai } }
 }
 
 export class Agent<T extends AppProviderKey = AppProviderKey> {
@@ -86,7 +103,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         timeout: opts.timeout,
         headers: opts.headers,
         // Provider-specific
-        providerOptions: opts.providerOptions,
+        providerOptions: withResponsesStoreDefault(params.providerId, opts.providerOptions),
         // Loop control
         stopWhen: opts.stopWhen,
         // Experimental

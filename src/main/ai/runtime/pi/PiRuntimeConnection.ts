@@ -22,6 +22,7 @@ import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { AsyncEventQueue } from '../asyncEventQueue'
+import { parseManualCompactCommand } from '../compactCommand'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
@@ -614,12 +615,6 @@ function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string):
  *  anchor only distinguishes user-initiated from auto. */
 function mapCompactionTrigger(reason: 'manual' | 'threshold' | 'overflow'): AgentSessionCompactionTrigger {
   return reason === 'manual' ? 'manual' : 'auto'
-}
-
-function parseManualCompactCommand(content: string): { instructions: string } | undefined {
-  const trimmed = content.trim()
-  if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
-  return { instructions: trimmed.slice('/compact'.length).trim() }
 }
 
 function buildCompactionAnchor(

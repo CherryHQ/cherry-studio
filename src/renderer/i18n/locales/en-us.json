@@ -971,6 +971,10 @@
           "description": "Find files",
           "label": "Find files"
         },
+        "glob": {
+          "description": "Find files by pattern",
+          "label": "Find files by pattern"
+        },
         "grep": {
           "description": "Search file contents",
           "label": "Search file contents"
@@ -982,6 +986,10 @@
         "read": {
           "description": "Read files",
           "label": "Read files"
+        },
+        "skill": {
+          "description": "Run agent skills",
+          "label": "Run agent skills"
         },
         "write": {
           "description": "Write files",
@@ -3155,8 +3163,10 @@
             "label": "Plan model"
           },
           "runtime": {
+            "ai_sdk_hint": "Runs your selected provider/model through the built-in AI SDK agent runtime with workspace tools, skills, and MCP servers — tools run without an OS sandbox, so approval prompts stay on by default.",
             "label": "Runtime",
             "option": {
+              "ai_sdk": "AI SDK Agent",
               "claude_code": "Claude Code",
               "pi": "pi"
             },

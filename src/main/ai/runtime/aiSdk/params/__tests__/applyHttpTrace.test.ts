@@ -8,7 +8,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { applyHttpTrace } = await import('../buildAgentParams')
+const { applyHttpTrace } = await import('../sdkConfig')
 
 describe('applyHttpTrace', () => {
   beforeEach(() => {

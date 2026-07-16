@@ -1,2 +1,8 @@
 export { resolveFilesystemBaseDir } from './config'
 export { FileSystemServer } from './server'
+export { editToolDefinition, handleEditTool } from './tools/edit'
+export { globToolDefinition, handleGlobTool } from './tools/glob'
+export { grepToolDefinition, handleGrepTool } from './tools/grep'
+export { handleLsTool, lsToolDefinition } from './tools/ls'
+export { handleReadTool, readToolDefinition } from './tools/read'
+export { handleWriteTool, writeToolDefinition } from './tools/write'

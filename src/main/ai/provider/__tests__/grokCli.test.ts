@@ -28,15 +28,17 @@ describe('rewriteGrokCliResponsesBody', () => {
     expect(out.input).toEqual([{ role: 'user', content: 'keep me' }])
   })
 
-  it('strips reasoning/cache knobs and the encrypted-reasoning include', () => {
+  it('strips reasoning/cache/store knobs and the encrypted-reasoning include', () => {
     const out = rewriteGrokCliResponsesBody({
       reasoning: { effort: 'high' },
       prompt_cache_retention: '24h',
+      store: false,
       include: ['reasoning.encrypted_content', 'file_search_call.results'],
       response_format: { type: 'json_object' }
     })
     expect(out.reasoning).toBeUndefined()
     expect(out.prompt_cache_retention).toBeUndefined()
+    expect(out.store).toBeUndefined()
     expect(out.include).toEqual(['file_search_call.results'])
     expect(out.text).toEqual({ format: { type: 'json_object' } })
     expect(out.response_format).toBeUndefined()
