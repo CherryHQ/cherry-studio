@@ -528,13 +528,22 @@ describe('ResourceEntityRail', () => {
         groupByGroup
         items={[
           {
+            id: 'pinned-home',
+            name: 'Pinned Home',
+            icon: <span />,
+            pinned: true,
+            groupId: 'group-home',
+            groupName: 'home',
+            groupOrderKey: 'aZ'
+          },
+          {
             id: 'pinned-grouped',
             name: 'Pinned Grouped',
             icon: <span />,
             pinned: true,
             groupId: 'group-work',
             groupName: 'work',
-            groupOrderKey: 'b'
+            groupOrderKey: 'aa'
           },
           {
             id: 'work-a',
@@ -542,7 +551,7 @@ describe('ResourceEntityRail', () => {
             icon: <span data-testid="work-a-icon" />,
             groupId: 'group-work',
             groupName: 'work',
-            groupOrderKey: 'b'
+            groupOrderKey: 'aa'
           },
           {
             id: 'home-a',
@@ -550,7 +559,7 @@ describe('ResourceEntityRail', () => {
             icon: <span />,
             groupId: 'group-home',
             groupName: 'home',
-            groupOrderKey: 'a'
+            groupOrderKey: 'aZ'
           },
           { id: 'loose', name: 'Loose', icon: <span /> }
         ]}
@@ -574,6 +583,11 @@ describe('ResourceEntityRail', () => {
     // A pinned entity stays under the pinned section even though it carries a group — its group must not
     // spawn a second "work" header.
     expect(screen.getAllByText('work')).toHaveLength(1)
+    expect(
+      Array.from(screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('[role="option"]'))
+        .slice(0, 2)
+        .map((row) => row.textContent?.trim())
+    ).toEqual(['Pinned Home', 'Pinned Grouped'])
     // The flat default "Assistants" header never appears while grouping by group.
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()

@@ -627,6 +627,41 @@ describe('AssistantDataService', () => {
       expect(row.groupId).toBe(groupId)
     })
 
+    it('should reject a missing assistant group with a field-scoped validation error', async () => {
+      const groupId = '99999999-9999-4999-8999-999999999999'
+      let err: unknown
+
+      try {
+        assistantDataService.create({ name: 'grouped', groupId })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+    })
+
+    it('should reject a group owned by another entity type', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await dbh.db.insert(groupTable).values({ id: groupId, entityType: 'topic', name: 'topics', orderKey: 'a0' })
+      let err: unknown
+
+      try {
+        assistantDataService.create({ name: 'grouped', groupId })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+    })
+
     it('should reject with VALIDATION_ERROR when modelId is not in user_model', async () => {
       // Covers the v2-llm-migration case: Redux may hand an unique id the user
       // never added to `user_model`. Service returns a clear field-scoped
@@ -966,15 +1001,45 @@ describe('AssistantDataService', () => {
     it('should roll the column update back when a referenced group does not exist', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
-      expect(() =>
+      let err: unknown
+      try {
         assistantDataService.update('ast-1', {
           name: 'renamed',
           groupId: '99999999-9999-4999-8999-999999999999'
         })
-      ).toThrow()
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.name).toBe('original')
+    })
+
+    it('should reject an update to a group owned by another entity type', async () => {
+      const originalGroupId = '11111111-1111-4111-8111-111111111111'
+      const topicGroupId = '22222222-2222-4222-8222-222222222222'
+      await seedAssistantGroup(originalGroupId, 'assistants')
+      await dbh.db.insert(groupTable).values({ id: topicGroupId, entityType: 'topic', name: 'topics', orderKey: 'a0' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original', groupId: originalGroupId })
+      let err: unknown
+
+      try {
+        assistantDataService.update('ast-1', { name: 'renamed', groupId: topicGroupId })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row).toMatchObject({ name: 'original', groupId: originalGroupId })
     })
 
     it('should atomically roll all junction writes back when any one fails', async () => {

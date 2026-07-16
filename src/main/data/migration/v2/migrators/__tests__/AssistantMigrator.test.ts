@@ -601,11 +601,13 @@ describe('AssistantMigrator', () => {
     })
 
     it('should migrate legacy tags to ordered assistant groups and assign groupId', async () => {
+      const invalidGroupName = 'x'.repeat(65)
       const assistantsWithTags = [
         { id: 'ast-1', name: 'Work One', tags: ['work'] },
         { id: 'ast-2', name: 'Personal', tags: ['personal'] },
         { id: 'ast-3', name: 'Work Two', tags: ['work'] },
-        { id: 'ast-4', name: 'Ungrouped' }
+        { id: 'ast-4', name: 'Ungrouped' },
+        { id: 'ast-5', name: 'Invalid Group', tags: [invalidGroupName] }
       ]
       const ctx = createMockContext({
         assistants: {
@@ -632,9 +634,12 @@ describe('AssistantMigrator', () => {
         return fn(tx)
       }) as any
 
-      await migrator.prepare(ctx as any)
+      const prepareResult = await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
 
+      expect(prepareResult.warnings).toEqual([
+        expect.stringContaining("Dropped invalid legacy assistant group for 'ast-5'")
+      ])
       expect(result.success).toBe(true)
 
       const groupRows = insertedByTable.get(groupTable) ?? []
@@ -648,7 +653,8 @@ describe('AssistantMigrator', () => {
           expect.objectContaining({ id: 'ast-1', groupId: groupIdByName.get('work') }),
           expect.objectContaining({ id: 'ast-2', groupId: groupIdByName.get('personal') }),
           expect.objectContaining({ id: 'ast-3', groupId: groupIdByName.get('work') }),
-          expect.objectContaining({ id: 'ast-4', groupId: null })
+          expect.objectContaining({ id: 'ast-4', groupId: null }),
+          expect.objectContaining({ id: 'ast-5', groupId: null })
         ])
       )
     })

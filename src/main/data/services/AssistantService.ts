@@ -21,6 +21,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
+import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { topicService } from './TopicService'
@@ -133,6 +134,24 @@ export class AssistantDataService {
       return null
     }
     return preferred
+  }
+
+  private validateAssistantGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+    if (groupId == null) return
+
+    const group = groupService.findByIdTx(tx, groupId)
+
+    if (!group) {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Assistant group not found: ${groupId}`]
+      })
+    }
+
+    if (group.entityType !== 'assistant') {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Assistant group must have entityType 'assistant': ${groupId}`]
+      })
+    }
   }
 
   private getRelationIdsByAssistantIds(assistantIds: string[]): Map<string, AssistantRelationIds> {
@@ -328,6 +347,7 @@ export class AssistantDataService {
       // back to `chat.default_model_id` preference (stale → null with a
       // logger.warn).
       const modelId = this.resolveCreateModelId(tx, dto.modelId)
+      this.validateAssistantGroupTx(tx, dto.groupId)
 
       // Split relation fields from columns. Service owns emoji/settings
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
@@ -419,6 +439,9 @@ export class AssistantDataService {
           { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
           `Assistant modelId '${dto.modelId}' is not registered — add the model first or pass null`
         )
+      }
+      if (dto.groupId !== undefined) {
+        this.validateAssistantGroupTx(tx, dto.groupId)
       }
 
       let next: AssistantRow

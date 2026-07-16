@@ -1,5 +1,5 @@
 import type { Group } from '@shared/data/types/group'
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 
 import { useGroupMutations, useGroups } from './useGroups'
 
@@ -13,20 +13,16 @@ import { useGroupMutations, useGroups } from './useGroups'
 export function useEnsureAssistantGroupByName() {
   const { groups } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
-  const createdGroupsRef = useRef(new Map<string, Group>())
 
   const ensureGroup = useCallback(
     async (name: string): Promise<Group | undefined> => {
       const normalizedName = name.trim()
       if (!normalizedName) return undefined
 
-      const existing =
-        groups.find((group) => group.name === normalizedName) ?? createdGroupsRef.current.get(normalizedName)
+      const existing = groups.find((group) => group.name === normalizedName)
       if (existing) return existing
 
-      const created = await createGroup(normalizedName)
-      createdGroupsRef.current.set(normalizedName, created)
-      return created
+      return createGroup(normalizedName)
     },
     [createGroup, groups]
   )

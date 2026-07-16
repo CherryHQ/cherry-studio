@@ -546,8 +546,8 @@ async function expectVariablesHelpOnOpen() {
   await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
 }
 
-function openTagSelect() {
-  const select = screen.getByRole('combobox', { name: 'Tags' })
+function openGroupSelect() {
+  const select = screen.getByRole('combobox', { name: 'Group' })
   fireEvent.pointerDown(select)
   fireEvent.click(select)
 }
@@ -626,7 +626,7 @@ describe('edit dialogs', () => {
   it('submits assistant group changes directly', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagSelect()
+    openGroupSelect()
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
@@ -637,10 +637,10 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('clears the assistant tag from the single-select tag field', async () => {
+  it('clears the assistant group from the single-select group field', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
+    const clearButton = screen.getByRole('button', { name: 'Group Clear' })
     expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
     await waitFor(() =>
@@ -652,20 +652,20 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('limits assistant tag editing to existing tags', async () => {
+  it('limits assistant group editing to existing groups', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagSelect()
-    expect(screen.queryByPlaceholderText('Search tags')).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'No tag' })).not.toBeInTheDocument()
-    expect(screen.queryByText('new-tag')).not.toBeInTheDocument()
+    openGroupSelect()
+    expect(screen.queryByPlaceholderText('Search groups')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'No group' })).not.toBeInTheDocument()
+    expect(screen.queryByText('new-group')).not.toBeInTheDocument()
   })
 
-  it('closes the tag selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
+  it('closes the group selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
-    openTagSelect()
+    openGroupSelect()
     await screen.findByRole('option', { name: 'personal' })
     fireEvent.pointerDown(screen.getByLabelText('Name'))
     fireEvent.click(screen.getByLabelText('Name'))

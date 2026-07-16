@@ -576,13 +576,13 @@ describe('ResourceGrid skill add actions', () => {
   })
 })
 
-describe('ResourceGrid tag toolbar management', () => {
+describe('ResourceGrid group toolbar management', () => {
   beforeEach(() => {
     deleteGroupMock.mockReset()
     updateGroupMock.mockReset()
   })
 
-  it('keeps unused tags collapsed behind the arrow before the add-tag button', async () => {
+  it('keeps unused groups collapsed behind the arrow before the add-group button', async () => {
     const user = userEvent.setup()
 
     renderResourceGrid({
@@ -607,25 +607,25 @@ describe('ResourceGrid tag toolbar management', () => {
       ]
     })
 
-    const alphaTag = screen.getByRole('button', { name: /alpha/ })
-    const expandButton = screen.getByRole('button', { name: '全部标签' })
-    const addTagButton = screen.getByRole('button', { name: '标签' })
+    const alphaGroup = screen.getByRole('button', { name: /alpha/ })
+    const expandButton = screen.getByRole('button', { name: '全部分组' })
+    const addGroupButton = screen.getByRole('button', { name: '分组' })
 
     expect(screen.queryByRole('button', { name: /beta/ })).not.toBeInTheDocument()
-    expect(alphaTag.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(expandButton.compareDocumentPosition(addTagButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(alphaGroup.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(expandButton.compareDocumentPosition(addGroupButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(expandButton)
 
-    const betaTag = screen.getByRole('button', { name: /beta/ })
-    const expandedAlphaTag = screen.getByRole('button', { name: /alpha/ })
-    expect(betaTag.compareDocumentPosition(expandedAlphaTag)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(betaTag.compareDocumentPosition(screen.getByRole('button', { name: '全部标签' }))).toBe(
+    const betaGroup = screen.getByRole('button', { name: /beta/ })
+    const expandedAlphaGroup = screen.getByRole('button', { name: /alpha/ })
+    expect(betaGroup.compareDocumentPosition(expandedAlphaGroup)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(betaGroup.compareDocumentPosition(screen.getByRole('button', { name: '全部分组' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
   })
 
-  it('renames a tag from the right-click menu', async () => {
+  it('renames a group from the right-click menu', async () => {
     const user = userEvent.setup()
     const onGroupFilter = vi.fn()
     updateGroupMock.mockResolvedValueOnce({
@@ -652,7 +652,7 @@ describe('ResourceGrid tag toolbar management', () => {
     expect(onGroupFilter).not.toHaveBeenCalled()
   })
 
-  it('confirms before deleting a tag from the right-click menu', async () => {
+  it('confirms before deleting a group from the right-click menu', async () => {
     const user = userEvent.setup()
     const onGroupFilter = vi.fn()
 
@@ -663,9 +663,9 @@ describe('ResourceGrid tag toolbar management', () => {
     })
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
-    await user.click(screen.getByRole('button', { name: '删除标签' }))
+    await user.click(screen.getByRole('button', { name: '删除分组' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('确定要删除这个标签吗？')
+    expect(screen.getByRole('dialog')).toHaveTextContent('确定要删除这个分组吗？')
     expect(deleteGroupMock).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: '删除' }))
@@ -696,7 +696,7 @@ describe('ResourceGrid card actions', () => {
     expect(onDelete).toHaveBeenCalledWith(resource)
   })
 
-  it('shows only one assistant tag in the compact card layout', () => {
+  it('shows only one assistant group in the compact card layout', () => {
     render(<ResourceCard resource={createAssistantResource({ groupName: 'alpha' })} {...getResourceCardProps()} />)
 
     expect(screen.getByText('alpha')).toBeInTheDocument()
@@ -757,12 +757,12 @@ describe('Assistant preset preview dialog actions', () => {
   })
 })
 
-describe('ResourceCardMenu tag binding', () => {
+describe('ResourceCardMenu group binding', () => {
   beforeEach(() => {
     updateAssistantMock.mockReset()
   })
 
-  it('does not show a tag count in the single-select tag menu trigger', async () => {
+  it('does not show a group count in the single-select group menu trigger', async () => {
     const user = userEvent.setup()
 
     render(
@@ -780,7 +780,7 @@ describe('ResourceCardMenu tag binding', () => {
     expect(screen.getByRole('button', { name: /library.action.manage_groups/ })).not.toHaveTextContent(/\b1\b/)
   })
 
-  it('blocks a second tag write while the first one is still pending', async () => {
+  it('blocks a second group write while the first one is still pending', async () => {
     const user = userEvent.setup()
     const pendingUpdate = createDeferred<unknown>()
     updateAssistantMock.mockReturnValueOnce(pendingUpdate.promise)
@@ -817,7 +817,7 @@ describe('ResourceCardMenu tag binding', () => {
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('disables the current assistant tag in the command submenu', async () => {
+  it('disables the current assistant group in the command submenu', async () => {
     const user = userEvent.setup()
 
     render(
@@ -838,7 +838,7 @@ describe('ResourceCardMenu tag binding', () => {
     expect(screen.getByRole('menuitem', { name: 'beta' })).not.toHaveAttribute('aria-disabled')
   })
 
-  it('refreshes the disabled assistant tag when the resource tag changes', async () => {
+  it('refreshes the disabled assistant group when the resource group changes', async () => {
     const user = userEvent.setup()
     const menuProps = {
       onClose: vi.fn(),
@@ -869,7 +869,7 @@ describe('ResourceCardMenu tag binding', () => {
     expect(screen.getByRole('menuitem', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('replaces the current assistant tag when a different tag is selected', async () => {
+  it('replaces the current assistant group when a different group is selected', async () => {
     const user = userEvent.setup()
     updateAssistantMock.mockResolvedValue({})
 
@@ -891,7 +891,7 @@ describe('ResourceCardMenu tag binding', () => {
     expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-beta' })
   })
 
-  it('does not expose tag management for agent, skill, or prompt resources', async () => {
+  it('does not expose group management for agent, skill, or prompt resources', async () => {
     const user = userEvent.setup()
     const menuProps = {
       onClose: vi.fn(),

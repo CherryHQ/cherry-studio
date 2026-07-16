@@ -502,6 +502,11 @@ export function Topics({
     return orderedAssistants
       .map((assistant, index) => ({ assistant, index }))
       .sort((a, b) => {
+        const aPinned = assistantPinnedIdSet.has(a.assistant.id)
+        const bPinned = assistantPinnedIdSet.has(b.assistant.id)
+        if (aPinned !== bPinned) return aPinned ? -1 : 1
+        if (aPinned) return a.index - b.index
+
         const aGroupRank = a.assistant.groupId ? groupRankById.get(a.assistant.groupId) : undefined
         const bGroupRank = b.assistant.groupId ? groupRankById.get(b.assistant.groupId) : undefined
         const aRank = aGroupRank === undefined ? 0 : aGroupRank + 1
@@ -509,7 +514,7 @@ export function Topics({
         return aRank - bRank || a.index - b.index
       })
       .map(({ assistant }) => assistant)
-  }, [groupRankById, isGroupGrouping, orderedAssistants])
+  }, [assistantPinnedIdSet, groupRankById, isGroupGrouping, orderedAssistants])
   const assistantRankById = useMemo(
     () => new Map(assistantsForDisplayOrder.map((assistant, index) => [assistant.id, index])),
     [assistantsForDisplayOrder]

@@ -205,7 +205,7 @@ export const ResourceGrid: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
-    refreshOnDelete: ['/assistants']
+    refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)

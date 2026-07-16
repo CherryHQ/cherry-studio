@@ -15,6 +15,7 @@ import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
 import { useEnsureAssistantGroupByName } from '@renderer/hooks/useEnsureAssistantGroup'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
+import type { Group } from '@shared/data/types/group'
 import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -190,10 +191,19 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
 
     const outcomes: DraftOutcome[] = []
+    const importedGroupsByName = new Map<string, Group>()
 
     for (const draft of drafts) {
       try {
-        const group = draft.groupName ? await ensureGroup(draft.groupName) : undefined
+        let group: Group | undefined
+        if (draft.groupName) {
+          const normalizedGroupName = draft.groupName.trim()
+          group = importedGroupsByName.get(normalizedGroupName)
+          if (!group) {
+            group = await ensureGroup(normalizedGroupName)
+            if (group) importedGroupsByName.set(normalizedGroupName, group)
+          }
+        }
         await createAssistant({ ...draft.dto, ...(group ? { groupId: group.id } : {}) })
         outcomes.push({ kind: 'ok' })
       } catch (error) {

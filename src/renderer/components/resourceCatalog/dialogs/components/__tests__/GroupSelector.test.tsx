@@ -99,15 +99,15 @@ describe('GroupSelector', () => {
     return portalContainer
   }
 
-  it('shows an empty state and does not open the select when no tags are available', () => {
+  it('shows an empty state and does not open the select when no groups are available', () => {
     const portalContainer = createPortalContainer()
 
     try {
       render(<GroupSelector value={null} onChange={vi.fn()} groups={[]} portalContainer={portalContainer} />)
 
-      const trigger = screen.getByRole('button', { name: 'Tags' })
+      const trigger = screen.getByRole('button', { name: 'Group' })
 
-      expect(trigger).toHaveTextContent('No tags available')
+      expect(trigger).toHaveTextContent('No groups available')
 
       fireEvent.click(trigger)
 
@@ -117,7 +117,7 @@ describe('GroupSelector', () => {
     }
   })
 
-  it('closes the open select when it loses all tag options', () => {
+  it('closes the open select when it loses all group options', () => {
     const portalContainer = createPortalContainer()
 
     try {
@@ -125,7 +125,7 @@ describe('GroupSelector', () => {
         <GroupSelector value={null} onChange={vi.fn()} groups={groups} portalContainer={portalContainer} />
       )
 
-      fireEvent.click(screen.getByRole('button', { name: 'Tags' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Group' }))
       expect(screen.getByRole('option', { name: 'work' })).toBeInTheDocument()
 
       rerender(<GroupSelector value={null} onChange={vi.fn()} groups={[]} portalContainer={portalContainer} />)

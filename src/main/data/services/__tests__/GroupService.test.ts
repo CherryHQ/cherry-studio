@@ -86,6 +86,20 @@ describe('GroupService', () => {
     })
   })
 
+  describe('findByIdTx', () => {
+    it('should return a group through a caller transaction', async () => {
+      const created = groupService.create({ entityType: 'knowledge', name: 'Knowledge Group' })
+
+      const result = dbh.db.transaction((tx) => groupService.findByIdTx(tx, created.id))
+
+      expect(result).toEqual(created)
+    })
+
+    it('should return null when the group does not exist', () => {
+      expect(groupService.findByIdTx(dbh.db, GROUP_ID_MISSING)).toBeNull()
+    })
+  })
+
   describe('update', () => {
     it('should update the name of an existing group', async () => {
       const created = groupService.create({ entityType: 'topic', name: 'Old' })

@@ -171,8 +171,7 @@ export class TemporaryChatService {
     this.messages.delete(topicId)
 
     try {
-      const db = application.get('DbService').getDb()
-      db.transaction((tx) => {
+      application.get('DbService').withWriteTx((tx) => {
         // 2. Insert topic with the same id. Timestamps / defaults are filled by
         // Drizzle's $defaultFn; we do not pass createdAt / updatedAt manually
         // because the TS-side ISO strings don't match the DB's integer column.

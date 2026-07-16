@@ -11,6 +11,7 @@ import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  compareResourceOrderKey,
   ConversationResourceMenu,
   type ConversationResourceMenuItem,
   ResourceList,
@@ -64,10 +65,13 @@ function getEntityRailGroupRank(item: ResourceEntityRailItem) {
 function sortEntityRailItemsForGroupGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
   return items
     .map((item, index) => ({ item, index, rank: getEntityRailGroupRank(item) }))
-    .sort(
-      (a, b) =>
-        a.rank - b.rank || (a.item.groupOrderKey ?? '').localeCompare(b.item.groupOrderKey ?? '') || a.index - b.index
-    )
+    .sort((a, b) => {
+      const rankDifference = a.rank - b.rank
+      if (rankDifference !== 0) return rankDifference
+      if (a.rank !== 2) return a.index - b.index
+
+      return compareResourceOrderKey(a.item.groupOrderKey, b.item.groupOrderKey) || a.index - b.index
+    })
     .map(({ item }) => item)
 }
 

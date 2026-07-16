@@ -74,7 +74,7 @@ describe('group hooks', () => {
 
     const { result } = renderHook(() =>
       useGroupMutations('assistant', {
-        refreshOnDelete: ['/assistants']
+        refreshOnDelete: ['/assistants', '/assistants/*']
       })
     )
 
@@ -88,7 +88,7 @@ describe('group hooks', () => {
     expect(mocks.updateGroup).toHaveBeenCalledWith({ params: { id: created.id }, body: { name: 'renamed' } })
     expect(mocks.deleteGroup).toHaveBeenCalledWith({ params: { id: created.id } })
     expect(mocks.useMutation).toHaveBeenCalledWith('DELETE', '/groups/:id', {
-      refresh: ['/groups', '/assistants']
+      refresh: ['/groups', '/assistants', '/assistants/*']
     })
   })
 })
@@ -129,20 +129,43 @@ describe('useEnsureAssistantGroupByName', () => {
     expect(mocks.createGroup).not.toHaveBeenCalled()
   })
 
-  it('creates an imported group once and reuses it within the same import', async () => {
+  it('creates a missing imported group', async () => {
     const created = group('11111111-1111-4111-8111-111111111111', 'work')
     mocks.createGroup.mockResolvedValue(created)
 
     const { result } = renderHook(() => useEnsureAssistantGroupByName())
-    let first: Group | undefined
-    let second: Group | undefined
+    let resultGroup: Group | undefined
     await act(async () => {
-      first = await result.current.ensureGroup(' work ')
-      second = await result.current.ensureGroup('work')
+      resultGroup = await result.current.ensureGroup(' work ')
     })
 
-    expect(first).toEqual(created)
-    expect(second).toEqual(created)
+    expect(resultGroup).toEqual(created)
+    expect(mocks.createGroup).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the latest group query result instead of retaining a deleted group', async () => {
+    const deleted = group('11111111-1111-4111-8111-111111111111', 'work')
+    const replacement = group('22222222-2222-4222-8222-222222222222', 'work')
+    mocks.useQuery.mockReturnValue({
+      data: [deleted],
+      isLoading: false,
+      error: undefined,
+      refetch: mocks.refetch
+    })
+    mocks.createGroup.mockResolvedValue(replacement)
+
+    const { result, rerender } = renderHook(() => useEnsureAssistantGroupByName())
+    await expect(result.current.ensureGroup('work')).resolves.toEqual(deleted)
+
+    mocks.useQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: undefined,
+      refetch: mocks.refetch
+    })
+    rerender()
+
+    await expect(result.current.ensureGroup('work')).resolves.toEqual(replacement)
     expect(mocks.createGroup).toHaveBeenCalledTimes(1)
   })
 

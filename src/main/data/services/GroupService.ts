@@ -6,6 +6,8 @@
  *
  * USAGE GUIDANCE:
  * - `listByEntityType` is the canonical read path; `entityType` is always required.
+ * - `findByIdTx` is the cross-service lookup for relation validation inside a
+ *   caller-owned write transaction; the caller owns its expected entityType.
  * - `create` auto-assigns `orderKey` via `insertWithOrderKey` (scope=entityType)
  *   so consumers never touch the column directly.
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
@@ -15,6 +17,7 @@
 import { application } from '@application'
 import { groupTable } from '@data/db/schemas/group'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -63,13 +66,23 @@ export class GroupService {
    * Get a group by ID.
    */
   getById(id: string): Group {
-    const [row] = this.db.select().from(groupTable).where(eq(groupTable.id, id)).limit(1).all()
+    const group = this.findByIdTx(this.db, id)
 
-    if (!row) {
+    if (!group) {
       throw DataApiErrorFactory.notFound('Group', id)
     }
 
-    return rowToGroup(row)
+    return group
+  }
+
+  /**
+   * Nullable lookup for services composing Group validation inside their own
+   * write transaction. The caller owns its domain-specific entityType and
+   * validation error contract.
+   */
+  findByIdTx(tx: Pick<DbType, 'select'>, id: string): Group | null {
+    const [row] = tx.select().from(groupTable).where(eq(groupTable.id, id)).limit(1).all()
+    return row ? rowToGroup(row) : null
   }
 
   /**
