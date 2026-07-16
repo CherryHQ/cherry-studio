@@ -31,8 +31,7 @@ vi.mock('dayjs', () => ({
 }))
 
 const fileApiMock = {
-  selectFolder: vi.fn(),
-  write: vi.fn()
+  save: vi.fn()
 }
 
 describe('exportTableToExcel', () => {
@@ -40,16 +39,14 @@ describe('exportTableToExcel', () => {
     vi.clearAllMocks()
     delete (xlsxMock.worksheet as Record<string, unknown>)['!cols']
     xlsxMock.write.mockReturnValue([1, 2, 3])
-    fileApiMock.selectFolder.mockResolvedValue('/tmp/cherry-export')
-    fileApiMock.write.mockResolvedValue(undefined)
+    fileApiMock.save.mockResolvedValue('/tmp/cherry-export/custom-table.xlsx')
 
     Object.assign(window, {
       api: {
         ...window.api,
         file: {
           ...window.api?.file,
-          selectFolder: fileApiMock.selectFolder,
-          write: fileApiMock.write
+          save: fileApiMock.save
         }
       }
     })
@@ -75,10 +72,9 @@ describe('exportTableToExcel', () => {
     expect(xlsxMock.bookNew).toHaveBeenCalledTimes(1)
     expect(xlsxMock.bookAppendSheet).toHaveBeenCalledWith(xlsxMock.workbook, xlsxMock.worksheet, 'Sheet1')
     expect(xlsxMock.write).toHaveBeenCalledWith(xlsxMock.workbook, { type: 'array', bookType: 'xlsx' })
-    expect(fileApiMock.write).toHaveBeenCalledWith(
-      '/tmp/cherry-export/table_2026-06-01_010203.xlsx',
-      new Uint8Array([1, 2, 3])
-    )
+    expect(fileApiMock.save).toHaveBeenCalledWith('table_2026-06-01_010203.xlsx', new Uint8Array([1, 2, 3]), {
+      filters: [{ name: expect.any(String), extensions: ['xlsx'] }]
+    })
   })
 })
 

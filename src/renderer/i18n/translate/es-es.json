@@ -31,6 +31,11 @@
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Asesor integrado de Cherry Studio. Diagnosticar problemas, guiar operaciones, recopilar preguntas frecuentes, enviar errores/solicitudes de funciones y buscar/crear Habilidades"
+      }
+    },
     "channels": {
       "add": "Agregar",
       "bindAgent": "Agente vinculante",
@@ -882,6 +887,10 @@
           "description": "Gestiona el programador dentro de la aplicación",
           "label": "Planificador"
         },
+        "CherryGenerateImage": {
+          "description": "Genera una imagen a partir de un texto descriptivo utilizando tu modelo de pintura configurado",
+          "label": "Generar Imagen"
+        },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
           "label": "Gestionar conocimiento"
@@ -1392,7 +1401,7 @@
         "title": "En cola ({{count}})"
       },
       "generate_image": "Generar imagen",
-      "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
+      "generate_image_no_model": "Configura un modelo de pintura en Configuración › Modelo predeterminado",
       "knowledge_base": "Base de conocimientos",
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
@@ -1466,6 +1475,11 @@
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
         "file_not_found": "Archivo no encontrado: {{path}}",
+        "generate_image": {
+          "failed": "La generación de la imagen falló",
+          "generating": "Generando imagen…",
+          "title": "Imagen generada"
+        },
         "open_file": "Abrir archivo",
         "open_file_error": "Error al abrir el archivo: {{path}}",
         "reveal_in_finder": "Mostrar en el Finder"
@@ -1902,7 +1916,8 @@
         "permissions_deny": "Denegar (separado por comas)",
         "permissions_hint": "Preaprobar o denegar patrones de herramientas. Admite comodines como Read(secrets-*/config.json).",
         "role_column": "Rol",
-        "sonnet_model": "Soneto"
+        "sonnet_model": "Soneto",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "Desactivar Almacenamiento de Respuestas",
@@ -1960,6 +1975,11 @@
         "xhigh": "Extra Alto"
       },
       "select_placeholder": "Seleccionar…"
+    },
+    "api_gateway": {
+      "description": "Cualquier CLI, cualquier modelo",
+      "requires_running": "Mantén Cherry Studio en ejecución después de habilitarlo: la CLI externa se conecta a la puerta de enlace que aloja.",
+      "title": "Puerta de enlace unificada"
     },
     "apply_failed": "Error al escribir la configuración de la CLI en el archivo del sistema",
     "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",
@@ -2040,6 +2060,7 @@
     "model_required": "Seleccione el modelo",
     "model_selection": "Selección de modelo",
     "more": "Más",
+    "move_provider_to_top": "Mover proveedor a la parte superior",
     "no_matching_providers": "No se encontraron proveedores coincidentes",
     "no_model_for_provider": "No hay modelo disponible para este proveedor",
     "no_providers_description": "Habilita un proveedor compatible en Configuración → Servicio de modelo",
@@ -2767,6 +2788,7 @@
           "title": "Importar una sola página web"
         }
       },
+      "back_to_parent": "Atrás",
       "bulk": {
         "delete": "Eliminar",
         "delete_confirm_description": "¿Eliminar {{count}} fuentes de datos seleccionadas? Esta acción no se puede deshacer.",
@@ -2794,6 +2816,7 @@
         "title": "Carga tu primera fuente de datos"
       },
       "empty_description": "Aún no hay fuentes de datos",
+      "empty_folder": "Esta carpeta está vacía",
       "filters": {
         "all": "Todo",
         "directory": "Carpetas",
@@ -2826,9 +2849,9 @@
           "type": "Tipo",
           "updated_at": "Actualizado"
         },
+        "open_row": "Abrir {{title}}",
         "select_all": "Seleccionar todo",
-        "select_row": "Seleccionar fila",
-        "view_chunks_row": "Ver fragmentos para {{title}}"
+        "select_row": "Seleccionar fila"
       },
       "toolbar": {
         "add": "Agregar fuente de datos"
@@ -2839,6 +2862,8 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
+    "empty_action": "Crear Base de Conocimientos",
+    "empty_description": "Aún no tienes ninguna base de conocimientos. Crea una para empezar a organizar y buscar tus documentos.",
     "error": {
       "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
       "failed_base_unknown": "Esta base de conocimientos falló durante la migración. Reconstrúyela y elige un nuevo modelo de incrustación.",
@@ -3268,6 +3293,7 @@
       },
       "knowledge": {
         "add": "Agregar base de conocimientos",
+        "create_first": "Conocimiento Abierto para crear uno",
         "desc": "Vincula una o más bases de conocimiento; se recuperarán fragmentos relevantes durante el chat",
         "doc_count": "{{count}} documentos",
         "empty_desc": "Una vez vinculado, el asistente puede responder basándose en el contenido del documento",
@@ -3281,6 +3307,7 @@
         "title": "Bases de conocimiento"
       },
       "prompt": {
+        "copy_variable": "Copiar {{variable}}",
         "create_title": "Nueva Solicitud",
         "dblclick_hint": "Haz doble clic en la vista previa para volver al modo de edición",
         "desc": "El mensaje del sistema se envía como el contexto inicial del asistente",
@@ -3595,7 +3622,7 @@
     },
     "empty_url": "No se puede descargar la imagen, es posible que la descripción contenga contenido sensible o palabras prohibidas",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "La imagen es demasiado grande (máx {{limit}})",
       "chunk_overlap_too_large": "El solapamiento del fragmento no puede ser mayor que el tamaño del fragmento",
       "copy": "Fallo al copiar",
       "dimension_too_large": "La dimensión del contenido es demasiado grande",
@@ -3617,7 +3644,7 @@
         "text_extraction_failed": "Error al extraer el texto de {{name}}"
       },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "No se pudo procesar la imagen, por favor intente de nuevo",
       "invalid": {
         "api": {
           "host": "Dirección API inválida",
@@ -3782,6 +3809,8 @@
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
       "activity": {
+        "analyze": "Analizar",
+        "analyzing": "Analizando",
         "archive": "archivo",
         "assistantTask": "tarea",
         "availableFeatures": "características disponibles",
@@ -3789,24 +3818,28 @@
         "branch": "rama de código",
         "build": "Construir",
         "building": "Construcción",
+        "calendar": "calendario",
         "check": "Verificar",
         "checking": "Comprobando",
         "codeFiles": "archivos de código",
         "codeHostInfo": "información de alojamiento de código",
-        "commandName": "comando {{name}}",
         "configFiles": "documentos del proyecto y archivos de configuración",
         "copy": "Copiar",
         "copying": "Copiando",
         "create": "Crear",
         "creating": "Creando",
         "currentFolder": "carpeta actual",
+        "data": "datos",
         "delete": "Eliminar",
         "deleting": "Eliminando",
         "documentFiles": "archivos de documentos",
         "download": "Descargar",
         "downloading": "Descargando",
+        "email": "correo electrónico",
+        "environmentInfo": "información del entorno",
         "executeCommand": "Ejecutar comando",
         "executingCommand": "Ejecutando comando",
+        "extensionFailed": "La extensión falló",
         "extract": "Extraer",
         "extracting": "Extrayendo",
         "file": "archivo",
@@ -3835,6 +3868,10 @@
         "repository": "repositorio de código",
         "search": "Encontrar",
         "searching": "Encontrando",
+        "send": "Enviar",
+        "sending": "Enviando",
+        "start": "Iniciar",
+        "starting": "Comenzando",
         "switch": "Interruptor",
         "switching": "Cambio",
         "sync": "Sincronizar",
@@ -3844,6 +3881,8 @@
         "translationFiles": "archivos de traducción",
         "upload": "Cargar",
         "uploading": "Cargando",
+        "usedExtension": "Usó una extensión",
+        "usingExtension": "Usando una extensión",
         "view": "Vista",
         "viewing": "Visualización",
         "webPage": "página web",
@@ -4037,6 +4076,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configurar modelos personalizados",
       "pin": "Anclar este modelo",
       "unpin": "Desanclar modelo"
     },
@@ -5536,75 +5576,6 @@
         "title": "Exportar configuración del menú",
         "yuque": "Exportar a Yuque"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Seleccionar archivo de copia de seguridad"
-        },
-        "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
-        "file": {
-          "button": "Exportar a archivo",
-          "content": "Exportar datos como archivo de respaldo que puede ser importado en el móvil a través de un archivo.",
-          "export_failed": "Exportación fallida",
-          "export_success": "Exportación exitosa",
-          "title": "Exportar como archivo"
-        },
-        "lan": {
-          "button": "Iniciar transferencia",
-          "connected": "Conectado",
-          "connection_failed": "Conexión fallida",
-          "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
-          "device_list_title": "Dispositivos de red local",
-          "discovered_devices": "Dispositivos descubiertos",
-          "error": {
-            "file_too_large": "Archivo demasiado grande, se admite un máximo de 500 MB",
-            "init_failed": "Falló la inicialización",
-            "invalid_file_type": "Solo se admiten archivos ZIP",
-            "no_file": "Ningún archivo seleccionado",
-            "no_ip": "No se puede obtener la dirección IP",
-            "not_connected": "Por favor, completa primero el apretón de manos.",
-            "send_failed": "Error al enviar el archivo"
-          },
-          "file_transfer": {
-            "cancelled": "Transferencia cancelada",
-            "failed": "Error en la transferencia del archivo: {{message}}",
-            "progress": "Enviando... {{progress}}%",
-            "success": "Archivo enviado con éxito"
-          },
-          "handshake": {
-            "button": "Apretón de manos",
-            "failed": "Error de handshake: {{message}}",
-            "in_progress": "Estrechando manos...",
-            "success": "Handshake completado con {{device}}",
-            "test_message_received": "Recibido pong de {{device}}",
-            "test_message_sent": "Enviado payload de prueba hello world"
-          },
-          "idle_hint": "Escaneo pausado. Inicia el escaneo para encontrar pares de Cherry Studio en tu red local.",
-          "ip_addresses": "Direcciones IP",
-          "last_seen": "Visto por última vez a las {{time}}",
-          "metadata": "Metadatos",
-          "no_connection_warning": "Por favor, abre Transferencia LAN en la aplicación móvil Cherry Studio.",
-          "no_devices": "Aún no se han encontrado pares en LAN",
-          "scan_devices": "Escanear dispositivos",
-          "scanning_hint": "Escaneando tu red local en busca de pares de Cherry Studio...",
-          "send_file": "Enviar archivo",
-          "status": {
-            "completed": "Transferencia completada",
-            "connected": "Conectado",
-            "connecting": "Conectando...",
-            "disconnected": "Desconectado",
-            "error": "Error de conexión",
-            "initializing": "Inicializando conexión...",
-            "preparing": "Preparando transferencia...",
-            "sending": "Transfiriendo {{progress}}%"
-          },
-          "status_badge_idle": "Ocioso",
-          "status_badge_scanning": "Escaneando",
-          "stop_scan": "Detener escaneo",
-          "title": "Transferencia de red local",
-          "transfer_progress": "Progreso de transferencia"
-        },
-        "title": "Exportar al teléfono"
-      },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
       "import_settings": {
@@ -6800,6 +6771,7 @@
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
           "label": "Añadir todos los modelos"
         },
+        "add_success_enable_failed": "Se agregaron modelos, pero no se pudo habilitar el proveedor.",
         "add_whole_group": "Agregar todo el grupo",
         "clean_stale_models": "Limpiar modelos obsoletos",
         "clean_stale_success": "Se limpiaron {{count}} modelos obsoletos",
@@ -6868,6 +6840,8 @@
       },
       "more_actions": "Más acciones de la lista de modelos",
       "not_enabled_models": "Deshabilitados",
+      "painting_model": "Modelo de pintura",
+      "painting_model_description": "Modelo utilizado para la generación de imágenes",
       "provider_id": "ID del proveedor",
       "provider_key_add_confirm": "¿Desea agregar una clave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Error al agregar la clave API del proveedor: los datos están vacíos",
@@ -7211,6 +7185,7 @@
         "fill_after_create": "Los campos de autenticación se pueden completar después de crear",
         "menu_label": "Agregar instancia"
       },
+      "enable_failed_after_connection": "Conexión exitosa, pero el proveedor no pudo ser habilitado.",
       "filter": {
         "agent": "Soporte de Agente",
         "all": "Todos los Proveedores",

@@ -170,23 +170,23 @@ function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: bool
   const { dispatchKeyDown, open, registerKeyDownHandler } = useQuickPanel()
 
   useEffect(() => {
-    return registerKeyDownHandler((event) => {
+    open({
+      list: [],
+      symbol: '/'
+    })
+
+    const unregister = registerKeyDownHandler((event) => {
       if (event.key !== 'Escape') return false
 
       event.preventDefault()
       event.stopPropagation()
       return true
     })
-  }, [registerKeyDownHandler])
-
-  useEffect(() => {
-    open({
-      list: [],
-      symbol: '/'
-    })
 
     onHandled(dispatchKeyDown(createKeyDownEvent('Escape').event))
-  }, [dispatchKeyDown, onHandled, open])
+
+    return unregister
+  }, [dispatchKeyDown, onHandled, open, registerKeyDownHandler])
 
   return null
 }
@@ -253,6 +253,30 @@ describe('QuickPanelView', () => {
     expect(onClose.mock.calls[0][0].context).toBe(openContext)
   })
 
+  it('advances the panel generation when closing without reopening', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({ list: [], symbol: '/' })
+    })
+    expect(quickPanel?.getPanelGeneration()).toBe(1)
+
+    act(() => {
+      quickPanel?.close('input_prefix_invalid')
+    })
+    expect(quickPanel?.getPanelGeneration()).toBe(2)
+  })
+
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
     const onHandled = vi.fn()
 
@@ -265,6 +289,51 @@ describe('QuickPanelView', () => {
     await waitFor(() => {
       expect(onHandled).toHaveBeenCalledWith(true)
     })
+  })
+
+  it('does not dispatch to the previous visible panel handler while opening the next panel', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+    const panelAAction = vi.fn()
+    const panelBAction = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <QuickPanelView />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({
+        list: [{ id: 'panel-a-action', label: 'Panel A action', icon: 'a', action: panelAAction }],
+        symbol: '/'
+      })
+    })
+
+    await screen.findByText('Panel A action')
+    await waitFor(() => {
+      expect(quickPanel?.getPanelGeneration()).toBe(1)
+    })
+
+    const { event, preventDefault, stopPropagation } = createKeyDownEvent('Enter')
+    let handled = true
+    act(() => {
+      quickPanel?.open({
+        list: [{ id: 'panel-b-action', label: 'Panel B action', icon: 'b', action: panelBAction }],
+        symbol: '@'
+      })
+      handled = quickPanel?.dispatchKeyDown(event) ?? false
+    })
+
+    expect(handled).toBe(false)
+    expect(panelAAction).not.toHaveBeenCalled()
+    expect(panelBAction).not.toHaveBeenCalled()
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(stopPropagation).not.toHaveBeenCalled()
   })
 
   it('resets the virtual list scroll offset when a panel opens', async () => {

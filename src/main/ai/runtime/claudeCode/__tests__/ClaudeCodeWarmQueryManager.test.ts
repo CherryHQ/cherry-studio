@@ -109,6 +109,75 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(withHolder).toBe(withoutHolder)
   })
 
+  it('uses the same signature across rotated credential env values', () => {
+    const keyA = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_API_KEY: 'key-a', ANTHROPIC_AUTH_TOKEN: 'key-a', ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    } as any)
+    const keyB = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_API_KEY: 'key-b', ANTHROPIC_AUTH_TOKEN: 'key-b', ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    } as any)
+
+    expect(keyA).toBe(keyB)
+  })
+
+  it('does not mutate the caller env when stripping credentials for the signature', () => {
+    const options = { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any
+
+    createClaudeCodeWarmQuerySignature(options)
+
+    expect(options.env.ANTHROPIC_API_KEY).toBe('key-a')
+  })
+
+  it('changes the signature when the credentials fingerprint changes', () => {
+    const setA = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, 'fingerprint-a')
+    const setB = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, 'fingerprint-b')
+
+    expect(setA).not.toBe(setB)
+  })
+
+  it('consumes a warm query whose rotated key differs but whose fingerprint matches', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
+      credentialsFingerprint: 'set-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
+      credentialsFingerprint: 'set-1'
+    })
+
+    expect(consumed).toBe(warm)
+    expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('discards a warm query when the enabled key set changed between park and consume', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      credentialsFingerprint: 'set-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      credentialsFingerprint: 'set-2'
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
   it('closes unused warm queries after the idle ttl', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
