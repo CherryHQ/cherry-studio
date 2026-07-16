@@ -45,7 +45,12 @@ const agentPageMocks = vi.hoisted(() => ({
     createdAt: '2026-01-03T00:00:00.000Z',
     updatedAt: '2026-01-03T00:00:00.000Z'
   },
-  agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }],
+  agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }] as Array<{
+    id: string
+    model: string
+    name: string
+    configuration?: Record<string, unknown>
+  }>,
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
@@ -341,8 +346,16 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
-  ResourceCatalogView: ({ resourceType, toolbarLeading }: { resourceType: string; toolbarLeading?: ReactNode }) => (
-    <div data-testid={`resource-catalog-${resourceType}`}>
+  ResourceCatalogView: ({
+    resourceType,
+    skillAgentId,
+    toolbarLeading
+  }: {
+    resourceType: string
+    skillAgentId?: string
+    toolbarLeading?: ReactNode
+  }) => (
+    <div data-skill-agent-id={skillAgentId ?? ''} data-testid={`resource-catalog-${resourceType}`}>
       {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}
     </div>
   )
@@ -923,6 +936,24 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+  })
+
+  it('keeps system skill management available for the built-in Assistant', () => {
+    agentPageMocks.agents = [
+      {
+        id: 'agent-a',
+        model: 'model-a',
+        name: 'Cherry Assistant',
+        configuration: { builtin_role: 'assistant' }
+      }
+    ]
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.skill' }))
+
+    expect(screen.getByTestId('resource-catalog-skill')).toHaveAttribute('data-skill-agent-id', 'agent-a')
   })
 
   it('renders history records outside AgentChat runtime and toggles them from the sidebar', () => {
