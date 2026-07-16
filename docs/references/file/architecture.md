@@ -37,9 +37,8 @@ The File IPC adapter lives outside `src/main/services/file/` (`src/main/ipc/hand
 ```
 File Module (src/main/services/file/)
 │
-├── index.ts              ← module barrel; exports FileManager + public types only
-│                           (entry internals stay hidden; selected file-module
-│                           utils are imported by explicit path when needed)
+├── index.ts              ← module barrel; exports FileManager, public types, and
+│                           selected file-module helpers (internals stay hidden)
 │
 ├── FileManager.ts        ← lifecycle runtime service + public facade for FileEntry ops
 │     │                     public methods are thin delegates to internal/*; owns versionCache
@@ -62,7 +61,7 @@ File Module (src/main/services/file/)
 │     │    ├── rename.ts
 │     │    └── copy.ts
 │     ├── content/
-│     │    ├── read.ts          — read / createReadStream (including `*ByPath` variants)
+│     │    ├── read.ts          — entry-aware read / createReadStream
 │     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream
 │     │    └── hash.ts          — getContentHash / getVersion
 │     ├── system/
@@ -72,6 +71,7 @@ File Module (src/main/services/file/)
 │
 │
 ├── utils/                ← file-module path/API helpers (not raw FS primitives)
+│     ├── content.ts            — path-arm read / write / writeIfUnchanged for File IPC dispatch
 │     ├── pathResolver.ts       — FileEntry → physical FilePath resolution + external canonicalization
 │     └── metadata.ts           — path-arm PhysicalFileMetadata projection for File IPC dispatch
 │
@@ -126,11 +126,11 @@ The file module has **two top-level primitives** — `FileManager` and `Director
 
 - **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts entry-scoped inputs such as `FileEntryId` plus create/upsert params. It exposes `runSweep()` for the cleanup UI / explicit callers, but **does not auto-run orphan sweep at startup**. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see File IPC and DirectoryTreeBuilder below.
 - **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, entry orchestration, and instance-scoped caches. It does **not** own renderer transport or `FileHandle.kind` dispatch; those belong to the File IPC adapter layer. Implementation mechanics (deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
-- **File IPC adapters** (`src/main/ipc/handlers/file.ts`) own renderer-facing File IPC routes. They validate request schemas, dispatch `FileHandle` routes, and delegate entry branches to FileManager and path branches to `src/main/services/file/utils/*`. They must not import `node:fs` directly.
+- **File IPC adapters** (`src/main/ipc/handlers/file.ts`) own renderer-facing File IPC routes. They validate request schemas, dispatch `FileHandle` routes, and delegate entry branches to FileManager and path branches to helpers implemented under `src/main/services/file/utils/*` and re-exported by `@main/services/file`. They must not import `node:fs` directly.
 - **DirectoryTreeBuilder** is the **second top-level primitive**, parallel to FileManager. It manages in-memory tree mirrors + chokidar watchers for arbitrary directories (Notes workspace, future ArtifactPane, …). It is **not** DB-backed — every tree is rebuilt from disk on `File_TreeCreate`. Its IPC surface (`File_TreeCreate` / `File_TreeDispose` / `File_TreeMutation`) is owned by the `DirectoryTreeManager` lifecycle service. SoT: [directory-tree.md](./directory-tree.md). The two primitives observe the same paths independently — a directory can be watched (tree) without its contents being entered (entries), and vice versa.
 - **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi).
 - **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache. `DirectoryTreeBuilder` is one of its consumers.
-- **File-module path/API helpers** live under `src/main/services/file/utils/`. They are higher-level than raw FS primitives and encode file-module semantics (for example, path-arm metadata projection or FileEntry path resolution). FileManager and File IPC adapters may both depend on them; other main modules may also use them when they want the file module's path semantics without creating a FileEntry.
+- **File-module path/API helpers** live under `src/main/services/file/utils/`. They are higher-level than raw FS primitives and encode file-module semantics (for example, path-arm metadata projection or FileEntry path resolution). FileManager and File IPC adapters may both depend on them; selected outside-facing helpers are re-exported by `@main/services/file` to preserve the barrel boundary.
 - **Raw FS / path primitives** live under `src/main/utils/file/` (imported as `@main/utils/file/fs`, `@main/utils/file/path`, etc.). They do not depend on the entry system and are open to the entire main process. Main modules may use `services/file/utils`, `@main/utils/file/*`, or direct `node:fs` depending on the abstraction level they need; File IPC adapters specifically use the first two and never import `node:fs` directly.
 
 #### Public / Private Boundaries
@@ -139,7 +139,7 @@ The file module has **two top-level primitives** — `FileManager` and `Director
 |---|---|---|
 | File IPC adapter (`src/main/ipc/handlers/file.ts`) | **Renderer transport boundary** | Routes `ipcApi.request('file.*')` calls; delegates entry branches to FileManager and path branches to `src/main/services/file/utils/*`. No direct `node:fs` imports. |
 | `FileManager` class + public types | **Entire main process** | Resolve the runtime instance via `application.get('FileManager')`; import public types from `@main/services/file` |
-| `src/main/services/file/utils/*` | **Entire main process** | File-module path/API helpers (for example `getMetadataByPath`, `resolvePhysicalPath`) when callers want file-module semantics without registering a FileEntry. |
+| `src/main/services/file/utils/*` | **File-module implementation** | File-module path/API helpers. Outside callers use only the selected helpers re-exported by `@main/services/file`; no deep imports. |
 | `DirectoryTreeManager` + `DirectoryTreeBuilder` factory | **Entire main process** (renderer via IPC) | Renderer: `window.api.tree.create/dispose/onMutation`. Main: `application.get('DirectoryTreeManager')` or `createDirectoryTree` from `@main/services/file/tree`. |
 | Raw FS primitives (`@main/utils/file/{fs,metadata,path,search,shell}`) | **Entire main process** | Shared convenience wrappers over file / shell operations (BootConfig, MCP oauth, etc. can use directly). Shared legacy helpers (`getFileType(ext)`, `sanitizeFilename`, etc.) are barrel-exported from `@main/utils/file` itself. |
 | Direct `node:fs` imports | **Entire main process** | Allowed when a module deliberately needs raw Node FS APIs not covered by a shared helper. Do not use direct FS writes for FileEntry-backed paths. |
@@ -147,7 +147,7 @@ The file module has **two top-level primitives** — `FileManager` and `Director
 | `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
 | `internal/*` | **File module implementation only** | FileManager owns most imports. Temporary exception: File IPC adapters may import `internal/dispatch.ts` while legacy FileManager IPC handlers still exist. Move `dispatchHandle` to the IPC adapter layer once FileManager no longer registers any IPC handlers. Do not make `internal/*` a general business-service surface. |
 
-Boundary enforcement: `src/main/services/file/index.ts` barrel does not re-export `internal/*`; external `import from '@main/services/file'` cannot reach it. If violations surface, add an ESLint `no-restricted-imports` rule as a fallback.
+Boundary enforcement: `src/main/services/file/index.ts` re-exports only reviewed public helpers. General `internal/*` and `utils/*` implementation remains unreachable through `@main/services/file`; ESLint's `barrel/closed` rule rejects deep imports.
 
 ### 1.3 Out of Scope
 
@@ -268,14 +268,21 @@ Other services in the main process can call FileManager, `src/main/services/file
 > **Current wiring status.** New renderer-facing File IPC lives in IpcApi
 > routes declared in `src/shared/ipc/schemas/file.ts` and handled by
 > `src/main/ipc/handlers/file.ts`. The routes currently registered are:
-> `file.batch_get_metadata`, `file.batch_get_physical_paths`,
+> `file.read`, `file.write`, `file.write_if_unchanged`, `file.batch_get_metadata`,
+> `file.batch_get_physical_paths`,
 > `file.batch_get_dangling_states`, `file.batch_create_internal_entries`,
 > `file.batch_trash`, `file.batch_restore`, `file.batch_permanent_delete`,
-> `file.rename`, `file.open`, and `file.show_in_folder`. Legacy
+> `file.empty_trash`, `file.rename`, `file.open`, and `file.show_in_folder`. Legacy
 > `IpcChannel.File_*` routes are compatibility-only for remaining preload
 > consumers (notably singular metadata / path helpers) and MUST NOT be used by
 > new renderer code. The tables below describe the logical File IPC surface;
 > the IpcApi schema registry is the source of truth for routes wired today.
+
+`file.write_if_unchanged` maps both entry-level `StaleVersionError` and
+path-level `PathStaleVersionError` to the renderer-visible
+`FILE_STALE_VERSION` code. Its error data is
+`{ expected: FileVersion, current: FileVersion }`; the target file remains
+untouched and the caller decides how to present or resolve the conflict.
 
 All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). File IPC handlers dispatch by `handle.kind` to FileManager (entry branch) or file-module path helpers (path branch).
 
@@ -1051,6 +1058,7 @@ src/main/services/file/               -- file module
   danglingCache.ts                    -- singleton: external entry presence state
                                          exports: check / onFsEvent / addEntry / removeEntry
   utils/
+    content.ts                        -- path-arm read / write / writeIfUnchanged
     pathResolver.ts                   -- FileEntry path resolution + external canonicalization
     metadata.ts                       -- path-arm PhysicalFileMetadata projection
   watcher/

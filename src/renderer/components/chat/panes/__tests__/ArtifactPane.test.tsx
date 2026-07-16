@@ -91,14 +91,13 @@ const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
   treeDispose: vi.fn(),
   treeOnMutation: vi.fn(),
-  fsRead: vi.fn(),
+  ipcRequest: vi.fn(),
   fsReadText: vi.fn(),
   isTextFile: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   getMetadata: vi.fn(),
-  fileWrite: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
   windowOpen: vi.fn(),
@@ -215,6 +214,10 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   const treeId = `tree-${mocks.nextTreeId}`
   const snapshot = pathsToSnapshot(workspacePath, paths)
   mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
+}
+
+function binaryReadResult(content: Uint8Array) {
+  return { content, mime: 'text/plain', version: { mtime: 1, size: content.byteLength } }
 }
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -516,6 +519,10 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: () => ({ data: mocks.externalApps })
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
+}))
+
 vi.mock('@renderer/utils/editor', () => ({
   buildEditorUrl: (app: { id: string }, path: string) => `editor://${app.id}${path}`,
   getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
@@ -540,6 +547,7 @@ vi.mock('react-i18next', () => ({
 describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.ipcRequest.mockReset()
     mocks.pdfPreviewPanelProps.length = 0
     mocks.officePreviewPanelProps.length = 0
     mocks.nextTreeId = 0
@@ -576,11 +584,9 @@ describe('ArtifactPane', () => {
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
           listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata,
-          write: mocks.fileWrite
+          getMetadata: mocks.getMetadata
         },
         fs: {
-          read: mocks.fsRead,
           readText: mocks.fsReadText
         },
         tree: {
@@ -1295,7 +1301,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-__workspace_root__'))
     fireEvent.click(screen.getByTestId('tree-node-src'))
 
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
@@ -1310,7 +1316,7 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-src/index.ts')).toHaveAttribute('data-kind', 'file')
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
@@ -1356,7 +1362,7 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/paper.pdf')
     expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-name', 'paper.pdf')
     expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.pdfPreviewPanelProps.at(-1)).toEqual({
@@ -1429,7 +1435,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
     expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
   })
@@ -1566,7 +1572,7 @@ describe('ArtifactPane', () => {
     expect(new Blob([oversizedDraft]).size).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
-    mocks.fsRead.mockResolvedValue(new TextEncoder().encode('# small'))
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
@@ -1580,7 +1586,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
     expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
     expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
-    expect(mocks.fileWrite).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.write_if_unchanged', expect.anything())
   })
 
   it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
@@ -1590,8 +1596,9 @@ describe('ArtifactPane', () => {
     source.set(encoded, 3)
     mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
     mocks.fsReadText.mockResolvedValue('first\r\nsecond\r\n')
-    mocks.fsRead.mockResolvedValue(source)
-    mocks.fileWrite.mockResolvedValue(undefined)
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(source))
+      .mockResolvedValueOnce({ mtime: 2, size: source.byteLength })
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
@@ -1607,8 +1614,12 @@ describe('ArtifactPane', () => {
     fireEvent.change(editor, { target: { value: 'changed\ncontent\n' } })
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.save' }))
 
-    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledTimes(1))
-    const written = mocks.fileWrite.mock.calls[0][1] as Uint8Array
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()))
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
+    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeInput = writeCall[1] as { data: Uint8Array; expectedVersion: { mtime: number; size: number } }
+    expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
+    const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
     expect(new TextDecoder().decode(written.slice(3))).toBe('changed\r\ncontent\r\n')
   })
@@ -1617,7 +1628,7 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['legacy.txt'])
     mocks.fsReadText.mockResolvedValue('legacy preview')
     // GBK bytes for "你好" are accepted by text sniffing but must not enter the UTF-8 editor.
-    mocks.fsRead.mockResolvedValue(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]))
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3])))
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-legacy.txt')).toBeInTheDocument())
@@ -1629,7 +1640,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('agent.preview_pane.edit.unsupported'))
     expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('legacy preview')
-    expect(mocks.fileWrite).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.write_if_unchanged', expect.anything())
   })
 
   it('still renders PDFs above the 2 MB size cap', async () => {
@@ -1678,7 +1689,7 @@ describe('ArtifactPane', () => {
       expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
       expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
       expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
-      expect(mocks.fsRead).not.toHaveBeenCalled()
+      expect(mocks.ipcRequest).not.toHaveBeenCalled()
       expect(mocks.fsReadText).not.toHaveBeenCalled()
       expect(mocks.isTextFile).not.toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
     }
@@ -1766,7 +1777,7 @@ describe('ArtifactPane', () => {
       })
     )
 
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.revokeObjectURL).not.toHaveBeenCalled()

@@ -3,9 +3,9 @@ import {
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
+  FileHandleSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileHandleSchema } from '@shared/data/types/file'
 import { PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -32,6 +32,34 @@ const batchMutationResultSchema = z.strictObject({
 const batchCreateResultSchema = z.strictObject({
   succeeded: z.array(z.strictObject({ id: FileEntryIdSchema, sourceRef: z.string() })),
   failed: z.array(z.strictObject({ sourceRef: z.string(), error: z.string() }))
+})
+
+const fileVersionSchema = z.strictObject({
+  mtime: z.number(),
+  size: z.number().int().nonnegative()
+})
+
+const uint8ArraySchema = z.custom<Uint8Array>((value) => value instanceof Uint8Array, {
+  message: 'Expected Uint8Array'
+})
+
+const binaryReadResultSchema = z.strictObject({
+  content: uint8ArraySchema,
+  mime: z.string(),
+  version: fileVersionSchema
+})
+
+const writeInputSchema = z.strictObject({
+  handle: FileHandleSchema,
+  data: uint8ArraySchema
+})
+
+const writeIfUnchangedInputSchema = writeInputSchema.extend({
+  expectedVersion: fileVersionSchema,
+  expectedContentHash: z
+    .string()
+    .regex(/^[0-9a-f]{16}$/i)
+    .optional()
 })
 
 // TODO(file-ipc): Unify these schemas with the branded transport types in
@@ -64,6 +92,9 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  'file.read': defineRoute({ input: FileHandleSchema, output: binaryReadResultSchema }),
+  'file.write': defineRoute({ input: writeInputSchema, output: fileVersionSchema }),
+  'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: fileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())

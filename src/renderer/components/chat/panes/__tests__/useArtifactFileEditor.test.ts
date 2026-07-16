@@ -2,8 +2,9 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fileMocks = vi.hoisted(() => ({ write: vi.fn() }))
-const fsMocks = vi.hoisted(() => ({ read: vi.fn() }))
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: ipcMocks }))
 
 import { UnsupportedArtifactFileEditError, useArtifactFileEditor } from '../useArtifactFileEditor'
 
@@ -25,12 +26,11 @@ function withUtf8Bom(content: string): Uint8Array {
   return result
 }
 
-beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: { file: fileMocks, fs: fsMocks }
-  })
-})
+function readResult(content: Uint8Array) {
+  return { content, mime: 'text/plain', version: { mtime: 1, size: content.byteLength } }
+}
+
+beforeEach(() => ipcMocks.request.mockReset())
 
 afterEach(() => {
   cleanup()
@@ -39,14 +39,14 @@ afterEach(() => {
 
 describe('useArtifactFileEditor', () => {
   it('enters edit mode by loading the file content', async () => {
-    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(initialContent)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
 
-    expect(fsMocks.read).toHaveBeenCalledWith('/ws/notes.txt')
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.read', { kind: 'path', path: '/ws/notes.txt' })
     expect(result.current.getSession(selection)).toMatchObject({
       mode: 'edit',
       status: 'ready',
@@ -58,20 +58,24 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
-  it('saves a dirty draft through the existing file writer and records the new content', async () => {
-    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
+  it('saves a dirty draft with the version read from disk and records the new content', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(initialContent)))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
     act(() => result.current.updateDraft(selection, 'changed\n'))
 
-    fileMocks.write.mockResolvedValueOnce(undefined)
+    ipcMocks.request.mockResolvedValueOnce({ mtime: 2, size: 8 })
     await act(async () => {
       await result.current.save(selection)
     })
 
-    expect(fileMocks.write).toHaveBeenCalledWith('/ws/notes.txt', utf8('changed\n'))
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
+      handle: { kind: 'path', path: '/ws/notes.txt' },
+      data: utf8('changed\n'),
+      expectedVersion: { mtime: 1, size: utf8(initialContent).byteLength }
+    })
     expect(result.current.getSession(selection)).toMatchObject({
       status: 'ready',
       draft: 'changed\n',
@@ -80,8 +84,31 @@ describe('useArtifactFileEditor', () => {
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
+  it('uses the version returned by a successful save for the next save', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(initialContent)))
+    const { result } = renderHook(() => useArtifactFileEditor())
+    await act(async () => {
+      await result.current.setMode(selection, 'edit')
+    })
+
+    act(() => result.current.updateDraft(selection, 'first save'))
+    ipcMocks.request.mockResolvedValueOnce({ mtime: 2, size: 10 })
+    await act(async () => {
+      await result.current.save(selection)
+    })
+
+    act(() => result.current.updateDraft(selection, 'second save'))
+    ipcMocks.request.mockResolvedValueOnce({ mtime: 3, size: 11 })
+    await act(async () => {
+      await result.current.save(selection)
+    })
+
+    const writeCalls = ipcMocks.request.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')
+    expect(writeCalls[1]?.[1]).toMatchObject({ expectedVersion: { mtime: 2, size: 10 } })
+  })
+
   it('keeps the dirty draft ready for retry when saving fails', async () => {
-    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(initialContent)))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -89,7 +116,7 @@ describe('useArtifactFileEditor', () => {
     act(() => result.current.updateDraft(selection, 'draft'))
 
     const writeError = new Error('write failed')
-    fileMocks.write.mockRejectedValueOnce(writeError)
+    ipcMocks.request.mockRejectedValueOnce(writeError)
     await expect(
       act(async () => {
         await result.current.save(selection)
@@ -105,7 +132,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('discard restores the last saved content', async () => {
-    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(initialContent)))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -118,7 +145,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('reload replaces the draft with fresh file content', async () => {
-    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(initialContent)))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -126,7 +153,7 @@ describe('useArtifactFileEditor', () => {
     act(() => result.current.updateDraft(selection, 'draft'))
 
     const newer = 'newer\n'
-    fsMocks.read.mockResolvedValueOnce(utf8(newer))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8(newer)))
     await act(async () => {
       await result.current.reload(selection)
     })
@@ -139,7 +166,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('replaces the active session when another file loads', async () => {
-    fsMocks.read.mockResolvedValue(utf8(initialContent))
+    ipcMocks.request.mockResolvedValue(readResult(utf8(initialContent)))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -160,8 +187,8 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('clears the active session and invalidates an outstanding load', async () => {
-    let resolveLoad!: (value: Uint8Array) => void
-    fsMocks.read.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
+    let resolveLoad!: (value: ReturnType<typeof readResult>) => void
+    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     let load: Promise<void> | undefined
@@ -170,7 +197,7 @@ describe('useArtifactFileEditor', () => {
     })
     act(() => result.current.clear())
     await act(async () => {
-      resolveLoad(utf8(initialContent))
+      resolveLoad(readResult(utf8(initialContent)))
       await load
     })
 
@@ -179,20 +206,20 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('ignores a stale read response after a newer load starts', async () => {
-    let resolveFirst!: (value: Uint8Array) => void
-    fsMocks.read.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+    let resolveFirst!: (value: ReturnType<typeof readResult>) => void
+    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     let first: Promise<void> | undefined
     act(() => {
       first = result.current.setMode(selection, 'edit')
     })
-    fsMocks.read.mockResolvedValueOnce(utf8('second\n'))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('second\n')))
     await act(async () => {
       await result.current.reload(selection)
     })
     await act(async () => {
-      resolveFirst(utf8('first\n'))
+      resolveFirst(readResult(utf8('first\n')))
       await first
     })
 
@@ -201,7 +228,7 @@ describe('useArtifactFileEditor', () => {
 
   it('drops the session and rethrows when the initial load fails', async () => {
     const readError = new Error('read failed')
-    fsMocks.read.mockRejectedValueOnce(readError)
+    ipcMocks.request.mockRejectedValueOnce(readError)
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await expect(
@@ -214,7 +241,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('normalizes CRLF while editing and restores CRLF with the UTF-8 BOM on save', async () => {
-    fsMocks.read.mockResolvedValueOnce(withUtf8Bom('first\r\nsecond\r\n'))
+    ipcMocks.request.mockResolvedValueOnce(readResult(withUtf8Bom('first\r\nsecond\r\n')))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await act(async () => {
@@ -229,17 +256,21 @@ describe('useArtifactFileEditor', () => {
     })
 
     act(() => result.current.updateDraft(selection, 'changed\ncontent\n'))
-    fileMocks.write.mockResolvedValueOnce(undefined)
+    ipcMocks.request.mockResolvedValueOnce({ mtime: 2, size: 22 })
     await act(async () => {
       await result.current.save(selection)
     })
 
-    expect(fileMocks.write).toHaveBeenCalledWith('/ws/notes.txt', withUtf8Bom('changed\r\ncontent\r\n'))
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
+      handle: { kind: 'path', path: '/ws/notes.txt' },
+      data: withUtf8Bom('changed\r\ncontent\r\n'),
+      expectedVersion: { mtime: 1, size: withUtf8Bom('first\r\nsecond\r\n').byteLength }
+    })
   })
 
   it('keeps invalid UTF-8 and mixed-line-ending files preview-only', async () => {
     // GBK bytes for "你好" are not valid UTF-8.
-    fsMocks.read.mockResolvedValueOnce(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]))
+    ipcMocks.request.mockResolvedValueOnce(readResult(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3])))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await expect(
@@ -249,13 +280,13 @@ describe('useArtifactFileEditor', () => {
     ).rejects.toMatchObject({ reason: 'encoding' })
     expect(result.current.getSession(selection)).toBeUndefined()
 
-    fsMocks.read.mockResolvedValueOnce(utf8('first\r\nsecond\n'))
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('first\r\nsecond\n')))
     await expect(
       act(async () => {
         await result.current.setMode(selection, 'edit')
       })
     ).rejects.toBeInstanceOf(UnsupportedArtifactFileEditError)
     expect(result.current.getSession(selection)).toBeUndefined()
-    expect(fileMocks.write).not.toHaveBeenCalled()
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.write_if_unchanged', expect.anything())
   })
 })

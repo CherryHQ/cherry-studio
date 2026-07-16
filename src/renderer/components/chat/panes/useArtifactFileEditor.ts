@@ -1,4 +1,6 @@
-import { canonicalizeAbsolutePath } from '@shared/utils/file'
+import { ipcApi } from '@renderer/ipc'
+import type { FilePath, FileVersion } from '@shared/types/file'
+import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
@@ -20,6 +22,7 @@ interface ArtifactFileEditSession {
 
 interface StoredArtifactFileEditSession extends ArtifactFileEditSession {
   filePath: string
+  version?: FileVersion
 }
 
 export interface ArtifactFileEditor {
@@ -84,8 +87,8 @@ function encodeArtifactFile(content: string, lineEnding: ArtifactFileLineEnding,
   return withBom
 }
 
-function getSelectionPath(selection: ArtifactPaneFileSelection): string {
-  return canonicalizeAbsolutePath(`${selection.workspacePath}/${selection.filePath}`)
+function getSelectionPath(selection: ArtifactPaneFileSelection): FilePath {
+  return canonicalizeAbsolutePath(`${selection.workspacePath}/${selection.filePath}`) as FilePath
 }
 
 function isDirty(session: ArtifactFileEditSession): boolean {
@@ -127,12 +130,13 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
         draft: previousSession?.draft ?? '',
         savedContent: previousSession?.savedContent ?? '',
         lineEnding: previousSession?.lineEnding ?? 'lf',
-        hasBom: previousSession?.hasBom ?? false
+        hasBom: previousSession?.hasBom ?? false,
+        version: previousSession?.version
       })
 
       try {
-        const bytes = new Uint8Array(await window.api.fs.read(filePath))
-        const snapshot = decodeArtifactFile(bytes)
+        const { content, version } = await ipcApi.request('file.read', createFilePathHandle(filePath))
+        const snapshot = decodeArtifactFile(content)
         if (requestVersionRef.current !== requestVersion) return
 
         setSession((current) => {
@@ -144,7 +148,8 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
             draft: snapshot.content,
             savedContent: snapshot.content,
             lineEnding: snapshot.lineEnding,
-            hasBom: snapshot.hasBom
+            hasBom: snapshot.hasBom,
+            version
           }
         })
       } catch (error) {
@@ -177,7 +182,12 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
   const save = useCallback(
     async (selection: ArtifactPaneFileSelection) => {
       const filePath = getSelectionPath(selection)
-      if (session?.filePath !== filePath || session.status !== 'ready' || !isDirty(session)) {
+      if (
+        session?.filePath !== filePath ||
+        session.status !== 'ready' ||
+        session.version === undefined ||
+        !isDirty(session)
+      ) {
         return
       }
 
@@ -187,7 +197,11 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
       setSession((current) => (current?.filePath === filePath ? { ...current, status: 'saving' as const } : current))
 
       try {
-        await window.api.file.write(filePath, encodeArtifactFile(submittedDraft, session.lineEnding, session.hasBom))
+        const version = await ipcApi.request('file.write_if_unchanged', {
+          handle: createFilePathHandle(filePath),
+          data: encodeArtifactFile(submittedDraft, session.lineEnding, session.hasBom),
+          expectedVersion: session.version
+        })
         if (requestVersionRef.current !== requestVersion) return
 
         setSession((current) => {
@@ -195,7 +209,8 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
           return {
             ...current,
             status: 'ready',
-            savedContent: submittedDraft
+            savedContent: submittedDraft,
+            version
           }
         })
       } catch (error) {

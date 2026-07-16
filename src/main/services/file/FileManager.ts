@@ -1,5 +1,5 @@
 /**
- * FileManager — sole public entry point for all file operations.
+ * FileManager — public facade for entry-aware file operations.
  *
  * Registered as a lifecycle service (`@Injectable('FileManager')`,
  * `@ServicePhase(Phase.WhenReady)`); resolved at runtime via
@@ -11,12 +11,11 @@
  *
  * ## Facade pattern
  *
- * FileManager is a **thin facade** — it exposes the public IPC-backed API and
+ * FileManager is a **thin facade** — it exposes the public entry-native API and
  * delegates every method to pure-function modules under `./internal/*`. The
  * class only owns:
- * - lifecycle (`onInit` / `onStop`; IPC handler registration via `BaseService`)
+ * - lifecycle (`onInit` / `onStop`; remaining legacy IPC handlers via `BaseService`)
  * - per-instance `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
- * - `FileHandle.kind` dispatch at the IPC boundary
  *
  * External Main callers go through the lifecycle-managed singleton via
  * `application.get('FileManager')`. The `internal/*` tree is a private
@@ -33,34 +32,29 @@
  *
  * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union whose
  * variants select the *reference form* — `FileEntryHandle` routes through the
- * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). The
- * design plan is for the IPC adapter to dispatch on `handle.kind` via a
+ * entry system, `FilePathHandle` routes through path-arm helpers under
+ * `utils/*`). The IPC adapter dispatches on `handle.kind` via a
  * `dispatchHandle` helper, with the dispatch logic treated as the adapter's
  * legitimate responsibility (translating request shape), not business
  * orchestration.
  *
- * **Current status (through Batch 0)**: `dispatchHandle` lives in
- * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
- * `File_PermanentDelete`, which accepts a `FileHandle` and routes
- * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
- * to `@main/utils/file/fs.remove`. Phase 2 entry-shaped channels
- * (`File_CreateInternalEntry`, `File_EnsureExternalEntry`, `File_GetPhysicalPath`)
- * take typed params directly and bypass the dispatcher because their semantics
- * are entry-only by design. When `FileHandle`-accepting
- * read/write/metadata channels land in later batches, they will follow the
- * same pattern as `File_PermanentDelete`:
+ * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
+ * dispatches the `file.read`, `file.write`, `file.write_if_unchanged`, metadata,
+ * open, and show-in-folder routes. Entry arms call FileManager; path arms call
+ * helpers under `utils/*`. The legacy `File_PermanentDelete` handler still uses
+ * the same dispatcher here until its remaining preload consumers migrate:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
- * - `{ kind: 'path', path }`     → the `*ByPath` variant exported from
- *   `internal/*` (e.g. `contentRead.readByPath(deps, path, opts)`)
+ * - `{ kind: 'path', path }`     → the `*ByPath` variant in `utils/*`
+ *   (e.g. `readByPath(path, opts)`)
  *
  * `*ByPath` variants are not exposed on the FileManager class — Main-side
- * callers have no use for them (they hold FileEntry, not arbitrary paths).
+ * callers use the documented `utils/*` path API directly when needed.
  *
  * New handle kinds (e.g. `virtual` for zip members) extend `dispatchHandle`
- * and each IPC handler within this file; the public API surface and
- * `internal/*` pure-function structure both stay stable.
+ * and each handler in `src/main/ipc/handlers/file.ts`; the public API surface
+ * and `internal/*` pure-function structure both stay stable.
  *
  * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
@@ -353,7 +347,7 @@ export class StaleVersionError extends Error {
 
 /**
  * Public surface of `FileManager` for Main-side business services and the
- * future Phase 2 IPC layer. The class below declares `implements IFileManager`
+ * entry arms of the File IPC adapter. The class below declares `implements IFileManager`
  * so a method declared here but missing on the class (or mis-typed) is a
  * compile error.
  *

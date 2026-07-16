@@ -329,17 +329,17 @@ export interface FileIpcApi {
 
   /**
    * Read content as text
-   * @phase 2 — not yet wired
+   * @phase 2 — text mode not yet wired; binary mode is available through the IpcApi `file.read` route
    */
   read(handle: FileHandle, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<ReadResult<string>>
   /**
    * Read content as base64
-   * @phase 2 — not yet wired
+   * @phase 2 — base64 mode not yet wired; binary mode is available through the IpcApi `file.read` route
    */
   read(handle: FileHandle, options: { encoding: 'base64' }): Promise<ReadResult<string>>
   /**
    * Read content as binary
-   * @phase 2 — not yet wired
+   * @phase 2 — wired as IpcApi route `file.read`
    */
   read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
@@ -399,11 +399,11 @@ export interface FileIpcApi {
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: byte writes are wired through IpcApi.
 
   /**
    * Unconditional atomic write.
-   * @phase 2 — not yet wired
+   * @phase 2 — byte writes are wired as IpcApi route `file.write`
    */
   write(handle: FileHandle, data: string | Uint8Array): Promise<FileVersion>
 
@@ -415,7 +415,7 @@ export interface FileIpcApi {
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — byte writes are wired as IpcApi route `file.write_if_unchanged`
    */
   writeIfUnchanged(
     handle: FileHandle,

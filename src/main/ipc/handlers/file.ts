@@ -1,6 +1,18 @@
 import { application } from '@application'
-import { dispatchHandle, getMetadataByPath, safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
+import {
+  dispatchHandle,
+  getMetadataByPath,
+  readByPath,
+  safeOpen,
+  showInFolder as showPathInFolder,
+  StaleVersionError,
+  writeByPath,
+  writeIfUnchangedByPath
+} from '@main/services/file'
+import { PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { CreateInternalEntryIpcParams } from '@shared/types/file'
@@ -10,6 +22,40 @@ import type { CreateInternalEntryIpcParams } from '@shared/types/file'
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+  'file.read': async (handle) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(
+      handle as FileHandle,
+      (entryId) => fileManager.read(entryId, { encoding: 'binary' }),
+      (path) => readByPath(path, { encoding: 'binary' })
+    )
+  },
+  'file.write': async ({ handle, data }) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(
+      handle as FileHandle,
+      (entryId) => fileManager.write(entryId, data),
+      (path) => writeByPath(path, data)
+    )
+  },
+  'file.write_if_unchanged': async ({ handle, data, expectedVersion, expectedContentHash }) => {
+    const fileManager = application.get('FileManager')
+    try {
+      return await dispatchHandle(
+        handle as FileHandle,
+        (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
+        (path) => writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
+      )
+    } catch (error) {
+      if (error instanceof StaleVersionError || error instanceof PathStaleVersionError) {
+        throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {
+          expected: error.expected,
+          current: error.current
+        })
+      }
+      throw error
+    }
+  },
   'file.batch_get_metadata': async ({ items }) => {
     const fileManager = application.get('FileManager')
     const pairs = await Promise.all(

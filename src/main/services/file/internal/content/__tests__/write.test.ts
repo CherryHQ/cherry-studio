@@ -22,7 +22,7 @@ const mockLoggerError = mockMainLoggerService.error
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { write, writeIfUnchanged, writeByPath } = await import('../write')
+const { write, writeIfUnchanged } = await import('../write')
 const { createInternal, ensureExternal } = await import('../../entry/create')
 const { StaleVersionError } = await import('../../../FileManager')
 
@@ -230,16 +230,6 @@ describe('internal/content/write', () => {
       ).rejects.toBeInstanceOf(StaleVersionError)
       // Original content untouched
       expect(Array.from(await readFile(physical))).toEqual([1, 2, 3, 4])
-    })
-  })
-
-  describe('writeByPath', () => {
-    it('writes content to a path without DB or cache mutation', async () => {
-      const target = path.join(tmp, 'naked.txt')
-      await writeFile(target, 'old')
-      await writeByPath(deps, target as FilePath, 'new-content')
-      expect(await readFile(target, 'utf-8')).toBe('new-content')
-      expect(cacheStore.size).toBe(0)
     })
   })
 
