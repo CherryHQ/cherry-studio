@@ -49,11 +49,6 @@ export function resolveProviderVariant(
 }
 
 export function resolveAiSdkProviderId(provider: Provider, endpointType: EndpointType | undefined): AppProviderId {
-  // Older seeded OpenRouter rows may predate the image endpoint config. Provider identity is still
-  // authoritative: every OpenRouter endpoint uses its native adapter, whose image model calls the
-  // shared JSON `/images` route for both generation and input-reference editing.
-  if (provider.id === 'openrouter' || provider.presetProviderId === 'openrouter') return appProviderIds.openrouter
-
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   if (adapterFamily && adapterFamily in appProviderIds) {
     return resolveProviderVariant(appProviderIds[adapterFamily], endpointType)

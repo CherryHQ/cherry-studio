@@ -182,23 +182,6 @@ describe('resolveAiSdkProviderId', () => {
         )
       ).toBe('openrouter')
     })
-
-    it('routes an older OpenRouter preset to the native adapter when its image endpoint config is missing', () => {
-      expect(
-        resolveAiSdkProviderId(
-          makeProvider({
-            id: 'openrouter',
-            endpointConfigs: {
-              [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-                adapterFamily: 'openrouter',
-                baseUrl: 'https://openrouter.ai/api/v1'
-              }
-            }
-          }),
-          ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
-        )
-      ).toBe('openrouter')
-    })
   })
 
   describe('Relay-style multi-endpoint provider (post-migration shape)', () => {
