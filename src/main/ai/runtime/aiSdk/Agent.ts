@@ -180,13 +180,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         abortSignal: signal
       })
 
-      // AI SDK converts full-stream errors to lossy UI error chunks. Capture the
-      // original error here so downstream transport can retain provider details.
-      const capturedUiErrors: unknown[] = []
+      // AI SDK converts errors to lossy UI chunks. Keep the originals in the
+      // same order as the error-bearing chunks so terminal provider failures
+      // retain their metadata without stealing an earlier tool error.
+      const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
         onError: (error) => {
-          capturedUiErrors.push(error)
+          capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)
         },
         generateMessageId: () => {
@@ -203,10 +204,19 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         while (true) {
           const { done, value } = await reader.read()
           if (done || signal.aborted) break
-          if (value.type === 'error' && capturedUiErrors.length > 0) {
-            const originalError = capturedUiErrors.shift()
-            await reader.cancel(originalError).catch(() => {})
-            throw originalError
+
+          // AI SDK calls `onError` for invalid tool input, local tool execution
+          // errors, and terminal stream errors. Consume all three projections
+          // in FIFO order; only a terminal error rejects the agent stream.
+          const capturedError =
+            value.type === 'tool-input-error' ||
+            (value.type === 'tool-output-error' && !value.providerExecuted) ||
+            value.type === 'error'
+              ? capturedUiErrors.shift()
+              : undefined
+          if (value.type === 'error' && capturedError) {
+            await reader.cancel(capturedError.error).catch(() => {})
+            throw capturedError.error
           }
           await writer.write(value)
         }

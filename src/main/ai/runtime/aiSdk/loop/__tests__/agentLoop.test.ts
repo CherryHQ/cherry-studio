@@ -14,7 +14,8 @@ describe('Agent', () => {
     vi.clearAllMocks()
   })
 
-  it('rejects with the original API error captured from the lossy UI error chunk', async () => {
+  it('pairs a terminal API error with its original after an earlier tool error', async () => {
+    const toolError = new Error('Invalid tool input')
     const apiError = new APICallError({
       message: 'Upstream unavailable',
       url: 'https://api.example.com/chat/completions',
@@ -24,16 +25,24 @@ describe('Agent', () => {
       responseBody: '',
       isRetryable: true
     })
-    const uiOnError = vi.fn((onError: (error: unknown) => string) => onError(apiError))
+    const uiOnError = vi.fn((onError: (error: unknown) => string, error: unknown) => onError(error))
     const cancelUiStream = vi.fn()
 
     mockCreateAgent.mockResolvedValue({
       stream: vi.fn().mockResolvedValue({
         toUIMessageStream: (options: { onError: (error: unknown) => string }) => {
-          const errorText = uiOnError(options.onError)
+          const toolErrorText = uiOnError(options.onError, toolError)
+          const apiErrorText = uiOnError(options.onError, apiError)
           return new ReadableStream({
             start(controller) {
-              controller.enqueue({ type: 'error', errorText })
+              controller.enqueue({
+                type: 'tool-input-error',
+                toolCallId: 'tool-1',
+                toolName: 'search',
+                input: {},
+                errorText: toolErrorText
+              })
+              controller.enqueue({ type: 'error', errorText: apiErrorText })
             },
             cancel: cancelUiStream
           })
@@ -47,9 +56,11 @@ describe('Agent', () => {
       providerSettings: {} as never,
       modelId: 'test-model'
     })
+    const reader = agent.stream([], new AbortController().signal).getReader()
 
-    await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toBe(apiError)
-    expect(uiOnError).toHaveBeenCalledOnce()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-input-error' }, done: false })
+    await expect(reader.read()).rejects.toBe(apiError)
+    expect(uiOnError).toHaveBeenCalledTimes(2)
     expect(cancelUiStream).toHaveBeenCalledWith(apiError)
   })
 
