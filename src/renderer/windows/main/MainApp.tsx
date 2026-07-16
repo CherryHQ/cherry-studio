@@ -9,11 +9,11 @@ import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
-import { useTopicNamingErrorNotification } from '@renderer/hooks/useTopicNamingErrorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 
 const logger = loggerService.withContext('MainApp')
 
