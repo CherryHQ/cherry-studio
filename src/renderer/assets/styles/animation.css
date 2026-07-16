@@ -326,53 +326,6 @@
   will-change: background-position;
 }
 
-@keyframes animation-effort-slider-shimmer {
-  0% {
-    background-position:
-      200% 0,
-      0 0;
-  }
-  100% {
-    background-position:
-      -200% 0,
-      0 0;
-  }
-}
-
-.agent-effort-slider [data-slot='slider-range'] {
-  background-image:
-    linear-gradient(
-      105deg,
-      transparent 22%,
-      color-mix(in srgb, var(--color-white) 72%, transparent) 46%,
-      transparent 68%
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--color-primary) 34%, var(--color-background)) 0%,
-      color-mix(in srgb, var(--color-primary) 40%, var(--color-background)) 18%,
-      color-mix(in srgb, var(--color-primary) 48%, var(--color-background)) 32%,
-      color-mix(in srgb, var(--color-primary) 56%, var(--color-background)) 48%,
-      color-mix(in srgb, var(--color-primary) 64%, var(--color-background)) 68%,
-      color-mix(in srgb, var(--color-primary) 72%, var(--color-background)) 82%,
-      color-mix(in srgb, var(--color-primary) 78%, var(--color-background)) 100%
-    );
-  background-size:
-    200% 100%,
-    100% 100%;
-  animation: animation-effort-slider-shimmer 2.4s linear infinite;
-  will-change: background-position;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-effort-slider [data-slot='slider-range'] {
-    background-position:
-      50% 0,
-      0 0;
-    animation: none;
-  }
-}
-
 /* Reveal 动画 */
 @keyframes animation-reveal {
   from {
