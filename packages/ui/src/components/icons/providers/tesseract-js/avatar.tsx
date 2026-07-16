@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { TesseractJsDark } from './dark'
 import { TesseractJsLight } from './light'
 
 export function TesseractJsAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function TesseractJsAvatar({ size = 32, shape = 'circle', className }: Om
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <TesseractJsLight style={{ width: size, height: size }} />
+        <TesseractJsLight className="dark:hidden" style={{ width: size, height: size }} />
+        <TesseractJsDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

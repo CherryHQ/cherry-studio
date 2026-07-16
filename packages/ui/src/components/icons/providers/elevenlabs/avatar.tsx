@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { ElevenlabsDark } from './dark'
 import { ElevenlabsLight } from './light'
 
 export function ElevenlabsAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function ElevenlabsAvatar({ size = 32, shape = 'circle', className }: Omi
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <ElevenlabsLight style={{ width: size, height: size }} />
+        <ElevenlabsLight className="dark:hidden" style={{ width: size, height: size }} />
+        <ElevenlabsDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

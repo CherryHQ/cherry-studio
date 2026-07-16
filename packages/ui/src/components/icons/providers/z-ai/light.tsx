@@ -4,9 +4,9 @@ import type { IconComponent } from '../../types'
 const ZAiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
     <path
-      fill="currentColor"
+      fill="#000"
       fillRule="evenodd"
-      d="M60.3762 24.1666L52.5718 34.7482H19.3399L27.1408 24.1666H60.3798H60.3762ZM100.327 85.2553L92.5295 95.8333H59.4123L67.2025 85.2553H100.327ZM103 24.1666L50.196 95.8333H17L69.804 24.1666H103Z"
+      d="M60.7843 33L54.8857 40.9731H29.7685L35.6646 33H60.7871H60.7843ZM90.9797 79.0296L85.0863 87H60.0558L65.9437 79.0296H90.9797ZM93 33L53.09 87H28L67.91 33H93Z"
       clipRule="evenodd"
     />
   </svg>

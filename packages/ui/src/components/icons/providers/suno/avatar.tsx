@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { SunoDark } from './dark'
 import { SunoLight } from './light'
 
 export function SunoAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function SunoAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <SunoLight style={{ width: size, height: size }} />
+        <SunoLight className="dark:hidden" style={{ width: size, height: size }} />
+        <SunoDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

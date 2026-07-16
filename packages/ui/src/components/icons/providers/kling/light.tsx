@@ -6,22 +6,34 @@ const KlingLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-      <g clipPath={`url(#${iconId}-klinglight__a)`}>
+      <mask
+        id={`${iconId}-klinglight__a`}
+        width={65}
+        height={65}
+        x={28}
+        y={27}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M93 27H28V92H93V27Z" />
+      </mask>
+      <g mask={`url(#${iconId}-klinglight__a)`}>
         <path
           fill={`url(#${iconId}-klinglight__b)`}
-          d="M36.3915 66.3603C38.2097 60.802 40.6095 55.4511 43.551 50.3966C54.9102 30.7169 71.4831 19.0173 80.5669 24.2598C60.1347 12.4634 33.4747 20.3826 21.019 41.9543C19.5325 44.5279 18.2885 47.2342 17.3031 50.0383C16.375 52.6863 17.6328 55.5351 20.0623 56.9398L36.3915 66.3639V66.3603Z"
+          d="M42.6564 64.3072C44.0306 60.1062 45.8444 56.0619 48.0676 52.2416C56.6531 37.3674 69.1791 28.5247 76.0448 32.4871C60.6018 23.5712 40.4518 29.5566 31.0376 45.8608C29.9141 47.806 28.9739 49.8514 28.2291 51.9708C27.5276 53.9722 28.4783 56.1254 30.3146 57.1871L42.6564 64.3099V64.3072Z"
         />
         <path
           fill={`url(#${iconId}-klinglight__c)`}
-          d="M83.6076 53.421C81.7884 58.9795 79.3874 64.3305 76.4445 69.3848C65.0854 89.0644 48.5125 100.768 39.4287 95.5216C59.8645 107.322 86.5245 99.3988 98.9801 77.8271C100.466 75.2545 101.71 72.5494 102.696 69.7467C103.624 67.1022 102.366 64.2499 99.9369 62.8488L83.6076 53.4246V53.421Z"
+          d="M78.3429 54.5275C76.968 58.7287 75.1533 62.7731 72.929 66.5932C64.3436 81.4673 51.8176 90.313 44.9519 86.3477C60.3976 95.2666 80.5476 89.2782 89.9617 72.974C91.0847 71.0296 92.025 68.985 92.7702 66.8667C93.4716 64.8679 92.5208 62.7121 90.6848 61.6532L78.3429 54.5302V54.5275Z"
         />
         <path
           fill={`url(#${iconId}-klinglight__d)`}
-          d="M76.4468 69.3883C87.8059 49.7086 89.6549 29.5058 80.5676 24.2598C71.491 19.0173 54.9181 30.7241 43.5518 50.3966C50.9836 37.5324 64.3673 31.3512 73.4511 36.5936C82.5313 41.8396 83.8714 56.5169 76.4432 69.3847L76.4468 69.3883Z"
+          d="M72.9307 66.5958C81.5161 51.7216 82.9136 36.4521 76.0453 32.4871C69.1851 28.5247 56.659 37.3729 48.0682 52.2416C53.6853 42.5187 63.8009 37.8468 70.6665 41.8091C77.5295 45.7741 78.5424 56.8674 72.928 66.5931L72.9307 66.5958Z"
         />
         <path
           fill={`url(#${iconId}-klinglight__e)`}
-          d="M43.5538 50.3966C32.1946 70.0763 30.3456 90.2791 39.433 95.5215C48.5131 100.768 65.0861 89.0644 76.4488 69.3847C69.017 82.2524 55.6332 88.4337 46.5495 83.1877C37.4693 77.9453 36.1291 63.2644 43.5574 50.4002L43.5538 50.3966Z"
+          d="M48.0697 52.2416C39.4843 67.1158 38.0868 82.3854 44.9552 86.3477C51.818 90.313 64.3441 81.4673 72.9322 66.5931C67.3152 76.3187 57.1995 80.9906 50.3339 77.0256C43.471 73.0633 42.458 61.9673 48.0725 52.2443L48.0697 52.2416Z"
         />
       </g>
       <defs>
@@ -30,7 +42,7 @@ const KlingLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
           cx={0}
           cy={0}
           r={1}
-          gradientTransform="matrix(26.79517 -44.82827 61.43154 36.71943 35.535 65.866)"
+          gradientTransform="rotate(-59.132 77.354 -5.06)scale(39.4731 54.093)"
           gradientUnits="userSpaceOnUse">
           <stop offset={0.095} stopColor="#FFF959" />
           <stop offset={0.326} stopColor="#0DF35E" />
@@ -42,7 +54,7 @@ const KlingLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
           cx={0}
           cy={0}
           r={1}
-          gradientTransform="matrix(-26.79517 44.82827 -61.43154 -36.71943 84.461 53.915)"
+          gradientTransform="matrix(-20.25215 33.8818 -46.43081 -27.75306 78.988 54.901)"
           gradientUnits="userSpaceOnUse">
           <stop offset={0.095} stopColor="#FFF959" />
           <stop offset={0.326} stopColor="#0DF35E" />
@@ -51,27 +63,24 @@ const KlingLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </radialGradient>
         <linearGradient
           id={`${iconId}-klinglight__d`}
-          x1={72.82}
-          x2={81.721}
-          y1={23.443}
-          y2={52.335}
+          x1={70.19}
+          x2={76.917}
+          y1={31.87}
+          y2={53.707}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#003EFF" />
           <stop offset={1} stopColor="#0BFFE7" />
         </linearGradient>
         <linearGradient
           id={`${iconId}-klinglight__e`}
-          x1={47.18}
-          x2={38.279}
-          y1={96.342}
-          y2={67.45}
+          x1={50.81}
+          x2={44.083}
+          y1={86.968}
+          y2={65.131}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#003EFF" />
           <stop offset={1} stopColor="#0BFFE7" />
         </linearGradient>
-        <clipPath id={`${iconId}-klinglight__a`}>
-          <path fill="#fff" d="M0 0H86V86H0z" transform="translate(17 17)" />
-        </clipPath>
       </defs>
     </svg>
   )

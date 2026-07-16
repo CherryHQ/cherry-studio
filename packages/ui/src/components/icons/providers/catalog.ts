@@ -4,8 +4,8 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-16T09:17:19.073Z
- * Total icons: 160
+ * Generated at: 2026-07-16T09:33:35.018Z
+ * Total icons: 159
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -34,9 +34,9 @@ import { BochaIcon } from './bocha'
 import { BoltNewIcon } from './bolt-new'
 import { BurncloudIcon } from './burncloud'
 import { BytedanceIcon } from './bytedance'
+import { CephalonIcon } from './cephalon'
 import { CerebrasIcon } from './cerebras'
 import { CherryinIcon } from './cherryin'
-import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
 import { ComposioIcon } from './composio'
@@ -120,7 +120,6 @@ import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
 import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
-import { OpencodeIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
 import { PerplexityIcon } from './perplexity'
@@ -197,9 +196,9 @@ export const PROVIDER_ICON_CATALOG = {
   'bolt-new': BoltNewIcon,
   burncloud: BurncloudIcon,
   bytedance: BytedanceIcon,
+  cephalon: CephalonIcon,
   cerebras: CerebrasIcon,
   cherryin: CherryinIcon,
-  'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
   composio: ComposioIcon,
@@ -282,7 +281,6 @@ export const PROVIDER_ICON_CATALOG = {
   ollama: OllamaIcon,
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
-  opencode: OpencodeIcon,
   openrouter: OpenrouterIcon,
   paddleocr: PaddleocrIcon,
   perplexity: PerplexityIcon,

@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { PerplexityDark } from './dark'
 import { PerplexityLight } from './light'
 
 export function PerplexityAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -11,8 +10,7 @@ export function PerplexityAvatar({ size = 32, shape = 'circle', className }: Omi
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <PerplexityLight className="dark:hidden" style={{ width: size, height: size }} />
-        <PerplexityDark className="hidden dark:block" style={{ width: size, height: size }} />
+        <PerplexityLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

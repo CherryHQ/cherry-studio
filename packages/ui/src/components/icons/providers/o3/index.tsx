@@ -9,7 +9,7 @@ const O3 = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const O3Icon: CompoundIcon = /*#__PURE__*/ Object.assign(O3, {
   Avatar: O3Avatar,
-  colorPrimary: '#F5F6FC'
+  colorPrimary: '#000000'
 })
 
 export default O3Icon

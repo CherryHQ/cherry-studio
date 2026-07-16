@@ -2,7 +2,6 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { FireworksDark } from './dark'
 import { FireworksLight } from './light'
 
 export function FireworksAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -11,8 +10,7 @@ export function FireworksAvatar({ size = 32, shape = 'circle', className }: Omit
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <FireworksLight className="dark:hidden" style={{ width: size, height: size }} />
-        <FireworksDark className="hidden dark:block" style={{ width: size, height: size }} />
+        <FireworksLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

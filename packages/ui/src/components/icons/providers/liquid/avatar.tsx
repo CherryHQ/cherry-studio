@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { LiquidDark } from './dark'
 import { LiquidLight } from './light'
 
 export function LiquidAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function LiquidAvatar({ size = 32, shape = 'circle', className }: Omit<Ic
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <LiquidLight style={{ width: size, height: size }} />
+        <LiquidLight className="dark:hidden" style={{ width: size, height: size }} />
+        <LiquidDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )
