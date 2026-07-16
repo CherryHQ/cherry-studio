@@ -1,7 +1,7 @@
 /**
  * Shared SVG utility functions for icon generation scripts.
  *
- * Used by generate-icons.ts, generate-mono-icons.ts, and generate-avatars.ts.
+ * Used by icons-generate.ts and icons-generate-avatars.ts.
  */
 
 import * as fs from 'fs'

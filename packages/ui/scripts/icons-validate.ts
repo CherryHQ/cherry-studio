@@ -8,7 +8,7 @@
  * - No embedded raster images (<image> or data:image)
  * - File size < 50KB
  *
- * Usage: pnpm tsx scripts/validate-svgs.ts [--dir=logos|general]
+ * Usage: pnpm tsx scripts/icons-validate.ts [--dir=logos|general]
  */
 import fs from 'fs/promises'
 import path from 'path'

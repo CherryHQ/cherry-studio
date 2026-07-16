@@ -7,11 +7,11 @@
  *   - Outputs kebab-case SVG
  *
  * Usage:
- *   tsx scripts/vectorize-logo.ts path/to/logo.png
- *   tsx scripts/vectorize-logo.ts path/to/logo.png --preset=photo
- *   tsx scripts/vectorize-logo.ts path/to/*.png
- *   tsx scripts/vectorize-logo.ts --dir=providers        # batch: all PNG/JPG in icons/providers/
- *   tsx scripts/vectorize-logo.ts --dir=models --size=48  # batch with custom size
+ *   tsx scripts/icons-vectorize.ts path/to/logo.png
+ *   tsx scripts/icons-vectorize.ts path/to/logo.png --preset=photo
+ *   tsx scripts/icons-vectorize.ts path/to/*.png
+ *   tsx scripts/icons-vectorize.ts --dir=providers        # batch: all PNG/JPG in icons/providers/
+ *   tsx scripts/icons-vectorize.ts --dir=models --size=48  # batch with custom size
  */
 import { vectorize } from '@neplex/vectorizer'
 import fs from 'fs/promises'
@@ -87,8 +87,8 @@ function parseArgs(): CliArgs {
     }
     if (inputs.length === 0) {
       console.error(
-        'Usage: tsx scripts/vectorize-logo.ts <input.png> [--output=<dir>] [--preset=poster|photo|bw]\n' +
-          '       tsx scripts/vectorize-logo.ts --dir=providers|models [--size=32] [--preset=...]'
+        'Usage: tsx scripts/icons-vectorize.ts <input.png> [--output=<dir>] [--preset=poster|photo|bw]\n' +
+          '       tsx scripts/icons-vectorize.ts --dir=providers|models [--size=32] [--preset=...]'
       )
       process.exit(1)
     }
@@ -236,11 +236,8 @@ async function main() {
     const label = dir || 'providers'
     console.log(`Output: ${outputDir}`)
     console.log(`\nNext steps:`)
-    console.log(`  pnpm ${label}:validate        # check SVG quality`)
-    console.log(`  pnpm ${label}:generate         # generate React components`)
-    console.log(`  pnpm ${label}:generate:mono    # generate mono variants`)
-    console.log(`\n  Or run the full pipeline:`)
-    console.log(`  pnpm ${label}:pipeline`)
+    console.log(`  pnpm icons:generate --type=${label}`)
+    console.log(`  pnpm icons:generate:avatars --type=${label}`)
   }
 }
 
