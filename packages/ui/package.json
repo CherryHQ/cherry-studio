@@ -18,9 +18,7 @@
     "storybook": "storybook dev -p 6006",
     "build:storybook": "storybook build",
     "icons:generate": "tsx scripts/icons-generate.ts",
-    "icons:generate:avatars": "tsx scripts/icons-generate-avatars.ts",
-    "posticons:generate": "pnpm --workspace-root format",
-    "posticons:generate:avatars": "pnpm --workspace-root format"
+    "posticons:generate": "pnpm --workspace-root format"
   },
   "keywords": [
     "ui",

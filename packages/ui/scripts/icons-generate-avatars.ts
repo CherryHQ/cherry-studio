@@ -8,7 +8,7 @@
  *   - SVGs with a detected background shape → full-size Color icon
  *   - SVGs without background → full-size Color icon on neutral bg-background
  *
- * Usage:
+ * Internal stage normally invoked by icons-generate.ts. Direct usage:
  *   pnpm tsx scripts/icons-generate-avatars.ts --type=providers
  *   pnpm tsx scripts/icons-generate-avatars.ts --type=models
  *   pnpm tsx scripts/icons-generate-avatars.ts --type=providers --only=opencode
@@ -288,7 +288,7 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
 // Main
 // ──────────────────────────────────────────────────────────
 
-function main() {
+export function generateAvatars() {
   const iconType = parseLogoTypeArg()
   const only = parseOnlyArg()
   const baseDir = OUTPUT_DIR_MAP[iconType]
@@ -351,4 +351,6 @@ function main() {
   )
 }
 
-main()
+if (require.main === module) {
+  generateAvatars()
+}

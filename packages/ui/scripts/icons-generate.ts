@@ -6,8 +6,8 @@
  *
  * Modes:
  *   --type=icons      icons/general/*.svg                     → src/components/icons/general/{name}.tsx      (flat)
- *   --type=providers  icons/providers/{light,dark}/*.svg      → src/components/icons/providers/{name}/{light,dark}.tsx
- *   --type=models     icons/models/{light,dark}/*.svg         → src/components/icons/models/{name}/{light,dark}.tsx
+ *   --type=providers  generate provider icons, avatars, barrels, and catalogs
+ *   --type=models     generate model icons, avatars, barrels, and catalogs
  */
 import { transform } from '@svgr/core'
 import crypto from 'crypto'
@@ -454,6 +454,9 @@ async function main() {
 
     await saveHashCache(newHashCache)
     console.log(`\nGeneration complete! ${generated} generated, ${skipped} unchanged (cached)`)
+
+    const { generateAvatars } = await import('./icons-generate-avatars')
+    generateAvatars()
     return
   }
 
