@@ -39,10 +39,17 @@ interface GeminiFunctionCall {
   args?: Record<string, unknown>
 }
 
+/** Multimodal payload of a function response (Gemini 3+) — one field set per part. */
+interface GeminiFunctionResponsePart {
+  inlineData?: GeminiBlob
+  fileData?: GeminiFileData
+}
+
 interface GeminiFunctionResponse {
   id?: string
   name?: string
   response?: Record<string, unknown>
+  parts?: GeminiFunctionResponsePart[]
 }
 
 /** A single content part — exactly one payload field is set per Gemini's spec. */
@@ -114,11 +121,40 @@ function contentToText(content: GeminiContent | string | undefined): string {
     .join('\n')
 }
 
-/** Flatten a Gemini `functionResponse.response` into the plain-string tool output. */
-function functionResponseToOutput(response: GeminiFunctionResponse['response']): string {
-  if (response === undefined) return ''
-  if (typeof response === 'string') return response
-  return JSON.stringify(response)
+/** The multimodal `functionResponse.parts` (Gemini 3+) as `file` UI parts. */
+function functionResponseMediaToFileParts(functionResponse: GeminiFunctionResponse): FileUIPart[] {
+  const files: FileUIPart[] = []
+  for (const part of functionResponse.parts ?? []) {
+    if (part.inlineData?.data) {
+      const mediaType = part.inlineData.mimeType || 'application/octet-stream'
+      files.push({ type: 'file', mediaType, url: `data:${mediaType};base64,${part.inlineData.data}` })
+    } else if (part.fileData?.fileUri) {
+      files.push({
+        type: 'file',
+        mediaType: part.fileData.mimeType || 'application/octet-stream',
+        url: part.fileData.fileUri
+      })
+    }
+  }
+  return files
+}
+
+/**
+ * Flatten a Gemini `functionResponse` into the plain-string tool output.
+ *
+ * Multimodal `parts` cannot ride inside the tool output: `convertToModelMessages`
+ * only supports string/JSON tool outputs there, and OpenAI-style protocols have
+ * no media tool content downstream — inlining base64 blows up the prompt (#17078).
+ * Instead each media part becomes a `file` part relocated into the user message
+ * that carried the functionResponse, and the output keeps a placeholder.
+ */
+function functionResponseToOutput(functionResponse: GeminiFunctionResponse): string {
+  const response = functionResponse.response
+  const base = response === undefined ? '' : typeof response === 'string' ? response : JSON.stringify(response)
+  const media = functionResponseMediaToFileParts(functionResponse)
+  if (media.length === 0) return base
+  const lines = media.map((file, i) => `[media ${i + 1} (${file.mediaType}): attached in the following user message]`)
+  return [base, ...lines].filter(Boolean).join('\n')
 }
 
 /** Function responses grouped for pairing: by explicit id, and per-name FIFO queues for id-less payloads. */
@@ -205,7 +241,7 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
       for (const part of content.parts) {
         const functionResponse = part.functionResponse
         if (!functionResponse) continue
-        const output = functionResponseToOutput(functionResponse.response)
+        const output = functionResponseToOutput(functionResponse)
         if (functionResponse.id !== undefined) {
           toolResponses.byId.set(functionResponse.id, output)
         } else if (functionResponse.name !== undefined) {
@@ -270,8 +306,11 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
               ? { ...base, state: 'output-available', input: part.functionCall.args ?? {}, output }
               : { ...base, state: 'input-available', input: part.functionCall.args ?? {} }
           parts.push(toolPart)
+        } else if (part.functionResponse) {
+          // The string output is absorbed into the matching functionCall part above;
+          // relocated multimodal response parts surface here as user-message file parts.
+          parts.push(...functionResponseMediaToFileParts(part.functionResponse))
         }
-        // functionResponse parts are absorbed into the matching functionCall part above.
       }
 
       if (parts.length > 0) {

@@ -60,6 +60,32 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('relocates function_call_output images into a user message and keeps placeholders in the output', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'generate_image', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [
+              { type: 'input_text', text: 'done' },
+              { type: 'input_image', image_url: 'data:image/png;base64,AAAA' }
+            ]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('done')
+    expect(output).toContain('[image 1 (image/png)')
+    expect(output).not.toContain('AAAA')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [{ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }]
+    })
+  })
+
   it('emits an input-available part when a function_call has no output, and tolerates bad JSON args', () => {
     const msgs = converter.toUIMessages(
       params({

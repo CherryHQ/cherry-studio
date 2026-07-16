@@ -26,6 +26,41 @@ function nextUIMessageId(): string {
 // SDK types
 type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
 type EasyInputMessage = OpenAI.Responses.EasyInputMessage
+type FunctionCallOutput = OpenAI.Responses.ResponseInputItem.FunctionCallOutput
+
+/** A function_call_output split into the model-visible string output and relocated images. */
+interface FunctionOutputConversion {
+  output: string
+  images: FileUIPart[]
+}
+
+/**
+ * Convert a function_call_output payload for the `dynamic-tool` UI part.
+ *
+ * Image items cannot ride inside the tool output: `convertToModelMessages` only
+ * supports string/JSON tool outputs there, and OpenAI-style protocols have no
+ * image tool content downstream — inlining base64 blows up the prompt (#17078).
+ * Instead each image becomes a `file` part relocated into a user message right
+ * after the tool call, and the output keeps a placeholder pointing at it.
+ */
+function functionOutputToConversion(output: FunctionCallOutput['output']): FunctionOutputConversion {
+  if (typeof output === 'string') return { output, images: [] }
+  const lines: string[] = []
+  const images: FileUIPart[] = []
+  for (const item of output) {
+    if (item.type === 'input_text') {
+      lines.push(item.text)
+    } else if (item.type === 'input_image' && item.image_url) {
+      const mediaType = parseDataUrl(item.image_url)?.mediaType ?? 'image/*'
+      images.push({ type: 'file', mediaType, url: item.image_url })
+      lines.push(`[image ${images.length} (${mediaType}): attached in the following user message]`)
+    } else {
+      // input_file / file_id-only images have no inline payload to forward.
+      lines.push(`[unsupported ${item.type} tool output item omitted]`)
+    }
+  }
+  return { output: lines.join('\n'), images }
+}
 
 /**
  * Extended ResponseCreateParams with reasoning_effort
@@ -63,7 +98,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
     // function_call items (callId → name + raw arguments) and their outputs.
     const functionCalls = new Map<string, { name: string; input: unknown }>()
-    const functionOutputs = new Map<string, string>()
+    const functionOutputs = new Map<string, FunctionOutputConversion>()
     for (const item of inputArray) {
       if ('type' in item && item.type === 'function_call' && 'call_id' in item && 'name' in item) {
         const funcCall = item
@@ -75,11 +110,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         }
         functionCalls.set(funcCall.call_id, { name: funcCall.name, input })
       } else if ('type' in item && item.type === 'function_call_output') {
-        const output = item
-        functionOutputs.set(
-          output.call_id,
-          typeof output.output === 'string' ? output.output : JSON.stringify(output.output)
-        )
+        functionOutputs.set(item.call_id, functionOutputToConversion(item.output))
       }
     }
 
@@ -95,14 +126,22 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         const funcCall = item
         const call = functionCalls.get(funcCall.call_id)
         if (!call) continue
-        const hasResult = functionOutputs.has(funcCall.call_id)
+        const result = functionOutputs.get(funcCall.call_id)
         const base = { type: 'dynamic-tool' as const, toolName: call.name, toolCallId: funcCall.call_id }
-        const part: DynamicToolUIPart = hasResult
-          ? { ...base, state: 'output-available', input: call.input, output: functionOutputs.get(funcCall.call_id) }
+        const part: DynamicToolUIPart = result
+          ? { ...base, state: 'output-available', input: call.input, output: result.output }
           : { ...base, state: 'input-available', input: call.input }
         messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
+        continue
       }
-      // function_call_output is folded into its function_call above.
+      // function_call_output: the string output is folded into its function_call
+      // above; relocated tool-output images surface here as a user message.
+      if ('type' in item && item.type === 'function_call_output') {
+        const images = functionOutputs.get(item.call_id)?.images
+        if (images?.length) {
+          messages.push({ id: nextUIMessageId(), role: 'user', parts: [...images] })
+        }
+      }
     }
 
     return messages

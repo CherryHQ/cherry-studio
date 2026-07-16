@@ -97,6 +97,44 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     expect(msgs).toHaveLength(1)
   })
 
+  it('relocates multimodal functionResponse parts into user file parts and keeps placeholders in the output', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          { role: 'model', parts: [{ functionCall: { id: 'c1', name: 'generate_image', args: {} } }] },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: 'c1',
+                  name: 'generate_image',
+                  response: { status: 'done' },
+                  parts: [
+                    { inlineData: { mimeType: 'image/png', data: 'AAAA' } },
+                    { fileData: { mimeType: 'image/jpeg', fileUri: 'https://img.example/x.jpg' } }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain(JSON.stringify({ status: 'done' }))
+    expect(output).toContain('[media 1 (image/png)')
+    expect(output).toContain('[media 2 (image/jpeg)')
+    expect(output).not.toContain('AAAA')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+        { type: 'file', mediaType: 'image/jpeg', url: 'https://img.example/x.jpg' }
+      ]
+    })
+  })
+
   it('pairs parallel same-name id-less calls 1:1 by document order (no cross-contamination)', () => {
     // Gemini 1.5/2.0/2.5 `generateContent` often omits ids; two `get_weather`
     // calls in one round must each keep their OWN response, not both read the last.

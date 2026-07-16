@@ -93,6 +93,45 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('relocates tool_result images into user file parts and keeps placeholders in the output', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'text', text: 'done' },
+                  { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+                  { type: 'image', source: { type: 'url', url: 'https://img.example/x.png' } }
+                ]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('done')
+    expect(output).toContain('[image 1 (image/png)')
+    expect(output).toContain('[image 2 (image/png)')
+    expect(output).not.toContain('AAAA')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+        { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
+      ]
+    })
+  })
+
   it('emits an input-available tool part when there is no matching result', () => {
     const msgs = converter.toUIMessages(
       params({

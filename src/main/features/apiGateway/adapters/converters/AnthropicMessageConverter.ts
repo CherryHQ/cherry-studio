@@ -7,6 +7,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
+  ImageBlockParam,
   MessageCreateParams,
   Tool as AnthropicTool,
   ToolResultBlockParam
@@ -40,27 +41,49 @@ function sanitizeJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 
+/** An Anthropic image block as a `file` UI part (undefined for unknown sources). */
+function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
+  if (source.type === 'base64') {
+    return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
+  }
+  if (source.type === 'url') {
+    return { type: 'file', mediaType: 'image/png', url: source.url }
+  }
+  return undefined
+}
+
+/** A tool_result split into the model-visible string output and relocated images. */
+interface ToolResultConversion {
+  output: string
+  images: FileUIPart[]
+}
+
 /**
- * Flatten Anthropic tool_result content into a plain string output for the
- * `dynamic-tool` UI part. `convertToModelMessages` re-wraps it into a tool
- * result model message.
+ * Convert Anthropic tool_result content for the `dynamic-tool` UI part.
+ *
+ * Image blocks cannot ride inside the tool output: `convertToModelMessages`
+ * only supports string/JSON tool outputs there, and OpenAI-style protocols have
+ * no image tool content at all — inlining base64 blows up the prompt (#17078).
+ * Instead each image becomes a `file` part relocated into the user message that
+ * carried the tool_result (every protocol accepts user images), and the output
+ * keeps a placeholder pointing at it.
  */
-function toolResultToOutput(content: NonNullable<ToolResultBlockParam['content']>): string {
-  if (typeof content === 'string') return content
-  const parts: string[] = []
+function toolResultToOutput(content: NonNullable<ToolResultBlockParam['content']>): ToolResultConversion {
+  if (typeof content === 'string') return { output: content, images: [] }
+  const lines: string[] = []
+  const images: FileUIPart[] = []
   for (const block of content) {
     if (block.type === 'text') {
-      parts.push(block.text)
+      lines.push(block.text)
     } else if (block.type === 'image') {
-      const source = block.source
-      if (source.type === 'base64') {
-        parts.push(`data:${source.media_type};base64,${source.data}`)
-      } else if (source.type === 'url') {
-        parts.push(source.url)
+      const file = imageBlockToFilePart(block.source)
+      if (file) {
+        images.push(file)
+        lines.push(`[image ${images.length} (${file.mediaType}): attached in the following user message]`)
       }
     }
   }
-  return parts.join('\n')
+  return { output: lines.join('\n'), images }
 }
 
 /**
@@ -110,16 +133,19 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       }
     }
 
-    // tool_use id → name (for tool_result parts) and tool_use id → result output.
+    // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
     const toolCallIdToName = new Map<string, string>()
-    const toolResultOutputs = new Map<string, string>()
+    const toolResults = new Map<string, ToolResultConversion>()
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
         if (block.type === 'tool_use') {
           toolCallIdToName.set(block.id, block.name)
         } else if (block.type === 'tool_result') {
-          toolResultOutputs.set(block.tool_use_id, block.content ? toolResultToOutput(block.content) : '')
+          toolResults.set(
+            block.tool_use_id,
+            block.content ? toolResultToOutput(block.content) : { output: '', images: [] }
+          )
         }
       }
     }
@@ -148,36 +174,31 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           const part: ReasoningUIPart = { type: 'reasoning', text: block.data }
           parts.push(part)
         } else if (block.type === 'image') {
-          const source = block.source
-          const url =
-            source.type === 'base64'
-              ? `data:${source.media_type};base64,${source.data}`
-              : source.type === 'url'
-                ? source.url
-                : undefined
-          if (url) {
-            const part: FileUIPart = {
-              type: 'file',
-              mediaType: source.type === 'base64' ? source.media_type : 'image/png',
-              url
-            }
+          const part = imageBlockToFilePart(block.source)
+          if (part) {
             parts.push(part)
           }
         } else if (block.type === 'tool_use') {
           const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.name, block.id)
-          const hasResult = toolResultOutputs.has(block.id)
+          const result = toolResults.get(block.id)
           const base = {
             type: 'dynamic-tool' as const,
             toolName: block.name,
             toolCallId: block.id,
             ...(callProviderMetadata ? { callProviderMetadata } : {})
           }
-          const part: DynamicToolUIPart = hasResult
-            ? { ...base, state: 'output-available', input: block.input, output: toolResultOutputs.get(block.id) }
+          const part: DynamicToolUIPart = result
+            ? { ...base, state: 'output-available', input: block.input, output: result.output }
             : { ...base, state: 'input-available', input: block.input }
           parts.push(part)
+        } else if (block.type === 'tool_result') {
+          // The string output is absorbed into the matching tool_use part above;
+          // relocated tool-result images surface here as user-message file parts.
+          const images = toolResults.get(block.tool_use_id)?.images
+          if (images?.length) {
+            parts.push(...images)
+          }
         }
-        // tool_result blocks are absorbed into their matching tool_use part above.
       }
 
       if (parts.length > 0) {
