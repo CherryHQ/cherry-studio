@@ -4,7 +4,7 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-13T20:06:33.031Z
+ * Generated at: 2026-07-16T08:02:51.547Z
  * Total icons: 160
  */
 import { type CompoundIcon } from '../types'
@@ -120,7 +120,7 @@ import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
 import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
-import { OpenCodeGoIcon } from './opencode'
+import { OpencodeIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
 import { PerplexityIcon } from './perplexity'
@@ -282,7 +282,7 @@ export const PROVIDER_ICON_CATALOG = {
   ollama: OllamaIcon,
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
-  opencode: OpenCodeGoIcon,
+  opencode: OpencodeIcon,
   openrouter: OpenrouterIcon,
   paddleocr: PaddleocrIcon,
   perplexity: PerplexityIcon,

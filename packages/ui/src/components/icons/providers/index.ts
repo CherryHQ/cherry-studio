@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-07-13T20:06:32.719Z
+ * Generated at: 2026-07-16T08:02:51.417Z
  * Total icons: 160
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -117,7 +117,7 @@ export { OcoolaiIcon as Ocoolai } from './ocoolai'
 export { OllamaIcon as Ollama } from './ollama'
 export { OpenaiIcon as Openai } from './openai'
 export { OpenclawIcon as Openclaw } from './openclaw'
-export { OpenCodeGoIcon as OpenCodeGo } from './opencode'
+export { OpencodeIcon as Opencode } from './opencode'
 export { OpenrouterIcon as Openrouter } from './openrouter'
 export { PaddleocrIcon as Paddleocr } from './paddleocr'
 export { PerplexityIcon as Perplexity } from './perplexity'

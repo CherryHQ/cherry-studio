@@ -106,12 +106,26 @@ export function tightenSvgViewBox(svgCode: string, options: { minimumFrameRatio?
 
   // Add a 1-unit margin so anti-aliased strokes don't clip at the edges
   const margin = 1
-  const nx = Math.max(vbX, bounds.minX - margin)
-  const ny = Math.max(vbY, bounds.minY - margin)
-  const nw = Math.min(vbX + vbW, bounds.maxX + margin) - nx
-  const nh = Math.min(vbY + vbH, bounds.maxY + margin) - ny
+  let nx = Math.max(vbX, bounds.minX - margin)
+  let ny = Math.max(vbY, bounds.minY - margin)
+  let nw = Math.min(vbX + vbW, bounds.maxX + margin) - nx
+  let nh = Math.min(vbY + vbH, bounds.maxY + margin) - ny
 
   if (!isFinite(nw) || !isFinite(nh) || nw <= 0 || nh <= 0) return svgCode
+
+  // Preserve the source frame's aspect ratio so a square icon canvas stays
+  // square even when the visible logo itself is tall or wide.
+  const sourceAspectRatio = vbW / vbH
+  const contentAspectRatio = nw / nh
+  if (contentAspectRatio > sourceAspectRatio) {
+    const expandedHeight = nw / sourceAspectRatio
+    ny = Math.min(Math.max(ny - (expandedHeight - nh) / 2, vbY), vbY + vbH - expandedHeight)
+    nh = expandedHeight
+  } else if (contentAspectRatio < sourceAspectRatio) {
+    const expandedWidth = nh * sourceAspectRatio
+    nx = Math.min(Math.max(nx - (expandedWidth - nw) / 2, vbX), vbX + vbW - expandedWidth)
+    nw = expandedWidth
+  }
 
   const newViewBox = `viewBox="${nx} ${ny} ${nw} ${nh}"`
   return svgCode.replace(/(<svg[^>]*\b)viewBox="[^"]+"/, `$1${newViewBox}`)
