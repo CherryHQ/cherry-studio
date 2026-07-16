@@ -93,15 +93,28 @@ export async function compactSession(input: CompactSessionInput): Promise<AgentS
   }
 
   const summaryTokenCount = approximateTokenSize(summary)
-  agentSessionRuntimeStateService.saveState({
-    sessionId: input.sessionId,
-    runtimeType: AI_SDK_RUNTIME_TYPE,
-    compactedThroughMessageId: prefixRows[prefixRows.length - 1].id,
-    summary,
-    summaryTokenCount,
-    sourceTokenCount,
-    compactionModelId: input.modelId
-  })
+  // Guarded write: the summary embeds a pre-`generate` snapshot, so the save
+  // re-verifies in one transaction that no summarized row was deleted and the
+  // folded-in prior state was not invalidated meanwhile — otherwise deleted
+  // content would resurface inside the fresh checkpoint.
+  const checkpoint = agentSessionRuntimeStateService.saveStateChecked(
+    {
+      sessionId: input.sessionId,
+      runtimeType: AI_SDK_RUNTIME_TYPE,
+      compactedThroughMessageId: prefixRows[prefixRows.length - 1].id,
+      summary,
+      summaryTokenCount,
+      sourceTokenCount,
+      compactionModelId: input.modelId
+    },
+    {
+      expectedUpdatedAt: state?.updatedAt ?? null,
+      sourceMessageIds: prefixRows.map((row) => row.id)
+    }
+  )
+  if (!checkpoint) {
+    throw new Error('Session messages changed while the summary was generating; checkpoint discarded.')
+  }
 
   const anchor: AgentSessionCompactionAnchorData = {
     trigger: input.trigger,

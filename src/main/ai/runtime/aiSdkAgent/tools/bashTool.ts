@@ -27,10 +27,22 @@ export const MAX_BASH_TIMEOUT_MS = 600_000
 /** Combined stdout+stderr cap; excess is discarded, not buffered. */
 export const MAX_BASH_OUTPUT_CHARS = 30_000
 
-/** Substrings marking credential-shaped env keys (same policy as codeCli's
+/** Substrings marking credential-shaped env keys (superset of codeCli's
  *  `SENSITIVE_ENV_KEYS` log redaction, kept separate so stripping here can
- *  tighten independently). */
-const SENSITIVE_ENV_KEY_FRAGMENTS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
+ *  tighten independently). A denylist cannot be complete — this covers
+ *  provider keys (`*_API_KEY`), cloud credentials (`AWS_ACCESS_KEY_ID`,
+ *  `GOOGLE_APPLICATION_CREDENTIALS`), and the common token/secret shapes. */
+const SENSITIVE_ENV_KEY_FRAGMENTS = [
+  'API_KEY',
+  'APIKEY',
+  'ACCESS_KEY',
+  'AUTHORIZATION',
+  'CREDENTIAL',
+  'TOKEN',
+  'SECRET',
+  'PASSWORD',
+  'PASSWD'
+]
 
 export const BashToolSchema = z.object({
   command: z.string().describe('The shell command to execute'),

@@ -1,11 +1,12 @@
 import { application } from '@application'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import {
   type AgentSessionRuntimeStateRow,
   agentSessionRuntimeStateTable
 } from '@data/db/schemas/agentSessionRuntimeState'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 
 /**
  * Payload schema version stamped on every write. Reads filter on it, so a
@@ -58,6 +59,60 @@ export class AgentSessionRuntimeStateService {
   /** Upsert the session's state (single row per session, single atomic statement). */
   saveState(params: SaveAgentSessionRuntimeStateParams): AgentSessionRuntimeStateRow {
     const database = application.get('DbService').getDb()
+    return withSqliteErrors(() => this.upsert(database, params), defaultHandlersFor('Session', params.sessionId))
+  }
+
+  /**
+   * Guarded upsert for compaction: the summary was generated from a snapshot
+   * taken before a long model call, so the write must re-verify — in the same
+   * write transaction — that nothing invalidating happened in between.
+   * Otherwise a message deleted mid-summarization (whose delete already
+   * cleared any old checkpoint) would resurface inside the fresh summary.
+   *
+   * Returns `null` without writing when the guard fails:
+   * - a summarized source row no longer exists, or
+   * - the prior state whose summary was folded in was invalidated
+   *   (`expectedUpdatedAt` no longer matches the stored row).
+   */
+  saveStateChecked(
+    params: SaveAgentSessionRuntimeStateParams,
+    guard: {
+      /** `updatedAt` of the state row folded into the new summary, or null when none was. */
+      expectedUpdatedAt: number | null
+      /** Durable rows embedded in the new summary — all must still exist at commit time. */
+      sourceMessageIds: readonly string[]
+    }
+  ): AgentSessionRuntimeStateRow | null {
+    return withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          if (guard.expectedUpdatedAt !== null) {
+            const [existing] = tx
+              .select({ updatedAt: agentSessionRuntimeStateTable.updatedAt })
+              .from(agentSessionRuntimeStateTable)
+              .where(eq(agentSessionRuntimeStateTable.sessionId, params.sessionId))
+              .limit(1)
+              .all()
+            if (existing?.updatedAt !== guard.expectedUpdatedAt) return null
+          }
+          const [{ found }] = tx
+            .select({ found: count() })
+            .from(agentSessionMessageTable)
+            .where(
+              and(
+                eq(agentSessionMessageTable.sessionId, params.sessionId),
+                inArray(agentSessionMessageTable.id, [...guard.sourceMessageIds])
+              )
+            )
+            .all()
+          if (found !== guard.sourceMessageIds.length) return null
+          return this.upsert(tx, params)
+        }),
+      defaultHandlersFor('Session', params.sessionId)
+    )
+  }
+
+  private upsert(db: DbOrTx, params: SaveAgentSessionRuntimeStateParams): AgentSessionRuntimeStateRow {
     const now = Date.now()
     const values = {
       sessionId: params.sessionId,
@@ -69,21 +124,16 @@ export class AgentSessionRuntimeStateService {
       sourceTokenCount: params.sourceTokenCount ?? null,
       compactionModelId: params.compactionModelId
     }
-    return withSqliteErrors(
-      () => {
-        const [row] = database
-          .insert(agentSessionRuntimeStateTable)
-          .values({ ...values, createdAt: now, updatedAt: now })
-          .onConflictDoUpdate({
-            target: agentSessionRuntimeStateTable.sessionId,
-            set: { ...values, updatedAt: now }
-          })
-          .returning()
-          .all()
-        return row
-      },
-      defaultHandlersFor('Session', params.sessionId)
-    )
+    const [row] = db
+      .insert(agentSessionRuntimeStateTable)
+      .values({ ...values, createdAt: now, updatedAt: now })
+      .onConflictDoUpdate({
+        target: agentSessionRuntimeStateTable.sessionId,
+        set: { ...values, updatedAt: now }
+      })
+      .returning()
+      .all()
+    return row
   }
 
   /** Drop the session's state. Runs on the caller's transaction so it commits with the triggering write. */

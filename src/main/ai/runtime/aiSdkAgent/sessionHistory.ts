@@ -46,8 +46,9 @@ export function buildTurnMessages(sessionId: string, input: AgentRuntimeUserInpu
  *
  * Persisted `/compact` user rows are excluded — they are stored as ordinary
  * user text but are commands to Cherry, not conversation (pi never sees them
- * either: its replay is SDK-internal). No paired assistant row exists for a
- * compact turn, so dropping the user row drops the whole exchange.
+ * either: its replay is SDK-internal). A compact turn's assistant row is
+ * empty (no chunks are produced), and `toModelMessages` drops empty
+ * assistant turns, so filtering the user row removes the whole exchange.
  */
 export function loadReplayContext(
   sessionId: string,

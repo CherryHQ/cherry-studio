@@ -128,4 +128,71 @@ describe('AgentSessionRuntimeStateService', () => {
 
     expect(await dbh.db.select().from(agentSessionRuntimeStateTable)).toHaveLength(0)
   })
+
+  describe('saveStateChecked (compaction write-after-read guard)', () => {
+    function saveChecked(guard: { expectedUpdatedAt: number | null; sourceMessageIds: readonly string[] }) {
+      return agentSessionRuntimeStateService.saveStateChecked(
+        {
+          sessionId: SESSION_ID,
+          runtimeType: RUNTIME_TYPE,
+          compactedThroughMessageId: ANCHOR_ID,
+          summary: 'fresh summary',
+          compactionModelId: 'provider::model'
+        },
+        guard
+      )
+    }
+
+    it('writes when every summarized row still exists and no prior state was folded', () => {
+      const row = saveChecked({ expectedUpdatedAt: null, sourceMessageIds: [ANCHOR_ID] })
+
+      expect(row).toMatchObject({ summary: 'fresh summary' })
+      expect(agentSessionRuntimeStateService.getState(SESSION_ID, RUNTIME_TYPE)).toMatchObject({
+        summary: 'fresh summary'
+      })
+    })
+
+    it('refuses to write when a summarized source row was deleted mid-summarization', async () => {
+      await seedMessage(ANCHOR_ID_2, SESSION_ID, 200)
+      await dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ANCHOR_ID_2))
+
+      const row = saveChecked({ expectedUpdatedAt: null, sourceMessageIds: [ANCHOR_ID, ANCHOR_ID_2] })
+
+      expect(row).toBeNull()
+      expect(await dbh.db.select().from(agentSessionRuntimeStateTable)).toHaveLength(0)
+    })
+
+    it('refuses to write when the folded prior state was invalidated meanwhile', () => {
+      const prior = saveState()
+
+      // Simulate the same-transaction invalidation a message delete performs.
+      agentSessionRuntimeStateService.invalidateStateTx(dbh.db, SESSION_ID)
+
+      const row = saveChecked({ expectedUpdatedAt: prior.updatedAt, sourceMessageIds: [ANCHOR_ID] })
+
+      expect(row).toBeNull()
+      expect(agentSessionRuntimeStateService.getState(SESSION_ID, RUNTIME_TYPE)).toBeNull()
+    })
+
+    it('refuses to write when the prior state was replaced (updatedAt moved on)', () => {
+      const prior = saveState()
+      vi.spyOn(Date, 'now').mockReturnValue(prior.updatedAt + 1000)
+      saveState({ summary: 'replaced summary' })
+
+      const row = saveChecked({ expectedUpdatedAt: prior.updatedAt, sourceMessageIds: [ANCHOR_ID] })
+
+      expect(row).toBeNull()
+      expect(agentSessionRuntimeStateService.getState(SESSION_ID, RUNTIME_TYPE)).toMatchObject({
+        summary: 'replaced summary'
+      })
+    })
+
+    it('writes over the matching prior state when the guard holds', () => {
+      const prior = saveState()
+
+      const row = saveChecked({ expectedUpdatedAt: prior.updatedAt, sourceMessageIds: [ANCHOR_ID] })
+
+      expect(row).toMatchObject({ summary: 'fresh summary' })
+    })
+  })
 })

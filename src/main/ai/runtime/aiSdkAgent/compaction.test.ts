@@ -258,4 +258,62 @@ describe('compactSession', () => {
   it('exposes the documented tail ceiling', () => {
     expect(COMPACTION_RETAIN_TAIL_MESSAGES).toBe(4)
   })
+
+  it('discards the checkpoint when a summarized row is deleted during the model call', async () => {
+    await seedThreeExchanges()
+    const { agentSessionMessageService } = await import('@data/services/AgentSessionMessageService')
+    // The delete lands while `generate` is in flight — after the row snapshot,
+    // before the checkpoint write. Its same-transaction invalidation must win.
+    mocks.generate.mockImplementation(async () => {
+      agentSessionMessageService.deleteSessionMessage(SESSION_ID, 'a1')
+      return { text: 'SUMMARY EMBEDDING DELETED CONTENT', usage: {} }
+    })
+
+    await expect(
+      compactSession({
+        sessionId: SESSION_ID,
+        boundaryMessageId: 'u4',
+        trigger: 'manual',
+        sdkConfig: SDK_CONFIG,
+        modelId: MODEL_ID
+      })
+    ).rejects.toThrow('changed while the summary was generating')
+
+    expect(await dbh.db.select().from(agentSessionRuntimeStateTable)).toHaveLength(0)
+  })
+
+  it('discards the checkpoint when the folded prior state is invalidated during the model call', async () => {
+    await seedThreeExchanges()
+    agentSessionRuntimeStateService.saveState({
+      sessionId: SESSION_ID,
+      runtimeType: 'ai-sdk',
+      compactedThroughMessageId: 'a1',
+      summary: 'prior summary',
+      compactionModelId: MODEL_ID
+    })
+    await seedRows([
+      { id: 'u5', createdAt: 800, role: 'user', text: 'fifth question' },
+      { id: 'a5', createdAt: 900, text: 'fifth answer' },
+      { id: 'u6', createdAt: 1000, role: 'user', text: 'sixth prompt' }
+    ])
+    const { agentSessionMessageService } = await import('@data/services/AgentSessionMessageService')
+    // Deleting a TAIL row (not summarized) still invalidates the prior state
+    // whose summary we folded in — the guard must catch that too.
+    mocks.generate.mockImplementation(async () => {
+      agentSessionMessageService.deleteSessionMessage(SESSION_ID, 'a5')
+      return { text: 'SUMMARY FOLDING A DEAD PRIOR STATE', usage: {} }
+    })
+
+    await expect(
+      compactSession({
+        sessionId: SESSION_ID,
+        boundaryMessageId: 'u6',
+        trigger: 'auto',
+        sdkConfig: SDK_CONFIG,
+        modelId: MODEL_ID
+      })
+    ).rejects.toThrow('changed while the summary was generating')
+
+    expect(await dbh.db.select().from(agentSessionRuntimeStateTable)).toHaveLength(0)
+  })
 })
