@@ -31,11 +31,35 @@ vi.mock('motion/react', () => {
   }
 })
 
+// The tint colours are downsampled from the real image, so the grid pulls the
+// image bytes through `getImageBlobFromSource` and draws them into a cols×rows
+// canvas. The stubs below feed it a deterministic solid colour per cell.
+const mockGetImageBlobFromSource = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/utils/image', () => ({
+  getImageBlobFromSource: mockGetImageBlobFromSource
+}))
+
+// Every downsampled cell resolves to this colour (the default stubbed getImageData).
+const TINT_COLOR = 'rgb(10, 20, 30)'
+
+/** An ImageData-like buffer filled with a single solid RGB for every pixel. */
+const solidImageData = (w: number, h: number, [r, g, b]: [number, number, number]) => {
+  const data = new Uint8ClampedArray(w * h * 4)
+  for (let p = 0; p < w * h; p++) {
+    data[p * 4] = r
+    data[p * 4 + 1] = g
+    data[p * 4 + 2] = b
+    data[p * 4 + 3] = 255
+  }
+  return { data }
+}
+
 describe('PaintingSkeletonGrid', () => {
-  const originalResizeObserver = globalThis.ResizeObserver
   let size = { width: 440, height: 440 }
   let resizeCallback: ResizeObserverCallback | undefined
   let observedTarget: Element | undefined
+  let drawImageMock: ReturnType<typeof vi.fn>
+  let getImageDataMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     reduceMotionState.value = false
@@ -46,6 +70,15 @@ describe('PaintingSkeletonGrid', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
       () => new DOMRect(0, 0, size.width, size.height)
     )
+
+    mockGetImageBlobFromSource.mockReset().mockResolvedValue(new Blob())
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 64, height: 64, close: vi.fn() }))
+    drawImageMock = vi.fn()
+    getImageDataMock = vi.fn((_x: number, _y: number, w: number, h: number) => solidImageData(w, h, [10, 20, 30]))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: drawImageMock,
+      getImageData: getImageDataMock
+    } as never)
 
     vi.stubGlobal(
       'ResizeObserver',
@@ -67,7 +100,7 @@ describe('PaintingSkeletonGrid', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.stubGlobal('ResizeObserver', originalResizeObserver)
+    vi.unstubAllGlobals()
   })
 
   it('remounts animation cells when grid geometry changes', () => {
@@ -128,8 +161,6 @@ describe('PaintingSkeletonGrid', () => {
   })
 
   describe('real-image slice wave and gap heal (Act 3 & Act 4)', () => {
-    // A known-valid sample blurhash (also used elsewhere in the paintings test suite).
-    const blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
     const cols = 10
     const rows = 10
     // The 440px box insets by GAP (5) on each side → a 430px inner square divided
@@ -138,7 +169,7 @@ describe('PaintingSkeletonGrid', () => {
     const pitch = 43.5
 
     it('keeps the loading shimmer mounted and animating underneath the tint layer instead of freezing it', async () => {
-      const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" />)
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
       const grid = container.firstElementChild!.firstElementChild as HTMLElement
 
       await waitFor(() => {
@@ -162,7 +193,7 @@ describe('PaintingSkeletonGrid', () => {
     })
 
     it('layers a real-image slice on each tinted cell, chasing the tint wave by SLICE_CHASE_OFFSET (0.2s)', async () => {
-      const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" />)
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
       const grid = container.firstElementChild!.firstElementChild as HTMLElement
 
       await waitFor(() => {
@@ -179,6 +210,8 @@ describe('PaintingSkeletonGrid', () => {
       const tintTransition = JSON.parse(tintDiv.dataset.transition!) as { delay: number; duration: number }
       const sliceTransition = JSON.parse(sliceDiv.dataset.transition!) as { delay: number; duration: number }
 
+      // The tint layer carries the downsampled cell colour.
+      expect(tintDiv.style.backgroundColor).toBe(TINT_COLOR)
       expect(tintTransition.delay).toBeCloseTo(expectedTintDelay, 5)
       expect(tintTransition.duration).toBe(0.68)
       expect(sliceTransition.delay).toBeCloseTo(expectedTintDelay + 0.2, 5)
@@ -189,7 +222,7 @@ describe('PaintingSkeletonGrid', () => {
     })
 
     it('fades in a full-image layer over the whole grid once the slice wave finishes sweeping', async () => {
-      const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" />)
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
       const root = container.firstElementChild as HTMLElement
 
       await waitFor(() => expect(root.children).toHaveLength(2))
@@ -204,25 +237,22 @@ describe('PaintingSkeletonGrid', () => {
       expect(transition.duration).toBe(0.4)
     })
 
-    it('does not render slice or heal layers without a real image url', async () => {
-      const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} />)
+    it('does not tint, slice, or heal without a real image url', () => {
+      const { container } = render(<PaintingSkeletonGrid />)
       const root = container.firstElementChild as HTMLElement
+      const grid = root.firstElementChild as HTMLElement
+      const wrapper = grid.children[0] as HTMLElement
 
-      await waitFor(() => {
-        const grid = root.firstElementChild as HTMLElement
-        const wrapper = grid.children[0] as HTMLElement
-        // Shimmer + tint layer, no slice layer.
-        expect(wrapper.children).toHaveLength(2)
-      })
-
-      // Just the grid — no absolutely-positioned heal overlay sibling.
+      // Only the shimmer — the tint is downsampled from the image, so with no
+      // image url there is no tint layer, no slice layer, and no heal overlay.
+      expect(wrapper.children).toHaveLength(1)
       expect(root.children).toHaveLength(1)
     })
 
     it('extends onRevealReady to ~2.3s (Act 2 + 3 + 4) when a real image drives the slice + heal sequence', async () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
       const onRevealReady = vi.fn()
-      render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
+      render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
 
       // Identify our effect's call by its callback identity — waitFor's own
       // polling schedules unrelated setTimeout calls on the same spy.
@@ -236,7 +266,7 @@ describe('PaintingSkeletonGrid', () => {
     it('uses the ~2.03s onRevealReady delay (Act 2 only) without a real image', async () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
       const onRevealReady = vi.fn()
-      render(<PaintingSkeletonGrid blurhash={blurhash} onRevealReady={onRevealReady} />)
+      render(<PaintingSkeletonGrid onRevealReady={onRevealReady} />)
 
       await waitFor(() => expect(setTimeoutSpy.mock.calls.some(([fn]) => fn === onRevealReady)).toBe(true))
 
@@ -246,14 +276,105 @@ describe('PaintingSkeletonGrid', () => {
     })
   })
 
+  describe('image downsampling', () => {
+    it('draws the image into a cols×rows canvas and maps pixels row-major to per-cell tints', async () => {
+      // A distinct colour per pixel index makes the row-major mapping observable:
+      // pixel p → rgb(p, 0, 0), which cell i must pick up as its own tint.
+      getImageDataMock.mockImplementation((_x: number, _y: number, w: number, h: number) => {
+        const data = new Uint8ClampedArray(w * h * 4)
+        for (let p = 0; p < w * h; p++) {
+          data[p * 4] = p
+          data[p * 4 + 3] = 255
+        }
+        return { data }
+      })
+
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
+      const grid = container.firstElementChild!.firstElementChild as HTMLElement
+
+      await waitFor(() => {
+        // The tint layer only appears once the downsample resolves.
+        expect((grid.children[0] as HTMLElement).children).toHaveLength(3)
+      })
+
+      // The canvas is sized to the measured 10×10 grid: the full bitmap is scaled
+      // into it and read back at exactly those dimensions (not a fixed thumbnail).
+      expect(drawImageMock).toHaveBeenCalledWith(expect.anything(), 0, 0, 10, 10)
+      expect(getImageDataMock).toHaveBeenCalledWith(0, 0, 10, 10)
+
+      const tintOf = (cellIndex: number) =>
+        ((grid.children[cellIndex] as HTMLElement).children[1] as HTMLElement).style.backgroundColor
+      // Row-major: cell 0 ← pixel 0, cell 1 ← pixel 1, cell 11 ← pixel 11.
+      expect(tintOf(0)).toBe('rgb(0, 0, 0)')
+      expect(tintOf(1)).toBe('rgb(1, 0, 0)')
+      expect(tintOf(11)).toBe('rgb(11, 0, 0)')
+    })
+
+    it('re-downsamples at the new geometry when the grid relocks', async () => {
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
+      const root = container.firstElementChild as HTMLElement
+
+      // Initial downsample against the measured 10×10 grid.
+      await waitFor(() => expect(getImageDataMock).toHaveBeenCalledWith(0, 0, 10, 10))
+
+      // The box relocks to a smaller natural size → the grid re-measures to 6×6, so
+      // the colour effect must re-run to match the tint count to the new layout.
+      size = { width: 240, height: 240 }
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver)
+      })
+
+      await waitFor(() => expect(getImageDataMock).toHaveBeenCalledWith(0, 0, 6, 6))
+      expect((root.firstElementChild as HTMLElement).children).toHaveLength(6 * 6)
+    })
+
+    it('discards a stale in-flight downsample when the grid relocks before it resolves', async () => {
+      // Gate the first (10×10) downsample so it is still in flight when the grid
+      // relocks; the second (6×6) downsample resolves immediately. Colours are keyed
+      // by canvas width so the two passes stay distinguishable regardless of order.
+      let releaseFirst: (blob: Blob) => void = () => {}
+      mockGetImageBlobFromSource.mockReturnValueOnce(new Promise<Blob>((resolve) => (releaseFirst = resolve)))
+      getImageDataMock.mockImplementation((_x: number, _y: number, w: number, h: number) =>
+        solidImageData(w, h, w === 10 ? [255, 0, 0] : [0, 255, 0])
+      )
+
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
+      const root = container.firstElementChild as HTMLElement
+
+      // Relock to 6×6 while the first downsample is still gated.
+      size = { width: 240, height: 240 }
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver)
+      })
+
+      const tintOfFirstCell = () =>
+        (((root.firstElementChild as HTMLElement).children[0] as HTMLElement).children[1] as HTMLElement | undefined)
+          ?.style.backgroundColor
+
+      // The 6×6 pass wins: a green tint lands on the relocked grid.
+      await waitFor(() => {
+        expect((root.firstElementChild as HTMLElement).children).toHaveLength(6 * 6)
+        expect(tintOfFirstCell()).toBe('rgb(0, 255, 0)')
+      })
+
+      // Releasing the stale 10×10 pass must NOT overwrite the current colours — the
+      // `active` guard drops its result because a newer geometry superseded it.
+      await act(async () => {
+        releaseFirst(new Blob())
+        await Promise.resolve()
+      })
+      expect(tintOfFirstCell()).toBe('rgb(0, 255, 0)')
+    })
+  })
+
   describe('reveal handoff resilience', () => {
-    it('still schedules the reveal handoff when the blurhash fails to decode', async () => {
+    it('still schedules the reveal handoff when the image fails to downsample', async () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
       const onRevealReady = vi.fn()
-      // Too short to be a valid blurhash — decodeCellColors throws, so no tint is
-      // shown, but the reveal must still complete instead of pinning the skeleton
-      // over the finished image forever.
-      render(<PaintingSkeletonGrid blurhash="abc" imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
+      // The image can't be read, so no tint is shown — but the reveal must still
+      // complete instead of pinning the skeleton over the finished image forever.
+      mockGetImageBlobFromSource.mockRejectedValue(new Error('unreadable'))
+      render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
 
       await waitFor(() => expect(setTimeoutSpy.mock.calls.some(([fn]) => fn === onRevealReady)).toBe(true))
 
@@ -264,8 +385,6 @@ describe('PaintingSkeletonGrid', () => {
   })
 
   describe('prefers-reduced-motion', () => {
-    const blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
-
     it('renders a static snapshot with no looping animation', () => {
       reduceMotionState.value = true
 
@@ -278,18 +397,22 @@ describe('PaintingSkeletonGrid', () => {
       expect(cell.style.opacity).toBe('0.66')
     })
 
-    it('applies the decoded tint colour statically when a blurhash is present', () => {
+    it('applies the downsampled tint colour statically when the image is present', async () => {
       reduceMotionState.value = true
 
-      const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" />)
+      const { container } = render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" />)
       const grid = container.firstElementChild!.firstElementChild as HTMLElement
-      const cell = grid.children[0] as HTMLElement
 
-      // Still a plain div (no animation), but filled with the decoded colour at the
-      // solid tint opacity rather than the grey baseline.
+      // Still a plain div (no animation), but filled with the downsampled colour at
+      // the solid tint opacity rather than the grey baseline. The downsample is
+      // async, so the colour arrives after the initial static render.
+      await waitFor(() => {
+        const cell = grid.children[0] as HTMLElement
+        expect(cell.style.backgroundColor).toBe(TINT_COLOR)
+      })
+      const cell = grid.children[0] as HTMLElement
       expect(cell.dataset.animate).toBeUndefined()
       expect(cell.style.opacity).toBe('0.95')
-      expect(cell.style.backgroundColor).not.toBe('')
     })
 
     it('hands off immediately without scheduling a reveal-delay timer', async () => {
@@ -297,7 +420,7 @@ describe('PaintingSkeletonGrid', () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
       const onRevealReady = vi.fn()
 
-      render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
+      render(<PaintingSkeletonGrid imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
 
       await waitFor(() => expect(onRevealReady).toHaveBeenCalledTimes(1))
       // Reduced motion skips the animation window — no delayed handoff timer.

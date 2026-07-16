@@ -726,7 +726,7 @@ function decodeDataUrlBytes(data: string): Uint8Array {
 /**
  * Resolve an image source (`data:` URL, `file://` path, or remote URL) to a Blob.
  * Kept here as a pure image util so both the `ImageViewer` component and the
- * paintings blurhash pipeline can consume it without importing across the
+ * paintings skeleton reveal pipeline can consume it without importing across the
  * renderer's downward-only layering.
  */
 export async function getImageBlobFromSource(src: string): Promise<Blob> {

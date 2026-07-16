@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { decode } from 'blurhash'
+import { getImageBlobFromSource } from '@renderer/utils/image'
 import { motion, useReducedMotion } from 'motion/react'
-import { type CSSProperties, type FC, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type FC, memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('paintings/PaintingSkeletonGrid')
 
@@ -15,20 +15,20 @@ const logger = loggerService.withContext('paintings/PaintingSkeletonGrid')
  * afterglow keyframe, so the sweep reads as textured light instead of a flat
  * bar.
  *
- * When a `blurhash` arrives it is decoded to one colour per cell; the grid
- * "tints": a diagonal wave sweeps once and a solid-colour layer fades in over
- * each cell's still-running glow wave as the wave reaches it — the loading
- * wave keeps animating underneath the whole time and only disappears once the
- * tint layer occludes it, so colour arrives as a continuation of the same
- * motion instead of the wave first freezing to a flat grey and then tinting.
- * Cells the wave hasn't reached yet keep shimmering grey — a low-frequency
- * preview of the finished image. If the real image (`imageUrl`) is available
- * too — it always is, since the blurhash is decoded from that same image — a
- * second diagonal wave chases the tint wave by `SLICE_CHASE_OFFSET`: each cell
- * fades in a background-image slice of the real photo, cropped to that cell's
- * position, layered on top of the tint. Once the slice wave finishes sweeping,
- * a final full-image layer fades in over the whole grid to heal the ~5px gutters
- * the per-cell slices leave uncovered, then hands off to reveal. Grey-scale via
+ * When the real image (`imageUrl`) arrives it is downsampled to one colour per
+ * cell — drawn into a cols×rows canvas so the browser averages each cell's
+ * region as it scales — and the grid "tints": a diagonal wave sweeps once and a
+ * solid-colour layer fades in over each cell's still-running glow wave as the
+ * wave reaches it — the loading wave keeps animating underneath the whole time
+ * and only disappears once the tint layer occludes it, so colour arrives as a
+ * continuation of the same motion instead of the wave first freezing to a flat
+ * grey and then tinting. Cells the wave hasn't reached yet keep shimmering grey
+ * — a low-frequency preview of the finished image. A second diagonal wave then
+ * chases the tint wave by `SLICE_CHASE_OFFSET`: each cell fades in a
+ * background-image slice of the real photo, cropped to that cell's position,
+ * layered on top of the tint. Once the slice wave finishes sweeping, a final
+ * full-image layer fades in over the whole grid to heal the ~5px gutters the
+ * per-cell slices leave uncovered, then hands off to reveal. Grey-scale via
  * `currentColor` (light/dark adapt for free); `prefers-reduced-motion` renders a
  * static snapshot and completes the reveal immediately.
  */
@@ -62,22 +62,42 @@ const LOOP_TIMES = [0, 0.39, 0.5, 0.68, 1] // fast attack into the peak, slower 
 
 type Grid = { cols: number; rows: number; cellW: number; cellH: number }
 
-/** Decode a blurhash to one `rgb(...)` string per grid cell (row-major), or null. */
-function decodeCellColors(blurhash: string | undefined, grid: Grid | null): string[] | null {
-  if (!blurhash || !grid) return null
+/**
+ * Downsample the real image to one `rgb(...)` string per grid cell (row-major) by
+ * drawing it into a cols×rows canvas — the browser averages each cell's region as
+ * it scales — or null if the image can't be read. This is the low-frequency colour
+ * preview the tint wave paints, taken straight from the image.
+ */
+async function downsampleCellColors(src: string, grid: Grid): Promise<string[] | null> {
+  let bitmap: ImageBitmap | null = null
   try {
-    const px = decode(blurhash, grid.cols, grid.rows)
+    const blob = await getImageBlobFromSource(src)
+    bitmap = await createImageBitmap(blob)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = grid.cols
+    canvas.height = grid.rows
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) {
+      logger.warn('Failed to acquire 2d canvas context for skeleton tint')
+      return null
+    }
+
+    context.drawImage(bitmap, 0, 0, grid.cols, grid.rows)
+    const { data } = context.getImageData(0, 0, grid.cols, grid.rows)
     const colors = new Array<string>(grid.cols * grid.rows)
     for (let i = 0; i < colors.length; i++) {
       const j = i * 4
-      colors[i] = `rgb(${px[j]}, ${px[j + 1]}, ${px[j + 2]})`
+      colors[i] = `rgb(${data[j]}, ${data[j + 1]}, ${data[j + 2]})`
     }
     return colors
   } catch (error) {
     // Decoration only — the reveal still completes without a tint (see the reveal
-    // handoff effect), but a failing decode shouldn't do so silently.
-    logger.warn('Failed to decode blurhash for skeleton tint', { error })
+    // handoff effect), but a failing downsample shouldn't do so silently.
+    logger.warn('Failed to downsample image for skeleton tint', { error })
     return null
+  } finally {
+    bitmap?.close()
   }
 }
 
@@ -205,15 +225,11 @@ const Cell: FC<{
   }
 )
 
-const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealReady?: () => void }> = ({
-  blurhash,
-  imageUrl,
-  onRevealReady
-}) => {
+const PaintingSkeletonGrid: FC<{ imageUrl?: string; onRevealReady?: () => void }> = ({ imageUrl, onRevealReady }) => {
   const ref = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
   const [grid, setGrid] = useState<Grid | null>(null)
-  const [tinted, setTinted] = useState(false)
+  const [colors, setColors] = useState<string[] | null>(null)
 
   useLayoutEffect(() => {
     const el = ref.current
@@ -248,22 +264,36 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
     return () => observer.disconnect()
   }, [])
 
-  const colors = useMemo(() => decodeCellColors(blurhash, grid), [blurhash, grid])
-
-  // Start the one-shot tint reveal as soon as decoded colours are available.
+  // Downsample the real image into one colour per cell once both the image and the
+  // measured grid are known. Re-runs when the grid geometry changes (e.g. the box
+  // relocks to the decoded natural size), so the tint always matches the final
+  // layout. `imageUrl` only arrives once the reveal is `ready` (see the artboard),
+  // so this never fires during the pending phase.
   useEffect(() => {
-    setTinted(Boolean(colors))
-  }, [colors])
+    if (!imageUrl || !grid) {
+      setColors(null)
+      return
+    }
+    let active = true
+    void downsampleCellColors(imageUrl, grid).then((next) => {
+      if (active) setColors(next)
+    })
+    return () => {
+      active = false
+    }
+  }, [imageUrl, grid])
+
+  const tinted = colors != null
 
   // Hand off once the reveal's animation window has elapsed. With a real image to
   // chase (Act 3 slice wave + Act 4 gap heal) that window is longer; without one
   // it hands off right after the tint wave. Runs purely on `onRevealReady` being
-  // provided — the artboard wires it only once the reveal is `ready` (a blurhash
-  // has arrived), never during the pending phase, so the timer can't arm before
-  // the blurhash resolves and race a slow computation into a double reveal. It is
-  // deliberately independent of `tinted` (decode success): the tint is decoration,
-  // so a blurhash that fails to *decode* still completes the reveal instead of
-  // pinning the skeleton over the finished image forever.
+  // provided — the artboard wires it (and `imageUrl`) only once the reveal is
+  // `ready` (the natural size has resolved), never during the pending phase, so
+  // the timer can't arm before the reveal is ready and race a slow computation
+  // into a double reveal. It is deliberately independent of the downsampled tint:
+  // the tint is decoration, so an image that fails to downsample still completes
+  // the reveal instead of pinning the skeleton over the finished image forever.
   useEffect(() => {
     if (!onRevealReady) return
     if (reduceMotion) {

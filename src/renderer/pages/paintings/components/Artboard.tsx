@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
-import { computeImageBlurhash } from '../utils/computeImageBlurhash'
+import { computeImageNaturalSize } from '../utils/computeImageNaturalSize'
 import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 import PaintingImageSkeleton from './PaintingImageSkeleton'
 
@@ -42,11 +42,10 @@ type RevealState =
   // Loading finished before any file exists (e.g. still generating on another
   // painting) — waiting for a file to arrive before starting the reveal.
   | { status: 'awaiting' }
-  // A file exists; the blurhash is still being computed.
+  // A file exists; its natural size is still being decoded.
   | { status: 'pending'; fileId: string; imageUrl: string }
-  // The blurhash + natural size are ready to drive the reveal — all present, so
-  // "ready without a blurhash" is unrepresentable.
-  | { status: 'ready'; fileId: string; imageUrl: string; blurhash: string; naturalWidth: number; naturalHeight: number }
+  // The natural size has resolved — enough to relock the box and drive the reveal.
+  | { status: 'ready'; fileId: string; imageUrl: string; naturalWidth: number; naturalHeight: number }
 
 export interface ArtboardProps {
   painting: PaintingData
@@ -327,7 +326,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     awaitingRevealRef.current = false
     setRevealState({ ...target, status: 'pending' })
 
-    void computeImageBlurhash(currentImageUrl)
+    void computeImageNaturalSize(currentImageUrl)
       .then((result) => {
         if (!active) {
           return
@@ -340,7 +339,6 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
 
         setRevealState({
           ...target,
-          blurhash: result.blurhash,
           naturalWidth: result.naturalWidth,
           naturalHeight: result.naturalHeight,
           status: 'ready'
@@ -379,8 +377,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center">
         {isLoading || activeReveal ? (
           <PaintingImageSkeleton
-            blurhash={activeReveal?.status === 'ready' ? activeReveal.blurhash : undefined}
-            imageUrl={activeReveal && activeReveal.status !== 'awaiting' ? activeReveal.imageUrl : undefined}
+            imageUrl={activeReveal?.status === 'ready' ? activeReveal.imageUrl : undefined}
             naturalWidth={activeReveal?.status === 'ready' ? activeReveal.naturalWidth : undefined}
             naturalHeight={activeReveal?.status === 'ready' ? activeReveal.naturalHeight : undefined}
             onRevealReady={activeReveal?.status === 'ready' ? finishReveal : undefined}

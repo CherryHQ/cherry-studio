@@ -22,7 +22,7 @@ const SKELETON_MAX_SIZE = '100%'
  * how the real `<img>` sizes itself (`SKELETON_MAX_SIZE`) so the reveal
  * doesn't jump; fills the area when no ratio is known. Once the generated
  * image has been decoded (`naturalWidth`/`naturalHeight` known — see
- * `computeImageBlurhash`), the box re-locks to `min(natural size, contain
+ * `computeImageNaturalSize`), the box re-locks to `min(natural size, contain
  * fit)` in real pixels instead of the declared-ratio estimate, exactly
  * matching how the real `<img>` (`max-h-full max-w-full`, no upscale) will
  * render — the ResizeObserver in `PaintingSkeletonGrid` picks up the new box
@@ -32,7 +32,6 @@ const SKELETON_MAX_SIZE = '100%'
  * button owns cancellation, so this carries no text or controls.
  */
 const PaintingImageSkeleton: FC<{
-  blurhash?: string
   imageUrl?: string
   naturalWidth?: number
   naturalHeight?: number
@@ -40,7 +39,7 @@ const PaintingImageSkeleton: FC<{
   painting: PaintingData
   /** Rendered directly above the skeleton box, stretched to match its width. */
   topBar?: ReactNode
-}> = ({ blurhash, imageUrl, naturalWidth, naturalHeight, onRevealReady, painting, topBar }) => {
+}> = ({ imageUrl, naturalWidth, naturalHeight, onRevealReady, painting, topBar }) => {
   const { t } = useTranslation()
   const { ratio } = usePaintingSizeInfo(painting)
 
@@ -145,7 +144,7 @@ const PaintingImageSkeleton: FC<{
           </div>
         )}
         <div className={cn('overflow-hidden rounded-md bg-muted', !hasKnownSize && 'min-h-0 flex-1')} style={boxStyle}>
-          <PaintingSkeletonGrid blurhash={blurhash} imageUrl={imageUrl} onRevealReady={onRevealReady} />
+          <PaintingSkeletonGrid imageUrl={imageUrl} onRevealReady={onRevealReady} />
         </div>
       </div>
     </div>

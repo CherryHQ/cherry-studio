@@ -14,9 +14,9 @@ vi.mock('@renderer/utils/image', () => ({
   convertImageToPng: vi.fn()
 }))
 
-const mockComputeImageBlurhash = vi.hoisted(() => vi.fn())
-vi.mock('../../utils/computeImageBlurhash', () => ({
-  computeImageBlurhash: mockComputeImageBlurhash
+const mockComputeImageNaturalSize = vi.hoisted(() => vi.fn())
+vi.mock('../../utils/computeImageNaturalSize', () => ({
+  computeImageNaturalSize: mockComputeImageNaturalSize
 }))
 
 // The skeleton owns its own aspect-ratio + registry-support logic (covered by
@@ -25,7 +25,6 @@ vi.mock('../../utils/computeImageBlurhash', () => ({
 const mockSkeletonProps = vi.hoisted(() => vi.fn())
 vi.mock('../PaintingImageSkeleton', () => ({
   default: (props: {
-    blurhash?: string
     imageUrl?: string
     naturalWidth?: number
     naturalHeight?: number
@@ -39,7 +38,6 @@ vi.mock('../PaintingImageSkeleton', () => ({
         <button
           type="button"
           data-testid="painting-image-skeleton"
-          data-blurhash={props.blurhash ?? ''}
           data-image-url={props.imageUrl ?? ''}
           data-natural-width={props.naturalWidth ?? ''}
           data-natural-height={props.naturalHeight ?? ''}
@@ -103,7 +101,7 @@ describe('Artboard', () => {
   })
 
   beforeEach(() => {
-    mockComputeImageBlurhash.mockReset()
+    mockComputeImageNaturalSize.mockReset()
     mockSkeletonProps.mockClear()
     mockUsePaintingSizeInfo.mockReset()
     mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
@@ -124,7 +122,7 @@ describe('Artboard', () => {
   })
 
   it('enters reveal skeleton before showing a newly generated image', () => {
-    mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+    mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
@@ -132,34 +130,29 @@ describe('Artboard', () => {
 
     expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
     expect(document.querySelector('img')).toBeNull()
-    expect(mockComputeImageBlurhash).toHaveBeenCalledWith('file:///tmp/image-1.png')
-    // The real image URL is already known before blurhash resolves — it's what
-    // computeImageBlurhash decodes from, so it never lags behind the blurhash.
-    expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', 'file:///tmp/image-1.png')
+    expect(mockComputeImageNaturalSize).toHaveBeenCalledWith('file:///tmp/image-1.png')
+    // Pending: the natural size is still decoding, so the image url (and the whole
+    // reveal choreography it drives) is withheld from the skeleton until `ready`.
+    expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', '')
   })
 
-  it('withholds the reveal handoff from the skeleton while the blurhash is still pending', () => {
-    mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+  it('withholds the reveal handoff from the skeleton while the natural size is still pending', () => {
+    mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
     rerender(<Artboard painting={makePainting()} isLoading={false} />)
 
-    // Pending: the skeleton shows with the image url, but onRevealReady is withheld
-    // until the reveal is ready. Offering it now would flash the image, then the
-    // resolving blurhash would resurrect the skeleton over it (a double reveal).
+    // Pending: neither the image url nor onRevealReady reach the skeleton yet.
+    // Offering the handoff now would flash the image, then the resolving natural
+    // size would resurrect the skeleton over it (a double reveal).
     const props = mockSkeletonProps.mock.calls.at(-1)?.[0]
-    expect(props?.imageUrl).toBe('file:///tmp/image-1.png')
-    expect(props?.blurhash).toBeUndefined()
+    expect(props?.imageUrl).toBeUndefined()
     expect(props?.onRevealReady).toBeUndefined()
   })
 
   it('keeps the reveal skeleton when loading finishes before the image arrives', async () => {
-    mockComputeImageBlurhash.mockResolvedValue({
-      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-      naturalWidth: 512,
-      naturalHeight: 512
-    })
+    mockComputeImageNaturalSize.mockResolvedValue({ naturalWidth: 512, naturalHeight: 512 })
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
@@ -167,15 +160,12 @@ describe('Artboard', () => {
 
     expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
     expect(document.querySelector('img')).toBeNull()
-    expect(mockComputeImageBlurhash).not.toHaveBeenCalled()
+    expect(mockComputeImageNaturalSize).not.toHaveBeenCalled()
 
     rerender(<Artboard painting={makePainting()} isLoading={false} />)
 
     await waitFor(() =>
-      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute(
-        'data-blurhash',
-        'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
-      )
+      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', 'file:///tmp/image-1.png')
     )
     expect(document.querySelector('img')).toBeNull()
   })
@@ -203,25 +193,17 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
-  it('passes the computed blurhash, image url and natural size to the reveal skeleton before showing the image', async () => {
-    mockComputeImageBlurhash.mockResolvedValue({
-      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-      naturalWidth: 512,
-      naturalHeight: 768
-    })
+  it('passes the image url and natural size to the reveal skeleton before showing the image', async () => {
+    mockComputeImageNaturalSize.mockResolvedValue({ naturalWidth: 512, naturalHeight: 768 })
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
     rerender(<Artboard painting={makePainting()} isLoading={false} />)
 
     await waitFor(() =>
-      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute(
-        'data-blurhash',
-        'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
-      )
+      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', 'file:///tmp/image-1.png')
     )
     const skeleton = screen.getByTestId('painting-image-skeleton')
-    expect(skeleton).toHaveAttribute('data-image-url', 'file:///tmp/image-1.png')
     expect(skeleton).toHaveAttribute('data-natural-width', '512')
     expect(skeleton).toHaveAttribute('data-natural-height', '768')
     expect(document.querySelector('img')).toBeNull()
@@ -232,8 +214,8 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).not.toBeNull()
   })
 
-  it('shows the image immediately when blurhash computation returns null', async () => {
-    mockComputeImageBlurhash.mockResolvedValue(null)
+  it('shows the image immediately when natural size computation returns null', async () => {
+    mockComputeImageNaturalSize.mockResolvedValue(null)
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
@@ -243,8 +225,8 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).not.toBeNull()
   })
 
-  it('shows the image immediately when blurhash computation rejects', async () => {
-    mockComputeImageBlurhash.mockRejectedValue(new Error('decode failed'))
+  it('shows the image immediately when natural size computation rejects', async () => {
+    mockComputeImageNaturalSize.mockRejectedValue(new Error('decode failed'))
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
@@ -263,7 +245,7 @@ describe('Artboard', () => {
 
   describe('reveal state isolation across paintings', () => {
     it('does not strand a newly selected file-less painting in a fake generating skeleton', () => {
-      mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+      mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
       // Painting A is generating (no files yet).
       const { rerender } = render(<Artboard painting={makePainting({ id: 'A', files: [] })} isLoading={true} />)
       expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
@@ -277,31 +259,27 @@ describe('Artboard', () => {
     })
 
     it('shows an already-generated painting immediately instead of replaying a reveal on switch', () => {
-      mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+      mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
       const { rerender } = render(<Artboard painting={makePainting({ id: 'A', files: [] })} isLoading={true} />)
 
       // Switch mid-generation to a different painting that already has files.
       rerender(<Artboard painting={makePainting({ id: 'C' })} isLoading={false} />)
 
-      // The finished image shows at once — no reveal skeleton, no redundant blurhash pass.
+      // The finished image shows at once — no reveal skeleton, no redundant natural-size pass.
       expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
       expect(document.querySelector('img')).not.toBeNull()
-      expect(mockComputeImageBlurhash).not.toHaveBeenCalled()
+      expect(mockComputeImageNaturalSize).not.toHaveBeenCalled()
     })
 
     it('drops an in-flight reveal when the painting changes mid-reveal', async () => {
-      mockComputeImageBlurhash.mockResolvedValue({
-        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-        naturalWidth: 512,
-        naturalHeight: 512
-      })
+      mockComputeImageNaturalSize.mockResolvedValue({ naturalWidth: 512, naturalHeight: 512 })
       const { rerender } = render(<Artboard painting={makePainting({ id: 'A', files: [] })} isLoading={true} />)
-      // A finishes generating and enters its reveal (blurhash resolves).
+      // A finishes generating and enters its reveal (natural size resolves).
       rerender(<Artboard painting={makePainting({ id: 'A' })} isLoading={false} />)
       await waitFor(() =>
         expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute(
-          'data-blurhash',
-          'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+          'data-image-url',
+          'file:///tmp/image-1.png'
         )
       )
 
@@ -313,17 +291,13 @@ describe('Artboard', () => {
     })
 
     it('shows a plain generating skeleton (no stale reveal) while an already-revealed painting regenerates', async () => {
-      mockComputeImageBlurhash.mockResolvedValue({
-        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-        naturalWidth: 512,
-        naturalHeight: 512
-      })
+      mockComputeImageNaturalSize.mockResolvedValue({ naturalWidth: 512, naturalHeight: 512 })
       const { rerender } = render(<Artboard painting={makePainting({ files: [] })} isLoading={true} />)
       rerender(<Artboard painting={makePainting()} isLoading={false} />)
       await waitFor(() =>
         expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute(
-          'data-blurhash',
-          'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+          'data-image-url',
+          'file:///tmp/image-1.png'
         )
       )
 
@@ -331,7 +305,7 @@ describe('Artboard', () => {
       // the previous run's reveal payload never bleeds through while loading.
       rerender(<Artboard painting={makePainting()} isLoading={true} />)
 
-      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-blurhash', '')
+      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', '')
     })
   })
 
@@ -434,7 +408,7 @@ describe('Artboard', () => {
       })
 
       it('measures the wrapper even when Artboard first mounted while still loading', async () => {
-        mockComputeImageBlurhash.mockResolvedValue(null)
+        mockComputeImageNaturalSize.mockResolvedValue(null)
         const painting = makePainting({ prompt: 'a red cat', files: [] })
         const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 

@@ -9,7 +9,7 @@ vi.mock('react-i18next', () => ({
 
 const mockPaintingSkeletonGrid = vi.hoisted(() => vi.fn())
 vi.mock('../PaintingSkeletonGrid', () => ({
-  default: (props: { blurhash?: string; imageUrl?: string; onRevealReady?: () => void }) => {
+  default: (props: { imageUrl?: string; onRevealReady?: () => void }) => {
     mockPaintingSkeletonGrid(props)
     return <div data-testid="painting-skeleton-grid" />
   }
@@ -68,13 +68,12 @@ describe('PaintingImageSkeleton', () => {
     expect(getByRole('status').firstElementChild).not.toBeNull()
   })
 
-  it('passes blurhash and image url reveal props through to the skeleton grid', () => {
+  it('passes the image url and reveal handoff through to the skeleton grid', () => {
     mockUseImageGenerationSupport.mockReturnValue(supportWith('size', ['1024x1024'], '1024x1024'))
     const onRevealReady = vi.fn()
 
     render(
       <PaintingImageSkeleton
-        blurhash="LEHV6nWB2yk8pyo0adR*.7kCMdnj"
         imageUrl="file:///tmp/image-1.png"
         onRevealReady={onRevealReady}
         painting={makePainting()}
@@ -83,7 +82,6 @@ describe('PaintingImageSkeleton', () => {
 
     expect(mockPaintingSkeletonGrid).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
         imageUrl: 'file:///tmp/image-1.png',
         onRevealReady
       })
