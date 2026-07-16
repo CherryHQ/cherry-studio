@@ -16,6 +16,9 @@ vi.mock('../webSearch/MessageWebSearch', () => ({
 vi.mock('../agent', () => ({
   AgentExecutionTimeline: () => <div data-testid="agent-card" />
 }))
+vi.mock('../painting/MessageGenerateImage', () => ({
+  MessageGenerateImageToolTitle: () => <div data-testid="image-card" />
+}))
 // Empty enum → isAgentTool only matches the `mcp__` prefix, not our builtin names.
 vi.mock('../shared/agentToolTypes', () => ({ AgentToolsType: {}, isAskUserQuestionToolName: () => false }))
 
@@ -38,5 +41,11 @@ describe('chooseTool', () => {
 
   it('renders no card for a provider-side web_search (the provider already shows results inline)', () => {
     expect(chooseTool(resp('web_search', 'provider'))).toBeNull()
+  })
+
+  it('routes chat and agent generate_image responses to the image card', () => {
+    expect(testIdOf(chooseTool(resp('generate_image')))).toBe('image-card')
+    expect(testIdOf(chooseTool(resp('generate_image', 'mcp')))).toBe('image-card')
+    expect(testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('image-card')
   })
 })
