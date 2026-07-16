@@ -378,6 +378,7 @@ const AgentChatSessionFrame = ({
       messages={runtime.uiMessages}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
+      streamingLayers={runtime.streamingLayers}
       optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
       isLoading={runtime.isLoading}
       hasOlder={runtime.hasOlder}
