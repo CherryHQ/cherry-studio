@@ -104,6 +104,10 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')
   })
 
+  it.each(['html', 'htm', 'HTML', 'HTM'])('registers the HTML plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/page.${extension}`, filePreviewRegistry)?.id).toBe('html')
+  })
+
   it('keeps the text plugin extension whitelist explicit', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })

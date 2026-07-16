@@ -2442,6 +2442,24 @@
     "user": "User"
   },
   "file_preview": {
+    "html": {
+      "empty": {
+        "description": "This HTML file has no content.",
+        "title": "Empty file"
+      },
+      "mode": {
+        "label": "HTML view mode",
+        "preview": "Preview",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Couldn't read this file"
+      },
+      "too_large": {
+        "description": "HTML files larger than {{limit}} MiB cannot be previewed.",
+        "title": "File is too large"
+      }
+    },
     "invalid_path": {
       "description": "File preview requires a valid absolute local path.",
       "title": "Can't preview this file"
@@ -2483,7 +2501,9 @@
       }
     },
     "unsupported": {
+      "action": "Open with default app",
       "description": "This file type cannot be previewed yet.",
+      "open_error": "Couldn't open this file",
       "title": "Preview unavailable"
     }
   },
