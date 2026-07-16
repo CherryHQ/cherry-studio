@@ -218,7 +218,7 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  * List topics across all assistants from SQLite via DataApi.
  *
  * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
- * `pinned=true` selects the pin-owned stream (pin order). `pinned=false`
+ * `pinned=true` selects the newest-pin-first stream. `pinned=false`
  * selects the ordinary stream — `'createdAt'` (default) for creation order,
  * `'updatedAt'` for activity order, or `'orderKey'` for manual order — and
  * excludes pinned rows. The `assistantId` owner scope

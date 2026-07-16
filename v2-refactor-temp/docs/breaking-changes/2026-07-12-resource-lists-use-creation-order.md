@@ -12,7 +12,7 @@ The Time views for conversations and agent tasks now keep the pinned section fol
 
 ## Why this matters to the user
 
-The default lists no longer change an existing item's position merely because it was updated. Users can scan one predictable newest-created-first list or choose another order without changing the order of the surrounding assistant, work-directory, or agent groups. Timestamp sorts show newest first, manual order enables item dragging, and pinned items keep their existing separate pin order.
+The default lists no longer change an existing item's position merely because it was updated. Users can scan one predictable newest-created-first list or choose another order without changing the order of the surrounding assistant, work-directory, or agent groups. Timestamp sorts show newest first, manual order enables item dragging, and newly pinned items appear first in their separate pinned section.
 
 ## What the user should do
 

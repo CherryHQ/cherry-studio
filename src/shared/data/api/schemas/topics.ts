@@ -87,8 +87,8 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  * Query parameters for `GET /topics`.
  *
  * Two independent streams that never mix in one response or cursor:
- * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC`, independent
- *   of `sortBy` (ignored on this path).
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey DESC, id ASC`,
+ *   so newly appended pins appear first; `sortBy` is ignored on this path.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
  *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
@@ -245,7 +245,7 @@ export type TopicSchemas = {
      * List topics with cursor pagination + optional name search.
      *
      * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
-     * pages the pin-owned band by `pin.orderKey ASC, id ASC`; `pinned=false`
+     * pages the pin-owned band by `pin.orderKey DESC, id ASC`; `pinned=false`
      * pages the ordinary band by `sortBy` (default `createdAt`) with a
      * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
      */

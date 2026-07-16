@@ -163,6 +163,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
   - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
   - Planned / hypothetical: none currently.
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
+
 ---
 
 ## 3. Server-Side Service Helpers
@@ -386,6 +387,6 @@ Resource design (API shape, consumer-side `groupId` linkage) is documented on `G
 
 ## 10. Pin Ordering
 
-`pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
+`pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. Fresh pins append to the scope's persisted order. The raw `/pins` list reads that order ascending; Topic and Agent Session `pinned=true` streams intentionally scan it descending so a newly pinned row appears on the first page. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
 
 Resource design (polymorphic `(entityType, entityId)` shape, idempotent concurrent-safe `pin()`, `purgeForEntityTx` delete contract, hard-delete-on-unpin) is documented on `pin.ts` schema and `PinService` — not here.

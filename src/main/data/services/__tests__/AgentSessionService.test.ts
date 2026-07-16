@@ -246,7 +246,7 @@ describe('AgentSessionService', () => {
       expect(page2.nextCursor).toBeUndefined()
     })
 
-    it('pages a pinned-only stream by pin order, independent of the session sort profile', async () => {
+    it('pages a pinned-only stream by descending pin order, independent of the session sort profile', async () => {
       await seedFlat()
       await dbh.db.insert(pinTable).values({
         id: '88888888-8888-4888-8888-888888888888',
@@ -263,12 +263,12 @@ describe('AgentSessionService', () => {
         cursor: page1.nextCursor
       })
 
-      expect(page1.items.map((session) => session.id)).toEqual(['s2'])
-      expect(page2.items.map((session) => session.id)).toEqual(['s4'])
+      expect(page1.items.map((session) => session.id)).toEqual(['s4'])
+      expect(page2.items.map((session) => session.id)).toEqual(['s2'])
       expect(page2.nextCursor).toBeUndefined()
       expect(agentSessionService.listByCursor({ pinned: true }).items.map((session) => session.id)).toEqual([
-        's2',
-        's4'
+        's4',
+        's2'
       ])
     })
 

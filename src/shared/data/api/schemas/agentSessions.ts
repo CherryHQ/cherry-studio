@@ -156,7 +156,7 @@ export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceSco
  * server-side: `createdAt` → creation order (`createdAt DESC, id ASC`),
  * `updatedAt` → activity (`updatedAt DESC, id ASC`), `orderKey` → manual drag
  * order (`orderKey ASC, id ASC`). A pinned-only query uses the independent
- * `pin.orderKey ASC, id ASC` order instead.
+ * `pin.orderKey DESC, id ASC` order instead, so newly appended pins appear first.
  */
 export const AgentSessionSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
 export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
@@ -174,8 +174,8 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * Query for `GET /agent-sessions`.
  *
  * Two independent streams that never mix in one response or cursor:
- * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC`, independent
- *   of `sortBy` (ignored on this path).
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey DESC, id ASC`,
+ *   so newly appended pins appear first; `sortBy` is ignored on this path.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
  *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *

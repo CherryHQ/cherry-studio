@@ -384,7 +384,7 @@ describe('TopicService', () => {
       expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't1'])
     })
 
-    it('pages a pinned-only stream by pin order, independent of the topic sort profile', async () => {
+    it('pages a pinned-only stream by descending pin order, independent of the topic sort profile', async () => {
       await seedFlat()
       await dbh.db.insert(pinTable).values({
         id: '55555555-5555-4555-8555-555555555555',
@@ -403,10 +403,10 @@ describe('TopicService', () => {
         cursor: page1.nextCursor
       })
 
-      expect(page1.items.map((topic) => topic.id)).toEqual(['t2'])
-      expect(page2.items.map((topic) => topic.id)).toEqual(['t4'])
+      expect(page1.items.map((topic) => topic.id)).toEqual(['t4'])
+      expect(page2.items.map((topic) => topic.id)).toEqual(['t2'])
       expect(page2.nextCursor).toBeUndefined()
-      expect(topicService.listByCursor({ pinned: true }).items.map((topic) => topic.id)).toEqual(['t2', 't4'])
+      expect(topicService.listByCursor({ pinned: true }).items.map((topic) => topic.id)).toEqual(['t4', 't2'])
     })
 
     it('breaks createdAt ties by id ASC across page boundaries (no skip/dup)', async () => {

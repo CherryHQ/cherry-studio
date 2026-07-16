@@ -58,7 +58,7 @@ type UseSessionsOptions = {
   q?: string
   /** 'name' (default) or 'name-or-owner' (session name OR live owning agent name). */
   searchScope?: AgentSessionSearchScope
-  /** true selects the independent pin-owned stream; false filters the flat stream. */
+  /** true selects the newest-pin-first stream; false selects the ordinary stream. */
   pinned: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope

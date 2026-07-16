@@ -561,8 +561,9 @@ export class TopicService {
    * Two independent list streams — pinned and ordinary rows never mix in one
    * response or cursor:
    *
-   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
-   *   topic.id ASC`, independent of `sortBy` (ignored on this path).
+   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey DESC,
+   *   topic.id ASC`, so newly appended pins appear first. This order is
+   *   independent of `sortBy` (ignored on this path).
    * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
    *   (`createdAt`/`updatedAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
@@ -578,15 +579,15 @@ export class TopicService {
   }
 
   /**
-   * Pinned-only page. Pin order is its own business order and deliberately
-   * ignores `query.sortBy` when both fields are supplied.
+   * Pinned-only page. Reverse-scans the persisted pin order so newly appended
+   * pins appear first, and deliberately ignores `query.sortBy`.
    */
   private listPinnedByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const filters = buildRecordFilters(query)
     const family = topicCursorFamily(query, 'pinned')
-    const { where, orderBy } = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const { where, orderBy } = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'desc', tie: 'asc' })
     const cursor = decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-pinned')
     if (cursor) filters.push(where(cursor))
 
