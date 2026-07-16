@@ -23,4 +23,4 @@ export type AgentSessionApiRetryState =
       startedAt: string
     })
 
-export const AGENT_SESSION_API_RETRY_CACHE_KEY = (sessionId: string) => `agent.session.apiRetry.${sessionId}` as const
+export const AGENT_SESSION_API_RETRY_CACHE_KEY = (sessionId: string) => `agent.session.api_retry.${sessionId}` as const
