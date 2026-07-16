@@ -84,7 +84,12 @@ export const TAGS_GROUPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       session: 'AGENTS'
     }
   },
-  backupPolicy: {},
+  backupPolicy: {
+    fieldMergePolicies: [
+      // A local tag color is a user preference; a null color can safely inherit the backup value.
+      { table: table('tag'), column: column('color'), strategy: 'remote-fills-local-null' }
+    ]
+  },
   // TODO(C/D track): selected-domain filtering for the polymorphic tables (codex
   // review P2). pin.entityId / entity_tag.entityId point polymorphically (by
   // entityType) into topics/sessions/knowledge/file/painting. In lite restore —

@@ -1,13 +1,10 @@
-// MergeEngine — detached restore import pipeline (plan (b), MVP SKIP-only scaffold).
+// MergeEngine — detached restore import pipeline (plan (b)).
 //
 // Merges backup rows into a detached work.sqlite (VACUUM INTO copy of live) inside one
-// synchronous better-sqlite3 transaction. MVP scope: SKIP (uuid-entity conflict) +
-// INSERT (new aggregate), member cascade, and offline FK/integrity verify. FIELD_MERGE /
-// OVERWRITE / RENAME, the global junction phase, identity propagation, and FTS rebuild
-// are stubbed — they throw NotImplemented (MVP cannot restore any product archive; the
-// production stub in BackupService stays fail-closed until the lite milestone lands).
-//
-// See spec `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
+// synchronous better-sqlite3 transaction. UUID conflicts preserve local rows; natural-key
+// conflicts field-merge onto a local canonical PK; identity propagation rewrites every FK
+// or required JSON reference before its row reaches SQLite. The production restore spine
+// remains fail-closed until its independent wiring task enables this engine.
 
 import type { AggregateBoundary, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
@@ -16,56 +13,40 @@ import type { BackupDomain } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
 import Database from 'better-sqlite3'
 
+import { ConflictResolver } from './ConflictResolver'
+import { MergeStrategyNotImplementedError } from './errors'
+import { FtsCentralHelper } from './FtsCentralHelper'
+import { propagateIdentityReferences } from './identityPropagation'
+import { deriveJunctionDescriptors } from './junctionDeriver'
+import { type FieldMergeColumnPolicy, FieldMergeStrategy } from './strategies/FieldMergeStrategy'
 import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
 
-/**
- * Convert a Drizzle logical (camelCase) column name to its physical (snake_case)
- * SQL column name. The app's drizzle config uses `casing: 'snake_case'`, so every
- * camelCase property maps to a snake_case physical column this way. Column names
- * from the contributor schema (`viaColumn`, identityKey, PK columns) are logical
- * and MUST be converted before splicing into raw SQL.
- *
- * TODO(dbSchemaRefs): `DbColumnEntry.dbName` is meant to expose the physical name
- * but the codegen currently duplicates `name` there — once that is fixed, prefer
- * reading the physical name from the registry instead of recomputing it here.
- */
-const physicalColumn = (logical: string): string => logical.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)
+export { MergeStrategyNotImplementedError } from './errors'
 
-/**
- * Source tables of FTS5 external-content virtual tables (message, agent_session_message).
- * On these tables the AFTER-INSERT trigger reassigns `fts_rowid` (MAX+1) and regenerates
- * `searchable_text` from `data` — so backup values for those columns MUST be stripped
- * before insert. Copying `fts_rowid` verbatim collides on the fts_rowid UNIQUE index
- * (the trigger on the first row bumps it onto the next row's backup value) and
- * `INSERT OR IGNORE` then silently drops the colliding row.
- */
+/** Convert a Drizzle logical column name to the physical SQLite column name. */
+const physicalColumn = (logical: string): string => logical.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`)
+
+/** Quote a schema-owned SQLite identifier such as a table or physical column name. */
+const quotedIdentifier = (identifier: string): string => `"${identifier.replaceAll('"', '""')}"`
+
+/** Quote a schema-owned table identifier. */
+const quotedTable = (table: DbTableName): string => quotedIdentifier(table)
+
+/** External-content FTS source tables require SQLite to regenerate these derived columns. */
 const FTS_SOURCE_TABLES: ReadonlySet<string> = new Set(Object.values(DB_FTS_VIRTUAL_TABLES))
 const FTS_DERIVED_PHYSICAL_COLUMNS = new Set(['fts_rowid', 'searchable_text'])
 
-/**
- * Set an identityMap entry under its endpoint table. The maps are per-table nested
- * (see IdentityMap) so identical textual ids in different tables stay disjoint.
- */
+/** Set one role-aware identity entry without mutating a pre-existing inner map. */
 const setIdentityEntry = (
   map: Map<DbTableName, Map<string, string>>,
   table: DbTableName,
-  id: string,
-  canonical: string
+  backupId: string,
+  canonicalId: string
 ): void => {
-  let inner = map.get(table)
-  if (!inner) {
-    inner = new Map()
-    map.set(table, inner)
-  }
-  inner.set(id, canonical)
-}
-
-/** Strategy stubs not yet implemented in the MVP scaffold. */
-export class MergeStrategyNotImplementedError extends Error {
-  constructor(strategy: string) {
-    super(`merge strategy not implemented in MVP scaffold: ${strategy}`)
-    this.name = 'MergeStrategyNotImplementedError'
-  }
+  const existing = map.get(table)
+  const entries = new Map(existing)
+  entries.set(backupId, canonicalId)
+  map.set(table, entries)
 }
 
 /** Offline consistency check failed — work.sqlite must never promote. */
@@ -76,22 +57,19 @@ export class MergeConsistencyCheckError extends Error {
   }
 }
 
-/**
- * MergeEngine — consumed by ImportOrchestrator (which injects it as the
- * `mergeBackupIntoWork` dep). The engine opens the migrated backup.sqlite read-only,
- * scans work.sqlite (the live copy / merge base) for conflicts, then runs the import
- * inside a synchronous deferred-FK transaction on work.sqlite.
- */
+/** Merge backup.sqlite rows into the detached work.sqlite copy. */
 export class MergeEngine {
+  private readonly conflictResolver = new ConflictResolver()
+  private readonly fieldMergeStrategy = new FieldMergeStrategy()
+
   constructor(
     private readonly registry: ReadonlyBackupRegistry,
     private readonly deps: { readonly backupDbPath: string }
   ) {}
 
   /**
-   * Merge backup rows into work.sqlite. The transaction fn is synchronous
-   * (better-sqlite3 rejects Promise callbacks); backupDb is opened read-only and
-   * consumed via sync iterators inside the tx.
+   * Open the migrated backup read-only, scan identities, then complete all writes in one
+   * synchronous better-sqlite3 transaction. No Promise is created inside the transaction.
    */
   async mergeBackupIntoWork(workSqlite: Database.Database, _workDb: DbType, ctx: MergeContext): Promise<MergeResult> {
     const backupDb = new Database(this.deps.backupDbPath, { readonly: true })
@@ -99,19 +77,18 @@ export class MergeEngine {
       const ordered = this.registry.topoSort(ctx.domains)
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
       const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
+      this.primeTargetAvailability(decisions, identityMap)
       const degradedToSkips: DegradedSkip[] = []
+      const appStateSnapshot = this.snapshotAppStateKeys(workSqlite)
 
-      // Synchronous deferred-FK transaction — better-sqlite3 requires a sync callback.
       const run = workSqlite.transaction(() => {
-        // Defer FK enforcement to COMMIT (PRAGMA foreign_keys is a documented no-op inside
-        // a tx; defer_foreign_keys is tx-scoped). The whole-graph foreign_key_check below
-        // validates consistency before COMMIT.
+        // Foreign keys stay deferred until the complete root/member/junction graph is present.
         workSqlite.pragma('defer_foreign_keys = ON')
-        this.importRows(workSqlite, ordered, decisions, ctx, backupDb, identityMap, degradedToSkips)
-        // MVP stubs (lite milestone): junction phase, identity propagation, FTS rebuild.
-        // Each throws NotImplemented if reached with data requiring it; SKIP-only uuid-entity
-        // aggregates do not exercise them.
-        this.runConsistencyCheck(workSqlite)
+        this.importRows(workSqlite, decisions, ctx, backupDb, identityMap, degradedToSkips)
+        this.importTagReferences(workSqlite, ctx.domains, backupDb, identityMap)
+        this.importAllJunctionRows(workSqlite, ctx.domains, backupDb, identityMap)
+        FtsCentralHelper.rebuild(workSqlite)
+        this.runConsistencyCheck(workSqlite, appStateSnapshot)
       })
       run()
 
@@ -121,85 +98,98 @@ export class MergeEngine {
     }
   }
 
-  /**
-   * Scan work.sqlite (merge base) + backup.sqlite for each aggregate root and produce
-   * a decision per backup root. Runs BEFORE the write tx (read-only on both DBs).
-   *
-   * MVP: uuid-entity aggregates → identityKey = PK; conflict (work has same PK) → SKIP;
-   * else INSERT. natural-key/slot aggregates would FIELD_MERGE but the MVP scaffold throws
-   * NotImplemented (lite milestone).
-   */
+  /** Scan each backup aggregate by its business identity and find its local canonical PK. */
   private scanAggregates(
     workSqlite: Database.Database,
     ordered: readonly BackupDomain[],
     backupDb: Database.Database,
     ctx: MergeContext
   ): AggregateDecision[] {
-    // Honor an explicit user strategy override. The MVP supports only SKIP conflict
-    // resolution for uuid-entity aggregates; FIELD_MERGE/OVERWRITE/RENAME are unsupported
-    // — fail loud here rather than silently degrading to skip (which would ignore the
-    // user's choice and quietly no-op a RENAME/OVERWRITE request).
-    if (ctx.userStrategy !== undefined && ctx.userStrategy !== 'SKIP') {
-      throw new MergeStrategyNotImplementedError(`userStrategy ${ctx.userStrategy}`)
-    }
     const decisions: AggregateDecision[] = []
+
     for (const domain of ordered) {
-      for (const agg of this.registry.getAggregatesForDomain(domain)) {
-        const pkColumns = this.registry.getPrimaryKey(agg.root).columns
-        const naturalKey = (agg.identityClass ?? 'uuid-entity') !== 'uuid-entity'
-        // natural-key needs FIELD_MERGE (not implemented). Default → fail loud. An explicit
-        // SKIP override opts out of FIELD_MERGE → forceSkip every backup row (skip-with-warning
-        // semantics; local rows survive = available). Other overrides already rejected above.
-        if (naturalKey && ctx.userStrategy !== 'SKIP') {
-          throw new MergeStrategyNotImplementedError(`FIELD_MERGE for ${agg.root} (natural-key/slot)`)
-        }
-        const forceSkip = naturalKey && ctx.userStrategy === 'SKIP'
-        // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on
-        // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2. Acceptable
-        // for the non-production scaffold (production restore stays fail-closed via BackupService
-        // stub; no large archive reaches this engine until Stage 3 wires it in).
-        const backupRoots = backupDb.prepare(`SELECT * FROM ${agg.root}`).all() as Record<string, unknown>[]
+      for (const aggregate of this.registry.getAggregatesForDomain(domain)) {
+        const primaryKeyColumns = this.registry.getPrimaryKey(aggregate.root).columns
+        const identityColumns = aggregate.identityKey ?? primaryKeyColumns
+        const backupRoots = backupDb.prepare(`SELECT * FROM ${quotedTable(aggregate.root)}`).all() as Record<
+          string,
+          unknown
+        >[]
+
         for (const backupRow of backupRoots) {
-          // backupRow keys are physical (SELECT *); pkColumns are logical → convert.
-          const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
-          const exists = forceSkip || this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)
-          // Honor skippedFileEntryIds — a file_entry root whose blob was not staged MUST be
-          // skipped, else the merged DB holds a row + refs pointing at a missing blob.
-          const skipped = agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
-          const action = skipped || exists ? 'skip' : 'insert'
-          decisions.push({
-            aggregate: agg,
-            identity: backupPrimaryKey,
-            backupPrimaryKey,
-            action
-          })
+          const backupPrimaryKey = this.readKeyTuple(backupRow, primaryKeyColumns, aggregate.root, 'primary key')
+          const identity = this.readKeyTuple(backupRow, identityColumns, aggregate.root, 'identity key')
+          const localCanonicalPrimaryKey = this.findLocalCanonicalPrimaryKey(
+            workSqlite,
+            aggregate,
+            identityColumns,
+            identity,
+            primaryKeyColumns
+          )
+          const skippedByStaging =
+            aggregate.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
+          const action = skippedByStaging
+            ? 'skip'
+            : localCanonicalPrimaryKey
+              ? this.conflictResolver.resolve(aggregate, ctx.userStrategy)
+              : 'insert'
+
+          decisions.push({ aggregate, identity, backupPrimaryKey, localCanonicalPrimaryKey, action })
         }
       }
     }
+
     return decisions
   }
 
-  /** True when work.sqlite already has a row with the same PK (uuid-entity identity). */
-  private workHasIdentity(
-    workSqlite: Database.Database,
-    agg: AggregateBoundary,
-    pkColumns: readonly string[],
-    values: readonly (string | number)[]
-  ): boolean {
-    // pkColumns are logical (camelCase); convert to physical (snake_case) for SQL.
-    const where = pkColumns.map((c) => `${physicalColumn(c)} = ?`).join(' AND ')
-    const row = workSqlite.prepare(`SELECT 1 FROM ${agg.root} WHERE ${where} LIMIT 1`).get(...values)
-    return row !== undefined
+  /** Read an ordered identity or PK tuple and reject malformed nullable key values. */
+  private readKeyTuple(
+    row: Readonly<Record<string, unknown>>,
+    columns: readonly string[],
+    table: DbTableName,
+    label: string
+  ): readonly (string | number)[] {
+    return columns.map((column) => {
+      const value = row[physicalColumn(column)]
+      if (typeof value === 'string' || typeof value === 'number') return value
+      throw new Error(`backup ${label} '${table}.${column}' must be a string or number`)
+    })
   }
 
-  /**
-   * importRows — exhaustive action switch (B3). Each strategy exclusively owns root +
-   * member processing; no fall-through. MVP: insert writes root + include members;
-   * skip is a no-op. overwrite/field-merge/rename throw NotImplemented.
-   */
+  /** Locate the work row by identityKey and return the physical local primary-key tuple. */
+  private findLocalCanonicalPrimaryKey(
+    workSqlite: Database.Database,
+    aggregate: AggregateBoundary,
+    identityColumns: readonly string[],
+    identity: readonly (string | number)[],
+    primaryKeyColumns: readonly string[]
+  ): readonly (string | number)[] | undefined {
+    const where = identityColumns.map((column) => `${quotedIdentifier(physicalColumn(column))} = ?`).join(' AND ')
+    const select = primaryKeyColumns.map((column) => quotedIdentifier(physicalColumn(column))).join(', ')
+    const row = workSqlite
+      .prepare(`SELECT ${select} FROM ${quotedTable(aggregate.root)} WHERE ${where} LIMIT 1`)
+      .get(...identity) as Record<string, unknown> | undefined
+    return row ? this.readKeyTuple(row, primaryKeyColumns, aggregate.root, 'local primary key') : undefined
+  }
+
+  /** Pre-register all target survivors so dependent aggregates can be written in any declaration order. */
+  private primeTargetAvailability(decisions: readonly AggregateDecision[], identityMap: IdentityMap): void {
+    for (const decision of decisions) {
+      const canonical =
+        decision.localCanonicalPrimaryKey ?? (decision.action === 'insert' ? decision.backupPrimaryKey : undefined)
+      if (!canonical || decision.backupPrimaryKey.length !== 1 || canonical.length !== 1) continue
+      setIdentityEntry(
+        identityMap.targetMap,
+        decision.aggregate.root,
+        String(decision.backupPrimaryKey[0]),
+        String(canonical[0])
+      )
+    }
+  }
+
+  /** Dispatch decisions without allowing strategy fall-through between aggregate actions. */
   private importRows(
     workSqlite: Database.Database,
-    ordered: readonly BackupDomain[],
     decisions: readonly AggregateDecision[],
     ctx: MergeContext,
     backupDb: Database.Database,
@@ -208,139 +198,359 @@ export class MergeEngine {
   ): void {
     for (const decision of decisions) {
       switch (decision.action) {
-        case 'skip': {
-          // R8 role-aware identityMap: skip = the local row survives = available. Record
-          // target availability (local canonical = the existing work PK, which for a
-          // uuid-entity equals the backup PK) so the deferred junction phase can resolve
-          // cross-domain refs to it. sourceMap stays empty — the backup row was not
-          // imported, so it is ineligible as a merge source.
-          const pkStr = String(decision.backupPrimaryKey[0])
-          setIdentityEntry(identityMap.targetMap, decision.aggregate.root, pkStr, pkStr)
+        case 'skip':
+          // targetMap was primed only when scan found a local survivor; source remains ineligible.
           continue
-        }
-        case 'insert': {
-          this.insertAggregate(workSqlite, decision, ctx, backupDb, identityMap)
-          break
-        }
-        case 'overwrite':
+        case 'insert':
+          this.insertAggregate(workSqlite, decision, backupDb, identityMap)
+          continue
         case 'field-merge':
+          this.fieldMergeAggregate(workSqlite, decision, backupDb, identityMap)
+          continue
+        case 'overwrite':
         case 'rename':
           throw new MergeStrategyNotImplementedError(decision.action)
       }
     }
-    // Record any degraded skips (MVP: none yet — RENAME fallback lands at lite milestone).
+
+    // Kept as a sidecar extension point for later RENAME degradation without widening this slice.
+    void ctx
     void degradedToSkips
-    void ordered
   }
 
-  /**
-   * Insert an aggregate (root + include members) into work.sqlite. Top-level members are
-   * queried by viaColumn = root PK; nested members (parent set) by viaColumn against their
-   * PARENT member's inserted ids — so e.g. chat_message_file_ref.sourceId→message resolves
-   * against the imported message ids, NOT the topic id (which would silently drop every
-   * attachment). Contributors declare a nested member's parent before it. MVP: no identity
-   * propagation (uuid-entity INSERT keeps backup PK). FTS-derived columns stripped in insertRow.
-   */
+  /** Insert a root plus include members, propagating every row immediately before its SQL write. */
   private insertAggregate(
     workSqlite: Database.Database,
     decision: AggregateDecision,
-    _ctx: MergeContext,
     backupDb: Database.Database,
     identityMap: IdentityMap
   ): void {
-    const { aggregate: agg, backupPrimaryKey } = decision
-    // Root row — read from backup, insert into work. PK columns are logical → physical.
-    const where = this.registry
-      .getPrimaryKey(agg.root)
-      .columns.map((c) => `${physicalColumn(c)} = ?`)
-      .join(' AND ')
-    const rootRow = backupDb.prepare(`SELECT * FROM ${agg.root} WHERE ${where}`).get(...backupPrimaryKey) as
-      | Record<string, unknown>
-      | undefined
-    if (!rootRow) return // root vanished from backup mid-merge — skip defensively
-    this.insertRow(workSqlite, agg.root, rootRow)
-    // Record source eligibility (inserted) + target availability (inserted) for this root,
-    // scoped per endpoint table (R8 + endpoint-disjoint — see IdentityMap).
-    const pkStr = String(backupPrimaryKey[0])
-    setIdentityEntry(identityMap.sourceMap, agg.root, pkStr, pkStr)
-    setIdentityEntry(identityMap.targetMap, agg.root, pkStr, pkStr)
+    const { aggregate, backupPrimaryKey } = decision
+    const rootRow = this.getBackupRootRow(backupDb, aggregate, backupPrimaryKey)
+    if (!rootRow) return
 
-    // Include members — cascade with the root. Track each member's inserted PKs so a
-    // nested member (parent set) resolves against its PARENT member's ids, not the root PK.
-    // Members are declared parent-first in the contributor schema; viaColumn is logical → physical.
-    const members = agg.members ?? []
+    const propagatedRoot = propagateIdentityReferences(this.registry, aggregate.root, rootRow, identityMap)
+    this.insertRow(workSqlite, aggregate.root, propagatedRoot)
+    this.recordImportedRow(identityMap, aggregate.root, backupPrimaryKey, backupPrimaryKey)
+    this.importIncludeMembers(workSqlite, aggregate, backupPrimaryKey, backupDb, identityMap)
+  }
+
+  /** Merge remote policy-owned fields into a local canonical root without replacing its PK. */
+  private fieldMergeAggregate(
+    workSqlite: Database.Database,
+    decision: AggregateDecision,
+    backupDb: Database.Database,
+    identityMap: IdentityMap
+  ): void {
+    const localCanonicalPrimaryKey = decision.localCanonicalPrimaryKey
+    if (!localCanonicalPrimaryKey) {
+      throw new Error(`FIELD_MERGE '${decision.aggregate.root}' has no local canonical primary key`)
+    }
+
+    const backupRoot = this.getBackupRootRow(backupDb, decision.aggregate, decision.backupPrimaryKey)
+    const localRoot = this.getWorkRootRow(workSqlite, decision.aggregate, localCanonicalPrimaryKey)
+    if (!backupRoot || !localRoot) {
+      throw new Error(`FIELD_MERGE '${decision.aggregate.root}' could not load its root rows`)
+    }
+
+    // Rewrite remote FK/JSON references before fields are merged and written into the canonical row.
+    const propagatedBackupRoot = propagateIdentityReferences(
+      this.registry,
+      decision.aggregate.root,
+      backupRoot,
+      identityMap
+    )
+    const policies = this.getFieldPolicies(decision.aggregate.root)
+    const protectedColumns = new Set([
+      ...this.registry.getPrimaryKey(decision.aggregate.root).columns.map(physicalColumn),
+      ...(decision.aggregate.identityKey ?? []).map(physicalColumn)
+    ])
+    const merged = this.fieldMergeStrategy.merge({
+      localRow: localRoot,
+      remoteRow: propagatedBackupRoot,
+      policies,
+      protectedColumns
+    })
+    this.updatePolicyColumns(
+      workSqlite,
+      decision.aggregate.root,
+      merged,
+      localCanonicalPrimaryKey,
+      policies,
+      protectedColumns
+    )
+    this.recordImportedRow(identityMap, decision.aggregate.root, decision.backupPrimaryKey, localCanonicalPrimaryKey)
+    // Existing member PKs are local survivors on a FIELD_MERGE rerun; skip only those
+    // exact PK collisions while preserving fail-closed handling for other constraints.
+    this.importIncludeMembers(workSqlite, decision.aggregate, decision.backupPrimaryKey, backupDb, identityMap, true)
+  }
+
+  /** Import include members in declaration order, optionally preserving local PK survivors. */
+  private importIncludeMembers(
+    workSqlite: Database.Database,
+    aggregate: AggregateBoundary,
+    backupPrimaryKey: readonly (string | number)[],
+    backupDb: Database.Database,
+    identityMap: IdentityMap,
+    skipExistingPrimaryKeys = false
+  ): void {
     const memberPksByTable = new Map<DbTableName, Set<string>>()
-    for (const member of members) {
+    for (const member of aggregate.members ?? []) {
       if (member.cascade !== 'include') continue
       const anchorIds = member.parent
         ? (memberPksByTable.get(member.parent) ?? new Set<string>())
         : new Set(backupPrimaryKey.map(String))
-      if (anchorIds.size === 0) continue // parent imported nothing → no nested rows to cascade
-      const placeholders = [...anchorIds].map(() => '?').join(',')
+      if (anchorIds.size === 0) continue
+
+      const placeholders = [...anchorIds].map(() => '?').join(', ')
       const memberRows = backupDb
-        .prepare(`SELECT * FROM ${member.table} WHERE ${physicalColumn(member.viaColumn)} IN (${placeholders})`)
+        .prepare(
+          `SELECT * FROM ${quotedTable(member.table)} WHERE ${quotedIdentifier(physicalColumn(member.viaColumn))} IN (${placeholders})`
+        )
         .all(...anchorIds) as Record<string, unknown>[]
-      const memberPkCol = physicalColumn(this.registry.getPrimaryKey(member.table).columns[0])
+      const memberPrimaryKeyColumns = this.registry.getPrimaryKey(member.table).columns
+
       for (const memberRow of memberRows) {
-        this.insertRow(workSqlite, member.table, memberRow)
-        let bucket = memberPksByTable.get(member.table)
-        if (!bucket) {
-          bucket = new Set()
-          memberPksByTable.set(member.table, bucket)
-        }
-        bucket.add(String(memberRow[memberPkCol]))
+        const memberPrimaryKey = this.readKeyTuple(memberRow, memberPrimaryKeyColumns, member.table, 'primary key')
+        const memberPrimaryKeyValue = String(memberPrimaryKey[0])
+        const previous = memberPksByTable.get(member.table) ?? new Set<string>()
+        memberPksByTable.set(member.table, new Set([...previous, memberPrimaryKeyValue]))
+
+        if (skipExistingPrimaryKeys && this.hasWorkPrimaryKey(workSqlite, member.table, memberPrimaryKey)) continue
+
+        // Apply identity propagation immediately before the member reaches SQLite.
+        const propagatedMember = propagateIdentityReferences(this.registry, member.table, memberRow, identityMap)
+        this.insertRow(workSqlite, member.table, propagatedMember)
+        this.recordImportedRow(identityMap, member.table, memberPrimaryKey, memberPrimaryKey)
       }
     }
   }
 
-  /**
-   * Insert a row. Columns not on the work table are dropped (schema-drift defense),
-   * and FTS-derived columns (`fts_rowid`, `searchable_text`) are stripped on FTS source
-   * tables so the AFTER-INSERT trigger can recompute them — see FTS_SOURCE_TABLES.
-   */
-  private insertRow(workSqlite: Database.Database, table: DbTableName, row: Record<string, unknown>): void {
-    const workColumns = new Set(
-      (workSqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+  /** Check exact primary-key existence without masking a different unique-constraint conflict. */
+  private hasWorkPrimaryKey(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    primaryKey: readonly (string | number)[]
+  ): boolean {
+    const primaryKeyColumns = this.registry.getPrimaryKey(table).columns.map(physicalColumn)
+    const where = primaryKeyColumns.map((column) => `${quotedIdentifier(column)} = ?`).join(' AND ')
+    return (
+      workSqlite.prepare(`SELECT 1 FROM ${quotedTable(table)} WHERE ${where} LIMIT 1`).get(...primaryKey) !== undefined
     )
-    const isFtsSource = FTS_SOURCE_TABLES.has(table)
-    const cols = Object.keys(row).filter(
-      (c) => workColumns.has(c) && !(isFtsSource && FTS_DERIVED_PHYSICAL_COLUMNS.has(c))
-    )
-    if (cols.length === 0) return
-    const placeholders = cols.map(() => '?').join(', ')
-    // INSERT does not return rows — use run(), not all(). Plain INSERT (NOT INSERT OR
-    // IGNORE) so any non-PK UNIQUE / CHECK / NOT NULL failure throws + rolls the tx back
-    // — fail-closed: the engine never silently drops a row and reports a clean merge.
-    // PK idempotency is handled at the decision layer (scanAggregates SKIPs roots work
-    // already has), so a plain INSERT here never collides on the PK in normal SKIP/INSERT
-    // flow. Stage 3 will swap this for ON CONFLICT DO NOTHING with explicit diagnostics
-    // once ConflictResolver/upsert lands (plan (b)).
-    workSqlite
-      .prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`)
-      .run(...cols.map((c) => row[c]))
   }
 
-  /**
-   * Offline consistency check — whole-graph FK integrity + structure. Runs inside the tx
-   * (defer_foreign_keys pushes FK enforcement here). A non-empty foreign_key_check or a
-   * non-ok integrity_check means work.sqlite is inconsistent and MUST NOT promote.
-   *
-   * TODO(lite): the spec (import-orchestrator.md) lists additional in-tx checks this MVP
-   * omits — FTS integrity-check (`INSERT INTO <fts>(<fts>) VALUES('integrity-check',1)` +
-   * row-count parity), app_state preservation assert, and dangling file_ref detection.
-   * Track via the FtsCentralHelper / after-commit FS verify stages.
-   */
-  private runConsistencyCheck(workSqlite: Database.Database): void {
+  /** Load a root row from backup.sqlite by its declared physical primary key. */
+  private getBackupRootRow(
+    backupDb: Database.Database,
+    aggregate: AggregateBoundary,
+    primaryKey: readonly (string | number)[]
+  ): Record<string, unknown> | undefined {
+    const where = this.registry
+      .getPrimaryKey(aggregate.root)
+      .columns.map((column) => `${quotedIdentifier(physicalColumn(column))} = ?`)
+      .join(' AND ')
+    return backupDb.prepare(`SELECT * FROM ${quotedTable(aggregate.root)} WHERE ${where}`).get(...primaryKey) as
+      | Record<string, unknown>
+      | undefined
+  }
+
+  /** Load the survivor row from work.sqlite by the canonical local primary key. */
+  private getWorkRootRow(
+    workSqlite: Database.Database,
+    aggregate: AggregateBoundary,
+    primaryKey: readonly (string | number)[]
+  ): Record<string, unknown> | undefined {
+    const where = this.registry
+      .getPrimaryKey(aggregate.root)
+      .columns.map((column) => `${quotedIdentifier(physicalColumn(column))} = ?`)
+      .join(' AND ')
+    return workSqlite.prepare(`SELECT * FROM ${quotedTable(aggregate.root)} WHERE ${where}`).get(...primaryKey) as
+      | Record<string, unknown>
+      | undefined
+  }
+
+  /** Translate a contributor's logical field policies into the physical raw-SQL column names. */
+  private getFieldPolicies(table: DbTableName): readonly FieldMergeColumnPolicy[] {
+    const owner = this.registry.getTableOwner(table)
+    if (owner === 'excluded' || owner === 'infrastructure') return []
+    return (this.registry.getPolicy(owner).fieldMergePolicies ?? [])
+      .filter((policy) => policy.table === table)
+      .map((policy) => ({ column: physicalColumn(policy.column), strategy: policy.strategy }))
+  }
+
+  /** Update only declared policy columns, keeping every unlisted local field untouched. */
+  private updatePolicyColumns(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    merged: Readonly<Record<string, unknown>>,
+    primaryKey: readonly (string | number)[],
+    policies: readonly FieldMergeColumnPolicy[],
+    protectedColumns: ReadonlySet<string>
+  ): void {
+    const workColumns = this.getWorkColumns(workSqlite, table)
+    const columns = [...new Set(policies.map((policy) => policy.column))].filter(
+      (column) => workColumns.has(column) && !protectedColumns.has(column) && merged[column] !== undefined
+    )
+    if (columns.length === 0) return
+
+    const primaryKeyColumns = this.registry.getPrimaryKey(table).columns.map(physicalColumn)
+    const where = primaryKeyColumns.map((column) => `${quotedIdentifier(column)} = ?`).join(' AND ')
+    const set = columns.map((column) => `${quotedIdentifier(column)} = ?`).join(', ')
+    workSqlite
+      .prepare(`UPDATE ${quotedTable(table)} SET ${set} WHERE ${where}`)
+      .run(...columns.map((column) => merged[column]), ...primaryKey)
+  }
+
+  /** Record a row imported this restore as both an eligible source and available target. */
+  private recordImportedRow(
+    identityMap: IdentityMap,
+    table: DbTableName,
+    backupPrimaryKey: readonly (string | number)[],
+    canonicalPrimaryKey: readonly (string | number)[]
+  ): void {
+    if (backupPrimaryKey.length !== 1 || canonicalPrimaryKey.length !== 1) return
+    const backupId = String(backupPrimaryKey[0])
+    const canonicalId = String(canonicalPrimaryKey[0])
+    setIdentityEntry(identityMap.sourceMap, table, backupId, canonicalId)
+    setIdentityEntry(identityMap.targetMap, table, backupId, canonicalId)
+  }
+
+  /** Import entity_tag's single declared target FK after tag canonicalization. */
+  private importTagReferences(
+    workSqlite: Database.Database,
+    selectedDomains: readonly BackupDomain[],
+    backupDb: Database.Database,
+    identityMap: IdentityMap
+  ): void {
+    if (!selectedDomains.includes('TAGS_GROUPS')) return
+    const tagSourceMap = identityMap.sourceMap.get('tag')
+    if (!tagSourceMap || tagSourceMap.size === 0) return
+
+    const rows = backupDb.prepare('SELECT * FROM entity_tag').all() as Record<string, unknown>[]
+    for (const row of rows) {
+      const tagId = row.tag_id
+      // A skipped tag is an available local target but is not an eligible backup source.
+      if ((typeof tagId !== 'string' && typeof tagId !== 'number') || !tagSourceMap.has(String(tagId))) continue
+      const propagated = propagateIdentityReferences(this.registry, 'entity_tag', row, identityMap)
+      this.insertRow(workSqlite, 'entity_tag', propagated, { onConflictDoNothing: true })
+    }
+  }
+
+  /** Import pure two-ended junctions only after all aggregate source/target maps are complete. */
+  private importAllJunctionRows(
+    workSqlite: Database.Database,
+    selectedDomains: readonly BackupDomain[],
+    backupDb: Database.Database,
+    identityMap: IdentityMap
+  ): void {
+    for (const descriptor of deriveJunctionDescriptors(this.registry, selectedDomains)) {
+      const sourceColumn = physicalColumn(descriptor.sourceEndpoint.fkColumn)
+      const targetColumn = physicalColumn(descriptor.targetEndpoint.fkColumn)
+      const rows = backupDb.prepare(`SELECT * FROM ${quotedTable(descriptor.table)}`).all() as Record<string, unknown>[]
+
+      for (const row of rows) {
+        const sourceId = row[sourceColumn]
+        const targetId = row[targetColumn]
+        if (
+          (typeof sourceId !== 'string' && typeof sourceId !== 'number') ||
+          (typeof targetId !== 'string' && typeof targetId !== 'number')
+        ) {
+          continue
+        }
+        const sourceCanonical = identityMap.sourceMap.get(descriptor.sourceEndpoint.table)?.get(String(sourceId))
+        const targetCanonical = identityMap.targetMap.get(descriptor.targetEndpoint.table)?.get(String(targetId))
+        if (sourceCanonical === undefined || targetCanonical === undefined) continue
+
+        this.insertJunctionRow(
+          workSqlite,
+          descriptor.table,
+          row,
+          sourceColumn,
+          sourceCanonical,
+          targetColumn,
+          targetCanonical
+        )
+      }
+    }
+  }
+
+  /** Write a junction row with both endpoints canonicalized and preserve idempotency on its composite PK. */
+  private insertJunctionRow(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    row: Readonly<Record<string, unknown>>,
+    sourceColumn: string,
+    sourceCanonical: string,
+    targetColumn: string,
+    targetCanonical: string
+  ): void {
+    const rewritten = { ...row, [sourceColumn]: sourceCanonical, [targetColumn]: targetCanonical }
+    this.insertRow(workSqlite, table, rewritten, { onConflictDoNothing: true })
+  }
+
+  /** Insert one schema-compatible row, dropping backup-only and FTS-derived columns. */
+  private insertRow(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    row: Readonly<Record<string, unknown>>,
+    options: { readonly onConflictDoNothing?: boolean } = {}
+  ): void {
+    const workColumns = this.getWorkColumns(workSqlite, table)
+    const isFtsSource = FTS_SOURCE_TABLES.has(table)
+    const columns = Object.keys(row).filter(
+      (column) => workColumns.has(column) && !(isFtsSource && FTS_DERIVED_PHYSICAL_COLUMNS.has(column))
+    )
+    if (columns.length === 0) return
+
+    const placeholders = columns.map(() => '?').join(', ')
+    const conflictClause = options.onConflictDoNothing ? ' ON CONFLICT DO NOTHING' : ''
+    workSqlite
+      .prepare(
+        `INSERT INTO ${quotedTable(table)} (${columns.map(quotedIdentifier).join(', ')}) VALUES (${placeholders})${conflictClause}`
+      )
+      .run(...columns.map((column) => row[column]))
+  }
+
+  /** Read physical work columns once per write to preserve schema-drift containment. */
+  private getWorkColumns(workSqlite: Database.Database, table: DbTableName): ReadonlySet<string> {
+    return new Set(
+      (workSqlite.prepare(`PRAGMA table_info(${quotedTable(table)})`).all() as { name: string }[]).map(
+        (column) => column.name
+      )
+    )
+  }
+
+  /** Read the app_state key-set so the merge cannot accidentally alter boot/runtime state. */
+  private snapshotAppStateKeys(workSqlite: Database.Database): ReadonlySet<string> | undefined {
+    const exists = workSqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'app_state'").get()
+    if (!exists) return undefined
+    const rows = workSqlite.prepare('SELECT key FROM app_state').all() as { key: string }[]
+    return new Set(rows.map((row) => row.key))
+  }
+
+  /** Verify FK, SQLite integrity, FTS integrity, and app_state key preservation before commit. */
+  private runConsistencyCheck(workSqlite: Database.Database, appStateBefore: ReadonlySet<string> | undefined): void {
     const fkViolations = workSqlite.pragma('foreign_key_check') as unknown[]
     if (fkViolations.length > 0) {
       throw new MergeConsistencyCheckError(`foreign_key_check returned ${fkViolations.length} violations`)
     }
-    // `{ simple: true }` returns the first cell as a bare value (string 'ok' when
-    // the DB is consistent). Any other value means structural corruption — work.sqlite
-    // MUST NOT promote.
+
     const integrity = workSqlite.pragma('integrity_check', { simple: true })
     if (integrity !== 'ok') {
       throw new MergeConsistencyCheckError(`integrity_check: ${JSON.stringify(integrity)}`)
+    }
+
+    FtsCentralHelper.integrityCheck(workSqlite)
+    if (!appStateBefore) return
+    const appStateAfter = this.snapshotAppStateKeys(workSqlite)
+    if (
+      !appStateAfter ||
+      appStateAfter.size !== appStateBefore.size ||
+      [...appStateAfter].some((key) => !appStateBefore.has(key))
+    ) {
+      throw new MergeConsistencyCheckError(
+        `app_state key-set changed: ${appStateBefore.size} → ${appStateAfter?.size ?? 0}`
+      )
     }
   }
 }

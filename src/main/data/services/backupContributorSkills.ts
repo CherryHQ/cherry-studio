@@ -47,7 +47,14 @@ export const SKILLS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       }
     ]
   },
-  backupPolicy: {},
+  backupPolicy: {
+    fieldMergePolicies: [
+      // Marketplace metadata can backfill a locally incomplete skill without changing its identity.
+      { table: table('agent_global_skill'), column: column('description'), strategy: 'remote-fills-local-null' },
+      // Keep a user's enabled state and existing labels, but backfill a fresh local placeholder.
+      { table: table('agent_global_skill'), column: column('tags'), strategy: 'local-priority' }
+    ]
+  },
   // SKILLS is schema-only for marketplace/builtin skills (re-fetchable: marketplace
   // via sourceUrl re-clone, builtin via app-bundle reinstall on startup). Only
   // zip/local skills (sourceUrl=null, user-provided, NON-re-downloadable) carry

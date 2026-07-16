@@ -1,4 +1,4 @@
-// MergeEngine MVP SKIP/INSERT slice — characterization tests for the landed
+// MergeEngine detached merge pipeline — characterization tests for the landed
 // pipeline (detached work.sqlite tx + defer_foreign_keys + exhaustive importRows
 // switch + offline consistency check). The synthetic backup.sqlite is produced
 // by `dbh.sqlite.backup(target)` (online backup → identical schema) and seeded
@@ -6,9 +6,8 @@
 //
 // Scope: the engine resolves both top-level members (message.topicId → topic root)
 // and nested members (chat_message_file_ref.sourceId → message member, via parent-id
-// tracking) — covered by the traverse test below. deferred items (streaming iterate(),
-// full consistency checks, identity propagation, junction phase) are tracked via
-// TODO(Stage3)/TODO(lite) comments in the implementation.
+// tracking). FIELD_MERGE, identity propagation, junction import, and full consistency
+// checks have dedicated coverage in the focused merge test files.
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -22,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { MergeContext } from '..'
 import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '..'
 
-describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
+describe('MergeEngine detached merge pipeline', () => {
   // Live test DB = the merge base (work.sqlite). Production migrations + FTS5
   // triggers are applied; beforeEach truncates user tables.
   const dbh = setupTestDatabase()
@@ -177,13 +176,11 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(countRows('message')).toBe(messagesAfterFirst)
   })
 
-  it('throws MergeStrategyNotImplementedError for a natural-key domain (scanAggregates guard)', async () => {
-    // PROVIDERS aggregates finalize to identityClass 'natural-key'; scanAggregates
-    // refuses them until FIELD_MERGE lands. Empty backup is enough — the guard
-    // fires before any row read.
-    await expect(runMerge({ domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow(
-      MergeStrategyNotImplementedError
-    )
+  it('allows an empty natural-key domain to use its FIELD_MERGE default', async () => {
+    // Natural-key domains no longer fail during pre-scan. With no backup roots there
+    // is no conflict to resolve, but this verifies the default remains executable.
+    const result = await runMerge({ domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>() })
+    expect(result).toMatchObject({ degradedToSkips: [] })
   })
 
   it('throws MergeConsistencyCheckError when an inserted row dangles a cross-domain FK', async () => {
@@ -203,11 +200,12 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     await expect(runMerge(topCtx())).rejects.toThrow(MergeConsistencyCheckError)
   })
 
-  it('throws MergeStrategyNotImplementedError for an explicit non-SKIP userStrategy (fail-loud)', async () => {
-    // The MVP supports only SKIP conflict resolution for uuid-entity; an explicit
-    // OVERWRITE/RENAME/FIELD_MERGE override must fail loud rather than silently
-    // degrade to skip (which would ignore the user's choice). The guard fires at
-    // scan entry, before any row read.
+  it('throws MergeStrategyNotImplementedError for an explicit deferred strategy on conflict', async () => {
+    // An explicit strategy matters only when a conflict is present. OVERWRITE remains
+    // deferred, so the resolver must fail loud rather than silently choosing SKIP.
+    insertTopic(dbh.sqlite, 'tpc-overwrite', 'in-work')
+    seedBackup((db) => insertTopic(db, 'tpc-overwrite', 'in-backup'))
+
     await expect(
       runMerge({ domains: ['TOPICS'], userStrategy: 'OVERWRITE', skippedFileEntryIds: new Set<string>() })
     ).rejects.toThrow(MergeStrategyNotImplementedError)

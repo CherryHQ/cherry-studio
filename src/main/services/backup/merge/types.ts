@@ -60,16 +60,11 @@ export interface JunctionDescriptor {
  * while a skipped source was not imported (ineligible).
  *
  * The maps are scoped per endpoint TABLE (not flat by id) so that the same textual id
- * in two different entity tables cannot overwrite each other. Once FIELD_MERGE/OVERWRITE
- * maps an id to a different canonical id, a flat map would let junction resolution
- * rewrite a FK to the wrong entity; the per-table scope keeps endpoints disjoint.
- *
- * TODO(junction-phase): the spec's `sourceMap.get(sourceEndpoint, id)` keys on a full
- * `JunctionEndpoint` (table + fkColumn + aggregatePath). Per-table keying is sufficient
- * for the SKIP-only MVP (no junction consumer; no registry junction reuses one table
- * across two distinct endpoint shapes) — re-evaluate keying granularity when
- * `importAllJunctionRows` lands; widen to `JunctionEndpoint` if a dual-endpoint-same-table
- * junction is introduced.
+ * in two different entity tables cannot overwrite each other. Once FIELD_MERGE maps an
+ * id to a different canonical id, a flat map could rewrite a FK to the wrong entity;
+ * per-table scope keeps endpoints disjoint. The junction phase consumes the same
+ * per-table scope because no registry junction currently reuses one table across
+ * distinct endpoint shapes.
  */
 export interface IdentityMap {
   /**

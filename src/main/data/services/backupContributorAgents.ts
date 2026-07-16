@@ -332,7 +332,14 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       }
     ]
   },
-  backupPolicy: {},
+  backupPolicy: {
+    fieldMergePolicies: [
+      // The local workspace label is user-controlled; its canonical path and UUID always remain local.
+      { table: table('agent_workspace'), column: column('name'), strategy: 'local-priority' },
+      // Task inputs are extensible JSON; merge remote defaults without overwriting local task choices.
+      { table: table('job_schedule'), column: column('jobInputTemplate'), strategy: 'deep-merge' }
+    ]
+  },
   // All aggregates are renamable:false → cloneAggregate is NOT required (#16).
   // D model (#16714 / architecture §9): no afterImport re-arm — relaunch after
   // preboot promotion re-arms agent.task schedules via JobManager startup recovery.

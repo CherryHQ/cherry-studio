@@ -83,7 +83,14 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       }
     ]
   },
-  backupPolicy: {},
+  backupPolicy: {
+    fieldMergePolicies: [
+      // Preserve local runtime overrides while accepting remote configuration keys unavailable locally.
+      { table: table('mini_app'), column: column('configuration'), strategy: 'deep-merge' },
+      // Region choices are a local usability preference; only an empty placeholder is backfilled.
+      { table: table('mini_app'), column: column('supportedRegions'), strategy: 'local-priority' }
+    ]
+  },
   // Schema-only: no file resources, no row transform, no restoreResources.
   operations: undefined
 })
