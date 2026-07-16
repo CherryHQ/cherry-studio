@@ -202,6 +202,20 @@ function CloseHomeAfterSecondTabOpens() {
   return <TabSnapshot />
 }
 
+// Opens the same URL as the initial tab with forceNew, the way the tab bar's + button does.
+function ForceNewSameUrlOpener() {
+  const { openTab } = useTabsContext()
+  const didOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/launchpad', { forceNew: true })
+  }, [openTab])
+
+  return <TabSnapshot />
+}
+
 // Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
 function PinnedTabMaterializer() {
   const { tabs, openTab } = useTabsContext()
@@ -415,6 +429,28 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/agents')
     expect(screen.getByTestId('tab-urls')).not.toHaveTextContent('/app/launchpad')
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('agents')
+  })
+
+  it('creates a second tab for an already-open URL when forceNew is set', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/launchpad',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <ForceNewSameUrlOpener />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/launchpad,/app/launchpad'))
+    const ids = (screen.getByTestId('tab-ids').textContent ?? '').split(',')
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
   })
 })
 
