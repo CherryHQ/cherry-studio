@@ -26,6 +26,7 @@ const messageVirtualListMocks = vi.hoisted(() => ({
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
   scrollElement: null as HTMLDivElement | null
 }))
+const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
@@ -112,17 +113,19 @@ vi.mock('../list/MessageAnchorLine', () => ({
 }))
 
 vi.mock('../list/MessageGroup', () => {
-  return {
-    __esModule: true,
-    default: ({
-      messages,
-      enteringMessageIds,
-      registerMessageElement
-    }: {
-      messages: MessageListItem[]
-      enteringMessageIds?: ReadonlySet<string>
-      registerMessageElement?: (id: string, element: HTMLElement | null) => void
-    }) => (
+  const MockMessageGroup = ({
+    messages,
+    enteringMessageIds,
+    registerMessageElement
+  }: {
+    messages: MessageListItem[]
+    enteringMessageIds?: ReadonlySet<string>
+    registerMessageElement?: (id: string, element: HTMLElement | null) => void
+  }) => {
+    const groupId = messages.map((message) => message.id).join(',')
+    messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
+
+    return (
       <div data-testid="message-group">
         {messages.map((message) => {
           const setRef = (element: HTMLDivElement | null) => {
@@ -141,9 +144,14 @@ vi.mock('../list/MessageGroup', () => {
             </div>
           )
         })}
-        {messages.map((message) => message.id).join(',')}
+        {groupId}
       </div>
     )
+  }
+
+  return {
+    __esModule: true,
+    default: MockMessageGroup
   }
 })
 
@@ -270,6 +278,54 @@ describe('MessageList', () => {
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
+    messageGroupRenderCounts.clear()
+  })
+
+  it('keeps historical groups sealed while only the live tail changes', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
+    const historyParts = {
+      'user-history': [{ type: 'text', text: 'question' }],
+      'assistant-history': [{ type: 'text', text: 'sealed answer' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const streamingLayers = {
+      historyPartsByMessageId: historyParts,
+      liveMessageIds: ['assistant-live']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = (text: string) =>
+      createValue(
+        [historyUser, historyAssistant, { ...liveAssistant }],
+        {
+          topic,
+          streamingLayers,
+          partsByMessageId: {
+            ...historyParts,
+            'assistant-live': [{ type: 'text', text }]
+          } as MessageListProviderValue['state']['partsByMessageId']
+        },
+        actions
+      )
+
+    const view = render(
+      <MessageListProvider value={buildValue('a')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    for (const text of ['ab', 'abc', 'abcd', 'abcde']) {
+      view.rerender(
+        <MessageListProvider value={buildValue(text)}>
+          <MessageList />
+        </MessageListProvider>
+      )
+    }
+
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
   })
 
   it('signals the virtual list to scroll after a user message is appended before an assistant placeholder', () => {
