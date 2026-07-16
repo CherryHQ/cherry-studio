@@ -11,7 +11,7 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { MessageEnterMotionProvider, useMessageEnterMotionIds } from '../motion/messageEnterMotion'
+import { useMessageEnterMotionIds } from '../motion/messageEnterMotion'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
@@ -120,7 +120,13 @@ const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
-    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId
+    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
+    (previous.enteringMessageIds === next.enteringMessageIds ||
+      previous.messages.every(
+        (message) =>
+          (previous.enteringMessageIds?.has(message.id) ?? false) ===
+          (next.enteringMessageIds?.has(message.id) ?? false)
+      ))
   )
 })
 
@@ -568,53 +574,48 @@ const MessageList = () => {
       )}
       <SelectionContextMenu>
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <MessageEnterMotionProvider enteringMessageIds={enteringMessageIds}>
-            <MessageVirtualList
-              handleRef={messageListRef}
-              items={groupedMessages}
-              getItemKey={([key]) => key}
-              estimateSize={data.estimateSize}
-              overscan={data.overscan}
-              topPadding={topPadding}
-              bottomPadding={bottomPadding}
-              forceScrollToBottomKey={forceScrollToBottomKey}
-              preserveScrollAnchor={preserveScrollAnchor}
-              keepMountedKeys={keepMountedKeys}
-              showScrollToBottomButton
-              scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
-              topicId={topic.id}
-              hasMoreTop={hasOlder}
-              onScrollContainerReady={handleScrollContainerReady}
-              onReachTop={loadMoreMessages}
-              renderItem={([key, groupMessages], index) => {
-                const props: MessageGroupLayerProps = {
-                  groupKey: key,
-                  narrowMode: messageListNarrowMode,
-                  isLatestAssistantGroup: key === latestAssistantGroupKey,
-                  directAssistantModelsByUserId,
-                  messages: groupMessages,
-                  partsByMessageId:
-                    index < firstLiveGroupIndex && streamingLayers
-                      ? streamingLayers.historyPartsByMessageId
-                      : partsByMessageId,
-                  topic,
-                  registerMessageElement,
-                  onMultiModelMessageStyleChange: (style) => {
-                    setGroupLayoutOverrides((current) =>
-                      current[key] === style ? current : { ...current, [key]: style }
-                    )
-                  }
+          <MessageVirtualList
+            handleRef={messageListRef}
+            items={groupedMessages}
+            getItemKey={([key]) => key}
+            estimateSize={data.estimateSize}
+            overscan={data.overscan}
+            topPadding={topPadding}
+            bottomPadding={bottomPadding}
+            forceScrollToBottomKey={forceScrollToBottomKey}
+            preserveScrollAnchor={preserveScrollAnchor}
+            keepMountedKeys={keepMountedKeys}
+            showScrollToBottomButton
+            scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
+            topicId={topic.id}
+            hasMoreTop={hasOlder}
+            onScrollContainerReady={handleScrollContainerReady}
+            onReachTop={loadMoreMessages}
+            renderItem={([key, groupMessages], index) => {
+              const props: MessageGroupLayerProps = {
+                groupKey: key,
+                narrowMode: messageListNarrowMode,
+                enteringMessageIds,
+                isLatestAssistantGroup: key === latestAssistantGroupKey,
+                directAssistantModelsByUserId,
+                messages: groupMessages,
+                partsByMessageId:
+                  index < firstLiveGroupIndex && streamingLayers
+                    ? streamingLayers.historyPartsByMessageId
+                    : partsByMessageId,
+                topic,
+                registerMessageElement,
+                onMultiModelMessageStyleChange: (style) => {
+                  setGroupLayoutOverrides((current) =>
+                    current[key] === style ? current : { ...current, [key]: style }
+                  )
                 }
+              }
 
-                return index < firstLiveGroupIndex ? (
-                  <MessageHistoryLayer {...props} />
-                ) : (
-                  <MessageLiveLayer {...props} />
-                )
-              }}
-              style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
-            />
-          </MessageEnterMotionProvider>
+              return index < firstLiveGroupIndex ? <MessageHistoryLayer {...props} /> : <MessageLiveLayer {...props} />
+            }}
+            style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
+          />
           {isLoadingMore && (
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"

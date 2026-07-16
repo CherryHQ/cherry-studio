@@ -6,7 +6,6 @@ import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/r
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MessageEnterMotionProvider } from '../../motion/messageEnterMotion'
 import type { MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -31,9 +30,10 @@ const mocks = vi.hoisted(() => ({
   },
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
-  MessageContent: vi.fn(({ parts }: { parts: CherryMessagePart[] }) => (
+  MessageContent: vi.fn(({ messageId, parts }: { messageId: string; parts: CherryMessagePart[] }) => (
     <div
       data-testid="message-parts-content"
+      data-message-id={messageId}
       data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
       style={{ minHeight: 600 }}>
       Long message content
@@ -157,7 +157,7 @@ vi.mock('../frame/MessageContent', async () => {
 
   function MessageContentMock({ message }: { message: MessageListItem }) {
     const parts = useMessageParts(message.id)
-    return mocks.MessageContent({ parts })
+    return mocks.MessageContent({ messageId: message.id, parts })
   }
 
   return {
@@ -705,15 +705,55 @@ describe('MessageGroup', () => {
     const topic = { id: 'topic-1' } as Topic
 
     const { container } = render(
-      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-inline-1'])}>
-        <MessageGroup messages={[message]} topic={topic} />
-      </MessageEnterMotionProvider>
+      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-inline-1'])} />
     )
 
     const messageElement = container.querySelector('#message-user-inline-1 .message')
 
     expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-inline')
     expect(messageElement).toHaveClass('animation-chat-message-enter-inline')
+  })
+
+  it('keeps sibling frames stable when enter motion changes within the group', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const messages = ['user-inline-a', 'user-inline-b'].map(
+      (id, index) =>
+        ({
+          ...createMessage(id, index, 'vertical'),
+          role: 'user'
+        }) as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    )
+    const topic = { id: 'topic-1' } as Topic
+    const view = render(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
+    const getRenderCount = (messageId: string) =>
+      mocks.MessageContent.mock.calls.filter(([props]) => props.messageId === messageId).length
+
+    expect(getRenderCount('user-inline-a')).toBe(1)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['user-inline-a'])} />)
+    expect(getRenderCount('user-inline-a')).toBe(2)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+    expect(view.container.querySelector('#message-user-inline-a .message')).toHaveAttribute(
+      'data-message-enter-motion',
+      'user-inline'
+    )
+
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
+    expect(getRenderCount('user-inline-a')).toBe(3)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+    expect(view.container.querySelector('#message-user-inline-a .message')).not.toHaveAttribute(
+      'data-message-enter-motion'
+    )
   })
 
   it('keeps user bubble content and footer out of the assistant title-column offset', () => {
@@ -767,9 +807,7 @@ describe('MessageGroup', () => {
     const topic = { id: 'topic-1' } as Topic
 
     const { container } = render(
-      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-bubble-1'])}>
-        <MessageGroup messages={[message]} topic={topic} />
-      </MessageEnterMotionProvider>
+      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-bubble-1'])} />
     )
 
     const messageElement = container.querySelector('#message-user-bubble-1 .message')

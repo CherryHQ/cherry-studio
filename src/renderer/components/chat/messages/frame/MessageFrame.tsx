@@ -11,11 +11,7 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  getMessageEnterMotionAttributes,
-  getMessageEnterMotionVariant,
-  useMessageEnterMotionActive
-} from '../../motion/messageEnterMotion'
+import { getMessageEnterMotionAttributes, getMessageEnterMotionVariant } from '../../motion/messageEnterMotion'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -52,6 +48,7 @@ interface Props {
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
   lockedMentionedModels?: Model[]
+  enterMotionActive?: boolean
 }
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
@@ -65,7 +62,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
-  lockedMentionedModels
+  lockedMentionedModels,
+  enterMotionActive = false
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -110,7 +108,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const enterMotionActive = useMessageEnterMotionActive(message.id)
   const enterMotionVariant = getMessageEnterMotionVariant({
     active: enterMotionActive,
     role: message.role,
