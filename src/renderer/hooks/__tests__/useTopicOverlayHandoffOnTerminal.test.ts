@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockEntry = vi.fn<() => { status: TopicStreamStatus | undefined } | undefined>()
 
 // Mock at the cache layer (intra-module calls can't be intercepted at the hook).
+// The main-owned status entry is observed read-only via useSharedCacheValue.
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCache: () => [mockEntry()]
+  useSharedCacheValue: () => mockEntry()
 }))
 
 import { useTopicOverlayHandoffOnTerminal } from '../useTopicStreamStatus'

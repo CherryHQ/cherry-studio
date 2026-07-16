@@ -58,6 +58,7 @@ const slashCommandsTool = defineTool({
     menuItems: {
       createItems: (context) => {
         const { session, actions, t } = context
+        const slashCommandsLabel = t('chat.input.slash_commands.title')
         // Prefer the live SDK catalog for this session (custom commands included); fall back to the
         // static builtin list before the runtime has reported one (e.g. first paint, no run yet).
         const slashCommands = session?.slashCommands?.length
@@ -82,7 +83,10 @@ const slashCommandsTool = defineTool({
             order: 20 + (index + 1) / 100,
             label: cmd.command,
             description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
-            searchAliases: descriptionKey ? getQuickPanelSearchAliases(t, descriptionKey) : undefined,
+            searchAliases: [
+              slashCommandsLabel,
+              ...(descriptionKey ? getQuickPanelSearchAliases(t, descriptionKey) : [])
+            ],
             icon: <Terminal size={16} />,
             action: ({ inputAdapter }) => {
               insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
