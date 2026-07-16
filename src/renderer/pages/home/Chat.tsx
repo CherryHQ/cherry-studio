@@ -19,17 +19,13 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
-import {
-  TopicRightPane,
-  type TopicRightPaneViewportCallbacks,
-  useTopicBranchLiveStateSetter
-} from './components/TopicRightPane'
+import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
@@ -50,8 +46,6 @@ interface Props {
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   resourcePaneCount?: ResourcePaneCountButtonProps
-  rightPane: ReactNode
-  setViewportCallbacks: (callbacks: TopicRightPaneViewportCallbacks | null) => void
 }
 
 const Chat: FC<Props> = (props) => {
@@ -237,15 +231,6 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, invalidateCache, setTopicBranchLiveState, t]
   )
-  useLayoutEffect(() => {
-    props.setViewportCallbacks({
-      onLocateMessage: setBranchLocateMessageId,
-      onStartBranchDraft: handleStartBranchDraft,
-      onCancelBranchDraft: handleCancelBranchDraft
-    })
-
-    return () => props.setViewportCallbacks(null)
-  }, [handleCancelBranchDraft, handleStartBranchDraft, props.setViewportCallbacks])
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -324,7 +309,13 @@ const Chat: FC<Props> = (props) => {
           />
         ) : undefined
       }
-      rightPane={props.rightPane}
+      rightPane={
+        <TopicRightPane.Viewport
+          onLocateMessage={setBranchLocateMessageId}
+          onStartBranchDraft={handleStartBranchDraft}
+          onCancelBranchDraft={handleCancelBranchDraft}
+        />
+      }
       centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
       centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
       centerClassName={

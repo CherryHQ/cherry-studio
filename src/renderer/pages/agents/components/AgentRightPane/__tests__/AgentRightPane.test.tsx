@@ -1,7 +1,14 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactElement, ReactNode } from 'react'
+import type {
+  ButtonHTMLAttributes,
+  ComponentProps,
+  CSSProperties,
+  PropsWithChildren,
+  ReactElement,
+  ReactNode
+} from 'react'
 import { cloneElement, isValidElement, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -222,14 +229,37 @@ vi.mock('react-i18next', () => ({
 
 import { AgentRightPane, useAgentRightPaneActions } from '../AgentRightPane'
 
-function OpenFlowButton() {
+type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope> &
+  Pick<ComponentProps<typeof AgentRightPane.Shell>, 'defaultOpen' | 'onOpenChange' | 'resourcePane'>
+
+function TestAgentRightPane({
+  children,
+  defaultOpen,
+  onOpenChange,
+  resourcePane,
+  ...scopeProps
+}: TestAgentRightPaneProps) {
+  return (
+    <AgentRightPane.Shell defaultOpen={defaultOpen} onOpenChange={onOpenChange} resourcePane={resourcePane}>
+      <AgentRightPane.Scope {...scopeProps}>{children}</AgentRightPane.Scope>
+    </AgentRightPane.Shell>
+  )
+}
+
+function OpenFlowButton({
+  label = 'open flow',
+  title = 'Inspect flow',
+  toolCallId = 'flow-1'
+}: {
+  label?: string
+  title?: string
+  toolCallId?: string
+}) {
   const { openAgentToolFlow } = useAgentRightPaneActions()
 
   return (
-    <button
-      type="button"
-      onClick={() => openAgentToolFlow({ toolCallId: 'flow-1', toolName: 'task', title: 'Inspect flow' })}>
-      open flow
+    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title })}>
+      {label}
     </button>
   )
 }
@@ -261,7 +291,7 @@ describe('AgentRightPane', () => {
 
   it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
     render(
-      <AgentRightPane
+      <TestAgentRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
         sessionId="session-a"
         workspacePath="/workspace"
@@ -269,7 +299,7 @@ describe('AgentRightPane', () => {
         partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
@@ -301,14 +331,14 @@ describe('AgentRightPane', () => {
 
   it('registers the sidebar command independently and prioritizes the resource pane', () => {
     render(
-      <AgentRightPane
+      <TestAgentRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
         sessionId="session-a"
         workspacePath="/workspace"
         messages={[]}
         partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(useCommandHandlerMock).toHaveBeenCalledWith(
@@ -329,9 +359,9 @@ describe('AgentRightPane', () => {
 
   it('opens files from the sidebar command when no resource pane is available', () => {
     render(
-      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     act(triggerRightSidebarShortcut)
@@ -343,20 +373,20 @@ describe('AgentRightPane', () => {
 
   it('does not expose artifact opening without a workspace path', () => {
     const { rerender } = render(
-      <AgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
         <ArtifactCapabilityProbe />
         <AgentRightPane.Shortcuts />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(screen.getByTestId('can-open-artifact-file')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
 
     rerender(
-      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <ArtifactCapabilityProbe />
         <AgentRightPane.Shortcuts />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(screen.getByTestId('can-open-artifact-file')).toHaveTextContent('true')
@@ -365,7 +395,7 @@ describe('AgentRightPane', () => {
 
   it('hides conversation shortcuts when the conversation is unavailable', () => {
     render(
-      <AgentRightPane
+      <TestAgentRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
         conversationState="unavailable"
         sessionId="session-a"
@@ -374,7 +404,7 @@ describe('AgentRightPane', () => {
         partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
@@ -385,10 +415,10 @@ describe('AgentRightPane', () => {
 
   it('resolves a dynamic flow panel from the declared flow capability', () => {
     render(
-      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <OpenFlowButton />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
@@ -397,6 +427,24 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('replaces the retained flow when another flow is opened', () => {
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton />
+        <OpenFlowButton label="open second flow" title="Inspect second flow" toolCallId="flow-2" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    const firstFlow = screen.getByTestId('empty-state')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second flow' }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect second flow')
+    expect(screen.getByTestId('empty-state')).not.toBe(firstFlow)
   })
 
   it('retains an inactive flow without re-projecting every runtime update', () => {
@@ -409,7 +457,7 @@ describe('AgentRightPane', () => {
     } as unknown as CherryMessagePart
     const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
     const { rerender } = render(
-      <AgentRightPane
+      <TestAgentRightPane
         sessionId="session-a"
         workspacePath="/workspace"
         messages={messages}
@@ -417,7 +465,7 @@ describe('AgentRightPane', () => {
         <OpenFlowButton />
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
@@ -426,7 +474,7 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     rerender(
-      <AgentRightPane
+      <TestAgentRightPane
         sessionId="session-a"
         workspacePath="/workspace"
         messages={[...messages]}
@@ -434,7 +482,7 @@ describe('AgentRightPane', () => {
         <OpenFlowButton />
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(buildAgentToolFlowProjectionMock).toHaveBeenCalledTimes(callsWhileActive)
@@ -463,13 +511,13 @@ describe('AgentRightPane', () => {
     ] as CherryUIMessage[]
 
     render(
-      <AgentRightPane
+      <TestAgentRightPane
         sessionId="session-a"
         workspacePath="/workspace"
         messages={messages}
         partsByMessageId={{ m1: parts }}>
         <AgentRightPane.Shortcuts />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     const artifactButton = screen.getByRole('button', { name: 'report.md' })
@@ -479,9 +527,9 @@ describe('AgentRightPane', () => {
 
   it('does not mount the files capability while the shell is closed', () => {
     render(
-      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
@@ -489,10 +537,10 @@ describe('AgentRightPane', () => {
 
   it('does not mount the files capability when opening a status panel', () => {
     render(
-      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
@@ -503,10 +551,10 @@ describe('AgentRightPane', () => {
 
   it('keeps a visited trace capability mounted while pausing it when inactive', () => {
     render(
-      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
@@ -520,16 +568,21 @@ describe('AgentRightPane', () => {
 
   it('keeps a visited files instance through pending and removes it when unavailable', () => {
     const { rerender } = render(
-      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
 
     rerender(
-      <AgentRightPane
+      <TestAgentRightPane
         conversationState="pending"
         defaultOpen
         sessionId="session-a"
@@ -537,14 +590,14 @@ describe('AgentRightPane', () => {
         messages={[]}
         partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
 
     rerender(
-      <AgentRightPane
+      <TestAgentRightPane
         conversationState="unavailable"
         defaultOpen
         sessionId="session-a"
@@ -552,7 +605,7 @@ describe('AgentRightPane', () => {
         messages={[]}
         partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(screen.queryByTestId('artifact-pane')).toBeNull()
@@ -560,22 +613,27 @@ describe('AgentRightPane', () => {
 
   it('does not re-render the active files capability when only runtime messages change', () => {
     const { rerender } = render(
-      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
     const callsAfterMount = useArtifactFileTreeModelMock.mock.calls.length
     const messages = [{ id: 'm1', role: 'user', parts: [], metadata: {} }] as CherryUIMessage[]
 
     rerender(
-      <AgentRightPane
+      <TestAgentRightPane
         defaultOpen
         sessionId="session-a"
         workspacePath="/workspace"
         messages={messages}
         partsByMessageId={{ m1: [] }}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     expect(useArtifactFileTreeModelMock).toHaveBeenCalledTimes(callsAfterMount)
@@ -586,9 +644,14 @@ describe('AgentRightPane', () => {
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
 
     render(
-      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
@@ -607,9 +670,14 @@ describe('AgentRightPane', () => {
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
 
     render(
-      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
         <AgentRightPane.Viewport />
-      </AgentRightPane>
+      </TestAgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))

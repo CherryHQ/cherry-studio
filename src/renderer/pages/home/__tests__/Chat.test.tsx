@@ -105,14 +105,7 @@ describe('Chat', () => {
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
-    render(
-      <Chat
-        activeTopic={topic}
-        showResourceListControls
-        rightPane={<div data-testid="topic-right-pane-viewport" />}
-        setViewportCallbacks={() => undefined}
-      />
-    )
+    render(<Chat activeTopic={topic} showResourceListControls />)
 
     expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'true')
     expect(conversationShellProps.current?.topBar).toBeTruthy()
@@ -121,14 +114,7 @@ describe('Chat', () => {
   })
 
   it('keeps the navbar mounted while disabling sidebar controls', () => {
-    render(
-      <Chat
-        activeTopic={topic}
-        showResourceListControls={false}
-        rightPane={<div data-testid="topic-right-pane-viewport" />}
-        setViewportCallbacks={() => undefined}
-      />
-    )
+    render(<Chat activeTopic={topic} showResourceListControls={false} />)
 
     expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'false')
     expect(conversationShellProps.current?.topBar).toBeTruthy()

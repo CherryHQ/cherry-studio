@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { cn } from '@renderer/utils/style'
 import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
-import { createContext, use, useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { Activity, createContext, use, useCallback, useLayoutEffect, useMemo, useState } from 'react'
 
 import { Shell, type ShellTabShortcutOpenBehavior, useShellActions, useShellState } from './Shell'
 
@@ -25,13 +25,12 @@ export interface RightPanelInstance {
 }
 
 /**
- * A stable, module-level declaration that resolves its current panel instances
- * from domain-owned scope. Static capabilities return one instance; dynamic
- * capabilities (for example agent tool flows) may return many.
+ * A stable, module-level declaration for one panel slot. It resolves at most one
+ * concrete instance from domain-owned scope; null means the slot has no identity.
  */
 export interface RightPanelCapability<TScope> {
   component: ComponentType<RightPanelComponentProps<TScope>>
-  resolve: (scope: TScope) => readonly RightPanelInstance[]
+  resolve: (scope: TScope) => RightPanelInstance | null
   className?: string
 }
 
@@ -41,12 +40,8 @@ interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
 }
 
 export interface RightPanelState {
-  /** Shell selection intent, which may currently be pending or unavailable. */
-  requestedPanelId: string
   /** The ready panel selected for presentation; visibility is reported separately. */
   activePanelId?: string
-  /** A requested panel waiting to become ready. */
-  pendingPanelId?: string
   /** First ready entry, then first pending entry, then the first catalog entry. */
   defaultPanelId?: string
   /** True only when the shell is open and a ready panel is being presented. */
@@ -88,18 +83,19 @@ function resolveRightPanelEntries<TScope>(
   capabilities: readonly RightPanelCapability<TScope>[],
   scope: TScope
 ): readonly ResolvedRightPanelEntry[] {
-  const entries = capabilities.flatMap((capability) =>
-    capability.resolve(scope).map((instance) => ({
+  const entries: ResolvedRightPanelEntry[] = []
+  const panelIds = new Set<string>()
+
+  for (const capability of capabilities) {
+    const instance = capability.resolve(scope)
+    if (!instance) continue
+    if (panelIds.has(instance.id)) throw new Error(`Duplicate right-panel id: ${instance.id}`)
+    panelIds.add(instance.id)
+    entries.push({
       ...instance,
       className: capability.className,
       component: capability.component as ComponentType<RightPanelComponentProps<unknown>>
-    }))
-  )
-  const panelIds = new Set<string>()
-
-  for (const entry of entries) {
-    if (panelIds.has(entry.id)) throw new Error(`Duplicate right-panel id: ${entry.id}`)
-    panelIds.add(entry.id)
+    })
   }
 
   return entries
@@ -195,25 +191,14 @@ export function RightPanelProvider<TScope>({
   )
   const state = useMemo<RightPanelState>(
     () => ({
-      requestedPanelId: shellState.activeTab,
       activePanelId: activeEntry?.id,
-      pendingPanelId: pendingEntry?.id,
       defaultPanelId: defaultEntry?.id,
       presentationOpen,
       presentationMaximized,
       presentationEnabled: present,
       isActive
     }),
-    [
-      activeEntry?.id,
-      defaultEntry?.id,
-      isActive,
-      pendingEntry?.id,
-      present,
-      presentationMaximized,
-      presentationOpen,
-      shellState.activeTab
-    ]
+    [activeEntry?.id, defaultEntry?.id, isActive, present, presentationMaximized, presentationOpen]
   )
   const canOpen = useCallback((panelId: string) => findEntry(entries, panelId)?.readiness === 'ready', [entries])
   const requestOpen = useCallback((panelId: string) => shellActions.openTab(panelId), [shellActions])
@@ -265,9 +250,9 @@ export function useRightPanelActions(): RightPanelActions {
 }
 
 /**
- * Renders every panel that has been presented once. Ready inactive panels stay
- * mounted; pending panels keep an existing instance hidden; unavailable or
- * identity-replaced instances are removed.
+ * Renders every panel that has been presented once. Activity preserves hidden
+ * panel state and DOM while pausing its effects; unavailable or identity-replaced
+ * instances are removed.
  */
 export function RightPanel() {
   const context = use(RightPanelRenderContext)
@@ -283,11 +268,14 @@ export function RightPanel() {
       <Shell.TabList title={activeEntry?.title} showTabs={false} />
       {mountedEntries.map((entry) => {
         const Panel = entry.component
+        const active = state.isActive(entry.id)
         return (
           <Shell.Panel key={`${entry.id}:${entry.instanceKey}`} value={entry.id} className={entry.className} forceMount>
-            <ErrorBoundary>
-              <Panel active={state.isActive(entry.id)} panelId={entry.id} scope={context.scope} />
-            </ErrorBoundary>
+            <Activity mode={active ? 'visible' : 'hidden'}>
+              <ErrorBoundary>
+                <Panel active={active} panelId={entry.id} scope={context.scope} />
+              </ErrorBoundary>
+            </Activity>
           </Shell.Panel>
         )
       })}

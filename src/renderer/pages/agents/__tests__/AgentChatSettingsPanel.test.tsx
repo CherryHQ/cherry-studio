@@ -215,20 +215,18 @@ vi.mock('../components/AgentChatNavbar', () => ({
 }))
 
 vi.mock('../components/AgentRightPane', () => {
-  const MockAgentRightPane = Object.assign(
-    ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => {
-      agentRightPanePropsMock.last = props
-      return <div data-testid="agent-right-pane">{children}</div>
-    },
-    {
-      Runtime: ({ children }: PropsWithChildren) => <>{children}</>,
-      Viewport: () => <div data-testid="agent-right-pane-viewport" />,
-      Shortcuts: () => <button type="button">Shortcuts</button>
-    }
-  )
+  const MockAgentRightPaneScope = ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => {
+    agentRightPanePropsMock.last = props
+    return <div data-testid="agent-right-pane">{children}</div>
+  }
 
   return {
-    AgentRightPane: MockAgentRightPane,
+    AgentRightPane: {
+      Scope: MockAgentRightPaneScope,
+      Shell: ({ children }: PropsWithChildren) => <>{children}</>,
+      Viewport: () => <div data-testid="agent-right-pane-viewport" />,
+      Shortcuts: () => <button type="button">Shortcuts</button>
+    },
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
@@ -326,6 +324,18 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
     expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
+  })
+
+  it('passes the session runtime directly to the right-pane scope', () => {
+    const part = { type: 'text', text: 'runtime message' }
+    partsByMessageIdMock.value = { 'message-1': [part] }
+
+    renderAgentChat()
+
+    expect(agentRightPanePropsMock.last?.messages).toEqual([
+      expect.objectContaining({ id: 'message-1', parts: [part] })
+    ])
+    expect(agentRightPanePropsMock.last?.partsByMessageId).toEqual({ 'message-1': [part] })
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {

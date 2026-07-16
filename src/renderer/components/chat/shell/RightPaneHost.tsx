@@ -15,11 +15,22 @@ import {
   CHAT_SHELL_PANE_WIDTH,
   CHAT_SHELL_TRANSITION
 } from './paneLayout'
+import {
+  getInitialPersistentRightPaneState,
+  getRightPaneDockedClip,
+  isClosedRightPanePhase,
+  isFullWidthRightPanePhase,
+  type PersistentRightPaneVisualState,
+  planPersistentRightPaneTransition,
+  RIGHT_PANE_CLIP_COLLAPSED,
+  RIGHT_PANE_CLIP_REVEALED,
+  type RightPaneLayoutMode
+} from './rightPaneTransition'
 import { getVerticalSplitterProps } from './splitterA11y'
 
-type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
+export type { RightPaneLayoutMode } from './rightPaneTransition'
 
-export type RightPaneLayoutMode = 'closed' | 'docked' | 'maximized'
+type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
 
 export interface RightPaneHostProps {
   children?: ReactNode
@@ -289,41 +300,6 @@ function TransientRightPaneHost({
   )
 }
 
-const CLIP_COLLAPSED = 'inset(0% 0% 0% 100%)'
-const CLIP_REVEALED = 'inset(0% 0% 0% 0%)'
-
-// Clip that shows only the docked strip of the full-width surface. Maximize wipes
-// docked→full and minimize wipes full→docked through this endpoint, so the region
-// the docked pane occupies is never blanked mid-transition.
-function getDockedClip(width: string | number): string {
-  return `inset(0% 0% 0% calc(100% - ${typeof width === 'number' ? `${width}px` : width}))`
-}
-
-type PersistentRightPanePhase =
-  | 'closed-docked'
-  | 'closed-maximized'
-  | 'opening-docked'
-  | 'docked'
-  | 'closing-docked'
-  | 'maximizing'
-  | 'maximized'
-  | 'minimizing'
-  | 'closing-maximized'
-
-function isClosedPhase(phase: PersistentRightPanePhase) {
-  return phase === 'closed-docked' || phase === 'closed-maximized'
-}
-
-function isFullWidthPhase(phase: PersistentRightPanePhase) {
-  return (
-    phase === 'closed-maximized' ||
-    phase === 'maximizing' ||
-    phase === 'maximized' ||
-    phase === 'minimizing' ||
-    phase === 'closing-maximized'
-  )
-}
-
 function PersistentRightPaneHost({
   children,
   open,
@@ -353,22 +329,20 @@ function PersistentRightPaneHost({
     maxWidth
   })
   const resolvedWidth = resizable ? paneWidth : width
-  const dockedClip = getDockedClip(resolvedWidth)
+  const dockedClip = getRightPaneDockedClip(resolvedWidth)
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
-  const initialPhase = targetMode === 'closed' ? 'closed-docked' : targetMode === 'maximized' ? 'maximized' : 'docked'
-  const [phase, setPhaseState] = useState<PersistentRightPanePhase>(initialPhase)
-  const phaseRef = useRef(phase)
+  const [visualState, setVisualStateState] = useState<PersistentRightPaneVisualState>(() =>
+    getInitialPersistentRightPaneState(targetMode)
+  )
+  const visualStateRef = useRef(visualState)
+  const { phase, reservesDockedSpace } = visualState
   const previousTargetModeRef = useRef(targetMode)
   const transitionTokenRef = useRef(0)
   const scheduledAnimationFrameRef = useRef<number | null>(null)
   const animationFrameScheduledRef = useRef(false)
-  // While maximizing away from a docked origin the spacer keeps reserving the docked
-  // width: the growing surface covers the center progressively, and releasing the
-  // space early would reflow the still-visible center on the transition's first frame.
-  const maximizingReservesSpaceRef = useRef(false)
   const [initialAnimationState] = useState(() => ({
-    clipPath: targetMode === 'closed' ? CLIP_COLLAPSED : CLIP_REVEALED,
+    clipPath: targetMode === 'closed' ? RIGHT_PANE_CLIP_COLLAPSED : RIGHT_PANE_CLIP_REVEALED,
     opacity: targetMode === 'closed' ? 0 : 1
   }))
   const callbacksRef = useRef({
@@ -377,9 +351,9 @@ function PersistentRightPaneHost({
     onOpenAnimationComplete
   })
 
-  const setPhase = useCallback((nextPhase: PersistentRightPanePhase) => {
-    phaseRef.current = nextPhase
-    setPhaseState(nextPhase)
+  const setVisualState = useCallback((nextState: PersistentRightPaneVisualState) => {
+    visualStateRef.current = nextState
+    setVisualStateState(nextState)
   }, [])
 
   useLayoutEffect(() => {
@@ -398,14 +372,18 @@ function PersistentRightPaneHost({
     animationFrameScheduledRef.current = false
     animationControls.stop()
 
-    const currentPhase = phaseRef.current
-    const currentIsFullWidth = isFullWidthPhase(currentPhase)
-    const complete = (nextPhase: PersistentRightPanePhase, mode: RightPaneLayoutMode) => {
+    const plan = planPersistentRightPaneTransition(visualStateRef.current.phase, targetMode, {
+      dockedClip,
+      reduceMotion: Boolean(reduceMotion)
+    })
+    if (!plan) return
+
+    const complete = () => {
       if (transitionTokenRef.current !== token) return
-      setPhase(nextPhase)
-      callbacksRef.current.onLayoutAnimationComplete?.(mode)
-      if (mode === 'closed') callbacksRef.current.onCloseAnimationComplete?.()
-      if (mode === 'docked') callbacksRef.current.onOpenAnimationComplete?.()
+      setVisualState(plan.settledState)
+      callbacksRef.current.onLayoutAnimationComplete?.(plan.completedMode)
+      if (plan.completedMode === 'closed') callbacksRef.current.onCloseAnimationComplete?.()
+      if (plan.completedMode === 'docked') callbacksRef.current.onOpenAnimationComplete?.()
     }
     const start = (
       definition: Parameters<typeof animationControls.start>[0],
@@ -429,7 +407,6 @@ function PersistentRightPaneHost({
     }
 
     if (targetMode === 'closed') {
-      const closingFromMaximized = currentIsFullWidth
       const activeElement = typeof document === 'undefined' ? null : document.activeElement
       if (
         activeElement &&
@@ -439,71 +416,12 @@ function PersistentRightPaneHost({
       ) {
         activeElement.blur()
       }
-      setPhase(closingFromMaximized ? 'closing-maximized' : 'closing-docked')
-      start(
-        {
-          clipPath: CLIP_COLLAPSED,
-          opacity: 0,
-          transition: reduceMotion ? { duration: 0 } : CHAT_SHELL_TRANSITION
-        },
-        () => complete(closingFromMaximized ? 'closed-maximized' : 'closed-docked', 'closed')
-      )
-      return
     }
 
-    if (targetMode === 'docked') {
-      if (currentIsFullWidth && !isClosedPhase(currentPhase)) {
-        setPhase('minimizing')
-        start(
-          {
-            // Shrink to the docked strip, not to nothing: the strip stays covered by
-            // this surface until the docked layout takes over in the same region.
-            clipPath: dockedClip,
-            opacity: 1,
-            transition: reduceMotion ? { duration: 0 } : CHAT_SHELL_TRANSITION
-          },
-          () => {
-            // Do NOT un-clip here: this callback runs before React commits the docked
-            // width, so revealing now paints one full-width frame. The docked-strip
-            // calc() clip evaluates to a zero inset at docked width, so the clip and
-            // width switch atomically in the phase commit; a layout effect below then
-            // normalizes the resting clip before the next transition reads it.
-            complete('docked', 'docked')
-          }
-        )
-        return
-      }
-
-      setPhase('opening-docked')
-      start(
-        {
-          clipPath: CLIP_REVEALED,
-          opacity: 1,
-          transition: reduceMotion ? { duration: 0 } : CHAT_SHELL_TRANSITION
-        },
-        () => complete('docked', 'docked')
-      )
-      return
-    }
-
-    const resetBeforeReveal = !currentIsFullWidth || isClosedPhase(currentPhase)
-    // A docked origin starts the wipe from the strip it already occupies so the pane
-    // never blanks; only a closed origin reveals from nothing.
-    if (resetBeforeReveal) {
-      animationControls.set({ clipPath: isClosedPhase(currentPhase) ? CLIP_COLLAPSED : dockedClip, opacity: 1 })
-    }
-    maximizingReservesSpaceRef.current = !isClosedPhase(currentPhase)
-    setPhase('maximizing')
-    start(
-      {
-        clipPath: CLIP_REVEALED,
-        opacity: 1,
-        transition: reduceMotion ? { duration: 0 } : CHAT_SHELL_TRANSITION
-      },
-      () => complete('maximized', 'maximized'),
-      resetBeforeReveal
-    )
-  }, [animationControls, dockedClip, paneRef, reduceMotion, setPhase, targetMode])
+    if (plan.setBeforeStart) animationControls.set(plan.setBeforeStart)
+    setVisualState(plan.runningState)
+    start(plan.animateTo, complete, plan.deferUntilNextFrame)
+  }, [animationControls, dockedClip, paneRef, reduceMotion, setVisualState, targetMode])
 
   // Runs after the docked width commits (pre-paint), when the docked-strip calc()
   // clip already equals a zero inset — visually a no-op that restores the plain
@@ -511,7 +429,7 @@ function PersistentRightPaneHost({
   // guard keeps it out of commits where a new transition just staged its own clip.
   useLayoutEffect(() => {
     if (phase === 'docked' && targetMode === 'docked') {
-      animationControls.set({ clipPath: CLIP_REVEALED, opacity: 1 })
+      animationControls.set({ clipPath: RIGHT_PANE_CLIP_REVEALED, opacity: 1 })
     }
   }, [animationControls, phase, targetMode])
 
@@ -546,15 +464,10 @@ function PersistentRightPaneHost({
     return () => observer.disconnect()
   }, [isDocked, minWidth, onReservedSpaceUnavailable, paneRef, reservedCenterWidth])
 
-  const fullWidthLayout = isFullWidthPhase(phase)
-  const closed = isClosedPhase(phase)
+  const fullWidthLayout = isFullWidthRightPanePhase(phase)
+  const closed = isClosedRightPanePhase(phase)
   const closing = phase === 'closing-docked' || phase === 'closing-maximized'
   const interactionHidden = closed || closing
-  const reservesDockedSpace =
-    phase === 'opening-docked' ||
-    phase === 'docked' ||
-    phase === 'minimizing' ||
-    (phase === 'maximizing' && maximizingReservesSpaceRef.current)
   const dockedMaxWidth =
     reservedCenterWidth === undefined ? undefined : `max(0px, calc(100% - ${reservedCenterWidth}px))`
   const spacerTransition = isResizing || fullWidthLayout ? { duration: 0 } : CHAT_SHELL_TRANSITION

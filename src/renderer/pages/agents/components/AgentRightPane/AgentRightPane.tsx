@@ -69,7 +69,7 @@ import {
 } from './agentRightPaneProjection'
 
 // ── Agent-specific composition over the generic RightPane shell ─────────────
-// Owns the agent business logic — subagent tool-flow tabs, task/status
+// Owns the agent business logic — the current subagent tool-flow slot, task/status
 // projections, agent session metadata — and feeds it into Shell.* slots.
 
 const FLOW_TAB_PREFIX = 'flow:'
@@ -130,7 +130,7 @@ interface AgentRightPaneActions {
 interface AgentRightPanelScope {
   developerMode: boolean
   filesTitle: string
-  flowTabs: AgentFlowTab[]
+  flowTab: AgentFlowTab | null
   meta: AgentRightPaneMeta
   resourcePane: ResourcePaneConfig | null
   statusTitle: string
@@ -139,81 +139,60 @@ interface AgentRightPanelScope {
 
 type AgentConversationState = 'pending' | 'ready' | 'unavailable'
 
-interface AgentRightPaneProviderProps extends Omit<AgentRightPaneMeta, 'conversationState'> {
+interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversationState'> {
   children: ReactNode
-  /** In classic layout the session list is available as a right-panel capability. */
-  resourcePane?: ResourcePaneConfig | null
   conversationState?: AgentConversationState
   /** Controls effective presentation without clearing Shell intent. */
   present?: boolean
   revealRequest?: ResourceListRevealRequest
-  defaultOpen?: boolean
-  /** Persist explicit open changes for classic-layout re-entry. */
-  onOpenChange?: (open: boolean) => void
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
+interface AgentRightPaneShellProps {
+  children: ReactNode
+  /** In classic layout the session list is available as a right-panel capability. */
+  resourcePane?: ResourcePaneConfig | null
+  defaultOpen?: boolean
+  /** Persist explicit open changes for classic-layout re-entry. */
+  onOpenChange?: (open: boolean) => void
+}
+
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
 const AgentRightPaneRuntimeContext = createContext<AgentRightPaneRuntime | null>(null)
-const AgentRightPaneRuntimePublisherContext = createContext<
-  ((sessionId: string | undefined, runtime: AgentRightPaneRuntime) => void) | null
->(null)
 const AgentRightPaneFileStateContext = createContext<AgentRightPaneFileState | null>(null)
 const AgentRightPaneActionsContext = createContext<AgentRightPaneActions | null>(null)
 
 function useAgentRightPaneMeta(): AgentRightPaneMeta {
   const value = use(AgentRightPaneMetaContext)
-  if (!value) throw new Error('useAgentRightPaneMeta must be used within <AgentRightPane>')
+  if (!value) throw new Error('useAgentRightPaneMeta must be used within <AgentRightPane.Scope>')
   return value
 }
 
 function useAgentRightPaneRuntime(): AgentRightPaneRuntime {
   const value = use(AgentRightPaneRuntimeContext)
-  if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane>')
+  if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane.Scope>')
   return value
-}
-
-function AgentRightPaneRuntimePublisher({
-  children,
-  messages,
-  partsByMessageId
-}: {
-  children: ReactNode
-  messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
-}) {
-  const { sessionId } = useAgentRightPaneMeta()
-  const publishRuntime = use(AgentRightPaneRuntimePublisherContext)
-  if (!publishRuntime) throw new Error('AgentRightPane.Runtime must be used within <AgentRightPane>')
-
-  useLayoutEffect(() => {
-    publishRuntime(sessionId, { messages, partsByMessageId })
-  }, [messages, partsByMessageId, publishRuntime, sessionId])
-
-  return children
 }
 
 function useAgentRightPaneFileState(): AgentRightPaneFileState {
   const value = use(AgentRightPaneFileStateContext)
-  if (!value) throw new Error('useAgentRightPaneFileState must be used within <AgentRightPane>')
+  if (!value) throw new Error('useAgentRightPaneFileState must be used within <AgentRightPane.Scope>')
   return value
 }
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
   const value = use(AgentRightPaneActionsContext)
-  if (!value) throw new Error('useAgentRightPaneActions must be used within <AgentRightPane>')
+  if (!value) throw new Error('useAgentRightPaneActions must be used within <AgentRightPane.Scope>')
   return value
 }
-
-const EMPTY_FLOW_TABS: AgentFlowTab[] = []
 
 interface AgentRightPaneActionsProviderProps {
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
   workspacePath?: string
-  upsertFlowTab: (input: AgentToolFlowOpenInput) => void
+  replaceFlowTab: (input: AgentToolFlowOpenInput) => void
   closeFilePreview: () => void
   selectFile: (file: string | null) => void
   setPreviewFileSelection: (selection: ArtifactPaneFileSelection | null) => void
@@ -227,7 +206,7 @@ function AgentRightPaneActionsProvider({
   conversationState,
   sessionId,
   workspacePath,
-  upsertFlowTab,
+  replaceFlowTab,
   closeFilePreview,
   selectFile,
   setPreviewFileSelection,
@@ -241,10 +220,10 @@ function AgentRightPaneActionsProvider({
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
-      upsertFlowTab(input)
+      replaceFlowTab(input)
       panelActions.requestOpen(getFlowTabValue(input.toolCallId))
     },
-    [canOpenAgentToolFlow, panelActions, upsertFlowTab]
+    [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
   const openArtifactFile = useCallback(
     (path: string) => {
@@ -298,13 +277,13 @@ function AgentRightPaneStateProvider({
   conversationState = 'ready',
   present = true,
   revealRequest
-}: Omit<AgentRightPaneProviderProps, 'defaultOpen' | 'onOpenChange' | 'resourcePane'>) {
+}: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const resourcePane = useResourcePane()
-  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tabs: AgentFlowTab[] }>(() => ({
+  const [flowTabState, setFlowTabState] = useState<{ sessionId?: string; tab: AgentFlowTab | null }>(() => ({
     sessionId,
-    tabs: []
+    tab: null
   }))
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -312,48 +291,21 @@ function AgentRightPaneStateProvider({
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
   const previousWorkspaceKeyRef = useRef(workspaceKey)
-  const flowTabs = flowTabState.sessionId === sessionId ? flowTabState.tabs : EMPTY_FLOW_TABS
-  const baseRuntime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId }),
-    [messages, partsByMessageId]
-  )
-  const [publishedRuntime, setPublishedRuntime] = useState<{
-    sessionId?: string
-    runtime: AgentRightPaneRuntime
-  } | null>(null)
-  const publishRuntime = useCallback((ownerSessionId: string | undefined, runtime: AgentRightPaneRuntime) => {
-    setPublishedRuntime((current) => {
-      if (
-        current &&
-        current.sessionId === ownerSessionId &&
-        current.runtime.messages === runtime.messages &&
-        current.runtime.partsByMessageId === runtime.partsByMessageId
-      ) {
-        return current
-      }
-      return { sessionId: ownerSessionId, runtime }
-    })
-  }, [])
-  const runtime = publishedRuntime && publishedRuntime.sessionId === sessionId ? publishedRuntime.runtime : baseRuntime
+  const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
+  const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
 
   useEffect(() => {
-    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tabs: [] }))
+    setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
   }, [sessionId])
 
-  const upsertFlowTab = useCallback(
+  const replaceFlowTab = useCallback(
     (input: AgentToolFlowOpenInput) => {
       const nextTab: AgentFlowTab = {
         toolCallId: input.toolCallId,
         toolName: input.toolName,
         title: getFlowTabTitle(input)
       }
-      setFlowTabState((current) => {
-        const currentTabs = current.sessionId === sessionId ? current.tabs : EMPTY_FLOW_TABS
-        const tabs = !currentTabs.some((tab) => tab.toolCallId === input.toolCallId)
-          ? [...currentTabs, nextTab]
-          : currentTabs.map((tab) => (tab.toolCallId === input.toolCallId ? { ...tab, ...nextTab } : tab))
-        return { sessionId, tabs }
-      })
+      setFlowTabState({ sessionId, tab: nextTab })
     },
     [sessionId]
   )
@@ -407,52 +359,45 @@ function AgentRightPaneStateProvider({
     () => ({
       developerMode: enableDeveloperMode,
       filesTitle: t('agent.right_pane.tabs.files'),
-      flowTabs,
+      flowTab,
       meta,
       resourcePane,
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTabs, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, meta, resourcePane, t]
   )
 
   return (
     <AgentRightPaneMetaContext value={meta}>
       <AgentRightPaneFileStateContext value={fileState}>
-        <AgentRightPaneRuntimePublisherContext value={publishRuntime}>
-          <AgentRightPaneRuntimeContext value={runtime}>
-            <RightPanelProvider capabilities={AGENT_RIGHT_PANEL_CAPABILITIES} scope={scope} present={present}>
-              <ResourcePaneLocateOpener revealRequest={revealRequest} />
-              <AgentRightPaneActionsProvider
-                conversationState={conversationState}
-                sessionId={sessionId}
-                workspacePath={workspacePath}
-                upsertFlowTab={upsertFlowTab}
-                closeFilePreview={closeFilePreview}
-                selectFile={selectFile}
-                setPreviewFileSelection={setPreviewFileSelection}
-                setSelectedFile={setSelectedFile}
-                setFileTreeExpandedIds={setFileTreeExpandedIds}
-                setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
-                {children}
-              </AgentRightPaneActionsProvider>
-            </RightPanelProvider>
-          </AgentRightPaneRuntimeContext>
-        </AgentRightPaneRuntimePublisherContext>
+        <AgentRightPaneRuntimeContext value={runtime}>
+          <RightPanelProvider capabilities={AGENT_RIGHT_PANEL_CAPABILITIES} scope={scope} present={present}>
+            <ResourcePaneLocateOpener revealRequest={revealRequest} />
+            <AgentRightPaneActionsProvider
+              conversationState={conversationState}
+              sessionId={sessionId}
+              workspacePath={workspacePath}
+              replaceFlowTab={replaceFlowTab}
+              closeFilePreview={closeFilePreview}
+              selectFile={selectFile}
+              setPreviewFileSelection={setPreviewFileSelection}
+              setSelectedFile={setSelectedFile}
+              setFileTreeExpandedIds={setFileTreeExpandedIds}
+              setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
+              {children}
+            </AgentRightPaneActionsProvider>
+          </RightPanelProvider>
+        </AgentRightPaneRuntimeContext>
       </AgentRightPaneFileStateContext>
     </AgentRightPaneMetaContext>
   )
 }
 
-function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
-  const { children, resourcePane, revealRequest, defaultOpen = false, onOpenChange, ...rest } = props
+function AgentRightPaneShell({ children, resourcePane, defaultOpen = false, onOpenChange }: AgentRightPaneShellProps) {
   return (
     <Shell defaultTab={RESOURCE_PANE_TAB} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
-      <ResourcePaneProvider value={resourcePane ?? null}>
-        <AgentRightPaneStateProvider {...rest} revealRequest={revealRequest}>
-          {children}
-        </AgentRightPaneStateProvider>
-      </ResourcePaneProvider>
+      <ResourcePaneProvider value={resourcePane ?? null}>{children}</ResourcePaneProvider>
     </Shell>
   )
 }
@@ -584,7 +529,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
   const { t } = useTranslation()
-  const tab = scope.flowTabs.find((flowTab) => getFlowTabValue(flowTab.toolCallId) === panelId)
+  const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
   const flow = useMemo(
     () =>
@@ -725,58 +670,53 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 const AGENT_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<AgentRightPanelScope>()([
   {
     component: AgentResourceRightPanel,
-    resolve: (scope) => [
-      {
-        id: RESOURCE_PANE_TAB,
-        instanceKey: 'agent-resources',
-        title: scope.resourcePane?.label,
-        readiness: scope.resourcePane ? 'ready' : 'unavailable'
-      }
-    ]
+    resolve: (scope) => ({
+      id: RESOURCE_PANE_TAB,
+      instanceKey: 'agent-resources',
+      title: scope.resourcePane?.label,
+      readiness: scope.resourcePane ? 'ready' : 'unavailable'
+    })
   },
   {
     component: AgentRightPaneFilesPanel,
-    resolve: (scope) => [
-      {
-        id: 'files',
-        instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
-        title: scope.filesTitle,
-        readiness: resolveAgentFilesReadiness(scope)
-      }
-    ]
+    resolve: (scope) => ({
+      id: 'files',
+      instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
+      title: scope.filesTitle,
+      readiness: resolveAgentFilesReadiness(scope)
+    })
   },
   {
     component: AgentStatusRightPanel,
-    resolve: (scope) => [
-      {
-        id: 'status',
-        instanceKey: `session:${scope.meta.sessionId ?? ''}`,
-        title: scope.statusTitle,
-        readiness: resolveAgentConversationReadiness(scope.meta.conversationState)
-      }
-    ],
+    resolve: (scope) => ({
+      id: 'status',
+      instanceKey: `session:${scope.meta.sessionId ?? ''}`,
+      title: scope.statusTitle,
+      readiness: resolveAgentConversationReadiness(scope.meta.conversationState)
+    }),
     className: 'overflow-auto'
   },
   {
     component: AgentTraceRightPanel,
-    resolve: (scope) => [
-      {
-        id: 'trace',
-        instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
-        title: scope.traceTitle,
-        readiness: resolveAgentTraceReadiness(scope)
-      }
-    ]
+    resolve: (scope) => ({
+      id: 'trace',
+      instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
+      title: scope.traceTitle,
+      readiness: resolveAgentTraceReadiness(scope)
+    })
   },
   {
     component: AgentFlowRightPanel,
-    resolve: (scope) =>
-      scope.flowTabs.map((tab) => ({
+    resolve: (scope) => {
+      const tab = scope.flowTab
+      if (!tab) return null
+      return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
         title: tab.title,
         readiness: resolveAgentConversationReadiness(scope.meta.conversationState)
-      }))
+      }
+    }
   }
 ])
 
@@ -1013,12 +953,11 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
   )
 })
 
-// `AgentRightPane` is the provider itself, with its persistent viewport and
-// shortcut cluster attached as statics.
-export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
-  Runtime: AgentRightPaneRuntimePublisher,
+export const AgentRightPane = {
+  Scope: AgentRightPaneStateProvider,
+  Shell: AgentRightPaneShell,
   Viewport: AgentRightPaneViewport,
   Shortcuts: AgentRightPaneShortcuts
-})
+}
 
 export type { AgentToolFlowOpenInput }

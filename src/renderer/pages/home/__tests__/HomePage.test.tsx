@@ -563,11 +563,7 @@ vi.mock('../components/TopicRightPane', () => {
   )
 
   return {
-    TopicRightPane,
-    useTopicRightPaneViewportBridge: () => ({
-      viewportCallbacks: {},
-      setViewportCallbacks: vi.fn()
-    })
+    TopicRightPane
   }
 })
 

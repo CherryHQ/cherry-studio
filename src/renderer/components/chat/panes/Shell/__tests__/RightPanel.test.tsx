@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { useState } from 'react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ButtonHTMLAttributes, ComponentType, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -81,7 +81,7 @@ import {
   useRightPanelActions,
   useRightPanelState
 } from '../RightPanel'
-import { Shell, useShellActions } from '../Shell'
+import { Shell, useShellActions, useShellState } from '../Shell'
 
 interface TestScope {
   instances: readonly RightPanelInstance[]
@@ -97,25 +97,45 @@ function TestPanel({ panelId }: RightPanelComponentProps<TestScope>) {
   )
 }
 
-const CAPABILITIES = defineRightPanelCapabilities<TestScope>()([
-  {
-    component: TestPanel,
-    resolve: (scope) => scope.instances
-  }
-])
+function defineTestCapabilities(component: ComponentType<RightPanelComponentProps<TestScope>>) {
+  return defineRightPanelCapabilities<TestScope>()(
+    [0, 1, 2].map((index) => ({
+      component,
+      resolve: (scope: TestScope) => scope.instances[index] ?? null
+    }))
+  )
+}
+
+const CAPABILITIES = defineTestCapabilities(TestPanel)
+
+const panelEffects = {
+  cleanup: vi.fn(),
+  mount: vi.fn()
+}
+
+function EffectPanel({ panelId }: RightPanelComponentProps<TestScope>) {
+  useEffect(() => {
+    panelEffects.mount(panelId)
+    return () => panelEffects.cleanup(panelId)
+  }, [panelId])
+
+  return <div data-testid={`effect-panel-${panelId}`}>{panelId}</div>
+}
+
+const EFFECT_CAPABILITIES = defineTestCapabilities(EffectPanel)
 
 function ControllerProbe() {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
   const shellActions = useShellActions()
+  const shellState = useShellState()
 
   return (
     <>
       <output
         data-testid="right-panel-state"
-        data-requested={state.requestedPanelId}
+        data-shell-tab={shellState.activeTab}
         data-active={state.activePanelId ?? ''}
-        data-pending={state.pendingPanelId ?? ''}
         data-default={state.defaultPanelId ?? ''}
         data-presentation-enabled={String(state.presentationEnabled)}
         data-presentation-open={String(state.presentationOpen)}
@@ -189,14 +209,40 @@ describe('RightPanel controller', () => {
     vi.clearAllMocks()
   })
 
+  it('preserves a visited panel while Activity pauses and restores its effects', async () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <RightPanelProvider capabilities={EFFECT_CAPABILITIES} scope={{ instances: [ready('files'), ready('status')] }}>
+          <ControllerProbe />
+          <RightPanel />
+        </RightPanelProvider>
+      </Shell>
+    )
+
+    const filesPanel = screen.getByTestId('effect-panel-files')
+    await waitFor(() => expect(panelEffects.mount).toHaveBeenCalledWith('files'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'try status' }))
+
+    await waitFor(() => expect(panelEffects.cleanup).toHaveBeenCalledWith('files'))
+    expect(screen.getByTestId('effect-panel-files')).toBe(filesPanel)
+    expect(panelEffects.mount).toHaveBeenCalledWith('status')
+
+    fireEvent.click(screen.getByRole('button', { name: 'try files' }))
+
+    await waitFor(() => {
+      expect(panelEffects.mount.mock.calls.filter(([panelId]) => panelId === 'files')).toHaveLength(2)
+    })
+    expect(screen.getByTestId('effect-panel-files')).toBe(filesPanel)
+  })
+
   it('preserves a pending requested panel without presenting a ready fallback or closing', () => {
     const onOpenChange = vi.fn()
 
     render(<TestHarness scope={{ instances: [ready('resources'), pending('files')] }} onOpenChange={onOpenChange} />)
 
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-requested', 'files')
+    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-shell-tab', 'files')
     expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-active', '')
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-pending', 'files')
     expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-presentation-open', 'false')
     expect(screen.queryByTestId('panel-resources')).toBeNull()
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -204,8 +250,8 @@ describe('RightPanel controller', () => {
 
   it('rejects duplicate concrete panel ids across capabilities', () => {
     const duplicateCapabilities = defineRightPanelCapabilities<TestScope>()([
-      { component: TestPanel, resolve: () => [ready('files')] },
-      { component: TestPanel, resolve: () => [ready('files', 'other-instance')] }
+      { component: TestPanel, resolve: () => ready('files') },
+      { component: TestPanel, resolve: () => ready('files', 'other-instance') }
     ])
 
     expect(() =>
@@ -230,7 +276,7 @@ describe('RightPanel controller', () => {
     )
 
     const state = screen.getByTestId('right-panel-state')
-    expect(state).toHaveAttribute('data-requested', 'status')
+    expect(state).toHaveAttribute('data-shell-tab', 'status')
     expect(state).toHaveAttribute('data-active', 'status')
     expect(state).toHaveAttribute('data-default', 'status')
     expect(screen.getByTestId('panel-status')).toBeInTheDocument()
@@ -246,9 +292,8 @@ describe('RightPanel controller', () => {
     )
 
     const state = screen.getByTestId('right-panel-state')
-    expect(state).toHaveAttribute('data-requested', 'files')
+    expect(state).toHaveAttribute('data-shell-tab', 'files')
     expect(state).toHaveAttribute('data-active', '')
-    expect(state).toHaveAttribute('data-pending', '')
     expect(state).toHaveAttribute('data-presentation-open', 'false')
     expect(onOpenChange).not.toHaveBeenCalled()
   })
@@ -263,8 +308,8 @@ describe('RightPanel controller', () => {
       />
     )
 
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-requested', 'files')
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-pending', 'files')
+    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-shell-tab', 'files')
+    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-active', '')
     expect(screen.queryByTestId('panel-files')).toBeNull()
 
     rerender(
@@ -276,7 +321,6 @@ describe('RightPanel controller', () => {
     )
 
     expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-active', 'files')
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-pending', '')
     expect(screen.getByTestId('panel-files')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
@@ -310,7 +354,7 @@ describe('RightPanel controller', () => {
 
     rerender(<TestHarness scope={{ instances: [pending('files')] }} />)
 
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-pending', 'files')
+    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-active', '')
     expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-presentation-maximized', 'false')
     expect(screen.getByTestId('panel-files')).toHaveTextContent('files:1')
     expect(screen.getByTestId('panel-files').parentElement).toHaveAttribute('hidden')
@@ -330,7 +374,7 @@ describe('RightPanel controller', () => {
 
     rerender(<TestHarness present={false} scope={{ instances: [ready('files')] }} onOpenChange={onOpenChange} />)
 
-    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-requested', 'files')
+    expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-shell-tab', 'files')
     expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-presentation-enabled', 'false')
     expect(screen.getByTestId('right-panel-state')).toHaveAttribute('data-presentation-open', 'false')
     expect(screen.getByTestId('panel-files')).toBe(panel)

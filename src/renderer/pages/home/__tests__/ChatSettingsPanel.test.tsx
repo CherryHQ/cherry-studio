@@ -5,7 +5,6 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Chat from '../Chat'
-import { TopicRightPane, type TopicRightPaneViewportCallbacks } from '../components/TopicRightPane'
 
 const renderCounters = vi.hoisted(() => ({
   chatContent: 0,
@@ -209,23 +208,7 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 function renderChat(activeTopic: Topic) {
-  const callbacksRef: { current: TopicRightPaneViewportCallbacks } = { current: {} }
-
-  return render(
-    <Chat
-      activeTopic={activeTopic}
-      rightPane={
-        <TopicRightPane.Viewport
-          onLocateMessage={(messageId) => callbacksRef.current.onLocateMessage?.(messageId)}
-          onStartBranchDraft={(messageId) => callbacksRef.current.onStartBranchDraft?.(messageId)}
-          onCancelBranchDraft={(nextActiveNodeId) => callbacksRef.current.onCancelBranchDraft?.(nextActiveNodeId)}
-        />
-      }
-      setViewportCallbacks={(callbacks) => {
-        callbacksRef.current = callbacks ?? {}
-      }}
-    />
-  )
+  return render(<Chat activeTopic={activeTopic} />)
 }
 
 describe('Chat panels', () => {

@@ -32,6 +32,15 @@ const persistCacheMock = vi.hoisted(() => {
   }
 })
 
+const motionTestState = vi.hoisted(() => ({
+  controls: {
+    set: vi.fn(),
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn()
+  },
+  reducedMotion: true
+}))
+
 vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
@@ -71,19 +80,25 @@ vi.mock('motion/react', () => ({
   },
   // Real motion returns one stable controls instance per component; a fresh object
   // per render would re-run the host's cleanup effect and cancel in-flight phases.
-  useAnimationControls: (() => {
-    const controls = {
-      set: vi.fn(),
-      start: vi.fn(() => Promise.resolve()),
-      stop: vi.fn()
-    }
-    return () => controls
-  })(),
-  useReducedMotion: () => true
+  useAnimationControls: () => motionTestState.controls,
+  useReducedMotion: () => motionTestState.reducedMotion
 }))
+
+function createDeferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
+}
 
 describe('RightPaneHost', () => {
   beforeEach(() => {
+    motionTestState.controls.set.mockReset()
+    motionTestState.controls.start.mockReset()
+    motionTestState.controls.start.mockImplementation(() => Promise.resolve())
+    motionTestState.controls.stop.mockReset()
+    motionTestState.reducedMotion = true
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
       const instance = {
@@ -340,53 +355,55 @@ describe('RightPaneHost', () => {
     expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
   })
 
-  it('wipes between the docked strip and full width without blanking the pane', async () => {
-    const controls = useAnimationControls() as unknown as {
-      set: ReturnType<typeof vi.fn>
-      start: ReturnType<typeof vi.fn>
-    }
-    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
+  it('ignores a stale maximize completion when minimizing before it finishes', async () => {
+    const firstAnimation = createDeferred()
+    const secondAnimation = createDeferred()
+    const onLayoutAnimationComplete = vi.fn()
+    motionTestState.controls.start
+      .mockImplementationOnce(() => firstAnimation.promise)
+      .mockImplementationOnce(() => secondAnimation.promise)
+
     const { container, rerender } = render(
       <div className="relative">
-        <RightPaneHost keepMounted open width={460}>
+        <RightPaneHost keepMounted open width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
           <div>artifact pane</div>
         </RightPaneHost>
       </div>
     )
-    controls.set.mockClear()
-    controls.start.mockClear()
 
     rerender(
       <div className="relative">
-        <RightPaneHost keepMounted open maximized width={460}>
+        <RightPaneHost keepMounted open maximized width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
           <div>artifact pane</div>
         </RightPaneHost>
       </div>
     )
 
-    await waitFor(() =>
-      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
-    )
-    // Maximize from docked starts the wipe at the strip the pane already occupies.
-    expect(controls.set).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
-    expect(controls.set).not.toHaveBeenCalledWith(expect.objectContaining({ clipPath: 'inset(0% 0% 0% 100%)' }))
-
-    controls.set.mockClear()
-    controls.start.mockClear()
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximizing')
 
     rerender(
       <div className="relative">
-        <RightPaneHost keepMounted open width={460}>
+        <RightPaneHost keepMounted open width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
           <div>artifact pane</div>
         </RightPaneHost>
       </div>
     )
+
+    expect(motionTestState.controls.stop).toHaveBeenCalled()
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
+
+    await act(async () => firstAnimation.resolve())
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
+    expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
+
+    await act(async () => secondAnimation.resolve())
 
     await waitFor(() =>
       expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
     )
-    // Minimize shrinks down to the docked strip, never through a fully collapsed clip.
-    expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('docked')
   })
 
   it('commits the final drag width once on mouse up and cleans document resize styles', () => {

@@ -33,15 +33,10 @@ interface TopicRightPaneMeta {
   traceId?: string
 }
 
-export interface TopicRightPaneViewportCallbacks {
+interface TopicRightPaneViewportCallbacks {
   onLocateMessage?: (messageId: string) => void
   onStartBranchDraft?: (messageId: string) => Promise<void> | void
   onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
-}
-
-export interface TopicRightPaneViewportBridge {
-  viewportCallbacks: TopicRightPaneViewportCallbacks
-  setViewportCallbacks: (callbacks: TopicRightPaneViewportCallbacks | null) => void
 }
 
 interface TopicRightPanelScope extends TopicRightPaneMeta {
@@ -110,23 +105,6 @@ function useTopicRightPaneViewport(): TopicRightPaneViewportCallbacks {
   return value
 }
 
-export function useTopicRightPaneViewportBridge(): TopicRightPaneViewportBridge {
-  const callbacksRef = useRef<TopicRightPaneViewportCallbacks>({})
-  const setViewportCallbacks = useCallback((callbacks: TopicRightPaneViewportCallbacks | null) => {
-    callbacksRef.current = callbacks ?? {}
-  }, [])
-  const viewportCallbacks = useMemo<TopicRightPaneViewportCallbacks>(
-    () => ({
-      onLocateMessage: (messageId) => callbacksRef.current.onLocateMessage?.(messageId),
-      onStartBranchDraft: (messageId) => callbacksRef.current.onStartBranchDraft?.(messageId),
-      onCancelBranchDraft: (nextActiveNodeId) => callbacksRef.current.onCancelBranchDraft?.(nextActiveNodeId)
-    }),
-    []
-  )
-
-  return useMemo(() => ({ viewportCallbacks, setViewportCallbacks }), [setViewportCallbacks, viewportCallbacks])
-}
-
 export function useTopicBranchLiveStateSetter(): TopicBranchLiveStateSetter {
   return useTopicBranchLiveStateStore().setSnapshot
 }
@@ -175,36 +153,30 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
 const TOPIC_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<TopicRightPanelScope>()([
   {
     component: TopicResourceRightPanel,
-    resolve: (scope) => [
-      {
-        id: RESOURCE_PANE_TAB,
-        instanceKey: RESOURCE_PANE_TAB,
-        title: scope.resourcePane?.label ?? '',
-        readiness: scope.resourcePane ? 'ready' : 'unavailable'
-      }
-    ]
+    resolve: (scope) => ({
+      id: RESOURCE_PANE_TAB,
+      instanceKey: RESOURCE_PANE_TAB,
+      title: scope.resourcePane?.label ?? '',
+      readiness: scope.resourcePane ? 'ready' : 'unavailable'
+    })
   },
   {
     component: TopicBranchRightPanel,
-    resolve: (scope) => [
-      {
-        id: 'branch',
-        instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
-        title: scope.branchTitle,
-        readiness: scope.topicId ? 'ready' : 'unavailable'
-      }
-    ]
+    resolve: (scope) => ({
+      id: 'branch',
+      instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
+      title: scope.branchTitle,
+      readiness: scope.topicId ? 'ready' : 'unavailable'
+    })
   },
   {
     component: TopicTraceRightPanel,
-    resolve: (scope) => [
-      {
-        id: 'trace',
-        instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
-        title: scope.traceTitle,
-        readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
-      }
-    ]
+    resolve: (scope) => ({
+      id: 'trace',
+      instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
+      title: scope.traceTitle,
+      readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
+    })
   }
 ])
 

@@ -61,7 +61,7 @@ import {
   AssistantConversationPickerDialog,
   type AssistantConversationSelection
 } from './components/AssistantConversationPickerDialog'
-import { TopicRightPane, useTopicRightPaneViewportBridge } from './components/TopicRightPane'
+import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
 import HomeTabs from './Tabs/HomeTabs'
@@ -132,7 +132,6 @@ function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTop
 
 const HomePage: FC = () => {
   const { t } = useTranslation()
-  const { viewportCallbacks, setViewportCallbacks } = useTopicRightPaneViewportBridge()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
   const initialTopicStartStateRef = useRef<InitialTopicStartState>({ firstLaunchStarted: false })
@@ -926,8 +925,6 @@ const HomePage: FC = () => {
             locateMessageId={pendingLocateMessageId}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
-            rightPane={<TopicRightPane.Viewport {...viewportCallbacks} />}
-            setViewportCallbacks={setViewportCallbacks}
           />
         </ContentContainer>
         {assistantPickerDialog}
