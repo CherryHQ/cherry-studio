@@ -1473,39 +1473,45 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
-    it('serializes API error status and retryability from a rejecting stream', async () => {
-      vi.useRealTimers()
+    it.each([
+      { statusCode: 400, isRetryable: false, message: 'Maximum context length exceeded' },
+      { statusCode: 503, isRetryable: true, message: 'Upstream unavailable' }
+    ])(
+      'serializes API error status $statusCode and retryability from a rejecting stream',
+      async ({ statusCode, isRetryable, message }) => {
+        vi.useRealTimers()
 
-      const apiError = new APICallError({
-        message: 'Upstream unavailable',
-        url: 'https://api.example.com/chat/completions',
-        requestBodyValues: {},
-        statusCode: 503,
-        responseHeaders: {},
-        responseBody: '',
-        isRetryable: true
-      })
-      mockStreamText.mockResolvedValueOnce(
-        new ReadableStream({
-          start(controller) {
-            controller.error(apiError)
-          }
+        const apiError = new APICallError({
+          message,
+          url: 'https://api.example.com/chat/completions',
+          requestBodyValues: {},
+          statusCode,
+          responseHeaders: {},
+          responseBody: '',
+          isRetryable
         })
-      )
+        mockStreamText.mockResolvedValueOnce(
+          new ReadableStream({
+            start(controller) {
+              controller.error(apiError)
+            }
+          })
+        )
 
-      const listener = new FakeListener('l:a')
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [listener]
-      })
+        const listener = new FakeListener('l:a')
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener]
+        })
 
-      await new Promise((resolve) => setTimeout(resolve, 50))
+        await new Promise((resolve) => setTimeout(resolve, 50))
 
-      expect(listener.errorResults).toHaveLength(1)
-      expect(listener.errorResults[0].error).toMatchObject({ statusCode: 503, isRetryable: true })
-    })
+        expect(listener.errorResults).toHaveLength(1)
+        expect(listener.errorResults[0].error).toMatchObject({ statusCode, isRetryable, message })
+      }
+    )
 
     it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
       // readUIMessageStream's accumulator needs real microtask / timer
