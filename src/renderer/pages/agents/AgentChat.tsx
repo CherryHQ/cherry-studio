@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -487,12 +488,16 @@ const AgentChatSessionFrame = ({
         }
         showTopRightToolWhenPaneOpen
         center={
-          <ConversationStageCenter
-            placement="docked"
-            main={main}
-            composer={composer}
-            homeWelcomeText={homeWelcomeText}
-          />
+          // The layout-mode provider links the message column and the composer so
+          // both yield the same anchor-rail gutter and stay aligned.
+          <ChatLayoutModeProvider>
+            <ConversationStageCenter
+              placement="docked"
+              main={main}
+              composer={composer}
+              homeWelcomeText={homeWelcomeText}
+            />
+          </ChatLayoutModeProvider>
         }
         sidePanel={sidePanel}
         centerOverlay={<AgentRightPane.MaximizedOverlay />}
