@@ -72,6 +72,7 @@ patchedDependencies:
   ai@6.0.143: a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
+  emoji-picker-react@4.19.1: 46823deb8120c9841cf66c7c64aea1c6e445678930f5e4c58c4da80d9cba843a
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
   ollama-ai-provider-v2@3.3.1: 8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb
   onnxruntime-node@1.24.3: 71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4
@@ -766,12 +767,12 @@ importers:
       emittery:
         specifier: ^1.0.3
         version: 1.2.0
-      emoji-picker-element:
-        specifier: ^1.22.1
-        version: 1.28.1
       emoji-picker-element-data:
-        specifier: '1'
+        specifier: 1.8.0
         version: 1.8.0
+      emoji-picker-react:
+        specifier: ^4.19.1
+        version: 4.19.1(patch_hash=46823deb8120c9841cf66c7c64aea1c6e445678930f5e4c58c4da80d9cba843a)(react@19.2.3)
       epub:
         specifier: 2.1.1
         version: 2.1.1
@@ -8841,8 +8842,11 @@ packages:
   emoji-picker-element-data@1.8.0:
     resolution: {integrity: sha512-VfRuRJNEDLS1JKlNS4olaqhjX5S1nnZ+ZHG73b/dV8QeZyi0yPruTPEE72EmF6XO3k/9hj3lybMIYMOYXb/57A==}
 
-  emoji-picker-element@1.28.1:
-    resolution: {integrity: sha512-8c64IPish2PWoV9oYCo2pvuPHwIv+uK9bO0dfpPyMupDAvaWL9ZvYhWNTAR+2sx7BhfRjciImqP6CIUgNX+DMg==}
+  emoji-picker-react@4.19.1:
+    resolution: {integrity: sha512-BmDdqInKFVYJpv7qS9WI6L9656cDAC+FkDvUjJds56nKHbaVTBNeDmLwKBytRnzu37zWHs9Isg7gt5PT43y6xA==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: '>=16'
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
@@ -9382,6 +9386,9 @@ packages:
   find-up@5.0.0:
     resolution: {integrity: sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==}
     engines: {node: '>=10'}
+
+  flairup@1.0.0:
+    resolution: {integrity: sha512-IKlE+pNvL2R+kVL1kEhUYqRxVqeFnjiIvHWDMLFXNaqyUdFXQM2wte44EfMYJNHkW16X991t2Zg8apKkhv7OBA==}
 
   flat-cache@4.0.1:
     resolution: {integrity: sha512-f7ccFPK3SXFHpx15UIGyRJ/FJQctuKZ0zVuN3frBo4HnK3cay9VEW0R6yPYFHC0AgqhukPzKjq22t5DmAyqGyw==}
@@ -22113,7 +22120,10 @@ snapshots:
 
   emoji-picker-element-data@1.8.0: {}
 
-  emoji-picker-element@1.28.1: {}
+  emoji-picker-react@4.19.1(patch_hash=46823deb8120c9841cf66c7c64aea1c6e445678930f5e4c58c4da80d9cba843a)(react@19.2.3):
+    dependencies:
+      flairup: 1.0.0
+      react: 19.2.3
 
   emoji-regex@10.6.0: {}
 
@@ -22809,6 +22819,8 @@ snapshots:
     dependencies:
       locate-path: 6.0.0
       path-exists: 4.0.0
+
+  flairup@1.0.0: {}
 
   flat-cache@4.0.1:
     dependencies:
