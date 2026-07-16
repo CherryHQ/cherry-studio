@@ -2,6 +2,7 @@ import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -178,6 +179,12 @@ export default function PowerPointFilePreview({ filePath, fileName, refreshKey }
 
     void (async () => {
       try {
+        // Preflight the size via metadata (a stat, not a read) so oversized files
+        // are rejected before we allocate + IPC-transfer the whole presentation.
+        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
+        if (cancelled) return
+        assertSourceSize(metadata.size)
+
         const pptxData = toUint8Array(await window.api.fs.read(filePath))
         assertSourceSize(pptxData.byteLength)
         if (cancelled) return

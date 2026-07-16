@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => {
     buildPresentation: vi.fn(),
     destroy: vi.fn(),
     fsRead: vi.fn(),
+    getMetadata: vi.fn(),
     goToSlide: vi.fn(),
     load: vi.fn(),
     loggerError: vi.fn(),
@@ -137,11 +138,12 @@ const filePath = '/tmp/presentations/roadmap.pptx' as FilePath
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
+  mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
   mocks.parseZipLazyMedia.mockResolvedValue(mocks.mockFiles)
   mocks.buildPresentation.mockImplementation(() => mocks.createMockPresentation())
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { fs: { read: mocks.fsRead } }
+    value: { fs: { read: mocks.fsRead }, file: { getMetadata: mocks.getMetadata } }
   })
 })
 
@@ -187,6 +189,16 @@ describe('PowerPointFilePreview', () => {
     expect(presentation.slides[0].rels.has('rEmbeddedImage')).toBe(true)
     expect(presentation.slides[0].rels.has('rExternalHyperlink')).toBe(true)
     expect(presentation.slides[0].rels.has('rExternalImage')).toBe(false)
+  })
+
+  it('rejects oversized PPTX via metadata before reading bytes', async () => {
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 25 * 1024 * 1024 + 1 })
+
+    render(<PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" refreshKey={0} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
   })
 
   it('contains read failures inside the preview and logs the cause', async () => {

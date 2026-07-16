@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
   return {
     createValidDocxBytes,
     fsRead: vi.fn(),
+    getMetadata: vi.fn(),
     loggerError: vi.fn(),
     renderAsync: vi.fn(),
     MockIntersectionObserver
@@ -69,12 +70,13 @@ const filePath = '/tmp/documents/report.docx' as FilePath
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.fsRead.mockResolvedValue(mocks.createValidDocxBytes())
+  mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
     body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
   })
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { fs: { read: mocks.fsRead } }
+    value: { fs: { read: mocks.fsRead }, file: { getMetadata: mocks.getMetadata } }
   })
   HTMLElement.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal('IntersectionObserver', mocks.MockIntersectionObserver)
@@ -131,6 +133,16 @@ describe('WordFilePreview', () => {
     expect(unsafeLink).not.toHaveAttribute('href')
     expect(unsafeLink).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByText('safe')).toHaveAttribute('href', 'https://example.com')
+  })
+
+  it('rejects oversized DOCX via metadata before reading bytes', async () => {
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 25 * 1024 * 1024 + 1 })
+
+    render(<WordFilePreview filePath={filePath} fileName="report.docx" refreshKey={0} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.renderAsync).not.toHaveBeenCalled()
   })
 
   it('contains read failures inside the preview and logs the cause', async () => {
