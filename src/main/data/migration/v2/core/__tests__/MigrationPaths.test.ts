@@ -69,8 +69,7 @@ vi.mock('@main/data/bootConfig', () => ({
 vi.mock('@main/core/paths/constants', () => ({
   CHERRY_HOME: '/mock/home/.cherrystudio',
   CHERRY_HOME_DIRNAME: '.cherrystudio',
-  BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
-  LOGS_DIR: '/mock/logs'
+  BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json'
 }))
 
 vi.mock('@logger', () => ({
@@ -192,6 +191,36 @@ describe('selectLegacyUserData', () => {
       probe: probe({ hasV1Data: (d) => d === '/custom/data' })
     })
     expect(result).toEqual({ kind: 'redirect', target: '/custom/data', notice: true })
+  })
+
+  it('keeps a fresh Windows portable build isolated from setup data', () => {
+    const result = selectLegacyUserData({
+      currentUserData: 'D:\\Portable\\data',
+      entries: [{ executablePath: 'C:\\Program Files\\CherryStudio\\CherryStudio.exe', dataPath: '/setup/data' }],
+      currentExe: 'D:\\Portable\\cherry-studio-portable.exe',
+      probe: probe({ hasV1Data: (d) => d === '/setup/data' })
+    })
+    expect(result).toEqual({ kind: 'default' })
+  })
+
+  it('keeps different Windows portable locations isolated without an exact mapping', () => {
+    const result = selectLegacyUserData({
+      currentUserData: 'D:\\NewPortable\\data',
+      entries: [{ executablePath: 'E:\\OldPortable\\cherry-studio-portable.exe', dataPath: 'E:\\OldPortable\\data' }],
+      currentExe: 'D:\\NewPortable\\cherry-studio-portable.exe',
+      probe: probe({ hasV1Data: (d) => d === 'E:\\OldPortable\\data' })
+    })
+    expect(result).toEqual({ kind: 'default' })
+  })
+
+  it('keeps a fresh Windows setup build isolated from portable data', () => {
+    const result = selectLegacyUserData({
+      currentUserData: 'C:\\Users\\Alice\\AppData\\Roaming\\CherryStudio',
+      entries: [{ executablePath: 'D:\\Portable\\cherry-studio-portable.exe', dataPath: 'D:\\Portable\\data' }],
+      currentExe: 'C:\\Program Files\\CherryStudio\\CherryStudio.exe',
+      probe: probe({ hasV1Data: (d) => d === 'D:\\Portable\\data' })
+    })
+    expect(result).toEqual({ kind: 'default' })
   })
 
   it('B1: multiple eligible entries → picks the most-recently-used by mtime', () => {

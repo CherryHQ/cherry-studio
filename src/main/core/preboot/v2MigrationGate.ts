@@ -42,6 +42,9 @@ export type V2MigrationGateResult = 'handled' | 'skipped'
  * and loop (or make migrated data appear lost). Stop loudly instead.
  */
 async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
+  // The redirect was not persisted, so diagnostics belong to the still-live
+  // registry location rather than the tentative migration target.
+  loggerService.initializeFileLogging(application.getPath('app.logs'))
   logger.error('Failed to persist userData location; cannot continue', cause as Error)
   await app.whenReady()
   dialog.showErrorBox(
@@ -89,6 +92,11 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return quitWithDataLocationError(error)
   }
   const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
+
+  // Relocation has already been ruled out, and resolveMigrationPaths() has now
+  // selected the final directory used by the migration engine. Binding here
+  // preserves migration diagnostics without opening source files during copy.
+  loggerService.initializeFileLogging(paths.logsDir)
 
   // Legacy custom path found but inaccessible (e.g. external drive not
   // mounted, or a stale abandoned entry). Silently falling back to the default

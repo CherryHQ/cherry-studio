@@ -50,6 +50,7 @@ const getBlockMessageMock = vi.fn()
 
 const defaultMigrationPaths = {
   userData: '/mock/userData',
+  logsDir: '/mock/userData/logs',
   versionLogFile: '/mock/version.log',
   databaseFile: '/mock/userData/cherrystudio.sqlite'
 }
@@ -115,7 +116,8 @@ function stubApplication() {
   vi.doMock('@application', () => ({
     application: {
       quit: appQuitMock,
-      relaunch: appRelaunchMock
+      relaunch: appRelaunchMock,
+      getPath: vi.fn().mockReturnValue('/mock/userData/logs')
     }
   }))
 }

@@ -171,7 +171,7 @@ describe('pathRegistry.shouldAutoEnsure', () => {
     // app.* key that is not specifically listed must still auto-ensure.
     // Catches accidental over-matching of the NO_ENSURE table.
 
-    it('returns true for app.logs (Electron logs dir, Cherry-owned)', () => {
+    it('returns true for app.logs (userData-owned)', () => {
       expect(shouldAutoEnsure('app.logs')).toBe(true)
     })
 

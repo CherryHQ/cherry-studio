@@ -81,6 +81,10 @@ const startApp = async () => {
 // (ServiceInitError → dialog → exit/relaunch), so this catch only fires
 // for unexpected errors that escape the normal handling path.
 startApp().catch((error) => {
+  // A fatal error can occur before the migration gate binds file logging
+  // (for example, an unrecoverable backup promotion). Flush buffered preboot
+  // records to the active registry location before exiting.
+  loggerService.initializeFileLogging(application.getPath('app.logs'))
   logger.error('Fatal startup error:', error)
   application.forceExit(1)
 })

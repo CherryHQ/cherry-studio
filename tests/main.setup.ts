@@ -67,7 +67,8 @@ vi.mock('electron', () => {
       }),
       getVersion: vi.fn(() => '1.0.0'),
       getLocale: vi.fn(() => 'en-US'),
-      getPreferredSystemLanguages: vi.fn(() => ['en-US'])
+      getPreferredSystemLanguages: vi.fn(() => ['en-US']),
+      setAppLogsPath: vi.fn()
     },
     ipcMain: {
       handle: vi.fn(),
@@ -125,36 +126,42 @@ vi.mock('electron', () => {
 })
 
 // Mock Winston for LoggerService dependencies
-vi.mock('winston', () => ({
-  createLogger: vi.fn(() => ({
-    log: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-    level: 'info',
-    on: vi.fn(),
-    end: vi.fn()
-  })),
-  format: {
-    combine: vi.fn(),
-    splat: vi.fn(),
-    timestamp: vi.fn(),
-    errors: vi.fn(),
-    json: vi.fn()
-  },
-  transports: {
-    Console: vi.fn(),
-    File: vi.fn()
+vi.mock('winston', () => {
+  const mockedWinston = {
+    createLogger: vi.fn(() => ({
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      level: 'info',
+      on: vi.fn(),
+      end: vi.fn(),
+      configure: vi.fn()
+    })),
+    format: {
+      combine: vi.fn(),
+      splat: vi.fn(),
+      timestamp: vi.fn(),
+      errors: vi.fn(),
+      json: vi.fn()
+    },
+    transports: {
+      Console: vi.fn(),
+      File: vi.fn()
+    }
   }
-}))
+  return { ...mockedWinston, default: mockedWinston }
+})
 
 // Mock winston-daily-rotate-file
 vi.mock('winston-daily-rotate-file', () => {
-  return vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    log: vi.fn()
-  }))
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      on: vi.fn(),
+      log: vi.fn()
+    }))
+  }
 })
 
 // Mock electron-store to avoid file system operations

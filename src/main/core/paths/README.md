@@ -22,7 +22,7 @@ application.getPath('invalid.key')
 
 | File | Role |
 |------|------|
-| `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
+| `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`) — used before the registry exists; imported directly by `BootConfigService` |
 | `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
 
 **No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
@@ -135,7 +135,7 @@ No object literals besides the registry itself — the ESLint rule validates eve
 
 - Every value must depend only on sync Electron APIs, `process.resourcesPath`, or Node built-ins
 - Calling `application.getPath()` before `initPathRegistry()` throws
-- `LoggerService` and `BootConfigService` bypass the registry — they read from `paths/constants.ts` directly (they run before the registry exists)
+- `BootConfigService` bypasses the registry and reads `BOOT_CONFIG_PATH` directly. `LoggerService` buffers early preboot records, then binds file transports after relocation is ruled out and the final migration path is resolved.
 
 ## Testing
 
