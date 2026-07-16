@@ -21,7 +21,8 @@ import type {
   MessageListProviderValue,
   MessageListRuntime,
   MessageListState,
-  MessageRuntime
+  MessageRuntime,
+  MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -60,6 +61,7 @@ interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -95,6 +97,7 @@ export function useAgentMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
+  streamingLayers,
   assistantProfile,
   assistantId,
   isLoading,
@@ -156,7 +159,7 @@ export function useAgentMessageListProviderValue({
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -272,6 +275,7 @@ export function useAgentMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
+      streamingLayers,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -300,6 +304,7 @@ export function useAgentMessageListProviderValue({
       partsByMessageId,
       renderConfig,
       selectionController.selection,
+      streamingLayers,
       topic
     ]
   )
