@@ -887,6 +887,10 @@
           "description": "管理應用內的定時排程",
           "label": "定時任務"
         },
+        "CherryGenerateImage": {
+          "description": "使用你設定的繪圖模型根據文字提示生成圖片",
+          "label": "生成圖片"
+        },
         "CherryKbManage": {
           "description": "新增、刪除或重新整理知識庫中的文件",
           "label": "知識庫管理"
@@ -1397,7 +1401,7 @@
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
-      "generate_image_not_supported": "模型不支援產生圖片",
+      "generate_image_no_model": "請在 設定 › 預設模型 中設定繪圖模型",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
@@ -1471,6 +1475,11 @@
         "collapse_out": "移出折疊",
         "expand": "展開",
         "file_not_found": "檔案不存在: {{path}}",
+        "generate_image": {
+          "failed": "圖片產生失敗",
+          "generating": "正在產生圖片…",
+          "title": "已產生圖片"
+        },
         "open_file": "開啟檔案",
         "open_file_error": "無法開啟檔案: {{path}}",
         "reveal_in_finder": "在檔案管理器中顯示"
@@ -6093,7 +6102,6 @@
       },
       "title": "環境依賴",
       "tools": {
-        "babeldoc": "保留版式的 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
         "claude": "Anthropic 的終端智慧編程工具。",
         "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
@@ -6832,6 +6840,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已停用",
+      "painting_model": "繪圖模型",
+      "painting_model_description": "圖像生成使用的模型",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",
@@ -7894,43 +7904,6 @@
     },
     "output": {
       "placeholder": "翻譯"
-    },
-    "pdf": {
-      "action": {
-        "close": "關閉 PDF 翻譯",
-        "export": "匯出譯文 PDF",
-        "install_babeldoc": "安裝 BabelDOC"
-      },
-      "dependency": {
-        "checking": "正在偵測 BabelDOC...",
-        "description": "安裝 BabelDOC 外掛程式即可在翻譯 PDF 時保留原始版式。",
-        "installing": "正在安裝 BabelDOC...",
-        "title": "偵測到 PDF"
-      },
-      "error": {
-        "generic": "翻譯過程中發生錯誤，請重試。",
-        "ocr_required": "暫不支援掃描版 PDF",
-        "title": "PDF 翻譯失敗"
-      },
-      "export_failed": "匯出譯文 PDF 失敗",
-      "pane": {
-        "translated": "譯文 PDF",
-        "translated_text": "譯文"
-      },
-      "progress": {
-        "analyzing": "正在分析文件版面",
-        "downloading_assets": "正在下載 PDF 處理資源...",
-        "generating": "正在產生譯文 PDF",
-        "percent": "{{progress}}%",
-        "preparing": "正在準備文件",
-        "translating": "正在翻譯內容",
-        "value": "{{stage}}，{{progress}}%"
-      },
-      "ready": {
-        "description": "選擇目標語言並開始翻譯。",
-        "title": "等待翻譯"
-      },
-      "success": "譯文 PDF 已產生"
     },
     "preferred_target": "首選目標",
     "processing": "翻譯中...",

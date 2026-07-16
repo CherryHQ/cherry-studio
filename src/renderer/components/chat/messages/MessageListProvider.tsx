@@ -26,7 +26,7 @@ import type {
  *   user flips a setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
- *   getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
+ *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
  *   changes when the underlying selectors are rebuilt (rare in practice).
  *
  * Existing consumers continue to use the merged `useMessageListUi()` /
@@ -48,6 +48,7 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'streamingLayers'
 >
 
 type MessageListMessagesValue = MessageListItem[]
@@ -62,6 +63,7 @@ type MessageListUiSelectorsValue = Pick<
   | 'getMessageUiState'
   | 'getMessageSiblings'
   | 'getMessageActivityState'
+  | 'isMessageTranslating'
   | 'getFileView'
   | 'isToolAutoApproved'
   | 'getTranslationLanguageLabel'
@@ -95,7 +97,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       overscan: state.overscan,
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
-      listKey: state.listKey
+      listKey: state.listKey,
+      streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
@@ -108,7 +111,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.overscan,
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
-      state.listKey
+      state.listKey,
+      state.streamingLayers
     ]
   )
 
@@ -127,6 +131,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       getMessageUiState: state.getMessageUiState,
       getMessageSiblings: state.getMessageSiblings,
       getMessageActivityState: state.getMessageActivityState,
+      isMessageTranslating: state.isMessageTranslating,
       getFileView: state.getFileView,
       isToolAutoApproved: state.isToolAutoApproved,
       getTranslationLanguageLabel: state.getTranslationLanguageLabel
@@ -135,6 +140,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.getMessageUiState,
       state.getMessageSiblings,
       state.getMessageActivityState,
+      state.isMessageTranslating,
       state.getFileView,
       state.isToolAutoApproved,
       state.getTranslationLanguageLabel

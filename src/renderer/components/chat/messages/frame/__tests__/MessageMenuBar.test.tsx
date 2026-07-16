@@ -39,6 +39,7 @@ vi.mock('@renderer/utils/image', () => ({
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
+  canEditAssistantMessageParts: () => true,
   getTranslationFromParts: () => undefined,
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
