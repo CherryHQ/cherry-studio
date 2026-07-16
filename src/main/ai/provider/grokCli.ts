@@ -77,8 +77,10 @@ export function rewriteGrokCliResponsesBody(json: Record<string, any>): Record<s
     if (json.include.length === 0) delete json.include
   }
 
-  // xAI's proxy doesn't implement OpenAI's prompt_cache_retention knob.
+  // xAI's proxy doesn't implement OpenAI's prompt_cache_retention knob, and
+  // the stateless proxy has no server-side storage for `store` to control.
   delete json.prompt_cache_retention
+  delete json.store
 
   return json
 }
