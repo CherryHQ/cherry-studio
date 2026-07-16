@@ -81,9 +81,8 @@ export { safeOpen, showInFolder } from './system'
 // entry point for the File IPC handlers (kept out of `internal/` deep imports).
 export { dispatchHandle } from './internal/dispatch'
 
-// Path-level content helpers for the File IPC adapter. Entry-handle branches
-// stay on FileManager so DB metadata and runtime caches remain synchronized.
-export { readByPath, writeByPath, writeIfUnchangedByPath } from './utils/content'
+// Scoped path-level snapshot helpers for the Agent artifact editor's File IPC routes.
+export { readSnapshotByPath, writeSnapshotIfUnchangedByPath } from './utils/content'
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.

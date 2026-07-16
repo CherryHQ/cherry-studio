@@ -596,3 +596,9 @@ export async function hash(path: FilePath): Promise<string> {
   }
   return hasher.digest().toString(16).padStart(16, '0')
 }
+
+/** Compute the same xxhash-h64 digest as {@link hash} for bytes already in memory. */
+export async function hashBytes(data: Uint8Array): Promise<string> {
+  const api = await getXxhash()
+  return api.h64Raw(data).toString(16).padStart(16, '0')
+}

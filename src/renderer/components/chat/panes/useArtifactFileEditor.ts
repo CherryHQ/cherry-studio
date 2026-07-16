@@ -1,13 +1,15 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FilePath, FileVersion } from '@shared/types/file'
-import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
+import { canonicalizeAbsolutePath } from '@shared/utils/file'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
 
 type ArtifactFileEditorMode = 'preview' | 'edit'
 type ArtifactFileLineEnding = 'lf' | 'crlf'
-type UnsupportedArtifactFileEditReason = 'encoding' | 'mixed-line-endings'
+type UnsupportedArtifactFileEditReason = 'encoding' | 'mixed-line-endings' | 'size'
+
+export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 
 const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf])
 
@@ -21,6 +23,7 @@ interface ArtifactFileEditSession {
 }
 
 interface StoredArtifactFileEditSession extends ArtifactFileEditSession {
+  contentHash?: string
   filePath: string
   version?: FileVersion
 }
@@ -131,11 +134,15 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
         savedContent: previousSession?.savedContent ?? '',
         lineEnding: previousSession?.lineEnding ?? 'lf',
         hasBom: previousSession?.hasBom ?? false,
+        contentHash: previousSession?.contentHash,
         version: previousSession?.version
       })
 
       try {
-        const { content, version } = await ipcApi.request('file.read', createFilePathHandle(filePath))
+        const { content, contentHash, version } = await ipcApi.request('file.read_snapshot', { path: filePath })
+        if (content.byteLength > ARTIFACT_PREVIEW_MAX_SIZE_BYTES) {
+          throw new UnsupportedArtifactFileEditError('size')
+        }
         const snapshot = decodeArtifactFile(content)
         if (requestVersionRef.current !== requestVersion) return
 
@@ -149,6 +156,7 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
             savedContent: snapshot.content,
             lineEnding: snapshot.lineEnding,
             hasBom: snapshot.hasBom,
+            contentHash,
             version
           }
         })
@@ -185,6 +193,7 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
       if (
         session?.filePath !== filePath ||
         session.status !== 'ready' ||
+        session.contentHash === undefined ||
         session.version === undefined ||
         !isDirty(session)
       ) {
@@ -192,14 +201,16 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
       }
 
       const submittedDraft = session.draft
+      const data = encodeArtifactFile(submittedDraft, session.lineEnding, session.hasBom)
       const requestVersion = requestVersionRef.current + 1
       requestVersionRef.current = requestVersion
       setSession((current) => (current?.filePath === filePath ? { ...current, status: 'saving' as const } : current))
 
       try {
-        const version = await ipcApi.request('file.write_if_unchanged', {
-          handle: createFilePathHandle(filePath),
-          data: encodeArtifactFile(submittedDraft, session.lineEnding, session.hasBom),
+        const { contentHash, version } = await ipcApi.request('file.write_if_unchanged', {
+          path: filePath,
+          data,
+          expectedContentHash: session.contentHash,
           expectedVersion: session.version
         })
         if (requestVersionRef.current !== requestVersion) return
@@ -210,6 +221,7 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
             ...current,
             status: 'ready',
             savedContent: submittedDraft,
+            contentHash,
             version
           }
         })

@@ -5,35 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   appGetMock,
   getMetadataByPathMock,
-  MockStaleVersionError,
-  readByPathMock,
+  readSnapshotByPathMock,
   safeOpenMock,
   showPathInFolderMock,
-  writeByPathMock,
-  writeIfUnchangedByPathMock
-} = vi.hoisted(() => {
-  class MockStaleVersionError extends Error {
-    constructor(
-      public readonly entryId: string,
-      public readonly expected: { mtime: number; size: number },
-      public readonly current: { mtime: number; size: number }
-    ) {
-      super(`Entry ${entryId} version mismatch`)
-      this.name = 'StaleVersionError'
-    }
-  }
-
-  return {
-    appGetMock: vi.fn(),
-    getMetadataByPathMock: vi.fn(),
-    MockStaleVersionError,
-    readByPathMock: vi.fn(),
-    safeOpenMock: vi.fn(),
-    showPathInFolderMock: vi.fn(),
-    writeByPathMock: vi.fn(),
-    writeIfUnchangedByPathMock: vi.fn()
-  }
-})
+  writeSnapshotIfUnchangedByPathMock
+} = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  getMetadataByPathMock: vi.fn(),
+  readSnapshotByPathMock: vi.fn(),
+  safeOpenMock: vi.fn(),
+  showPathInFolderMock: vi.fn(),
+  writeSnapshotIfUnchangedByPathMock: vi.fn()
+}))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
@@ -41,12 +24,10 @@ vi.mock('@main/services/file', async () => {
   return {
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
-    readByPath: readByPathMock,
+    readSnapshotByPath: readSnapshotByPathMock,
     safeOpen: safeOpenMock,
-    StaleVersionError: MockStaleVersionError,
     showInFolder: showPathInFolderMock,
-    writeByPath: writeByPathMock,
-    writeIfUnchangedByPath: writeIfUnchangedByPathMock
+    writeSnapshotIfUnchangedByPath: writeSnapshotIfUnchangedByPathMock
   }
 })
 
@@ -70,9 +51,6 @@ const batchResult = { succeeded: [ids[0]], failed: [{ id: ids[1], error: 'failed
 const version = { mtime: 1, size: 4 }
 
 const fileManager = {
-  read: vi.fn(),
-  write: vi.fn(),
-  writeIfUnchanged: vi.fn(),
   getMetadata: vi.fn(),
   getPhysicalPath: vi.fn(),
   batchGetDanglingStates: vi.fn(),
@@ -97,68 +75,36 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
-  it('dispatches binary reads for entry and path handles', async () => {
-    const entryResult = { content: new Uint8Array([1, 2]), mime: 'application/octet-stream', version }
-    const pathResult = { content: new Uint8Array([3, 4]), mime: 'text/plain', version }
-    fileManager.read.mockResolvedValueOnce(entryResult)
-    readByPathMock.mockResolvedValueOnce(pathResult)
+  it('reads a versioned byte snapshot by path', async () => {
+    const snapshot = { content: new Uint8Array([3, 4]), contentHash: '0123456789abcdef', version }
+    readSnapshotByPathMock.mockResolvedValueOnce(snapshot)
 
-    await expect(fileHandlers['file.read']({ kind: 'entry', entryId: ids[0] }, ctx)).resolves.toBe(entryResult)
-    await expect(fileHandlers['file.read']({ kind: 'path', path: '/tmp/report.md' }, ctx)).resolves.toBe(pathResult)
+    await expect(fileHandlers['file.read_snapshot']({ path: '/tmp/report.md' }, ctx)).resolves.toBe(snapshot)
 
-    expect(fileManager.read).toHaveBeenCalledWith(ids[0], { encoding: 'binary' })
-    expect(readByPathMock).toHaveBeenCalledWith('/tmp/report.md', { encoding: 'binary' })
+    expect(readSnapshotByPathMock).toHaveBeenCalledWith('/tmp/report.md')
   })
 
-  it('dispatches byte writes for entry and path handles', async () => {
-    const data = new Uint8Array([1, 2, 3, 4])
-    fileManager.write.mockResolvedValueOnce(version)
-    writeByPathMock.mockResolvedValueOnce(version)
-
-    await expect(fileHandlers['file.write']({ handle: { kind: 'entry', entryId: ids[0] }, data }, ctx)).resolves.toBe(
-      version
-    )
-    await expect(
-      fileHandlers['file.write']({ handle: { kind: 'path', path: '/tmp/report.md' }, data }, ctx)
-    ).resolves.toBe(version)
-
-    expect(fileManager.write).toHaveBeenCalledWith(ids[0], data)
-    expect(writeByPathMock).toHaveBeenCalledWith('/tmp/report.md', data)
-  })
-
-  it('dispatches version-checked writes for entry and path handles', async () => {
+  it('writes a path snapshot only when its version and hash are unchanged', async () => {
     const data = new Uint8Array([5, 6])
     const expectedVersion = { mtime: 1, size: 4 }
     const expectedContentHash = '0123456789abcdef'
     const nextVersion = { mtime: 2, size: 2 }
-    fileManager.writeIfUnchanged.mockResolvedValueOnce(nextVersion)
-    writeIfUnchangedByPathMock.mockResolvedValueOnce(nextVersion)
+    const nextContentHash = 'fedcba9876543210'
+    writeSnapshotIfUnchangedByPathMock.mockResolvedValueOnce({ contentHash: nextContentHash, version: nextVersion })
 
     await expect(
       fileHandlers['file.write_if_unchanged'](
         {
-          handle: { kind: 'entry', entryId: ids[0] },
+          path: '/tmp/report.md',
           data,
           expectedVersion,
           expectedContentHash
         },
         ctx
       )
-    ).resolves.toBe(nextVersion)
-    await expect(
-      fileHandlers['file.write_if_unchanged'](
-        {
-          handle: { kind: 'path', path: '/tmp/report.md' },
-          data,
-          expectedVersion,
-          expectedContentHash
-        },
-        ctx
-      )
-    ).resolves.toBe(nextVersion)
+    ).resolves.toEqual({ contentHash: nextContentHash, version: nextVersion })
 
-    expect(fileManager.writeIfUnchanged).toHaveBeenCalledWith(ids[0], data, expectedVersion, expectedContentHash)
-    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith(
+    expect(writeSnapshotIfUnchangedByPathMock).toHaveBeenCalledWith(
       '/tmp/report.md',
       data,
       expectedVersion,
@@ -166,28 +112,16 @@ describe('fileHandlers', () => {
     )
   })
 
-  it('maps entry and path version conflicts to FILE_STALE_VERSION', async () => {
+  it('maps path version conflicts to FILE_STALE_VERSION', async () => {
     const data = new Uint8Array([5, 6])
     const expected = { mtime: 1, size: 4 }
     const current = { mtime: 2, size: 8 }
-    fileManager.writeIfUnchanged.mockRejectedValueOnce(new MockStaleVersionError(ids[0], expected, current))
-
-    await expect(
-      fileHandlers['file.write_if_unchanged'](
-        { handle: { kind: 'entry', entryId: ids[0] }, data, expectedVersion: expected },
-        ctx
-      )
-    ).rejects.toMatchObject({
-      code: fileErrorCodes.STALE_VERSION,
-      data: { expected, current }
-    })
-
-    writeIfUnchangedByPathMock.mockRejectedValueOnce(
+    writeSnapshotIfUnchangedByPathMock.mockRejectedValueOnce(
       new PathStaleVersionError('/tmp/report.md' as FilePath, expected, current)
     )
     await expect(
       fileHandlers['file.write_if_unchanged'](
-        { handle: { kind: 'path', path: '/tmp/report.md' }, data, expectedVersion: expected },
+        { path: '/tmp/report.md', data, expectedVersion: expected, expectedContentHash: '0123456789abcdef' },
         ctx
       )
     ).rejects.toMatchObject({

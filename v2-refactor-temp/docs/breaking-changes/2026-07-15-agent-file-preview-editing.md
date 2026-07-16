@@ -20,4 +20,4 @@ Nothing — this is automatic. Binary files and files larger than 2 MiB remain n
 
 ## Notes for release manager
 
-Saving does not detect changes made by another application after the file was loaded.
+Saving rejects changes when the on-disk version or content hash no longer matches the loaded snapshot, then lets the user reload the latest file or keep the draft.

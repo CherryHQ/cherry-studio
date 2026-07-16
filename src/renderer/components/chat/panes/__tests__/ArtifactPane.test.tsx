@@ -1,11 +1,14 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { toast } from '@renderer/services/toast'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
-import { type PropsWithChildren, useState } from 'react'
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, {
@@ -125,7 +128,12 @@ const mocks = vi.hoisted(() => ({
   }>,
   officePreviewPanelModuleLoadCount: 0,
   pdfPreviewPanelModuleLoadCount: 0,
-  nextTreeId: 0
+  nextTreeId: 0,
+  useRealCodeEditor: false,
+  codeEditorRef: null as null | {
+    getContent?: () => string
+    insertText?: (text: string) => boolean
+  }
 }))
 
 /**
@@ -217,10 +225,17 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
 }
 
 function binaryReadResult(content: Uint8Array) {
-  return { content, mime: 'text/plain', version: { mtime: 1, size: content.byteLength } }
+  return {
+    content,
+    contentHash: '0123456789abcdef',
+    version: { mtime: 1, size: content.byteLength }
+  }
 }
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importActual) => {
+  const actual = await importActual<typeof CherryStudioUi>()
+  const RealCodeEditor = actual.CodeEditor
+
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
       <button type="button" {...props}>
@@ -235,22 +250,58 @@ vi.mock('@cherrystudio/ui', async () => {
       delete domProps.attached
       return <div {...domProps}>{children}</div>
     },
-    CodeEditor: ({
-      value,
-      onChange,
-      fontSize
+    CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
+      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
+      useEffect(() => {
+        mocks.codeEditorRef = ref.current
+      })
+
+      if (mocks.useRealCodeEditor) return <RealCodeEditor {...props} ref={ref} />
+
+      return (
+        <textarea
+          data-testid="code-editor"
+          data-font-size={props.fontSize}
+          value={props.value}
+          onChange={(event) => props.onChange?.(event.currentTarget.value)}
+        />
+      )
+    },
+    ConfirmDialog: ({
+      cancelText,
+      confirmText,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
     }: {
-      value: string
-      onChange?: (content: string) => void
-      fontSize?: number
-    }) => (
-      <textarea
-        data-testid="code-editor"
-        data-font-size={fontSize}
-        value={value}
-        onChange={(event) => onChange?.(event.currentTarget.value)}
-      />
-    ),
+      cancelText?: string
+      confirmText?: string
+      description?: React.ReactNode
+      onConfirm?: () => void | Promise<void>
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+      title: React.ReactNode
+    }) =>
+      open ? (
+        <div role="dialog">
+          <div>{title}</div>
+          <div>{description}</div>
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void Promise.resolve(onConfirm?.()).then(() => {
+                onOpenChange?.(false)
+              })
+            }>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
     MenuItem: ({
       label,
       icon,
@@ -551,6 +602,8 @@ describe('ArtifactPane', () => {
     mocks.pdfPreviewPanelProps.length = 0
     mocks.officePreviewPanelProps.length = 0
     mocks.nextTreeId = 0
+    mocks.useRealCodeEditor = false
+    mocks.codeEditorRef = null
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
     mocks.treeCreate.mockResolvedValue({
@@ -1573,6 +1626,7 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
     mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+    mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
@@ -1580,7 +1634,10 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
-    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: oversizedDraft } })
+    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    act(() => {
+      expect(mocks.codeEditorRef?.insertText?.(oversizedDraft)).toBe(true)
+    })
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.preview' }))
 
     await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
@@ -1598,7 +1655,8 @@ describe('ArtifactPane', () => {
     mocks.fsReadText.mockResolvedValue('first\r\nsecond\r\n')
     mocks.ipcRequest
       .mockResolvedValueOnce(binaryReadResult(source))
-      .mockResolvedValueOnce({ mtime: 2, size: source.byteLength })
+      .mockResolvedValueOnce({ contentHash: 'fedcba9876543210', version: { mtime: 2, size: source.byteLength } })
+    mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
@@ -1607,21 +1665,58 @@ describe('ArtifactPane', () => {
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
 
-    const editor = await screen.findByTestId<HTMLTextAreaElement>('code-editor')
-    expect(editor).toHaveAttribute('data-font-size', '14')
-    expect(editor.value).toBe('first\nsecond\n')
+    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    expect(document.querySelector('.code-editor')).toHaveStyle({ fontSize: '14px' })
+    expect(mocks.codeEditorRef?.getContent?.()).toBe('first\nsecond\n')
 
-    fireEvent.change(editor, { target: { value: 'changed\ncontent\n' } })
+    act(() => {
+      expect(mocks.codeEditorRef?.insertText?.('changed\ncontent\n')).toBe(true)
+    })
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.save' }))
 
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()))
     const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
     if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
-    const writeInput = writeCall[1] as { data: Uint8Array; expectedVersion: { mtime: number; size: number } }
+    const writeInput = writeCall[1] as {
+      data: Uint8Array
+      expectedContentHash: string
+      expectedVersion: { mtime: number; size: number }
+      path: string
+    }
+    expect(writeInput.path).toBe('/tmp/workspace/notes.txt')
+    expect(writeInput.expectedContentHash).toBe('0123456789abcdef')
     expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
     const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
-    expect(new TextDecoder().decode(written.slice(3))).toBe('changed\r\ncontent\r\n')
+    const writtenText = new TextDecoder().decode(written.slice(3))
+    expect(writtenText).toContain('changed\r\ncontent\r\n')
+    expect(writtenText).toContain('first\r\nsecond\r\n')
+    expect(writtenText.replace(/\r\n/g, '')).not.toContain('\n')
+  })
+
+  it('offers to reload the latest file after a stale write is rejected', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.save' }))
+
+    const conflictDialog = await screen.findByRole('dialog')
+    expect(conflictDialog).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
+
+    await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('external\n'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('keeps invalid UTF-8 files preview-only and explains why editing is unavailable', async () => {

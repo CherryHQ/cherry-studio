@@ -218,6 +218,12 @@
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
       "edit": {
+        "conflict": {
+          "description": "This file changed on disk after editing started. Reloading will discard the current draft and load the latest file.",
+          "keep_draft": "Keep draft",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
         "discard": "Discard",
         "leave": {
           "confirm": "Discard and continue",

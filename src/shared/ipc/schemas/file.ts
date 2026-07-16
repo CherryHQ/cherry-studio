@@ -39,27 +39,28 @@ const fileVersionSchema = z.strictObject({
   size: z.number().int().nonnegative()
 })
 
+const fileContentHashSchema = z.string().regex(/^[0-9a-f]{16}$/i)
+
 const uint8ArraySchema = z.custom<Uint8Array>((value) => value instanceof Uint8Array, {
   message: 'Expected Uint8Array'
 })
 
-const binaryReadResultSchema = z.strictObject({
+const fileSnapshotSchema = z.strictObject({
   content: uint8ArraySchema,
-  mime: z.string(),
+  contentHash: fileContentHashSchema,
   version: fileVersionSchema
 })
 
-const writeInputSchema = z.strictObject({
-  handle: FileHandleSchema,
-  data: uint8ArraySchema
+const fileSnapshotVersionSchema = z.strictObject({
+  contentHash: fileContentHashSchema,
+  version: fileVersionSchema
 })
 
-const writeIfUnchangedInputSchema = writeInputSchema.extend({
+const writeIfUnchangedInputSchema = z.strictObject({
+  path: AbsolutePathSchema,
+  data: uint8ArraySchema,
   expectedVersion: fileVersionSchema,
-  expectedContentHash: z
-    .string()
-    .regex(/^[0-9a-f]{16}$/i)
-    .optional()
+  expectedContentHash: fileContentHashSchema
 })
 
 // TODO(file-ipc): Unify these schemas with the branded transport types in
@@ -92,9 +93,11 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
-  'file.read': defineRoute({ input: FileHandleSchema, output: binaryReadResultSchema }),
-  'file.write': defineRoute({ input: writeInputSchema, output: fileVersionSchema }),
-  'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: fileVersionSchema }),
+  'file.read_snapshot': defineRoute({
+    input: z.strictObject({ path: AbsolutePathSchema }),
+    output: fileSnapshotSchema
+  }),
+  'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: fileSnapshotVersionSchema }),
   'file.batch_get_metadata': defineRoute({
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())

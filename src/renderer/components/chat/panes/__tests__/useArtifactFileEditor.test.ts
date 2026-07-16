@@ -6,13 +6,19 @@ const ipcMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: ipcMocks }))
 
-import { UnsupportedArtifactFileEditError, useArtifactFileEditor } from '../useArtifactFileEditor'
+import {
+  ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
+  UnsupportedArtifactFileEditError,
+  useArtifactFileEditor
+} from '../useArtifactFileEditor'
 
 const selection = { workspacePath: '/ws', filePath: 'notes.txt' }
 const otherSelection = { workspacePath: '/ws', filePath: 'other.txt' }
 
 const initialContent = 'hello\n'
 const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf])
+const INITIAL_CONTENT_HASH = '0123456789abcdef'
+const SAVED_CONTENT_HASH = 'fedcba9876543210'
 
 function utf8(content: string): Uint8Array {
   return new TextEncoder().encode(content)
@@ -27,7 +33,11 @@ function withUtf8Bom(content: string): Uint8Array {
 }
 
 function readResult(content: Uint8Array) {
-  return { content, mime: 'text/plain', version: { mtime: 1, size: content.byteLength } }
+  return { content, contentHash: INITIAL_CONTENT_HASH, version: { mtime: 1, size: content.byteLength } }
+}
+
+function writeResult(mtime: number, size: number, contentHash = SAVED_CONTENT_HASH) {
+  return { contentHash, version: { mtime, size } }
 }
 
 beforeEach(() => ipcMocks.request.mockReset())
@@ -46,7 +56,7 @@ describe('useArtifactFileEditor', () => {
       await result.current.setMode(selection, 'edit')
     })
 
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.read', { kind: 'path', path: '/ws/notes.txt' })
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.read_snapshot', { path: '/ws/notes.txt' })
     expect(result.current.getSession(selection)).toMatchObject({
       mode: 'edit',
       status: 'ready',
@@ -66,14 +76,15 @@ describe('useArtifactFileEditor', () => {
     })
     act(() => result.current.updateDraft(selection, 'changed\n'))
 
-    ipcMocks.request.mockResolvedValueOnce({ mtime: 2, size: 8 })
+    ipcMocks.request.mockResolvedValueOnce(writeResult(2, 8))
     await act(async () => {
       await result.current.save(selection)
     })
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
-      handle: { kind: 'path', path: '/ws/notes.txt' },
+      path: '/ws/notes.txt',
       data: utf8('changed\n'),
+      expectedContentHash: INITIAL_CONTENT_HASH,
       expectedVersion: { mtime: 1, size: utf8(initialContent).byteLength }
     })
     expect(result.current.getSession(selection)).toMatchObject({
@@ -92,19 +103,22 @@ describe('useArtifactFileEditor', () => {
     })
 
     act(() => result.current.updateDraft(selection, 'first save'))
-    ipcMocks.request.mockResolvedValueOnce({ mtime: 2, size: 10 })
+    ipcMocks.request.mockResolvedValueOnce(writeResult(2, 10))
     await act(async () => {
       await result.current.save(selection)
     })
 
     act(() => result.current.updateDraft(selection, 'second save'))
-    ipcMocks.request.mockResolvedValueOnce({ mtime: 3, size: 11 })
+    ipcMocks.request.mockResolvedValueOnce(writeResult(3, 11, '1111111111111111'))
     await act(async () => {
       await result.current.save(selection)
     })
 
     const writeCalls = ipcMocks.request.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')
-    expect(writeCalls[1]?.[1]).toMatchObject({ expectedVersion: { mtime: 2, size: 10 } })
+    expect(writeCalls[1]?.[1]).toMatchObject({
+      expectedContentHash: SAVED_CONTENT_HASH,
+      expectedVersion: { mtime: 2, size: 10 }
+    })
   })
 
   it('keeps the dirty draft ready for retry when saving fails', async () => {
@@ -256,16 +270,30 @@ describe('useArtifactFileEditor', () => {
     })
 
     act(() => result.current.updateDraft(selection, 'changed\ncontent\n'))
-    ipcMocks.request.mockResolvedValueOnce({ mtime: 2, size: 22 })
+    ipcMocks.request.mockResolvedValueOnce(writeResult(2, 22))
     await act(async () => {
       await result.current.save(selection)
     })
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
-      handle: { kind: 'path', path: '/ws/notes.txt' },
+      path: '/ws/notes.txt',
       data: withUtf8Bom('changed\r\ncontent\r\n'),
+      expectedContentHash: INITIAL_CONTENT_HASH,
       expectedVersion: { mtime: 1, size: withUtf8Bom('first\r\nsecond\r\n').byteLength }
     })
+  })
+
+  it('rejects a file that grows beyond the edit limit after the metadata check', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(new Uint8Array(ARTIFACT_PREVIEW_MAX_SIZE_BYTES + 1)))
+    const { result } = renderHook(() => useArtifactFileEditor())
+
+    await expect(
+      act(async () => {
+        await result.current.setMode(selection, 'edit')
+      })
+    ).rejects.toMatchObject({ reason: 'size' })
+
+    expect(result.current.getSession(selection)).toBeUndefined()
   })
 
   it('keeps invalid UTF-8 and mixed-line-ending files preview-only', async () => {

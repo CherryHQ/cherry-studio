@@ -231,7 +231,7 @@ src/main/services/file/
 │     │    └── tempCopy.ts     — withTempCopy
 │     └── orphanSweep.ts       — temp-session ref prune + FS-level orphan sweep
 ├── utils/
-│     ├── content.ts           — path-arm read / write / writeIfUnchanged for File IPC
+│     ├── content.ts           — path read + scoped ArtifactPane snapshot / conditional write
 │     ├── metadata.ts          — path-arm metadata projection
 │     └── pathResolver.ts      — FileEntry path resolution + external canonicalization
 └── versionCache.ts       ← LRU type definition
@@ -327,7 +327,8 @@ export async function read(deps, entryId, opts): Promise<ReadResult<T>>
 
 // utils/content.ts
 export async function readByPath(path, opts): Promise<ReadResult<T>>
-// future: export async function readVirtual(deps, handle, opts)
+export async function readSnapshotByPath(path): Promise<FileContentSnapshot>
+export async function writeSnapshotIfUnchangedByPath(path, data, version, hash): Promise<FileSnapshotVersion>
 ```
 
 **Naming convention** (per the shipped exports): entry-flavoured variants
@@ -338,29 +339,16 @@ Renderer-facing `*ByPath` variants **do not** flow through FileManager's public
 methods — they serve the path-handle branch of the IPC handler and live in
 `utils/*` so `internal/*` remains private.
 
-**Unified style for dispatch helper**: to prevent every IPC method from writing
-its own kind switch, the file module provides `dispatchHandle`; the IpcApi
-adapter calls it at the renderer transport boundary:
+**Unified style for dispatch helper**: generic FileHandle routes use the file
+module's `dispatchHandle` helper at the renderer transport boundary. Scoped
+path-only routes do not synthesize a handle or expose an unused entry arm:
 
 ```typescript
 // src/main/ipc/handlers/file.ts
 export const fileHandlers = {
-  'file.read': async (handle) => {
-    const fileManager = application.get('FileManager')
-    return dispatchHandle(
-      handle,
-      id => fileManager.read(id, { encoding: 'binary' }),
-      path => readByPath(path, { encoding: 'binary' })
-    )
-  },
-  'file.write': async ({ handle, data }) => {
-    const fileManager = application.get('FileManager')
-    return dispatchHandle(
-      handle,
-      id => fileManager.write(id, data),
-      path => writeByPath(path, data)
-    )
-  }
+  'file.read_snapshot': async ({ path }) => readSnapshotByPath(path),
+  'file.write_if_unchanged': async ({ path, data, expectedVersion, expectedContentHash }) =>
+    writeSnapshotIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
 }
 ```
 

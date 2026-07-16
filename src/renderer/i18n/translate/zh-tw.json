@@ -218,6 +218,12 @@
       "code_unavailable": "無法為二進位檔案提供來源檢視",
       "default_app": "預設應用程式",
       "edit": {
+        "conflict": {
+          "description": "開始編輯後，此檔案已在磁碟上發生變更。重新載入會捨棄目前草稿並讀取最新檔案。",
+          "keep_draft": "保留草稿",
+          "reload": "重新載入檔案",
+          "title": "磁碟上的檔案已發生變更"
+        },
         "discard": "捨棄變更",
         "leave": {
           "confirm": "捨棄並繼續",
@@ -227,7 +233,8 @@
         "open_failed": "無法開啟此檔案進行編輯。",
         "refresh_failed": "無法重新載入最新檔案內容。",
         "save_failed": "無法儲存此檔案。",
-        "unsaved": "未儲存"
+        "unsaved": "未儲存",
+        "unsupported": "此檔案可以預覽，但暫時無法在此安全編輯。目前僅支援換行符號統一為 LF 或 CRLF 的 UTF-8 文字檔案。"
       },
       "empty": {
         "description": "開始與代理對話；生成的程式碼與即時預覽將顯示於此。",

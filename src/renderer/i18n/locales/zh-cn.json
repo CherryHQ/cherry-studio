@@ -218,6 +218,12 @@
       "code_unavailable": "二进制文件无法显示源代码",
       "default_app": "默认应用",
       "edit": {
+        "conflict": {
+          "description": "开始编辑后，此文件已在磁盘上发生变化。重新加载会放弃当前草稿并读取最新文件。",
+          "keep_draft": "保留草稿",
+          "reload": "重新加载文件",
+          "title": "磁盘上的文件已发生变化"
+        },
         "discard": "放弃更改",
         "leave": {
           "confirm": "放弃并继续",
