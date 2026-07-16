@@ -11,7 +11,7 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { MessageEnterMotionProvider, useMessageEnterMotionIds } from '../motion/messageEnterMotion'
+import { useMessageEnterMotionIds } from '../motion/messageEnterMotion'
 import { usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
@@ -480,47 +480,46 @@ const MessageList = () => {
       )}
       <SelectionContextMenu>
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <MessageEnterMotionProvider enteringMessageIds={enteringMessageIds}>
-            <MessageVirtualList
-              handleRef={messageListRef}
-              items={groupedMessages}
-              getItemKey={([key]) => key}
-              estimateSize={data.estimateSize}
-              overscan={data.overscan}
-              topPadding={topPadding}
-              bottomPadding={bottomPadding}
-              forceScrollToBottomKey={forceScrollToBottomKey}
-              preserveScrollAnchor={preserveScrollAnchor}
-              keepMountedKeys={keepMountedKeys}
-              showScrollToBottomButton
-              scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
-              topicId={topic.id}
-              hasMoreTop={hasOlder}
-              onScrollContainerReady={handleScrollContainerReady}
-              onReachTop={loadMoreMessages}
-              renderItem={([key, groupMessages]) => {
-                return (
-                  <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding>
-                    <MessageGroup
-                      key={key}
-                      isLatestAssistantGroup={key === latestAssistantGroupKey}
-                      directAssistantModelsByUserId={directAssistantModelsByUserId}
-                      messages={groupMessages}
-                      partsByMessageId={partsByMessageId}
-                      topic={topic}
-                      registerMessageElement={registerMessageElement}
-                      onMultiModelMessageStyleChange={(style) => {
-                        setGroupLayoutOverrides((current) =>
-                          current[key] === style ? current : { ...current, [key]: style }
-                        )
-                      }}
-                    />
-                  </NarrowLayout>
-                )
-              }}
-              style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
-            />
-          </MessageEnterMotionProvider>
+          <MessageVirtualList
+            handleRef={messageListRef}
+            items={groupedMessages}
+            getItemKey={([key]) => key}
+            estimateSize={data.estimateSize}
+            overscan={data.overscan}
+            topPadding={topPadding}
+            bottomPadding={bottomPadding}
+            forceScrollToBottomKey={forceScrollToBottomKey}
+            preserveScrollAnchor={preserveScrollAnchor}
+            keepMountedKeys={keepMountedKeys}
+            showScrollToBottomButton
+            scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
+            topicId={topic.id}
+            hasMoreTop={hasOlder}
+            onScrollContainerReady={handleScrollContainerReady}
+            onReachTop={loadMoreMessages}
+            renderItem={([key, groupMessages]) => {
+              return (
+                <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding>
+                  <MessageGroup
+                    key={key}
+                    enteringMessageIds={enteringMessageIds}
+                    isLatestAssistantGroup={key === latestAssistantGroupKey}
+                    directAssistantModelsByUserId={directAssistantModelsByUserId}
+                    messages={groupMessages}
+                    partsByMessageId={partsByMessageId}
+                    topic={topic}
+                    registerMessageElement={registerMessageElement}
+                    onMultiModelMessageStyleChange={(style) => {
+                      setGroupLayoutOverrides((current) =>
+                        current[key] === style ? current : { ...current, [key]: style }
+                      )
+                    }}
+                  />
+                </NarrowLayout>
+              )
+            }}
+            style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
+          />
           {isLoadingMore && (
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"
