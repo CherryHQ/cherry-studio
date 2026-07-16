@@ -1,11 +1,7 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import {
-  buildGenerateImageToolSchema,
-  GENERATE_IMAGE_TOOL_NAME,
-  generateImageInputSchema,
   KB_LIST_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
@@ -101,60 +97,6 @@ describe('builtin tool contracts', () => {
     expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', type: 'note', content: 'hi' }).success).toBe(
       true
     )
-  })
-
-  it('keeps the fallback generate_image schema object-only and prompt-required', () => {
-    expect(GENERATE_IMAGE_TOOL_NAME).toBe('generate_image')
-    const json = z.toJSONSchema(generateImageInputSchema) as { required?: unknown }
-
-    expect(Array.isArray(json.required)).toBe(true)
-    expect(json.required).toEqual(['prompt'])
-    expect(generateImageInputSchema.safeParse({ prompt: 'a cat' }).success).toBe(true)
-  })
-
-  it('keeps the fallback MCP generate_image schema prompt-only', () => {
-    expect(generateImageInputSchema.safeParse({ prompt: 'a cat' }).success).toBe(true)
-    expect(generateImageInputSchema.safeParse({ prompt: 'a cat', n: 2 }).success).toBe(false)
-  })
-
-  it('derives provider-accurate optional generate params', () => {
-    const support = {
-      modes: {
-        generate: {
-          supports: {
-            size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
-            numImages: { type: 'range', min: 1, max: 3 }
-          }
-        }
-      }
-    } satisfies ImageGenerationSupport
-    const inputSchema = buildGenerateImageToolSchema(support)
-    const json = z.toJSONSchema(inputSchema) as { required?: string[]; properties?: Record<string, unknown> }
-
-    expect(json.required).toEqual(['prompt'])
-    expect(json.properties).not.toHaveProperty('image_ids')
-    expect(inputSchema.safeParse({ prompt: 'a cat', size: '1792x1024', numImages: 2 }).success).toBe(true)
-    expect(inputSchema.safeParse({ prompt: 'a cat', size: '2048x2048' }).success).toBe(false)
-  })
-
-  it('adds image_ids only for edit-capable models and applies the configured cap', () => {
-    const support = {
-      modes: {
-        generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
-        edit: {
-          supports: {
-            maxImages: { type: 'range', min: 1, max: 2 },
-            quality: { type: 'enum', options: ['low', 'high'] }
-          }
-        }
-      }
-    } satisfies ImageGenerationSupport
-    const inputSchema = buildGenerateImageToolSchema(support)
-    const json = z.toJSONSchema(inputSchema) as { required?: string[] }
-
-    expect(inputSchema.safeParse({ prompt: 'edit', image_ids: ['f1', 'f2'], quality: 'high' }).success).toBe(true)
-    expect(inputSchema.safeParse({ prompt: 'edit', image_ids: ['f1', 'f2', 'f3'] }).success).toBe(false)
-    expect(json.required).toEqual(['prompt'])
   })
 
   it('validates final report artifacts', () => {

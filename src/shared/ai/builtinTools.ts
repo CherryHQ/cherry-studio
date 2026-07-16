@@ -463,18 +463,11 @@ export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
 // ── generate_image ───────────────────────────────────────────────
 
-export type {
-  GenerateImageOutput,
-  GenerateImageOutputItem,
-  GenerateImageToolInput
-} from './generateImageTool'
+export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
 export {
-  buildGenerateImageToolSchema,
   GENERATE_IMAGE_TOOL_NAME,
-  generateImageInputSchema,
   generateImageOutputItemSchema,
-  generateImageOutputSchema,
-  resolveGenerateImageInputLimit
+  generateImageOutputSchema
 } from './generateImageTool'
 
 // ── agent autonomy tools (cron / notify / config) ────────────────

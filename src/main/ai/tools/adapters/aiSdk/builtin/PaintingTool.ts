@@ -8,13 +8,10 @@
  * wrapper.
  */
 
-import {
-  buildGenerateImageToolSchema,
-  GENERATE_IMAGE_TOOL_NAME,
-  type GenerateImageToolInput
-} from '@shared/ai/builtinTools'
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { dynamicTool } from 'ai'
 
+import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '../../../generateImageTool'
 import {
   type ConfiguredPaintingModel,
   GENERATE_IMAGE_DESCRIPTION,

@@ -21,6 +21,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
   KNOWLEDGE_MANAGE_DESCRIPTION,
@@ -59,9 +60,7 @@ import {
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
 import {
-  buildGenerateImageToolSchema,
   GENERATE_IMAGE_TOOL_NAME,
-  type GenerateImageToolInput,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,

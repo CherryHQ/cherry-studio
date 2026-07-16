@@ -20,11 +20,7 @@ import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-regi
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
-import {
-  type GenerateImageOutput,
-  type GenerateImageToolInput,
-  resolveGenerateImageInputLimit
-} from '@shared/ai/builtinTools'
+import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import {
   type ImageGenerationMode,
   type ImageGenerationSupport,
@@ -32,6 +28,8 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
@@ -130,16 +128,21 @@ function extractParamValues(
   }
 
   const parsed = buildParamsSchema(support, mode).parse(candidate)
-  return Object.fromEntries(
-    Object.keys(supports).flatMap((key) => (parsed[key] === undefined ? [] : [[key, parsed[key]]]))
-  )
+  const regularEntries = Object.entries(supports).flatMap(([key, spec]) => {
+    const value = parsed[key]
+    if (value === undefined || (spec.type === 'size' && spec.pairedEnumKey)) return []
+    return [[key, value]]
+  })
+  const pairedSizeEntries = Object.entries(supports).flatMap(([key, spec]) => {
+    const value = parsed[key]
+    if (value === undefined || spec.type !== 'size' || !spec.pairedEnumKey) return []
+    return [[spec.pairedEnumKey, value]]
+  })
+  return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
 }
 
-async function resolveInputImages(
-  imageIds: readonly string[],
-  support: ImageGenerationSupport | null
-): Promise<string[]> {
-  const ids = imageIds.slice(0, resolveGenerateImageInputLimit(support))
+async function resolveInputImages(imageIds: readonly string[]): Promise<string[]> {
+  const ids = limitGenerateImageInputIds(imageIds)
   return Promise.all(
     ids.map(async (id) => {
       const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
@@ -165,7 +168,7 @@ export async function generateImageFromPrompt(
   let inputImages: string[] | undefined
   if (mode === 'edit') {
     try {
-      inputImages = await resolveInputImages(input.image_ids ?? [], support)
+      inputImages = await resolveInputImages(input.image_ids ?? [])
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Failed to resolve generate_image input images', { error })

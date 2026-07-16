@@ -1,4 +1,7 @@
+import { resolve } from 'node:path'
+
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import type { Tool } from 'ai'
@@ -89,6 +92,17 @@ function buildTool(support: ImageGenerationSupport): Tool {
   })
 }
 
+function getZhipuCogViewSupport(): ImageGenerationSupport {
+  const registry = readProviderModelRegistry(
+    resolve(process.cwd(), 'packages/provider-registry/data/provider-models.json')
+  )
+  const support = registry.overrides.find(
+    ({ providerId, modelId }) => providerId === 'zhipu' && modelId === 'cogview-4'
+  )?.imageGeneration
+  if (!support) throw new Error('Missing zhipu/cogview-4 imageGeneration registry fixture')
+  return support
+}
+
 describe('generate_image', () => {
   beforeEach(() => {
     getPreference.mockReset()
@@ -153,6 +167,18 @@ describe('generate_image', () => {
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({ paramValues: { size: '1792x1024', numImages: 2 } })
     )
+  })
+
+  it('normalizes a real Zhipu customSize input to the native size parameter', async () => {
+    generateImage.mockResolvedValue({ files: [] })
+
+    await callExecute(
+      { prompt: 'a wide landscape', size: '1024x1024', customSize: '1536x1024' },
+      undefined,
+      buildTool(getZhipuCogViewSupport())
+    )
+
+    expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { size: '1536x1024' } }))
   })
 
   it('resolves edit image ids to base64 data URLs and selects edit mode', async () => {
