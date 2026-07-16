@@ -1,11 +1,12 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
-import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
@@ -172,7 +173,7 @@ function ModelRow({
   detailPortalContainer?: SelectorShellLayout['portalContainer']
   t: (key: string) => string
 }) {
-  const icon = useIcon(resolveIconRef(item.modelIdentifier, item.provider.id))
+  const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
   const providerName = getProviderDisplayName(item.provider)
 
