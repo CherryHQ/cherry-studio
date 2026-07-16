@@ -58,6 +58,12 @@ export function estimateTokenCount(input: CountTokensInput): number {
                 totalTokens += approximateTokenSize(item)
               } else if (item && typeof item === 'object' && item.type === 'text' && typeof item.text === 'string') {
                 totalTokens += approximateTokenSize(item.text)
+              } else if (item && typeof item === 'object' && item.type === 'image') {
+                if (item.source?.type === 'base64' && typeof item.source.data === 'string') {
+                  totalTokens += Math.floor((item.source.data.length * 0.75) / 100)
+                } else {
+                  totalTokens += 1000
+                }
               }
             }
           }
