@@ -1,49 +1,15 @@
-import { type SVGProps, useId } from 'react'
+import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
-const BoltNewLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
-  const iconId = useId()
-
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-      <g clipPath={`url(#${iconId}-boltnewlight__a)`}>
-        <path
-          fill="#000"
-          d="M81.25 18H39.75C28.2901 18 19 27.2901 19 38.75V80.25C19 91.7099 28.2901 101 39.75 101H81.25C92.7099 101 102 91.7099 102 80.25V38.75C102 27.2901 92.7099 18 81.25 18Z"
-        />
-        <g filter={`url(#${iconId}-boltnewlight__b)`}>
-          <path
-            fill="#fff"
-            fillRule="evenodd"
-            d="M63.8391 79.073C60.0838 79.073 56.3967 77.7325 54.2801 74.8503L53.5336 78.2492L39.75 85.4375L41.238 78.2492L51.2759 33.5625H63.566L60.0155 49.3135C62.8832 46.2303 65.546 45.0909 68.9599 45.0909C76.3338 45.0909 81.25 49.8497 81.25 58.563C81.25 67.5445 75.5832 79.073 63.8391 79.073ZM68.5503 61.11C68.5503 65.2656 65.546 68.4158 61.6542 68.4158C59.4692 68.4158 57.4892 67.6115 56.1919 66.204L58.1037 57.9598C59.5376 56.5523 61.1762 55.7479 63.088 55.7479C66.024 55.7479 68.5503 57.8928 68.5503 61.11Z"
-            clipRule="evenodd"
-          />
-        </g>
-      </g>
-      <defs>
-        <clipPath id={`${iconId}-boltnewlight__a`}>
-          <path fill="#fff" d="M0 0H83V83H0z" transform="translate(19 18)" />
-        </clipPath>
-        <filter
-          id={`${iconId}-boltnewlight__b`}
-          width={41.5}
-          height={51.875}
-          x={39.75}
-          y={33.563}
-          colorInterpolationFilters="sRGB"
-          filterUnits="userSpaceOnUse">
-          <feFlood floodOpacity={0} result="BackgroundImageFix" />
-          <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
-          <feColorMatrix in="SourceAlpha" result="hardAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
-          <feOffset />
-          <feGaussianBlur stdDeviation={0.1} />
-          <feComposite in2="hardAlpha" k2={-1} k3={1} operator="arithmetic" />
-          <feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.95 0" />
-          <feBlend in2="shape" result="effect1_innerShadow_34_21063" />
-        </filter>
-      </defs>
-    </svg>
-  )
-}
+const BoltNewLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <path
+      fill="#000"
+      fillRule="evenodd"
+      d="M64.1839 84.0252C59.4785 84.0252 54.8585 82.3455 52.2064 78.7341L51.271 82.993L34 92L35.8645 82.993L48.4421 27H63.8417L59.3929 46.7362C62.9862 42.8729 66.3227 41.4452 70.6004 41.4452C79.8399 41.4452 86 47.4081 86 58.3259C86 69.5799 78.8994 84.0252 64.1839 84.0252ZM70.0871 61.5174C70.0871 66.7244 66.3227 70.6716 61.4462 70.6716C58.7084 70.6716 56.2274 69.6638 54.6019 67.9002L56.9974 57.5701C58.7941 55.8065 60.8473 54.7986 63.2428 54.7986C66.9216 54.7986 70.0871 57.4862 70.0871 61.5174Z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
 export { BoltNewLight }
 export default BoltNewLight

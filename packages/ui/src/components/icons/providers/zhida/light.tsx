@@ -13,13 +13,22 @@ const ZhidaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       fill="none"
       viewBox="9 9 102 102"
       {...props}>
-      <g clipPath={`url(#${iconId}-zhidalight__a)`}>
-        <path fill={`url(#${iconId}-zhidalight__b)`} d="M18.5 18.5H101.5V101.5H18.5z" />
+      <mask
+        id={`${iconId}-zhidalight__a`}
+        width={65}
+        height={65}
+        x={27}
+        y={28}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M92 28H27V93H92V28Z" />
+      </mask>
+      <g mask={`url(#${iconId}-zhidalight__a)`}>
+        <path fill={`url(#${iconId}-zhidalight__b)`} d="M92 28H27V93H92V28Z" />
       </g>
       <defs>
-        <clipPath id={`${iconId}-zhidalight__a`}>
-          <path fill="#fff" d="M0 0H83V83H0z" transform="translate(18.5 18.5)" />
-        </clipPath>
         <pattern id={`${iconId}-zhidalight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-zhidalight__c`} transform="scale(.0119 .01408)" />
         </pattern>

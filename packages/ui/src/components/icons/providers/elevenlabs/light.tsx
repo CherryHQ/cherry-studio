@@ -3,12 +3,7 @@ import type { SVGProps } from 'react'
 import type { IconComponent } from '../../types'
 const ElevenlabsLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-    <path
-      fill="currentColor"
-      fillRule="evenodd"
-      d="M34.918 17H52.8346V103H34.918V17ZM67.168 17H85.0846V103H67.168V17Z"
-      clipRule="evenodd"
-    />
+    <path fill="#000" fillRule="evenodd" d="M41 27H54.5714V92H41V27ZM65.4286 27H79V92H65.4286V27Z" clipRule="evenodd" />
   </svg>
 )
 export { ElevenlabsLight }

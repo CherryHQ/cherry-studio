@@ -6,34 +6,46 @@ const AzureaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-      <g clipPath={`url(#${iconId}-azureailight__a)`}>
+      <mask
+        id={`${iconId}-azureailight__a`}
+        width={65}
+        height={65}
+        x={27}
+        y={27}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M92 27H27V92H92V27Z" />
+      </mask>
+      <g mask={`url(#${iconId}-azureailight__a)`}>
         <mask
           id={`${iconId}-azureailight__b`}
-          width={86}
-          height={86}
-          x={17}
-          y={17}
+          width={65}
+          height={65}
+          x={27}
+          y={27}
           maskUnits="userSpaceOnUse"
           style={{
             maskType: 'luminance'
           }}>
-          <path fill="#fff" d="M103 17H17V103H103V17Z" />
+          <path fill="#fff" d="M92 27H27V92H92V27Z" />
         </mask>
         <g mask={`url(#${iconId}-azureailight__b)`}>
           <path
             fill={`url(#${iconId}-azureailight__c)`}
             fillRule="evenodd"
-            d="M75.1694 17C77.7243 17 79.989 18.9744 80.8024 21.7623C81.6158 24.5501 86.3745 41.7931 86.3745 41.7931V76.0569H69.1279L69.4791 17H75.1694Z"
+            d="M70.9652 27C72.8962 27 74.6079 28.4923 75.2227 30.5994C75.8375 32.7065 79.4341 45.739 79.4341 45.739V71.636H66.3989L66.6644 27H70.9652Z"
             clipRule="evenodd"
           />
           <path
             fill={`url(#${iconId}-azureailight__d)`}
-            d="M100.486 43.7679C100.486 42.5496 99.501 41.6179 98.3365 41.6179H88.1777C84.7434 41.6208 81.4507 42.9865 79.0226 45.4153C76.5946 47.8441 75.2297 51.1373 75.2275 54.5716V76.0573H87.5399C90.9731 76.0537 94.2644 74.6877 96.6917 72.26C99.1191 69.8319 100.484 66.5403 100.486 63.1071V43.7679Z"
+            d="M90.0998 47.2316C90.0998 46.3108 89.3553 45.6066 88.4751 45.6066H80.797C78.2013 45.6088 75.7126 46.641 73.8774 48.4767C72.0423 50.3124 71.0107 52.8015 71.009 55.3972V71.6363H80.3149C82.9098 71.6336 85.3974 70.6012 87.232 68.7663C89.0666 66.9311 90.0982 64.4433 90.0998 61.8484V47.2316Z"
           />
           <path
             fill={`url(#${iconId}-azureailight__e)`}
             fillRule="evenodd"
-            d="M75.1687 17.0001C74.7021 16.9968 74.2399 17.0861 73.8085 17.2631C73.377 17.44 72.985 17.7009 72.6553 18.0306C72.3253 18.3604 72.0645 18.7524 71.8874 19.1839C71.7108 19.6153 71.6212 20.0777 71.6248 20.544L71.2772 85.7534C71.2761 90.3272 69.4587 94.7135 66.2247 97.9475C62.9904 101.182 58.6044 102.999 54.0306 103H22.7336C22.391 103.002 22.0529 102.922 21.7478 102.766C21.4427 102.61 21.1795 102.383 20.9804 102.104C20.7812 101.825 20.652 101.503 20.6035 101.164C20.5551 100.824 20.5888 100.478 20.7019 100.155L45.7852 28.5563C46.9669 25.1851 49.165 22.2632 52.0767 20.1935C54.9884 18.1238 58.4704 17.0081 62.0429 17.0001H75.226H75.1687Z"
+            d="M70.9646 27.0001C70.612 26.9976 70.2626 27.0651 69.9366 27.1988C69.6104 27.3325 69.3142 27.5297 69.065 27.7789C68.8156 28.0282 68.6184 28.3245 68.4846 28.6506C68.3511 28.9767 68.2834 29.3262 68.2861 29.6786L68.0234 78.9648C68.0226 82.4217 66.6489 85.7369 64.2046 88.1812C61.7601 90.6259 58.4451 91.9992 54.9882 92H31.3335C31.0745 92.0015 30.819 91.941 30.5884 91.8231C30.3578 91.7052 30.1589 91.5337 30.0084 91.3228C29.8578 91.1119 29.7602 90.8685 29.7235 90.6123C29.6869 90.3553 29.7124 90.0938 29.7979 89.8497L48.7562 35.7344C49.6493 33.1864 51.3107 30.978 53.5114 29.4137C55.7121 27.8494 58.3438 27.0061 61.044 27.0001H71.0079H70.9646Z"
             clipRule="evenodd"
           />
         </g>
@@ -41,10 +53,10 @@ const AzureaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       <defs>
         <linearGradient
           id={`${iconId}-azureailight__c`}
-          x1={82.368}
-          x2={67.852}
-          y1={77.333}
-          y2={19.207}
+          x1={76.406}
+          x2={65.435}
+          y1={72.6}
+          y2={28.668}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#712575" />
           <stop offset={0.09} stopColor="#9A2884" />
@@ -61,10 +73,10 @@ const AzureaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </linearGradient>
         <linearGradient
           id={`${iconId}-azureailight__d`}
-          x1={87.888}
-          x2={87.888}
-          y1={18.219}
-          y2={100.213}
+          x1={80.578}
+          x2={80.578}
+          y1={27.921}
+          y2={89.894}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#DA7ED0" />
           <stop offset={0.08} stopColor="#B17BD5" />
@@ -78,10 +90,10 @@ const AzureaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </linearGradient>
         <linearGradient
           id={`${iconId}-azureailight__e`}
-          x1={82.948}
-          x2={28.596}
-          y1={20.078}
-          y2={107.239}
+          x1={76.844}
+          x2={35.764}
+          y1={29.326}
+          y2={95.204}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#DA7ED0" />
           <stop offset={0.05} stopColor="#B77BD4" />
@@ -94,9 +106,6 @@ const AzureaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
           <stop offset={0.68} stopColor="#1371EC" />
           <stop offset={1} stopColor="#1171ED" />
         </linearGradient>
-        <clipPath id={`${iconId}-azureailight__a`}>
-          <path fill="#fff" d="M0 0H86V86H0z" transform="translate(17 17)" />
-        </clipPath>
       </defs>
     </svg>
   )
