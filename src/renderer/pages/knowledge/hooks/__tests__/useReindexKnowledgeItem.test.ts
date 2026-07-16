@@ -59,6 +59,27 @@ describe('useReindexKnowledgeItem', () => {
     expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
   })
 
+  it('splits more than 100 items into valid orchestration batches and refreshes once', async () => {
+    const itemIds = Array.from({ length: 101 }, (_, index) => `note-${index + 1}`)
+    const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
+
+    await act(async () => {
+      await expect(result.current.reindexItems(itemIds)).resolves.toBeUndefined()
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledTimes(2)
+    expect(mockIpcRequest).toHaveBeenNthCalledWith(1, 'knowledge.reindex_items', {
+      baseId: 'base-1',
+      itemIds: itemIds.slice(0, 100)
+    })
+    expect(mockIpcRequest).toHaveBeenNthCalledWith(2, 'knowledge.reindex_items', {
+      baseId: 'base-1',
+      itemIds: itemIds.slice(100)
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest.mock.invocationCallOrder[1]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
+  })
+
   it('keeps reindex rejected, refreshes items, and exposes inline error when orchestration rejects', async () => {
     const reindexError = new Error('reindex failed')
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })

@@ -2,12 +2,13 @@ import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@dat
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
-import type {
-  KnowledgeAddConflictStrategy,
-  KnowledgeAddItemInput,
-  KnowledgeAddItemsResult,
-  KnowledgeItem,
-  KnowledgeItemStatus
+import {
+  KNOWLEDGE_RUNTIME_ITEMS_MAX,
+  type KnowledgeAddConflictStrategy,
+  type KnowledgeAddItemInput,
+  type KnowledgeAddItemsResult,
+  type KnowledgeItem,
+  type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -15,6 +16,14 @@ export const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 
 const KNOWLEDGE_ITEMS_POLLING_INTERVAL = 2000
 const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
+
+const chunkKnowledgeItemIds = (itemIds: string[]) => {
+  const batches: string[][] = []
+  for (let index = 0; index < itemIds.length; index += KNOWLEDGE_RUNTIME_ITEMS_MAX) {
+    batches.push(itemIds.slice(index, index + KNOWLEDGE_RUNTIME_ITEMS_MAX))
+  }
+  return batches
+}
 
 const hasNonTerminalItem = (pages?: KnowledgeItemListResponse[]) =>
   pages?.some((page) => page.items.some((item) => !TERMINAL_STATUSES.has(item.status))) ?? false
@@ -212,7 +221,9 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
 
       let deleteError: Error | undefined
       try {
-        await ipcApi.request('knowledge.delete_items', { baseId, itemIds })
+        for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
+          await ipcApi.request('knowledge.delete_items', { baseId, itemIds: batchItemIds })
+        }
       } catch (error) {
         deleteError = normalizeKnowledgeError(error)
 
@@ -270,7 +281,9 @@ export const useReindexKnowledgeItem = (baseId: string) => {
 
       let reindexError: Error | undefined
       try {
-        await ipcApi.request('knowledge.reindex_items', { baseId, itemIds })
+        for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
+          await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: batchItemIds })
+        }
       } catch (error) {
         reindexError = normalizeKnowledgeError(error)
 
