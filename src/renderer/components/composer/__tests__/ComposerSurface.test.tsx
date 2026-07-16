@@ -585,6 +585,30 @@ describe('ComposerSurface', () => {
     expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
   })
 
+  it('returns to the regular presentation for an explicit hard break that does not overflow', async () => {
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    const editorElement = screen.getByTestId('composer-editor')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+
+    editorElement.innerHTML = '<p>hello<br><br class="ProseMirror-trailingBreak"></p>'
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+  })
+
+  it("ignores ProseMirror's synthetic trailing break when deciding the presentation", async () => {
+    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
+
+    const inputbar = document.getElementById('inputbar')
+    const editorElement = screen.getByTestId('composer-editor')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+
+    editorElement.innerHTML = '<p><br class="ProseMirror-trailingBreak"></p>'
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+  })
+
   it('returns to the regular presentation when the compact row overflows horizontally', async () => {
     mocks.stabilizeEditor = true
 

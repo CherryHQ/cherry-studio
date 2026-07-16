@@ -62,12 +62,13 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     const compactRowElement = frame?.closest<HTMLElement>('[data-composer-compact-row]')
     if (!editorElement || !compactRowElement) return
 
+    const hasExplicitHardBreak = editorElement.querySelector(':scope > p > br:not(.ProseMirror-trailingBreak)') !== null
     const hasEditorOverflow = editorElement.scrollHeight > editorElement.clientHeight + COMPOSER_OVERFLOW_TOLERANCE_PX
     const hasCompactRowOverflow =
       compactRowElement.scrollWidth > compactRowElement.clientWidth + COMPOSER_OVERFLOW_TOLERANCE_PX
 
     setMeasurement({
-      presentation: hasEditorOverflow || hasCompactRowOverflow ? 'regular' : 'compact',
+      presentation: hasExplicitHardBreak || hasEditorOverflow || hasCompactRowOverflow ? 'regular' : 'compact',
       revision: requestedRevision
     })
   }, [enabled, frameRef, isComposing, measurement.revision, requestMeasurement, requestedRevision])
