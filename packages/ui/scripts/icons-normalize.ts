@@ -5,9 +5,9 @@
  * keeping the viewBox unchanged so SVG content scales naturally.
  *
  * Usage:
- *   pnpm tsx scripts/normalize-viewbox.ts --dir=providers
- *   pnpm tsx scripts/normalize-viewbox.ts --dir=models
- *   pnpm tsx scripts/normalize-viewbox.ts --dir=providers --dry-run
+ *   pnpm tsx scripts/icons-normalize.ts --dir=providers
+ *   pnpm tsx scripts/icons-normalize.ts --dir=models
+ *   pnpm tsx scripts/icons-normalize.ts --dir=providers --dry-run
  */
 import fs from 'fs/promises'
 import path from 'path'

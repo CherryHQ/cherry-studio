@@ -184,11 +184,28 @@ pnpm dev
 pnpm build
 
 # Type check
-pnpm type-check
+pnpm type:check
 
 # Run tests
 pnpm test
 ```
+
+### Icon Generation
+
+The icon tooling uses one command set for general icons, providers, and models. Pass the target explicitly.
+
+```bash
+# Generate React icon components
+pnpm icons:generate --type=icons
+pnpm icons:generate --type=providers
+pnpm icons:generate --type=models
+
+# Generate provider or model Avatar components
+pnpm icons:generate:avatars --type=providers
+pnpm icons:generate:avatars --type=models
+```
+
+Both commands automatically run the repository formatter after completion.
 
 ## Package Surface
 

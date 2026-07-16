@@ -9,9 +9,9 @@
  *   5. Avatars    — emit avatar.tsx + index.tsx + barrel + catalog
  *
  * Usage:
- *   tsx scripts/pipeline.ts --dir=providers
- *   tsx scripts/pipeline.ts --dir=models --skip-vectorize
- *   tsx scripts/pipeline.ts --dir=providers --force
+ *   tsx scripts/icons-pipeline.ts --dir=providers
+ *   tsx scripts/icons-pipeline.ts --dir=models --skip-vectorize
+ *   tsx scripts/icons-pipeline.ts --dir=providers --force
  */
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
@@ -56,7 +56,7 @@ function parseArgs(): PipelineArgs {
   }
 
   if (!dir) {
-    console.error('Usage: tsx scripts/pipeline.ts --dir=providers|models [--skip-vectorize] [--force]')
+    console.error('Usage: tsx scripts/icons-pipeline.ts --dir=providers|models [--skip-vectorize] [--force]')
     process.exit(1)
   }
 
@@ -112,25 +112,25 @@ async function main() {
   }> = [
     {
       name: 'Vectorize',
-      args: ['scripts/vectorize-logo.ts', `--dir=${dir}`],
+      args: ['scripts/icons-vectorize.ts', `--dir=${dir}`],
       skip: async () => skipVectorize || !(await hasRasterFiles(iconsDir)),
       skipReason: skipVectorize ? '--skip-vectorize flag' : 'no raster files found'
     },
     {
       name: 'Validate',
-      args: ['scripts/validate-svgs.ts', `--dir=${dir}`]
+      args: ['scripts/icons-validate.ts', `--dir=${dir}`]
     },
     {
       name: 'Normalize',
-      args: ['scripts/normalize-viewbox.ts', `--dir=${dir}`]
+      args: ['scripts/icons-normalize.ts', `--dir=${dir}`]
     },
     {
       name: 'Generate',
-      args: ['scripts/generate-icons.ts', `--type=${dir}`, ...(force ? ['--force'] : [])]
+      args: ['scripts/icons-generate.ts', `--type=${dir}`, ...(force ? ['--force'] : [])]
     },
     {
       name: 'Avatars',
-      args: ['scripts/generate-avatars.ts', `--type=${dir}`]
+      args: ['scripts/icons-generate-avatars.ts', `--type=${dir}`]
     }
   ]
 

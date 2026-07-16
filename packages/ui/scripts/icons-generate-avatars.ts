@@ -9,9 +9,9 @@
  *   - SVGs without background → full-size Color icon on neutral bg-background
  *
  * Usage:
- *   pnpm tsx scripts/generate-avatars.ts --type=providers
- *   pnpm tsx scripts/generate-avatars.ts --type=models
- *   pnpm tsx scripts/generate-avatars.ts --type=providers --only=opencode
+ *   pnpm tsx scripts/icons-generate-avatars.ts --type=providers
+ *   pnpm tsx scripts/icons-generate-avatars.ts --type=models
+ *   pnpm tsx scripts/icons-generate-avatars.ts --type=providers --only=opencode
  */
 
 import * as fs from 'fs'
