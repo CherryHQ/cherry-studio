@@ -21,6 +21,12 @@ describe('getModelLogoRef — UniqueModelId + namespace normalization', () => {
     ).toEqual(expect.objectContaining({ kind: 'model', key: 'gemini' }))
   })
 
+  it('routes a TokenHub hy-* composite id to the Hunyuan icon', () => {
+    expect(getModelLogoRef({ id: 'tokenhub::hy-role', name: 'Hunyuan Role', providerId: 'tokenhub' })).toEqual(
+      expect.objectContaining({ kind: 'model', key: 'hunyuan' })
+    )
+  })
+
   it('base name wins over a misleading namespace token (gemini-router/kimi-k2 → Kimi)', () => {
     expect(getModelLogoRef({ id: 'aihub::gemini-router/kimi-k2', name: 'Kimi K2' })?.key).toBe('kimi')
   })

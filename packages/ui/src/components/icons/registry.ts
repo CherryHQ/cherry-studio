@@ -48,7 +48,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // `seed` delimiter-bounded (mirrors VENDOR_PATTERNS.doubao) so `bytedance-seed`'s bare
   // `seed-2.0-lite`/`seed-1.6` match, while `seedream`/`seedance` keep their explicit alts
   [/doubao|seedream|seedance|ep-202|(?:^|[-_/])seed(?:[-_\d]|$)/i, 'doubao'],
-  [/hunyuan|hy3/i, 'hunyuan'],
+  [/^(?:hunyuan|hy-|hy\d)/i, 'hunyuan'],
   [/kimi|moonshot/i, 'kimi'],
   // Other model-specific icons
   [/grok/i, 'grok'],

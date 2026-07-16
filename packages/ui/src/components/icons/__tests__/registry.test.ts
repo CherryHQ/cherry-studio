@@ -101,6 +101,15 @@ describe('vendor-pattern parity with VENDOR_PATTERNS (icon routing drift)', () =
     expect(resolveModelIconRef('linseed-embedding')?.key).not.toBe('doubao')
   })
 
+  it('Hunyuan hy-* and hyN ids route to the Hunyuan icon without matching embedded fragments', () => {
+    expect(resolveModelIconRef('hy-role')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('hy-mt2-pro')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('hy-image-v3-0')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('hy3-preview')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('myhy3-model')?.key).not.toBe('hunyuan')
+    expect(resolveModelIconRef('hybrid-model')?.key).not.toBe('hunyuan')
+  })
+
   it('novel gpt-* families route to the OpenAI provider icon', () => {
     expect(resolveIconRef('gpt-audio', 'openrouter')).toEqual(
       expect.objectContaining({ kind: 'provider', key: 'openai' })
