@@ -1,7 +1,6 @@
 /**
  * Shape the AI SDK execution's `UIMessageChunk` stream for the agent-session
- * host (plan D8, single-segment part; approval segments arrive in a later
- * phase).
+ * host (plan D8).
  *
  * Unlike the claude/pi adapters this is not an event translation — the inner
  * `Agent.stream` already speaks UIMessageChunk. It only enforces the host's
@@ -11,6 +10,10 @@
  *   `start` carrying a random `messageId` would clobber it;
  * - tool chunks are stamped with the runtime transport tag so the renderer
  *   routes them to the generic AI SDK agent tool card.
+ *
+ * Multi-segment framing (non-final `finish` suppression, approval-request
+ * interception) is per-segment state and lives in the connection's turn
+ * loop; the adapter stays a pure per-chunk map.
  */
 
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -36,6 +39,24 @@ export function adaptAgentChunk(chunk: UIMessageChunk): UIMessageChunk | null {
   if (chunk.type === 'start') return null
   if (STAMPABLE_CHUNK_TYPES.has(chunk.type)) return stampTransport(chunk as TransportStampableChunk)
   return chunk
+}
+
+/**
+ * Stamp an intercepted `tool-approval-request` for the renderer's approval
+ * card. The SDK chunk carries only ids; `toolName` (tracked from the
+ * segment's `tool-input-start`) rides in the cherry metadata like pi/claude.
+ */
+export function stampApprovalRequestChunk(
+  chunk: Extract<UIMessageChunk, { type: 'tool-approval-request' }>,
+  toolName: string
+): UIMessageChunk {
+  return {
+    ...chunk,
+    providerMetadata: {
+      ...(chunk as { providerMetadata?: Record<string, unknown> }).providerMetadata,
+      cherry: { transport: AI_SDK_AGENT_TRANSPORT, toolName }
+    }
+  } as UIMessageChunk
 }
 
 function stampTransport(chunk: TransportStampableChunk): UIMessageChunk {

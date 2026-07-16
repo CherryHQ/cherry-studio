@@ -13,6 +13,7 @@
  * `systemReminder` semantics (plan D11).
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -20,10 +21,11 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { findTokenLimit } from '@shared/utils/model'
-import type { LanguageModelUsage } from 'ai'
+import type { LanguageModelUsage, UIMessage, UIMessageChunk } from 'ai'
 
 import { Agent } from '../aiSdk'
 import { AsyncEventQueue } from '../asyncEventQueue'
+import type { DispatchDecision } from '../toolApproval/ToolApprovalRegistry'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
@@ -32,9 +34,11 @@ import type {
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput
 } from '../types'
+import type { PendingApprovalRequest, SegmentStats, SettledApproval } from './approvalContinuation'
+import { accumulateAssistantMessage, addSegmentStats, applyApprovalDecisions } from './approvalContinuation'
 import { buildAiSdkAgentParams } from './buildAiSdkAgentParams'
 import { buildTurnMessages } from './sessionHistory'
-import { adaptAgentChunk } from './streamAdapter'
+import { adaptAgentChunk, stampApprovalRequestChunk } from './streamAdapter'
 import { resolveAiSdkAgentModel, resolveAndAssertAiSdkAgentModel } from './validateModel'
 
 const logger = loggerService.withContext('AiSdkRuntimeConnection')
@@ -87,9 +91,14 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /**
-   * One host turn = one AI SDK execution. Terminal behavior is exactly-once by
-   * construction: `turn-complete` is pushed only after a clean stream drain, and
-   * every throw before that point routes through `send`'s single error push.
+   * One host turn = one or more AI SDK execution segments (plan D8). The SDK's
+   * approval protocol is request → terminate → restart: a segment that ends
+   * with pending approval requests is followed — inside this same turn — by a
+   * continuation segment whose history carries the decisions, so approved
+   * tools execute at its top. Terminal behavior is exactly-once by
+   * construction: `turn-complete` is pushed only after the final segment
+   * drains cleanly, and every throw before that point routes through `send`'s
+   * single error push.
    */
   private async runTurn(input: AgentRuntimeUserInput): Promise<void> {
     const session = agentSessionService.getById(this.input.sessionId)
@@ -105,7 +114,8 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
 
     // Replay boundary requires the incoming user row to be durable (plan D4) —
     // this throws when it is not, failing the turn instead of double-sending.
-    const messages = buildTurnMessages(this.input.sessionId, input)
+    const turnMessages: UIMessage[] = buildTurnMessages(this.input.sessionId, input) as unknown as UIMessage[]
+    let messages: UIMessage[] = turnMessages
 
     const built = await buildAiSdkAgentParams({
       agent,
@@ -116,32 +126,35 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
       requestId: this.input.trace?.turnId || undefined
     })
 
-    const executor = new Agent({
-      providerId: built.sdkConfig.providerId,
-      providerSettings: built.sdkConfig.providerSettings,
-      modelId: built.sdkConfig.modelId,
-      // Workspace/MCP/skill tools land in the runtime's tool phase; the loop
-      // core, replay, and terminal behavior are tool-set independent.
-      tools: {},
-      system: built.system,
-      options: built.options
-    })
-    executor.on('onStepFinish', (step) => {
-      if (step.usage) this.captureContextUsage(step.usage, model, built.sdkConfig.modelId)
-    })
-
     const abort = new AbortController()
     this.activeTurnAbort = abort
-    const reader = executor.stream(messages, abort.signal).getReader()
+    let statsBaseline: SegmentStats | null = null
+    // The whole turn stays ONE assistant message: each continuation reduces
+    // its chunks onto the previous segments' snapshot and REPLACES the
+    // trailing assistant message instead of appending a second one.
+    let assistantSnapshot: UIMessage | undefined
     try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const adapted = adaptAgentChunk(value)
-        if (adapted) this.eventQueue.push({ type: 'chunk', chunk: adapted })
+      for (;;) {
+        const segment = await this.runSegment({ built, model, messages, signal: abort.signal, statsBaseline })
+        if (this.closed || abort.signal.aborted) return
+        if (segment.approvals.length === 0) break
+
+        // A step's requests settle as a group before any continuation.
+        const decisions = await Promise.all(segment.approvals.map((request) => request.decision))
+        if (this.closed || abort.signal.aborted) return
+
+        const settled: SettledApproval[] = segment.approvals.map((request, index) => ({
+          request,
+          decision: decisions[index]
+        }))
+        assistantSnapshot = applyApprovalDecisions(
+          await accumulateAssistantMessage(segment.rawChunks, assistantSnapshot),
+          settled
+        )
+        messages = [...turnMessages, assistantSnapshot]
+        statsBaseline = segment.lastStats
       }
     } finally {
-      reader.releaseLock()
       if (this.activeTurnAbort === abort) this.activeTurnAbort = undefined
     }
 
@@ -149,6 +162,116 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'context-usage', usage: this.latestContextUsage })
     }
     this.eventQueue.push({ type: 'turn-complete' })
+  }
+
+  /**
+   * Run one AI SDK execution and forward its adapted chunks. Approval
+   * requests are intercepted rather than blind-forwarded (registry first,
+   * card only when actually pending); a segment that gathered requests has
+   * its `finish` suppressed so the host turn keeps one outer frame — only
+   * the final segment's `finish` reaches the renderer.
+   */
+  private async runSegment(ctx: {
+    built: Awaited<ReturnType<typeof buildAiSdkAgentParams>>
+    model: Model
+    messages: UIMessage[]
+    signal: AbortSignal
+    statsBaseline: SegmentStats | null
+  }): Promise<{ approvals: PendingApprovalRequest[]; rawChunks: UIMessageChunk[]; lastStats: SegmentStats | null }> {
+    const executor = new Agent({
+      providerId: ctx.built.sdkConfig.providerId,
+      providerSettings: ctx.built.sdkConfig.providerSettings,
+      modelId: ctx.built.sdkConfig.modelId,
+      // Workspace/MCP/skill tools land in the runtime's tool phase; the loop
+      // core, replay, approval framing, and terminal behavior are tool-set
+      // independent.
+      tools: {},
+      system: ctx.built.system,
+      options: ctx.built.options
+    })
+    executor.on('onStepFinish', (step) => {
+      if (step.usage) this.captureContextUsage(step.usage, ctx.model, ctx.built.sdkConfig.modelId)
+    })
+
+    const approvals: PendingApprovalRequest[] = []
+    const rawChunks: UIMessageChunk[] = []
+    const toolNames = new Map<string, string>()
+    const toolInputs = new Map<string, unknown>()
+    let lastStats = ctx.statsBaseline
+
+    const reader = executor.stream(ctx.messages, ctx.signal).getReader()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        rawChunks.push(value)
+
+        if (value.type === 'tool-input-start') toolNames.set(value.toolCallId, value.toolName)
+        if (value.type === 'tool-input-available') toolInputs.set(value.toolCallId, value.input)
+
+        if (value.type === 'tool-approval-request') {
+          approvals.push(this.interceptApprovalRequest(value, toolNames, toolInputs, ctx.signal))
+          continue
+        }
+        // Non-final `finish`: the SDK closes every segment with its own
+        // finish, but pending approvals mean this turn continues.
+        if (value.type === 'finish' && approvals.length > 0) continue
+
+        let chunk: UIMessageChunk = value
+        if (value.type === 'message-metadata') {
+          const metadata = ctx.statsBaseline
+            ? addSegmentStats(ctx.statsBaseline, value.messageMetadata as SegmentStats)
+            : (value.messageMetadata as SegmentStats)
+          chunk = { ...value, messageMetadata: metadata } as UIMessageChunk
+          lastStats = metadata
+        }
+        const adapted = adaptAgentChunk(chunk)
+        if (adapted) this.eventQueue.push({ type: 'chunk', chunk: adapted })
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    return { approvals, rawChunks, lastStats }
+  }
+
+  /**
+   * Bridge one SDK approval request to the driver-neutral registry. Headless
+   * turns (scheduled/channel runs) have no responder: deny synchronously,
+   * emit no card, register nothing (plan D7). Interactive turns register
+   * first and emit the stamped card only when actually pending — a duplicate
+   * or already-aborted registration resolves itself.
+   */
+  private interceptApprovalRequest(
+    request: Extract<UIMessageChunk, { type: 'tool-approval-request' }>,
+    toolNames: ReadonlyMap<string, string>,
+    toolInputs: ReadonlyMap<string, unknown>,
+    signal: AbortSignal
+  ): PendingApprovalRequest {
+    const toolName = toolNames.get(request.toolCallId) ?? 'unknown'
+    const base = { approvalId: request.approvalId, toolCallId: request.toolCallId, toolName }
+
+    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(this.input.sessionId)) {
+      return {
+        ...base,
+        decision: Promise.resolve({ approved: false, reason: 'Headless turn cannot answer approval prompts.' })
+      }
+    }
+
+    const decision = new Promise<DispatchDecision>((resolve) => {
+      const pending = toolApprovalRegistry.register({
+        approvalId: request.approvalId,
+        sessionId: this.input.sessionId,
+        toolCallId: request.toolCallId,
+        toolName,
+        originalInput: (toolInputs.get(request.toolCallId) ?? {}) as Record<string, unknown>,
+        signal,
+        resolve
+      })
+      if (!pending) return
+      this.eventQueue.push({ type: 'chunk', chunk: stampApprovalRequestChunk(request, toolName) })
+    })
+    return { ...base, decision }
   }
 
   /**

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   resolveAndAssert: vi.fn(),
   resolveOnly: vi.fn(),
   buildParams: vi.fn(),
+  isHeadless: vi.fn(),
   agentParams: [] as unknown[],
   streamCalls: [] as Array<{ messages: UIMessage[]; signal: AbortSignal; agent: FakeAgent }>,
   streamScript: undefined as StreamScript | undefined
@@ -66,9 +67,18 @@ vi.mock('./validateModel', () => ({
 }))
 vi.mock('./buildAiSdkAgentParams', () => ({ buildAiSdkAgentParams: mocks.buildParams }))
 vi.mock('../aiSdk', () => ({ Agent: FakeAgent }))
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless: mocks.isHeadless }
+      throw new Error(`unexpected service ${name}`)
+    }
+  }
+}))
 
 const { AiSdkRuntimeConnection } = await import('./AiSdkRuntimeConnection')
 const { toModelMessages } = await import('@main/ai/messages/messageRules')
+const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
 
 const SESSION_ID = 'sess-1'
 const AGENT_ID = 'agent-1'
@@ -128,9 +138,11 @@ async function collectUntilTerminal(connection: InstanceType<typeof AiSdkRuntime
 
 beforeEach(() => {
   vi.clearAllMocks()
+  toolApprovalRegistry.clear('test-reset')
   mocks.agentParams.length = 0
   mocks.streamCalls.length = 0
   mocks.streamScript = undefined
+  mocks.isHeadless.mockReturnValue(false)
   mocks.getById.mockReturnValue({ id: SESSION_ID, agentId: AGENT_ID, workspace: { path: '/work' } })
   mocks.getAgent.mockReturnValue(makeAgent())
   mocks.listRuntimeHistory.mockReturnValue([])
@@ -418,6 +430,333 @@ describe('AiSdkRuntimeConnection — reconcile', () => {
       makeAgent({ configuration: { permission_mode: 'default' }, disabledTools: ['bash'] })
     )
     expect(await connection.reconcile({ modelId: MODEL_ID })).toBe('current')
+    await connection.close()
+  })
+})
+
+/** Segment-1 script: one approval-gated `write` call, then the SDK-terminated frame. */
+function approvalSegmentOne(controller: ReadableStreamDefaultController<UIMessageChunk>) {
+  controller.enqueue({ type: 'start', messageId: 'seg-1' } as UIMessageChunk)
+  controller.enqueue({ type: 'tool-input-start', toolCallId: 'c1', toolName: 'write' } as UIMessageChunk)
+  controller.enqueue({
+    type: 'tool-input-available',
+    toolCallId: 'c1',
+    toolName: 'write',
+    input: { path: 'a.txt' }
+  } as UIMessageChunk)
+  controller.enqueue({ type: 'tool-approval-request', approvalId: 'appr-1', toolCallId: 'c1' } as UIMessageChunk)
+  controller.enqueue({ type: 'finish' } as UIMessageChunk)
+  controller.close()
+}
+
+function findToolPart(message: UIMessage, toolCallId: string) {
+  return message.parts.find((part) => (part as { toolCallId?: string }).toolCallId === toolCallId) as
+    | { state: string; input: unknown; approval?: { id: string; approved: boolean; reason?: string } }
+    | undefined
+}
+
+describe('AiSdkRuntimeConnection — approval continuation', () => {
+  it('approve: continuation restarts in the same turn, one outer frame, stamped card, stable ids', async () => {
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) return approvalSegmentOne(controller)
+      controller.enqueue({ type: 'start', messageId: 'seg-2' } as UIMessageChunk)
+      controller.enqueue({ type: 'tool-output-available', toolCallId: 'c1', output: 'wrote' } as UIMessageChunk)
+      controller.enqueue({ type: 'text-start', id: 't1' })
+      controller.enqueue({ type: 'text-delta', id: 't1', delta: 'done' })
+      controller.enqueue({ type: 'text-end', id: 't1' })
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'write it'))
+    const eventsPromise = collectUntilTerminal(connection)
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    expect(toolApprovalRegistry.dispatch('appr-1', { approved: true })).toBe(true)
+    const events = await eventsPromise
+
+    // One continuation segment, no third execution.
+    expect(mocks.streamCalls).toHaveLength(2)
+
+    // One outer frame: no inner start forwarded, exactly one finish (the final segment's).
+    const chunks = events.filter((e) => e.type === 'chunk').map((e) => (e as { chunk: UIMessageChunk }).chunk)
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'tool-input-start',
+      'tool-input-available',
+      'tool-approval-request',
+      'tool-output-available',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'finish'
+    ])
+
+    // The card chunk is stamped for the renderer's generic approval card.
+    const card = chunks.find((chunk) => chunk.type === 'tool-approval-request') as unknown as {
+      approvalId: string
+      toolCallId: string
+      providerMetadata?: { cherry?: { transport?: string; toolName?: string } }
+    }
+    expect(card.approvalId).toBe('appr-1')
+    expect(card.providerMetadata?.cherry).toEqual({ transport: 'ai-sdk-agent', toolName: 'write' })
+
+    // Continuation history: same tool/approval ids, approval-responded state.
+    const continuation = mocks.streamCalls[1].messages
+    const assistant = continuation.at(-1)!
+    const part = findToolPart(assistant, 'c1')
+    expect(part?.state).toBe('approval-responded')
+    expect(part?.approval).toEqual({ id: 'appr-1', approved: true, reason: undefined })
+
+    // The real model conversion emits the approval response pair the SDK's
+    // collectToolApprovals consumes — approved tools execute exactly once, on
+    // the continuation side, never on ours.
+    const flattened = JSON.stringify(await toModelMessages(continuation))
+    expect(flattened).toContain('tool-approval-request')
+    expect(flattened).toContain('tool-approval-response')
+    expect(flattened).toContain('appr-1')
+
+    expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+    // Stale/duplicate decision: the settled id is gone from the registry.
+    expect(toolApprovalRegistry.dispatch('appr-1', { approved: false })).toBe(false)
+    await connection.close()
+  })
+
+  it('deny: the decision reaches the continuation as approved:false and the tool output is a denial', async () => {
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) return approvalSegmentOne(controller)
+      controller.enqueue({ type: 'start', messageId: 'seg-2' } as UIMessageChunk)
+      controller.enqueue({ type: 'tool-output-denied', toolCallId: 'c1' } as UIMessageChunk)
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'write it'))
+    const eventsPromise = collectUntilTerminal(connection)
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    toolApprovalRegistry.dispatch('appr-1', { approved: false, reason: 'not on my watch' })
+    const events = await eventsPromise
+
+    expect(mocks.streamCalls).toHaveLength(2)
+    const part = findToolPart(mocks.streamCalls[1].messages.at(-1)!, 'c1')
+    expect(part?.approval).toEqual({ id: 'appr-1', approved: false, reason: 'not on my watch' })
+
+    const chunkTypes = events.filter((e) => e.type === 'chunk').map((e) => (e as { chunk: UIMessageChunk }).chunk.type)
+    expect(chunkTypes).toContain('tool-output-denied')
+    expect(chunkTypes.filter((type) => type === 'finish')).toHaveLength(1)
+    expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+    await connection.close()
+  })
+
+  it('updated input becomes the executed input in the continuation history', async () => {
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) return approvalSegmentOne(controller)
+      controller.enqueue({ type: 'tool-output-available', toolCallId: 'c1', output: 'wrote' } as UIMessageChunk)
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'write it'))
+    const eventsPromise = collectUntilTerminal(connection)
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    toolApprovalRegistry.dispatch('appr-1', { approved: true, updatedInput: { path: 'safer.txt' } })
+    await eventsPromise
+
+    const part = findToolPart(mocks.streamCalls[1].messages.at(-1)!, 'c1')
+    expect(part?.input).toEqual({ path: 'safer.txt' })
+    const flattened = JSON.stringify(await toModelMessages(mocks.streamCalls[1].messages))
+    expect(flattened).toContain('safer.txt')
+    expect(flattened).not.toContain('a.txt')
+    await connection.close()
+  })
+
+  it('multiple approvals in one step settle as a group before the continuation starts', async () => {
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) {
+        controller.enqueue({ type: 'start', messageId: 'seg-1' } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-input-start', toolCallId: 'c1', toolName: 'write' } as UIMessageChunk)
+        controller.enqueue({
+          type: 'tool-input-available',
+          toolCallId: 'c1',
+          toolName: 'write',
+          input: { path: 'a' }
+        } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-input-start', toolCallId: 'c2', toolName: 'bash' } as UIMessageChunk)
+        controller.enqueue({
+          type: 'tool-input-available',
+          toolCallId: 'c2',
+          toolName: 'bash',
+          input: { command: 'ls' }
+        } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-approval-request', approvalId: 'appr-1', toolCallId: 'c1' } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-approval-request', approvalId: 'appr-2', toolCallId: 'c2' } as UIMessageChunk)
+        controller.enqueue({ type: 'finish' } as UIMessageChunk)
+        controller.close()
+        return
+      }
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'both'))
+    const eventsPromise = collectUntilTerminal(connection)
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(2))
+    toolApprovalRegistry.dispatch('appr-1', { approved: true })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(mocks.streamCalls).toHaveLength(1) // half-settled group must not continue
+
+    toolApprovalRegistry.dispatch('appr-2', { approved: false, reason: 'no shell' })
+    const events = await eventsPromise
+
+    expect(mocks.streamCalls).toHaveLength(2)
+    const assistant = mocks.streamCalls[1].messages.at(-1)!
+    expect(findToolPart(assistant, 'c1')?.approval?.approved).toBe(true)
+    expect(findToolPart(assistant, 'c2')?.approval?.approved).toBe(false)
+    expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+    await connection.close()
+  })
+
+  it('a second approval round merges onto the same assistant message (three segments, one frame)', async () => {
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) return approvalSegmentOne(controller)
+      if (mocks.streamCalls.length === 2) {
+        // Continuation executes c1, then gates a NEW tool — its input chunks
+        // live in this segment while c1's live in the previous one.
+        controller.enqueue({ type: 'start', messageId: 'seg-2' } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-output-available', toolCallId: 'c1', output: 'wrote' } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-input-start', toolCallId: 'c2', toolName: 'bash' } as UIMessageChunk)
+        controller.enqueue({
+          type: 'tool-input-available',
+          toolCallId: 'c2',
+          toolName: 'bash',
+          input: { command: 'ls' }
+        } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-approval-request', approvalId: 'appr-2', toolCallId: 'c2' } as UIMessageChunk)
+        controller.enqueue({ type: 'finish' } as UIMessageChunk)
+        controller.close()
+        return
+      }
+      controller.enqueue({ type: 'tool-output-available', toolCallId: 'c2', output: 'listed' } as UIMessageChunk)
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'chain'))
+    const eventsPromise = collectUntilTerminal(connection)
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    toolApprovalRegistry.dispatch('appr-1', { approved: true })
+    await vi.waitFor(() => expect(mocks.streamCalls).toHaveLength(2))
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    toolApprovalRegistry.dispatch('appr-2', { approved: true })
+    const events = await eventsPromise
+
+    expect(mocks.streamCalls).toHaveLength(3)
+    // Every continuation carries exactly ONE trailing assistant message that
+    // accumulates all prior segments' parts.
+    const secondHistory = mocks.streamCalls[1].messages
+    const thirdHistory = mocks.streamCalls[2].messages
+    expect(secondHistory.filter((m) => m.role === 'assistant')).toHaveLength(1)
+    expect(thirdHistory.filter((m) => m.role === 'assistant')).toHaveLength(1)
+    expect(thirdHistory).toHaveLength(secondHistory.length)
+    const merged = thirdHistory.at(-1)!
+    expect(findToolPart(merged, 'c1')?.state).toBe('output-available')
+    expect(findToolPart(merged, 'c2')?.state).toBe('approval-responded')
+
+    const chunkTypes = events.filter((e) => e.type === 'chunk').map((e) => (e as { chunk: UIMessageChunk }).chunk.type)
+    expect(chunkTypes.filter((type) => type === 'finish')).toHaveLength(1)
+    expect(chunkTypes.filter((type) => type === 'start')).toHaveLength(0)
+    expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+    await connection.close()
+  })
+
+  it('headless turn: denies synchronously, emits no card, never touches the registry', async () => {
+    mocks.isHeadless.mockReturnValue(true)
+    const register = vi.spyOn(toolApprovalRegistry, 'register')
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) return approvalSegmentOne(controller)
+      controller.enqueue({ type: 'tool-output-denied', toolCallId: 'c1' } as UIMessageChunk)
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'scheduled'))
+    const events = await collectUntilTerminal(connection)
+
+    expect(register).not.toHaveBeenCalled()
+    expect(toolApprovalRegistry.size()).toBe(0)
+    const chunkTypes = events.filter((e) => e.type === 'chunk').map((e) => (e as { chunk: UIMessageChunk }).chunk.type)
+    expect(chunkTypes).not.toContain('tool-approval-request')
+
+    const part = findToolPart(mocks.streamCalls[1].messages.at(-1)!, 'c1')
+    expect(part?.approval?.approved).toBe(false)
+    expect(part?.approval?.reason).toContain('Headless')
+    expect(events.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+    await connection.close()
+    register.mockRestore()
+  })
+
+  it('close() while awaiting a decision resolves the pending approval and ends without a terminal', async () => {
+    mocks.streamScript = (controller) => approvalSegmentOne(controller)
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'write it'))
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    await connection.close()
+
+    expect(toolApprovalRegistry.size()).toBe(0)
+    const events: AgentRuntimeEvent[] = []
+    for await (const event of connection.events) events.push(event)
+    expect(events.filter((e) => e.type === 'turn-complete' || e.type === 'error')).toHaveLength(0)
+    expect(mocks.streamCalls).toHaveLength(1) // no continuation after close
+  })
+
+  it('rewrites continuation message-metadata to stay turn-cumulative', async () => {
+    mocks.streamScript = (controller) => {
+      if (mocks.streamCalls.length === 1) {
+        controller.enqueue({ type: 'start', messageId: 'seg-1' } as UIMessageChunk)
+        controller.enqueue({
+          type: 'message-metadata',
+          messageMetadata: { totalTokens: 100, promptTokens: 80, completionTokens: 20 }
+        } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-input-start', toolCallId: 'c1', toolName: 'write' } as UIMessageChunk)
+        controller.enqueue({
+          type: 'tool-input-available',
+          toolCallId: 'c1',
+          toolName: 'write',
+          input: {}
+        } as UIMessageChunk)
+        controller.enqueue({ type: 'tool-approval-request', approvalId: 'appr-1', toolCallId: 'c1' } as UIMessageChunk)
+        controller.enqueue({ type: 'finish' } as UIMessageChunk)
+        controller.close()
+        return
+      }
+      controller.enqueue({
+        type: 'message-metadata',
+        messageMetadata: { totalTokens: 50, promptTokens: 40, completionTokens: 10 }
+      } as UIMessageChunk)
+      controller.enqueue({ type: 'finish' } as UIMessageChunk)
+      controller.close()
+    }
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'measure'))
+    const eventsPromise = collectUntilTerminal(connection)
+
+    await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
+    toolApprovalRegistry.dispatch('appr-1', { approved: true })
+    const events = await eventsPromise
+
+    const metadata = events
+      .filter((e) => e.type === 'chunk')
+      .map((e) => (e as { chunk: UIMessageChunk }).chunk)
+      .filter((chunk) => chunk.type === 'message-metadata')
+      .map((chunk) => (chunk as { messageMetadata: Record<string, number> }).messageMetadata)
+    expect(metadata).toEqual([
+      { totalTokens: 100, promptTokens: 80, completionTokens: 20 },
+      { totalTokens: 150, promptTokens: 120, completionTokens: 30 }
+    ])
     await connection.close()
   })
 })

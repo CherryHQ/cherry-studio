@@ -36,7 +36,8 @@ export function buildTurnMessages(sessionId: string, input: AgentRuntimeUserInpu
  * (absolute file paths appended as text — filesystem agents read attachments
  * with their own tools); assistant rows keep their persisted parts verbatim
  * so completed tool calls/results replay and `toModelMessages` strips the
- * rest (data-* UI parts, dangling calls of failed turns).
+ * rest (data-* UI parts, dangling calls of failed turns) — except unresolved
+ * approval states, which are sanitized below.
  */
 function toReplayUiMessage(row: AgentSessionMessageEntity): CherryUIMessage {
   if (row.role === 'user') {
@@ -49,8 +50,39 @@ function toReplayUiMessage(row: AgentSessionMessageEntity): CherryUIMessage {
   return {
     id: row.id,
     role: row.role,
-    parts: row.data?.parts ?? []
+    parts: (row.data?.parts ?? []).map(sanitizeReplayedPart)
   } as CherryUIMessage
+}
+
+type ReplayedPart = NonNullable<NonNullable<AgentSessionMessageEntity['data']>['parts']>[number]
+
+/**
+ * A turn that died mid-approval persists tool parts in `approval-requested`
+ * or `approval-responded` state with no output. Replaying those verbatim is
+ * unsafe: an unanswered/denied request converts to a dangling `tool_use`
+ * (provider error), and an approved-but-unexecuted part would re-execute a
+ * stale tool via `collectToolApprovals` on an unrelated later turn. Both flip
+ * to `output-denied`, which converts to a plain error tool-result.
+ * (`ignoreIncompleteToolCalls` does not strip approval states — verified
+ * against ai@6.0.143.)
+ */
+function sanitizeReplayedPart(part: ReplayedPart): ReplayedPart {
+  const candidate = part as { type?: string; state?: string; approval?: { id: string; reason?: string } }
+  const isToolPart =
+    typeof candidate.type === 'string' && (candidate.type.startsWith('tool-') || candidate.type === 'dynamic-tool')
+  if (!isToolPart || !candidate.approval) return part
+  if (candidate.state !== 'approval-requested' && candidate.state !== 'approval-responded') return part
+  return {
+    ...(part as object),
+    state: 'output-denied',
+    output: undefined,
+    errorText: undefined,
+    approval: {
+      id: candidate.approval.id,
+      approved: false,
+      reason: candidate.approval.reason ?? 'Approval was not resolved before the turn ended.'
+    }
+  } as ReplayedPart
 }
 
 /** The current prompt. A `systemReminder` input is a re-queued steer (invariant 7): it reaches

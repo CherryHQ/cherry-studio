@@ -108,6 +108,61 @@ describe('buildTurnMessages', () => {
     expect(prompt.parts[0].text).toContain('change course')
   })
 
+  it('sanitizes unresolved approval states to output-denied on replay', () => {
+    mocks.listRuntimeHistory.mockReturnValue([
+      makeRow({
+        id: 'a1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-write',
+              toolCallId: 'call-1',
+              state: 'approval-requested',
+              input: { path: 'a.txt' },
+              approval: { id: 'appr-1' }
+            },
+            {
+              type: 'dynamic-tool',
+              toolName: 'mcp_thing',
+              toolCallId: 'call-2',
+              state: 'approval-responded',
+              input: {},
+              approval: { id: 'appr-2', approved: true }
+            }
+          ]
+        } as AgentSessionMessageEntity['data']
+      })
+    ])
+
+    const [assistant] = buildTurnMessages('sess-1', userInput({ id: 'u2' }))
+    const parts = assistant.parts as Array<{ state: string; approval: { approved: boolean; reason?: string } }>
+
+    for (const part of parts) {
+      expect(part.state).toBe('output-denied')
+      expect(part.approval.approved).toBe(false)
+      expect(part.approval.reason).toContain('not resolved')
+    }
+  })
+
+  it('keeps terminal approval states verbatim', () => {
+    const executed = {
+      type: 'tool-write',
+      toolCallId: 'call-1',
+      state: 'output-available',
+      input: { path: 'a.txt' },
+      output: 'ok',
+      approval: { id: 'appr-1', approved: true }
+    }
+    mocks.listRuntimeHistory.mockReturnValue([
+      makeRow({ id: 'a1', role: 'assistant', data: { parts: [executed] } as AgentSessionMessageEntity['data'] })
+    ])
+
+    const [assistant] = buildTurnMessages('sess-1', userInput({ id: 'u2' }))
+
+    expect(assistant.parts).toEqual([executed])
+  })
+
   it('propagates the missing-boundary error: no synthetic-turn fallback', () => {
     mocks.listRuntimeHistory.mockImplementation(() => {
       throw new Error('Message not found')
