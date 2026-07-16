@@ -46,6 +46,7 @@ const ASSISTANT_SETTINGS = {
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
+  enableGenerateImage: false,
   customParameters: []
 }
 

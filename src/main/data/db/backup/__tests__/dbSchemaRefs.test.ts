@@ -204,7 +204,7 @@ describe('DB_JSON_COLUMNS', () => {
   // 'json' (getSQLType() still returns 'text'). This pins the codegen detection so
   // a regression in the hidden-prop cast surfaces immediately.
   it('detects every text({ mode: "json" }) column across all tables', () => {
-    expect(DB_JSON_COLUMNS.message).toEqual(['data', 'modelSnapshot', 'stats'])
+    expect(DB_JSON_COLUMNS.message).toEqual(['data', 'messageSnapshot', 'stats'])
     expect(DB_JSON_COLUMNS.agent).toEqual(['disabledTools', 'configuration'])
     expect(DB_JSON_COLUMNS.user_model).toEqual([
       'capabilities',

@@ -454,6 +454,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         maxToolCalls: 20,
         enableMaxToolCalls: true,
         enableWebSearch: false,
+        enableGenerateImage: false,
         customParameters: []
       }
       await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
