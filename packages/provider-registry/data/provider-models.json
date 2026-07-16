@@ -12876,6 +12876,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 8,
             "supports": {
               "numImages": {
                 "max": 1,
@@ -12925,6 +12926,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 4,
             "supports": {
               "numImages": {
                 "max": 1,
@@ -12974,6 +12976,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 8,
             "supports": {
               "numImages": {
                 "max": 1,
@@ -13023,6 +13026,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 8,
             "supports": {
               "numImages": {
                 "max": 1,
@@ -13130,6 +13134,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "aspectRatio": {
                 "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
@@ -13301,6 +13306,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 14,
             "supports": {
               "aspectRatio": {
                 "options": [
@@ -13392,6 +13398,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 14,
             "supports": {
               "aspectRatio": {
                 "options": [
@@ -13506,6 +13513,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 14,
             "supports": {
               "aspectRatio": {
                 "options": [
@@ -13712,6 +13720,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 14,
             "supports": {
               "aspectRatio": {
                 "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
@@ -13781,6 +13790,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 14,
             "supports": {
               "aspectRatio": {
                 "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
@@ -14683,6 +14693,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 16,
             "supports": {
               "background": {
                 "options": ["auto", "opaque"],
@@ -15011,6 +15022,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 16,
             "supports": {
               "background": {
                 "options": ["auto", "transparent", "opaque"],
@@ -15076,6 +15088,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 16,
             "supports": {
               "background": {
                 "options": ["auto", "transparent", "opaque"],
@@ -15243,6 +15256,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 16,
             "supports": {
               "background": {
                 "options": ["auto", "transparent", "opaque"],
@@ -15294,6 +15308,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 16,
             "supports": {
               "background": {
                 "options": ["auto", "transparent", "opaque"],
@@ -15345,6 +15360,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 16,
             "supports": {
               "background": {
                 "options": ["auto", "opaque"],
@@ -15618,6 +15634,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "aspectRatio": {
                 "options": [
@@ -16351,6 +16368,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "aspectRatio": {
                 "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
@@ -18014,6 +18032,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18049,6 +18068,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18084,6 +18104,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18119,6 +18140,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18154,6 +18176,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18189,6 +18212,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18224,6 +18248,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18259,6 +18284,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18294,6 +18320,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18329,6 +18356,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18364,6 +18392,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 1,
             "supports": {
               "numImages": {
                 "max": 6,
@@ -18496,6 +18525,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 4,
             "supports": {
               "background": {
                 "options": ["auto", "transparent", "opaque"],
@@ -18555,6 +18585,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 10,
             "supports": {
               "background": {
                 "options": ["auto", "transparent", "opaque"],
@@ -18614,6 +18645,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 4,
             "supports": {
               "numImages": {
                 "max": 1,
@@ -18693,6 +18725,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 10,
             "supports": {
               "numImages": {
                 "max": 1,
@@ -18833,6 +18866,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 14,
             "supports": {
               "aspectRatio": {
                 "options": [
@@ -22249,5 +22283,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "aa60cb7a244cab31"
+  "version": "88d0dea367be4b34"
 }

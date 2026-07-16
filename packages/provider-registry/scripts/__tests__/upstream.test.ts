@@ -50,6 +50,7 @@ describe('parseOrImageGeneration', () => {
           }
         },
         edit: {
+          maxInputImages: 16,
           supports: {
             aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
             numImages: { type: 'range', min: 1, max: 10, step: 1 },
@@ -59,6 +60,21 @@ describe('parseOrImageGeneration', () => {
             seed: { type: 'text' }
           }
         }
+      }
+    })
+  })
+
+  it('preserves each model input-reference maximum', () => {
+    expect(
+      parseOrImageGeneration({
+        supported_parameters: {
+          input_references: { type: 'range', min: 0, max: 1 }
+        }
+      })
+    ).toEqual({
+      modes: {
+        generate: { supports: {} },
+        edit: { supports: {}, maxInputImages: 1 }
       }
     })
   })

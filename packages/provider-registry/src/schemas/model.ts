@@ -148,6 +148,7 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
  */
 const ImageModeDefSchema = z.object({
   supports: z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema),
+  maxInputImages: z.number().int().positive().optional(),
   vendorTransport: z
     .object({
       endpoint: z.string(),

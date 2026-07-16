@@ -234,12 +234,18 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
   }
 
   const inputReferences = OrParamDescriptor.safeParse(p.data.supported_parameters.input_references)
-  const supportsEdit = inputReferences.success && inputReferences.data.type === 'range' && inputReferences.data.max > 0
+  const maxInputImages =
+    inputReferences.success &&
+    inputReferences.data.type === 'range' &&
+    typeof inputReferences.data.max === 'number' &&
+    inputReferences.data.max > 0
+      ? inputReferences.data.max
+      : undefined
 
   return {
     modes: {
       generate: { supports },
-      ...(supportsEdit ? { edit: { supports } } : {})
+      ...(maxInputImages !== undefined ? { edit: { supports, maxInputImages } } : {})
     }
   }
 }

@@ -4611,6 +4611,7 @@
     "inference_steps": "推理步数",
     "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
+    "input_image_limit_exceeded": "参考图片数量超过所选模型限制，请删除部分图片后重试",
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",

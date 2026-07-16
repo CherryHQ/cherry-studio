@@ -4611,6 +4611,7 @@
     "inference_steps": "Inference Steps",
     "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
+    "input_image_limit_exceeded": "Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
