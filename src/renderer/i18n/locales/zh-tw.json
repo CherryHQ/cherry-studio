@@ -2854,8 +2854,6 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暫無知識庫",
-    "empty_action": "建立知識庫",
-    "empty_description": "與 AI 一起累積知識",
     "error": {
       "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
       "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",

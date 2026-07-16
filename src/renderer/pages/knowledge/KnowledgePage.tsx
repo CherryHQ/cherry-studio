@@ -11,18 +11,16 @@ const KnowledgePageContent = () => {
   const { t } = useTranslation()
   const { bases, isLoading, selectedBase } = useKnowledgePage()
 
-  // No knowledge bases yet → a dedicated full-screen empty page (no navigator) that
-  // guides the user to create their first base. The create dialog still mounts via
-  // KnowledgePageDialogSection below.
-  if (!isLoading && bases.length === 0) {
-    return <KnowledgePageEmptyStateSection />
-  }
-
+  // The two-pane shell stays mounted even with zero bases — the navigator keeps
+  // the permanent "+" create entry, and the right pane shows the empty state,
+  // matching the Files/Notes layout.
   return (
     <KnowledgePageShell>
       <KnowledgePageNavigatorSection />
       {selectedBase ? (
         <KnowledgePageDetailSection />
+      ) : !isLoading && bases.length === 0 ? (
+        <KnowledgePageEmptyStateSection />
       ) : (
         <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-background px-6 text-muted-foreground text-sm">
           {t('common.loading')}
