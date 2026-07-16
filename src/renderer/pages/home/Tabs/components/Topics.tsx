@@ -79,7 +79,7 @@ import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -402,6 +402,7 @@ export function Topics({
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
+  const activeTopicRef = useRef(activeTopic)
   const activeTopicIdRef = useRef(activeTopic?.id ?? '')
 
   useEffect(() => {
@@ -411,6 +412,10 @@ export function Topics({
   useEffect(() => {
     activeTopicIdRef.current = activeTopic?.id ?? ''
   }, [activeTopic?.id])
+
+  useEffect(() => {
+    activeTopicRef.current = activeTopic
+  }, [activeTopic])
 
   useEffect(() => {
     setOptimisticMove(null)
@@ -538,8 +543,9 @@ export function Topics({
 
       try {
         await patchTopic(topic.id, { assistantId })
-        if (activeTopic?.id === topic.id) {
-          setActiveTopic({ ...activeTopic, assistantId })
+        const currentActiveTopic = activeTopicRef.current
+        if (currentActiveTopic?.id === topic.id) {
+          setActiveTopic({ ...currentActiveTopic, assistantId })
         }
         toast.success(t('chat.topics.manage.move.success', { count: 1 }))
       } catch (err) {
@@ -547,7 +553,7 @@ export function Topics({
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [activeTopic, patchTopic, setActiveTopic, t]
+    [patchTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
@@ -561,12 +567,12 @@ export function Topics({
         return
       }
 
-      if (topic.id !== activeTopic?.id) return
+      if (topic.id !== activeTopicIdRef.current) return
 
       // Deleting the active topic selects a neighbour within the *same assistant* (both layouts), so
       // we never jump to an unrelated conversation. When that assistant has no other topic left, open
       // a fresh empty one for it instead of leaving the view stranded.
-      const assistantTopics = topics.filter((candidate) => candidate.assistantId === topic.assistantId)
+      const assistantTopics = topicsRef.current.filter((candidate) => candidate.assistantId === topic.assistantId)
       const next = pickNeighbourAfterRemoval(assistantTopics, topic.id)
       if (next) {
         setActiveTopic(next)
@@ -576,7 +582,7 @@ export function Topics({
       // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
       await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
     },
-    [activeTopic?.id, onNewTopic, removeTopic, setActiveTopic, t, topics]
+    [onNewTopic, removeTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -735,11 +741,11 @@ export function Topics({
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
-      if (topic && (historyRecordsActive || topic.id !== activeTopic?.id)) {
+      if (topic && (historyRecordsActive || topic.id !== activeTopicIdRef.current)) {
         setActiveTopic(topic)
       }
     },
-    [activeTopic?.id, filteredTopics, historyRecordsActive, setActiveTopic]
+    [filteredTopics, historyRecordsActive, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) => {
@@ -1448,7 +1454,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1482,7 +1488,6 @@ function TopicListBody(props: TopicListBodyProps) {
 
   const rowProps = useMemo<TopicRowSharedProps>(
     () => ({
-      activeTopic,
       assistantMoveTargets,
       deletingTopicId,
       displayMode,
@@ -1507,7 +1512,6 @@ function TopicListBody(props: TopicListBodyProps) {
       topicsLength
     }),
     [
-      activeTopic,
       assistantMoveTargets,
       deletingTopicId,
       displayMode,
@@ -1533,7 +1537,11 @@ function TopicListBody(props: TopicListBodyProps) {
     ]
   )
 
-  const renderItem = useCallback((topic: Topic) => <TopicRow key={topic.id} topic={topic} {...rowProps} />, [rowProps])
+  const activeTopicId = activeTopic?.id
+  const renderItem = useCallback(
+    (topic: Topic) => <TopicRow key={topic.id} topic={topic} isActive={topic.id === activeTopicId} {...rowProps} />,
+    [activeTopicId, rowProps]
+  )
 
   return (
     <ResourceList.Body<Topic>
@@ -1552,17 +1560,18 @@ function TopicListBody(props: TopicListBodyProps) {
 }
 
 interface TopicRowWithStatusProps extends TopicRowSharedProps {
+  isActive: boolean
   topic: Topic
 }
 
 type TopicRowProps = TopicRowWithStatusProps
 
-function TopicRow({
-  activeTopic,
+const TopicRow = memo(function TopicRow({
   assistantMoveTargets,
   deletingTopicId,
   displayMode,
   exportMenuOptions,
+  isActive,
   isNewlyRenamed,
   isRenaming,
   isRightPanel,
@@ -1589,7 +1598,6 @@ function TopicRow({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(topic.id)
   const streamStatus = useTopicListStreamStatus(topic.id)
-  const isActive = topic.id === activeTopic?.id
   const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
   const topicName = topicDisplayName.replace('`', '')
   const nameAnimationClassName = isRenaming(topic.id)
@@ -1731,7 +1739,7 @@ function TopicRow({
       />
     </>
   )
-}
+})
 
 const TopicStreamIndicator = ({
   detached = false,
