@@ -10,11 +10,7 @@ import { isDev } from '@main/core/platform'
 import { net } from 'electron'
 import WebSocket, { WebSocketServer } from 'ws'
 
-import {
-  getMainNetworkDevtoolsPort,
-  isMainNetworkDevtoolsOriginAllowed,
-  registerMainNetworkDevtoolsOrigin
-} from './mainNetworkDevtoolsAccess'
+import { getMainNetworkDevtoolsPort } from './mainNetworkDevtoolsAccess'
 
 export { getMainNetworkDevtoolsPort } from './mainNetworkDevtoolsAccess'
 
@@ -184,6 +180,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 export class MainNetworkDevtoolsService extends BaseService {
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
+  private readonly allowedOrigins = new Set<string>()
   private originalFetch: typeof globalThis.fetch | undefined
   private originalNetFetch: typeof net.fetch | undefined
   private originalHttpGet: typeof http.get | null = null
@@ -228,8 +225,17 @@ export class MainNetworkDevtoolsService extends BaseService {
    */
   private async installPanel(): Promise<void> {
     await installBundledDevtools('main-network', 'Main Network', (extension) => {
-      registerMainNetworkDevtoolsOrigin(`chrome-extension://${extension.id}`)
+      this.registerOrigin(`chrome-extension://${extension.id}`)
     })
+  }
+
+  private registerOrigin(origin: string): void {
+    this.allowedOrigins.add(normalizeOrigin(origin))
+  }
+
+  private isOriginAllowed(origin: string | undefined): boolean {
+    if (!origin) return false
+    return this.allowedOrigins.has(normalizeOrigin(origin))
   }
 
   private patchFetch(): void {
@@ -428,31 +434,36 @@ export class MainNetworkDevtoolsService extends BaseService {
   ): void {
     if (description.requestBody || typeof Request === 'undefined' || !(input instanceof Request) || !input.body) return
 
+    const contentType = description.requestContentType
+    // Do not clone non-text bodies: Request.clone() tees the stream, and the unread
+    // clone branch would buffer the whole binary payload without backpressure.
+    if (!isTextLikeContentType(contentType)) {
+      this.updateEvent(id, { requestBody: { contentType, note: 'Binary request body is not captured.' } })
+      return
+    }
+
     let clonedRequest: Request
     try {
       clonedRequest = input.clone()
     } catch (error) {
-      this.updateEvent(id, {
-        requestBody: { contentType: description.requestContentType, note: getErrorMessage(error) }
-      })
+      this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } })
       return
     }
 
-    void readWebBody(
-      clonedRequest.body,
-      description.requestContentType,
-      'No request body.',
-      'Binary request body is not captured.'
-    )
+    void readWebBody(clonedRequest.body, contentType, 'No request body.')
       .then((requestBody) => this.updateEvent(id, { requestBody }))
-      .catch((error) =>
-        this.updateEvent(id, {
-          requestBody: { contentType: description.requestContentType, note: getErrorMessage(error) }
-        })
-      )
+      .catch((error) => this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } }))
   }
 
   private captureFetchResponseBody(id: string, response: Response): void {
+    const contentType = getHeaderValue(redactHeaders(response.headers), 'content-type')
+    // Do not clone non-text bodies: Response.clone() tees the stream, and the unread
+    // clone branch would buffer the whole binary payload without backpressure.
+    if (!isTextLikeContentType(contentType)) {
+      this.updateEvent(id, { responseBody: { contentType, note: 'Binary response body is not captured.' } })
+      return
+    }
+
     let clonedResponse: Response
     try {
       clonedResponse = response.clone()
@@ -461,8 +472,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       return
     }
 
-    const contentType = getHeaderValue(redactHeaders(response.headers), 'content-type')
-    void readWebBody(clonedResponse.body, contentType, 'No response body.', 'Binary response body is not captured.')
+    void readWebBody(clonedResponse.body, contentType, 'No response body.')
       .then((responseBody) => this.updateEvent(id, { responseBody }))
       .catch((error) => this.updateEvent(id, { responseBodyError: getErrorMessage(error) }))
   }
@@ -530,7 +540,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     })
 
     server.on('connection', (socket, request) => {
-      if (!isMainNetworkDevtoolsOriginAllowed(request.headers.origin)) {
+      if (!this.isOriginAllowed(request.headers.origin)) {
         socket.close(1008, 'Unauthorized origin')
         return
       }
@@ -694,11 +704,9 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
 async function readWebBody(
   body: ReadableStream<Uint8Array> | null,
   contentType: string | undefined,
-  emptyNote: string,
-  binaryNote: string
+  emptyNote: string
 ): Promise<MainNetworkDevtoolsBody> {
   if (!body) return { contentType, note: emptyNote }
-  if (!isTextLikeContentType(contentType)) return { contentType, note: binaryNote }
 
   const reader = body.getReader()
   const decoder = new TextDecoder()
@@ -917,6 +925,10 @@ function isSensitiveName(name: string, exactNames: Set<string> | undefined): boo
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function normalizeOrigin(origin: string): string {
+  return origin.replace(/\/$/, '')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

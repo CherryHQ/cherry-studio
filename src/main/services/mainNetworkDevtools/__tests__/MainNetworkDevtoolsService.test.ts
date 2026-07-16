@@ -38,11 +38,6 @@ vi.mock('@main/core/devtools', () => ({
 import { installBundledDevtools } from '@main/core/devtools'
 
 import {
-  clearMainNetworkDevtoolsOrigins,
-  isMainNetworkDevtoolsOriginAllowed,
-  registerMainNetworkDevtoolsOrigin
-} from '../mainNetworkDevtoolsAccess'
-import {
   captureRequestBody,
   describeHttpRequest,
   getMainNetworkDevtoolsPort,
@@ -55,13 +50,11 @@ import {
 describe('MainNetworkDevtoolsService helpers', () => {
   beforeEach(() => {
     BaseService.resetInstances()
-    clearMainNetworkDevtoolsOrigins()
     vi.mocked(net.fetch).mockReset()
   })
 
   afterEach(() => {
     BaseService.resetInstances()
-    clearMainNetworkDevtoolsOrigins()
   })
 
   it('redacts sensitive URL credentials and query params', () => {
@@ -143,6 +136,41 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(net.fetch).toBe(originalNetFetch)
   })
 
+  it('does not clone non-text response bodies so the tee cannot buffer binary payloads', async () => {
+    const originalNetFetch = vi.mocked(net.fetch)
+    const response = new Response(new Uint8Array([1, 2, 3, 4]), {
+      status: 200,
+      headers: { 'content-type': 'application/octet-stream' }
+    })
+    const cloneSpy = vi.spyOn(response, 'clone')
+    originalNetFetch.mockResolvedValue(response)
+
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      patchNetFetch: () => void
+    }
+    serviceState.patchNetFetch()
+
+    try {
+      const result = await net.fetch('https://api.test/download')
+      await waitFor(() => serviceState.events[0]?.responseBody !== undefined)
+
+      // Skipping the clone means the body is never teed, so no unread branch can buffer.
+      expect(cloneSpy).not.toHaveBeenCalled()
+      expect(serviceState.events[0]?.responseBody).toMatchObject({
+        contentType: 'application/octet-stream',
+        note: 'Binary response body is not captured.'
+      })
+      // The original response is untouched and still fully readable by the real caller.
+      await expect(result.arrayBuffer()).resolves.toHaveProperty('byteLength', 4)
+    } finally {
+      await service._doStop()
+    }
+
+    expect(net.fetch).toBe(originalNetFetch)
+  })
+
   it('marks non-2xx Electron net.fetch responses as error', async () => {
     const originalNetFetch = vi.mocked(net.fetch)
     const response = new Response('bad request', {
@@ -184,13 +212,19 @@ describe('MainNetworkDevtoolsService helpers', () => {
   })
 
   it('allows only registered DevTools extension origins', () => {
-    expect(isMainNetworkDevtoolsOriginAllowed(undefined)).toBe(false)
-    expect(isMainNetworkDevtoolsOriginAllowed('http://localhost:3000')).toBe(false)
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as {
+      registerOrigin: (origin: string) => void
+      isOriginAllowed: (origin: string | undefined) => boolean
+    }
 
-    registerMainNetworkDevtoolsOrigin('chrome-extension://main-network-id')
+    expect(serviceState.isOriginAllowed(undefined)).toBe(false)
+    expect(serviceState.isOriginAllowed('http://localhost:3000')).toBe(false)
 
-    expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://main-network-id')).toBe(true)
-    expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://other-id')).toBe(false)
+    serviceState.registerOrigin('chrome-extension://main-network-id')
+
+    expect(serviceState.isOriginAllowed('chrome-extension://main-network-id')).toBe(true)
+    expect(serviceState.isOriginAllowed('chrome-extension://other-id')).toBe(false)
   })
 
   it('installs its own bundled panel once the app is ready and allowlists the resolved extension origin', async () => {
@@ -204,16 +238,17 @@ describe('MainNetworkDevtoolsService helpers', () => {
     await service._doAllReady()
 
     expect(installBundledDevtools).toHaveBeenCalledWith('main-network', 'Main Network', expect.any(Function))
-    expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://main-network-id')).toBe(true)
+    const serviceState = service as unknown as { isOriginAllowed: (origin: string | undefined) => boolean }
+    expect(serviceState.isOriginAllowed('chrome-extension://main-network-id')).toBe(true)
   })
 
   it('enforces the registered DevTools extension origin on live websocket connections', async () => {
-    registerMainNetworkDevtoolsOrigin('chrome-extension://main-network-id')
-
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {
+      registerOrigin: (origin: string) => void
       startWebSocketServer: (port?: number) => Promise<number>
     }
+    serviceState.registerOrigin('chrome-extension://main-network-id')
     const port = await serviceState.startWebSocketServer(0)
 
     try {
