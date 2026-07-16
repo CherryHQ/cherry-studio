@@ -5,6 +5,7 @@
  * PURE ARTIFACTS — never hand-edit them.
  *
  *   MODELSDEV_CACHE=/tmp/md.json OPENROUTER_CACHE=/tmp/or.json \
+ *     OPENROUTER_IMAGE_CACHE=/tmp/or-images.json \
  *     tsx scripts/generate-catalog.ts            # dry run (prints summary)
  *     tsx scripts/generate-catalog.ts --write    # write both JSON files
  *     tsx scripts/generate-catalog.ts --report   # also dump /tmp/gen-*.txt review files
@@ -43,7 +44,8 @@ const REPORT = process.argv.includes('--report')
 // equal version, ANY content change ⇒ new version. Seeders (`PresetProviderSeeder` via `SeedRunner`)
 // skip when the journal version matches, so a date stamp would let a same-day regeneration change
 // content without changing version — and the seed would silently never run. Upstream (models.dev/
-// OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to cache it during dev.
+// OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE /
+// OPENROUTER_IMAGE_CACHE to cache it during dev.
 const contentVersion = (body: unknown): string =>
   createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
 
@@ -302,7 +304,11 @@ function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { override
 
 void (async () => {
   const md = await load('MODELSDEV_CACHE', 'https://models.dev/api.json', ModelsDevApiSchema)
-  const or = await load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema)
+  const [orModels, orImageModels] = await Promise.all([
+    load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema),
+    load('OPENROUTER_IMAGE_CACHE', 'https://openrouter.ai/api/v1/images/models', OpenRouterApiSchema)
+  ])
+  const or: OpenRouterApi = { data: [...(orModels.data ?? []), ...(orImageModels.data ?? [])] }
 
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
@@ -334,10 +340,16 @@ void (async () => {
     return
   }
 
-  const list = [...models.values()].map((m) => {
-    const { metadata, ...rest } = m
-    return { ...rest, ...(metadata ? { metadata } : {}) }
-  })
+  const list = [...models.values()]
+    .sort((a, b) => {
+      const aKey = `${a.ownedBy ?? ''}\0${a.id}`
+      const bKey = `${b.ownedBy ?? ''}\0${b.id}`
+      return aKey < bKey ? -1 : aKey > bKey ? 1 : 0
+    })
+    .map((m) => {
+      const { metadata, ...rest } = m
+      return { ...rest, ...(metadata ? { metadata } : {}) }
+    })
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 

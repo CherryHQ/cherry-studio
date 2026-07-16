@@ -150,7 +150,7 @@ const OrEntry = z
     architecture: z
       .object({ input_modalities: z.array(z.string()).optional(), output_modalities: z.array(z.string()).optional() })
       .optional(),
-    supported_parameters: z.array(z.string()).optional(),
+    supported_parameters: z.union([z.array(z.string()), z.record(z.string(), z.unknown())]).optional(),
     pricing: z.object({ prompt: z.string().optional(), completion: z.string().optional() }).optional()
   })
   .loose()
@@ -160,7 +160,7 @@ export function parseOrEntry(raw: unknown): CherryMeta | null {
   if (!p.success) return null
   const m = p.data
   const caps = new Set<Caps>()
-  const sp = m.supported_parameters ?? []
+  const sp = Array.isArray(m.supported_parameters) ? m.supported_parameters : []
   if (sp.includes('tools')) caps.add('function-call')
   if (sp.includes('reasoning')) caps.add('reasoning')
   if (sp.includes('structured_outputs') || sp.includes('response_format')) caps.add('structured-output')

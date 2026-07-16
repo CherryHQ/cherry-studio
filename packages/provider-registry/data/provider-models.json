@@ -10611,21 +10611,6 @@
       "providerId": "modelscope"
     },
     {
-      "apiModelId": "black-forest-labs/flux.1-dev",
-      "modelId": "1-dev",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      },
-      "providerId": "nvidia"
-    },
-    {
       "apiModelId": "nvidia/active-speaker-detection",
       "modelId": "active-speaker-detection",
       "pricing": {
@@ -10787,6 +10772,21 @@
     {
       "apiModelId": "meta/esmfold",
       "modelId": "esmfold",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "nvidia"
+    },
+    {
+      "apiModelId": "black-forest-labs/flux.1-dev",
+      "modelId": "flux-1-dev",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -20504,5 +20504,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "1e735a0f97744566"
+  "version": "50306da195358f8e"
 }

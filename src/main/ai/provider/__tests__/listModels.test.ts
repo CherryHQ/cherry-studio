@@ -360,6 +360,63 @@ describe('listModels — ppioFetcher capability mapping', () => {
   })
 })
 
+describe('listModels — openRouterFetcher image models', () => {
+  it('unions the dedicated image catalog and marks duplicate image models for image routing', async () => {
+    const provider = makeProvider({
+      id: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/',
+          modelsApiUrls: {
+            default: 'https://openrouter.example/models',
+            embedding: 'https://openrouter.example/embeddings/models',
+            image: 'https://openrouter.example/images/models'
+          }
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/'
+        }
+      }
+    })
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      if (url.endsWith('/images/models')) {
+        return Promise.resolve({
+          value: { data: [{ id: 'openai/gpt-image-2' }, { id: 'sourceful/riverflow-v2.5-fast' }] }
+        })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/gpt-image-2' }] } })
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
+      'https://openrouter.example/models',
+      'https://openrouter.example/embeddings/models',
+      'https://openrouter.example/images/models'
+    ])
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'anthropic/claude-sonnet-4',
+      'openai/gpt-image-2',
+      'openai/text-embedding-3-small',
+      'sourceful/riverflow-v2.5-fast'
+    ])
+    expect(models.find((model) => model.apiModelId === 'openai/gpt-image-2')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+    expect(models.find((model) => model.apiModelId === 'sourceful/riverflow-v2.5-fast')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+  })
+})
+
 describe('listModels — copied preset provider routing', () => {
   it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
     const provider = makeProvider({
