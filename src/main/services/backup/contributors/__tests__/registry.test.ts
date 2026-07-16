@@ -38,4 +38,33 @@ describe('CONTRIBUTORS registry — real declarations', () => {
     const registry = contributorManager.getRegistry()
     expect(registry.domains).toHaveLength(BACKUP_DOMAINS.length)
   })
+
+  it('public PK/FK/domain getters return runtime-immutable facts (F6)', () => {
+    // F6: finalize freezes the contributor graph + registry Maps, but the public
+    // getters returning codegen facts directly (getPrimaryKey/getForeignKeys/
+    // domains → DB_PRIMARY_KEYS/DB_FOREIGN_KEYS/BACKUP_DOMAINS) must also hand back
+    // frozen objects — `as const` is compile-time only. A mutation here would
+    // corrupt every later registry consumer.
+    const registry = contributorManager.getRegistry()
+
+    // domains — BACKUP_DOMAINS array is frozen
+    expect(Object.isFrozen(registry.domains)).toBe(true)
+    expect(() => (registry.domains as unknown as unknown[]).push('X')).toThrow(TypeError)
+
+    // getPrimaryKey — a real table's PK fact + its columns are frozen
+    const pk = registry.getPrimaryKey('topic')
+    expect(Object.isFrozen(pk)).toBe(true)
+    expect(Object.isFrozen(pk.columns)).toBe(true)
+    expect(() => (pk.columns as unknown as unknown[]).push('x')).toThrow(TypeError)
+
+    // getForeignKeys — a real table's FK array + nested fact columns are frozen
+    const fks = registry.getForeignKeys('message')
+    expect(Object.isFrozen(fks)).toBe(true)
+    if (fks.length > 0) {
+      const fk = fks[0]
+      expect(Object.isFrozen(fk)).toBe(true)
+      expect(Object.isFrozen(fk.columns)).toBe(true)
+      expect(() => (fk.columns as unknown as unknown[]).push('x')).toThrow(TypeError)
+    }
+  })
 })

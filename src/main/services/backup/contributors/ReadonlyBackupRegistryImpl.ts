@@ -31,7 +31,7 @@ import {
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { INFRASTRUCTURE_TABLES, RUNTIME_EXCLUDED_FILE_REF_SOURCES } from '@main/data/db/backup/exclusions'
-import { frozenMap } from '@main/data/db/backup/freeze'
+import { deepFreeze, frozenMap } from '@main/data/db/backup/freeze'
 import type { FileRefSourceType } from '@shared/data/types/file'
 
 /** Brand marking a genuinely finalized registry instance. */
@@ -95,6 +95,17 @@ export class ReadonlyBackupRegistryImpl implements ReadonlyBackupRegistry {
     }
     this.sourceTypePolicy = frozenMap(sourceTypePolicy)
     this.jsonSoftRefIndex = frozenMap(jsonSoftRefIndex)
+
+    // Freeze the codegen facts (PK/FK/domain list) at construction so the public
+    // getters that return them directly — getPrimaryKey/getForeignKeys/domains —
+    // hand back runtime-immutable objects. `as const` is compile-time only; without
+    // this a caller could push to DB_PRIMARY_KEYS[t].columns / DB_FOREIGN_KEYS[t] /
+    // BACKUP_DOMAINS and corrupt every later registry consumer (F6). These are
+    // read-only facts by contract, so freezing the shared module singletons is safe
+    // (deepFreeze is idempotent via its WeakSet guard).
+    deepFreeze(DB_PRIMARY_KEYS)
+    deepFreeze(DB_FOREIGN_KEYS)
+    deepFreeze(BACKUP_DOMAINS)
   }
 
   get domains(): readonly BackupDomain[] {
