@@ -13,7 +13,7 @@ The imperative **dialog track** — blocking, answer-returning interactions. Its
 
 ## Ready-made popups — `ConfirmActionPopup` / `ContentPopup`
 
-Two reusable components in [`components/Popups`](../../components/Popups) sit between the prefabs and raw `createPopup`. Both are **built on `createPopup`** (same store, same contract), but each captures one of the two commonest bespoke shapes so callers don't rebuild it:
+Two reusable components in [`components/popups`](../../components/popups) sit between the prefabs and raw `createPopup`. Both are **built on `createPopup`** (same store, same contract), but each captures one of the two commonest bespoke shapes so callers don't rebuild it:
 
 | Component | Use | Returns |
 |---|---|---|

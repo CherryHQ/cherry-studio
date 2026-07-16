@@ -31,262 +31,118 @@
       "submit": "提交",
       "title": "来自智能体的问题"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "添加",
-        "bindAgent": "绑定智能体",
-        "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
-        "comingSoon": "即将推出",
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
+      }
+    },
+    "channels": {
+      "add": "添加",
+      "bindAgent": "绑定智能体",
+      "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
+      "comingSoon": "即将推出",
+      "connected": "已连接",
+      "connecting": "连接中",
+      "createError": "创建频道失败",
+      "deleteConfirm": "确定删除频道「{{name}}」？",
+      "deleteError": "删除频道失败",
+      "description": "将您的智能体连接到消息平台。",
+      "disconnected": "已断开",
+      "discord": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "输入您的 Discord 机器人 Token",
+        "channelIds": "允许的频道 ID",
+        "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允许所有。",
+        "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+        "description": "通过 Discord 机器人使用 WebSocket 网关接收和回复消息。",
+        "title": "Discord",
+        "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的频道 ID。"
+      },
+      "error": "错误",
+      "feishu": {
+        "appId": "应用ID",
+        "appIdPlaceholder": "输入你的飞书应用 ID",
+        "appSecret": "应用密钥",
+        "appSecretPlaceholder": "输入你的飞书应用密钥",
+        "chatIds": "允许的聊天 ID",
+        "chatIdsHint": "逗号分隔的聊天 ID。留空则允许所有聊天。",
+        "chatIdsPlaceholder": "oc_xxxxx，oc_yyyyy",
         "connected": "已连接",
-        "connecting": "连接中",
-        "createError": "",
-        "deleteConfirm": "确定删除频道「{{name}}」？",
-        "deleteError": "",
-        "description": "将您的智能体连接到消息平台。",
-        "disconnected": "已断开",
-        "discord": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "输入您的 Discord 机器人 Token",
-          "channelIds": "允许的频道 ID",
-          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允许所有。",
-          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
-          "description": "通过 Discord 机器人使用 WebSocket 网关接收和回复消息。",
-          "title": "Discord",
-          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的频道 ID。"
-        },
-        "error": "错误",
-        "feishu": {
-          "appId": "应用ID",
-          "appIdPlaceholder": "输入你的飞书应用 ID",
-          "appSecret": "应用密钥",
-          "appSecretPlaceholder": "输入你的飞书应用密钥",
-          "chatIds": "允许的聊天 ID",
-          "chatIdsHint": "逗号分隔的聊天 ID。留空则允许所有聊天。",
-          "chatIdsPlaceholder": "oc_xxxxx，oc_yyyyy",
-          "connected": "已连接",
-          "description": "通过 WebSocket 使用飞书/ Lark 机器人接收并回复消息。",
-          "domain": "域名",
-          "domainFeishu": "飞书（中国）",
-          "domainLark": "飞书（国际版）",
-          "encryptKey": "加密密钥",
-          "encryptKeyPlaceholder": "请输入来自你飞书应用的加密密钥",
-          "loginHint": "未配置凭证。启用频道后将自动开始扫码注册，或手动输入 App ID 和 App Secret。",
-          "qrExpired": "二维码已过期，请重新切换频道开关重试。",
-          "qrHint": "等待扫描二维码...",
-          "qrScanHint": "打开手机飞书，扫描二维码以创建机器人应用。",
-          "qrTitle": "飞书扫码注册",
-          "title": "飞书",
-          "verificationToken": "验证令牌",
-          "verificationTokenPlaceholder": "输入您飞书应用中的验证令牌"
-        },
-        "logs": "日志",
-        "noInstances": "暂无 {{type}} 频道，点击「+ 添加」创建。",
-        "noLogs": "暂无日志",
-        "notifyReceiver": "接收任务通知",
-        "notifyReceiverHint": "将定时任务结果发送到此频道。",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "输入您的 QQ 机器人 App ID",
-          "chatIds": "允许的会话 ID",
-          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允许所有。",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
-          "description": "通过 QQ 机器人官方 API 接收和回复消息。",
-          "title": "QQ",
-          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
-        },
-        "security": {
-          "inheritFromAgent": "继承智能体设置",
-          "permissionMode": "频道权限模式",
-          "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
-        },
-        "selectAgent": "选择要绑定的智能体",
-        "slack": {
-          "appToken": "应用级别 Token",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "允许的频道 ID",
-          "channelIdsHint": "Slack 频道 ID。留空表示允许所有。",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "通过 Slack 机器人使用 Socket Mode 接收和回复消息。",
-          "title": "Slack",
-          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
-        },
-        "soulModeRequired": "该智能体尚未开启自主模式，频道功能将无法使用。请在智能体设置中开启自主模式。",
-        "tab": "频道",
-        "telegram": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "输入您的 Telegram 机器人 Token",
-          "chatIds": "允许的会话 ID",
-          "chatIdsHint": "用逗号分隔。留空表示允许所有会话。",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "通过 Telegram 机器人使用长轮询方式接收和回复消息。",
-          "title": "Telegram"
-        },
-        "title": "频道",
-        "updateError": "",
-        "wechat": {
-          "addAccount": "添加微信账号",
-          "chatIds": "允许的用户 ID",
-          "chatIdsHint": "用逗号分隔。留空表示允许所有用户。",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "已登录",
-          "description": "通过微信 iLink Bot API 接收和回复消息。",
-          "disconnected": "未登录",
-          "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
-          "qrHint": "请使用手机微信扫描二维码完成登录。",
-          "qrTitle": "微信扫码登录",
-          "title": "微信",
-          "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
-        }
+        "description": "通过 WebSocket 使用飞书/ Lark 机器人接收并回复消息。",
+        "domain": "域名",
+        "domainFeishu": "飞书（中国）",
+        "domainLark": "飞书（国际版）",
+        "encryptKey": "加密密钥",
+        "encryptKeyPlaceholder": "请输入来自你飞书应用的加密密钥",
+        "loginHint": "未配置凭证。启用频道后将自动开始扫码注册，或手动输入 App ID 和 App Secret。",
+        "qrExpired": "二维码已过期，请重新切换频道开关重试。",
+        "qrHint": "等待扫描二维码...",
+        "qrScanHint": "打开手机飞书，扫描二维码以创建机器人应用。",
+        "qrTitle": "飞书扫码注册",
+        "title": "飞书",
+        "verificationToken": "验证令牌",
+        "verificationTokenPlaceholder": "输入您飞书应用中的验证令牌"
       },
-      "heartbeat": {
-        "enabled": "启用心跳",
-        "enabledHelper": "启用后，如果工作区存在 heartbeat.md 文件，调度器会按配置的间隔读取其内容并发送到主会话。",
-        "interval": "间隔（分钟）",
-        "intervalHelper": "心跳运行的频率，单位为分钟。"
+      "logs": "日志",
+      "noInstances": "暂无 {{type}} 频道，点击「+ 添加」创建。",
+      "noLogs": "暂无日志",
+      "notifyReceiver": "接收任务通知",
+      "notifyReceiverHint": "将定时任务结果发送到此频道。",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "输入您的 QQ 机器人 App ID",
+        "chatIds": "允许的会话 ID",
+        "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允许所有。",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
+        "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+        "title": "QQ",
+        "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
       },
-      "sandbox": {
-        "description": "使用操作系统级沙箱限制智能体的文件系统和网络访问，仅限于工作区目录。",
-        "helper": "将文件系统和命令访问限制在工作区路径内。",
-        "label": "沙箱模式"
+      "security": {
+        "inheritFromAgent": "继承智能体设置",
+        "permissionMode": "频道权限模式",
+        "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
       },
-      "scheduler": {
-        "cron": {
-          "helper": "标准 cron 表达式（例如 '*/30 * * * *' 表示每 30 分钟）。",
-          "label": "Cron 表达式",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "调度器按计划自动触发智能体运行。",
-        "enabled": "启用调度器",
-        "enabledHelper": "启用后，智能体将根据配置的计划自动运行。",
-        "errors": {
-          "invalidCron": "无效的 cron 表达式",
-          "invalidDelay": "延迟必须是正数",
-          "invalidInterval": "间隔必须是正数"
-        },
-        "interval": {
-          "helper": "智能体运行的频率，单位为秒。",
-          "label": "间隔（秒）"
-        },
-        "lastRun": "上次运行",
-        "never": "从未",
-        "nextRun": "下次运行",
-        "oneTime": {
-          "helper": "智能体运行前的一次性延迟，单位为秒。",
-          "label": "延迟（秒）"
-        },
-        "status": {
-          "running": "运行中",
-          "stopped": "已停止",
-          "tickInProgress": "执行中"
-        },
-        "tab": "调度器",
-        "title": "调度器配置",
-        "type": {
-          "cron": "Cron 表达式",
-          "interval": "固定间隔",
-          "label": "调度类型",
-          "one-time": "一次性延迟"
-        }
+      "selectAgent": "选择要绑定的智能体",
+      "slack": {
+        "appToken": "应用级别 Token",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "允许的频道 ID",
+        "channelIdsHint": "Slack 频道 ID。留空表示允许所有。",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "通过 Slack 机器人使用 Socket Mode 接收和回复消息。",
+        "title": "Slack",
+        "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
       },
-      "soul": {
-        "description": "灵魂定义了智能体的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
-        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义智能体的个性。",
-        "enabled": "启用灵魂",
-        "enabledHelper": "启用后，智能体会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
-        "fileLabel": "soul.md",
-        "preview": "灵魂预览",
-        "tab": "灵魂",
-        "title": "灵魂配置"
+      "tab": "频道",
+      "telegram": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "输入您的 Telegram 机器人 Token",
+        "chatIds": "允许的会话 ID",
+        "chatIdsHint": "用逗号分隔。留空表示允许所有会话。",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "通过 Telegram 机器人使用长轮询方式接收和回复消息。",
+        "title": "Telegram"
       },
-      "tasks": {
-        "add": "添加任务",
-        "cancel": "取消",
-        "channels": {
-          "label": "发送到频道",
-          "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。",
-          "placeholder": "选择接收结果的频道"
-        },
-        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
-        "delete": {
-          "confirm": "确定要删除此任务吗？",
-          "label": "删除"
-        },
-        "edit": "编辑",
-        "empty": "暂无定时任务。添加一个开始吧。",
-        "error": {
-          "createFailed": "创建任务失败",
-          "deleteFailed": "删除任务失败",
-          "loadFailed": "",
-          "runFailed": "运行任务失败",
-          "updateFailed": "更新任务失败"
-        },
-        "frequency": {
-          "everyPrefix": "间隔",
-          "everySuffix": "分钟执行",
-          "label": "执行频率"
-        },
-        "intervalPlaceholder": "至少1",
-        "intervalUnit": "分钟",
-        "lastRun": "上次运行",
-        "logs": {
-          "cancelled": "已取消",
-          "completed": "已完成",
-          "duration": "耗时",
-          "empty": "暂无运行历史。",
-          "failed": "失败",
-          "justNow": "刚刚",
-          "label": "运行历史",
-          "loadError": "",
-          "result": "结果",
-          "runAt": "运行时间",
-          "running": "运行中...",
-          "search": "搜索运行记录...",
-          "status": "状态",
-          "viewSession": "查看会话"
-        },
-        "name": {
-          "label": "名称",
-          "placeholder": "例如：每日代码审查"
-        },
-        "nextRun": "下次运行",
-        "oncePlaceholder": "选择日期和时间",
-        "pause": "暂停",
-        "prompt": {
-          "expand": "展开编辑器",
-          "label": "提示词",
-          "placeholder": "此任务运行时智能体应该做什么？"
-        },
-        "resume": "恢复",
-        "run": "运行",
-        "runTriggered": "任务已触发",
-        "save": "保存",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "间隔",
-          "once": "一次性"
-        },
-        "status": {
-          "active": "活跃",
-          "completed": "已完成",
-          "paused": "已暂停"
-        },
-        "tab": "任务",
-        "time": {
-          "hoursAgo": "{{count}}小时前",
-          "minutesAgo": "{{count}}分钟前"
-        },
-        "timeout": {
-          "label": "最长执行时间",
-          "placeholder": "无限制"
-        },
-        "title": "定时任务"
-      },
-      "warning": {
-        "bypassPermissions": "CherryClaw 智能体默认以全自动模式运行。所有工具执行时不会请求批准。"
+      "title": "频道",
+      "updateError": "更新频道失败",
+      "wechat": {
+        "addAccount": "添加微信账号",
+        "chatIds": "允许的用户 ID",
+        "chatIdsHint": "用逗号分隔。留空表示允许所有用户。",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "已登录",
+        "description": "通过微信 iLink Bot API 接收和回复消息。",
+        "disconnected": "未登录",
+        "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
+        "qrHint": "请使用手机微信扫描二维码完成登录。",
+        "qrTitle": "微信扫码登录",
+        "title": "微信",
+        "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
       }
     },
     "delete": {
@@ -343,8 +199,7 @@
       "type": "智能体图标"
     },
     "input": {
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令",
-      "soul_placeholder": "帮我连接微信"
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令"
     },
     "list": {
       "error": {
@@ -530,7 +385,7 @@
       },
       "empty": {
         "description": "开始任务后，任务记录会显示在这里。",
-        "title": "还没有任务"
+        "title": "暂无任务"
       },
       "file_manager": {
         "file_explorer": "资源管理器",
@@ -719,12 +574,6 @@
         "tab": "技能",
         "title": "已安装技能"
       },
-      "soulMode": {
-        "description": "启用后，智能体将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
-        "disabledBadge": "自主模式已禁用",
-        "disabledTooltip": "该工具在自主模式开启时被自动禁用",
-        "title": "自主模式"
-      },
       "tooling": {
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
@@ -795,6 +644,89 @@
       "manage": {
         "title": "管理技能"
       }
+    },
+    "tasks": {
+      "add": "添加任务",
+      "cancel": "取消",
+      "channels": {
+        "label": "发送到频道",
+        "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。",
+        "placeholder": "选择接收结果的频道"
+      },
+      "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
+      "delete": {
+        "confirm": "确定要删除此任务吗？",
+        "label": "删除"
+      },
+      "edit": "编辑",
+      "empty": "暂无定时任务。添加一个开始吧。",
+      "error": {
+        "createFailed": "创建任务失败",
+        "deleteFailed": "删除任务失败",
+        "loadFailed": "加载任务失败",
+        "runFailed": "运行任务失败",
+        "updateFailed": "更新任务失败"
+      },
+      "frequency": {
+        "everyPrefix": "间隔",
+        "everySuffix": "分钟执行",
+        "label": "执行频率"
+      },
+      "intervalPlaceholder": "至少1",
+      "intervalUnit": "分钟",
+      "lastRun": "上次运行",
+      "logs": {
+        "cancelled": "已取消",
+        "completed": "已完成",
+        "duration": "耗时",
+        "empty": "暂无运行历史。",
+        "failed": "失败",
+        "justNow": "刚刚",
+        "label": "运行历史",
+        "loadError": "加载运行历史失败",
+        "result": "结果",
+        "runAt": "运行时间",
+        "running": "运行中...",
+        "search": "搜索运行记录...",
+        "status": "状态",
+        "viewSession": "查看会话"
+      },
+      "name": {
+        "label": "名称",
+        "placeholder": "例如：每日代码审查"
+      },
+      "nextRun": "下次运行",
+      "oncePlaceholder": "选择日期和时间",
+      "pause": "暂停",
+      "prompt": {
+        "expand": "展开编辑器",
+        "label": "提示词",
+        "placeholder": "此任务运行时智能体应该做什么？"
+      },
+      "resume": "恢复",
+      "run": "运行",
+      "runTriggered": "任务已触发",
+      "save": "保存",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "间隔",
+        "once": "一次性"
+      },
+      "status": {
+        "active": "活跃",
+        "completed": "已完成",
+        "paused": "已暂停"
+      },
+      "tab": "任务",
+      "time": {
+        "hoursAgo": "{{count}}小时前",
+        "minutesAgo": "{{count}}分钟前"
+      },
+      "timeout": {
+        "label": "最长执行时间",
+        "placeholder": "无限制"
+      },
+      "title": "定时任务"
     },
     "todo": {
       "mock": {
@@ -947,6 +879,18 @@
           "description": "在你的环境中执行 Shell 命令",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "检查并管理此智能体配置和频道",
+          "label": "智能体配置"
+        },
+        "CherryCron": {
+          "description": "管理应用内的定时调度",
+          "label": "定时任务"
+        },
+        "CherryGenerateImage": {
+          "description": "使用你配置的绘画模型根据文本提示生成图片",
+          "label": "生成图片"
+        },
         "CherryKbManage": {
           "description": "添加、删除或刷新知识库中的文档",
           "label": "知识库管理"
@@ -955,6 +899,10 @@
           "description": "搜索你的知识库",
           "label": "知识库搜索"
         },
+        "CherryNotify": {
+          "description": "通过已连接的频道发送通知",
+          "label": "通知"
+        },
         "CherryWebFetch": {
           "description": "抓取并读取网页",
           "label": "网页抓取"
@@ -962,10 +910,6 @@
         "CherryWebSearch": {
           "description": "通过你配置的提供方搜索网页",
           "label": "网页搜索"
-        },
-        "ClawCron": {
-          "description": "管理应用内的定时调度",
-          "label": "定时任务"
         },
         "Edit": {
           "description": "对特定文件进行精确编辑",
@@ -1408,8 +1352,8 @@
     },
     "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是默认助手。你可以立刻开始跟我聊天",
-      "name": "默认助手",
+      "description": "你好，我是 Cherry 助手。你可以立刻开始跟我聊天",
+      "name": "Cherry 助手",
       "topic": {
         "name": "默认对话"
       }
@@ -1457,7 +1401,7 @@
         "title": "排队中 ({{count}})"
       },
       "generate_image": "生成图片",
-      "generate_image_not_supported": "模型不支持生成图片",
+      "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
@@ -1531,6 +1475,11 @@
         "collapse_out": "移出折叠",
         "expand": "展开",
         "file_not_found": "文件不存在: {{path}}",
+        "generate_image": {
+          "failed": "图片生成失败",
+          "generating": "正在生成图片…",
+          "title": "已生成图片"
+        },
         "open_file": "打开文件",
         "open_file_error": "无法打开文件: {{path}}",
         "reveal_in_finder": "在文件管理器中显示"
@@ -1819,7 +1768,7 @@
       },
       "empty": {
         "description": "新建一个对话后，这里会保存你的聊天记录，方便继续上下文。",
-        "title": "还没有对话"
+        "title": "暂无对话"
       },
       "export": {
         "failed": "导出失败",
@@ -1935,54 +1884,212 @@
     }
   },
   "code": {
+    "add_provider_hint": "在 设置 → 模型服务 添加服务商",
+    "add_provider_hint_anthropic_messages": "在 设置 → 模型服务 配置 Anthropic Messages 端点",
+    "add_provider_hint_gemini": "在 设置 → 模型服务 配置 Gemini 端点",
+    "add_provider_hint_openai_responses": "在 设置 → 模型服务 配置 OpenAI Responses 端点",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "禁用 1M 上下文",
+        "disable_attribution_header": "禁用署名请求头",
+        "disable_auto_upgrade": "禁用自动更新",
+        "disable_bundled_skills": "禁用内置技能",
+        "disable_compact": "禁用对话压缩",
+        "disable_extra_usage_command": "禁用额外用量命令",
+        "disable_nonessential_traffic": "禁用非必要流量",
+        "disable_terminal_title": "禁用终端标题更新",
+        "effort_level_hint": "努力程度",
+        "enable_teammates": "启用 Teammates",
+        "enable_tool_search": "启用工具搜索",
+        "fable_model": "Fable",
+        "haiku_model": "Haiku",
+        "hide_attribution": "隐藏 AI 署名",
+        "max_context_tokens_hint": "最大上下文 Token",
+        "max_output_tokens_hint": "最大输出 Token",
+        "model_column": "实际请求模型",
+        "model_roles": "模型角色映射",
+        "model_roles_hint": "覆盖后台子任务（如压缩、标题）使用的模型。留空则跟随主模型。",
+        "options": "快捷选项",
+        "opus_model": "Opus",
+        "permissions_allow": "允许（逗号分隔）",
+        "permissions_deny": "拒绝（逗号分隔）",
+        "permissions_hint": "预授权或拒绝工具模式。支持通配符，如 Read(secrets-*/config.json)。",
+        "role_column": "角色",
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Subagent"
+      },
+      "codex": {
+        "disable_response_storage": "禁用响应存储",
+        "goal_mode": "启用 Goal 模式",
+        "remote_compaction": "启用远程压缩"
+      },
+      "gemini": {
+        "checkpointing": "启用检查点",
+        "disable_usage_stats": "禁用使用统计",
+        "hide_banner": "隐藏启动横幅",
+        "vim_mode": "启用 Vim 模式"
+      },
+      "kimi": {
+        "disable_telemetry": "禁用遥测",
+        "keep_background_tasks": "退出后保留后台任务",
+        "micro_compaction": "启用微压缩",
+        "plan_mode": "默认计划模式",
+        "thinking": "启用 Thinking"
+      },
+      "opencode": {
+        "auto_compact": "自动压缩",
+        "enable_reasoning": "启用推理"
+      },
+      "permission_mode": "权限审批",
+      "permission_modes": {
+        "accept_edits": "自动接受编辑",
+        "ask": "询问",
+        "auto": "自动",
+        "auto_edit": "自动编辑",
+        "bypass_high_risk": "绕过权限（高风险）",
+        "default": "默认",
+        "default_allow_all": "默认（允许全部）",
+        "deny": "拒绝",
+        "full_access_high_risk": "完全访问（高风险）",
+        "manual": "手动",
+        "plan": "计划",
+        "read_only": "只读",
+        "workspace": "工作区",
+        "yolo_high_risk": "YOLO（高风险）"
+      },
+      "qwen": {
+        "classify_all_shell": "所有 Shell 命令都走分类器",
+        "disable_auto_update": "禁用自动更新",
+        "disable_usage_stats": "禁用使用统计",
+        "hide_banner": "隐藏启动横幅",
+        "vim_mode": "启用 Vim 模式"
+      },
+      "reasoning_effort": "推理强度",
+      "reasoning_efforts": {
+        "default": "默认",
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "minimal": "最小",
+        "xhigh": "超高"
+      },
+      "select_placeholder": "请选择…"
+    },
+    "api_gateway": {
+      "description": "任意 CLI，畅用全部模型",
+      "requires_running": "启用后请保持 Cherry Studio 运行，外部 CLI 才能连接到它托管的网关。",
+      "title": "统一网关"
+    },
+    "apply_failed": "写入 CLI 配置到系统文件失败",
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
+    "can_upgrade": "可升级",
+    "clear_config_failed": "清除 CLI 配置失败，凭证可能仍保留在该工具的配置文件中",
+    "cli_config": {
+      "format_failed": "格式化失败，请检查文件格式",
+      "hint": "这里显示将写入系统 CLI 配置文件的内容，API Key 不会保存到偏好设置",
+      "title": "CLI 配置文件",
+      "unknown_model": "未知模型",
+      "unknown_provider": "未知供应商"
+    },
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "收起",
+    "config_json_hint": "粘贴或编辑原始 JSON，可与上方参数双向同步",
+    "configure": "配置",
+    "configuring_provider": "配置 {{provider}}",
     "count_one": "{{count}} 个",
     "count_other": "{{count}} 个",
+    "current_config": "当前",
+    "current_config_settings": "当前配置",
     "custom_path": "自定义路径",
     "custom_path_error": "设置自定义终端路径失败",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
+    "disable": "停用",
+    "edit_config": "编辑配置",
+    "enable": "启用",
+    "enabled": "已启用",
+    "endpoint_default": "使用服务商默认端点",
+    "endpoint_hint": "端点 / Key 在模型服务",
     "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",
+    "format_json": "格式化",
     "hero_tagline": "选一个 CLI 工具开始配置",
+    "install": "安装",
     "install_bun": "安装 Bun",
+    "install_error": "安装失败",
+    "install_success": "安装成功",
+    "install_tool_first": "请先安装 {{toolName}} 再选择服务商",
+    "installing": "安装中…",
     "installing_bun": "安装中...",
+    "latest": "最新",
     "launch": {
       "bun_required": "请先安装 Bun 环境再启动 CLI 工具",
       "error": "启动失败，请重试",
       "label": "启动",
       "launched": "已启动",
       "success": "启动成功",
+      "title": "启动 {{tool}}",
       "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
     },
     "launching": "启动中...",
     "model": "模型",
     "model_hint": "为 CLI 工具选择要使用的 AI 模型",
+    "model_hint_config": "选择要使用的模型",
+    "model_mode": {
+      "common": "通用",
+      "detailed": "详细"
+    },
     "model_placeholder": "选择要使用的模型",
+    "model_providers": "模型服务商",
     "model_required": "请选择模型",
+    "model_selection": "模型选择",
+    "more": "更多",
+    "move_provider_to_top": "将服务商移到顶部",
+    "no_matching_providers": "没有匹配的服务商",
+    "no_model_for_provider": "该服务商没有可用的模型",
+    "no_providers_description": "在 设置 → 模型服务 中启用支持的服务商",
+    "no_providers_title": "没有已启用的服务商",
+    "no_tools": "暂无工具",
+    "not_installed": "未安装",
+    "open_provider_settings": "打开服务商设置",
+    "own_login": {
+      "title": "{{toolName}} 官方"
+    },
+    "providerless_hint": "该工具通过自带的登录流程进行认证 — 只需选择工作目录即可启动。请先运行一次该工具完成登录。",
+    "providers": "服务商",
+    "raw_config": "原始配置 (JSON)",
+    "search_provider_placeholder": "搜索服务商…",
     "select_folder": "选择文件夹",
+    "select_provider_before_launch": "请选择一个服务商后启动 {{toolName}}",
+    "select_tool_to_start": "从左侧选择一个 CLI 工具开始配置",
     "set_custom_path": "设置自定义终端路径",
     "supported_providers": "支持的服务商",
     "terminal": "终端",
     "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
-    "title": "代码工具",
-    "tool_description": {
-      "claude_code": "Anthropic 官方 CLI 编程助手",
-      "gemini_cli": "Google Gemini 命令行助手",
-      "github_copilot_cli": "GitHub Copilot 命令行版本",
-      "kimi_cli": "Moonshot Kimi 命令行助手",
-      "openai_codex": "OpenAI 官方代码生成 CLI",
-      "opencode": "开源社区的多模型代码 Agent",
-      "qoder_cli": "阿里 Qoder 的智能体命令行编程工具",
-      "qwen_code": "阿里通义出品的开源 CLI 编程工具"
-    },
+    "title": "Code Switch",
+    "tool_parameters": "参数设置",
+    "up_to_date": "最新版本",
     "update_options": "更新选项",
+    "upgrade": "升级",
+    "upgrade_error": "升级失败",
+    "upgrade_success": "升级成功",
     "working_directory": "工作目录",
     "working_directory_hint": "CLI 工具启动时的工作目录"
   },
@@ -2193,6 +2300,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "图像编辑 (OpenAI)",
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
@@ -2500,9 +2608,7 @@
       "message": "定位到消息"
     },
     "records": {
-      "agentSubtitle": "{{count}} 个任务",
       "agentTitle": "智能体历史记录",
-      "assistantSubtitle": "{{count}} 个对话",
       "bulkDelete": "批量删除",
       "bulkDeleteSessions": {
         "description": "将删除选中的 {{count}} 个任务。",
@@ -2524,11 +2630,19 @@
         "target": "目标助手",
         "title": "移动选中的对话"
       },
+      "clearSearch": "清除搜索",
       "empty": {
         "description": "当前筛选下没有可展示的对话。",
         "sessionsDescription": "当前筛选下没有可展示的任务。",
         "sessionsTitle": "暂无任务",
         "title": "暂无对话"
+      },
+      "filter": {
+        "selectAgent": "请选择智能体",
+        "selectAssistant": "请选择助手",
+        "statusLabel": "状态",
+        "statusPlaceholder": "请选择状态",
+        "unlinkedAssistant": "未关联助手"
       },
       "loading": {
         "description": "正在读取对话列表。",
@@ -2536,15 +2650,9 @@
         "sessionsTitle": "正在加载任务",
         "title": "正在加载对话"
       },
-      "resultCount": "{{count}} 条结果",
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
       "shortTitle": "历史记录",
-      "sidebar": {
-        "searchAssistant": "搜索助手...",
-        "status": "状态",
-        "unknownAssistant": "未关联助手"
-      },
       "status": {
         "completed": "已完成",
         "failed": "失败",
@@ -2552,11 +2660,10 @@
       },
       "table": {
         "actions": "操作",
+        "conversation": "对话",
         "emptyValue": "—",
-        "messages": "消息",
         "session": "任务",
-        "time": "时间",
-        "title": "标题"
+        "time": "时间"
       },
       "title": "对话历史记录"
     },
@@ -2681,6 +2788,7 @@
           "title": "导入单个网页"
         }
       },
+      "back_to_parent": "返回上级",
       "bulk": {
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
@@ -2708,6 +2816,7 @@
         "title": "上传第一个数据源"
       },
       "empty_description": "暂无数据源",
+      "empty_folder": "该文件夹为空",
       "filters": {
         "all": "全部",
         "directory": "目录",
@@ -2740,9 +2849,9 @@
           "type": "类型",
           "updated_at": "更新时间"
         },
+        "open_row": "打开「{{title}}」",
         "select_all": "全选",
-        "select_row": "选择行",
-        "view_chunks_row": "查看「{{title}}」的 Chunks"
+        "select_row": "选择行"
       },
       "toolbar": {
         "add": "添加数据源"
@@ -2753,6 +2862,8 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
+    "empty_action": "创建知识库",
+    "empty_description": "你还没有创建任何知识库。创建一个来整理和检索你的文档吧。",
     "error": {
       "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
@@ -2803,6 +2914,8 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
+      "download_local_embedding": "下载本地模型",
+      "download_local_embedding_failed": "本地嵌入模型下载失败",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
@@ -2829,7 +2942,8 @@
       "separator_rule": "分隔符规则",
       "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "使用本地模型"
     },
     "recall": {
       "collapse": "收起片段",
@@ -3000,11 +3114,10 @@
             "placeholder": "给 Agent 起个名字"
           },
           "permission_mode": {
-            "help": "切换到 bypassPermissions 等同于启用 Soul 模式",
             "label": "权限模式",
             "option": {
               "acceptEdits": "接受编辑",
-              "bypassPermissions": "绕过权限 (Soul)",
+              "bypassPermissions": "绕过权限",
               "default": "默认",
               "plan": "Plan 模式"
             }
@@ -3016,10 +3129,6 @@
           "small_model": {
             "hint": "负责简单判断和格式化",
             "label": "Small 模型"
-          },
-          "soul_enabled": {
-            "help": "启用后自动授予 bypassPermissions 权限",
-            "label": "Soul 模式"
           }
         },
         "model_config": "模型配置",
@@ -3061,6 +3170,7 @@
             "no_skills_enabled": "未启用任何技能",
             "search_placeholder": "搜索工具或 Server...",
             "skills_coming_soon": "Skill 绑定即将支持",
+            "skills_enable_all": "全部开启",
             "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP",
@@ -3183,6 +3293,7 @@
       },
       "knowledge": {
         "add": "添加知识库",
+        "create_first": "前往知识库创建",
         "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",
         "doc_count": "{{count}} 文档",
         "empty_desc": "关联知识库后,助手可以根据文档内容回答问题",
@@ -3196,6 +3307,7 @@
         "title": "知识库关联"
       },
       "prompt": {
+        "copy_variable": "复制 {{variable}}",
         "create_title": "新建 Prompt",
         "dblclick_hint": "双击预览区可切回编辑",
         "desc": "系统提示词将作为该助手的上下文开头发送给模型",
@@ -3510,6 +3622,7 @@
     },
     "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
     "error": {
+      "avatar_image_too_large": "图片过大（上限 {{limit}}）",
       "chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "copy": "复制失败",
       "dimension_too_large": "内容尺寸过大",
@@ -3531,6 +3644,7 @@
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
       },
       "get_embedding_dimensions": "获取嵌入维度失败",
+      "image_process_failed": "图片处理失败，请重试",
       "invalid": {
         "api": {
           "host": "无效的 API 地址",
@@ -3695,31 +3809,37 @@
       "abort_failed": "工具调用中断失败",
       "aborted": "工具调用已中断",
       "activity": {
+        "analyze": "分析",
+        "analyzing": "正在分析",
         "archive": "压缩包",
         "assistantTask": "任务",
         "availableFeatures": "可用功能",
         "availableResources": "可用资源",
-        "branch": "代码分支",
+        "branch": "项目版本",
         "build": "构建",
         "building": "正在构建",
+        "calendar": "日程",
         "check": "检查",
         "checking": "正在检查",
-        "codeFiles": "代码文件",
-        "codeHostInfo": "代码托管信息",
-        "commandName": "{{name}} 命令",
-        "configFiles": "项目说明和配置文件",
+        "codeFiles": "程序文件",
+        "codeHostInfo": "在线项目信息",
+        "configFiles": "项目说明和设置文件",
         "copy": "复制",
         "copying": "正在复制",
         "create": "创建",
         "creating": "正在创建",
         "currentFolder": "当前文件夹",
+        "data": "数据",
         "delete": "删除",
         "deleting": "正在删除",
         "documentFiles": "文档文件",
         "download": "下载",
         "downloading": "正在下载",
-        "executeCommand": "执行命令",
-        "executingCommand": "正在执行命令",
+        "email": "邮件",
+        "environmentInfo": "运行环境",
+        "executeCommand": "执行任务",
+        "executingCommand": "正在执行任务",
+        "extensionFailed": "扩展功能执行失败",
         "extract": "解压",
         "extracting": "正在解压",
         "file": "文件",
@@ -3740,28 +3860,34 @@
         "plan": "执行计划",
         "projectChanges": "项目变更",
         "projectChecks": "项目检查",
-        "projectDependencies": "项目依赖",
+        "projectDependencies": "项目所需内容",
         "projectFiles": "项目文件",
-        "projectRootFiles": "项目根目录文件",
+        "projectRootFiles": "项目顶部文件",
         "projectTask": "项目任务",
         "relatedContent": "相关内容",
-        "repository": "代码仓库",
+        "repository": "项目内容",
         "search": "查找",
         "searching": "正在查找",
+        "send": "发送",
+        "sending": "正在发送",
+        "start": "启动",
+        "starting": "正在启动",
         "switch": "切换",
         "switching": "正在切换",
         "sync": "同步",
         "syncing": "正在同步",
         "taskId": "任务 {{id}}",
         "taskList": "任务清单",
-        "translationFiles": "翻译文件",
+        "translationFiles": "多语言文件",
         "upload": "上传",
         "uploading": "正在上传",
+        "usedExtension": "已使用扩展功能",
+        "usingExtension": "正在使用扩展功能",
         "view": "查看",
         "viewing": "正在查看",
         "webPage": "网页内容",
         "webSearch": "网页内容",
-        "workspace": "工作区",
+        "workspace": "工作区域",
         "write": "保存",
         "writing": "正在保存"
       },
@@ -3774,7 +3900,7 @@
       "groupHeader": "{{count}} 个工具调用",
       "invoking": "调用中",
       "labels": {
-        "bash": "执行命令",
+        "bash": "执行任务",
         "edit": "编辑",
         "exitPlanMode": "退出计划模式",
         "glob": "文件匹配",
@@ -3950,6 +4076,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "配置自定义模型",
       "pin": "置顶此模型",
       "unpin": "取消置顶"
     },
@@ -4230,6 +4357,7 @@
       "select_provider_model": "请先选择服务商和模型"
     },
     "gateway": {
+      "open_dashboard": "打开 OpenClaw",
       "port": "端口",
       "restart": "重启",
       "start": "启动",
@@ -4243,7 +4371,6 @@
       "hint": "macOS: brew install git | Windows: 从 git-scm.com 下载（安装时请确保勾选将 Git 添加到 PATH）",
       "title": "需要安装 Git"
     },
-    "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
     "migration": {
       "description": "检测到 PATH 中存在外部 OpenClaw 安装，但 Cherry Studio 只使用托管的 OpenClaw 二进制文件。请安装托管版本后继续。",
@@ -4304,7 +4431,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "确定要卸载 OpenClaw 吗？点击确定继续。",
-    "uninstall_progress": "卸载进度",
     "uninstalled": {
       "description": "OpenClaw 已成功卸载。",
       "title": "卸载完成"
@@ -4751,6 +4877,7 @@
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5414,7 +5541,8 @@
       },
       "backup": {
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
-        "skip_file_data_title": "精简备份"
+        "skip_file_data_title": "精简备份",
+        "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"
       },
       "clear_cache": {
         "button": "清除缓存",
@@ -5447,75 +5575,6 @@
         "siyuan": "导出到思源笔记",
         "title": "导出菜单设置",
         "yuque": "导出到语雀"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "选择备份文件"
-        },
-        "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
-        "file": {
-          "button": "导出到文件",
-          "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
-          "export_failed": "导出失败",
-          "export_success": "导出成功",
-          "title": "导出为文件"
-        },
-        "lan": {
-          "button": "开始传输",
-          "connected": "连接成功",
-          "connection_failed": "连接失败",
-          "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
-          "device_list_title": "局域网设备列表",
-          "discovered_devices": "已发现的设备",
-          "error": {
-            "file_too_large": "文件过大，最大支持 500MB",
-            "init_failed": "初始化失败",
-            "invalid_file_type": "仅支持 ZIP 文件",
-            "no_file": "未选择文件",
-            "no_ip": "无法获取 IP 地址",
-            "not_connected": "请先完成握手连接",
-            "send_failed": "发送文件失败"
-          },
-          "file_transfer": {
-            "cancelled": "传输已取消",
-            "failed": "文件发送失败: {{message}}",
-            "progress": "发送中... {{progress}}%",
-            "success": "文件发送成功"
-          },
-          "handshake": {
-            "button": "握手测试",
-            "failed": "握手失败：{{message}}",
-            "in_progress": "正在握手...",
-            "success": "已与 {{device}} 建立握手",
-            "test_message_received": "已收到 {{device}} 的 pong 响应",
-            "test_message_sent": "已发送 hello world 测试数据"
-          },
-          "idle_hint": "扫描已暂停。开始扫描以发现局域网中的 Cherry Studio 设备。",
-          "ip_addresses": "IP 地址",
-          "last_seen": "最后活动：{{time}}",
-          "metadata": "元数据",
-          "no_connection_warning": "请在 Cherry Studio 移动端打开局域网传输",
-          "no_devices": "尚未发现局域网设备",
-          "scan_devices": "扫描设备",
-          "scanning_hint": "正在扫描局域网中的 Cherry Studio 设备...",
-          "send_file": "发送文件",
-          "status": {
-            "completed": "传输完成",
-            "connected": "连接成功",
-            "connecting": "正在连接中...",
-            "disconnected": "连接已断开",
-            "error": "连接出错",
-            "initializing": "正在初始化连接...",
-            "preparing": "准备传输中...",
-            "sending": "传输中 {{progress}}%"
-          },
-          "status_badge_idle": "空闲",
-          "status_badge_scanning": "扫描中",
-          "stop_scan": "停止扫描",
-          "title": "局域网传输",
-          "transfer_progress": "传输进度"
-        },
-        "title": "导出至手机"
       },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
@@ -6007,6 +6066,30 @@
       "installError": "工具安装失败",
       "installing": "安装中...",
       "invalidTool": "工具名称或标识无效",
+      "localModels": {
+        "cancel": "取消",
+        "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
+        "download": "下载",
+        "embedding": {
+          "name": "本地嵌入模型",
+          "subtitle": "Qwen3 Embedding 0.6B · 约 614 MB"
+        },
+        "notice": {
+          "downloadFailed": "下载失败，请检查网络后重试。",
+          "inUse": "该模型仍被知识库使用，已保留权重。",
+          "removeFailed": "删除失败，请查看日志。"
+        },
+        "ocr": {
+          "name": "本地 OCR 模型",
+          "subtitle": "PaddleOCR PP-OCRv6 · 约 140 MB"
+        },
+        "remove": "删除",
+        "status": {
+          "downloading": "下载中…",
+          "ready": "已就绪"
+        },
+        "title": "本地模型"
+      },
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
       "remove": "移除工具",
@@ -6603,7 +6686,8 @@
         },
         "model_id": {
           "label": "模型 ID",
-          "placeholder": "必填 例如 gpt-3.5-turbo",
+          "placeholder": "例如 gpt-5.5",
+          "required": "请输入模型 ID",
           "select": {
             "placeholder": "选择模型"
           },
@@ -6611,7 +6695,7 @@
         },
         "model_name": {
           "label": "模型名称",
-          "placeholder": "例如 GPT-4",
+          "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {
@@ -6680,14 +6764,18 @@
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",
-      "list_title": "模型列表",
+      "list_title": "模型",
       "manage": {
         "add_custom_model": "添加自定义模型",
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
-          "label": "添加列表中的模型"
+          "label": "添加全部模型"
         },
+        "add_success_enable_failed": "模型已添加，但服务商启用失败。",
         "add_whole_group": "添加整个分组",
+        "clean_stale_models": "清理失效模型",
+        "clean_stale_success": "已清理 {{count}} 个失效模型",
+        "default_model_cannot_remove": "默认模型无法删除",
         "drawer_title": "模型管理",
         "fetch_deselect_all_add": "取消全选",
         "fetch_deselect_all_remove": "取消全选",
@@ -6709,11 +6797,14 @@
         "operation_failed": "模型操作失败。",
         "refetch_list": "重新拉取模型",
         "reload_catalog": "刷新列表",
-        "remove_listed": "移除列表中的模型",
+        "remove_listed": "移除全部模型",
         "remove_model": "删除模型",
+        "remove_skipped_default_in_use": "已跳过 {{count}} 个默认模型",
         "remove_whole_group": "删除分组",
         "search_models_placeholder": "搜索模型…",
         "select_none": "取消全选",
+        "stale_badge": "失效",
+        "stale_filter": "失效",
         "status_all": "全部",
         "status_disabled": "未启用",
         "status_enabled": "已启用",
@@ -6749,6 +6840,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已禁用",
+      "painting_model": "绘画模型",
+      "painting_model_description": "图像生成使用的模型",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",
@@ -6865,6 +6958,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "添加服务商",
         "name": {
           "label": "提供商名称",
           "placeholder": "例如 OpenAI",
@@ -7091,6 +7185,7 @@
         "fill_after_create": "创建后请在详情页填写认证字段",
         "menu_label": "添加实例"
       },
+      "enable_failed_after_connection": "连接成功，但服务商启用失败。",
       "filter": {
         "agent": "支持 Agent",
         "all": "全部服务商",
@@ -7260,7 +7355,7 @@
     },
     "scheduledTasks": {
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
-      "noAgents": "定时任务需要开启灵魂模式或无权限模式的 Agent 才能运行。请先在 Agent 设置中启用。",
+      "noAgents": "暂无可用的 Agent。请先创建一个 Agent，再添加定时任务。",
       "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
       "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
       "selectTask": "选择一个任务以查看详情",
@@ -7411,6 +7506,13 @@
           "doc2x": {
             "description": "高级文件还原引擎。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。首次使用请先在「环境依赖」中下载模型（约 140MB）。",
+            "name": "本地 PaddleOCR",
+            "status": {
+              "local": "完全本地离线运行"
+            }
           },
           "mineru": {
             "description": "OpenDataLab 开源的高质量 PDF 提取工具。",
@@ -7629,7 +7731,7 @@
   "title": {
     "apps": "小程序",
     "chat": "对话",
-    "code": "Code",
+    "code": "Code Switch",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",

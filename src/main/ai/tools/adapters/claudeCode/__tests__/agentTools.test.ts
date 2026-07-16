@@ -17,7 +17,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getMcpServerById: vi.fn(),
+  findMcpServer: vi.fn(),
   applicationGet: vi.fn(),
   listMcpTools: vi.fn()
 }))
@@ -28,7 +28,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { getById: mocks.getMcpServerById } }))
+vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findByIdOrName: mocks.findMcpServer } }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
 
@@ -51,7 +51,7 @@ function createDeferred<T>() {
 describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getMcpServerById.mockReturnValue({ id: 'mcp-1', name: 'server' })
+    mocks.findMcpServer.mockReturnValue({ id: 'mcp-1', name: 'server' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
       throw new Error(`Unexpected application.get(${name})`)
@@ -78,6 +78,15 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('Bash')).toBe(true)
   })
 
+  it('honors disabledTools for notify and config autonomy tools', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(
+      makeAgent(['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'])
+    )
+    expect(snapshot.isDisabled('mcp__cherry-tools__notify')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry-tools__config')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
@@ -96,6 +105,52 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       id: 'mcp__server__searchDocs',
       name: 'search_docs'
     })
+  })
+
+  it('resolves an MCP entry referenced by server name, not only by id', async () => {
+    // `agent.mcps` may hold a server name; findByIdOrName resolves it where the old getById(id) threw.
+    // The arg-sensitive mock (returns undefined for anything but the name) proves the name is passed through.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'server' ? { id: 'mcp-1', name: 'server' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['server']))
+
+    expect(mocks.findMcpServer).toHaveBeenCalledWith('server')
+    expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+  })
+
+  it('drops a server that becomes unknown on a later update instead of carrying it forward', async () => {
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+    expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Server deleted → resolver returns undefined. Unlike a transient listTools failure, a genuinely
+    // missing server must drop its descriptor, not resurrect it via the carry-forward path.
+    mocks.findMcpServer.mockReturnValue(undefined)
+    await snapshot.update(makeAgent([], ['mcp-1']))
+
+    expect(snapshot.resolve('mcp__server__searchDocs')).toBeUndefined()
+  })
+
+  it('preserves prior descriptors of a name-referenced server on a transient failure', async () => {
+    // agent.mcps holds the server NAME; failedMcpIds must be keyed by the resolved server.id so the
+    // carry-forward (which matches against prior descriptors' sourceId = server.id) still fires.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'docs' ? { id: 'mcp-1', name: 'docs' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['docs']))
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Transient catalog failure on the same (name-referenced) server must not drop its descriptor.
+    mocks.listMcpTools.mockImplementationOnce(() => {
+      throw new Error('catalog unavailable')
+    })
+    await snapshot.update(makeAgent([], ['docs']))
+
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
   })
 
   it('keeps the newest policy when an older rebuild completes late', async () => {
@@ -153,6 +208,19 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
     // A sibling read tool under the same prefix is still auto-approved.
     expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
   })
+
+  it('auto-approves the merged autonomy tools while kb_manage still prompts', async () => {
+    // The former standalone `cherry` server's cron/notify/config now live under cherry-tools and
+    // must stay auto-approved; the mutating kb_manage carve-out must survive the merge.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+    })
+    expect(snapshot.resolve('mcp__cherry-tools__cron')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__notify')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__config')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+  })
 })
 
 describe('createClaudeAgentToolPolicySnapshot — production approval-gate wiring', () => {
@@ -171,7 +239,8 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   // these fail the moment the real gate stops carving the mutating tools out.
   const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
   const productionOptions = {
-    autoAllowRuntimeNamePrefixes: [PREFIX],
+    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNamePrefixes: [],
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   }
 
@@ -187,7 +256,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
   })
 
-  it('prompts for every approval-required tool and auto-approves every read tool under the real wiring', async () => {
+  it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
 
     for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
@@ -196,5 +265,11 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
       expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
     }
+  })
+
+  it('does not auto-approve future cherry-tools by prefix under the real wiring', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
+
+    expect(snapshot.resolve('mcp__cherry-tools__future_mutator')).toBeUndefined()
   })
 })

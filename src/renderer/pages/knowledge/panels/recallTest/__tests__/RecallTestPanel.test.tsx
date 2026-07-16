@@ -1,18 +1,32 @@
 import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type RecallResultCardComponent from '../RecallResultCard'
 import RecallTestPanel from '../RecallTestPanel'
 
 const mockIpcRequest = vi.fn()
 const mockPerformanceNow = vi.spyOn(performance, 'now')
+const mockRecallResultCardRender = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (...args: unknown[]) => mockIpcRequest(...args)
   }
 }))
+
+vi.mock('../RecallResultCard', async (importOriginal) => {
+  const { default: RecallResultCard } = await importOriginal<{ default: typeof RecallResultCardComponent }>()
+
+  return {
+    default: (props: ComponentProps<typeof RecallResultCard>) => {
+      mockRecallResultCardRender(props.item.id)
+      return <RecallResultCard {...props} />
+    }
+  }
+})
+
 const mockClipboardWriteText = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
@@ -281,6 +295,24 @@ describe('RecallTestPanel', () => {
     expect(screen.getByText('real result from file path')).toBeInTheDocument()
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
     expect(screen.queryByText('知识库最佳实践.md')).not.toBeInTheDocument()
+  })
+
+  it('does not rerender existing result cards while typing a new query', async () => {
+    render(<RecallTestPanel baseId="base-1" />)
+
+    const input = screen.getByPlaceholderText('输入测试 Query...')
+    fireEvent.change(input, { target: { value: 'first query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: '复制片段' })).toHaveLength(2)
+    })
+    expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
+
+    fireEvent.change(input, { target: { value: 'next query' } })
+
+    expect(input).toHaveValue('next query')
+    expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
   })
 
   it('keeps recall results from causing outer horizontal overflow', async () => {

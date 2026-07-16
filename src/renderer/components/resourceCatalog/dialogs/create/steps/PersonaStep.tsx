@@ -28,7 +28,7 @@ export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
       control={form.control}
       name="prompt"
       render={({ field }) => (
-        <FormItem>
+        <FormItem className="flex h-full min-h-0 flex-col">
           <PromptEditorField
             label={
               <FieldLabelWithHelp
@@ -42,6 +42,8 @@ export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
             placeholder={t('library.config.prompt.placeholder')}
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
             maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+            autoFocus
+            fill
           />
         </FormItem>
       )}

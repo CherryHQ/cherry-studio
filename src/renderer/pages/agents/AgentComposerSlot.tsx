@@ -2,6 +2,7 @@ import type { ComposerContextValue } from '@renderer/components/composer/Compose
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
@@ -14,17 +15,16 @@ interface AgentComposerSlotProps {
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
-  onNewSessionDraft?: () => void | Promise<void>
-  onCreateEmptySession?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
+  canChangeAgent?: boolean
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
-  showWorkspaceSelector?: boolean
   canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
 
-export default function AgentComposerSlot({
+function AgentComposerSlot({
   agentId,
   isMultiSelectMode,
   session,
@@ -33,12 +33,11 @@ export default function AgentComposerSlot({
   stop,
   isStreaming,
   sendDisabled,
-  onNewSessionDraft,
   onCreateEmptySession,
+  canChangeAgent,
   workspaceId,
   onWorkspaceChange,
   workspaceChanging,
-  showWorkspaceSelector,
   canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
@@ -52,15 +51,16 @@ export default function AgentComposerSlot({
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
+        canChangeAgent={canChangeAgent}
         workspaceId={workspaceId}
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}
-        showWorkspaceSelector={showWorkspaceSelector}
         canChangeModel={canChangeModel}
       />
     ) : undefined
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(AgentComposerSlot)

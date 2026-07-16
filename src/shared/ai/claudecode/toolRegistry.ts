@@ -36,7 +36,7 @@ export interface ClaudeToolDescriptorDef {
   /** Other tools this one requires — if any is disabled, this tool is disabled too (transitively). */
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
-  mcpServer?: 'cherry-tools' | 'claw' | 'agent-memory' | 'skills'
+  mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
 }
 
 /**
@@ -311,28 +311,39 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Adds, deletes, or refreshes knowledge base documents',
     mcpServer: 'cherry-tools'
   },
-  // claw (agent autonomy / channels). notify/config need a connected channel to do anything.
-  ClawCron: {
-    name: 'mcp__claw__cron',
+  // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
+  CherryCron: {
+    name: 'mcp__cherry-tools__cron',
     category: 'orchestration',
     exposure: 'user',
     description: 'Manages the in-app scheduler',
-    mcpServer: 'claw'
+    mcpServer: 'cherry-tools'
   },
-  // notify/config are condition-gated (agent has a connected channel) — see toolConditions.ts.
-  ClawNotify: {
-    name: 'mcp__claw__notify',
+  // notify is user-exposed and NOT channel-gated: it self-degrades at call time (reports "no connected
+  // channels") when the agent has none — see cherryAutonomyTools.ts sendNotification. Do not re-add a
+  // channel enable-predicate, or an agent can't notify in the same run it uses config to add its first channel.
+  CherryNotify: {
+    name: 'mcp__cherry-tools__notify',
     category: 'orchestration',
-    exposure: 'internal',
+    exposure: 'user',
     description: 'Sends a notification through a connected channel',
-    mcpServer: 'claw'
+    mcpServer: 'cherry-tools'
   },
-  ClawConfig: {
-    name: 'mcp__claw__config',
+  CherryConfig: {
+    name: 'mcp__cherry-tools__config',
     category: 'orchestration',
-    exposure: 'internal',
+    exposure: 'user',
     description: 'Inspects and manages this agent configuration and channels',
-    mcpServer: 'claw'
+    mcpServer: 'cherry-tools'
+  },
+  // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
+  // "configure a painting model" note at runtime when none is set (see cherryBuiltinApproval.ts).
+  CherryGenerateImage: {
+    name: 'mcp__cherry-tools__generate_image',
+    category: 'media',
+    exposure: 'user',
+    description: 'Generates an image from a text prompt using your configured painting model',
+    mcpServer: 'cherry-tools'
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
@@ -399,7 +410,10 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',
-  mcp__claw__cron: 'Scheduler'
+  'mcp__cherry-tools__cron': 'Scheduler',
+  'mcp__cherry-tools__notify': 'Notify',
+  'mcp__cherry-tools__config': 'Configuration',
+  'mcp__cherry-tools__generate_image': 'Generate Image'
 }
 
 /**

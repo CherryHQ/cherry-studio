@@ -78,7 +78,7 @@ vi.mock('@main/services/nativePopupMenu', () => ({
   showNativePopupMenu: showNativePopupMenuMock
 }))
 
-vi.mock('@main/services/settingsNavigation', () => ({
+vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 

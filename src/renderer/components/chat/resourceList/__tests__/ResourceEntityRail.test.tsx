@@ -164,6 +164,23 @@ describe('ResourceEntityRail', () => {
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
+  it('marks the history button as current while history records are active', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onOpenHistoryRecords={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('omits the history button when onOpenHistoryRecords is not provided', () => {
     render(
       <ResourceEntityRail
@@ -240,6 +257,48 @@ describe('ResourceEntityRail', () => {
     expect(onContextMenuAction).toHaveBeenCalledWith(ITEMS[0], EDIT_ACTION)
 
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('renders row trailing actions next to the more menu without selecting the entity', () => {
+    const onContextMenuAction = vi.fn()
+    const onSelect = vi.fn()
+    const onTrailingAction = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        getContextMenuActions={() => [EDIT_ACTION]}
+        items={[
+          {
+            ...ITEMS[0],
+            trailingAction: (
+              <button type="button" aria-label="Create" onClick={onTrailingAction}>
+                Create
+              </button>
+            )
+          },
+          ITEMS[1]
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onContextMenuAction={onContextMenuAction}
+        onSelect={onSelect}
+      />
+    )
+
+    const createButton = screen.getByRole('button', { name: 'Create' })
+    const moreButton = screen.getAllByRole('button', { name: 'common.more' })[0]
+
+    expect(createButton).toBeInTheDocument()
+    expect(moreButton).toBeInTheDocument()
+    expect(moreButton.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(createButton)
+
+    expect(onTrailingAction).toHaveBeenCalledTimes(1)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onContextMenuAction).not.toHaveBeenCalled()
   })
 
   it('toggles the selected entity instead of selecting it again', () => {
@@ -319,6 +378,33 @@ describe('ResourceEntityRail', () => {
     )
 
     fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps repeat-click toggles available while history records clear the visual selection', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const row = screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement
+    expect(row).not.toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(row)
 
     expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
     expect(onSelect).not.toHaveBeenCalled()

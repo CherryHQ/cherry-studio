@@ -76,8 +76,9 @@ describe('aiHandlers', () => {
 
   it('check_model forwards the request and returns latency', async () => {
     aiService.checkModel.mockResolvedValue({ latency: 42 })
-    const result = await aiHandlers['ai.check_model']({ uniqueModelId: 'openai::gpt-4o', timeout: 5000 }, ctx)
-    expect(aiService.checkModel).toHaveBeenCalledWith({ uniqueModelId: 'openai::gpt-4o', timeout: 5000 })
+    const request = { uniqueModelId: 'openai::gpt-4o', apiKeyOverride: 'sk-selected', timeout: 5000 } as const
+    const result = await aiHandlers['ai.check_model'](request, ctx)
+    expect(aiService.checkModel).toHaveBeenCalledWith(request)
     expect(result).toEqual({ latency: 42 })
   })
 
@@ -90,7 +91,7 @@ describe('aiHandlers', () => {
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
-    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox' }
+    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox', paramValues: {} }
     const out = { files: [] }
     aiService.runImageRequest.mockResolvedValue(out)
 

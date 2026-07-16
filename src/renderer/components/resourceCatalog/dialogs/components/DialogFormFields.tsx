@@ -16,8 +16,9 @@ export const EmojiAvatarPicker: FC<{
   portalContainer: HTMLElement | null
   size?: 'sm' | 'md'
 }> = ({ value, fallback, open, onOpenChange, onChange, ariaLabel, disabled, portalContainer, size = 'md' }) => {
-  const avatarSize = size === 'sm' ? 36 : 40
-  const fontSize = size === 'sm' ? 18 : 20
+  // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
+  const avatarSize = size === 'sm' ? 36 : 32
+  const fontSize = size === 'sm' ? 18 : 16
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -28,10 +29,11 @@ export const EmojiAvatarPicker: FC<{
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            'min-h-0 rounded-[20%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
-            size === 'sm' ? 'size-9' : 'size-10'
+            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
+            size === 'sm' ? 'size-9' : 'size-8'
           )}>
-          <EmojiAvatar size={avatarSize} fontSize={fontSize}>
+          {/* Match the adjacent Input's rounded-lg + hairline border. */}
+          <EmojiAvatar size={avatarSize} fontSize={fontSize} className="rounded-lg border border-border">
             {value || fallback}
           </EmojiAvatar>
         </Button>
@@ -62,7 +64,6 @@ export function DialogModelFrame({ invalid, children }: { invalid?: boolean; chi
 
 type DialogModelTriggerProps = Omit<ComponentPropsWithoutRef<typeof Button>, 'children'> & {
   displayLabel: ReactNode
-  providerLabel?: ReactNode
   model?: ComponentProps<typeof ModelAvatar>['model']
   ariaLabel?: string
   ariaLabelledBy?: string
@@ -72,7 +73,6 @@ type DialogModelTriggerProps = Omit<ComponentPropsWithoutRef<typeof Button>, 'ch
 export const DialogModelTrigger = ({
   ref,
   displayLabel,
-  providerLabel,
   disabled,
   model,
   ariaLabel,
@@ -86,22 +86,20 @@ export const DialogModelTrigger = ({
     {...props}
     ref={ref}
     type={type ?? 'button'}
-    variant="outline"
+    variant="ghost"
     size="sm"
     disabled={disabled}
     aria-label={ariaLabel}
     aria-labelledby={ariaLabelledBy}
     className={cn(
-      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-md border border-input bg-background px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40',
+      // Mirrors the shared SelectTrigger recipe (bg-muted/50, borderless, rounded-lg).
+      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 aria-expanded:bg-muted',
       model ? 'text-foreground' : 'text-muted-foreground',
       className
     )}>
     <span className="flex min-w-0 flex-1 items-center gap-2">
       {model ? <ModelAvatar model={model} size={18} /> : null}
-      <span className="min-w-0 flex-1 truncate text-left">
-        {displayLabel}
-        {providerLabel ? <span className="text-muted-foreground/70"> | {providerLabel}</span> : null}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-left">{displayLabel}</span>
     </span>
     <ChevronDown
       aria-hidden="true"

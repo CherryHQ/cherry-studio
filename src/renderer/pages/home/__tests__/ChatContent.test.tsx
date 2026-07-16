@@ -1,3 +1,4 @@
+import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -31,6 +32,11 @@ const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
 )
+type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
+type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
+const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
+  current: undefined as ToolApprovalOverridesOptions | undefined
+}))
 const mockInvalidateCache = vi.fn<(keys?: string | string[] | boolean) => Promise<void>>(async () => undefined)
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
@@ -63,6 +69,17 @@ vi.mock('@renderer/services/EventService', () => ({
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
+
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', async (importOriginal) => {
+  const actual = await importOriginal<ToolApprovalOverridesModuleType>()
+
+  function useToolApprovalComposerOverrides(options: ToolApprovalOverridesOptions) {
+    mockToolApprovalOverridesOptions.current = options
+    return actual.useToolApprovalComposerOverrides(options)
+  }
+
+  return { ...actual, useToolApprovalComposerOverrides }
+})
 
 vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
@@ -188,11 +205,16 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: {
     messages: CherryUIMessage[]
     partsByMessageId: Record<string, CherryMessagePart[]>
+    streamingLayers: {
+      historyPartsByMessageId: Record<string, CherryMessagePart[]>
+      liveMessageIds: readonly string[]
+    }
     isInitialLoading?: boolean
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
+      streamingLayers: params.streamingLayers,
       isInitialLoading: params.isInitialLoading
     },
     actions: {},
@@ -284,6 +306,7 @@ describe('ChatContent', () => {
       reset: vi.fn()
     }
     mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockToolApprovalOverridesOptions.current = undefined
 
     ;(window as any).api = { ...originalApi }
   })
@@ -537,6 +560,85 @@ describe('ChatContent', () => {
     })
   })
 
+  it('keeps Home history parts and live ids stable across execution overlay frames', async () => {
+    const historyMessage = createUiMessage('history-assistant', 'assistant')
+    const pendingMessage = {
+      ...createUiMessage('pending-placeholder', 'assistant'),
+      parts: [{ type: 'text', text: 'persisted seed' }],
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        modelId: 'provider::model',
+        status: 'pending'
+      }
+    } as CherryUIMessage
+    const messages = [historyMessage, pendingMessage]
+    const activeExecutions = [{ executionId: 'provider::model', anchorMessageId: pendingMessage.id }]
+    const firstLiveAssistant = {
+      ...pendingMessage,
+      parts: [{ type: 'text', text: 'stream frame 1' }]
+    } as CherryUIMessage
+
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: messages,
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: pendingMessage.id,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'streaming',
+      setMessages: vi.fn(),
+      activeExecutions
+    })
+    mockExecutionOverlay.current = {
+      overlay: { [pendingMessage.id]: firstLiveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [firstLiveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+
+    const view = render(<ChatContent topic={topic} />)
+
+    await waitFor(() => {
+      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+        text: 'stream frame 1'
+      })
+    })
+    const firstStreamingLayers = mockMessageListValue.current.state.streamingLayers
+    expect(firstStreamingLayers.historyPartsByMessageId[pendingMessage.id][0]).toMatchObject({
+      text: 'persisted seed'
+    })
+    expect(firstStreamingLayers.liveMessageIds).toEqual([pendingMessage.id])
+    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
+
+    const secondLiveAssistant = {
+      ...pendingMessage,
+      parts: [{ type: 'text', text: 'stream frame 2' }]
+    } as CherryUIMessage
+    mockExecutionOverlay.current = {
+      overlay: { [pendingMessage.id]: secondLiveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [secondLiveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+    view.rerender(<ChatContent topic={topic} />)
+
+    await waitFor(() => {
+      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+        text: 'stream frame 2'
+      })
+    })
+    expect(mockMessageListValue.current.state.streamingLayers).toBe(firstStreamingLayers)
+    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
+  })
+
   it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {
     const onBranchLiveStateChange = vi.fn()
     const reservedUser = {
@@ -717,7 +819,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 17,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:03.000Z',
@@ -871,7 +973,12 @@ describe('ChatContent', () => {
       metadata: {
         parentId: 'history-user',
         modelId: 'legacy-model-b',
-        modelSnapshot: { id: 'model-b', name: 'Model B', provider: 'provider-b' },
+        messageSnapshot: {
+          id: 'a1',
+          name: 'A',
+          emoji: '',
+          model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
+        },
         status: 'success',
         createdAt: '2026-01-01T00:00:02.000Z'
       }
@@ -899,7 +1006,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 19,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:05.000Z',
@@ -949,6 +1056,81 @@ describe('ChatContent', () => {
     )
   })
 
+  it('preserves a single reply model when editing an assistant-less conversation', async () => {
+    const editedParts = [{ type: 'text', text: 'edited single-model prompt' } as CherryMessagePart]
+    const unlinkedTopic = { ...topic, assistantId: null }
+    const historyUser = {
+      ...createUiMessage('history-user', 'user'),
+      metadata: { parentId: 'branch-a', createdAt: '2026-01-01T00:00:00.000Z' }
+    } as CherryUIMessage
+    const singleModelReply = {
+      ...createUiMessage('reply-model-a', 'assistant'),
+      metadata: {
+        parentId: 'history-user',
+        modelId: 'provider-a::model-a',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
+    } as CherryUIMessage
+    const createSiblingTrigger = vi.fn().mockResolvedValue({
+      id: 'forked-user',
+      topicId: 'topic-1',
+      parentId: 'branch-a',
+      role: 'user',
+      data: { parts: editedParts },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 20,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:02.000Z',
+      updatedAt: '2026-01-01T00:00:02.000Z'
+    })
+
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [historyUser, singleModelReply],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'reply-model-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={unlinkedTopic} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+    })
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'forked-user',
+        mentionedModelIds: ['provider-a::model-a']
+      })
+    )
+  })
+
   it('resends an edited root user message by creating a root sibling', async () => {
     const editedParts = [{ type: 'text', text: 'edited root prompt' } as CherryMessagePart]
     const createSiblingTrigger = vi.fn().mockResolvedValue({
@@ -961,7 +1143,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 23,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:03.000Z',

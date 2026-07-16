@@ -3,6 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -222,7 +223,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
   const handleOpenLink = useCallback(() => {
     const urlToOpen = currentUrl || app.url
-    void window.api.openWebsite(urlToOpen)
+    void ipcApi.request('system.shell.open_website', urlToOpen)
   }, [currentUrl, app.url])
 
   return (

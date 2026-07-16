@@ -34,23 +34,8 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/command', () => ({
-  useResolvedCommand: () => ({
-    enabled: true,
-    execute: vi.fn(),
-    label: '',
-    shortcutLabel: ''
-  })
-}))
-
 vi.mock('../Tools', () => ({
   default: () => <span>tools</span>
-}))
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key
-  })
 }))
 
 vi.mock('i18next', () => ({
@@ -105,7 +90,7 @@ describe('AgentContent', () => {
     expect(toggle).not.toHaveAttribute('data-active')
   })
 
-  it('shows the inactive sidebar toggle and a new-session button when the sidebar is hidden', () => {
+  it('shows only the inactive sidebar toggle when the sidebar is hidden', () => {
     render(<AgentContent activeAgent={agentA} />)
 
     const toggle = screen.getAllByRole('button')[0]
@@ -113,7 +98,17 @@ describe('AgentContent', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).toHaveAttribute('data-tone', 'conversation')
     expect(toggle).not.toHaveAttribute('data-active')
-    expect(screen.getByRole('button', { name: 'agent.session.add.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.session.add.title' })).not.toBeInTheDocument()
+  })
+
+  it('places the conversation controls host after the sidebar toggle', () => {
+    const { container } = render(<AgentContent activeAgent={agentA} />)
+
+    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+    const controls = container.querySelector('[data-conversation-topbar-controls]')
+
+    expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'agent.session.add.title' })).not.toBeInTheDocument()
   })
 
   it('hides the new-session button when the sidebar is visible', () => {

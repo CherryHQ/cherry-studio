@@ -1,6 +1,4 @@
 import { NavbarHeader } from '@renderer/components/Navbar'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { ReactNode } from 'react'
@@ -24,13 +22,9 @@ const AgentChatNavbar = ({
   sidebarOpen,
   onSidebarToggle
 }: Props) => {
-  useCommandHandler('app.search', () => {
-    void SearchPopup.show()
-  })
-
   return (
-    <NavbarHeader className={cn('agent-navbar relative h-(--navbar-height)', className)}>
-      <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
+    <NavbarHeader className={cn('agent-navbar relative', className)} style={{ height: 'var(--navbar-height)' }}>
+      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
         <AgentContent
           activeAgent={activeAgent}
           tools={tools}

@@ -4,6 +4,7 @@ import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import type { CodeStyleVarious } from '@renderer/types/app'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
@@ -94,7 +95,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
 
   const handleSpellCheckChange = (checked: boolean) => {
     void setEnableSpellCheck(checked)
-    void window.api.setEnableSpellCheck(checked)
+    void ipcApi.request('app.set_spell_check_enabled', checked)
   }
 
   const messageStyleItems = useMemo<SelectOption<'plain' | 'bubble'>[]>(

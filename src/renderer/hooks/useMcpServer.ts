@@ -1,17 +1,16 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { navigationService } from '@renderer/services/NavigationService'
+import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { McpTool } from '@renderer/types/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { CreateMcpServerDto, ListMcpServersQuery } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
 
 // Navigate to MCP server settings when a server is installed via URL scheme
-window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: string }) => {
-  void navigationService.navigate?.({ to: '/settings/mcp' })
-  void navigationService.navigate?.({ to: `/settings/mcp/settings/${server.id}` })
+ipcApi.on('mcp.server.added', (server) => {
+  openSettingsTab(`/settings/mcp/settings/${server.id}`)
 })
 
 /**

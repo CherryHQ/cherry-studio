@@ -54,7 +54,7 @@ The trade is deliberate: give up the freedom to add arbitrary channels, gain ful
 
 - **schema layer** (`src/shared/ipc/schemas/`): per-domain files, each split into a Request block (zod values, single source of truth) and an Event block (pure types).
 - **transport**: two channels — `IpcApi_Request` (R→M) and `IpcApi_Event` (M→R).
-- **main**: `IpcApiService` = `IpcRouter` (request dispatch) + `broadcast`/`send` (events) + per-domain handlers. Send and receive are unified in one service.
+- **main**: `IpcApiService` = `IpcRouter` (request dispatch) + `broadcast`/`broadcastToType`/`send` (events) + per-domain handlers. Send and receive are unified in one service.
 - **preload**: one generic forwarder (collapses the hand-written object).
 - **renderer**: key-style typed facade `ipcApi.request` (like `useQuery`) + `ipcApi.on` / `useIpcOn`.
 

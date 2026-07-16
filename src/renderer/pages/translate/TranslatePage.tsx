@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
-import { useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -26,6 +26,7 @@ import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
@@ -34,19 +35,15 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
-import {
-  isUniqueModelId,
-  type Model as SelectorModel,
-  MODEL_CAPABILITY,
-  parseUniqueModelId,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
+import { isNonChatModel } from '@shared/utils/model'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -62,14 +59,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.IMAGE_GENERATION
-])
-
-const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
-
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getTitleFromTranslationResult = (translationResult: string) =>
@@ -200,9 +189,7 @@ const TranslatePage: FC = () => {
 
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
   const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
-  const selectedModelIcon = selectedModel
-    ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
-    : undefined
+  const selectedModelIcon = useIcon(selectedModel ? getModelLogoRef(selectedModel) : undefined)
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -321,12 +308,10 @@ const TranslatePage: FC = () => {
     if (sourceLanguage === 'auto') {
       setIsDetecting(true)
       try {
-        actualSourceLanguage = await detectLanguage(translateInput)
+        actualSourceLanguage = await detectLanguageOrUnknown(translateInput, detectLanguage, (error) => {
+          logger.error('Failed to detect language', error as Error)
+        })
         setDetectedLanguage(actualSourceLanguage)
-      } catch (error) {
-        logger.error('Failed to detect language', error as Error)
-        actualSourceLanguage = UNKNOWN_LANG_CODE
-        setDetectedLanguage(UNKNOWN_LANG_CODE)
       } finally {
         setIsDetecting(false)
       }
@@ -394,13 +379,17 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory) => {
+      const nextTargetLanguage =
+        history.targetLanguage ??
+        (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
+
       setTranslateInput(history.sourceText)
       setTranslateOutput(history.targetText)
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
-      void safePersist(setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE), 'translate target language')
+      void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
-    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput, targetLanguage]
   )
 
   const inputScrollHandler = useMemo(
@@ -431,11 +420,7 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
-  const modelSelectorFilter = useCallback(
-    (model: SelectorModel) =>
-      !model.capabilities.some((capability) => EXCLUDED_TRANSLATE_MODEL_CAPABILITIES.has(capability)),
-    []
-  )
+  const modelSelectorFilter = useCallback((model: SelectorModel) => !isNonChatModel(model), [])
 
   const handleModelIdSelect = useCallback(
     (modelId: UniqueModelId | undefined) => {
@@ -771,7 +756,7 @@ const TranslatePage: FC = () => {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
             <TranslateInputPane
               ref={inputScrollRef}
@@ -795,7 +780,7 @@ const TranslatePage: FC = () => {
             />
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l">
+          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-l">
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}

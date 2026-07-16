@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -22,13 +23,15 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
-import type { EditorOptions, JSONContent } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
@@ -39,6 +42,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -83,7 +87,7 @@ const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
 ] as const
-type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
+const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
 interface ComposerClipboardCopyView {
   state: {
     selection: {
@@ -100,6 +104,7 @@ interface ComposerClipboardCopyView {
 export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
+  replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken) => void
@@ -112,6 +117,11 @@ export interface ComposerSurfaceEditingState {
   onCancel: () => void
   onLocate?: () => void
 }
+
+type ComposerSurfaceSendAccessoryRenderer = (
+  inputAdapter?: QuickPanelInputAdapter,
+  unifiedPanelControl?: ComposerUnifiedPanelControl
+) => React.ReactNode
 
 export interface ComposerSurfaceProps {
   text: string
@@ -139,6 +149,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -155,8 +166,11 @@ export interface ComposerSurfaceProps {
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
-  renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
-  sendAccessory?: React.ReactNode
+  renderBelowControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
+  sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -235,6 +249,16 @@ function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
+}
+
+function createFolderComposerToken(path: string): ComposerDraftToken {
+  return {
+    id: createComposerSecureRandomId('folder-token'),
+    kind: 'folder',
+    label: getPathBasename(path),
+    description: path,
+    promptText: path
+  }
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
@@ -337,7 +361,7 @@ function getComposerInputTextWithinLimit(currentText: string, nextText: string, 
   return nextText.slice(0, remainingLength)
 }
 
-function getComposerReplacementText(view: ComposerTextInputView | null, from: number, to: number) {
+function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
   if (!view || from >= to) return ''
   return view.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
 }
@@ -463,6 +487,20 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
   return createPromptVariableContent(text)
 }
 
+function getComposerSelectionState(view: EditorView) {
+  const { doc, selection } = view.state
+  // ProseMirror positions are token-based: `doc.content.size` is one past the
+  // trailing block-close token, so the caret at end-of-text sits at
+  // `content.size - 1` for non-empty text. Empty text only has a single
+  // selectable position (`1`), which is what `Math.max(1, ...)` normalizes.
+  const lastSelectablePosition = Math.max(1, doc.content.size - 1)
+
+  return {
+    isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
+    isCursorAtEnd: selection.empty && selection.from === lastSelectablePosition
+  }
+}
+
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
@@ -492,12 +530,13 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  onInputHistoryNavigate,
   editingState,
   getToolLaunchers,
   toolLaunchersVersion,
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
-  suggestionSources = [],
+  suggestionSources = EMPTY_SUGGESTION_SOURCES,
   resourceProvider,
   queueContent,
   rootPanelLeadingItems,
@@ -512,9 +551,9 @@ export default function ComposerSurface({
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const quickPanelRef = useRef(quickPanel)
-  quickPanelRef.current = quickPanel
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
+  const isEditing = !!editingState
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
@@ -524,28 +563,47 @@ export default function ComposerSurface({
   const tokenByIdRef = useRef(new Map<string, ComposerDraftToken>())
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
+  const sendMessageShortcutRef = useRef(sendMessageShortcut)
+  const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
+  const isExpandedRef = useRef(isExpanded)
+  const isEditingRef = useRef(isEditing)
+  const filesCountRef = useRef(filesCount)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
+
   const editingHighlightKey = editingState?.highlightKey
+
+  useLayoutEffect(() => {
+    quickPanelRef.current = quickPanel
+    isExpandedRef.current = isExpanded
+    isEditingRef.current = isEditing
+    filesCountRef.current = filesCount
+    sendDisabledRef.current = sendDisabled
+    sendBlockedReasonRef.current = sendBlockedReason
+    sendMessageShortcutRef.current = sendMessageShortcut
+    setFilesRef.current = setFiles
+    onSendDraftRef.current = onSendDraft
+    onInputHistoryNavigateRef.current = onInputHistoryNavigate
+  }, [
+    filesCount,
+    isEditing,
+    isExpanded,
+    onInputHistoryNavigate,
+    onSendDraft,
+    quickPanel,
+    sendBlockedReason,
+    sendDisabled,
+    sendMessageShortcut,
+    setFiles
+  ])
 
   useEffect(() => {
     textRef.current = text
   }, [text])
-
-  useEffect(() => {
-    sendDisabledRef.current = sendDisabled
-  }, [sendDisabled])
-
-  useEffect(() => {
-    sendBlockedReasonRef.current = sendBlockedReason
-  }, [sendBlockedReason])
-
-  useEffect(() => {
-    onSendDraftRef.current = onSendDraft
-  }, [onSendDraft])
 
   useEffect(() => {
     tokenByIdRef.current = new Map(tokens.map((token) => [token.id, token]))
@@ -597,16 +655,26 @@ export default function ComposerSurface({
     [applyComposerText]
   )
 
-  const { handlePaste } = usePasteHandler(text, setText, {
-    supportedExts,
-    setFiles,
-    onResize: () => undefined,
-    t
-  })
+  const pasteHandlerOptions = useMemo(
+    () => ({
+      supportedExts,
+      setFiles,
+      onResize: undefined,
+      t
+    }),
+    [supportedExts, setFiles, t]
+  )
+
+  const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
     setFiles,
+    onFolderPathDropped: (path) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+      insertComposerTokenAtCursor(editor, createFolderComposerToken(path))
+    },
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
       if (!editor) return
@@ -648,6 +716,11 @@ export default function ComposerSurface({
     focusEditor,
     setTimeoutTimer
   })
+  const toggleEditorExpandedRef = useRef(toggleEditorExpanded)
+
+  useLayoutEffect(() => {
+    toggleEditorExpandedRef.current = toggleEditorExpanded
+  }, [toggleEditorExpanded])
 
   const handleTextChangeFromTool = useCallback(
     (updater: string | ((prev: string) => string)) => {
@@ -724,16 +797,39 @@ export default function ComposerSurface({
     return serializeComposerDocument(editor)
   }, [])
 
+  const replaceDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+
+      textRef.current = draft.text
+      pendingLocalTextEchoRef.current = null
+      editor.commands.setContent(createComposerEditorContent(draft.text, draft.tokens), { emitUpdate: false })
+      managedTokenSignatureRef.current = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+    },
+    [managedTokenKindSet]
+  )
+
   useEffect(() => {
     onActionsChange?.({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
+      replaceDraft,
       toggleExpanded: toggleEditorExpanded,
       removeToken,
       insertToken,
       getDraft
     })
-  }, [focusEditor, getDraft, handleTextChangeFromTool, insertToken, onActionsChange, removeToken, toggleEditorExpanded])
+  }, [
+    focusEditor,
+    getDraft,
+    handleTextChangeFromTool,
+    insertToken,
+    onActionsChange,
+    removeToken,
+    replaceDraft,
+    toggleEditorExpanded
+  ])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
@@ -762,24 +858,38 @@ export default function ComposerSurface({
     rootPanelAdditionalItems,
     unifiedResourceItems
   })
-  rootSuggestionStateRef.current = {
+
+  useLayoutEffect(() => {
+    rootSuggestionStateRef.current = {
+      getToolLaunchers,
+      onRootPanelOpen,
+      onToolLauncherSelect,
+      quickPanel,
+      resourceProvider,
+      rootPanelLeadingItems,
+      rootPanelAdditionalItems,
+      unifiedResourceItems
+    }
+  }, [
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
     quickPanel,
     resourceProvider,
-    rootPanelLeadingItems,
     rootPanelAdditionalItems,
+    rootPanelLeadingItems,
     unifiedResourceItems
-  }
+  ])
 
   const createUnifiedPanelOptions = useCallback(
     ({
+      initialSearchText,
       inputAdapter,
       queryAnchor,
       resourceItems,
       triggerInfo
     }: {
+      initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       resourceItems?: readonly QuickPanelListItem[]
@@ -798,7 +908,8 @@ export default function ComposerSurface({
         additionalItems: rootPanelAdditionalItems,
         resourceItems,
         queryAnchor,
-        triggerInfo
+        triggerInfo,
+        initialSearchText
       })
     },
     [t]
@@ -880,11 +991,13 @@ export default function ComposerSurface({
 
   const openUnifiedComposerPanel = useCallback(
     ({
+      initialSearchText,
       inputAdapter,
       queryAnchor,
       requestRootPanelOpen = true,
       triggerInfo
     }: {
+      initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       requestRootPanelOpen?: boolean
@@ -897,12 +1010,52 @@ export default function ComposerSurface({
       setUnifiedResourceItems([])
       quickPanel.open(
         createUnifiedPanelOptions({
+          initialSearchText,
           inputAdapter,
           queryAnchor,
           resourceItems: [],
           triggerInfo
         })
       )
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const openUnifiedComposerLauncherSubmenu = useCallback(
+    ({
+      inputAdapter,
+      launcherId,
+      queryAnchor,
+      searchText,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      launcherId: string
+      queryAnchor?: number
+      searchText?: string
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const { quickPanel } = rootSuggestionStateRef.current
+      const rootPanelOptions = createUnifiedPanelOptions({
+        initialSearchText: searchText,
+        inputAdapter,
+        queryAnchor,
+        resourceItems: [],
+        triggerInfo
+      })
+      const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
+      if (!launcherItem?.isMenu || launcherItem.disabled) return false
+
+      launcherItem.action?.({
+        action: 'click',
+        context: { ...quickPanel, triggerInfo: rootPanelOptions.triggerInfo },
+        item: launcherItem,
+        parentPanel: rootPanelOptions,
+        queryAnchor,
+        searchText,
+        inputAdapter
+      })
+      return true
     },
     [createUnifiedPanelOptions]
   )
@@ -1035,7 +1188,10 @@ export default function ComposerSurface({
   )
 
   const suggestionPanelStateRef = useRef({ quickPanel })
-  suggestionPanelStateRef.current = { quickPanel }
+
+  useLayoutEffect(() => {
+    suggestionPanelStateRef.current = { quickPanel }
+  }, [quickPanel])
 
   const quickPanelSuggestionSources = useMemo<ComposerSuggestionSource[]>(
     () =>
@@ -1123,6 +1279,7 @@ export default function ComposerSurface({
         <FileComposerToken
           token={fileToken}
           selected={selected}
+          imageIconPreview
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
           tooltipActions={
@@ -1161,12 +1318,8 @@ export default function ComposerSurface({
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
-  const editor = useRichTextEditorKernel({
-    extensions: editorExtensions,
-    content: createComposerEditorContent(text, draftTokens),
-    editable,
-    enableSpellCheck,
-    editorProps: {
+  const memoizedEditorProps = useMemo(
+    () => ({
       attributes: {
         class: cn(
           'composer-tiptap after:hidden! box-border flex w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
@@ -1175,31 +1328,56 @@ export default function ComposerSurface({
         ),
         style: editorStyle
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
+        const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
+        const isShiftEnterPressed =
+          isEnterPressed && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+        const qp = quickPanelRef.current
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
-          const handled = quickPanel.dispatchKeyDown(event)
+          const handled = qp.dispatchKeyDown(event)
           if (handled) return true
-          if (
-            quickPanel.isVisible &&
-            event.key === 'Enter' &&
-            event.shiftKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey
-          ) {
+          if (qp.isVisible && isShiftEnterPressed) {
             return false
+          }
+          if (qp.isVisible && isEnterPressed) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
           }
         }
 
-        if (event.key === 'Escape' && isExpanded) {
+        if (
+          (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.shiftKey &&
+          shouldHandleInputHistoryNavigation({
+            ...getComposerSelectionState(view),
+            isComposing: event.isComposing,
+            isQuickPanelVisible: qp.isVisible,
+            key: event.key,
+            text: textRef.current
+          })
+        ) {
+          const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
+          const handled = onInputHistoryNavigateRef.current?.(direction) ?? false
+          if (handled) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
+        }
+
+        if (event.key === 'Escape' && isExpandedRef.current) {
           event.stopPropagation()
-          toggleEditorExpanded(false)
+          toggleEditorExpandedRef.current(false)
           return true
         }
 
-        if (event.key === 'Tab' && !event.isComposing && !quickPanel.isVisible) {
+        if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
             : null
@@ -1212,8 +1390,11 @@ export default function ComposerSurface({
           }
         }
 
-        const isEnterPressed = event.key === 'Enter' && !event.isComposing
-        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcut)) {
+        if (isEditingRef.current && isShiftEnterPressed) {
+          return false
+        }
+
+        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
           if (!sendDisabledRef.current && editorRef.current) {
             const draft = serializeComposerDocument(editorRef.current)
             void Promise.resolve(onSendDraftRef.current(draft)).finally(focusEditor)
@@ -1227,10 +1408,10 @@ export default function ComposerSurface({
         if (
           event.key === 'Backspace' &&
           textRef.current.trim().length === 0 &&
-          filesCount > 0 &&
+          filesCountRef.current > 0 &&
           (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
         ) {
-          setFiles((prev) => prev.slice(0, -1))
+          setFilesRef.current((prev) => prev.slice(0, -1))
           event.preventDefault()
           return true
         }
@@ -1335,8 +1516,12 @@ export default function ComposerSurface({
           return true
         }
       }
-    },
-    handlePaste: (_view, event) => {
+    }),
+    [editorStyle, focusEditor, hasCustomHeight, showBlockedSendReason]
+  )
+
+  const memoizedHandlePaste = useCallback(
+    (_view: EditorView, event: ClipboardEvent) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = editorRef.current
@@ -1387,7 +1572,7 @@ export default function ComposerSurface({
           event.preventDefault()
           insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
-            setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
+            setFilesRef.current((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
           return true
         }
@@ -1422,6 +1607,16 @@ export default function ComposerSurface({
       void handlePaste(event)
       return false
     },
+    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker]
+  )
+
+  const editor = useRichTextEditorKernel({
+    extensions: editorExtensions,
+    content: createComposerEditorContent(text, draftTokens),
+    editable,
+    enableSpellCheck,
+    editorProps: memoizedEditorProps,
+    handlePaste: memoizedHandlePaste,
     onUpdate: ({ editor: updatedEditor }) => {
       if (tokenizePromptVariablesInEditor(updatedEditor)) return
 
@@ -1661,59 +1856,95 @@ export default function ComposerSurface({
   const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
     () => ({
       available: unifiedPanelAvailable,
-      open: () => {
+      open: (options) => {
+        if (!unifiedPanelAvailable) return
+
+        const { quickPanel } = rootSuggestionStateRef.current
+        const requestedSearchText = options?.searchText ?? ''
+        const isButtonPanelVisible = quickPanel.isVisible && quickPanel.triggerInfo?.type === 'button'
+        const isSameLauncherPanel = Boolean(options?.launcherId && quickPanel.symbol === options.launcherId)
+        const isSameRootPanel =
+          quickPanel.symbol === ComposerPanelSymbol.Root && (quickPanel.initialSearchText ?? '') === requestedSearchText
+
+        if (isButtonPanelVisible && (isSameLauncherPanel || isSameRootPanel)) {
+          quickPanel.close('toggle')
+          inputAdapter?.focus()
+          return
+        }
+
         const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
-        openUnifiedComposerPanel({
-          inputAdapter,
-          queryAnchor,
-          triggerInfo: {
-            type: 'button',
-            position: queryAnchor
-          }
-        })
+        const triggerInfo = {
+          type: 'button',
+          position: queryAnchor
+        } as const
+        const didOpenLauncherSubmenu = options?.launcherId
+          ? openUnifiedComposerLauncherSubmenu({
+              inputAdapter,
+              launcherId: options.launcherId,
+              queryAnchor,
+              searchText: options.searchText,
+              triggerInfo
+            })
+          : false
+
+        if (!didOpenLauncherSubmenu) {
+          openUnifiedComposerPanel({
+            initialSearchText: options?.searchText,
+            inputAdapter,
+            queryAnchor,
+            triggerInfo
+          })
+        }
+
         inputAdapter?.focus()
       }
     }),
-    [inputAdapter, openUnifiedComposerPanel, unifiedPanelAvailable]
+    [inputAdapter, openUnifiedComposerLauncherSubmenu, openUnifiedComposerPanel, unifiedPanelAvailable]
   )
 
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
-  const belowControls = renderBelowControls?.(inputAdapter)
+  const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
+  const sendAccessoryElement =
+    typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
-  const editingModeBadge = editingState ? (
+  const editingModeHeader = editingState ? (
     <div
       role="status"
       aria-live="polite"
       aria-label={t('chat.input.editing_message')}
-      data-composer-editing-badge=""
-      className="-translate-y-1/2 absolute top-0 left-3 z-4 inline-flex h-6 max-w-[180px] items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />
-      <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
-      {editingState.onLocate ? (
-        <Tooltip content={t('chat.input.locate_editing_message')}>
+      data-composer-editing-header=""
+      className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-foreground-secondary text-xs">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {editingState.onLocate ? (
+          <Tooltip content={t('chat.input.locate_editing_message')}>
+            <Button
+              type="button"
+              onClick={editingState.onLocate}
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
+              aria-label={t('chat.input.locate_editing_message')}>
+              <LocateFixed size={14} />
+            </Button>
+          </Tooltip>
+        ) : null}
+        <Tooltip content={t('chat.input.cancel_editing')}>
           <Button
             type="button"
-            onClick={editingState.onLocate}
+            onClick={editingState.onCancel}
             variant="ghost"
             size="icon-sm"
-            className="-mr-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
-            aria-label={t('chat.input.locate_editing_message')}>
-            <LocateFixed size={14} />
+            className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
+            aria-label={t('chat.input.cancel_editing')}>
+            <X size={14} />
           </Button>
         </Tooltip>
-      ) : null}
-      <Tooltip content={t('chat.input.cancel_editing')}>
-        <Button
-          type="button"
-          onClick={editingState.onCancel}
-          variant="ghost"
-          size="icon-sm"
-          className="-mr-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
-          aria-label={t('chat.input.cancel_editing')}>
-          <X size={14} />
-        </Button>
-      </Tooltip>
+      </div>
     </div>
   ) : null
   const inputbarElement = (
@@ -1721,7 +1952,8 @@ export default function ComposerSurface({
       id="inputbar"
       data-composer-inputbar=""
       className={cn(
-        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-[0_1px_5px_rgba(15,23,42,0.05)] transition-all duration-200 ease-in-out dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]',
+        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-[0_1px_5px_rgba(15,23,42,0.05)] transition-all duration-200 ease-in-out dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]',
+        editingState ? 'pt-0' : 'pt-2',
         belowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
@@ -1743,27 +1975,30 @@ export default function ComposerSurface({
         className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
         <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
       </div>
-      <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
-        <span
-          aria-hidden="true"
-          data-composer-expand-corner-line=""
-          className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
-        />
-        <Button
-          type="button"
-          onClick={handleExpandControlClick}
-          variant="ghost"
-          size="icon-sm"
-          className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
-          aria-pressed={hasCustomHeight}
-          aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
-          <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
-        </Button>
-      </div>
-      {editingModeBadge}
+      {!editingState ? (
+        <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
+          <span
+            aria-hidden="true"
+            data-composer-expand-corner-line=""
+            className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
+          />
+          <Button
+            type="button"
+            onClick={handleExpandControlClick}
+            variant="ghost"
+            size="icon-sm"
+            className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
+            aria-pressed={hasCustomHeight}
+            aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
+            <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
+          </Button>
+        </div>
+      ) : null}
+      {editingModeHeader}
       <div
         ref={frameRef}
-        className="overflow-hidden transition-[height] ease-out"
+        data-composer-editor-frame=""
+        className={cn('overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
         onTransitionEnd={handleTransitionEnd}
         style={frameStyle}>
         <EditorContent
@@ -1783,7 +2018,7 @@ export default function ComposerSurface({
           {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
         </div>
         <div className="flex flex-row items-center gap-1.5">
-          {sendAccessory}
+          {sendAccessoryElement}
           {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button

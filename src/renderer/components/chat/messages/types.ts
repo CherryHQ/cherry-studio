@@ -13,6 +13,7 @@ import type {
 import type {
   CherryMessagePart,
   CherryUIMessage,
+  MessageSnapshot,
   MessageStats,
   MessageStatus,
   ModelSnapshot
@@ -186,7 +187,10 @@ export interface MessageListItem {
   updatedAt?: string
   status: MessageStatus
   modelId?: string
-  modelSnapshot?: ModelSnapshot
+  /** Resolved model identity (from the author snapshot or the topic fallback). */
+  model?: ModelSnapshot
+  /** Producing-author snapshot (assistant|agent, model nested) frozen at creation. */
+  messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats
@@ -239,10 +243,22 @@ export type MessageRenderConfigUpdate = Partial<
   Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
 >
 
+/**
+ * Layered streaming state. `historyPartsByMessageId` holds the persisted
+ * parts used by the sealed history render layer (it never sees per-frame
+ * stream snapshots); `liveMessageIds` marks the mutable streaming tail.
+ */
+export interface MessageStreamingLayers {
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  liveMessageIds: readonly string[]
+}
+
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /** When provided, streaming updates stay isolated from historical message subtrees. */
+  streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean
@@ -262,6 +278,7 @@ export interface MessageListState {
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
+  isMessageTranslating?: (messageId: string) => boolean
   getFileView?: (file: FileMetadata) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
   externalCodeEditors?: ExternalAppInfo[]

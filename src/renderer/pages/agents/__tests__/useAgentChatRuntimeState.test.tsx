@@ -169,7 +169,6 @@ describe('useAgentChatRuntimeState', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -184,7 +183,6 @@ describe('useAgentChatRuntimeState', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -223,7 +221,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -232,12 +229,41 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
   })
 
+  it('keeps the history contract and composer callback stable across stream snapshots', () => {
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const streamingLayers = result.current.streamingLayers
+    const sendMessage = result.current.sendMessage
+
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    rerender()
+
+    expect(result.current.streamingLayers).toBe(streamingLayers)
+    expect(result.current.streamingLayers.liveMessageIds).toEqual(['assistant-1'])
+    expect(result.current.sendMessage).toBe(sendMessage)
+  })
+
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -258,7 +284,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })

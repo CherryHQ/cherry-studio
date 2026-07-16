@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
+import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /**
@@ -59,12 +60,14 @@ const mockWindowManager = {
 
 /**
  * Minimal IpcApiService mock — services push main→renderer events via
- * `application.get('IpcApiService').send(windowId, event, payload)` (directed) or
- * `.broadcast(event, payload)` (all windows). Tests can assert on these spies.
+ * `application.get('IpcApiService').send(windowId, event, payload)` (directed),
+ * `.broadcast(event, payload)` (all windows), or
+ * `.broadcastToType(windowType, event, payload)` (one window type). Tests can assert on these spies.
  */
 const mockIpcApiService = {
   send: vi.fn(),
-  broadcast: vi.fn()
+  broadcast: vi.fn(),
+  broadcastToType: vi.fn()
 }
 
 /** Default service instances from existing mock files */
@@ -73,6 +76,7 @@ export const defaultServiceInstances = {
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
+  FileManager: MockMainFileManagerExport.fileManager,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService

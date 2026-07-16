@@ -4,8 +4,9 @@ import '@testing-library/jest-dom/vitest'
 // Import the real component from its source path: the `@cherrystudio/ui` barrel
 // is globally mocked for renderer tests, but this deeper specifier is not.
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
+import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { createMemoryHistory } from '@tanstack/react-router'
+import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -26,10 +27,10 @@ const routerMocks = vi.hoisted(() => ({
 // @cherrystudio/ui stub shadows it).
 vi.mock('@cherrystudio/ui/components/primitives/portal-container', async (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => {
-  const { PortalContainerProvider, usePortalContainer } = await import(
+  const { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer } = await import(
     '@cherrystudio/ui/components/primitives/portal-container'
   )
-  return { PortalContainerProvider, usePortalContainer }
+  return { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer }
 })
 
 vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
@@ -67,6 +68,7 @@ vi.mock('@tanstack/react-router', async () => {
   }
 })
 
+import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
 const tab = (id: string, url: string): Tab => ({ id, url, title: url, type: 'route' }) as Tab
@@ -83,6 +85,16 @@ afterEach(() => {
   cleanup()
   knobs.renderPage = () => null
   vi.clearAllMocks()
+})
+
+describe('TabRouter route error containment wiring', () => {
+  it('wires RouteErrorFallback as the router defaultErrorComponent', () => {
+    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
+
+    expect(vi.mocked(createRouter)).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultErrorComponent: RouteErrorFallback })
+    )
+  })
 })
 
 describe('TabRouter portal container', () => {
@@ -134,6 +146,34 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
     expect(bRoot.style.display).toBe('none')
     expect(aRoot.querySelector('[role="dialog"]')).not.toBeInTheDocument()
+  })
+
+  it('keeps a Dialog opened on the active tab scoped to that tab after switching away', async () => {
+    function PageWithDialog({ url }: { url: string }) {
+      const [open] = React.useState(url === '/b')
+      return (
+        <Dialog open={open}>
+          <DialogContent data-testid="test-dialog-content">Dialog {url}</DialogContent>
+        </Dialog>
+      )
+    }
+
+    knobs.renderPage = (url) => <PageWithDialog url={url} />
+
+    const { rerender } = render(<Shell activeId="b" />)
+    const aRoot = tabRoot('/a')
+    const bRoot = tabRoot('/b')
+    expect(aRoot).toBeInstanceOf(HTMLElement)
+    expect(bRoot).toBeInstanceOf(HTMLElement)
+
+    await waitFor(() => expect(screen.getByTestId('test-dialog-content')).toBeInTheDocument())
+
+    rerender(<Shell activeId="a" />)
+
+    // b's dialog stays in b's now-hidden root; it never migrates to active a.
+    expect(bRoot.querySelector('[data-testid="test-dialog-content"]')).toBeInTheDocument()
+    expect(bRoot.style.display).toBe('none')
+    expect(aRoot.querySelector('[data-testid="test-dialog-content"]')).not.toBeInTheDocument()
   })
 })
 

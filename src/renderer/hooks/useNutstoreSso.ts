@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useNutstoreSso')
@@ -6,7 +7,7 @@ const logger = loggerService.withContext('useNutstoreSso')
 export function useNutstoreSso() {
   const nutstoreSsoHandler = useCallback(() => {
     return new Promise<string>((resolve, reject) => {
-      const removeListener = window.api.protocol.onReceiveData(async (data) => {
+      const removeListener = ipcApi.on('navigation.protocol_data', async (data) => {
         try {
           const url = new URL(data.url)
           const params = new URLSearchParams(url.search)

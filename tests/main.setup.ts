@@ -66,7 +66,8 @@ vi.mock('electron', () => {
         }
       }),
       getVersion: vi.fn(() => '1.0.0'),
-      getLocale: vi.fn(() => 'en-US')
+      getLocale: vi.fn(() => 'en-US'),
+      getPreferredSystemLanguages: vi.fn(() => ['en-US'])
     },
     ipcMain: {
       handle: vi.fn(),
@@ -85,7 +86,8 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
-      showItemInFolder: vi.fn()
+      showItemInFolder: vi.fn(),
+      trashItem: vi.fn()
     },
     session: {
       defaultSession: {

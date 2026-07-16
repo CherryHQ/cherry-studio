@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -79,6 +80,11 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
+  ...(await importOriginal<typeof UseModelModule>()),
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
@@ -120,8 +126,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.name': 'Name',
           'common.required_field': 'Required',
           'common.save': 'Save',
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.edit.title': 'Edit agent',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
@@ -139,8 +143,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use soul.md.',
-          'library.config.agent.field.soul_enabled.label': 'Soul',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
@@ -197,7 +199,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -219,7 +220,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -493,8 +493,7 @@ describe('AgentSelector', () => {
           skillIds: [],
           configuration: {
             avatar: '🤖',
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
+            permission_mode: 'bypassPermissions'
           }
         }
       })
@@ -552,7 +551,6 @@ describe('AgentSelector', () => {
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -573,7 +571,7 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
@@ -592,7 +590,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))

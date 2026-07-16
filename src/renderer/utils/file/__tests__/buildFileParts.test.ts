@@ -1,4 +1,4 @@
-import { FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +29,7 @@ describe('buildFilePartsForAttachments', () => {
     })
   })
 
-  it('creates the FileEntry at send time and emits a file:// url + fileEntryId + the disk MIME', async () => {
+  it('creates the FileEntry at send time and emits a file:// url + file identities + the disk MIME', async () => {
     const [part] = await buildFilePartsForAttachments([attachment()])
 
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/image.png' })
@@ -40,7 +40,7 @@ describe('buildFilePartsForAttachments', () => {
       url: 'file:///p/fe-1.png',
       mediaType: 'image/png',
       filename: 'image.png',
-      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
     })
   })
 
@@ -66,5 +66,24 @@ describe('buildFilePartsForAttachments', () => {
 
     expect(part.mediaType).toBe('application/pdf')
     expect(part.url).toBe('file:///p/fe-3.pdf')
+  })
+
+  it('keeps the safe pasted-text marker on the sent file part', async () => {
+    const [part] = await buildFilePartsForAttachments([
+      attachment({
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT,
+        path: '/tmp/pasted_text.txt',
+        name: 'pasted_text.txt',
+        origin_name: 'Pasted text.txt',
+        ext: '.txt',
+        type: FILE_TYPE.TEXT
+      })
+    ])
+
+    expect(part.providerMetadata?.cherry).toEqual({
+      fileEntryId: 'fe-1',
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
+    })
   })
 })

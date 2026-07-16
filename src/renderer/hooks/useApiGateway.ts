@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { useSharedCache } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,19 +48,25 @@ export const useApiGateway = () => {
     [setApiGatewayConfig]
   )
 
-  const startApiGateway = useCallback(async () => {
-    if (apiGatewayLoading) return
+  // Resolves `true` only when Main confirms the server is listening (its IPC `start()` succeeds
+  // after the server binds). Returns `false` on the loading no-op, an unsuccessful IPC result, or a
+  // thrown error, so callers that gate on a running gateway (e.g. the code-CLI gateway provider) can
+  // tell a real start from a swallowed failure instead of trusting a stale persisted key.
+  const startApiGateway = useCallback(async (): Promise<boolean> => {
+    if (apiGatewayLoading) return false
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.start()
+      const result = await ipcApi.request('api_gateway.start')
       if (result.success) {
         setApiGatewayEnabled(true)
         toast.success(t('apiGateway.messages.startSuccess'))
-      } else {
-        toast.error(t('apiGateway.messages.startError') + result.error)
+        return true
       }
+      toast.error(t('apiGateway.messages.startError') + result.error)
+      return false
     } catch (error: any) {
       toast.error(t('apiGateway.messages.startError') + (error.message || error))
+      return false
     } finally {
       setApiGatewayLoading(false)
     }
@@ -69,7 +76,7 @@ export const useApiGateway = () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.stop()
+      const result = await ipcApi.request('api_gateway.stop')
       if (result.success) {
         setApiGatewayEnabled(false)
         toast.success(t('apiGateway.messages.stopSuccess'))
@@ -87,7 +94,7 @@ export const useApiGateway = () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
     try {
-      const result = await window.api.apiGateway.restart()
+      const result = await ipcApi.request('api_gateway.restart')
       if (result.success) {
         setApiGatewayEnabled(result.success)
         toast.success(t('apiGateway.messages.restartSuccess'))

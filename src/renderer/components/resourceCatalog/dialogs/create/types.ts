@@ -1,3 +1,4 @@
+import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 export type ResourceCreateWizardKind = 'assistant' | 'agent'
@@ -27,12 +28,4 @@ export type ResourceCreateWizardFormValues = {
  * Validated submit payload handed to the caller's `onSubmit`. `modelId` is
  * guaranteed non-null (basic-step validation gates submission).
  */
-export type ResourceCreateWizardValues = {
-  avatar: string
-  name: string
-  modelId: UniqueModelId
-  description: string
-  prompt: string
-  knowledgeBaseIds: string[]
-  skillIds: string[]
-}
+export type ResourceCreateWizardValues = ResourceCreateValues

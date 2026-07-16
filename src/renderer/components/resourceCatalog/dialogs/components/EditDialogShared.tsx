@@ -2,7 +2,6 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogTitle,
   Form,
   FormControl,
@@ -12,8 +11,12 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  MenuItem,
   MenuList,
   NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Scrollbar,
   Tabs,
   TabsList,
@@ -21,18 +24,30 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
+
+// Vertical submenu / nav item preset — kept in sync with the settings sidebar's
+// settingsSubmenuItemClassName so the edit-dialog rail and settings nav read identically.
+const submenuItemClassName =
+  'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground'
+
+// Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
+// MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
+const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
+
+const logger = loggerService.withContext('EditDialogShared')
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
@@ -76,16 +91,8 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
   { name: '{{username}}', i18n: 'library.config.prompt.vars.username' }
 ]
 
-const EDIT_DIALOG_TAB_TRIGGER_CLASS =
-  'h-8 w-full flex-none justify-start rounded-md bg-transparent px-0 text-left font-medium text-muted-foreground text-sm shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
-
-const EDIT_DIALOG_GROUP_BUTTON_CLASS =
-  'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-0 text-left font-medium text-muted-foreground text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-
-const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
-
 export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '200px'
-export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '42vh'
+export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '50vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
   if (!selection) return null
@@ -103,6 +110,75 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
   Object.entries(patch).forEach(([key, value]) => {
     form.setValue(key as never, value as never, { shouldDirty: true })
   })
+}
+
+/**
+ * Debounced auto-save for the edit dialogs. Re-arms whenever `changeKey` changes
+ * (a serialized snapshot of the pending diff) and fires `onSave` after `delay`ms
+ * of quiet. `changeKey === null` means nothing to save.
+ *
+ * Saves are serialized: only one runs at a time. If the state moves on while a
+ * save is in flight, a single follow-up pass is queued and runs (with the latest
+ * `onSave`) once the current save settles — so the last edit is never dropped.
+ *
+ * Returns a `flush()` that runs/awaits the serialized save immediately; callers
+ * (e.g. the close path) await it to persist pending edits before proceeding,
+ * reusing the same queue instead of racing a second concurrent save.
+ */
+export function useDebouncedAutoSave({
+  enabled,
+  changeKey,
+  onSave,
+  delay = 500
+}: {
+  enabled: boolean
+  changeKey: string | null
+  onSave: () => void | Promise<void>
+  delay?: number
+}): () => Promise<void> {
+  const onSaveRef = useRef(onSave)
+  const changeKeyRef = useRef(changeKey)
+  const savingRef = useRef(false)
+  // `changeKey` captured when the in-flight save started; a follow-up pass is
+  // only queued when the state has moved past it.
+  const savedKeyRef = useRef<string | null>(null)
+  const pendingRef = useRef(false)
+  const inFlightRef = useRef<Promise<void>>(Promise.resolve())
+
+  useEffect(() => {
+    onSaveRef.current = onSave
+    changeKeyRef.current = changeKey
+  })
+
+  const flush = useCallback((): Promise<void> => {
+    if (savingRef.current) {
+      // A save is already running; queue one more pass only if the latest state
+      // differs from what that save captured (otherwise it already covers it).
+      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
+      return inFlightRef.current
+    }
+    savingRef.current = true
+    inFlightRef.current = (async () => {
+      try {
+        do {
+          pendingRef.current = false
+          savedKeyRef.current = changeKeyRef.current
+          await onSaveRef.current()
+        } while (pendingRef.current)
+      } finally {
+        savingRef.current = false
+      }
+    })()
+    return inFlightRef.current
+  }, [])
+
+  useEffect(() => {
+    if (!enabled || changeKey === null) return
+    const handle = setTimeout(() => void flush(), delay)
+    return () => clearTimeout(handle)
+  }, [enabled, changeKey, delay, flush])
+
+  return flush
 }
 
 const HelpIconButton = ({
@@ -144,9 +220,9 @@ export function FieldLabelWithHelp({
 }) {
   const { t } = useTranslation()
   const labelContent = formLabel ? (
-    <FormLabel>{label}</FormLabel>
+    <FormLabel className="font-normal">{label}</FormLabel>
   ) : (
-    <span className="font-medium text-foreground text-sm leading-none">{label}</span>
+    <span className="font-normal text-foreground text-sm leading-none">{label}</span>
   )
 
   return (
@@ -168,7 +244,7 @@ export function KnowledgeBaseAvatar({
   className?: string
 }) {
   return (
-    <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
+    <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)', color: 'rgb(124, 58, 237)' }}>
       <Database size={14} strokeWidth={1.4} />
     </span>
   )
@@ -181,14 +257,21 @@ type KnowledgeBaseFieldValues = FieldValues & {
 export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
-  formLabel = true
+  formLabel = true,
+  disabled = false,
+  onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  disabled?: boolean
+  onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
+  const { data, isLoading } = useQuery('/knowledge-bases', {
+    query: { limit: 100 },
+    swrOptions: { revalidateOnFocus: true }
+  })
   const bases = useMemo(() => data?.items ?? [], [data])
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
@@ -224,11 +307,38 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
       name={fieldName}
       render={() => (
         <FormItem>
-          <FieldLabelWithHelp
-            label={t('library.config.knowledge.linked')}
-            help={t('library.config.knowledge.linked_hint')}
-            formLabel={formLabel}
-          />
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabelWithHelp
+              label={t('library.config.knowledge.linked')}
+              help={t('library.config.knowledge.linked_hint')}
+              formLabel={formLabel}
+            />
+            <AddCatalogPopover
+              items={catalog}
+              enabledIds={new Set(value)}
+              onAdd={add}
+              triggerLabel={t('library.config.knowledge.add')}
+              searchPlaceholder={t('library.config.knowledge.search')}
+              emptyLabel={t('library.config.knowledge.no_more')}
+              disabled={isLoading || disabled}
+              align="end"
+              triggerPosition="end"
+              triggerClassName="border border-border bg-transparent"
+              portalContainer={portalContainer}
+              footer={
+                onOpenKnowledgePage ? (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    onClick={onOpenKnowledgePage}>
+                    <ArrowUpRight size={14} className="shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
+                  </button>
+                ) : null
+              }
+            />
+          </div>
           {linkedItems.length === 0 ? (
             <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
               <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
@@ -252,6 +362,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
+                    disabled={disabled}
                     onClick={() => remove(kb.id)}
                     aria-label={t('library.config.knowledge.remove_aria')}
                     className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
@@ -262,19 +373,6 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             </div>
           )}
 
-          <AddCatalogPopover
-            items={catalog}
-            enabledIds={new Set(value)}
-            onAdd={add}
-            triggerLabel={t('library.config.knowledge.add')}
-            searchPlaceholder={t('library.config.knowledge.search')}
-            emptyLabel={t('library.config.knowledge.no_more')}
-            disabled={isLoading}
-            align="start"
-            triggerPosition="start"
-            triggerClassName="mt-2"
-            portalContainer={portalContainer}
-          />
           <FormMessage />
         </FormItem>
       )}
@@ -284,13 +382,10 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
 
 export function EditDialogShell<TValues extends FieldValues>({
   activeTab,
-  canSave,
   children,
   form,
-  isSubmitting,
   onActiveTabChange,
   onOpenChange,
-  onSubmit,
   open,
   rootError,
   setDialogContentElement,
@@ -300,22 +395,18 @@ export function EditDialogShell<TValues extends FieldValues>({
   groupPresentation = 'grouped'
 }: {
   activeTab: string
-  canSave: boolean
   children: ReactNode
   form: UseFormReturn<TValues>
   groupExpansion?: EditDialogGroupExpansion
   groupPresentation?: EditDialogGroupPresentation
-  isSubmitting: boolean
   onActiveTabChange: (tab: string) => void
   onOpenChange: (open: boolean) => void
-  onSubmit: () => void
   open: boolean
   rootError?: string
   setDialogContentElement: (element: HTMLDivElement | null) => void
   tabs: EditDialogTab[]
   title: string
 }) {
-  const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
     getDefaultExpandedGroupIds(tabs, groupExpansion)
@@ -340,11 +431,6 @@ export function EditDialogShell<TValues extends FieldValues>({
     })
   }, [activeTab, tabs])
 
-  const handleClose = (nextOpen: boolean) => {
-    if (isSubmitting) return
-    onOpenChange(nextOpen)
-  }
-
   const handleTabValueChange = (value: string) => {
     onActiveTabChange(resolveTabValue(tabs, value))
   }
@@ -362,33 +448,45 @@ export function EditDialogShell<TValues extends FieldValues>({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
-        closeOnOverlayClick={!isSubmitting}
-        className="flex h-[min(600px,70vh)] flex-col gap-4 sm:max-w-180 lg:max-w-200"
-        onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
-        <DialogTitle className="text-xl">{title}</DialogTitle>
-
+        className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200">
         <Form {...form}>
+          {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
+              transform makes it the containing block for portaled fixed poppers (model selector),
+              so overflow-hidden on DialogContent would clip them. */}
           <form
             id="resource-edit-dialog-form"
-            onSubmit={onSubmit}
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            onSubmit={(event) => event.preventDefault()}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+            {/* Header — title, matching the create wizard's top bar. */}
+            <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
+              <div className="min-w-0">
+                <DialogTitle className="truncate text-base">{title}</DialogTitle>
+              </div>
+            </div>
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
-              <div className="w-36 shrink-0 border-border-muted border-r pr-2">
-                <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-0">
+              {/* White rail matching the settings-page nav: hairline divider, no sidebar tint. */}
+              <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px]">
+                <TabsList
+                  asChild
+                  className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-2.5">
                   <MenuList>
                     {tabs.map((tab) => {
                       const hasChildren = Boolean(tab.children?.length)
                       if (hasChildren && groupPresentation === 'inline') {
                         return tab.children?.map((child) => (
-                          <TabsTrigger key={child.id} value={child.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
-                            <span className="min-w-0 flex-1 truncate px-1 text-left">{child.label}</span>
+                          <TabsTrigger key={child.id} value={child.id} asChild>
+                            <MenuItem
+                              label={child.label}
+                              active={activeTab === child.id}
+                              className={railTabItemClassName}
+                            />
                           </TabsTrigger>
                         ))
                       }
@@ -398,33 +496,38 @@ export function EditDialogShell<TValues extends FieldValues>({
                       return (
                         <div key={tab.id} className="grid gap-1">
                           {hasChildren ? (
-                            <button
-                              type="button"
+                            <MenuItem
+                              label={tab.label}
                               aria-expanded={groupExpanded}
-                              data-expanded={groupExpanded || undefined}
-                              className={EDIT_DIALOG_GROUP_BUTTON_CLASS}
-                              onClick={() => toggleTabGroup(tab.id)}>
-                              <span className="min-w-0 flex-1 truncate px-1 text-left">{tab.label}</span>
-                              <ChevronDown
-                                size={13}
-                                strokeWidth={1.8}
-                                className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
-                                data-expanded={groupExpanded || undefined}
-                              />
-                            </button>
+                              onClick={() => toggleTabGroup(tab.id)}
+                              className={submenuItemClassName}
+                              suffix={
+                                <ChevronDown
+                                  size={13}
+                                  strokeWidth={1.8}
+                                  className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
+                                  data-expanded={groupExpanded || undefined}
+                                />
+                              }
+                            />
                           ) : (
-                            <TabsTrigger value={tab.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
-                              <span className="min-w-0 flex-1 truncate px-1 text-left">{tab.label}</span>
+                            <TabsTrigger value={tab.id} asChild>
+                              <MenuItem
+                                label={tab.label}
+                                active={activeTab === tab.id}
+                                className={railTabItemClassName}
+                              />
                             </TabsTrigger>
                           )}
                           {hasChildren && groupExpanded ? (
                             <div className="grid gap-1">
                               {tab.children?.map((child) => (
-                                <TabsTrigger
-                                  key={child.id}
-                                  value={child.id}
-                                  className={EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS}>
-                                  <span className="min-w-0 truncate px-1">{child.label}</span>
+                                <TabsTrigger key={child.id} value={child.id} asChild>
+                                  <MenuItem
+                                    label={child.label}
+                                    active={activeTab === child.id}
+                                    className={railTabItemClassName}
+                                  />
                                 </TabsTrigger>
                               ))}
                             </div>
@@ -436,24 +539,18 @@ export function EditDialogShell<TValues extends FieldValues>({
                 </TabsList>
               </div>
 
-              <Scrollbar ref={scrollContainerRef} className="min-w-0 flex-1 px-5">
-                {children}
-              </Scrollbar>
-            </Tabs>
-
-            <DialogFooter className="flex-row items-center justify-between">
-              <p className="min-h-4 flex-1 text-destructive text-xs" aria-live="polite">
-                {rootError ?? ''}
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
-                  {t('common.cancel')}
-                </Button>
-                <Button type="submit" disabled={!canSave} loading={isSubmitting}>
-                  {t('common.save')}
-                </Button>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-2">
+                  {children}
+                </Scrollbar>
+                {/* Always-present bottom band: insets scrolling lists from the dialog's
+                    rounded-3xl corners so content never clips into them mid-scroll, and
+                    surfaces the save error inline when present. */}
+                <div className="flex min-h-6 shrink-0 items-center px-5 pb-3" aria-live="polite">
+                  {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
+                </div>
               </div>
-            </DialogFooter>
+            </Tabs>
           </form>
         </Form>
       </DialogContent>
@@ -485,7 +582,7 @@ export function AvatarField({
       name="avatar"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{t('common.avatar')}</FormLabel>
+          <FormLabel className="font-normal">{t('common.avatar')}</FormLabel>
           <EmojiAvatarPicker
             value={avatar}
             fallback={fallback}
@@ -527,7 +624,7 @@ export function TextInputField({
       rules={required ? { validate: (value) => value.trim().length > 0 || t('common.required_field') } : undefined}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <FormLabel className="font-normal">{label}</FormLabel>
           <FormControl>
             {name === 'description' ? (
               <Textarea.Input
@@ -559,7 +656,8 @@ export function CompactModelField({
   portalContainer,
   modelLabels,
   setModelLabels,
-  onModelChange
+  onModelChange,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<any>
   name: ModelLabelKey
@@ -571,6 +669,7 @@ export function CompactModelField({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const value = form.watch(name)
@@ -578,7 +677,6 @@ export function CompactModelField({
   const parsedModelId = selectorValue ? parseUniqueModelId(selectorValue) : undefined
   const { model: resolvedModel } = useModelById(selectorValue)
   const selectedModel = resolvedModel?.id === selectorValue ? resolvedModel : undefined
-  const providerLabel = useProviderDisplayName(selectedModel?.providerId ?? parsedModelId?.providerId)
   const labelFromState = modelLabels[name]
   const displayLabel =
     selectedModel?.name ??
@@ -596,7 +694,7 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <FormLabel className="font-normal">{label}</FormLabel>
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
@@ -605,6 +703,7 @@ export function CompactModelField({
                 value={selectorValue}
                 filter={filter}
                 portalContainer={portalContainer}
+                onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {
                   const selectedModelId = getSelectedModelId(selection)
                   if (onModelChange) {
@@ -620,11 +719,7 @@ export function CompactModelField({
                     ariaLabel={label}
                     model={triggerModel}
                     displayLabel={displayLabel}
-                    providerLabel={selectorValue ? providerLabel || parsedModelId?.providerId : undefined}
-                    className={cn(
-                      'w-full hover:bg-background',
-                      triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground'
-                    )}
+                    className={cn('w-full', triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground')}
                     chevronClassName={
                       allowClear && value
                         ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0'
@@ -654,7 +749,7 @@ export function CompactModelField({
             </div>
           </DialogModelFrame>
           {description ? <FormDescription className="text-xs">{description}</FormDescription> : null}
-          {name === 'modelId' && value && !modelLabels[name] ? (
+          {name === 'modelId' && value && !modelLabels[name] && !selectedModel ? (
             <FormDescription className="text-xs">
               {t('library.config.basic.model_not_found', { id: value })}
             </FormDescription>
@@ -668,41 +763,53 @@ export function CompactModelField({
 
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
-  const content = (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <div className="font-medium text-neutral-50 text-xs">{t('library.config.prompt.variables_title')}</div>
-        <div className="text-neutral-300 text-xs leading-relaxed">
-          {t('library.config.prompt.variables_description')}
-        </div>
-      </div>
-      <div className="rounded-md border border-neutral-700/70 bg-neutral-800/70 px-2 py-1.5 text-neutral-200 text-xs">
-        {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
-      </div>
-      <div>
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs">
-          {PROMPT_VARIABLES.map((variable) => (
-            <div key={variable.name} className="contents">
-              <span className="text-neutral-50">{variable.name}</span>
-              <span className="font-sans">{t(variable.i18n)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-
+  const copyVariable = (variable: string) => {
+    navigator.clipboard
+      .writeText(variable)
+      .then(() => toast.success(t('message.copy.success')))
+      .catch((error) => {
+        logger.warn('Failed to copy prompt variable to clipboard', error as Error)
+      })
+  }
   return (
-    <NormalTooltip
-      content={content}
-      delayDuration={300}
-      align="start"
-      sideOffset={4}
-      contentProps={{
-        portalContainer,
-        className: 'w-80 p-3'
-      }}>
-      <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
-    </NormalTooltip>
+    <Popover>
+      <PopoverTrigger asChild>
+        <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
+      </PopoverTrigger>
+      <PopoverContent
+        portalContainer={portalContainer}
+        align="center"
+        sideOffset={0}
+        aria-label={t('library.config.prompt.variables_title')}
+        className="w-80 p-3">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
+            <div className="text-foreground-secondary text-xs leading-relaxed">
+              {t('library.config.prompt.variables_description')}
+            </div>
+          </div>
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-foreground-secondary text-xs">
+            {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
+          </div>
+          <div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-foreground-secondary text-xs">
+              {PROMPT_VARIABLES.map((variable) => (
+                <div key={variable.name} className="contents">
+                  <button
+                    type="button"
+                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
+                    onClick={() => copyVariable(variable.name)}>
+                    {variable.name}
+                  </button>
+                  <span className="font-sans">{t(variable.i18n)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
