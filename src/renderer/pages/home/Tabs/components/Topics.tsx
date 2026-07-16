@@ -29,10 +29,7 @@ import {
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import {
-  ResourceEditDialogHost,
-  type ResourceEditDialogTarget
-} from '@renderer/components/resourceCatalog/dialogs/edit'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -79,7 +76,7 @@ import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -97,6 +94,11 @@ import {
 } from './assistantGroupActions'
 
 const logger = loggerService.withContext('Topics')
+const ResourceEditDialogHost = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 // Let the context menu close before mounting the heavier offscreen message list.
 const IMAGE_CAPTURE_START_DELAY_MS = 160
 
@@ -1341,13 +1343,17 @@ export function Topics({
         />
       </TopicResourceList>
 
-      <ResourceEditDialogHost
-        target={editDialogTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogTarget(null)
-        }}
-        onSaved={refreshAssistants}
-      />
+      {editDialogTarget ? (
+        <Suspense fallback={null}>
+          <ResourceEditDialogHost
+            target={editDialogTarget}
+            onOpenChange={(open) => {
+              if (!open) setEditDialogTarget(null)
+            }}
+            onSaved={refreshAssistants}
+          />
+        </Suspense>
+      ) : null}
       {imageCaptureTargets.map(({ requestId, target: topic }) => (
         <TopicImageCaptureHost key={requestId} topic={topic} />
       ))}
