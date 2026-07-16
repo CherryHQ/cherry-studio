@@ -125,7 +125,7 @@ function TabIds() {
 }
 
 function BatchCloseControls() {
-  const { activeTabId, addTab, closeTabs, setActiveTab, tabs } = useTabsContext()
+  const { activeTabId, addTab, closeTabs, setActiveTab, tabs, updateTab } = useTabsContext()
 
   return (
     <>
@@ -157,8 +157,17 @@ function BatchCloseControls() {
       <button type="button" onClick={() => closeTabs(['home', 'b', 'd'], 'c')}>
         Close others around C
       </button>
+      <button type="button" onClick={() => updateTab('c', { isDormant: true })}>
+        Hibernate C
+      </button>
       <div data-testid="active-tab-id">{activeTabId}</div>
       <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="dormant-ids">
+        {tabs
+          .filter((tab) => tab.isDormant)
+          .map((tab) => tab.id)
+          .join(',')}
+      </div>
     </>
   )
 }
@@ -408,6 +417,39 @@ describe('TabsProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,c'))
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c')
+  })
+
+  it('wakes a dormant survivor when batch close activates it', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hibernate C' }))
+    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Home' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close others around C' }))
+
+    // The dormant survivor must be woken, not just pointed at — a dormant tab
+    // is not rendered, so activating without waking would blank the content.
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+    expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,c')
+    expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/)
   })
 
   it('opens launchpad when closing the only tab', async () => {

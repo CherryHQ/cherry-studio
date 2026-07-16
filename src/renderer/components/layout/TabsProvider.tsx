@@ -282,12 +282,25 @@ export function TabsProvider({
       const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
       const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
 
-      if (pinnedIds.size > 0) {
-        setPinnedTabs((prev) => prev.filter((tab) => !pinnedIds.has(tab.id)))
+      // Activating a tab must also wake it — a dormant tab is not rendered, so
+      // only switching activeTabId would leave the content area blank.
+      const reselectedTab =
+        newActiveId !== activeTabId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
+      const wakeInPinned = !!reselectedTab?.isDormant && storesPinned(reselectedTab)
+      const wakeInNormal = !!reselectedTab?.isDormant && !storesPinned(reselectedTab)
+      const wake = (tab: Tab) =>
+        tab.id === newActiveId ? { ...tab, isDormant: false, lastAccessTime: Date.now() } : tab
+
+      if (pinnedIds.size > 0 || wakeInPinned) {
+        setPinnedTabs((prev) => {
+          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : prev
+          return wakeInPinned ? next.map(wake) : next
+        })
       }
-      if (normalIds.size > 0 || fallbackTab) {
+      if (normalIds.size > 0 || fallbackTab || wakeInNormal) {
         setNormalTabs((prev) => {
-          const next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          let next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          if (wakeInNormal) next = next.map(wake)
           return fallbackTab ? [fallbackTab] : next
         })
       }
