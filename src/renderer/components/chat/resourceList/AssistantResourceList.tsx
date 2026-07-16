@@ -239,7 +239,7 @@ export function AssistantResourceList({
     isError: !!(assistantsError || topicsError),
     onPickResource: onSelectTopic,
     onEmptyResource: handleEmptyAssistantSelection,
-    loadLatestResource: loadLatestTopicForEntity,
+    loadResourceForEntity: loadLatestTopicForEntity,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError

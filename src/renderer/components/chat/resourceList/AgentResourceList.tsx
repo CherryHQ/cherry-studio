@@ -174,7 +174,7 @@ export function AgentResourceList({
     isError: !!(agentsError || sessionsError),
     onPickResource: handlePickSession,
     onEmptyResource: handleEmptyAgentSelection,
-    loadLatestResource: loadLatestSessionForAgent,
+    loadResourceForEntity: loadLatestSessionForAgent,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError

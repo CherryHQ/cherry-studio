@@ -353,6 +353,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: ResourceListMeta<T>['getGroupHeaderClassName']
   getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
   groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
+  getGroupHeaderSelected?: ResourceListMeta<T>['getGroupHeaderSelected']
   collapsedState?: readonly string[]
   revealRequest?: ResourceListRevealRequest
   dragCapabilities?: ResourceListDragCapabilities
@@ -392,6 +393,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   onSelectItem?: (id: string) => void
   onRenameItem?: (id: string, name: string) => void
   onGroupHeaderSelectItem?: (id: string) => void
+  onGroupHeaderActivate?: ResourceListMeta<T>['onGroupHeaderActivate']
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   onOpenContextMenu?: (id: string) => void
   onReorder?: (payload: ResourceListReorderPayload) => void
@@ -570,6 +572,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderClassName,
   getGroupHeaderTooltip,
   groupHeaderClickBehavior = 'toggle',
+  getGroupHeaderSelected,
   collapsedState,
   revealRequest,
   dragCapabilities,
@@ -585,6 +588,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   onSelectItem,
   onRenameItem,
   onGroupHeaderSelectItem,
+  onGroupHeaderActivate,
   onEmptyGroupHeaderClick,
   onOpenContextMenu,
   onReorder,
@@ -1064,6 +1068,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderClassName,
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
+      getGroupHeaderSelected,
+      onGroupHeaderActivate,
       onEmptyGroupHeaderClick,
       sortOptions,
       filterOptions,
@@ -1101,12 +1107,14 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderContextMenu,
       getGroupHeaderIcon,
       getGroupHeaderLeadingAction,
+      getGroupHeaderSelected,
       getGroupHeaderTooltip,
       getItemId,
       getItemLabel,
       groupCollapseLabel,
       groupLoadStep,
       groupShowMoreLabel,
+      onGroupHeaderActivate,
       onEmptyGroupHeaderClick,
       revealRequest,
       sortOptions,

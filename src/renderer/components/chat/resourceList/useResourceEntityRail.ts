@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   buildResourceListItemDropAnchor,
@@ -7,6 +7,7 @@ import {
   type ResourceListStatus
 } from './base'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
+import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 
 export type ResourceEntityRailReorderAnchor = NonNullable<ReturnType<typeof buildResourceListItemDropAnchor>>
 
@@ -22,7 +23,7 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   /** Keep the selected owner scope visible when its latest lookup confirms no resource. */
   onEmptyResource?: (entity: TEntity) => void
   /** Load the entity's most-recently-updated resource before navigating. */
-  loadLatestResource: (entityId: string) => Promise<TResource | null>
+  loadResourceForEntity: (entityId: string) => Promise<TResource | null>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
   onReorderError: (error: unknown) => void
@@ -50,20 +51,22 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   isError,
   onPickResource,
   onEmptyResource,
-  loadLatestResource,
+  loadResourceForEntity,
   reorder,
   refetchEntities,
   onReorderError
 }: UseResourceEntityRailParams<TEntity, TResource>): UseResourceEntityRailResult<TEntity> {
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
-  const selectRequestGenerationRef = useRef(0)
+  const loadResourceForOwner = useCallback((item: TEntity) => loadResourceForEntity(item.id), [loadResourceForEntity])
+  const { activateOwnerResource: handleSelect, cancelOwnerResourceActivation } = useOwnerResourceActivation({
+    loadResourceForOwner,
+    onActivateResource: onPickResource,
+    onEmptyOwner: onEmptyResource
+  })
 
-  useEffect(
-    () => () => {
-      selectRequestGenerationRef.current += 1
-    },
-    []
-  )
+  useEffect(() => {
+    cancelOwnerResourceActivation()
+  }, [activeEntityId, cancelOwnerResourceActivation])
 
   const entityIdsWithResources = useMemo(
     () => new Set([...resourceCountByEntityId].flatMap(([entityId, count]) => (count > 0 ? [entityId] : []))),
@@ -100,24 +103,6 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
 
   const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
   const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
-
-  const handleSelect = useCallback(
-    async (item: TEntity) => {
-      const requestGeneration = ++selectRequestGenerationRef.current
-      try {
-        const latest = await loadLatestResource(item.id)
-        if (requestGeneration !== selectRequestGenerationRef.current) return
-        if (latest) onPickResource(latest)
-        else onEmptyResource?.(item)
-      } catch (error) {
-        // Superseded requests are intentionally ignored: their result no longer represents
-        // the entity the user most recently selected. The current request still rejects so
-        // the UI boundary can report it through the standard logger/toast path.
-        if (requestGeneration === selectRequestGenerationRef.current) throw error
-      }
-    },
-    [loadLatestResource, onEmptyResource, onPickResource]
-  )
 
   const handleReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {

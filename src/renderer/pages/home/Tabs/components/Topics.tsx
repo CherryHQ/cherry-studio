@@ -15,6 +15,7 @@ import {
   renderAssistantEntityIcon,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
+  type ResourceListGroup,
   type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListRemoteData,
@@ -29,6 +30,7 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
+import { useOwnerResourceActivation } from '@renderer/components/chat/resourceList/useOwnerResourceActivation'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
@@ -82,6 +84,7 @@ import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { TopicListItem as ApiTopicListItem } from '@shared/data/api/schemas/topics'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -619,6 +622,22 @@ export function Topics({
       activeTopic.name.toLocaleLowerCase().includes(debouncedRemoteQuery.toLocaleLowerCase()))
   const effectiveRevealRequest =
     modeRevealRequest?.incomingRequestKey === incomingRevealRequestKey ? modeRevealRequest.request : revealRequest
+  const commitActiveTopic = useCallback(
+    (topic: Topic) => {
+      activeTopicIdRef.current = topic.id
+      setActiveTopic(topic)
+    },
+    [setActiveTopic]
+  )
+  const activateOwnerTopic = useCallback(
+    (topic: ApiTopic) => commitActiveTopic(mapApiTopicToRendererTopic(topic)),
+    [commitActiveTopic]
+  )
+  const loadLatestTopicForOwner = useCallback((assistantId: string) => loadLatestTopic(assistantId), [loadLatestTopic])
+  const { activateOwnerResource, cancelOwnerResourceActivation } = useOwnerResourceActivation({
+    loadResourceForOwner: loadLatestTopicForOwner,
+    onActivateResource: activateOwnerTopic
+  })
 
   useEffect(() => {
     topicsRef.current = topics
@@ -626,14 +645,15 @@ export function Topics({
 
   useEffect(() => {
     activeTopicIdRef.current = activeTopic?.id ?? ''
-  }, [activeTopic?.id])
+    cancelOwnerResourceActivation()
+  }, [activeTopic?.id, cancelOwnerResourceActivation])
 
   const handleSwitchTopic = useCallback(
     (topic: Topic) => {
-      activeTopicIdRef.current = topic.id
-      setActiveTopic(topic)
+      cancelOwnerResourceActivation()
+      commitActiveTopic(topic)
     },
-    [setActiveTopic]
+    [cancelOwnerResourceActivation, commitActiveTopic]
   )
 
   useEffect(() => {
@@ -1166,6 +1186,37 @@ export function Topics({
   ])
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const getTopicGroupHeaderClickBehavior = useCallback(
+    (group: ResourceListGroup) =>
+      isAssistantDisplayMode && resolveAssistantIdForTopicGroup(group.id, assistantById)
+        ? 'select-first-then-toggle'
+        : 'toggle',
+    [assistantById, isAssistantDisplayMode]
+  )
+  const getTopicGroupHeaderSelected = useCallback(
+    (group: ResourceListGroup) => {
+      if (hasActiveCenterSurface) return false
+      const assistantId = resolveAssistantIdForTopicGroup(group.id, assistantById)
+      return !!assistantId && activeTopic?.assistantId === assistantId
+    },
+    [activeTopic?.assistantId, assistantById, hasActiveCenterSurface]
+  )
+  const handleActivateAssistantGroup = useCallback(
+    async (group: ResourceListGroup) => {
+      const assistantId = resolveAssistantIdForTopicGroup(group.id, assistantById)
+      if (!assistantId) return false
+
+      try {
+        await activateOwnerResource(assistantId)
+      } catch (err) {
+        logger.error('Failed to activate assistant topic group', { assistantId, err })
+        toast.error(t('common.error'))
+      }
+
+      return true
+    },
+    [activateOwnerResource, assistantById, t]
+  )
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
@@ -1631,6 +1682,9 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
+        groupHeaderClickBehavior={getTopicGroupHeaderClickBehavior}
+        getGroupHeaderSelected={getTopicGroupHeaderSelected}
+        onGroupHeaderActivate={handleActivateAssistantGroup}
         dragCapabilities={{
           groups: isAssistantDisplayMode,
           items: isAssistantDisplayMode && topicSortBy === 'orderKey',

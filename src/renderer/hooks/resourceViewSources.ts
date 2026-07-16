@@ -15,7 +15,7 @@ const RESOURCE_REUSE_CANDIDATE_PAGE_SIZE = 50
 
 /**
  * Factual counts drive group visibility. Imperative lookups use scoped latest
- * for rail navigation and bounded pages for placeholder reuse.
+ * for owner navigation and bounded pages for placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })

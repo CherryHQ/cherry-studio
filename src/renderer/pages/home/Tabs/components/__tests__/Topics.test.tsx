@@ -3109,24 +3109,53 @@ describe('Topics', () => {
     expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1')
   })
 
-  it('toggles an assistant group from the group row without changing the active topic', () => {
+  it('opens the scoped latest topic for an inactive assistant without changing expansion', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    const { setActiveTopic } = renderTopicList()
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-2']
+    })
+    const latestTopic = createApiTopic({
+      id: 'topic-d',
+      name: 'Delta latest update',
+      assistantId: 'assistant-2',
+      createdAt: '2025-12-20T01:00:00.000Z',
+      updatedAt: '2026-01-03T01:00:00.000Z'
+    })
+    const loadLatestTopic = vi.fn().mockResolvedValue(latestTopic)
+    const assistantTopicsSource = {
+      ...createAssistantTopicsSource(),
+      loadLatestTopic
+    }
+    const { rerenderTopicList, setActiveTopic } = renderTopicList({ assistantTopicsSource })
 
     const betaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(betaGroupButton)
 
-    expect(setActiveTopic).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(loadLatestTopic).toHaveBeenCalledWith('assistant-2'))
+    expect(setActiveTopic).toHaveBeenCalledWith(
+      expect.objectContaining({ id: latestTopic.id, assistantId: 'assistant-2' })
+    )
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'false')
     expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')
     expect(screen.queryByRole('button', { name: 'common.collapse: Beta Assistant' })).not.toBeInTheDocument()
 
-    fireEvent.click(betaGroupButton)
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({
+        id: latestTopic.id,
+        name: latestTopic.name,
+        assistantId: latestTopic.assistantId,
+        pinned: true
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Beta Assistant' }))
 
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(loadLatestTopic).toHaveBeenCalledTimes(1)
   })
 
   it('moves the assistant resource entry into the topic options menu', async () => {

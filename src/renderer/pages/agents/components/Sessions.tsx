@@ -21,6 +21,7 @@ import {
   useResourceListPinnedItems
 } from '@renderer/components/chat/resourceList/base'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
+import { useOwnerResourceActivation } from '@renderer/components/chat/resourceList/useOwnerResourceActivation'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
@@ -794,6 +795,28 @@ const Sessions = ({
       !!activeSession?.name.toLocaleLowerCase().includes(debouncedRemoteQuery.toLocaleLowerCase()))
   const effectiveRevealRequest =
     modeRevealRequest?.incomingRequestKey === incomingRevealRequestKey ? modeRevealRequest.request : revealRequest
+  const commitActiveSession = useCallback(
+    (id: string | null, selectedSession?: AgentSessionEntity | null) => {
+      activeSessionIdRef.current = id
+      const session =
+        selectedSession === undefined
+          ? id
+            ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null)
+            : null
+          : selectedSession
+      setControlledActiveSessionId(id, session)
+    },
+    [setControlledActiveSessionId]
+  )
+  const activateOwnerSession = useCallback(
+    (session: AgentSessionEntity) => commitActiveSession(session.id, session),
+    [commitActiveSession]
+  )
+  const loadLatestSessionForOwner = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
+  const { activateOwnerResource, cancelOwnerResourceActivation } = useOwnerResourceActivation({
+    loadResourceForOwner: loadLatestSessionForOwner,
+    onActivateResource: activateOwnerSession
+  })
 
   useEffect(() => {
     sessionItemsRef.current = sessionItems
@@ -801,7 +824,8 @@ const Sessions = ({
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
-  }, [activeSessionId])
+    cancelOwnerResourceActivation()
+  }, [activeSessionId, cancelOwnerResourceActivation])
 
   useEffect(() => {
     if (previousRevealDisplayModeRef.current === displayMode) return
@@ -831,12 +855,11 @@ const Sessions = ({
   }, [debouncedRemoteQuery, displayMode, rightPanelAgentScope])
 
   const setActiveSessionId = useCallback(
-    (id: string | null) => {
-      activeSessionIdRef.current = id
-      const session = id ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null) : null
-      setControlledActiveSessionId(id, session)
+    (id: string | null, selectedSession?: AgentSessionEntity | null) => {
+      cancelOwnerResourceActivation()
+      commitActiveSession(id, selectedSession)
     },
-    [setControlledActiveSessionId]
+    [cancelOwnerResourceActivation, commitActiveSession]
   )
   const toggleSessionPin = useCallback(
     async (sessionId: string) => {
@@ -2305,6 +2328,39 @@ const Sessions = ({
   ])
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const activeSessionAgentId =
+    activeSession?.agentId ?? sessionItems.find((session) => session.id === activeSessionId)?.agentId
+  const getSessionGroupHeaderClickBehavior = useCallback(
+    (group: ResourceListGroup) => {
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      return displayMode === 'agent' && agentId && agentById.has(agentId) ? 'select-first-then-toggle' : 'toggle'
+    },
+    [agentById, displayMode]
+  )
+  const getSessionGroupHeaderSelected = useCallback(
+    (group: ResourceListGroup) => {
+      if (hasActiveCenterSurface) return false
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      return !!agentId && activeSessionAgentId === agentId
+    },
+    [activeSessionAgentId, hasActiveCenterSurface]
+  )
+  const handleActivateAgentGroup = useCallback(
+    async (group: ResourceListGroup) => {
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || !agentById.has(agentId)) return false
+
+      try {
+        await activateOwnerResource(agentId)
+      } catch (err) {
+        logger.error('Failed to activate agent session group', { agentId, err })
+        toast.error(t('common.error'))
+      }
+
+      return true
+    },
+    [activateOwnerResource, agentById, t]
+  )
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
@@ -2336,6 +2392,9 @@ const Sessions = ({
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
+      groupHeaderClickBehavior={getSessionGroupHeaderClickBehavior}
+      getGroupHeaderSelected={getSessionGroupHeaderSelected}
+      onGroupHeaderActivate={handleActivateAgentGroup}
       dragCapabilities={{
         groups: groupDragReady,
         items: itemDragReady,

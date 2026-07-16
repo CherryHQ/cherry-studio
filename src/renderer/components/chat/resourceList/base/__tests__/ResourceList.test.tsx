@@ -1552,6 +1552,56 @@ describe('ResourceList', () => {
     })
   })
 
+  it('activates an inactive group without changing expansion before toggling the active group', async () => {
+    const onGroupHeaderActivate = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function ActivationHarness() {
+      const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+      const [collapsedGroups, setCollapsedGroups] = useState<string[]>(['session'])
+
+      return (
+        <Provider
+          items={ITEMS}
+          groupBy={(item) => ({ id: item.kind, label: item.kind })}
+          groupHeaderClickBehavior="select-first-then-toggle"
+          getGroupHeaderSelected={(group) => group.id === activeGroupId}
+          onGroupHeaderActivate={(group) => {
+            onGroupHeaderActivate(group.id)
+            setActiveGroupId(group.id)
+          }}
+          collapsedState={collapsedGroups}
+          onCollapsedStateChange={setCollapsedGroups}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<ActivationHarness />)
+
+    const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    await waitFor(() => expect(onGroupHeaderActivate).toHaveBeenCalledWith('session'))
+    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(onGroupHeaderActivate).toHaveBeenCalledTimes(1)
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('selects the first item before expanding a collapsed controlled group header', () => {
     const onGroupHeaderSelectItem = vi.fn()
     const onCollapsedStateChange = vi.fn()

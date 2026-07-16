@@ -150,6 +150,8 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
+  getGroupHeaderSelected?: (group: ResourceListGroup) => boolean
+  onGroupHeaderActivate?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]

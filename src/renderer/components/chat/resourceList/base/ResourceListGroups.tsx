@@ -118,7 +118,9 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
   const clickBehavior = meta.getGroupHeaderClickBehavior(group)
   const isCollapsible = clickBehavior !== 'none'
-  const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
+  const selected =
+    clickBehavior === 'select-first-then-toggle' &&
+    (meta.getGroupHeaderSelected ? meta.getGroupHeaderSelected(group) : groupState.selected)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
@@ -138,6 +140,11 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     if (!isCollapsible) return
 
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
+      if (meta.onGroupHeaderActivate) {
+        const handled = await meta.onGroupHeaderActivate(group)
+        if (handled !== false) return
+      }
+
       const firstItem = groupItems[0]
       if (firstItem) {
         actions.selectGroupHeaderItem(meta.getItemId(firstItem))
