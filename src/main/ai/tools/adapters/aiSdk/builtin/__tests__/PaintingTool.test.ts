@@ -1,12 +1,20 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
+import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolApplyScope } from '../../types'
 
-const { getPreference, generateImage } = vi.hoisted(() => ({
+const { getPreference, getImageGenerationSupport, generateImage, fileRead } = vi.hoisted(() => ({
   getPreference: vi.fn(),
-  generateImage: vi.fn()
+  getImageGenerationSupport: vi.fn(),
+  generateImage: vi.fn(),
+  fileRead: vi.fn()
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { getImageGenerationSupport }
 }))
 
 vi.mock('@application', () => ({
@@ -14,6 +22,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'PreferenceService') return { get: getPreference }
       if (name === 'AiService') return { generateImage }
+      if (name === 'FileManager') return { read: fileRead }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -25,7 +34,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { PAINTING_ERROR_NOTE, PAINTING_MODEL_NOT_CONFIGURED_NOTE } from '../../../../painting'
+import {
+  generateImageFromPrompt,
+  PAINTING_EDIT_NOT_SUPPORTED_NOTE,
+  PAINTING_ERROR_NOTE,
+  PAINTING_MODEL_NOT_CONFIGURED_NOTE
+} from '../../../../painting'
 import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
@@ -38,45 +52,83 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
   } as ToolExecutionOptions
 }
 
-function callExecute(args: { prompt: string; n?: number }, abortSignal?: AbortSignal): Promise<unknown> {
-  const execute = entry.tool.execute as (
-    args: { prompt: string; n?: number },
+function callExecute(
+  args: { prompt: string; image_ids?: string[]; [key: string]: unknown },
+  abortSignal?: AbortSignal,
+  selectedTool: Tool = entry.tool
+): Promise<unknown> {
+  const execute = selectedTool.execute as (
+    args: { prompt: string; image_ids?: string[]; [key: string]: unknown },
     options: ToolExecutionOptions
   ) => Promise<unknown>
   return execute(args, makeOptions(abortSignal))
 }
 
+const generateSupport = {
+  modes: {
+    generate: {
+      supports: {
+        size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
+        numImages: { type: 'range', min: 1, max: 3 }
+      }
+    }
+  }
+} satisfies ImageGenerationSupport
+
+const editableSupport = {
+  modes: {
+    generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
+    edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
+  }
+} satisfies ImageGenerationSupport
+
+function buildTool(support: ImageGenerationSupport): Tool {
+  return entry.buildTool!({
+    mcpToolIds: new Set(),
+    paintingModel: { uniqueModelId: 'openai::gpt-image-1', support }
+  })
+}
+
 describe('generate_image', () => {
   beforeEach(() => {
     getPreference.mockReset()
+    getImageGenerationSupport.mockReset()
     generateImage.mockReset()
+    fileRead.mockReset()
+    getImageGenerationSupport.mockReturnValue(null)
   })
 
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(GENERATE_IMAGE_TOOL_NAME)
     expect(entry.namespace).toBe('media')
     expect(entry.defer).toBe('auto')
+    expect(entry.tool.type).toBe('dynamic')
+  })
+
+  it('materializes the configured schema as an AI SDK dynamic tool', () => {
+    const selectedTool = buildTool(generateSupport)
+
+    expect(selectedTool.type).toBe('dynamic')
+    expect(selectedTool.inputSchema).toBeDefined()
   })
 
   describe('applies', () => {
-    const scopeWith = (enableGenerateImage?: boolean): ToolApplyScope => ({
+    const scopeWith = (enableGenerateImage?: boolean, hasPaintingModel = true): ToolApplyScope => ({
       mcpToolIds: new Set(),
+      paintingModel: hasPaintingModel ? { uniqueModelId: 'openai::dall-e-3', support: generateSupport } : undefined,
       assistant: enableGenerateImage === undefined ? undefined : ({ settings: { enableGenerateImage } } as Assistant)
     })
 
     it('returns false when no painting model is configured', () => {
-      getPreference.mockReturnValue(null)
-      expect(entry.applies!(scopeWith(true))).toBe(false)
+      expect(entry.applies!(scopeWith(true, false))).toBe(false)
     })
 
     it('returns false when the assistant toggle is off (or absent)', () => {
-      getPreference.mockReturnValue('openai::dall-e-3')
       expect(entry.applies!(scopeWith(false))).toBe(false)
       expect(entry.applies!(scopeWith(undefined))).toBe(false)
     })
 
     it('returns true when a painting model is configured and the assistant toggle is on', () => {
-      getPreference.mockReturnValue('openai::dall-e-3')
       expect(entry.applies!(scopeWith(true))).toBe(true)
     })
   })
@@ -93,13 +145,45 @@ describe('generate_image', () => {
     )
   })
 
-  it('maps the image count into the canonical parameter bag', async () => {
-    getPreference.mockReturnValue('openai::dall-e-3')
+  it('maps dynamic model params into the canonical parameter bag', async () => {
     generateImage.mockResolvedValue({ files: [] })
 
-    await callExecute({ prompt: 'a cat', n: 2 })
+    await callExecute({ prompt: 'a cat', size: '1792x1024', numImages: 2 }, undefined, buildTool(generateSupport))
 
-    expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { numImages: 2 } }))
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({ paramValues: { size: '1792x1024', numImages: 2 } })
+    )
+  })
+
+  it('resolves edit image ids to base64 data URLs and selects edit mode', async () => {
+    fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
+    generateImage.mockResolvedValue({ files: [] })
+
+    await callExecute(
+      { prompt: 'make it blue', image_ids: ['f1'], quality: 'high' },
+      undefined,
+      buildTool(editableSupport)
+    )
+
+    expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'edit',
+        inputImages: ['data:image/png;base64,AAAA'],
+        paramValues: { quality: 'high' }
+      })
+    )
+  })
+
+  it('returns a permanent note when the configured model cannot edit images', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    getImageGenerationSupport.mockReturnValue(generateSupport)
+
+    const result = await generateImageFromPrompt({ prompt: 'edit it', image_ids: ['f1'] })
+
+    expect(result).toEqual({ error: PAINTING_EDIT_NOT_SUPPORTED_NOTE })
+    expect(fileRead).not.toHaveBeenCalled()
+    expect(generateImage).not.toHaveBeenCalled()
   })
 
   it('returns a configuration note (and skips generation) when no model is configured', async () => {
