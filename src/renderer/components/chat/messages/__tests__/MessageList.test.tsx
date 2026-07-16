@@ -28,7 +28,7 @@ const messageVirtualListMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
-  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
+  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn(), setRailGutterPx: vi.fn() })
 }))
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
