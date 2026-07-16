@@ -482,7 +482,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad') })
+    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
