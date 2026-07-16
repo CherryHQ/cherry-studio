@@ -19,7 +19,7 @@ type MessageLeafActionCapabilities = Pick<
   | 'notifyError'
 >
 
-type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openUserProfile'>
+type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openMessageAuthorEditor' | 'openUserProfile'>
 
 export function pickMessageLeafState(
   capabilities: Partial<MessageLeafStateCapabilities>
@@ -69,6 +69,7 @@ export function pickMessageHeaderActions(
   const actions: Partial<MessageHeaderActionCapabilities> = {}
 
   if (capabilities.openUserProfile) actions.openUserProfile = capabilities.openUserProfile
+  if (capabilities.openMessageAuthorEditor) actions.openMessageAuthorEditor = capabilities.openMessageAuthorEditor
 
   return actions
 }

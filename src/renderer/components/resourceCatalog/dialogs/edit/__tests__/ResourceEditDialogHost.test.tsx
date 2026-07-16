@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
+import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '../ResourceEditDialogHost'
 
 const mocks = vi.hoisted(() => ({
   assistantRefetch: vi.fn(),
@@ -42,16 +42,18 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 
 vi.mock('../AssistantEditDialog', () => ({
   AssistantEditDialog: ({
+    open,
     onOpenChange,
     onSaved,
     resource
   }: {
+    open: boolean
     onOpenChange: (open: boolean) => void
     onSaved: () => Promise<void>
     resource: { id: string } | null
   }) =>
     resource ? (
-      <div data-testid="assistant-edit-dialog">
+      <div data-open={open} data-testid="assistant-edit-dialog">
         <button type="button" onClick={() => void onSaved()}>
           save
         </button>
@@ -64,16 +66,18 @@ vi.mock('../AssistantEditDialog', () => ({
 
 vi.mock('../AgentEditDialog', () => ({
   AgentEditDialog: ({
+    open,
     onOpenChange,
     onSaved,
     resource
   }: {
+    open: boolean
     onOpenChange: (open: boolean) => void
     onSaved: () => Promise<void>
     resource: { id: string } | null
   }) =>
     resource ? (
-      <div data-testid="agent-edit-dialog">
+      <div data-open={open} data-testid="agent-edit-dialog">
         <button type="button" onClick={() => void onSaved()}>
           save
         </button>
@@ -123,6 +127,42 @@ describe('ResourceEditDialogHost', () => {
 
     expect(mocks.assistantRefetch).toHaveBeenCalledTimes(1)
     expect(mocks.onSaved).toHaveBeenCalledWith({ kind: 'assistant', id: 'assistant-1' })
+  })
+
+  it('forwards popup exit state to the edit dialog', () => {
+    render(
+      <ResourceEditDialogHost
+        target={{ kind: 'assistant', id: 'assistant-1' }}
+        open={false}
+        onOpenChange={mocks.onOpenChange}
+      />
+    )
+
+    expect(screen.getByTestId('assistant-edit-dialog')).toHaveAttribute('data-open', 'false')
+  })
+
+  it.each(['assistant', 'agent'] as const)('closes when the %s author can no longer be loaded', async (kind) => {
+    const error = new Error('Not found')
+    if (kind === 'assistant') {
+      mocks.useAssistantApiById.mockReturnValue({
+        assistant: undefined,
+        error,
+        refetch: mocks.assistantRefetch
+      })
+    } else {
+      mocks.useAgent.mockReturnValue({
+        agent: undefined,
+        error,
+        revalidate: mocks.agentRevalidate
+      })
+    }
+
+    const target: ResourceEditDialogTarget =
+      kind === 'assistant' ? { kind: 'assistant', id: 'assistant-missing' } : { kind: 'agent', id: 'agent-missing' }
+
+    render(<ResourceEditDialogHost target={target} onOpenChange={mocks.onOpenChange} />)
+
+    await waitFor(() => expect(mocks.onOpenChange).toHaveBeenCalledWith(false))
   })
 
   it('keeps assistant post-save refresh failures inside the host', async () => {

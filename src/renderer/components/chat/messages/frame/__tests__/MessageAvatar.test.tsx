@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
 import MessageAvatar from '../MessageAvatar'
 
@@ -17,4 +18,21 @@ describe('MessageAvatar', () => {
 
     expect(container.querySelector('.message-avatar > *')).toHaveClass('size-full')
   })
+
+  it.each(['🍣', 'https://example.com/avatar.png'])(
+    'supports accessible interaction for %s avatars',
+    async (avatar) => {
+      const user = userEvent.setup()
+      const onClick = vi.fn()
+      const { getByRole } = render(<MessageAvatar avatar={avatar} aria-label="Edit author" onClick={onClick} />)
+      const avatarButton = getByRole('button', { name: 'Edit author' })
+
+      await user.click(avatarButton)
+      avatarButton.focus()
+      await user.keyboard('{Enter}')
+      await user.keyboard(' ')
+
+      expect(onClick).toHaveBeenCalledTimes(3)
+    }
+  )
 })

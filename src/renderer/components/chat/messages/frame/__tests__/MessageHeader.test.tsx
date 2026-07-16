@@ -1,13 +1,19 @@
 import { render } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageHeader from '../MessageHeader'
 
 const providerState = vi.hoisted(() => ({
-  actions: {} as { selectMessage?: (messageId: string, selected: boolean) => void },
+  actions: {} as {
+    openMessageAuthorEditor?: (authorId: string) => void
+    selectMessage?: (messageId: string, selected: boolean) => void
+  },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
 }))
+
+const iconState = vi.hoisted(() => ({ showModelIcon: false }))
 
 vi.mock('@cherrystudio/ui', () => ({
   Avatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -40,6 +46,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/utils/model', () => ({
   getModelLogoRef: () => undefined
+}))
+
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () =>
+    iconState.showModelIcon
+      ? ({ className }: { className?: string }) => <div className={className} data-testid="model-icon" />
+      : undefined
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -82,6 +95,7 @@ describe('MessageHeader', () => {
   beforeEach(() => {
     providerState.actions = {}
     providerState.selection = undefined
+    iconState.showModelIcon = false
   })
 
   it('keeps content and footer in the body column with footer pinned to the bottom', () => {
@@ -147,6 +161,73 @@ describe('MessageHeader', () => {
       />
     )
     expect(getByText('My Agent')).toBeTruthy()
+  })
+
+  it('opens the snapshotted author editor from click, Enter, and Space', async () => {
+    const user = userEvent.setup()
+    const openMessageAuthorEditor = vi.fn()
+    providerState.actions = { openMessageAuthorEditor }
+
+    const { getByRole } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          assistantId: 'current-assistant',
+          messageSnapshot: {
+            id: 'snapshot-assistant',
+            name: 'Snapshot Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    const avatar = getByRole('button', { name: 'common.edit' })
+    await user.click(avatar)
+    avatar.focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+
+    expect(openMessageAuthorEditor).toHaveBeenCalledTimes(3)
+    expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(1, 'snapshot-assistant')
+    expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(2, 'snapshot-assistant')
+    expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(3, 'snapshot-assistant')
+  })
+
+  it('falls back to the message assistant id when a legacy message has no snapshot', async () => {
+    const user = userEvent.setup()
+    const openMessageAuthorEditor = vi.fn()
+    providerState.actions = { openMessageAuthorEditor }
+
+    const { getByRole } = render(
+      <MessageHeader message={createMessage('assistant', { assistantId: 'legacy-assistant' })} />
+    )
+
+    await user.click(getByRole('button', { name: 'common.edit' }))
+
+    expect(openMessageAuthorEditor).toHaveBeenCalledWith('legacy-assistant')
+  })
+
+  it('makes a model-icon avatar clickable but leaves an authorless avatar static', async () => {
+    const user = userEvent.setup()
+    const openMessageAuthorEditor = vi.fn()
+    providerState.actions = { openMessageAuthorEditor }
+    iconState.showModelIcon = true
+
+    const { getByRole, rerender } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          assistantId: 'model-author',
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+        })}
+      />
+    )
+
+    await user.click(getByRole('button', { name: 'common.edit' }))
+    expect(openMessageAuthorEditor).toHaveBeenCalledWith('model-author')
+
+    rerender(<MessageHeader message={createMessage('assistant')} />)
+    expect(() => getByRole('button', { name: 'common.edit' })).toThrow()
   })
 
   it('marks the real message selection checkbox for drag selection lookup', () => {

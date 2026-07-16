@@ -160,7 +160,7 @@ export function useAgentMessageListProviderValue({
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
-  const headerCapabilities = useMessageHeaderCapabilities()
+  const headerCapabilities = useMessageHeaderCapabilities('agent')
   const messageUiStateCache = useMessageUiStateCache()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const selectionController = useMessageSelectionController({

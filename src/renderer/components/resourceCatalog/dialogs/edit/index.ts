@@ -6,3 +6,4 @@ export {
 } from './AssistantEditDialog'
 export { default as PromptEditDialog } from './PromptEditDialog'
 export { ResourceEditDialogHost, type ResourceEditDialogTarget } from './ResourceEditDialogHost'
+export { ResourceEditPopup } from './ResourceEditPopup'

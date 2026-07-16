@@ -14,19 +14,20 @@ export type ResourceEditDialogTarget = { kind: 'assistant'; id: string } | { kin
 
 type ResourceEditDialogHostProps = {
   target: ResourceEditDialogTarget | null
+  open?: boolean
   onOpenChange: (open: boolean) => void
   onSaved?: (target: ResourceEditDialogTarget) => Promise<unknown> | void
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
 
-export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: ResourceEditDialogHostProps) {
+export function ResourceEditDialogHost({ target, open = true, onOpenChange, onSaved }: ResourceEditDialogHostProps) {
   if (target?.kind === 'assistant') {
-    return <AssistantEditDialogHost target={target} onOpenChange={onOpenChange} onSaved={onSaved} />
+    return <AssistantEditDialogHost target={target} open={open} onOpenChange={onOpenChange} onSaved={onSaved} />
   }
 
   if (target?.kind === 'agent') {
-    return <AgentEditDialogHost target={target} onOpenChange={onOpenChange} onSaved={onSaved} />
+    return <AgentEditDialogHost target={target} open={open} onOpenChange={onOpenChange} onSaved={onSaved} />
   }
 
   return null
@@ -34,6 +35,7 @@ export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: Resour
 
 function AssistantEditDialogHost({
   target,
+  open = true,
   onOpenChange,
   onSaved
 }: ResourceEditDialogHostProps & { target: Extract<ResourceEditDialogTarget, { kind: 'assistant' }> }) {
@@ -45,7 +47,8 @@ function AssistantEditDialogHost({
 
     logger.error('Failed to load assistant for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
-  }, [error, t, target.id])
+    onOpenChange(false)
+  }, [error, onOpenChange, t, target.id])
 
   const handleSaved = useCallback(async () => {
     try {
@@ -59,7 +62,7 @@ function AssistantEditDialogHost({
 
   return (
     <AssistantEditDialog
-      open
+      open={open}
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
       onSaved={handleSaved}
@@ -70,6 +73,7 @@ function AssistantEditDialogHost({
 
 function AgentEditDialogHost({
   target,
+  open = true,
   onOpenChange,
   onSaved
 }: ResourceEditDialogHostProps & { target: Extract<ResourceEditDialogTarget, { kind: 'agent' }> }) {
@@ -82,7 +86,8 @@ function AgentEditDialogHost({
 
     logger.error('Failed to load agent for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
-  }, [error, t, target.id])
+    onOpenChange(false)
+  }, [error, onOpenChange, t, target.id])
 
   const handleSaved = useCallback(async () => {
     try {
@@ -96,7 +101,7 @@ function AgentEditDialogHost({
 
   return (
     <AgentEditDialog
-      open
+      open={open}
       resource={agent ?? null}
       onOpenChange={onOpenChange}
       onSaved={handleSaved}
