@@ -9,7 +9,7 @@ body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
 .cherry-emoji-picker-react .epr-emoji-category-label {
   backdrop-filter: none;
   box-shadow: 0 -1px 0 var(--epr-category-label-bg-color);
-  font-size: 14px;
+  font-size: var(--font-size-body-sm);
   font-weight: var(--font-weight-regular);
 }
 

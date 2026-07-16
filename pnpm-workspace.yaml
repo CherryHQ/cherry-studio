@@ -77,6 +77,7 @@ patchedDependencies:
   '@tiptap/markdown@3.26.1': patches/@tiptap__markdown@3.26.1.patch
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
   onnxruntime-node@1.24.3: patches/onnxruntime-node@1.24.3.patch
+  emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
 
 allowBuilds:
   '@j178/prek': true

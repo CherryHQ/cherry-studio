@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -8,11 +9,13 @@ import { EmojiPicker } from '..'
 
 const emojiPickerPropsMock = vi.hoisted((): { value: any } => ({ value: undefined }))
 const i18nLanguageMock = vi.hoisted(() => ({ value: 'en-US' }))
-const zhEmojiDataMock = vi.hoisted(() => ({ categories: { smileys_people: { name: '表情' } }, emojis: {} }))
-
-vi.mock('emoji-picker-react/dist/data/emojis-zh', () => ({
-  default: zhEmojiDataMock
-}))
+const require = createRequire(import.meta.url)
+const loadSourceEmojiRecords = (locale: 'en' | 'zh') =>
+  JSON.parse(readFileSync(require.resolve(`emoji-picker-element-data/${locale}/cldr/data.json`), 'utf-8')) as unknown[]
+const sourceEmojiRecords = {
+  en: loadSourceEmojiRecords('en'),
+  zh: loadSourceEmojiRecords('zh')
+}
 
 vi.mock('emoji-picker-react', () => {
   const EmojiPickerReact = (props) => {
@@ -36,6 +39,11 @@ vi.mock('emoji-picker-react', () => {
               {item.icon}
               {item.name}
             </span>
+          ))}
+          {props.suggestedEmojis?.map((emoji: string) => (
+            <button key={emoji} type="button" aria-label={emoji}>
+              {emoji}
+            </button>
           ))}
         </div>
         <button type="button" onClick={(event) => props.onEmojiClick({ emoji: '🤖' }, event)}>
@@ -75,16 +83,46 @@ vi.mock('react-i18next', () => ({
 afterEach(async () => {
   const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
   MockUseCacheUtils.resetMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('EmojiPicker', () => {
   beforeEach(() => {
     i18nLanguageMock.value = 'en-US'
     emojiPickerPropsMock.value = undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const records = String(input).includes('/zh/') ? sourceEmojiRecords.zh : sourceEmojiRecords.en
+        return {
+          json: async () => records,
+          ok: true,
+          status: 200,
+          statusText: 'OK'
+        } as Response
+      })
+    )
   })
 
-  it('enables localized vendor search with autofocus and category navigation', () => {
+  const renderResolvedPicker = async (onEmojiClick = vi.fn()) => {
+    const view = render(<EmojiPicker onEmojiClick={onEmojiClick} />)
+    await screen.findByTestId('emoji-picker-react')
+    return view
+  }
+
+  it('renders a fixed-size loading boundary before the picker implementation resolves', () => {
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
+
+    expect(screen.getByRole('status')).toHaveClass(
+      'h-88',
+      'w-80',
+      'max-h-[min(22rem,calc(100vh-6rem))]',
+      'max-w-[calc(100vw-2rem)]'
+    )
+  })
+
+  it('enables localized vendor search with autofocus and category navigation', async () => {
+    await renderResolvedPicker()
 
     expect(screen.getByTestId('emoji-picker-react')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('emoji_picker.search')).toBeInTheDocument()
@@ -114,8 +152,8 @@ describe('EmojiPicker', () => {
     expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.smileys_emotion')
   })
 
-  it('uses compact dimensions and Cherry theme variables', () => {
-    const { container } = render(<EmojiPicker onEmojiClick={vi.fn()} />)
+  it('uses compact dimensions and Cherry theme variables', async () => {
+    const { container } = await renderResolvedPicker()
 
     expect(container.firstElementChild).toHaveClass(
       'h-88',
@@ -159,8 +197,8 @@ describe('EmojiPicker', () => {
     }
   })
 
-  it('passes category icons through the public categories configuration', () => {
-    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+  it('passes category icons through the public categories configuration', async () => {
+    await renderResolvedPicker()
 
     expect(emojiPickerPropsMock.value.categories.every((item: any) => item.icon)).toBe(true)
     expect(emojiPickerPropsMock.value.categoryIcons).toBeUndefined()
@@ -180,7 +218,8 @@ describe('EmojiPicker', () => {
 
     expect(categoryLabelRule).toContain('backdrop-filter: none')
     expect(categoryLabelRule).toContain('box-shadow: 0 -1px 0 var(--epr-category-label-bg-color)')
-    expect(categoryLabelRule).toContain('font-size: 14px')
+    expect(categoryLabelRule).toContain('font-size: var(--font-size-body-sm)')
+    expect(categoryLabelRule).not.toContain('font-size: 14px')
     expect(categoryLabelRule).toContain('font-weight: var(--font-weight-regular)')
   })
 
@@ -222,11 +261,11 @@ describe('EmojiPicker', () => {
     expect(windowsNativeEmojiRule).toContain('!important')
   })
 
-  it('uses native Emoji 13, auto theme, no preview, and no skin tone picker', () => {
-    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+  it('uses every bundled native emoji, auto theme, no preview, and no skin tone picker', async () => {
+    await renderResolvedPicker()
 
     expect(emojiPickerPropsMock.value.emojiStyle).toBe('native')
-    expect(emojiPickerPropsMock.value.emojiVersion).toBe('13.0')
+    expect(emojiPickerPropsMock.value.emojiVersion).toBeUndefined()
     expect(emojiPickerPropsMock.value.theme).toBe('auto')
     expect(emojiPickerPropsMock.value.previewConfig).toEqual({ showPreview: false })
     expect(emojiPickerPropsMock.value.skinTonesDisabled).toBe(true)
@@ -234,25 +273,62 @@ describe('EmojiPicker', () => {
     expect(screen.queryByTestId('skin-tone-picker')).not.toBeInTheDocument()
   })
 
-  it('loads localized emoji data when the app language changes', async () => {
-    i18nLanguageMock.value = 'zh-CN'
-
-    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+  it('loads the complete Emoji 17 data set used by v1', async () => {
+    await renderResolvedPicker()
 
     await waitFor(() => {
-      expect(emojiPickerPropsMock.value.emojiData).toBe(zhEmojiDataMock)
+      const emojis = Object.values(emojiPickerPropsMock.value.emojiData?.emojis ?? {}).flat() as Array<{
+        a: string
+        n: string[]
+        u: string
+        v?: string[]
+      }>
+
+      expect(emojis).toHaveLength(1914)
+      expect(new Set(emojis.map((emoji) => emoji.u)).size).toBe(1914)
+      expect(emojis.every((emoji) => emoji.a && emoji.n.length > 0 && emoji.u)).toBe(true)
+      expect(emojis.filter((emoji) => Number(emoji.a) > 13)).toHaveLength(109)
+      expect(emojis.filter((emoji) => emoji.a === '16')).toHaveLength(8)
+      expect(emojis.filter((emoji) => emoji.a === '17')).toHaveLength(8)
+      expect(emojis).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ a: '16', u: '1fae9' }),
+          expect.objectContaining({ a: '17', u: '1faea' }),
+          expect.objectContaining({ a: '16', u: '1f1e8-1f1f6' })
+        ])
+      )
+      expect(emojis.find((emoji) => emoji.u === '1f44b')?.v).toContain('1f44b-1f3fb')
+      expect(emojis.some((emoji) => emoji.u === '1f3fb')).toBe(false)
+      expect(emojiPickerPropsMock.value.emojiData.emojis.flags).toEqual(
+        expect.arrayContaining([expect.objectContaining({ a: '16', u: '1f1e8-1f1f6' })])
+      )
     })
   })
 
-  it('does not render Cherry recent emojis outside the third-party picker', async () => {
+  it('loads localized emoji data when the app language changes', async () => {
+    i18nLanguageMock.value = 'zh-CN'
+
+    await renderResolvedPicker()
+
+    await waitFor(() => {
+      expect(emojiPickerPropsMock.value.emojiData.emojis.smileys_people).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ a: '17', n: expect.arrayContaining(['变形的脸']), u: '1faea' })
+        ])
+      )
+    })
+  })
+
+  it('uses Cherry recent emojis as the third-party picker suggested category', async () => {
     const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', '📁'])
 
-    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+    await renderResolvedPicker()
 
     expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.recent')
-    expect(screen.queryByRole('button', { name: '🧠' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '📁' })).not.toBeInTheDocument()
+    expect(emojiPickerPropsMock.value.suggestedEmojis).toEqual(['🧠', '📁'])
+    expect(screen.getByRole('button', { name: '🧠' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '📁' })).toBeInTheDocument()
   })
 
   it('calls onEmojiClick and updates Cherry recent emojis when an emoji is picked', async () => {
@@ -260,7 +336,7 @@ describe('EmojiPicker', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', '📁'])
 
     const handleClick = vi.fn()
-    render(<EmojiPicker onEmojiClick={handleClick} />)
+    await renderResolvedPicker(handleClick)
 
     fireEvent.click(screen.getByRole('button', { name: 'Pick robot' }))
     expect(handleClick).toHaveBeenCalledWith('🤖')

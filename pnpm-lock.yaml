@@ -72,6 +72,7 @@ patchedDependencies:
   ai@6.0.143: a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
+  emoji-picker-react@4.19.1: 46823deb8120c9841cf66c7c64aea1c6e445678930f5e4c58c4da80d9cba843a
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
   ollama-ai-provider-v2@3.3.1: 8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb
   onnxruntime-node@1.24.3: 71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4
@@ -114,9 +115,6 @@ importers:
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
-      emoji-picker-react:
-        specifier: ^4.19.1
-        version: 4.19.1(react@19.2.3)
       font-list:
         specifier: 2.0.0
         version: 2.0.0
@@ -769,6 +767,12 @@ importers:
       emittery:
         specifier: ^1.0.3
         version: 1.2.0
+      emoji-picker-element-data:
+        specifier: 1.8.0
+        version: 1.8.0
+      emoji-picker-react:
+        specifier: ^4.19.1
+        version: 4.19.1(patch_hash=46823deb8120c9841cf66c7c64aea1c6e445678930f5e4c58c4da80d9cba843a)(react@19.2.3)
       epub:
         specifier: 2.1.1
         version: 2.1.1
@@ -8898,6 +8902,9 @@ packages:
   emittery@1.2.0:
     resolution: {integrity: sha512-KxdRyyFcS85pH3dnU8Y5yFUm2YJdaHwcBZWrfG8o89ZY9a13/f9itbN+YG3ELbBo9Pg5zvIozstmuV8bX13q6g==}
     engines: {node: '>=14.16'}
+
+  emoji-picker-element-data@1.8.0:
+    resolution: {integrity: sha512-VfRuRJNEDLS1JKlNS4olaqhjX5S1nnZ+ZHG73b/dV8QeZyi0yPruTPEE72EmF6XO3k/9hj3lybMIYMOYXb/57A==}
 
   emoji-picker-react@4.19.1:
     resolution: {integrity: sha512-BmDdqInKFVYJpv7qS9WI6L9656cDAC+FkDvUjJds56nKHbaVTBNeDmLwKBytRnzu37zWHs9Isg7gt5PT43y6xA==}
@@ -22305,7 +22312,9 @@ snapshots:
 
   emittery@1.2.0: {}
 
-  emoji-picker-react@4.19.1(react@19.2.3):
+  emoji-picker-element-data@1.8.0: {}
+
+  emoji-picker-react@4.19.1(patch_hash=46823deb8120c9841cf66c7c64aea1c6e445678930f5e4c58c4da80d9cba843a)(react@19.2.3):
     dependencies:
       flairup: 1.0.0
       react: 19.2.3

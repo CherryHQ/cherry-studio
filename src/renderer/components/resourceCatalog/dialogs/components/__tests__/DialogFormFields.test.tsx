@@ -19,7 +19,11 @@ vi.mock('@cherrystudio/ui', () => ({
   }) => {
     void variant
     void size
-    return <button {...props}>{children}</button>
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
   },
   EmojiAvatar: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Popover: ({ children }: { children?: ReactNode }) => <>{children}</>,
@@ -78,7 +82,7 @@ describe('DialogModelTrigger', () => {
 })
 
 describe('EmojiAvatarPicker', () => {
-  it('uses the standard floating boundary for the emoji avatar picker', () => {
+  it('only customizes emoji avatar picker width and padding', () => {
     render(
       <EmojiAvatarPicker
         value="🙂"
@@ -91,7 +95,10 @@ describe('EmojiAvatarPicker', () => {
       />
     )
 
-    expect(screen.getByTestId('popover-content')).toHaveClass(
+    const popoverContent = screen.getByTestId('popover-content')
+
+    expect(popoverContent).toHaveClass('w-auto', 'p-0')
+    expect(popoverContent).not.toHaveClass(
       'border',
       'border-border',
       'bg-popover',

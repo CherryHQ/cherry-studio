@@ -124,10 +124,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent
-                className="w-auto border border-border bg-popover p-2 text-popover-foreground shadow-lg"
-                align="center"
-                sideOffset={6}>
+              <PopoverContent className="w-auto p-2" align="center" sideOffset={6}>
                 {avatarPopoverView === 'emoji' ? (
                   <EmojiPicker onEmojiClick={handleEmojiClick} />
                 ) : (

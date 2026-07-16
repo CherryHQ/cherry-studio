@@ -196,12 +196,15 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('uses the standard floating boundary for the avatar picker popover', async () => {
+  it('only customizes avatar picker popover width and padding', async () => {
     showUserPopup()
 
     fireEvent.click(await screen.findByTestId('popover-trigger'))
 
-    expect(screen.getByTestId('popover-content')).toHaveClass(
+    const popoverContent = screen.getByTestId('popover-content')
+
+    expect(popoverContent).toHaveClass('w-auto', 'p-2')
+    expect(popoverContent).not.toHaveClass(
       'border',
       'border-border',
       'bg-popover',
