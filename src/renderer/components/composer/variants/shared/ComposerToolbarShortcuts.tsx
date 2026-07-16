@@ -58,9 +58,18 @@ interface CustomizeRow {
   candidate?: ShortcutCandidate
 }
 
+interface CustomizeOrderState {
+  preferredOrder: string[]
+  syncedPinnedIds: readonly string[]
+  pendingPinnedIds: readonly string[] | null
+}
+
 const CUSTOMIZE_ROW_CLASS = 'flex h-8 items-center gap-1.5 rounded-md px-1.5 hover:bg-accent/60'
 const CUSTOMIZE_ROW_ICON_CLASS =
   'flex size-5 shrink-0 items-center justify-center text-foreground/70 [&_svg]:!size-[16px]'
+
+const haveSameOrder = (left: readonly string[], right: readonly string[]) =>
+  left.length === right.length && left.every((id, index) => id === right[index])
 
 const reconcileCustomizeOrder = (
   preferredOrder: readonly string[],
@@ -165,10 +174,28 @@ export const ComposerToolbarShortcuts = ({
   const visiblePinnedRows = useMemo(() => pinnedRows.filter((row) => row.candidate), [pinnedRows])
   const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const candidateIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates])
-  const [preferredCustomizeOrder, setPreferredCustomizeOrder] = useState<string[]>([])
+  const [customizeOrderState, setCustomizeOrderState] = useState<CustomizeOrderState>(() => ({
+    preferredOrder: [],
+    syncedPinnedIds: pinnedIds,
+    pendingPinnedIds: null
+  }))
+
+  if (!haveSameOrder(customizeOrderState.syncedPinnedIds, pinnedIds)) {
+    const isLocalPreferenceUpdate =
+      customizeOrderState.pendingPinnedIds !== null && haveSameOrder(customizeOrderState.pendingPinnedIds, pinnedIds)
+
+    // Adjust before rendering children so external updates and optimistic rollbacks
+    // never commit a frame using the stale local full-list order.
+    setCustomizeOrderState({
+      preferredOrder: isLocalPreferenceUpdate ? customizeOrderState.preferredOrder : [],
+      syncedPinnedIds: pinnedIds,
+      pendingPinnedIds: null
+    })
+  }
+
   const customizeOrderIds = useMemo(
-    () => reconcileCustomizeOrder(preferredCustomizeOrder, pinnedIds, candidateIds),
-    [candidateIds, pinnedIds, preferredCustomizeOrder]
+    () => reconcileCustomizeOrder(customizeOrderState.preferredOrder, pinnedIds, candidateIds),
+    [candidateIds, customizeOrderState.preferredOrder, pinnedIds]
   )
   const customizeRows = useMemo<CustomizeRow[]>(
     () => customizeOrderIds.map((id) => ({ id, candidate: candidateById.get(id) })),
@@ -179,6 +206,11 @@ export const ComposerToolbarShortcuts = ({
   const customizeLabel = t('chat.input.toolbar.customize')
   const customizeTitleId = useId()
 
+  const requestPinnedIdsChange = (nextPinnedIds: string[]) => {
+    setCustomizeOrderState((current) => ({ ...current, pendingPinnedIds: nextPinnedIds }))
+    onPinnedIdsChange(nextPinnedIds)
+  }
+
   const togglePinned = (id: string, checked: boolean) => {
     const nextPinnedIdSet = new Set(pinnedIds)
     if (checked) {
@@ -186,17 +218,22 @@ export const ComposerToolbarShortcuts = ({
     } else {
       nextPinnedIdSet.delete(id)
     }
-    onPinnedIdsChange(customizeOrderIds.filter((candidateId) => nextPinnedIdSet.has(candidateId)))
+    requestPinnedIdsChange(customizeOrderIds.filter((candidateId) => nextPinnedIdSet.has(candidateId)))
   }
 
   const reorderCustomizeRows = (nextRows: CustomizeRow[]) => {
     const nextOrderIds = nextRows.map((row) => row.id)
-    setPreferredCustomizeOrder(nextOrderIds)
+    setCustomizeOrderState((current) => ({ ...current, preferredOrder: nextOrderIds }))
 
     const nextPinnedIds = nextOrderIds.filter((id) => pinnedIdSet.has(id))
     if (nextPinnedIds.length !== pinnedIds.length || nextPinnedIds.some((id, index) => id !== pinnedIds[index])) {
-      onPinnedIdsChange(nextPinnedIds)
+      requestPinnedIdsChange(nextPinnedIds)
     }
+  }
+
+  const resetPinnedIds = () => {
+    setCustomizeOrderState({ preferredOrder: [], syncedPinnedIds: pinnedIds, pendingPinnedIds: null })
+    onResetPinnedIds()
   }
 
   // Localized drag feedback so screen readers announce tool names, not internal ids (e.g. "web-search").
@@ -312,7 +349,7 @@ export const ComposerToolbarShortcuts = ({
             size="sm"
             className="h-7 w-full justify-start px-1.5 text-muted-foreground text-sm hover:text-foreground"
             disabled={isDefault}
-            onClick={onResetPinnedIds}>
+            onClick={resetPinnedIds}>
             <RotateCcw className="size-4" />
             {t('chat.input.toolbar.restore_default')}
           </Button>

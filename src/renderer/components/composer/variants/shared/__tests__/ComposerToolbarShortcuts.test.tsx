@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],
   dispatchLauncher: vi.fn(),
-  reorderableProps: null as any
+  reorderableProps: null as any,
+  committedCustomizeOrders: [] as string[][]
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -41,6 +42,9 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     ReorderableList: (props: any) => {
       mocks.reorderableProps = props
+      React.useLayoutEffect(() => {
+        mocks.committedCustomizeOrders.push(props.items.map((item: any) => item.id))
+      }, [props.items])
       const rows = props.visibleItems ?? props.items
       const dragHandleProps = props.dragHandle
         ? { ref: () => {}, attributes: { role: 'button', tabIndex: 0 }, listeners: {} }
@@ -120,6 +124,7 @@ describe('ComposerToolbarShortcuts', () => {
     mocks.launchers = [thinkingLauncher, webSearchLauncher, knowledgeLauncher]
     mocks.dispatchLauncher.mockClear()
     mocks.reorderableProps = null
+    mocks.committedCustomizeOrders = []
   })
 
   it('renders only resolved pinned launchers as buttons, in preference order', () => {
@@ -275,6 +280,71 @@ describe('ComposerToolbarShortcuts', () => {
 
     rerender(<ComposerToolbarShortcuts {...props} isDefault />)
     expect(screen.getByRole('button', { name: 'chat.input.toolbar.restore_default' })).toBeDisabled()
+  })
+
+  it('drops the local drag order before restoring defaults and toggling another tool', () => {
+    const { rerender, props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: ['thinking', 'web-search']
+    })
+
+    act(() => {
+      mocks.reorderableProps.onReorder([
+        mocks.reorderableProps.items[1],
+        mocks.reorderableProps.items[2],
+        mocks.reorderableProps.items[0]
+      ])
+    })
+    expect(props.onPinnedIdsChange).toHaveBeenLastCalledWith(['web-search', 'thinking'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.toolbar.restore_default' }))
+    rerender(<ComposerToolbarShortcuts {...props} pinnedIds={['thinking', 'web-search']} isDefault />)
+
+    fireEvent.click(within(screen.getByTestId('popover-content')).getByLabelText('kb-label'))
+    expect(props.onPinnedIdsChange).toHaveBeenLastCalledWith(['thinking', 'web-search', 'knowledge-base'])
+  })
+
+  it('rebuilds the customize order after an external pinned preference update', () => {
+    const { rerender, props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: ['thinking', 'web-search']
+    })
+
+    act(() => {
+      mocks.reorderableProps.onReorder([
+        mocks.reorderableProps.items[1],
+        mocks.reorderableProps.items[2],
+        mocks.reorderableProps.items[0]
+      ])
+    })
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['web-search', 'knowledge-base', 'thinking'])
+
+    mocks.committedCustomizeOrders = []
+    rerender(<ComposerToolbarShortcuts {...props} pinnedIds={['knowledge-base', 'thinking']} />)
+
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['knowledge-base', 'thinking', 'web-search'])
+    expect(mocks.committedCustomizeOrders).toEqual([['knowledge-base', 'thinking', 'web-search']])
+  })
+
+  it('rebuilds the customize order after an optimistic preference rollback', () => {
+    const { rerender, props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: ['thinking', 'web-search']
+    })
+
+    act(() => {
+      mocks.reorderableProps.onReorder([
+        mocks.reorderableProps.items[1],
+        mocks.reorderableProps.items[2],
+        mocks.reorderableProps.items[0]
+      ])
+    })
+
+    rerender(<ComposerToolbarShortcuts {...props} pinnedIds={['web-search', 'thinking']} />)
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['web-search', 'knowledge-base', 'thinking'])
+
+    rerender(<ComposerToolbarShortcuts {...props} pinnedIds={['thinking', 'web-search']} />)
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['thinking', 'web-search', 'knowledge-base'])
   })
 
   it('names the customize dialog via aria-labelledby referencing the visible title', () => {
