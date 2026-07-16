@@ -1,6 +1,6 @@
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { FC } from 'react'
@@ -11,6 +11,7 @@ interface ChatMainProps {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers: MessageStreamingLayers
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder: () => void
@@ -23,6 +24,7 @@ const ChatMain: FC<ChatMainProps> = ({
   topic,
   messages,
   partsByMessageId,
+  streamingLayers,
   isInitialLoading,
   isMessagesStale,
   loadOlder,
@@ -34,6 +36,7 @@ const ChatMain: FC<ChatMainProps> = ({
     topic,
     messages,
     partsByMessageId,
+    streamingLayers,
     isInitialLoading,
     isMessagesStale,
     loadOlder,
