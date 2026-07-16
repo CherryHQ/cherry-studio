@@ -1734,7 +1734,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('agent.preview_pane.edit.unsupported'))
     expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('legacy preview')
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('legacy preview'))
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.write_if_unchanged', expect.anything())
   })
 
