@@ -29,6 +29,7 @@ import {
   useCommandShortcutPreferences,
   useResolvedCommandMenu
 } from '@renderer/hooks/command'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getCommandShortcutLabel } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type {
@@ -463,13 +464,7 @@ export function CommandContextMenu({
     [getExtraItems, onOpenChange]
   )
 
-  const handleCherrySelectItem = useCallback(
-    (action: () => void) => {
-      handleCherryOpenChange(false)
-      queueMicrotask(action)
-    },
-    [handleCherryOpenChange]
-  )
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
 
   const handleNativeContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -809,13 +804,7 @@ export function CommandPopupMenu({
     [onOpenChange, open]
   )
 
-  const handleCherrySelectItem = useCallback(
-    (action: () => void) => {
-      handleCherryOpenChange(false)
-      queueMicrotask(action)
-    },
-    [handleCherryOpenChange]
-  )
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
 
   if (disabled || combinedItems.length === 0) {
     return <>{children}</>

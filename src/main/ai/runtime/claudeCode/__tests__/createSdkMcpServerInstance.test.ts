@@ -90,6 +90,14 @@ describe('createSdkMcpServerInstance', () => {
     })
   })
 
+  it('uses a request-captured server snapshot without re-reading the edited database row', () => {
+    const capturedServer = { id: 'server-1', name: 'Captured MCP' }
+
+    createSdkMcpServerInstance('server-1', capturedServer as never)
+
+    expect(mocks.findByIdOrName).not.toHaveBeenCalled()
+  })
+
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {
     const sdkServer = createSdkMcpServerInstance('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers

@@ -32,7 +32,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -41,6 +41,7 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
@@ -126,12 +127,27 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
+const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
+
+const replaceComposerEditableMessageParts = (
+  originalParts: CherryMessagePart[],
+  editedParts: CherryMessagePart[]
+): CherryMessagePart[] => {
+  const firstEditablePartIndex = originalParts.findIndex(isComposerEditableMessagePart)
+  if (firstEditablePartIndex === -1) return editedParts
+
+  return originalParts.flatMap((part, index) => {
+    if (part.type === 'data-translation') return []
+    if (!isComposerEditableMessagePart(part)) return [part]
+    return index === firstEditablePartIndex ? editedParts : []
+  })
+}
+
 interface ChatComposerContextControlsProps {
   assistantId: string | null
   assistantName: string
   assistantEmoji?: string
   model?: Model
-  modelProviderName?: string
   modelPending?: boolean
   providers: Provider[]
   mentionedModels: Model[]
@@ -156,7 +172,6 @@ const ChatComposerContextControls = ({
   assistantName,
   assistantEmoji,
   model,
-  modelProviderName,
   modelPending,
   providers,
   mentionedModels,
@@ -191,9 +206,7 @@ const ChatComposerContextControls = ({
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
   )
-  const assistantModelLabel = model
-    ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
-    : selectModelLabel
+  const assistantModelLabel = model ? model.name : selectModelLabel
   const modelLabel = assistantModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
@@ -766,8 +779,6 @@ const ChatComposerInner = ({
   const canSteer = isPending && !awaitingApproval
   const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
-  const providerName = useProviderDisplayName(runtimeModel?.providerId)
-
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
     fallbackModel: runtimeModel
@@ -1119,7 +1130,14 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        if (!chatWrite?.forkAndResend) {
+        const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
+        const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
+        if (!saveEditedMessage) {
+          toast.error(t('message.error.operation_unavailable'))
+          return
+        }
+
+        if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
@@ -1128,11 +1146,14 @@ const ChatComposerInner = ({
           const editedParts = await buildEditedMessageParts(draft)
           if (!editedParts) return
 
-          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, editedParts)
+          const savedParts = isAssistantReply
+            ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
+            : editedParts
+          await saveEditedMessage(editingMessageForCurrentTopic.message.id, savedParts)
           restoreSavedDraft()
           stopEditing()
         } catch (error) {
-          logger.warn('edited message fork and resend failed', { error })
+          logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
           toast.error(t('message.error.operation_unavailable'))
         }
         return
@@ -1282,7 +1303,6 @@ const ChatComposerInner = ({
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
     model: runtimeModel,
-    modelProviderName: providerName,
     modelPending: runtimeModelPending,
     providers,
     mentionedModels,

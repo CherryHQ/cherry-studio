@@ -1,5 +1,4 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -224,16 +223,34 @@ describe('ChatAppShell', () => {
     )
   })
 
-  it('insets the left resource pane below the title bar in window mode', () => {
+  it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
-        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+        <ChatAppShell
+          contentId="conversation-content"
+          centerId="conversation-center"
+          topBar={<header data-testid="conversation-navbar" />}
+          pane={<aside>topics</aside>}
+          paneOpen
+          main={<div />}
+        />
       </WindowFrameProvider>
     )
 
-    expect(container.querySelector('[data-resource-list-pane]')).toHaveStyle({
-      paddingTop: TITLE_BAR_HEIGHT_PX
-    })
+    const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')
+    const navbar = screen.getByTestId('conversation-navbar')
+    const center = document.getElementById('conversation-center')
+    const content = document.getElementById('conversation-content')
+
+    if (!pane || !center || !content) {
+      throw new Error('Expected resource pane, conversation center, and conversation content')
+    }
+
+    expect(pane.style.paddingTop).toBe('')
+    expect(content).toContainElement(pane)
+    expect(content).toContainElement(center)
+    expect(center).toContainElement(navbar)
+    expect(pane.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {

@@ -270,9 +270,7 @@ vi.mock('../SelectedModelsTrigger', () => ({
       data-model-count={String(models.length)}
       data-disabled={String(Boolean(disabled))}
       data-suppress-selection-popover={String(Boolean(suppressSelectionPopover))}>
-      <span className={iconOnly ? 'sr-only' : undefined}>
-        {models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}
-      </span>
+      <span className={iconOnly ? 'sr-only' : undefined}>{models.length === 0 ? fallbackLabel : models[0].name}</span>
       <button
         type="button"
         onClick={() => onModelsChange(models.filter((currentModel: Model) => currentModel.id !== modelB.id))}>
@@ -452,7 +450,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: () => 'Provider',
-  useProviderDisplayName: (providerId?: string) => (providerId ? 'Provider' : undefined),
   useProviders: () => ({ providers: [{ id: 'provider', name: 'Provider' }] })
 }))
 
@@ -784,7 +781,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
-    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(screen.getByText('Model A')).toBeInTheDocument()
   })
 
   it('does not enable skill marker paste handling', () => {
@@ -815,13 +812,13 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
 
     await notifyComposerBottomToolbarWidth(420)
 
     await waitFor(() => {
       expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
-      expect(screen.getByText('Model A | Provider')).toHaveClass('sr-only')
+      expect(screen.getByText('Model A')).toHaveClass('sr-only')
     })
   })
 
@@ -831,7 +828,7 @@ describe('ChatComposer', () => {
     await notifyComposerBottomToolbarWidth(420, 420)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {
@@ -1065,7 +1062,7 @@ describe('ChatComposer', () => {
     render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A')
     expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
@@ -1078,7 +1075,7 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
-    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(screen.getByText('Model A')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
@@ -2238,20 +2235,20 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('tool menu')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A')
   })
 
   it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
 
     await notifyComposerBottomToolbarWidth(420)
 
     await waitFor(() => {
       expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
-      expect(screen.getByText('Model A | Provider')).toHaveClass('sr-only')
+      expect(screen.getByText('Model A')).toHaveClass('sr-only')
       expect(screen.getByTestId('selected-models-trigger')).toHaveClass('w-8')
     })
   })
@@ -2264,7 +2261,7 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A')
     expect(mocks.setMentionedModels).not.toHaveBeenCalledWith([model])
     mocks.setMentionedModels.mockClear()
 
@@ -2283,7 +2280,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
-      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B | Provider')
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
     })
     expect(mocks.setMentionedModels).not.toHaveBeenCalledWith([modelB])
     expect(onDraftAssistantChange).toHaveBeenCalledWith('assistant-2')
@@ -2324,7 +2321,7 @@ describe('ChatComposer', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A')
   })
 
   it('does not hydrate the docked model selector from mentioned-model cache', () => {
@@ -2335,7 +2332,7 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
-    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(screen.getByText('Model A')).toBeInTheDocument()
   })
 
   it('does not read or write mentioned-model rich-text cache', () => {
@@ -3209,6 +3206,108 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
+  it('saves an edited assistant reply without forking and removes derived translation parts', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      { type: 'reasoning', text: 'reasoning' },
+      { type: 'text', text: 'old reply' },
+      { type: 'data-translation', data: { content: 'translated reply' } }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'new reply', tokens: [] })
+
+    expect(editMessage).toHaveBeenCalledWith(message.id, [originalParts[0], { type: 'text', text: 'new reply' }])
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('does not save an assistant reply whose editable parts are separated by a tool call', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      { type: 'text', text: 'before tool' },
+      { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+      { type: 'text', text: 'after tool' }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
+
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('does not save an assistant reply whose text has provider metadata Composer cannot round-trip', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      {
+        type: 'text',
+        text: 'signed reply',
+        providerMetadata: { google: { thoughtSignature: 'signature-1' } }
+      }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
+
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
   it('does not fork and resend an edited file-only draft before the file token is reflected in the editor', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
@@ -3612,7 +3711,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
-      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A')
     })
   })
 
