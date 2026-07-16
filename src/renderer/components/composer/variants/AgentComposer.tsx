@@ -20,7 +20,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -60,7 +60,7 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
+import { Bot, Cable, ChevronDown, CircleSlash, Folder, Sparkles, Terminal, TriangleAlert, X, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -1326,14 +1326,28 @@ const AgentComposerInner = ({
     </Tooltip>
   ) : undefined
 
-  const skillsCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
+  const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
     const skillLabel = t('plugins.skills')
+    const slashCommandsLabel = t('chat.input.slash_commands.title')
     return [
       {
         id: 'skills',
         label: skillLabel,
         icon: <Zap size={18} aria-hidden />,
         onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: skillLabel })
+      },
+      {
+        id: 'slash-commands',
+        label: slashCommandsLabel,
+        icon: <Terminal size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+      },
+      {
+        id: ComposerPanelSymbol.McpStatus,
+        label: 'MCP',
+        icon: <Cable size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
   }, [t])
@@ -1351,7 +1365,7 @@ const AgentComposerInner = ({
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
-        customTools={skillsCustomTools}
+        customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
@@ -1365,7 +1379,7 @@ const AgentComposerInner = ({
       resetPinnedToolIds,
       setCustomizeToolbarOpen,
       setPinnedToolIds,
-      skillsCustomTools
+      toolbarCustomTools
     ]
   )
 
