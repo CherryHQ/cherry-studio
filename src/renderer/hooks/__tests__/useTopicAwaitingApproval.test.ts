@@ -21,13 +21,16 @@ const setLastSeenCompletion = vi.fn((next: number | null) => {
 
 // Mock at the cache layer rather than at useTopicStreamStatus — intra-module
 // vi.mock can't intercept calls between functions in the same source file.
+// The main-owned status entry is observed read-only (useSharedCacheValue);
+// the window-owned lastSeenCompletion marker keeps the writable hook.
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useSharedCache: (key: string) => {
     if (key.startsWith('topic.stream.last_seen_completion.')) {
       return [lastSeenCompletion, setLastSeenCompletion]
     }
     return [mockEntry()]
-  }
+  },
+  useSharedCacheValue: () => mockEntry()
 }))
 
 import {
