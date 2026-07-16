@@ -531,7 +531,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
-    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    const connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
     entry.lastResumeToken = 'resume-1'
     entry.connection = connection
 
@@ -561,7 +561,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
-    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    const connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
     entry.lastResumeToken = 'resume-1'
     entry.connection = connection
 
@@ -644,8 +644,18 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('retries callers sharing an in-flight connect when a mid-flight model edit discards it', async () => {
-    const firstConnection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
-    const secondConnection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const firstConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
     const firstConnect = createDeferred<any>()
     const connect = vi.fn().mockReturnValueOnce(firstConnect.promise).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
@@ -686,7 +696,12 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('connects a turn created before a model edit with its captured model (edit-before-open-stream)', async () => {
-    const connection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const connection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
@@ -728,7 +743,12 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('invalidates an entry with an in-flight connect when the agent model is cleared', async () => {
-    const connection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const connection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
     const pendingConnect = createDeferred<any>()
     const connect = vi.fn().mockReturnValue(pendingConnect.promise)
     runtimeDriverRegistry.register({
@@ -763,7 +783,12 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('pauses a live turn and tears the session down when the agent model is cleared', async () => {
-    const connection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const connection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
@@ -803,9 +828,8 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     const entry = getEntry(service)
-    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    const connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
     entry.connection = connection
-    entry.connectionModelId = baseTurnInput.modelId
 
     // Steer roll in flight: A1a was finalised at a steer-boundary (currentTurn is terminal) but `rolling`
     // stays true while the same SDK query keeps streaming the post-steer response into A2. A model edit
@@ -826,7 +850,12 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('does not retarget/close the live connection when ensureConnection re-enters mid-roll after a model edit', async () => {
-    const reconnected = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const reconnected = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
     const connect = vi.fn().mockResolvedValue(reconnected)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
@@ -838,9 +867,8 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     const entry = getEntry(service)
-    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    const connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
     entry.connection = connection
-    entry.connectionModelId = baseTurnInput.modelId
 
     // Steer roll in flight: A1a finalised at the boundary (currentTurn terminal), `rolling` still true,
     // and the model edit has already advanced entry.modelId (applyAgentModelUpdate kept the connection
@@ -859,7 +887,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).connection).toBe(connection)
   })
 
-  it('applies tool-policy updates when disabled tools change', async () => {
+  it('reconciles the connection on any agent update without closing a current one', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -867,18 +895,20 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      applyPolicyUpdate: vi.fn()
+      reconcile: vi.fn().mockResolvedValue('patched')
     }
     entry.connection = connection
-    const agent = { id: 'agent-1' }
 
-    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, agent)
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
 
-    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({ type: 'tool-policy', agent })
+    // The host carries no per-field knowledge — the connection re-derives the desired config itself
+    // (which is also what makes wholesale `configuration` replaces resync a cleared permission_mode:
+    // the derive reads the post-update agent row, not the DTO's key presence).
+    expect(connection.reconcile).toHaveBeenCalledWith({ modelId: baseTurnInput.modelId })
     expect(connection.close).not.toHaveBeenCalled()
   })
 
-  it('derives the permission-mode from the post-update agent on any configuration change', async () => {
+  it('pushes a reconcile for configuration-only updates', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -886,7 +916,7 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      applyPolicyUpdate: vi.fn()
+      reconcile: vi.fn().mockResolvedValue('current')
     }
     entry.connection = connection
 
@@ -896,38 +926,7 @@ describe('AgentSessionRuntimeService', () => {
       { id: 'agent-1', configuration: { permission_mode: 'plan' } }
     )
 
-    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({
-      type: 'permission-mode',
-      permissionMode: 'plan'
-    })
-    expect(connection.close).not.toHaveBeenCalled()
-  })
-
-  it('resyncs the permission-mode to undefined when a wholesale config replace omits permission_mode', async () => {
-    const service = new AgentSessionRuntimeService()
-    service.beginTurn(baseTurnInput)
-    const entry = getEntry(service)
-    const connection = {
-      close: vi.fn(),
-      send: vi.fn(),
-      events: [],
-      applyPolicyUpdate: vi.fn()
-    }
-    entry.connection = connection
-
-    // The DTO's configuration omits `permission_mode` (a wholesale replace clears it). The sync must
-    // still fire and carry the authoritative cleared value from the post-update agent — keying off the
-    // DTO key presence would leave the warm connection stuck on the old mode.
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { configuration: { model: 'sonnet' } },
-      { id: 'agent-1', configuration: { model: 'sonnet' } }
-    )
-
-    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({
-      type: 'permission-mode',
-      permissionMode: undefined
-    })
+    expect(connection.reconcile).toHaveBeenCalledOnce()
     expect(connection.close).not.toHaveBeenCalled()
   })
 
@@ -942,7 +941,6 @@ describe('AgentSessionRuntimeService', () => {
       redirect: vi.fn().mockReturnValue(true)
     }
     entry.connection = connection
-    entry.connectionModelId = baseTurnInput.modelId
 
     await (service as any).handleAgentUpdated(
       'agent-1',
@@ -956,7 +954,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
   })
 
-  it('detaches and logs when a live policy update rejects without an open stream', async () => {
+  it('fails closed and logs when a push reconcile throws', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const failure = new Error('policy update failed')
@@ -965,33 +963,30 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      applyPolicyUpdate: vi.fn().mockRejectedValue(failure)
+      reconcile: vi.fn().mockRejectedValue(failure)
     }
     entry.connection = connection
 
     await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
 
-    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
-      'Failed to apply live agent policy update; closing runtime connection',
-      {
-        agentId: 'agent-1',
-        sessionId: 'session-1',
-        error: failure
-      }
-    )
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Connection reconcile threw; failing closed', {
+      sessionId: 'session-1',
+      error: failure
+    })
     expect(connection.close).toHaveBeenCalledOnce()
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
     expect(getEntry(service).connection).toBeUndefined()
   })
 
-  it('pauses the active stream and preserves queued turns when a live policy update rejects', async () => {
+  it('pauses the active stream and preserves queued turns when a live reconcile fails', async () => {
     const events = createAsyncQueue<any>()
-    const failure = new Error('policy update failed')
     const connection = {
       events: events.iterable,
       send: vi.fn(),
       close: vi.fn(),
-      applyPolicyUpdate: vi.fn().mockRejectedValue(failure)
+      // 'failed' = a live patch (e.g. a permission tighten) could not be applied — the connection
+      // may still be enforcing the OLD, looser policy and must not keep streaming.
+      reconcile: vi.fn().mockResolvedValue('failed')
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
@@ -1031,21 +1026,21 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('does not close a replacement runtime when an old policy update rejects late', async () => {
+  it('does not close a replacement runtime when an old reconcile settles late', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
-    const deferred = createDeferred<boolean>()
+    const deferred = createDeferred<string>()
     const oldEntry = getEntry(service)
     const oldConnection = {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      applyPolicyUpdate: vi.fn(() => deferred.promise)
+      reconcile: vi.fn(() => deferred.promise)
     }
     oldEntry.connection = oldConnection
 
     const updatePromise = (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
-    expect(oldConnection.applyPolicyUpdate).toHaveBeenCalledOnce()
+    expect(oldConnection.reconcile).toHaveBeenCalledOnce()
 
     service.closeSession('session-1')
     service.beginTurn(baseTurnInput)
@@ -1053,19 +1048,42 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      applyPolicyUpdate: vi.fn()
+      reconcile: vi.fn().mockResolvedValue('current')
     }
     getEntry(service).connection = newConnection
 
-    deferred.reject(new Error('late policy update failure'))
+    deferred.reject(new Error('late reconcile failure'))
     await updatePromise
 
+    // closeSession already closed the old connection; the late failure must not double-close it or
+    // touch the successor entry's connection.
     expect(oldConnection.close).toHaveBeenCalledOnce()
     expect(newConnection.close).not.toHaveBeenCalled()
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
   })
 
-  it('detaches without tearing down the session when a live policy update returns false', async () => {
+  it('rebuilds an idle connection eagerly when reconcile reports rebuild', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('rebuild')
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
+
+    // Nothing is streaming — release the stale subprocess now instead of waiting for the next turn.
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
+    expect(getEntry(service).connection).toBeUndefined()
+  })
+
+  it('defers the rebuild while a turn is live and leaves the connection streaming', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -1073,22 +1091,140 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      applyPolicyUpdate: vi.fn().mockResolvedValue(false)
+      reconcile: vi.fn().mockResolvedValue('rebuild')
     }
     entry.connection = connection
 
-    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+    await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
 
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Live agent policy update had no live query; detaching runtime connection',
-      {
-        agentId: 'agent-1',
-        sessionId: 'session-1'
+    // Live patches were already applied inside reconcile (live-first); the spawn-frozen part waits
+    // for the next fresh turn's pull instead of dropping the in-flight stream.
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+  })
+
+  describe('connection reconcile — pull path (fresh-turn staleness check)', () => {
+    it('rebuilds a stale warm connection before the next turn — no event required', async () => {
+      const firstConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        // Any spawn-frozen input changed since this connection was built (workspace, skills,
+        // sub-models, MCP definitions, …) — including changes that never emit an agent event.
+        reconcile: vi.fn().mockResolvedValue('rebuild')
       }
-    )
-    expect(connection.close).toHaveBeenCalledOnce()
-    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
-    expect(getEntry(service).connection).toBeUndefined()
+      const secondConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      // The stale connection is hand-injected as the warm one; a reconnect builds the second.
+      const connect = vi.fn().mockResolvedValue(secondConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = firstConnection
+      service.markTurnTerminal('session-1', 'success')
+
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      await vi.waitFor(() =>
+        expect(secondConnection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-2') }))
+      )
+      expect(firstConnection.reconcile).toHaveBeenCalledWith({ modelId: baseTurnInput.modelId })
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenCalledTimes(1)
+
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('never reconciles under an admitted streaming turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('rebuild')
+      }
+      entry.connection = connection
+      entry.currentTurn.admitted = true
+
+      // The steer-roll continuation (A2) is pre-admitted and `flushRollBuffer` clears `rolling`
+      // before ensureConnection runs, so this admitted-turn guard is the ONLY thing keeping the
+      // still-streaming SDK query alive — closing here would drop the stream mid-flight.
+      await expect((service as any).ensureConnection(entry)).resolves.toBe(true)
+
+      expect(connection.reconcile).not.toHaveBeenCalled()
+      expect(connection.close).not.toHaveBeenCalled()
+    })
+
+    it('does not close a replacement connection when a slow reconcile resolves after a racing rebuild (TOCTOU)', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const deferred = createDeferred<string>()
+      const staleConnection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn(() => deferred.promise)
+      }
+      const replacement = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      entry.connection = staleConnection
+
+      const ensuring = (service as any).ensureConnection(entry)
+      await vi.waitFor(() => expect(staleConnection.reconcile).toHaveBeenCalledOnce())
+
+      // While the check awaited, a racing caller replaced the connection and its turn was admitted.
+      entry.connection = replacement
+      entry.currentTurn.admitted = true
+      deferred.resolve('rebuild')
+
+      await expect(ensuring).resolves.toBe(true)
+      // The stale verdict must not close the successor carrying a live stream.
+      expect(replacement.close).not.toHaveBeenCalled()
+      expect(replacement.reconcile).not.toHaveBeenCalled()
+    })
+
+    it('closes the session when reconcile reports the config is no longer derivable', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('invalid')
+      }
+      entry.connection = connection
+
+      await expect((service as any).ensureConnection(entry)).resolves.toBe(false)
+
+      expect(connection.close).toHaveBeenCalledOnce()
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
   })
 
   it('ignores per-execution terminal events until the topic is done', () => {
@@ -1106,7 +1242,7 @@ describe('AgentSessionRuntimeService', () => {
   it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
-    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    const connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
     const entry = getEntry(service)
     entry.connection = connection
     entry.connectionLoop = Promise.resolve()
@@ -1296,6 +1432,7 @@ describe('AgentSessionRuntimeService', () => {
         events: createAsyncQueue<any>().iterable,
         send: vi.fn(),
         close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
       }
       const connect = vi.fn().mockResolvedValue(connection)
@@ -1339,6 +1476,7 @@ describe('AgentSessionRuntimeService', () => {
         events: createAsyncQueue<any>().iterable,
         send: vi.fn(),
         close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
       }
       const connect = vi.fn().mockResolvedValue(connection)
@@ -1855,7 +1993,8 @@ describe('AgentSessionRuntimeService', () => {
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        close: vi.fn()
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
       }
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({

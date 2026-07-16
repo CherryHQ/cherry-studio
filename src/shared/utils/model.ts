@@ -15,9 +15,6 @@ import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, RuntimeReasoning, ThinkingTokenLimits } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-
-import { isAgentSupportedProvider } from './provider'
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
@@ -96,12 +93,6 @@ export const isNonChatModel = (model: Model): boolean =>
   isGenerateAudioModel(model) ||
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
-
-export const isAgentRuntimeSupportedModel = (model: Model, provider?: Provider): boolean => {
-  if (isNonChatModel(model)) return false
-  if (provider && !isAgentSupportedProvider(provider)) return false
-  return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
-}
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's

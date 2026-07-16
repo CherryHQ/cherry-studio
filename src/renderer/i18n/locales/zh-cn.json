@@ -887,6 +887,10 @@
           "description": "管理应用内的定时调度",
           "label": "定时任务"
         },
+        "CherryGenerateImage": {
+          "description": "使用你配置的绘画模型根据文本提示生成图片",
+          "label": "生成图片"
+        },
         "CherryKbManage": {
           "description": "添加、删除或刷新知识库中的文档",
           "label": "知识库管理"
@@ -1397,7 +1401,7 @@
         "title": "排队中 ({{count}})"
       },
       "generate_image": "生成图片",
-      "generate_image_not_supported": "模型不支持生成图片",
+      "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
@@ -1471,6 +1475,11 @@
         "collapse_out": "移出折叠",
         "expand": "展开",
         "file_not_found": "文件不存在: {{path}}",
+        "generate_image": {
+          "failed": "图片生成失败",
+          "generating": "正在生成图片…",
+          "title": "已生成图片"
+        },
         "open_file": "打开文件",
         "open_file_error": "无法打开文件: {{path}}",
         "reveal_in_finder": "在文件管理器中显示"
@@ -2779,6 +2788,7 @@
           "title": "导入单个网页"
         }
       },
+      "back_to_parent": "返回上级",
       "bulk": {
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
@@ -2806,6 +2816,7 @@
         "title": "上传第一个数据源"
       },
       "empty_description": "暂无数据源",
+      "empty_folder": "该文件夹为空",
       "filters": {
         "all": "全部",
         "directory": "目录",
@@ -2838,9 +2849,9 @@
           "type": "类型",
           "updated_at": "更新时间"
         },
+        "open_row": "打开「{{title}}」",
         "select_all": "全选",
-        "select_row": "选择行",
-        "view_chunks_row": "查看「{{title}}」的 Chunks"
+        "select_row": "选择行"
       },
       "toolbar": {
         "add": "添加数据源"
@@ -2851,6 +2862,8 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
+    "empty_action": "创建知识库",
+    "empty_description": "你还没有创建任何知识库。创建一个来整理和检索你的文档吧。",
     "error": {
       "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
@@ -6835,6 +6848,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已禁用",
+      "painting_model": "绘画模型",
+      "painting_model_description": "图像生成使用的模型",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",

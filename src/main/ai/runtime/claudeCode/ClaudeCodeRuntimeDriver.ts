@@ -17,6 +17,7 @@ type BetaUsage = SDKResultMessage['usage']
 type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -31,8 +32,10 @@ import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCo
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
@@ -40,11 +43,16 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimePolicyUpdate,
+  AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
 } from '../types'
-import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
+import {
+  buildClaudeCodeQueryRequestForAgentSession,
+  type ConnectionConfig,
+  deriveConnectionConfig,
+  toolPolicyFactsEqual
+} from './agentSessionWarmup'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -145,6 +153,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private sessionTornDown = false
+  /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
+  private connectionConfig?: ConnectionConfig
+  /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
+  private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
@@ -166,6 +178,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
+    this.connectionConfig = request.connectionConfig
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -185,7 +198,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : await application.get('ClaudeCodeWarmQueryManager').consume({
           key: request.key,
           options,
-          initializeTimeoutMs: request.initializeTimeoutMs
+          initializeTimeoutMs: request.initializeTimeoutMs,
+          credentialsFingerprint: request.credentialsFingerprint
         })
 
     this.query = warmQuery
@@ -238,20 +252,51 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
-    if (!this.query) return false
-    if (update.type === 'tool-policy') {
-      await this.toolPolicySnapshot?.update(update.agent)
-      return true
+  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+    // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
+    // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
+    // gate and the subprocess on different policies.
+    const run = this.reconcileChain.then(
+      () => this.reconcileOnce(input),
+      () => this.reconcileOnce(input)
+    )
+    this.reconcileChain = run.catch(() => undefined)
+    return run
+  }
+
+  private async reconcileOnce(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+    if (!this.query) return 'rebuild'
+    const derived = await deriveConnectionConfig(this.input.sessionId, input.modelId)
+    if (!derived.ok) return 'invalid'
+    const baseline = this.connectionConfig
+    // A connection without its materialized baseline cannot prove what the subprocess serves.
+    if (!baseline) return 'rebuild'
+
+    const fresh = derived.config
+    let patched = false
+    // Live-first: apply the tool-policy facts BEFORE the rebuild verdict, so a combined update
+    // (e.g. a wholesale configuration edit touching max_turns AND tightening the permission mode)
+    // can't defer the tighten behind a rebuild that a live turn postpones.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
+      try {
+        const agent = agentService.getAgent(this.input.agentId)
+        if (!agent) return 'invalid'
+        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
+          await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
+        }
+        // Refresh the entire snapshot only after the SDK confirms the permission mode. update()
+        // itself changes the snapshot mode, so doing it first would make the SDK call look redundant.
+        await this.toolPolicySnapshot?.update(agent)
+      } catch (error) {
+        logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
+        return 'failed'
+      }
+      this.connectionConfig = { ...baseline, live: fresh.live }
+      patched = true
     }
-    // Unchanged mode → no SDK round-trip, no snapshot churn.
-    if (this.toolPolicySnapshot?.getPermissionMode() === update.permissionMode) return true
-    // Await the SDK call FIRST, mutate the snapshot only on success. The snapshot's `permissionMode`
-    // gates `canUseTool`; mutating it before the SDK confirms would leave `canUseTool` enforcing a
-    // mode the running query never adopted (and on a rejection, a tightened mode silently abandoned).
-    await this.query.setPermissionMode(update.permissionMode ?? 'default')
-    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
-    return true
+
+    if (baseline.rebuildSignature !== fresh.rebuildSignature) return 'rebuild'
+    return patched ? 'patched' : 'current'
   }
 
   async getContextUsage(): Promise<AgentSessionContextUsage | null> {

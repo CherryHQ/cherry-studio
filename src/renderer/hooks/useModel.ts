@@ -19,23 +19,29 @@ const logger = loggerService.withContext('useModels')
 const EMPTY_MODELS: readonly Model[] = Object.freeze([])
 
 /**
- * Reactive read of the user's default / quick / translate models. Each id
- * lives in Preference; the Model record lives in DataApi. Quick / translate
- * fall back to the default-model id when their dedicated preference is unset.
+ * Reactive read of the user's default / quick / translate / painting models.
+ * Each id lives in Preference; the Model record lives in DataApi. Quick /
+ * translate fall back to the default-model id when their dedicated preference
+ * is unset; painting does not — it needs an image-generation model, which the
+ * chat default is not, so it stays empty (and out of the cascade) until the
+ * user picks one.
  */
 export function useDefaultModel() {
   const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
   const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
+  const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
   const { model: defaultModel } = useModelById(defaultModelId as UniqueModelId)
   const { model: quickModel } = useModelById((quickModelId as UniqueModelId) ?? defaultModelId)
   const { model: translateModel } = useModelById((translateModelId as UniqueModelId) ?? defaultModelId)
+  const { model: paintingModel } = useModelById(paintingModelId as UniqueModelId)
 
   return {
     defaultModel,
     quickModel,
     translateModel,
+    paintingModel,
     // v2 Model.id is already the UniqueModelId — store it directly.
     setDefaultModel: async (next: { id: UniqueModelId }) => {
       await setDefaultModelId(next.id)
@@ -43,7 +49,8 @@ export function useDefaultModel() {
       if (!translateModelId) await setTranslateModelId(next.id)
     },
     setQuickModel: (next: { id: UniqueModelId }) => setQuickModelId(next.id),
-    setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id)
+    setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id),
+    setPaintingModel: (next: { id: UniqueModelId }) => setPaintingModelId(next.id)
   }
 }
 

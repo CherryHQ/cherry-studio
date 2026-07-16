@@ -1,5 +1,7 @@
 import { PageSidePanel } from '@cherrystudio/ui'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
@@ -26,6 +28,24 @@ const KnowledgePageDetailSection = () => {
     handleRecallTestDrawerOpenChange,
     openRestoreBaseDialog
   } = useKnowledgePage()
+
+  // Directory drill-down: the stack holds the directory items descended into (empty = base root).
+  // The current directory's id becomes the item-list's `groupId`, listing that folder's children.
+  const [directoryStack, setDirectoryStack] = useState<KnowledgeItemOf<'directory'>[]>([])
+  const currentDirectory = directoryStack.at(-1) ?? null
+
+  // A different base has its own tree, so start each base back at its root.
+  useEffect(() => {
+    setDirectoryStack([])
+  }, [selectedBaseId])
+
+  const drillIntoDirectory = useCallback((item: KnowledgeItemOf<'directory'>) => {
+    setDirectoryStack((prev) => [...prev, item])
+  }, [])
+  const navigateUp = useCallback(() => {
+    setDirectoryStack((prev) => prev.slice(0, -1))
+  }, [])
+
   const {
     items: selectedBaseItems,
     total: selectedBaseItemsTotal,
@@ -33,7 +53,7 @@ const KnowledgePageDetailSection = () => {
     hasMore: hasMoreItems,
     isLoadingMore: isLoadingMoreItems,
     loadMore: loadMoreItems
-  } = useKnowledgeItems(selectedBaseId)
+  } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null)
   const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -64,6 +84,9 @@ const KnowledgePageDetailSection = () => {
             updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}
+            onDrillIntoDirectory={drillIntoDirectory}
+            currentDirectory={currentDirectory}
+            onNavigateUp={navigateUp}
             onDelete={deleteItem}
             onReindex={reindexItem}
           />
