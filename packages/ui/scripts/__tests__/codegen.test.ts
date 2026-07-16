@@ -20,6 +20,9 @@ describe('generateAvatar', () => {
       })
 
       const content = readFileSync(outPath, 'utf-8')
+      expect(content).toMatch(
+        /import \{ Avatar, AvatarFallback \} from '@cherrystudio\/ui\/components\/primitives\/avatar';?\nimport \{ cn \} from '@cherrystudio\/ui\/lib\/utils';?\n\nimport \{ type IconAvatarProps \} from '\.\.\/\.\.\/types';?/
+      )
       expect(content).toContain('style={{ width: size, height: size }}')
       expect(content).not.toContain('size * 0.7')
       expect(content).not.toContain('size * 0.82')
@@ -46,6 +49,11 @@ describe('generateIconIndex', () => {
 
       const content = readFileSync(outPath, 'utf-8')
       expect(content).toContain("import { cn } from '../../../../lib/utils'")
+      expect(content).toContain(
+        "import type { CompoundIcon, CompoundIconProps } from '../../types'\n" +
+          "import { BflAvatar } from './avatar'\n" +
+          "import { BflLight } from './light'"
+      )
       expect(content).toContain("className={cn('text-foreground', className)}")
       expect(content).not.toContain("from './dark'")
       expect(content).not.toContain('dark:hidden')

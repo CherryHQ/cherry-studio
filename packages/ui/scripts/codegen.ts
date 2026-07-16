@@ -65,8 +65,7 @@ export function generateIconIndex(opts: {
   const cnImport = hasDark || usesCurrentColor ? `import { cn } from '../../../../lib/utils'\n` : ''
 
   const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
-${avatarImport}${darkImport}
-import { ${lightName} } from './light'
+${avatarImport}${darkImport}import { ${lightName} } from './light'
 
 const ${colorName} = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <${lightName} {...props} className={${lightClassName}} />
@@ -98,16 +97,17 @@ export function generateAvatar(opts: {
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
 
   sf.addImportDeclaration({
-    moduleSpecifier: '@cherrystudio/ui/lib/utils',
-    namedImports: ['cn']
-  })
-
-  sf.addImportDeclaration({
     moduleSpecifier: '@cherrystudio/ui/components/primitives/avatar',
     namedImports: ['Avatar', 'AvatarFallback']
   })
 
   sf.addImportDeclaration({
+    moduleSpecifier: '@cherrystudio/ui/lib/utils',
+    namedImports: ['cn']
+  })
+
+  sf.addImportDeclaration({
+    leadingTrivia: '\n',
     moduleSpecifier: '../../types',
     namedImports: [{ name: 'IconAvatarProps', isTypeOnly: true }]
   })

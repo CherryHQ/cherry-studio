@@ -18,7 +18,7 @@
     "storybook": "storybook dev -p 6006",
     "build:storybook": "storybook build",
     "icons:generate": "tsx scripts/icons-generate.ts",
-    "posticons:generate": "pnpm --workspace-root format"
+    "posticons:generate": "pnpm --workspace-root exec eslint packages/ui/src/components/icons --ext .ts,.tsx --fix && pnpm --workspace-root format"
   },
   "keywords": [
     "ui",
