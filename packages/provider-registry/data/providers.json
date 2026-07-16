@@ -30,7 +30,7 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://developer.amd.com.cn/radeon/api/v1"
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
         }
       },
       "id": "radeon-cloud",
