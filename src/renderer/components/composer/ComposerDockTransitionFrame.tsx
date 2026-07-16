@@ -33,6 +33,8 @@ interface ComposerInlineInsets {
   right: number
 }
 
+const ZERO_COMPOSER_INLINE_INSETS: ComposerInlineInsets = { left: 0, right: 0 }
+
 export default function ComposerDockTransitionFrame({
   placement,
   main,
@@ -45,7 +47,7 @@ export default function ComposerDockTransitionFrame({
   const rootRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const [bottomOverlayInsets, setBottomOverlayInsets] = useState<ChatBottomOverlayInsets | null>(null)
-  const [composerInlineInsets, setComposerInlineInsets] = useState<ComposerInlineInsets>({ left: 0, right: 0 })
+  const [composerInlineInsets, setComposerInlineInsets] = useState<ComposerInlineInsets>(ZERO_COMPOSER_INLINE_INSETS)
   const isDocked = placement === 'docked'
   const hasComposer = Boolean(composer)
   const dockMotionTransition = useComposerDockMotionTransition(placement)
@@ -72,7 +74,9 @@ export default function ComposerDockTransitionFrame({
     const updateInset = () => {
       if (!isDocked || !hasComposer) {
         setBottomOverlayInsets(null)
-        setComposerInlineInsets({ left: 0, right: 0 })
+        setComposerInlineInsets((current) =>
+          current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
+        )
         setMaximizedOverlayBottomInset(0)
         return
       }
@@ -82,7 +86,9 @@ export default function ComposerDockTransitionFrame({
       const root = rootRef.current
       if (!insetTarget || !root) {
         setBottomOverlayInsets(null)
-        setComposerInlineInsets({ left: 0, right: 0 })
+        setComposerInlineInsets((current) =>
+          current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
+        )
         setMaximizedOverlayBottomInset(0)
         return
       }
@@ -92,14 +98,25 @@ export default function ComposerDockTransitionFrame({
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
       const scrollerRect = scroller?.getBoundingClientRect()
       const scrollerClientWidth = scroller?.clientWidth ?? 0
-      setBottomOverlayInsets({
+      const nextBottomOverlayInsets = {
         contentBottomPadding: Math.max(0, insetTargetRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX),
         scrollerBottomMargin: Math.max(0, rootRect.bottom - insetTargetRect.bottom)
-      })
-      setComposerInlineInsets({
+      }
+      const nextComposerInlineInsets = {
         left: scrollerRect ? Math.max(0, scrollerRect.left - rootRect.left) : 0,
         right: scrollerRect ? Math.max(0, rootRect.right - scrollerRect.left - scrollerClientWidth) : 0
-      })
+      }
+      setBottomOverlayInsets((current) =>
+        current?.contentBottomPadding === nextBottomOverlayInsets.contentBottomPadding &&
+        current.scrollerBottomMargin === nextBottomOverlayInsets.scrollerBottomMargin
+          ? current
+          : nextBottomOverlayInsets
+      )
+      setComposerInlineInsets((current) =>
+        current.left === nextComposerInlineInsets.left && current.right === nextComposerInlineInsets.right
+          ? current
+          : nextComposerInlineInsets
+      )
       setMaximizedOverlayBottomInset(Math.max(0, rootRect.bottom - composerRect.top + COMPOSER_OVERLAY_GAP_PX))
     }
     updateInset()

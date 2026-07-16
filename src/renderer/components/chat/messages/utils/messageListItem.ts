@@ -124,6 +124,37 @@ export function getDirectAssistantModelsByUserId(messages: MessageListItem[]): M
   return modelsByUserId
 }
 
+function directAssistantModelEqual(previous: SharedModel, next: SharedModel): boolean {
+  return (
+    previous.id === next.id &&
+    previous.providerId === next.providerId &&
+    previous.apiModelId === next.apiModelId &&
+    previous.name === next.name &&
+    previous.group === next.group &&
+    previous.supportsStreaming === next.supportsStreaming &&
+    previous.isEnabled === next.isEnabled &&
+    previous.isHidden === next.isHidden
+  )
+}
+
+/** Reuse the previous derived map when streaming changed metadata but not its model topology. */
+export function shareDirectAssistantModelsByUserId(
+  previous: Map<string, SharedModel[]> | undefined,
+  next: Map<string, SharedModel[]>
+): Map<string, SharedModel[]> {
+  if (!previous || previous.size !== next.size) return next
+
+  for (const [userId, nextModels] of next) {
+    const previousModels = previous.get(userId)
+    if (!previousModels || previousModels.length !== nextModels.length) return next
+    for (let index = 0; index < nextModels.length; index++) {
+      if (!directAssistantModelEqual(previousModels[index], nextModels[index])) return next
+    }
+  }
+
+  return previous
+}
+
 export function getMessageListItemModelName(message: MessageListItem): string {
   const model = getMessageListItemModel(message)
   return model?.name || model?.id || message.modelId || ''
