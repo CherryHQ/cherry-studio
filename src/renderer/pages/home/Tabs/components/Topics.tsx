@@ -732,23 +732,6 @@ export function Topics({
       findLatestCreateTopicPayload(filteredTopics, (topic) => topicGroupBy(topic)?.id === groupId, assistantById),
     [assistantById, filteredTopics, topicGroupBy]
   )
-  const handleGroupHeaderSelectTopic = useCallback(
-    (topicId: string) => {
-      const topic = filteredTopics.find((candidate) => candidate.id === topicId)
-      if (topic && (historyRecordsActive || topic.id !== activeTopic?.id)) {
-        setActiveTopic(topic)
-      }
-    },
-    [activeTopic?.id, filteredTopics, historyRecordsActive, setActiveTopic]
-  )
-  const getGroupHeaderClickBehavior = useCallback(
-    (group: { id: string }) => {
-      if (isRightPanel) return 'none'
-
-      return displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle'
-    },
-    [displayMode, isRightPanel]
-  )
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
   const listLoading =
     isLoadingAll ||
@@ -1239,7 +1222,7 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
-        groupHeaderClickBehavior={getGroupHeaderClickBehavior}
+        groupHeaderClickBehavior={isRightPanel ? 'none' : 'toggle'}
         dragCapabilities={{
           groups: isAssistantDisplayMode,
           items: isAssistantDisplayMode,
@@ -1253,7 +1236,6 @@ export function Topics({
         groupShowMoreLabel={isRightPanel ? undefined : t('chat.topics.group.show_more')}
         groupCollapseLabel={isRightPanel ? undefined : t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
-        onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
         <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>

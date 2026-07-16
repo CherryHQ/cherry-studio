@@ -838,6 +838,12 @@ describe('Sessions', () => {
     expect(projectIconContainer?.querySelector('.lucide-folder-open')).toHaveClass(
       'group-hover/resource-list-group:block'
     )
+    const projectIcon = projectIconContainer?.querySelector('.lucide-folder')?.parentElement
+    expect(projectIcon).toHaveClass(
+      'group-hover/resource-list-group:text-foreground',
+      'group-has-[:focus-visible]/resource-list-group:text-foreground'
+    )
+    expect(projectIcon?.className).not.toContain('group-focus-within/resource-list-group:text-foreground')
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
 

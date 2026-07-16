@@ -2003,7 +2003,7 @@ describe('Topics', () => {
     ])
   })
 
-  it('re-selects the active topic from an assistant group while history records are active', () => {
+  it('expands the active assistant group without changing selection while history records are active', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
@@ -2016,7 +2016,8 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' }))
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -2760,36 +2761,32 @@ describe('Topics', () => {
     expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1')
   })
 
-  it('selects the first topic from an assistant group before toggling that selected group', () => {
+  it('toggles an assistant group without selecting the parent or changing the active topic', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     const { rerenderTopicList, setActiveTopic } = renderTopicList()
 
+    const alphaGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
     const betaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
+    expect(getTopicRow('Alpha topic')).toHaveAttribute('data-selected', 'true')
+    expect(alphaGroupButton).not.toHaveAttribute('aria-current')
+    expect(alphaGroupButton.closest('[data-selected]')).toBeNull()
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
 
     fireEvent.click(betaGroupButton)
+    rerenderTopicList()
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
-
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
-    )
-
-    const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
-    expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
-
-    fireEvent.click(selectedBetaGroupButton)
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    const collapsedBetaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
+    expect(collapsedBetaGroupButton).not.toHaveAttribute('aria-current')
+    expect(collapsedBetaGroupButton.closest('[data-selected]')).toBeNull()
+    expect(collapsedBetaGroupButton).toHaveAttribute('aria-expanded', 'false')
     expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')
 
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
-    )
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(collapsedBetaGroupButton)
+    rerenderTopicList()
+
+    expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('moves the assistant resource entry into the topic options menu', () => {
