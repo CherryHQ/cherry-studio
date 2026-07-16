@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-07-11T04:47:13.124Z
- * Total icons: 35
+ * Total icons: 36
  */
 export { AyaIcon as Aya } from './aya'
 export { ClaudeIcon as Claude } from './claude'
@@ -30,6 +30,7 @@ export { GptOss20bIcon as GptOss20b } from './gpt-oss-20b'
 export { GptOss120bIcon as GptOss120b } from './gpt-oss-120b'
 export { GrokIcon as Grok } from './grok'
 export { HailuoIcon as Hailuo } from './hailuo'
+export { HappyhorseIcon as Happyhorse } from './happyhorse'
 export { HunyuanIcon as Hunyuan } from './hunyuan'
 export { IbmIcon as Ibm } from './ibm'
 export { KimiIcon as Kimi } from './kimi'
