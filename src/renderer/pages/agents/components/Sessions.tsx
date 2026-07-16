@@ -1509,7 +1509,7 @@ const Sessions = ({
         if (!context.collapsed) return <FolderOpen size={13} />
 
         return (
-          <span className="flex size-4 items-center justify-center text-foreground/70 group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
+          <span className="flex size-4 items-center justify-center text-foreground/70 group-hover/resource-list-group:text-foreground group-has-[:focus-visible]/resource-list-group:text-foreground">
             <Folder size={13} className="block group-hover/resource-list-group:hidden" />
             <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
           </span>

@@ -86,7 +86,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           <ChevronRight
             aria-hidden="true"
             size={11}
-            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
+            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover/resource-list-section:block group-has-[:focus-visible]/resource-list-section:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
@@ -207,7 +207,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             <ChevronRight
               aria-hidden="true"
               size={11}
-              className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+              className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover/resource-list-group:block group-has-[:focus-visible]/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
               style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
             />
           </button>
@@ -225,7 +225,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         )}
         {groupHeaderAction && (
           <div
-            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
+            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:opacity-100"
             onClick={stopEventPropagation}
             onContextMenu={stopEventPropagation}
             onPointerDown={stopEventPropagation}

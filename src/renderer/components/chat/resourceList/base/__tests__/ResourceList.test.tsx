@@ -1386,9 +1386,10 @@ describe('ResourceList', () => {
     expect(sessionChevron!).toHaveClass(
       'hidden',
       'group-hover/resource-list-group:block',
-      'group-focus-within/resource-list-group:block',
+      'group-has-[:focus-visible]/resource-list-group:block',
       'group-has-data-[state=open]/resource-list-group:block'
     )
+    expect(sessionChevron!.className.baseVal).not.toContain('group-focus-within/resource-list-group:block')
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
     fireEvent.click(sessionButton)
@@ -1591,9 +1592,11 @@ describe('ResourceList', () => {
       'flex',
       'opacity-0',
       'group-hover/resource-list-group:opacity-100',
-      'group-focus-within/resource-list-group:opacity-100',
+      'group-has-[:focus-visible]/resource-list-group:opacity-100',
       'has-data-[state=open]:opacity-100'
     )
+    expect(groupActionWrapper?.className).not.toContain('group-focus-within/resource-list-group:opacity-100')
+    expect(groupActionWrapper).toHaveClass('focus-within:opacity-100')
     expect(groupActionWrapper).not.toHaveClass('hidden')
   })
 
@@ -2206,6 +2209,12 @@ describe('ResourceList', () => {
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'false')
+    const pinnedSectionChevron = screen.getByRole('button', { name: 'Pinned' }).querySelector<SVGSVGElement>('svg')
+    expect(pinnedSectionChevron).toHaveClass(
+      'group-hover/resource-list-section:block',
+      'group-has-[:focus-visible]/resource-list-section:block'
+    )
+    expect(pinnedSectionChevron!.className.baseVal).not.toContain('group-focus-within/resource-list-section:block')
     expect(
       screen.getByRole('button', { name: 'Pinned' }).closest('[class*="group/resource-list-section"]')
     ).not.toHaveClass('pl-4')
