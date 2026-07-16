@@ -253,10 +253,11 @@ export class CacheService extends BaseService {
         }
       }
 
-      // Clean shared cache
+      // Clean shared cache — route through the unified eviction outlet so
+      // renderer mirrors receive a deletion tombstone (they have no GC).
       for (const [key, entry] of this.sharedCache.entries()) {
         if (entry.expireAt && now > entry.expireAt) {
-          this.sharedCache.delete(key)
+          this.evictShared(key)
           removedCount++
         }
       }
@@ -358,6 +359,33 @@ export class CacheService extends BaseService {
   // ============ Shared Cache (Cross-window via IPC) ============
 
   /**
+   * Unified outlet for every Main-origin runtime eviction of a shared entry:
+   * TTL lazy cleanup (getShared / hasShared / getAllShared), the periodic GC
+   * sweep, and deleteShared hitting an already-expired entry. Physically
+   * removes the entry and broadcasts a single deletion tombstone so renderer
+   * mirrors — which have no GC of their own — drop their physical copy too.
+   *
+   * Deliberately NOT used by the renderer-origin relay path (it excludes the
+   * sender window and keeps its own relay ordering) nor by onStop clearing
+   * (process teardown broadcasts nothing). Never fires main value-subscribers:
+   * TTL cleanup is not a value change; deleteShared's non-expired branch
+   * notifies separately.
+   *
+   * @returns true if an entry was physically removed (and a tombstone broadcast)
+   */
+  private evictShared(key: string): boolean {
+    if (!this.sharedCache.has(key)) return false
+
+    this.sharedCache.delete(key)
+    this.broadcastSync({
+      type: 'shared',
+      key,
+      value: undefined // undefined means deletion
+    })
+    return true
+  }
+
+  /**
    * Get value from shared cache with TTL validation (type-safe)
    * @param key - Schema-defined shared cache key
    * @returns Cached value or undefined if not found or expired
@@ -368,7 +396,7 @@ export class CacheService extends BaseService {
 
     // Check TTL (lazy cleanup)
     if (entry.expireAt && Date.now() > entry.expireAt) {
-      this.sharedCache.delete(key)
+      this.evictShared(key)
       return undefined
     }
 
@@ -382,15 +410,30 @@ export class CacheService extends BaseService {
    * @param ttl - Time to live in milliseconds (optional)
    */
   setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+    // Pre-write entry state, TTL-aware: an expired entry counts as absent, so
+    // re-setting it with the same value is an absent → value transition (full
+    // broadcast + notify), never mistaken for a TTL-only refresh.
+    const oldEntry = this.sharedCache.get(key)
     const oldValue = this.peekShared(key)
     const expireAt = ttl ? Date.now() + ttl : undefined
     const entry: CacheEntry = { value, expireAt }
 
     this.sharedCache.set(key, entry)
 
-    // Skip broadcast + notify when value hasn't changed.
-    // TTL-only refresh updates the entry silently (aligned with set() semantics).
     if (isEqual(oldValue, value)) {
+      // Same live value: the entry state may still change through its TTL
+      // metadata. Any expireAt transition (add / extend / shorten / remove)
+      // must reach renderer mirrors, or an equal-value heartbeat refresh lets
+      // the mirror's copy expire out of sync with Main. TTL-only sync never
+      // fires main value-subscribers (matching set() semantics).
+      if (oldValue !== undefined && !Object.is(oldEntry?.expireAt, expireAt)) {
+        this.broadcastSync({
+          type: 'shared',
+          key,
+          value,
+          expireAt
+        })
+      }
       return
     }
 
@@ -416,7 +459,7 @@ export class CacheService extends BaseService {
 
     // Check TTL
     if (entry.expireAt && Date.now() > entry.expireAt) {
-      this.sharedCache.delete(key)
+      this.evictShared(key)
       return false
     }
 
@@ -432,9 +475,11 @@ export class CacheService extends BaseService {
     const oldValue = this.peekShared(key)
 
     if (oldValue === undefined) {
-      // Key absent or already expired — no-op, no broadcast, no fire.
-      // Still clear any tombstone entry to match previous best-effort behavior.
-      this.sharedCache.delete(key)
+      // Key absent or already expired — no main subscriber fire either way,
+      // but an expired entry may still be physically mirrored in renderers, so
+      // route through the unified eviction outlet (delete + tombstone
+      // broadcast). A truly absent key stays a silent no-op.
+      this.evictShared(key)
       return true
     }
 
@@ -520,7 +565,7 @@ export class CacheService extends BaseService {
     for (const [key, entry] of this.sharedCache.entries()) {
       // Skip expired entries
       if (entry.expireAt && now > entry.expireAt) {
-        this.sharedCache.delete(key)
+        this.evictShared(key)
         continue
       }
       result[key] = entry

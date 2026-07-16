@@ -3,7 +3,7 @@
 // marker is a separate cross-window shared cache key.
 
 import { loggerService } from '@logger'
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
@@ -29,7 +29,11 @@ interface TopicStreamStatusView {
 }
 
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  // Main-owned status entry: read-only observation (consumers below all accept
+  // `undefined` via optional chaining, so no local fallback is needed).
+  // `lastSeenCompletion` stays on the writable hook — this window OWNS the
+  // read-receipt marker and writes it via markSeen.
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
     `topic.stream.last_seen_completion.${topicId}` as const
   )
@@ -53,7 +57,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   return classifyTurn(entry?.status).isAwaitingApproval
 }
 
@@ -61,7 +65,7 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
 // done/error/aborted handoff is owned by the page-level overlay handoff so it
 // can refresh before dropping live overlay parts.
 export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
@@ -92,7 +96,7 @@ export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: ()
  * `useTopicDbRefreshOnAwaitingApproval` (whose refresh-on-awaiting-approval is wanted).
  */
 export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () => Promise<void> | void): void {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const onHandoffRef = useRef(onHandoff)
   onHandoffRef.current = onHandoff
