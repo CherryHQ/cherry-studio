@@ -1,7 +1,6 @@
 import type { ChatMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { ReactNode } from 'react'
-import { createContext, use, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import type { MessageListItem } from '../messages/types'
 
@@ -9,37 +8,6 @@ const EMPTY_MESSAGE_ID_SET = new Set<string>()
 const MESSAGE_ENTER_MOTION_CLEAR_DELAY_MS = 380
 
 export type MessageEnterMotionVariant = 'user-inline' | 'user-bubble' | 'assistant'
-
-interface MessageEnterMotionContextValue {
-  state: {
-    enteringMessageIds: ReadonlySet<string>
-  }
-}
-
-const MessageEnterMotionContext = createContext<MessageEnterMotionContextValue | null>(null)
-
-export function MessageEnterMotionProvider({
-  enteringMessageIds,
-  children
-}: {
-  enteringMessageIds: ReadonlySet<string>
-  children: ReactNode
-}) {
-  const value = useMemo<MessageEnterMotionContextValue>(
-    () => ({
-      state: {
-        enteringMessageIds
-      }
-    }),
-    [enteringMessageIds]
-  )
-
-  return <MessageEnterMotionContext value={value}>{children}</MessageEnterMotionContext>
-}
-
-export function useMessageEnterMotionActive(messageId: string): boolean {
-  return use(MessageEnterMotionContext)?.state.enteringMessageIds.has(messageId) ?? false
-}
 
 export function useMessageEnterMotionIds({
   messages,

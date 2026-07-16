@@ -192,7 +192,6 @@ const useThinkingToolController = ({
         disabledReason,
         icon: ThinkingIcon({ option: currentReasoningEffort }),
         active: isReasoningConfigurable && isThinkingEnabled,
-        showInActiveControls: false,
         disabled: !isReasoningConfigurable,
         suffix: currentReasoningEffortLabel,
         submenu: reasoningSubmenu,

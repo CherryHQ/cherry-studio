@@ -1,7 +1,7 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -381,13 +381,25 @@ describe('useAgentMessageListProviderValue', () => {
       parts: [{ type: 'text', text: 'a' }],
       metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'pending' }
     } as CherryUIMessage
+    const historyPartsByMessageId = {
+      [historyMessage.id]: (historyMessage.parts ?? []) as CherryMessagePart[],
+      [activeMessage.id]: (activeMessage.parts ?? []) as CherryMessagePart[]
+    }
+    const streamingLayers = { historyPartsByMessageId, liveMessageIds: [activeMessage.id] }
     let value: MessageListProviderValue | undefined
 
-    const Probe = ({ messages }: { messages: CherryUIMessage[] }) => {
+    const Probe = ({
+      messages,
+      partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    }: {
+      messages: CherryUIMessage[]
+      partsByMessageId?: Record<string, CherryMessagePart[]>
+    }) => {
       value = useAgentMessageListProviderValue({
         topic,
         messages,
-        partsByMessageId: Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []])),
+        partsByMessageId,
+        streamingLayers,
         isLoading: false,
         messageNavigation: 'none'
       })
@@ -402,7 +414,15 @@ describe('useAgentMessageListProviderValue', () => {
       parts: [{ type: 'text', text: 'ab' }]
     } as CherryUIMessage
 
-    view.rerender(<Probe messages={[historyMessage, nextActiveMessage]} />)
+    view.rerender(
+      <Probe
+        messages={[historyMessage, nextActiveMessage]}
+        partsByMessageId={{
+          ...historyPartsByMessageId,
+          [nextActiveMessage.id]: nextActiveMessage.parts ?? []
+        }}
+      />
+    )
 
     expect(value?.state.messages[0]).toBe(firstHistoryItem)
     expect(value?.state.messages[1]).not.toBe(firstActiveItem)
