@@ -153,8 +153,6 @@ const HomePage: FC = () => {
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
   const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
-  // Classic-layout right-pane open state, cached on the assistant surface's own key.
-  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
@@ -165,6 +163,11 @@ const HomePage: FC = () => {
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
+  const isWindowFrame = useWindowFrame().mode === 'window'
+  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', {
+    enabled: isClassicTopicLayout,
+    defaultOpen: !isWindowFrame && panePosition === 'right'
+  })
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
@@ -175,7 +178,6 @@ const HomePage: FC = () => {
   // ≥200 pinned topics fill the first page).
   const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
   const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
-  const isWindowFrame = useWindowFrame().mode === 'window'
   const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
   const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(

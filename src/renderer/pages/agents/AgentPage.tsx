@@ -191,9 +191,10 @@ const AgentPage = () => {
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
-  // Classic-layout (rail) session-pane open state, cached on the agent surface's own key so it
-  // survives app/page re-entry without bleeding into the assistant surface.
-  const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
+  const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', {
+    enabled: isClassicSessionLayout,
+    defaultOpen: !isWindowFrame && panePosition === 'right'
+  })
   const isCreatingEmptySessionRef = useRef(false)
 
   useEffect(() => {
