@@ -48,6 +48,7 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'streamingLayers'
 >
 
 type MessageListMessagesValue = MessageListItem[]
@@ -96,7 +97,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       overscan: state.overscan,
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
-      listKey: state.listKey
+      listKey: state.listKey,
+      streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
@@ -109,7 +111,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.overscan,
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
-      state.listKey
+      state.listKey,
+      state.streamingLayers
     ]
   )
 

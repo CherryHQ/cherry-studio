@@ -25,7 +25,8 @@ import type {
   MessageListProviderValue,
   MessageListRuntime,
   MessageListState,
-  MessageRuntime
+  MessageRuntime,
+  MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import {
   bindCaptureMessageImageRuntime,
@@ -73,6 +74,7 @@ interface HomeMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
@@ -88,6 +90,7 @@ export function useHomeMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
+  streamingLayers,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
@@ -112,22 +115,42 @@ export function useHomeMessageListProviderValue({
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const { editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-
-  const messageItems = useMemo(
-    () =>
-      messages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: assistant?.id ?? assistantId,
-          topicId
-        })
-      ),
-    [assistant?.id, assistantId, messages, topicId]
+  const resolvedAssistantId = assistant?.id ?? assistantId
+  const messageItemCacheRef = useRef(
+    new WeakMap<
+      CherryUIMessage,
+      {
+        assistantId?: string
+        item: MessageListItem
+        topicId: string
+      }
+    >()
   )
+
+  const messageItems = useMemo(() => {
+    return messages.map((message) => {
+      const cached = messageItemCacheRef.current.get(message)
+      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topicId) {
+        return cached.item
+      }
+
+      const item = toMessageListItem(message, {
+        assistantId: resolvedAssistantId,
+        topicId
+      })
+      messageItemCacheRef.current.set(message, {
+        assistantId: resolvedAssistantId,
+        item,
+        topicId
+      })
+      return item
+    })
+  }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
@@ -694,6 +717,7 @@ export function useHomeMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
+      streamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -734,6 +758,7 @@ export function useHomeMessageListProviderValue({
       partsByMessageId,
       renderConfig,
       selectionController.selection,
+      streamingLayers,
       topic,
       translationLanguages
     ]

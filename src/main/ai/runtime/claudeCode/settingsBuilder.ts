@@ -62,6 +62,7 @@ import { getShellEnv } from '@main/utils/shellEnv'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -218,11 +219,18 @@ function buildAssistantContext(): string {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
+  mcpServerSnapshots?: McpServerSnapshotMap
+  /** Channel binding captured by the request builder; `null` means the session was local. */
+  linkedChannelSnapshot?: LinkedChannelSnapshot
   thinkingOptions?: {
     effort?: 'low' | 'medium' | 'high' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
   }
 }
+
+export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>
+export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id'> | null
 
 // ── Main builder ────────────────────────────────────────────────────
 
@@ -232,7 +240,9 @@ export interface ClaudeCodeSessionOptions {
 export async function buildClaudeCodeSessionSettings(
   session: AgentSessionEntity,
   provider: Provider,
-  options?: ClaudeCodeSessionOptions
+  options?: ClaudeCodeSessionOptions,
+  /** Pins every derived setting to the caller's already-captured agent revision. */
+  agentSnapshot?: AgentEntity
 ): Promise<ClaudeCodeSettings> {
   // Agent owns cognitive config (model, instructions, mcps, allowedTools,
   // configuration); workspace lives on the session (CMA Environment binding).
@@ -240,15 +250,19 @@ export async function buildClaudeCodeSessionSettings(
   if (!session.agentId) {
     throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
   }
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentSnapshot ?? agentService.getAgent(session.agentId)
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const linkedChannelSnapshot =
+    options?.linkedChannelSnapshot === undefined
+      ? channelService.findBySessionId(session.id)
+      : options.linkedChannelSnapshot
   // External channel turns are untrusted and have no local approval UI; never expose
   // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
-  const assistantMcpEnabled = isAssistant && !channelService.findBySessionId(session.id)
+  const assistantMcpEnabled = isAssistant && linkedChannelSnapshot === null
 
   // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
   // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
@@ -281,10 +295,16 @@ export async function buildClaudeCodeSessionSettings(
   )
 
   // 5. System prompt
-  const systemPrompt = await buildSystemPrompt(session, agent, cwd)
+  const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null)
 
   // 6. MCP servers (session + built-in)
-  const mcpServers = buildMcpServers(session, agent, assistantMcpEnabled)
+  const mcpServers = buildMcpServers(
+    session,
+    agent,
+    assistantMcpEnabled,
+    options?.mcpServerSnapshots,
+    linkedChannelSnapshot
+  )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
@@ -663,11 +683,7 @@ async function buildToolPermissions(
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
-  const conditionContext: ClaudeToolContext | undefined = cwd
-    ? {
-        cwd
-      }
-    : undefined
+  const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
@@ -926,7 +942,8 @@ async function buildRuntimeContext(): Promise<string> {
 export async function buildSystemPrompt(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  cwd: string
+  cwd: string,
+  channelLinked?: boolean
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
 
@@ -954,8 +971,8 @@ export async function buildSystemPrompt(
   }
 
   // Channel security (still scoped per session — channels link to a session)
-  const linkedChannel = channelService.findBySessionId(session.id)
-  const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
+  const isChannelLinked = channelLinked ?? Boolean(channelService.findBySessionId(session.id))
+  const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
 
@@ -984,7 +1001,9 @@ export async function buildSystemPrompt(
 export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean
+  assistantMcpEnabled: boolean,
+  mcpServerSnapshots?: McpServerSnapshotMap,
+  linkedChannelSnapshot?: LinkedChannelSnapshot
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
@@ -993,7 +1012,11 @@ export function buildMcpServers(
   if (mcpIds && mcpIds.length > 0) {
     for (const mcpId of mcpIds) {
       try {
-        const sdkServer = createSdkMcpServerInstance(mcpId)
+        const serverSnapshot = mcpServerSnapshots?.get(mcpId)
+        if (mcpServerSnapshots && !serverSnapshot) {
+          throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
+        }
+        const sdkServer = createSdkMcpServerInstance(mcpId, serverSnapshot)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
@@ -1005,7 +1028,8 @@ export function buildMcpServers(
   // which register only because the agent context is passed. Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
   // orphan check in buildClaudeCodeSessionSettings.
-  const sourceChannelId = resolveSourceChannel(agent.id, session.id)
+  const sourceChannelId =
+    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
   let workspaceSource: AgentSessionWorkspaceSource
   switch (session.workspace.type) {
     case AGENT_WORKSPACE_TYPE.USER:

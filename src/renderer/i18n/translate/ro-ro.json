@@ -31,6 +31,11 @@
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Consilier integrat Cherry Studio. Diagnostică probleme, ghidează operațiuni, colectează întrebări frecvente, trimite rapoarte de erori/cereri de funcționalități și caută/crează Abilități (Skills)"
+      }
+    },
     "channels": {
       "add": "Adaugă",
       "bindAgent": "Agent de legătură",
@@ -882,6 +887,10 @@
           "description": "Gestionează programatorul din aplicație",
           "label": "Planificator"
         },
+        "CherryGenerateImage": {
+          "description": "Generează o imagine dintr-un prompt text folosind modelul de pictură configurat",
+          "label": "Generează imagine"
+        },
         "CherryKbManage": {
           "description": "Adaugă, șterge sau reîmprospătează documente în bazele tale de cunoștințe",
           "label": "Gestionează cunoștințele"
@@ -1392,7 +1401,7 @@
         "title": "În coadă ({{count}})"
       },
       "generate_image": "Generează imagine",
-      "generate_image_not_supported": "Modelul nu acceptă generarea de imagini.",
+      "generate_image_no_model": "Configurați un model de pictură în Setări › Model implicit",
       "knowledge_base": "Bază de cunoștințe",
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
       "knowledge_base_unavailable": "Selectați un model capabil de instrumente sau activați utilizarea instrumentelor în prompt",
@@ -1466,6 +1475,11 @@
         "collapse_out": "Elimină din restrângere",
         "expand": "Extinde",
         "file_not_found": "Fișier negăsit: {{path}}",
+        "generate_image": {
+          "failed": "Generarea imaginii a eșuat",
+          "generating": "Generare imagine…",
+          "title": "Imagine generată"
+        },
         "open_file": "Deschide fișier",
         "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
         "reveal_in_finder": "Afișează în Finder"
@@ -1902,7 +1916,8 @@
         "permissions_deny": "Refuză (separate prin virgulă)",
         "permissions_hint": "Pre-aprobați sau refuzați modelele de instrumente. Suportă wildcard-uri precum Read(secrets-*/config.json).",
         "role_column": "Rol",
-        "sonnet_model": "Sonet"
+        "sonnet_model": "Sonet",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "Dezactivare stocare răspunsuri",
@@ -1960,6 +1975,11 @@
         "xhigh": "Extra înalt"
       },
       "select_placeholder": "Selectare…"
+    },
+    "api_gateway": {
+      "description": "Orice CLI, fiecare model",
+      "requires_running": "Păstrează Cherry Studio rulând după activare — CLI-ul extern se conectează la gateway-ul pe care îl găzduiește.",
+      "title": "Gateway Unificat"
     },
     "apply_failed": "Nu s-a reușit scrierea configurației CLI în fișierul de sistem",
     "auto_update_to_latest": "Actualizează automat la cea mai recentă versiune",
@@ -2040,6 +2060,7 @@
     "model_required": "Te rugăm să selectezi un model",
     "model_selection": "Selecția modelului",
     "more": "Mai mult",
+    "move_provider_to_top": "Mută furnizorul în partea de sus",
     "no_matching_providers": "Niciun furnizor corespunzător",
     "no_model_for_provider": "Niciun model disponibil pentru acest furnizor",
     "no_providers_description": "Activați un furnizor acceptat în Setări → Serviciu Model",
@@ -2767,6 +2788,7 @@
           "title": "Importă o singură pagină web"
         }
       },
+      "back_to_parent": "Înapoi",
       "bulk": {
         "delete": "Șterge",
         "delete_confirm_description": "Ștergeți cele {{count}} surse de date selectate? Această acțiune nu poate fi anulată.",
@@ -2794,6 +2816,7 @@
         "title": "Încarcă Prima Ta Sursă de Date"
       },
       "empty_description": "Nici o sursă de date încă",
+      "empty_folder": "Acest folder este gol",
       "filters": {
         "all": "Toate",
         "directory": "Foldere",
@@ -2826,9 +2849,9 @@
           "type": "Tip",
           "updated_at": "Actualizat"
         },
+        "open_row": "Deschide {{title}}",
         "select_all": "Selectează tot",
-        "select_row": "Selectați rândul",
-        "view_chunks_row": "Vezi fragmente pentru {{title}}"
+        "select_row": "Selectați rândul"
       },
       "toolbar": {
         "add": "Adaugă sursă de date"
@@ -2839,6 +2862,8 @@
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
+    "empty_action": "Creați Bază de Cunoștințe",
+    "empty_description": "Nu aveți încă nicio bază de cunoștințe. Creați una pentru a începe să vă organizați și să căutați documentele.",
     "error": {
       "directory_not_migrated": "Migrarea folderului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
       "failed_base_unknown": "Această bază de cunoștințe a eșuat în timpul migrării. Reconstruiește-o și alege un nou model de încorporare.",
@@ -3268,6 +3293,7 @@
       },
       "knowledge": {
         "add": "Adaugă bază de cunoștințe",
+        "create_first": "Cunoaștere Deschisă pentru a crea unul",
         "desc": "Conectează una sau mai multe baze de cunoștințe; fragmentele relevante vor fi recuperate în timpul conversației",
         "doc_count": "{{count}} documente",
         "empty_desc": "Odată conectat, asistentul poate răspunde pe baza conținutului documentului",
@@ -3281,6 +3307,7 @@
         "title": "Baze de cunoștințe"
       },
       "prompt": {
+        "copy_variable": "Copiază {{variable}}",
         "create_title": "Prompt Nou",
         "dblclick_hint": "Faceți dublu clic pe previzualizare pentru a reveni la editare",
         "desc": "Promptul sistemului este trimis ca context de deschidere al asistentului",
@@ -3595,7 +3622,7 @@
     },
     "empty_url": "Nu s-a putut descărca imaginea, posibil din cauza promptului care conține conținut sensibil sau cuvinte interzise",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Imaginea este prea mare (maxim {{limit}})",
       "chunk_overlap_too_large": "Suprapunerea fragmentelor nu poate fi mai mare decât dimensiunea fragmentului",
       "copy": "Copiere eșuată",
       "dimension_too_large": "Dimensiunea conținutului este prea mare",
@@ -3617,7 +3644,7 @@
         "text_extraction_failed": "Nu s-a reușit extragerea textului din {{name}}"
       },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Nu s-a putut procesa imaginea, vă rugăm să încercați din nou",
       "invalid": {
         "api": {
           "host": "Gazdă (Host) API invalidă",
@@ -3782,6 +3809,8 @@
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
       "activity": {
+        "analyze": "Analizați",
+        "analyzing": "Analizând",
         "archive": "arhivă",
         "assistantTask": "sarcină",
         "availableFeatures": "funcționalități disponibile",
@@ -3789,24 +3818,28 @@
         "branch": "ramură de cod",
         "build": "Construiește",
         "building": "Clădire",
+        "calendar": "calendar",
         "check": "Verifică",
         "checking": "Verificare",
         "codeFiles": "fișiere de cod",
         "codeHostInfo": "informații despre găzduirea codului",
-        "commandName": "comanda {{name}}",
         "configFiles": "documentația proiectului și fișierele de configurare",
         "copy": "Copiază",
         "copying": "Copiere",
         "create": "Creează",
         "creating": "Creare",
         "currentFolder": "folderul curent",
+        "data": "date",
         "delete": "Șterge",
         "deleting": "Ștergere",
         "documentFiles": "fișiere document",
         "download": "Descarcă",
         "downloading": "Descărcare",
+        "email": "email",
+        "environmentInfo": "informații despre mediu",
         "executeCommand": "Rulează comanda",
         "executingCommand": "Executarea comenzii",
+        "extensionFailed": "Extensia a eșuat",
         "extract": "Extrage",
         "extracting": "Extragere",
         "file": "fișier",
@@ -3835,6 +3868,10 @@
         "repository": "depozit de cod",
         "search": "Găsește",
         "searching": "Găsire",
+        "send": "Trimite",
+        "sending": "Trimitere",
+        "start": "Start",
+        "starting": "Începând",
         "switch": "Comutator",
         "switching": "Comutare",
         "sync": "Sincronizare",
@@ -3844,6 +3881,8 @@
         "translationFiles": "fișiere de traducere",
         "upload": "Încărcare",
         "uploading": "Încărcare",
+        "usedExtension": "A folosit o extensie",
+        "usingExtension": "Folosind o extensie",
         "view": "Vizualizare",
         "viewing": "Vizualizare",
         "webPage": "pagină web",
@@ -4037,6 +4076,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configurați modele personalizate",
       "pin": "Fixează acest model",
       "unpin": "Dezactivează modelul"
     },
@@ -5536,75 +5576,6 @@
         "title": "Setări meniu export",
         "yuque": "Exportă în Yuque"
       },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Selectează fișierul de backup"
-        },
-        "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
-        "file": {
-          "button": "Exportă în fișier",
-          "content": "Exportă datele ca fișier de rezervă care poate fi importat pe mobil prin fișier.",
-          "export_failed": "Exportul a eșuat",
-          "export_success": "Export reușit",
-          "title": "Exportă ca fișier"
-        },
-        "lan": {
-          "button": "Începe Transferul",
-          "connected": "Conectat",
-          "connection_failed": "Conexiune eșuată",
-          "content": "Te rugăm să te asiguri că computerul și telefonul sunt în aceeași rețea pentru transferul LAN.",
-          "device_list_title": "Dispozitive în rețeaua locală",
-          "discovered_devices": "Dispozitive descoperite",
-          "error": {
-            "file_too_large": "Fișier prea mare, maxim 500MB acceptat",
-            "init_failed": "Inițializare eșuată",
-            "invalid_file_type": "Doar fișierele ZIP sunt acceptate",
-            "no_file": "Niciun fișier selectat",
-            "no_ip": "Nu se poate obține adresa IP",
-            "not_connected": "Te rugăm să finalizezi handshake-ul mai întâi",
-            "send_failed": "Trimiterea fișierului a eșuat"
-          },
-          "file_transfer": {
-            "cancelled": "Transfer anulat",
-            "failed": "Transfer fișier eșuat: {{message}}",
-            "progress": "Se trimite... {{progress}}%",
-            "success": "Fișier trimis cu succes"
-          },
-          "handshake": {
-            "button": "Handshake",
-            "failed": "Handshake eșuat: {{message}}",
-            "in_progress": "Se efectuează handshake...",
-            "success": "Handshake finalizat cu {{device}}",
-            "test_message_received": "Primit pong de la {{device}}",
-            "test_message_sent": "Trimis payload test hello world"
-          },
-          "idle_hint": "Scanare în pauză. Începe scanarea pentru a găsi parteneri Cherry Studio în LAN.",
-          "ip_addresses": "Adrese IP",
-          "last_seen": "Văzut ultima dată la {{time}}",
-          "metadata": "Metadate",
-          "no_connection_warning": "Te rugăm să deschizi Transfer LAN pe mobil în Cherry Studio",
-          "no_devices": "Încă nu s-au găsit parteneri LAN",
-          "scan_devices": "Scanează dispozitive",
-          "scanning_hint": "Se scanează rețeaua locală pentru parteneri Cherry Studio...",
-          "send_file": "Trimite fișier",
-          "status": {
-            "completed": "Transfer finalizat",
-            "connected": "Conectat",
-            "connecting": "Se conectează...",
-            "disconnected": "Deconectat",
-            "error": "Eroare de conexiune",
-            "initializing": "Se inițializează conexiunea...",
-            "preparing": "Se pregătește transferul...",
-            "sending": "Se transferă {{progress}}%"
-          },
-          "status_badge_idle": "Inactiv",
-          "status_badge_scanning": "Se scanează",
-          "stop_scan": "Oprește scanarea",
-          "title": "Transmisie LAN",
-          "transfer_progress": "Progres transfer"
-        },
-        "title": "Exportă pe telefon"
-      },
       "hour_interval_one": "{{count}} oră",
       "hour_interval_other": "{{count}} ore",
       "import_settings": {
@@ -6800,6 +6771,7 @@
           "confirm": "Ești sigur că vrei să adaugi toate modelele la listă?",
           "label": "Adaugă toate modelele"
         },
+        "add_success_enable_failed": "Modelele au fost adăugate, dar furnizorul nu a putut fi activat.",
         "add_whole_group": "Adaugă întregul grup",
         "clean_stale_models": "Curăță modelele expirate",
         "clean_stale_success": "Au fost curățate {{count}} modele expirate",
@@ -6868,6 +6840,8 @@
       },
       "more_actions": "Mai multe acțiuni pentru lista de modele",
       "not_enabled_models": "Dezactivate",
+      "painting_model": "Model de pictură",
+      "painting_model_description": "Model utilizat pentru generarea de imagini",
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Adăugarea cheii API a furnizorului a eșuat, datele sunt goale",
@@ -7211,6 +7185,7 @@
         "fill_after_create": "Câmpurile de autentificare pot fi completate după creare",
         "menu_label": "Adaugă instanță"
       },
+      "enable_failed_after_connection": "Conexiunea a reușit, dar furnizorul nu a putut fi activat.",
       "filter": {
         "agent": "Asistat de agent",
         "all": "Toți furnizorii",
