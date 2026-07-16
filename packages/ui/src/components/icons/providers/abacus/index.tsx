@@ -9,7 +9,7 @@ const Abacus = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AbacusIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Abacus, {
   Avatar: AbacusAvatar,
-  colorPrimary: '#C5E5F6'
+  colorPrimary: '#D1E4F5'
 })
 
 export default AbacusIcon
