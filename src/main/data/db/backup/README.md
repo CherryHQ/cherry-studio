@@ -39,6 +39,6 @@ See `docs/references/backup/backup-architecture.md` §7 (placement / neutral lay
 
 | File / module | Track | Status / blocker |
 |----|----|----|
-| eslint `no-restricted-syntax` guard + `ContributorManager` + `finalize` | A3 | Lands in later stack PRs (`backup-manager` series). |
-| 14 contributors + `CONTRIBUTORS` barrel | B | Domain declarations in `backup-contributors` / `backup-core-contributors`. |
-| Export / restore orchestrator (`BackupService`) | C / D | Export skeleton in `backup-manager`. **Restore** blocked on upstream: DbService `createSnapshot` / `applyMigrations` / **preboot promotion gate** + write-quiesce (#16714). D model: detached merge into `work.sqlite` + preboot atomic promotion. |
+| eslint `no-restricted-syntax` guard + `ContributorManager` + `finalize` | A3 | **Landed** (`backup-manager`). |
+| 14 contributors + `CONTRIBUTORS` barrel | B | **Landed** (`backup-contributors` / `backup-core-contributors`). |
+| Export / restore orchestrator (`BackupService`) | C / D | **Export skeleton landed** (`backup-manager`). **Restore** still blocked on upstream: DbService `createSnapshot` / `applyMigrations` / **preboot promotion gate** + write-quiesce (#16714). D model: detached merge into `work.sqlite` + preboot atomic promotion. |

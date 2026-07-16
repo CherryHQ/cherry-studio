@@ -48,3 +48,38 @@ export function deepFreeze<T>(value: T, visited: WeakSet<object> = new WeakSet<o
 
   return value
 }
+
+/**
+ * Wrap a Map in a Proxy that throws on mutating methods (set / delete / clear) +
+ * index/property assignment, enforcing runtime immutability for registry indexes
+ * (finalize invariant #17). Read-only Map access (get / has / entries / keys /
+ * values / forEach / size + Symbol.iterator) is bound to the underlying target
+ * and stays transparent to callers.
+ *
+ * Production consumers see `ReadonlyMap<K,V>` (no mutator in the type), so the
+ * mutator traps are a defense-in-depth layer — they catch `as Map` casts, debug
+ * mutation attempts, or any future mutable-interface leak. `deepFreeze` is still
+ * the primary barrier for the frozen contributor object graph; `frozenMap` is the
+ * Map-specific helper (`deepFreeze` deliberately skips Map/Set because freezing
+ * their internal slots breaks runtime semantics).
+ */
+export function frozenMap<K, V>(map: ReadonlyMap<K, V>): ReadonlyMap<K, V> {
+  return new Proxy(map as Map<K, V>, {
+    get(target, prop) {
+      if (prop === 'set' || prop === 'delete' || prop === 'clear') {
+        return () => {
+          throw new TypeError(`Cannot mutate frozen Map: Map.prototype.${String(prop)} (#17)`)
+        }
+      }
+      // Bind Map methods/getters to the target so `this` is the real Map — a Proxy
+      // has no [[MapData]] internal slot, so accessing it through the proxy throws.
+      const value = Reflect.get(target, prop)
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+    },
+    set() {
+      // Block index/property assignment (`m['x'] = 1`) — without this the default
+      // forward would set an own property on the target Map. (#17 defense-in-depth.)
+      throw new TypeError('Cannot mutate frozen Map: property assign (#17)')
+    }
+  })
+}

@@ -9,6 +9,8 @@
 // type-only imports keep this module side-effect-free (no runtime cycle): the
 // BackupScopedDb/BackupReadonlyDb classes live in contexts.ts and are referenced
 // here only as types (erased at compile time).
+import type { JobType } from '@main/core/job/jobRegistry'
+import type { EntityType } from '@shared/data/types/entityType'
 import type { FileRefSourceType } from '@shared/data/types/file'
 
 import type { BackupReadonlyDb, BackupScopedDb } from './contexts'
@@ -95,6 +97,13 @@ export interface RowScope {
   readonly table: DbTableName
   readonly ownerDomain: BackupDomain
   readonly filter: { readonly column: DbColumnName; readonly op: 'eq'; readonly value: string }
+  /**
+   * Per-JobType ownership assertion for the rows matched by filter (finalize
+   * exhaustiveness). A JobType not listed is implicitly 'excluded' — the
+   * contributor must either own it ('owned') or explicitly exclude it, so an
+   * unhandled JobType can never be silently dropped from backup.
+   */
+  readonly typeCoverage?: Readonly<Record<JobType, 'owned' | 'excluded'>>
 }
 
 /** How a file_ref.sourceType is owned and resourced (finalize #11). */
@@ -169,9 +178,62 @@ export interface BackupContextBase {
   readonly progress?: BackupProgressEmitter
 }
 
+/**
+ * Typed descriptor for a file resource discovered by `collectFileResources`.
+ * Replaces the untyped `Set<string>` contract: routing is by `kind`, NOT by the
+ * producing domain — the orchestrator dispatches staging by kind, so new
+ * resource forms extend the union without touching a domain switch.
+ *
+ * - `file-entry` / `knowledge-base` / `notes-file`: existing blob & markdown forms.
+ * - `skill-dir` / `mcp-package-dir` / `agent-workspace-dir`: directory resources
+ *   whose on-disk content is NOT re-fetchable (dejeune file-resource-hooks
+ *   domains — SKILLS / MCP_SERVERS / AGENTS system workspace). Additive per
+ *   identity key; promoted via restore journal `dir-add`. Staging for these
+ *   lands with the directory-resource staging work; no contributor emits them
+ *   until that work ships.
+ */
+export type ResourceDescriptor =
+  | { readonly kind: 'file-entry'; readonly fileEntryId: string }
+  | { readonly kind: 'knowledge-base'; readonly baseId: string }
+  | { readonly kind: 'notes-file'; readonly relPath: string }
+  | { readonly kind: 'skill-dir'; readonly folderName: string; readonly contentHash: string }
+  | { readonly kind: 'mcp-package-dir'; readonly serverName: string }
+  | { readonly kind: 'agent-workspace-dir'; readonly sessionId: string }
+
+/**
+ * A resource the export intentionally omitted (with observability) under a preset
+ * limitation. TBD-1 (iii): lite preset omits zip/local skill-dir file content (the
+ * skill DB row still ships as schema) but records each omission here so it is
+ * visible in the manifest + logs, never silently lost. The orchestrator accumulates
+ * these via FileResourceContext.recordDegraded and writes them to manifest.degraded.
+ */
+export type ExportResourceDegradation = {
+  readonly kind: 'skill-dir-omitted-lite'
+  readonly folderName: string
+  readonly contentHash: string
+}
+
 /** Context for collectFileResources — reads live DB file metadata only. */
 export interface FileResourceContext extends BackupContextBase {
   readonly liveDb: BackupReadonlyDb
+  /** Export preset — collectors branch on it (TBD-1 (iii): SKILLS omits zip/local skill-dir content under lite). */
+  readonly preset: 'full' | 'lite'
+  /**
+   * Sink for preset-limited omissions (TBD-1 (iii)). The orchestrator supplies an
+   * accumulator that logs + carries each record into manifest.degraded; collectors
+   * call it instead of silently dropping a resource. Required so a future caller
+   * cannot silently discard a lite omission.
+   */
+  readonly recordDegraded: (item: ExportResourceDegradation) => void
+  /**
+   * Notes markdown root — BackupService resolves it from feature.notes.path when
+   * set (else feature.notes.data when that dir exists). A set-but-unavailable
+   * custom path fails the export rather than falling back to the managed default.
+   * PREFERENCES.collectFileResources scans it case-insensitively for `.md` files.
+   * undefined (unit tests / Notes never opened / lite preset) → empty set, skip.
+   * When provided, the directory must be readable; ENOENT/EACCES throw.
+   */
+  readonly notesRoot?: string
 }
 
 /** Context for beforeArchive — may write the backup copy (own domain only). */
@@ -258,6 +320,25 @@ export interface EntityGraphSchema {
   readonly jsonSoftReferences: readonly JsonSoftReferencePolicy[]
   /** Shared-table row partitions (e.g. job_schedule.type='agent.task' → AGENTS). */
   readonly rowScopes?: readonly RowScope[]
+  /**
+   * JSON columns in schema.tables that are NOT soft-reference carriers and so are
+   * exempt from jsonSoftReferences coverage (finalize exhaustiveness). reason is
+   * required for each exemption (mirrors the reason-required pattern of
+   * omittedReferenceOverrides). A JSON column must appear in either
+   * jsonSoftReferences or exemptJsonCols, else finalize fails.
+   */
+  readonly exemptJsonCols?: readonly {
+    readonly table: DbTableName
+    readonly column: DbColumnName
+    readonly reason: string
+  }[]
+  /**
+   * Polymorphic entity-type → domain routing for shared polymorphic tables
+   * (entity_tag, pin, group). Maps each EntityType to the BackupDomain that owns
+   * its rows, or 'excluded' when that entity type is out of backup scope. Lets
+   * finalize verify every EntityType is routed (no silent drops).
+   */
+  readonly polymorphicEntityMap?: Readonly<Record<EntityType, BackupDomain | 'excluded'>>
 }
 
 /** Domain-level backup policy. */
@@ -279,14 +360,25 @@ export interface BackupContributorPolicy {
  * (it's the importer's internal pre-scan).
  */
 export interface BackupContributorOperations {
-  collectFileResources?: (ctx: FileResourceContext) => Promise<Set<string>>
+  // collectFileResources / beforeArchive / restoreResources run OUTSIDE the detached
+  // write tx (file IO, pre-merge staging) — async is allowed.
+  collectFileResources?: (ctx: FileResourceContext) => Promise<readonly ResourceDescriptor[]>
   beforeArchive?: (ctx: BeforeArchiveContext) => Promise<void>
-  /** Pure row transform; return null to skip the row. No db on the context. */
-  transformRow?: (ctx: RowTransformContext) => Promise<Readonly<Record<string, unknown>> | null>
-  afterImport?: (ctx: AfterImportContext) => Promise<void>
   restoreResources?: (ctx: RestoreResourceContext) => Promise<RestoreResourceResult>
+  // transformRow / afterImport / cloneAggregate run INSIDE the detached write tx
+  // (better-sqlite3 transaction fn MUST be synchronous — it rejects Promise callbacks).
+  // Returning a Promise would let the tx commit before the hook lands, breaking
+  // atomicity + defer_foreign_keys guarantees. Sync only (spec R3 / plan MAJOR 8).
+  // The return types below enforce this at the type boundary: `undefined` (not `void`)
+  // rejects `async () => Promise<void>` — TS lets a Promise satisfy `() => void` but not
+  // `() => undefined`. transformRow / cloneAggregate already reject async via non-void
+  // return types.
+  /** Pure row transform; return null to skip the row. No db on the context. */
+  transformRow?: (ctx: RowTransformContext) => Readonly<Record<string, unknown>> | null
+  /** FTS rebuild + in-tx derived writes via backupDb (own tables only). MUST be sync. */
+  afterImport?: (ctx: AfterImportContext) => undefined
   /** Return a new root row with the PK replaced by ctx.newRootKey. No db on the context. */
-  cloneAggregate?: (ctx: CloneAggregateContext) => Promise<{ rootRow: Readonly<Record<string, unknown>> }>
+  cloneAggregate?: (ctx: CloneAggregateContext) => { rootRow: Readonly<Record<string, unknown>> }
 }
 
 /** A frozen contributor constant: domain + static facts + optional hooks. */

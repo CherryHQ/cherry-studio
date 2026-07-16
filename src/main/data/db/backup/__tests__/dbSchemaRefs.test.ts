@@ -12,6 +12,7 @@ import {
   DB_COLUMNS_BY_TABLE,
   DB_FOREIGN_KEYS,
   DB_FTS_VIRTUAL_TABLES,
+  DB_JSON_COLUMNS,
   DB_PRIMARY_KEYS,
   DB_TABLES,
   DB_UNIQUE_KEYS,
@@ -194,6 +195,43 @@ describe('DB_FOREIGN_KEYS', () => {
     const known = new Set(DB_TABLES)
     for (const facts of Object.values(DB_FOREIGN_KEYS)) {
       for (const fk of facts) expect(known.has(fk.targetTable)).toBe(true)
+    }
+  })
+})
+
+describe('DB_JSON_COLUMNS', () => {
+  // text({ mode: 'json' }) columns carry the runtime marker column.dataType ===
+  // 'json' (getSQLType() still returns 'text'). This pins the codegen detection so
+  // a regression in the hidden-prop cast surfaces immediately.
+  it('detects every text({ mode: "json" }) column across all tables', () => {
+    expect(DB_JSON_COLUMNS.message).toEqual(['data', 'modelSnapshot', 'stats'])
+    expect(DB_JSON_COLUMNS.agent).toEqual(['disabledTools', 'configuration'])
+    expect(DB_JSON_COLUMNS.user_model).toEqual([
+      'capabilities',
+      'inputModalities',
+      'outputModalities',
+      'endpointTypes',
+      'reasoning',
+      'parameters',
+      'pricing',
+      'userOverrides'
+    ])
+  })
+
+  it('emits an empty array for tables without JSON columns', () => {
+    expect(DB_JSON_COLUMNS.prompt).toEqual([])
+    expect(DB_JSON_COLUMNS.topic).toEqual([])
+  })
+
+  it('lists exactly 46 JSON columns in total', () => {
+    const total = Object.values(DB_JSON_COLUMNS).reduce((sum, cols) => sum + cols.length, 0)
+    expect(total).toBe(46)
+  })
+
+  it('every listed column is a known column of its table', () => {
+    for (const [t, cols] of Object.entries(DB_JSON_COLUMNS)) {
+      const known = new Set(DB_COLUMNS_BY_TABLE[t as keyof typeof DB_COLUMNS_BY_TABLE].map((c) => c.name))
+      for (const col of cols) expect(known.has(col), `${t}.${col}`).toBe(true)
     }
   })
 })
