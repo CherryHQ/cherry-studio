@@ -222,7 +222,8 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getByText('Nothing')).toBeInTheDocument()
-      expect(screen.getByRole('listbox').querySelector('.lucide-package')).toBeInTheDocument()
+      // Presets render the unified empty illustration (an inline SVG), not per-preset lucide icons.
+      expect(screen.getByRole('listbox').querySelector('svg')).toBeInTheDocument()
     })
 
     it('lazy keeps content mounted after the first open', async () => {

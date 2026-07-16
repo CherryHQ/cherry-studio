@@ -77,7 +77,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     },
     model: undefined,
     setModel: vi.fn()
-  })
+  }),
+  useAssistantApiById: () => ({ assistant: { id: 'assistant-1', emoji: '😀' } })
 }))
 
 vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({

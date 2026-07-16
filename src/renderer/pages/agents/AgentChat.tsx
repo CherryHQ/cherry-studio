@@ -8,6 +8,7 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
@@ -368,8 +369,15 @@ const AgentChatSessionFrame = ({
   })
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  // `sessionMessagesEnabled` guards the locked/active session transition window,
+  // where messages are force-disabled (empty + not loading) and would otherwise
+  // read as an empty conversation.
   const isEmptyConversation =
-    !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
+    sessionMessagesEnabled &&
+    !runtime.isLoading &&
+    !runtime.isPending &&
+    !runtime.hasOlder &&
+    runtime.uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
 
   useEffect(() => {
@@ -429,22 +437,32 @@ const AgentChatSessionFrame = ({
     />
   )
   const main = (
-    <AgentChatMain
-      placement="docked"
-      sessionMessagesEnabled={sessionMessagesEnabled}
-      agentId={agentId}
-      sessionId={runtime.sessionId}
-      messages={runtime.uiMessages}
-      activeAgent={activeAgent}
-      partsByMessageId={runtime.partsByMessageId}
-      optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-      isLoading={runtime.isLoading}
-      hasOlder={runtime.hasOlder}
-      loadOlder={runtime.loadOlder}
-      onOpenCitationsPanel={onOpenCitationsPanel}
-      deleteMessage={runtime.deleteMessage}
-      respondToolApproval={runtime.respondToolApproval}
-    />
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {isEmptyConversation && (
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <ConversationGreeting
+            avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            title={homeWelcomeText ?? ''}
+          />
+        </div>
+      )}
+      <AgentChatMain
+        placement="docked"
+        sessionMessagesEnabled={sessionMessagesEnabled}
+        agentId={agentId}
+        sessionId={runtime.sessionId}
+        messages={runtime.uiMessages}
+        activeAgent={activeAgent}
+        partsByMessageId={runtime.partsByMessageId}
+        optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
+        isLoading={runtime.isLoading}
+        hasOlder={runtime.hasOlder}
+        loadOlder={runtime.loadOlder}
+        onOpenCitationsPanel={onOpenCitationsPanel}
+        deleteMessage={runtime.deleteMessage}
+        respondToolApproval={runtime.respondToolApproval}
+      />
+    </div>
   )
 
   return (
@@ -486,14 +504,7 @@ const AgentChatSessionFrame = ({
           </>
         }
         showTopRightToolWhenPaneOpen
-        center={
-          <ConversationStageCenter
-            placement="docked"
-            main={main}
-            composer={composer}
-            homeWelcomeText={homeWelcomeText}
-          />
-        }
+        center={<ConversationStageCenter placement="docked" main={main} composer={composer} />}
         sidePanel={sidePanel}
         centerOverlay={<AgentRightPane.MaximizedOverlay />}
         rightPane={<AgentRightPane.Host />}

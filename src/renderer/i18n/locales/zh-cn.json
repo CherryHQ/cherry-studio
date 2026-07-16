@@ -193,7 +193,7 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
-      "welcome_title": "今天想聊点什么？"
+      "welcome_title": "今天想做点什么？"
     },
     "icon": {
       "type": "智能体图标"
@@ -2455,7 +2455,8 @@
     "edit": "编辑",
     "empty": {
       "no_match_description": "当前筛选条件下没有文件",
-      "no_match_title": "没有找到匹配的文件"
+      "no_match_title": "没有找到匹配的文件",
+      "title": "暂无文件"
     },
     "empty_trash": "清空回收站",
     "error": {
@@ -2854,7 +2855,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "empty_action": "创建知识库",
-    "empty_description": "你还没有创建任何知识库。创建一个来整理和检索你的文档吧。",
+    "empty_description": "与 AI 一起积累知识",
     "error": {
       "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
