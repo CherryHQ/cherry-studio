@@ -34,7 +34,9 @@ export interface DataSourcePanelProps {
   /** Navigate one level up out of {@link currentDirectory}. */
   onNavigateUp?: () => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
+  onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
+  onReindexItems: (itemIds: string[]) => void | Promise<unknown>
 }
 
 const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: KnowledgeItemType) => void }) => {
@@ -84,7 +86,9 @@ const DataSourcePanel = ({
   currentDirectory,
   onNavigateUp,
   onDelete,
-  onReindex
+  onDeleteItems,
+  onReindex,
+  onReindexItems
 }: DataSourcePanelProps) => {
   const { t } = useTranslation()
   const { previewSource } = usePreviewKnowledgeSource()
@@ -140,27 +144,27 @@ const DataSourcePanel = ({
   )
 
   const handleBulkReindex = useCallback(async () => {
-    const targets = items.filter((item) => selectedIds.has(item.id))
+    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
     try {
-      await Promise.all(targets.map((item) => onReindex(item)))
+      await onReindexItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
     }
     setSelectedIds(new Set())
-  }, [items, onReindex, selectedIds, t])
+  }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const targets = items.filter((item) => selectedIds.has(item.id))
+    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
     try {
-      await Promise.all(targets.map((item) => onDelete(item)))
+      await onDeleteItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
       return
     }
     setSelectedIds(new Set())
     setIsBulkDeleteOpen(false)
-  }, [items, onDelete, selectedIds, t])
+  }, [items, onDeleteItems, selectedIds, t])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) {

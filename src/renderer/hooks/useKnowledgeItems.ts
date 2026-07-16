@@ -201,8 +201,8 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
   const [isDeleting, setIsDeleting] = useState(false)
   const invalidateCache = useInvalidateCache()
 
-  const deleteItem = useCallback(
-    async (item: KnowledgeItem): Promise<void> => {
+  const deleteItems = useCallback(
+    async (itemIds: string[]): Promise<void> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -212,13 +212,13 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
 
       let deleteError: Error | undefined
       try {
-        await ipcApi.request('knowledge.delete_items', { baseId, itemIds: [item.id] })
+        await ipcApi.request('knowledge.delete_items', { baseId, itemIds })
       } catch (error) {
         deleteError = normalizeKnowledgeError(error)
 
         deleteLogger.error('Failed to delete knowledge source', deleteError, {
           baseId,
-          itemId: item.id
+          itemIds
         })
 
         setError(deleteError)
@@ -230,7 +230,7 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
           'Failed to refresh knowledge source list after delete',
           {
             baseId,
-            itemId: item.id
+            itemIds
           }
         )
 
@@ -244,7 +244,10 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
     [baseId, invalidateCache]
   )
 
+  const deleteItem = useCallback((item: KnowledgeItem): Promise<void> => deleteItems([item.id]), [deleteItems])
+
   return {
+    deleteItems,
     deleteItem,
     isDeleting,
     error
@@ -256,8 +259,8 @@ export const useReindexKnowledgeItem = (baseId: string) => {
   const [isReindexing, setIsReindexing] = useState(false)
   const invalidateCache = useInvalidateCache()
 
-  const reindexItem = useCallback(
-    async (item: KnowledgeItem): Promise<void> => {
+  const reindexItems = useCallback(
+    async (itemIds: string[]): Promise<void> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -267,13 +270,13 @@ export const useReindexKnowledgeItem = (baseId: string) => {
 
       let reindexError: Error | undefined
       try {
-        await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: [item.id] })
+        await ipcApi.request('knowledge.reindex_items', { baseId, itemIds })
       } catch (error) {
         reindexError = normalizeKnowledgeError(error)
 
         reindexLogger.error('Failed to reindex knowledge source', reindexError, {
           baseId,
-          itemId: item.id
+          itemIds
         })
 
         setError(reindexError)
@@ -285,7 +288,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
           'Failed to refresh knowledge source list after reindex',
           {
             baseId,
-            itemId: item.id
+            itemIds
           }
         )
 
@@ -299,7 +302,10 @@ export const useReindexKnowledgeItem = (baseId: string) => {
     [baseId, invalidateCache]
   )
 
+  const reindexItem = useCallback((item: KnowledgeItem): Promise<void> => reindexItems([item.id]), [reindexItems])
+
   return {
+    reindexItems,
     reindexItem,
     isReindexing,
     error

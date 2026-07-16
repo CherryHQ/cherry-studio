@@ -43,6 +43,22 @@ describe('useReindexKnowledgeItem', () => {
     expect(result.current.isReindexing).toBe(false)
   })
 
+  it('reindexes multiple knowledge items through one orchestration IPC request and one cache refresh', async () => {
+    const { result } = renderHook(() => useReindexKnowledgeItem('base-1'))
+
+    await act(async () => {
+      await expect(result.current.reindexItems(['note-1', 'note-2'])).resolves.toBeUndefined()
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.reindex_items', {
+      baseId: 'base-1',
+      itemIds: ['note-1', 'note-2']
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledTimes(1)
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
+  })
+
   it('keeps reindex rejected, refreshes items, and exposes inline error when orchestration rejects', async () => {
     const reindexError = new Error('reindex failed')
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
@@ -59,7 +75,7 @@ describe('useReindexKnowledgeItem', () => {
     expect(result.current.isReindexing).toBe(false)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to reindex knowledge source', reindexError, {
       baseId: 'base-1',
-      itemId: 'note-1'
+      itemIds: ['note-1']
     })
   })
 })

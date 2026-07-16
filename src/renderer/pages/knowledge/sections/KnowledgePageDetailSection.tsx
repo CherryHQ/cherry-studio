@@ -54,8 +54,8 @@ const KnowledgePageDetailSection = () => {
     isLoadingMore: isLoadingMoreItems,
     loadMore: loadMoreItems
   } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null)
-  const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
-  const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
+  const { deleteItem, deleteItems } = useDeleteKnowledgeItem(selectedBaseId)
+  const { reindexItem, reindexItems } = useReindexKnowledgeItem(selectedBaseId)
 
   if (!selectedBase) {
     return null
@@ -88,7 +88,9 @@ const KnowledgePageDetailSection = () => {
             currentDirectory={currentDirectory}
             onNavigateUp={navigateUp}
             onDelete={deleteItem}
+            onDeleteItems={deleteItems}
             onReindex={reindexItem}
+            onReindexItems={reindexItems}
           />
         )}
       </div>
