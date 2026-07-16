@@ -449,13 +449,14 @@ describe('AssistantDataService', () => {
         { id: 'ast-3', name: 'a3', createdAt: 300 },
         { id: 'ast-4', name: 'a4', createdAt: 400 }
       ])
-      // Fresh pins are inserted at the head of their entityType bucket, so the
-      // second pin appears before the first in the pinned section.
+      // Pin ast-3 then ast-1 — pin.orderKey is assigned by `insertWithOrderKey`,
+      // so the second pin gets a larger key and appears AFTER ast-3 in the
+      // pinned section.
       pinService.pin({ entityType: 'assistant', entityId: 'ast-3' })
       pinService.pin({ entityType: 'assistant', entityId: 'ast-1' })
 
       const result = assistantDataService.list(listQuery())
-      expect(result.items.map((a) => a.id)).toEqual(['ast-1', 'ast-3', 'ast-2', 'ast-4'])
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2', 'ast-4'])
     })
 
     it('keeps unpinned assistants in createdAt order when no pins exist', async () => {

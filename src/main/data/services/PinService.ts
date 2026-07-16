@@ -9,9 +9,6 @@
  * - `listByEntityType` is the canonical read path; `entityType` is always required.
  * - `pin` is idempotent AND concurrent-safe: repeat calls for the same
  *   (entityType, entityId) resolve to the same row, even under parallel writes.
- *   Fresh topic/session pins are inserted at the head of their bucket because
- *   those resource bands show newest pins first. Other entity types preserve
- *   their established append order.
  * - `unpin` is a hard delete. There is no soft-delete / audit column.
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
  *   scope inference and enforces "batch stays within one entityType".
@@ -108,14 +105,12 @@ export class PinService {
       if (existing) return rowToPin(existing)
 
       try {
-        const newestPinFirst = dto.entityType === 'topic' || dto.entityType === 'session'
         const inserted = insertWithOrderKey(
           tx,
           pinTable,
           { entityType: dto.entityType, entityId: dto.entityId },
           {
             pkColumn: pinTable.id,
-            position: newestPinFirst ? 'first' : undefined,
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )
