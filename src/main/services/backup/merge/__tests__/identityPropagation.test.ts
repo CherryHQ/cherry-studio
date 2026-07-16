@@ -2,7 +2,7 @@ import { contributorManager } from '@main/services/backup/contributors/Contribut
 import type { IdentityMap } from '@main/services/backup/merge'
 import { describe, expect, it } from 'vitest'
 
-import { propagateIdentityReferences } from '../identityPropagation'
+import { IdentityPropagationError, propagateIdentityReferences } from '../identityPropagation'
 
 const createIdentityMap = (): IdentityMap => ({
   sourceMap: new Map(),
@@ -61,5 +61,30 @@ describe('propagateIdentityReferences', () => {
     expect(history).toEqual({ source_language: 'language-local', target_language: 'language-local' })
     expect(agentSkill).toEqual({ skill_id: 'skill-local' })
     expect(channelWorkspace).toBe(JSON.stringify({ type: 'user', workspaceId: 'workspace-backup' }))
+  })
+
+  it('fails closed when a required workspaceId has no canonical mapping', () => {
+    const identityMap = createIdentityMap()
+    // 'workspace-unknown' is absent from the agent_workspace targetMap → dangling
+    const channelWorkspace = JSON.stringify({ type: 'user', workspaceId: 'workspace-unknown' })
+    expect(() =>
+      propagateIdentityReferences(registry, 'agent_channel', { workspace: channelWorkspace }, identityMap)
+    ).toThrow(IdentityPropagationError)
+  })
+
+  it('fails closed when agent_workspace has no target mapping at all', () => {
+    const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
+    const channelWorkspace = JSON.stringify({ type: 'user', workspaceId: 'workspace-backup' })
+    expect(() =>
+      propagateIdentityReferences(registry, 'agent_channel', { workspace: channelWorkspace }, identityMap)
+    ).toThrow(IdentityPropagationError)
+  })
+
+  it('does not throw when a required JSON column carries no workspaceId', () => {
+    const identityMap = createIdentityMap()
+    const channelWorkspace = JSON.stringify({ type: 'shared', config: { foo: 'bar' } })
+    expect(() =>
+      propagateIdentityReferences(registry, 'agent_channel', { workspace: channelWorkspace }, identityMap)
+    ).not.toThrow()
   })
 })

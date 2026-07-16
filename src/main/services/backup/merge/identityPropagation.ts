@@ -45,18 +45,27 @@ const parseRequiredJson = (table: DbTableName, column: string, value: unknown): 
   }
 }
 
-/** Recursively replace only workspaceId values known to have a local canonical mapping. */
-const rewriteWorkspaceIds = (value: JsonValue, workspaceMap: ReadonlyMap<string, string>): JsonValue => {
-  if (Array.isArray(value)) return value.map((item) => rewriteWorkspaceIds(item, workspaceMap))
+/** Recursively rewrite workspaceId values to their local canonical id, collecting any that cannot be resolved. */
+const rewriteWorkspaceIds = (
+  value: JsonValue,
+  workspaceMap: ReadonlyMap<string, string>,
+  unresolved: Set<string>
+): JsonValue => {
+  if (Array.isArray(value)) return value.map((item) => rewriteWorkspaceIds(item, workspaceMap, unresolved))
   if (!isJsonObject(value)) return value
 
   const rewritten: Record<string, JsonValue> = {}
   for (const [key, child] of Object.entries(value)) {
     if (key === 'workspaceId' && typeof child === 'string') {
-      rewritten[key] = workspaceMap.get(child) ?? child
+      // Required workspace references MUST resolve to a local canonical id.
+      // An unresolved workspaceId would commit a dangling JSON soft-reference
+      // (no SQL FK catches it), so collect it and let the caller fail closed.
+      const canonical = workspaceMap.get(child)
+      if (canonical === undefined) unresolved.add(child)
+      rewritten[key] = canonical ?? child
       continue
     }
-    rewritten[key] = rewriteWorkspaceIds(child, workspaceMap)
+    rewritten[key] = rewriteWorkspaceIds(child, workspaceMap, unresolved)
   }
   return rewritten
 }
@@ -88,9 +97,25 @@ export const propagateIdentityReferences = (
 
   const workspaceMap = identityMap.targetMap.get('agent_workspace')
   const jsonValue = propagated[jsonColumn.physical]
-  if (!workspaceMap || workspaceMap.size === 0 || jsonValue === undefined) return propagated
+  if (jsonValue === undefined) return propagated
 
-  const rewritten = rewriteWorkspaceIds(parseRequiredJson(table, jsonColumn.physical, jsonValue), workspaceMap)
+  // Required workspace references fail closed: every workspaceId must resolve to
+  // a local canonical id. A missing agent_workspace mapping means the referenced
+  // workspace is neither imported nor pre-existing locally — any workspaceId in
+  // the JSON is dangling, so abort the merge instead of committing it.
+  const unresolved = new Set<string>()
+  const rewritten = rewriteWorkspaceIds(
+    parseRequiredJson(table, jsonColumn.physical, jsonValue),
+    workspaceMap ?? new Map(),
+    unresolved
+  )
+  if (unresolved.size > 0) {
+    throw new IdentityPropagationError(
+      table,
+      jsonColumn.physical,
+      `unresolved required workspaceId(s): ${[...unresolved].join(', ')} (no canonical mapping in agent_workspace)`
+    )
+  }
   const serialized = JSON.stringify(rewritten)
   if (serialized === jsonValue) return propagated
   return { ...propagated, [jsonColumn.physical]: serialized }
