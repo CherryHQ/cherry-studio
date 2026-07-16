@@ -26,7 +26,7 @@ vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOrig
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    default: (props: { html: string; title: string; baseUrl?: string; sandbox?: string }) => {
+    default: (props: { html: string; title: string; baseUrl?: string; sandbox?: string; csp?: string }) => {
       mocks.htmlFrame(props)
       // The sandbox assertion reads the captured `sandbox` prop (via mocks.htmlFrame),
       // not this DOM attribute, so a static value here keeps the mock lint-clean.
@@ -117,15 +117,17 @@ describe('HtmlFilePreview', () => {
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })
 
-  it('previews untrusted local HTML in a restricted sandbox (no same-origin)', async () => {
+  it('previews untrusted local HTML in a fully restricted, script-less sandbox with a strict CSP', async () => {
     renderPreview()
     await screen.findByTestId('html-frame')
 
-    const sandbox = mocks.htmlFrame.mock.calls.at(-1)?.[0]?.sandbox
-    // Local files are untrusted: dropping allow-same-origin blocks a malicious
-    // file's scripts from reaching parent.api to read/exfiltrate other local files.
-    expect(sandbox).toBe('allow-scripts allow-forms')
-    expect(sandbox).not.toContain('allow-same-origin')
+    const props = mocks.htmlFrame.mock.calls.at(-1)?.[0]
+    // The main window runs with webSecurity:false, so an opaque-origin iframe can still reach
+    // parent.api; the only robust guard is running no scripts at all, backed by a strict CSP.
+    expect(props?.sandbox).toBe('')
+    expect(props?.sandbox).not.toContain('allow-scripts')
+    expect(props?.sandbox).not.toContain('allow-same-origin')
+    expect(props?.csp).toContain("default-src 'none'")
   })
 
   it('shows the empty state for empty content', async () => {

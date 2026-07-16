@@ -462,6 +462,88 @@ describe('FilesPage file operations', () => {
     expect(filePreviewMocks.render).not.toHaveBeenCalled()
   })
 
+  // Delays a settled value by several microtask hops so the earlier open request lands
+  // AFTER the later one. Both requests still settle within a few ticks — no long-pending
+  // promise (which would spin the mocked useDeferredValue render loop under act).
+  const afterMicrotasks = <T,>(produce: () => T): Promise<T> =>
+    Promise.resolve()
+      .then()
+      .then()
+      .then()
+      .then(() => produce())
+  // Drains pending microtasks so the stale request provably finishes before we assert,
+  // without waiting for React to go idle (the mock's unstable query refs never let it).
+  const drainMicrotasks = async () => {
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+  }
+
+  it('keeps the most recently opened file when an older open request resolves last', async () => {
+    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
+    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths') {
+        const id = (input as { ids: string[] }).ids[0]
+        // A (clicked first) settles several ticks later than B (clicked last).
+        if (id === 'file-a') return afterMicrotasks(() => ({ 'file-a': '/tmp/alpha.md' }))
+        return Promise.resolve({ [id]: '/tmp/bravo.md' })
+      }
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([fileA, fileB])
+
+    const openButtons = screen.getAllByRole('button', { name: 'files.open' })
+    fireEvent.click(openButtons[0]) // A — the stale, slower request
+    fireEvent.click(openButtons[1]) // B — the latest selection
+
+    // B (latest) resolves first and is shown.
+    await waitFor(() => {
+      expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+    })
+
+    // A (stale) resolves last and must NOT overwrite B.
+    await drainMicrotasks()
+    expect(filePreviewMocks.render).not.toHaveBeenCalledWith(expect.objectContaining({ filePath: '/tmp/alpha.md' }))
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+  })
+
+  it('suppresses a stale open error after a newer open has already succeeded', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
+    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths') {
+        const id = (input as { ids: string[] }).ids[0]
+        // A (clicked first) rejects several ticks later than B (clicked last) succeeds.
+        if (id === 'file-a')
+          return afterMicrotasks(() => {
+            throw new Error('resolution failed')
+          })
+        return Promise.resolve({ [id]: '/tmp/bravo.md' })
+      }
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([fileA, fileB])
+
+    const openButtons = screen.getAllByRole('button', { name: 'files.open' })
+    fireEvent.click(openButtons[0]) // A — the stale, slower request
+    fireEvent.click(openButtons[1]) // B — the latest selection
+
+    // B (latest) succeeds first.
+    await waitFor(() => {
+      expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+    })
+
+    // A (stale) rejects last — its error must not surface over the new preview.
+    await drainMicrotasks()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+  })
+
   it('routes mixed active delete to trash internal files and remove external entries', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
     mockFiles([entry, externalEntry])

@@ -362,6 +362,10 @@ const FileToolbar = memo(function FileToolbar({
 function FilesPage() {
   const { t } = useTranslation()
   const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
+  // Guards the async open flow: each open bumps the token, and stale physical-path
+  // resolutions (success or failure) are ignored so a slower earlier click can never
+  // overwrite — or error over — the file the user most recently opened.
+  const openRequestTokenRef = useRef(0)
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -575,8 +579,10 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
+      const requestToken = ++openRequestTokenRef.current
       void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
         .then((physicalPaths) => {
+          if (openRequestTokenRef.current !== requestToken) return
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -587,6 +593,7 @@ function FilesPage() {
           }))
         })
         .catch((error: unknown) => {
+          if (openRequestTokenRef.current !== requestToken) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           logger.error('Failed to open file preview', normalized)
           toast.error(t('files.preview.error'))
