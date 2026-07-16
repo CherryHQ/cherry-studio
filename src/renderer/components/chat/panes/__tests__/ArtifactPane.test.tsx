@@ -7,7 +7,12 @@ import type React from 'react'
 import { type PropsWithChildren, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ArtifactPane, { ArtifactPaneView, resolveArtifactPaneFileSelection } from '../ArtifactPane'
+import ArtifactPane, {
+  ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
+  ArtifactFilePreview,
+  ArtifactPaneView,
+  resolveArtifactPaneFileSelection
+} from '../ArtifactPane'
 import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /**
@@ -1505,6 +1510,27 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-huge.json'))
 
     await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
+  it('skips preview for oversized UTF-8 draft content when disk metadata is below the size cap', () => {
+    const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
+    expect(oversizedDraft.length).toBeLessThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+    expect(new Blob([oversizedDraft]).size).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+
+    render(
+      <ArtifactFilePreview
+        workspacePath="/tmp/workspace"
+        filePath="draft.md"
+        isText="text"
+        fileSize={{ status: 'ok', size: 1024 }}
+        contentOverride={oversizedDraft}
+      />
+    )
+
+    expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument()
+    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 

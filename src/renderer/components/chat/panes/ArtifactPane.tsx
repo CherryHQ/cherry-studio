@@ -168,12 +168,17 @@ export function ArtifactFilePreview({
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
   const isImagePreview = filePath ? isImageFile(filePath) : false
+  const contentOverrideSizeBytes = useMemo(
+    () => (contentOverride === undefined ? null : new Blob([contentOverride]).size),
+    [contentOverride]
+  )
+  const previewContentSizeBytes = contentOverrideSizeBytes ?? (fileSize.status === 'ok' ? fileSize.size : null)
   const oversizedForPreview =
     !isPdfPreview &&
     !isOfficeDocumentPreview &&
     !isImagePreview &&
-    fileSize.status === 'ok' &&
-    fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+    previewContentSizeBytes !== null &&
+    previewContentSizeBytes > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 
   useEffect(() => {
     if (contentOverride !== undefined) {
