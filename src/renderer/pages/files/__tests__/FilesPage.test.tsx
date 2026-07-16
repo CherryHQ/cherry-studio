@@ -18,11 +18,14 @@ const ipcMocks = vi.hoisted(() => ({
 }))
 
 const filePreviewMocks = vi.hoisted(() => ({
-  openFilePreviewTab: vi.fn()
+  render: vi.fn()
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  useOpenFilePreviewTab: () => filePreviewMocks.openFilePreviewTab
+  FilePreview: (props: { filePath: string; refreshKey?: number }) => {
+    filePreviewMocks.render(props)
+    return <div data-testid="file-preview" data-file-path={props.filePath} />
+  }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -416,7 +419,7 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('opens a file preview tab after resolving the physical path', async () => {
+  it('embeds the file preview across the Files page after resolving the physical path', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [entry.id]: '/tmp/report.md' })
@@ -429,8 +432,16 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: [entry.id] })
-      expect(filePreviewMocks.openFilePreviewTab).toHaveBeenCalledWith('/tmp/report.md', 'report.md')
+      expect(filePreviewMocks.render).toHaveBeenCalledWith({ filePath: '/tmp/report.md', refreshKey: 0 })
     })
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/report.md')
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.open' })).toBeInTheDocument()
   })
 
   it('reports a file preview path resolution failure', async () => {
@@ -443,7 +454,7 @@ describe('FilesPage file operations', () => {
       expect(errorSpy).toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
       expect(toast.error).toHaveBeenCalledWith('files.preview.error')
     })
-    expect(filePreviewMocks.openFilePreviewTab).not.toHaveBeenCalled()
+    expect(filePreviewMocks.render).not.toHaveBeenCalled()
   })
 
   it('routes mixed active delete to trash internal files and remove external entries', async () => {
