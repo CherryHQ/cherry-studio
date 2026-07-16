@@ -27,3 +27,35 @@ export type S3Config = {
   syncInterval: number
   maxBackups: number
 }
+
+/**
+ * V2 export progress update, emitted during export/restore. Progress is UI-only —
+ * never participates in correctness. The renderer
+ * routes updates by `backupId` (the startBackup return value, also the cancel key).
+ *
+ * `phase` is the coarse pipeline step; export uses `snapshot` (DB copy), `collect`
+ * (resolve / strip / collect / stage), and `archive` (assembleArchive). Restore-only
+ * phases (quiesce / merge / verify / journal / relaunch) are unused by export.
+ */
+export interface BackupProgressUpdate {
+  readonly backupId: string
+  readonly phase:
+    | 'preflight'
+    | 'collect'
+    | 'snapshot'
+    | 'archive'
+    | 'quiesce'
+    | 'merge'
+    | 'verify'
+    | 'journal'
+    | 'relaunch'
+  readonly current: number
+  readonly total: number
+  readonly message?: string
+}
+
+/** Result of BackupV2_StartBackup — `backupId` is the cancel/progress routing key. */
+export interface BackupV2StartResult {
+  readonly backupId: string
+  readonly archivePath: string
+}

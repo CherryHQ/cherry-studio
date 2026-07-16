@@ -23,7 +23,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BackupUnavailableGate } from './BackupUnavailableGate'
-
+import { BackupV2DevExport } from './BackupV2DevExport'
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
@@ -302,6 +302,7 @@ const LocalBackupSettings: React.FC = () => {
           />
         </>
       </BackupUnavailableGate>
+      {import.meta.env.DEV && <BackupV2DevExport />}
     </SettingGroup>
   )
 }
