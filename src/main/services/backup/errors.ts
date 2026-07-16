@@ -91,25 +91,9 @@ export class RestoreQuiesceNotImplementedError extends Error {
 }
 
 /**
- * Thrown by the restore archive-admission step until the safe-unpack track lands (plan 横切
- * archive admission): manifest schema + BACKUP_FORMAT_VERSION + domain/resource consistency +
- * schemaMigrationId chain compatibility + backup.sqlite integrity_check + entry allowlist
- * (zip-slip/symlink/hardlink escape) + size/byte budget + format/layout discriminator. Archive
- * admission MUST run before quiesce — restore stays fail-closed: NO snapshot is taken, NO
- * journal is written. Injected as a dep for spine testing.
- */
-export class RestoreArchiveAdmissionNotImplementedError extends Error {
-  constructor(message = 'restore archive admission not implemented — snapshot refused') {
-    super(message)
-    this.name = 'RestoreArchiveAdmissionNotImplementedError'
-  }
-}
-
-/**
- * Thrown by the restore file-resource staging step until the (e) track lands (restoreResources
- * two-phase contract + path containment + FileResource journal entries). Staging + sealing MUST
- * run before the 2nd fingerprint — restore stays fail-closed: NO staged journal is written
- * without file-resource staging (independently of the merge stub). Injected as a dep for testing.
+ * Thrown by the restore file-resource staging step when no staging implementation is wired
+ * (packaged build — staging lands with the prod restore path). Dev restores return [] from the
+ * stageFileResources dep so the spine can complete end-to-end without file-resource promotion.
  */
 export class RestoreStagingNotImplementedError extends Error {
   constructor(message = 'restore file-resource staging not implemented (plan (e)) — journal refused') {
@@ -131,5 +115,45 @@ export class RestoreFingerprintMismatchError extends Error {
       `restore fingerprint mismatch — live DB changed during staging (captured=${captured.slice(0, 12)}…, recomputed=${recomputed.slice(0, 12)}…)`
     )
     this.name = 'RestoreFingerprintMismatchError'
+  }
+}
+
+/** Thrown when an archive uses a backup format major this build cannot restore. */
+export class UnsupportedBackupFormatError extends Error {
+  readonly found: number
+  readonly expected: number
+
+  constructor(found: number, expected: number) {
+    super(`backup format version ${found} is unsupported (expected ${expected})`)
+    this.name = 'UnsupportedBackupFormatError'
+    this.found = found
+    this.expected = expected
+  }
+}
+
+/** Thrown when the archive migration chain is newer than or diverges from this build. */
+export class NewerOrDivergedBackupError extends Error {
+  readonly producerAppVersion: string
+
+  constructor(producerAppVersion: string) {
+    super(`backup schema is newer than or diverges from this build (producer ${producerAppVersion})`)
+    this.name = 'NewerOrDivergedBackupError'
+    this.producerAppVersion = producerAppVersion
+  }
+}
+
+/** Thrown when SQLite reports structural corruption in an admitted backup database. */
+export class BackupIntegrityError extends Error {
+  constructor(message: string) {
+    super(`backup integrity check failed: ${message}`)
+    this.name = 'BackupIntegrityError'
+  }
+}
+
+/** Thrown when an archive cannot be safely unpacked or validated. */
+export class BackupArchiveCorruptError extends Error {
+  constructor(message: string) {
+    super(`backup archive is corrupt: ${message}`)
+    this.name = 'BackupArchiveCorruptError'
   }
 }

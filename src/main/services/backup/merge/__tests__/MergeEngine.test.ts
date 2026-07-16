@@ -105,10 +105,13 @@ describe('MergeEngine detached merge pipeline', () => {
   const countRows = (table: string): number =>
     (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c
 
-  const runMerge = (ctx: MergeContext): Promise<unknown> =>
-    new MergeEngine(registry, { backupDbPath: backupPath }).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
+  const runMerge = (ctx: Omit<MergeContext, 'backupDbPath'>): Promise<unknown> =>
+    new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, { backupDbPath: backupPath, ...ctx })
 
-  const topCtx = (): MergeContext => ({ domains: ['TOPICS'], skippedFileEntryIds: new Set<string>() })
+  const topCtx = (): Omit<MergeContext, 'backupDbPath'> => ({
+    domains: ['TOPICS'],
+    skippedFileEntryIds: new Set<string>()
+  })
 
   it('SKIPs a uuid-entity root that already exists in work (no duplicate, no overwrite)', async () => {
     // Both work and backup hold topic 'tpc-skip' (different names to detect overwrite).

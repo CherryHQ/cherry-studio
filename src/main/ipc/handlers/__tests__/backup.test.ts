@@ -7,6 +7,7 @@ import { backupHandlers } from '../backup'
 
 const backupService = {
   startBackup: vi.fn(),
+  startRestore: vi.fn(),
   cancel: vi.fn()
 }
 
@@ -28,6 +29,15 @@ describe('backupHandlers', () => {
     const result = await backupHandlers['backup.start_backup']({ preset: 'full', outputPath: '/out/full.cbu' }, ctx)
     expect(backupService.startBackup).toHaveBeenCalledWith({ preset: 'full', outputPath: '/out/full.cbu' })
     expect(result).toEqual({ backupId: 'b1', archivePath: '/out/full.cbu' })
+  })
+
+  it('start_restore forwards archivePath and returns only restoreId', async () => {
+    backupService.startRestore.mockResolvedValue({ restoreId: 'rst-1', journalPath: '/internal/ignored' })
+
+    const result = await backupHandlers['backup.start_restore']({ archivePath: '/backups/full.cbu' }, ctx)
+
+    expect(backupService.startRestore).toHaveBeenCalledWith({ archivePath: '/backups/full.cbu' })
+    expect(result).toEqual({ restoreId: 'rst-1' })
   })
 
   it('cancel forwards backupId and returns the service result (match → cancelled)', async () => {

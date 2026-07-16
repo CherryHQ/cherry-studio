@@ -31,8 +31,10 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
+import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
+import type { MergeContext, MergeResult } from './merge'
 
 const logger = loggerService.withContext('ImportOrchestrator')
 
@@ -86,12 +88,16 @@ export interface ImportOrchestratorDeps {
   readonly restoreStagingRoot: string
   /** Absolute path to userData — journal paths are stored relative to this. */
   readonly userData: string
-  /** Archive admission — validate + safely unpack the .cbu into the staging subtree BEFORE quiesce. Throws until the safe-unpack track lands. */
-  readonly admitArchive: (archivePath: string, workDir: string) => Promise<void>
-  /** Quiesce all main-side writers + renderer mutation admission. Throws until #16849/#16850 land. */
+  /** Archive admission happens before quiesce and returns the validated backup context. */
+  readonly admitArchive: (archivePath: string, workDir: string, migrationsFolder: string) => Promise<ArchiveContext>
+  /** Quiesce all main-side writers before fingerprinting the live database. */
   readonly quiesceWriters: (signal?: AbortSignal) => Promise<void>
-  /** Merge backup rows into the detached work.sqlite. Throws until the merge engine lands. */
-  readonly mergeBackupIntoWork: (workSqlite: Database.Database, workDb: DbType) => Promise<void>
+  /** Merge admitted backup rows into the detached work.sqlite copy. */
+  readonly mergeBackupIntoWork: (
+    workSqlite: Database.Database,
+    workDb: DbType,
+    context: MergeContext
+  ) => Promise<MergeResult>
   /** Stage file resources; return journal entries. Return [] until staging lands (safe — nothing to promote). */
   readonly stageFileResources: () => Promise<RestoreJournal['fileResources']>
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
@@ -129,9 +135,9 @@ export class ImportOrchestrator {
 
     try {
       this.emit(options, 'admission', 0, 1, 'archive admission + staging prep')
-      // (横切) Archive admission — validate + safely unpack the .cbu into the staging subtree
-      // BEFORE quiesce (plan 横切 archive admission). UNIMPLEMENTED — throws fail-closed.
-      await this.deps.admitArchive(options.archivePath, workDir)
+      // Archive admission must complete before any writer hold is acquired. Its returned
+      // context binds the admitted backup database and selected domains to this restore.
+      const archiveContext = await this.deps.admitArchive(options.archivePath, workDir, this.deps.migrationsFolder)
       this.assertNotCancelled(options)
       // Prepare the staging subtree: work.sqlite must NOT exist (snapshotTo asserts this).
       fs.mkdirSync(workDir, { recursive: true })
@@ -173,10 +179,17 @@ export class ImportOrchestrator {
       workSqlite.pragma('journal_mode = DELETE')
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
-      // (b) Merge backup rows into work. remote-fills-local-empty + additive; skippedFileIds
-      // would prune file_entry rows whose blobs were not staged. UNIMPLEMENTED — throws.
+      // Merge only from the admitted backup database. File resources are deliberately
+      // unavailable in the dev-only path, so no file_entry roots are skipped here yet.
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
-      await this.deps.mergeBackupIntoWork(workSqlite, workDb)
+      const mergeResult = await this.deps.mergeBackupIntoWork(workSqlite, workDb, {
+        backupDbPath: archiveContext.backupDbPath,
+        domains: archiveContext.domains,
+        skippedFileEntryIds: new Set<string>()
+      })
+      if (mergeResult.degradedToSkips.length > 0) {
+        logger.info('merge degraded to SKIP', { count: mergeResult.degradedToSkips.length })
+      }
       this.assertNotCancelled(options)
 
       // (d) Migrate work forward to the bundled latest, then read its COMPLETE applied chain.

@@ -62,17 +62,14 @@ export class MergeEngine {
   private readonly conflictResolver = new ConflictResolver()
   private readonly fieldMergeStrategy = new FieldMergeStrategy()
 
-  constructor(
-    private readonly registry: ReadonlyBackupRegistry,
-    private readonly deps: { readonly backupDbPath: string }
-  ) {}
+  constructor(private readonly registry: ReadonlyBackupRegistry) {}
 
   /**
    * Open the migrated backup read-only, scan identities, then complete all writes in one
    * synchronous better-sqlite3 transaction. No Promise is created inside the transaction.
    */
   async mergeBackupIntoWork(workSqlite: Database.Database, _workDb: DbType, ctx: MergeContext): Promise<MergeResult> {
-    const backupDb = new Database(this.deps.backupDbPath, { readonly: true })
+    const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
       const ordered = this.registry.topoSort(ctx.domains)
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)

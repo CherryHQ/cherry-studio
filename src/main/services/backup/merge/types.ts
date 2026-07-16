@@ -100,6 +100,8 @@ export interface MergeResult {
  * the write-quiesce lease (released in finally even if cleanup throws).
  */
 export interface MergeContext {
+  /** Absolute path to the admitted, migrated backup.sqlite opened read-only by the engine. */
+  readonly backupDbPath: string
   /** Selected domains for this restore (drives topo sort + which aggregates are scanned). */
   readonly domains: readonly BackupDomain[]
   /**

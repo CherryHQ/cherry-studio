@@ -17,12 +17,13 @@
 //
 // SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
 // spine. The renderer triggers export via backup.start_backup; restore runs the
-// ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
-// stage → 2nd fingerprint → journal → relaunch) but is FAIL-CLOSED until the write-quiesce
-// (#16849/#16850) and merge-engine tracks land — quiesce + merge throw, so no staged journal
-// is ever written without them. preflightDisk guards export; performRestoreRecovery at startup
-// GCs staging residue from a crashed prior restore (prod-usable, not dev-gated).
-// cancel/progress/validate channels and the restore progress UI land in follow-up slices.
+// ImportOrchestrator spine (admit → quiesce → fingerprint → snapshot → merge → migrate →
+// seal → stage → 2nd fingerprint → journal → relaunch). In dev builds the writer-quiesce
+// runs only against JobManager (BackupRestoreJobQuiesce) — AI/channel barriers remain no-ops
+// pending #17014; in packaged builds restore throws RestoreQuiesceNotImplementedError so a
+// packaged restore can never reach the preboot promotion gate without a complete quiesce.
+// preflightDisk guards export; performRestoreRecovery at startup GCs staging residue from a
+// crashed prior restore (prod-usable, not dev-gated).
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
@@ -40,21 +41,27 @@ import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/ba
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
+import { admitArchive } from './admitArchive'
 import { SqliteBackupCopier } from './BackupDbCopier'
+import { BackupRestoreJobQuiesce } from './BackupRestoreJobQuiesce'
 import { contributorManager } from './contributors'
 import {
+  BackupArchiveCorruptError,
   BackupCancelledError,
+  BackupIntegrityError,
   DiskFullError,
   InsufficientDiskSpaceError,
+  NewerOrDivergedBackupError,
   OutputPathExistsError,
-  RestoreArchiveAdmissionNotImplementedError,
   RestoreMergeNotImplementedError,
   RestoreQuiesceNotImplementedError,
-  RestoreStagingNotImplementedError
+  RestoreStagingNotImplementedError,
+  UnsupportedBackupFormatError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
+import { MergeEngine } from './merge'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -65,6 +72,7 @@ const logger = loggerService.withContext('BackupService')
  * The residue GC is a crash-recovery step that only makes sense once per process boot.
  */
 let stagingResidueGcDone = false
+const RESTORE_JOB_DRAIN_TIMEOUT_MS = 15_000
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
@@ -106,6 +114,8 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /** Finalized contributor registry, available only in the current dev-only backup surface. */
+  private registry?: ReturnType<typeof contributorManager.getRegistry>
   /**
    * Notes root resolved ONCE per export (startBackup, before preflight) and reused by
    * both preflightDisk (sizing) and the ExportOrchestrator notesRoot callback (staging),
@@ -149,7 +159,8 @@ export class BackupService extends BaseService {
     // Lazily run the 26-invariant contributor finalize at startup. A violation
     // throws ContributorFinalizeError → onInit fails → fail-fast aborts bootstrap
     // (the startup-validation contract; see ContributorManager docstring).
-    const registry = contributorManager.getRegistry()
+    this.registry = contributorManager.getRegistry()
+    const registry = this.registry
 
     // Read the schema-version fingerprint once (migration journal's last `when`).
     this.schemaMigrationId = this.readSchemaMigrationId()
@@ -263,13 +274,15 @@ export class BackupService extends BaseService {
 
   /**
    * Restore from a .cbu archive (renderer-facing). Runs the ImportOrchestrator spine:
-   * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
-   * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
+   * admit → quiesce → fingerprint → snapshot → merge → migrate → seal → stage → 2nd
+   * fingerprint → staged journal, then retains the JobManager hold for relaunch so the
+   * preboot promotion gate (#16884) can swap work.sqlite in before any writer resumes.
    *
-   * Fail-closed until the write-quiesce (#16849/#16850) and merge-engine tracks land:
-   * the orchestrator's quiesce + merge deps throw, so NO staged journal is written and
-   * NO relaunch occurs — restore surfaces a clear NotImplemented error rather than
-   * promoting a half-restored state. Mutually exclusive with export (activeOperation).
+   * Fail-closed in packaged builds: the quiesce + staging deps throw
+   * RestoreQuiesceNotImplementedError / RestoreStagingNotImplementedError so no journal is
+   * written and no relaunch occurs until AI/channel quiesce and resource staging land. In
+   * dev builds the JobManager barrier is real and AI/channel quiesce + resource staging are
+   * explicit no-ops. Mutually exclusive with export (activeOperation).
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
@@ -282,6 +295,7 @@ export class BackupService extends BaseService {
     const abortController = new AbortController()
     const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
     this.activeOperation = active
+    let restoreQuiesce: BackupRestoreJobQuiesce | undefined
     try {
       // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
       // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
@@ -303,20 +317,33 @@ export class BackupService extends BaseService {
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
-        // Fail-closed stubs — restore stays unavailable until archive admission, quiesce,
-        // merge, AND file-resource staging all land. Each throws independently so no journal
-        // is written without the full track (not just incidentally fail-closed via merge).
-        admitArchive: async () => {
-          throw new RestoreArchiveAdmissionNotImplementedError()
+        admitArchive,
+        quiesceWriters: async (signal) => {
+          if (app.isPackaged) {
+            throw new RestoreQuiesceNotImplementedError(
+              'restore writer quiesce is not complete in packaged builds — snapshot refused'
+            )
+          }
+          // Dev temporarily has only the real JobManager barrier. AI/channel barriers
+          // remain explicit no-ops until the packaged-safe implementation lands.
+          const quiesce = new BackupRestoreJobQuiesce(RESTORE_JOB_DRAIN_TIMEOUT_MS)
+          restoreQuiesce = quiesce
+          await quiesce.quiesce(signal)
         },
-        quiesceWriters: async () => {
-          throw new RestoreQuiesceNotImplementedError()
-        },
-        mergeBackupIntoWork: async () => {
-          throw new RestoreMergeNotImplementedError()
+        mergeBackupIntoWork: (workSqlite, workDb, context) => {
+          if (!this.registry) {
+            throw new RestoreMergeNotImplementedError('contributor registry not finalized')
+          }
+          return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, context)
         },
         stageFileResources: async () => {
-          throw new RestoreStagingNotImplementedError()
+          if (app.isPackaged) {
+            throw new RestoreStagingNotImplementedError(
+              'restore resource staging is not complete in packaged builds — journal refused'
+            )
+          }
+          // Dev-only placeholder: no file resources are promoted until restore staging lands.
+          return []
         }
       })
       await importOrch.importBackup({
@@ -325,6 +352,12 @@ export class BackupService extends BaseService {
         signal: abortController.signal
         // onProgress wiring to the renderer lands with the restore progress UI (plan (f)).
       })
+      if (!restoreQuiesce) {
+        throw new Error('backup restore completed staging without acquiring the JobManager quiesce hold')
+      }
+      // The journal is now durable; keep JobManager paused until the process exits and
+      // the preboot gate evaluates the fingerprint before allowing writers to resume.
+      restoreQuiesce.retainForRelaunch()
       // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
       // calls app.exit(0), which exits immediately and SKIPS the finally below + onStop — so
       // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
@@ -336,6 +369,7 @@ export class BackupService extends BaseService {
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
+      restoreQuiesce?.disposeOnAbort()
       if (this.activeOperation === active) this.activeOperation = null
     }
   }
@@ -710,6 +744,25 @@ export class BackupService extends BaseService {
     }
     if (e instanceof DiskFullError) return new IpcError('BACKUP_DISK_FULL', e.message)
     if (e instanceof OutputPathExistsError) return new IpcError('BACKUP_OUTPUT_PATH_EXISTS', e.message)
+    if (e instanceof UnsupportedBackupFormatError) {
+      return new IpcError('BACKUP_UNSUPPORTED_FORMAT', e.message, { found: e.found, expected: e.expected })
+    }
+    if (e instanceof NewerOrDivergedBackupError) {
+      return new IpcError('BACKUP_NEWER_OR_DIVERGED', e.message, { producerAppVersion: e.producerAppVersion })
+    }
+    if (e instanceof BackupIntegrityError) return new IpcError('BACKUP_INTEGRITY_FAILED', e.message)
+    if (e instanceof BackupArchiveCorruptError) return new IpcError('BACKUP_ARCHIVE_CORRUPT', e.message)
+    // NotImplemented failures: stable codes so a packaged renderer can branch instead of
+    // regex on the message. Dev restores never hit these (quiesce + staging return no-ops).
+    if (e instanceof RestoreQuiesceNotImplementedError) {
+      return new IpcError('BACKUP_RESTORE_QUIESCE_UNAVAILABLE', e.message)
+    }
+    if (e instanceof RestoreMergeNotImplementedError) {
+      return new IpcError('BACKUP_RESTORE_MERGE_UNAVAILABLE', e.message)
+    }
+    if (e instanceof RestoreStagingNotImplementedError) {
+      return new IpcError('BACKUP_RESTORE_STAGING_UNAVAILABLE', e.message)
+    }
     // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
     // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize
     // both to BACKUP_DISK_FULL so the renderer never sees INTERNAL for disk-full.

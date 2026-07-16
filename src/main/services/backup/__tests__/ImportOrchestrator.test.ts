@@ -21,6 +21,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ArchiveContext } from '../admitArchive'
 import {
   BackupCancelledError,
   RestoreFingerprintMismatchError,
@@ -28,6 +29,7 @@ import {
   RestoreQuiesceNotImplementedError
 } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
+import type { MergeContext } from '../merge'
 
 // Resolve the production drizzle migrations folder the same way the test DB harness
 // does (relative to this file, not process.cwd()) so applyMigrations finds _journal.json.
@@ -70,6 +72,30 @@ describe('ImportOrchestrator spine', () => {
     if (tmpDir) rmSync(tmpDir, { recursive: true, force: true })
   })
 
+  /** Build a minimal admitted archive context for spine-only tests. */
+  const makeArchiveContext = (): ArchiveContext => ({
+    backupDbPath: join(tmpDir, 'backup.sqlite'),
+    manifest: {
+      backupFormatVersion: 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      preset: 'lite',
+      domains: ['TOPICS'],
+      includeFiles: false,
+      includeKnowledgeFiles: false,
+      sensitiveData: { included: true, rotated: false },
+      schemaMigrationId: 'test',
+      producerAppVersion: 'test',
+      files: { ids: [], total: 0, totalBytes: 0 },
+      knowledge: { bases: [] },
+      skills: { folders: [] },
+      notes: { paths: [] },
+      degraded: { resources: [] }
+    },
+    domains: ['TOPICS'],
+    includeFiles: false,
+    resourceMetadata: { fileIds: [], knowledgeBases: [], skillFolders: [], notePaths: [] }
+  })
+
   /** Build deps with no-op stubs; tests override the unimplemented steps as needed. */
   const makeDeps = (overrides: Partial<ImportOrchestratorDeps> = {}): ImportOrchestratorDeps => ({
     dbService: {
@@ -82,11 +108,30 @@ describe('ImportOrchestrator spine', () => {
     restoreStagingRoot: stagingRoot,
     userData: tmpDir,
     journalPath,
-    admitArchive: async () => {},
+    admitArchive: async () => makeArchiveContext(),
     quiesceWriters: async () => {},
-    mergeBackupIntoWork: async () => {},
+    mergeBackupIntoWork: async () => ({ degradedToSkips: [] }),
     stageFileResources: async () => [],
     ...overrides
+  })
+
+  it('binds the admitted backup path and domains to the detached merge context', async () => {
+    let mergeContext: MergeContext | undefined
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        mergeBackupIntoWork: async (_workSqlite, _workDb, context) => {
+          mergeContext = context
+          return { degradedToSkips: [] }
+        }
+      })
+    )
+
+    await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-context' })
+
+    expect(mergeContext).toBeDefined()
+    expect(mergeContext?.backupDbPath).toBe(join(tmpDir, 'backup.sqlite'))
+    expect(mergeContext?.domains).toEqual(['TOPICS'])
+    expect([...(mergeContext?.skippedFileEntryIds ?? new Set<string>())]).toEqual([])
   })
 
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {
@@ -129,6 +174,7 @@ describe('ImportOrchestrator spine', () => {
           // Simulate a foreign writer touching the live DB mid-staging (after snapshot,
           // before the 2nd fingerprint). user_version lives in the DB header → flips the hash.
           dbh.sqlite.pragma('user_version = 12345')
+          return { degradedToSkips: [] }
         }
       })
     )

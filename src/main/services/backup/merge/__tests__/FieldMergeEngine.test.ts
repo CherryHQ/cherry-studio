@@ -40,7 +40,8 @@ describe('MergeEngine FIELD_MERGE integration', () => {
     domains: readonly MergeContext['domains'][number][],
     userStrategy?: MergeContext['userStrategy']
   ): Promise<unknown> =>
-    new MergeEngine(registry, { backupDbPath: backupPath }).mergeBackupIntoWork(dbh.sqlite, dbh.db, {
+    new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, {
+      backupDbPath: backupPath,
       domains,
       userStrategy,
       skippedFileEntryIds: new Set<string>()

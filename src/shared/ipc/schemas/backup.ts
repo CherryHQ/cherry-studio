@@ -31,6 +31,10 @@ export const backupRequestSchemas = {
   'backup.cancel': defineRoute({
     input: z.strictObject({ backupId: z.string().trim().min(1) }),
     output: z.object({ cancelled: z.boolean() })
+  }),
+  'backup.start_restore': defineRoute({
+    input: z.strictObject({ archivePath: z.string().trim().min(1) }),
+    output: z.object({ restoreId: z.string() })
   })
 }
 

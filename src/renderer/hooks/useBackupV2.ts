@@ -28,6 +28,11 @@ export interface BackupV2Result {
   readonly archivePath: string
 }
 
+/** Minimal restore result; restore stages then relaunches without a progress stream. */
+export interface BackupV2RestoreResult {
+  readonly restoreId: string
+}
+
 const INITIAL: UseBackupV2State = {
   loading: false,
   error: null,
@@ -80,5 +85,11 @@ export function useBackupV2() {
     await ipcApi.request('backup.cancel', { backupId: state.backupId })
   }, [state.backupId])
 
-  return { ...state, startBackup, cancelBackup }
+  const startRestore = useCallback(
+    async (archivePath: string): Promise<BackupV2RestoreResult> =>
+      ipcApi.request('backup.start_restore', { archivePath }),
+    []
+  )
+
+  return { ...state, startBackup, cancelBackup, startRestore }
 }

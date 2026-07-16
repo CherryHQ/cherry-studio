@@ -13,5 +13,9 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     const result = await application.get('BackupService').startBackup({ preset, outputPath })
     return { backupId: result.backupId, archivePath: result.archivePath }
   },
-  'backup.cancel': async ({ backupId }) => application.get('BackupService').cancel(backupId)
+  'backup.cancel': async ({ backupId }) => application.get('BackupService').cancel(backupId),
+  'backup.start_restore': async ({ archivePath }) => {
+    const result = await application.get('BackupService').startRestore({ archivePath })
+    return { restoreId: result.restoreId }
+  }
 }

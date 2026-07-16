@@ -11,9 +11,11 @@ import { useState } from 'react'
 type Preset = 'full' | 'lite'
 
 export const BackupV2DevExport: React.FC = () => {
-  const { startBackup, cancelBackup, loading, progress, cancelled } = useBackupV2()
+  const { startBackup, cancelBackup, loading, progress, cancelled, startRestore } = useBackupV2()
   const [preset, setPreset] = useState<Preset>('full')
   const [outputPath, setOutputPath] = useState('')
+  const [restorePath, setRestorePath] = useState('')
+  const [restoring, setRestoring] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
 
   const onExport = async () => {
@@ -27,6 +29,39 @@ export const BackupV2DevExport: React.FC = () => {
       setStatus(`ok → ${result.archivePath}`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const onChooseRestoreArchive = async () => {
+    try {
+      const selected = await window.api.file.select({
+        filters: [{ name: 'Cherry backup', extensions: ['cbu'] }],
+        properties: ['openFile']
+      })
+      const archivePath = selected?.[0]?.path
+      if (archivePath) {
+        setRestorePath(archivePath)
+        setStatus(null)
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const onRestore = async () => {
+    if (!restorePath) {
+      setStatus('select a backup archive (.cbu)')
+      return
+    }
+    setRestoring(true)
+    setStatus(null)
+    try {
+      const result = await startRestore(restorePath)
+      setStatus(`restore ${result.restoreId} staged; relaunching`)
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -55,14 +90,29 @@ export const BackupV2DevExport: React.FC = () => {
           style={{ flex: 1, padding: '4px 8px' }}
           data-testid="v2-export-path"
         />
-        <button onClick={onExport} disabled={loading || !outputPath} data-testid="v2-export-run">
+        <button type="button" onClick={onExport} disabled={loading || !outputPath} data-testid="v2-export-run">
           {loading ? '...' : 'Export V2'}
         </button>
         {loading && (
-          <button onClick={() => cancelBackup()} data-testid="v2-export-cancel">
+          <button type="button" onClick={() => cancelBackup()} data-testid="v2-export-cancel">
             Cancel
           </button>
         )}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <input
+          value={restorePath}
+          readOnly
+          placeholder="select a backup archive (.cbu)"
+          style={{ flex: 1, padding: '4px 8px' }}
+          data-testid="v2-restore-path"
+        />
+        <button type="button" onClick={onChooseRestoreArchive} disabled={restoring} data-testid="v2-restore-choose">
+          Choose .cbu
+        </button>
+        <button type="button" onClick={onRestore} disabled={restoring || !restorePath} data-testid="v2-restore-run">
+          {restoring ? '...' : 'Restore V2'}
+        </button>
       </div>
       {progress && (
         <div style={{ fontSize: 12, marginTop: 4 }} data-testid="v2-export-progress">

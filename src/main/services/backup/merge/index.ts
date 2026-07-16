@@ -6,14 +6,13 @@
 // imports into individual files are disallowed by the main-process architecture
 // rule (Naming Conventions §6.4 — a topic directory's index.ts is the boundary).
 //
-// Wiring status (Stage 3 deferred): the engine is landed + unit-tested but NOT yet
-// wired into the restore spine — BackupService.startRestore still throws
-// RestoreMergeNotImplementedError and ImportOrchestrator retains the 2-arg
-// mergeBackupIntoWork stub. Wiring (signature widening + domains/strategy/
-// skippedFileEntryIds plumbing) lands in task `merge-engine-spine-wiring`. Until
-// then the barrel's only consumer is this module's own test; the engine is fail-
-// closed in production BY CONSTRUCTION (no caller reaches it), so exposing these
-// types now is not speculative — it is the contract the Stage 3 wiring will consume.
+// Wiring status: the engine is landed + unit-tested and is now wired into the restore
+// spine via BackupService.startRestore (which calls `new MergeEngine(registry).mergeBackupIntoWork`
+// inside ImportOrchestrator.importBackup). The MergeContext carries backupDbPath + domains +
+// skippedFileEntryIds (+ optional userStrategy override); MergeResult reports degradedToSkips
+// for the BackupService-owned sidecar. Package restore is still fail-closed because the
+// upstream quiesce/staging deps throw — MergeEngine only runs once a clean JobManager drain
+// completes, so a packaged restore never reaches this code path until #17014 lands.
 //
 // No logic, no `export *` — only curated re-exports.
 
