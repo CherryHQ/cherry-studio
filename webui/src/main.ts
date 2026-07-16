@@ -43,7 +43,16 @@ import {
 import { renderDocxPreviewHtml } from './utils/docxPreview'
 import { mountPptxPreview } from './utils/pptxPreview'
 import { renderCode, renderMarkdown } from './utils/renderMarkdown'
-import { createSpeechSynthesisController, type SpeechSynthesisControllerState } from './utils/speechSynthesis'
+import {
+  DEFAULT_SPEECH_PREFERENCES,
+  createSpeechSynthesisController,
+  listSpeechVoices,
+  loadSpeechPreferences,
+  saveSpeechPreferences,
+  type SpeechPreferences,
+  type SpeechSynthesisControllerState,
+  type SpeechVoiceOption
+} from './utils/speechSynthesis'
 import {
   buildWorkspaceSearchTree,
   getWorkspaceCodeLanguage,
@@ -138,6 +147,17 @@ const textPacks = {
     readAloud: 'Read aloud',
     stopReading: 'Stop reading',
     speechUnavailable: 'Speech is not available in this browser.',
+    speechPanel: 'Speech',
+    speechRate: 'Rate',
+    speechPitch: 'Pitch',
+    speechVolume: 'Volume',
+    speechVoice: 'Voice',
+    speechVoiceDefault: 'System default',
+    speechPreview: 'Preview',
+    speechPreviewSample: 'Hello, this is a speech preview from Cherry Studio WebUI.',
+    speechReset: 'Reset defaults',
+    speechEmptyContent: 'This message has no readable text.',
+    speechGeneratingBlocked: 'Speech is unavailable while the message is generating.',
     delete: 'Delete',
     deleteMessage: 'Delete this message?',
     deleteMessageDescription: 'This message will be removed from the desktop conversation and cannot be restored.',
@@ -202,7 +222,7 @@ const textPacks = {
     selectConversation: 'Select a conversation',
     selectFirst: 'Select a desktop conversation first',
     send: 'Send',
-    sendPlaceholder: 'Type a message. Ctrl+Enter to send. Type / to search skills or commands.',
+    sendPlaceholder: 'Type a message. Enter to send, Shift+Enter for a new line. Type / to search skills or commands.',
     serviceStarted: 'Started',
     sessionsChanged: 'The selected desktop conversation is no longer available.',
     sseClients: 'SSE clients',
@@ -249,6 +269,17 @@ const textPacks = {
     readAloud: '朗读',
     stopReading: '停止朗读',
     speechUnavailable: '当前浏览器不支持朗读。',
+    speechPanel: '朗读',
+    speechRate: '语速',
+    speechPitch: '音调',
+    speechVolume: '音量',
+    speechVoice: '音色',
+    speechVoiceDefault: '系统默认',
+    speechPreview: '试听',
+    speechPreviewSample: '你好，这是 Cherry Studio WebUI 的朗读试听。',
+    speechReset: '恢复默认',
+    speechEmptyContent: '这条消息没有可朗读的正文。',
+    speechGeneratingBlocked: '消息生成中，暂不可朗读。',
     delete: '删除',
     deleteMessage: '删除这条消息？',
     deleteMessageDescription: '此消息将从桌面会话中删除，且无法恢复。',
@@ -313,7 +344,7 @@ const textPacks = {
     selectConversation: '选择一个会话',
     selectFirst: '请先选择桌面会话',
     send: '发送',
-    sendPlaceholder: '输入消息，按Ctrl+Enter发送，输入/搜索技能或命令。',
+    sendPlaceholder: '输入消息，Enter 发送，Shift+Enter 换行，输入 / 搜索技能或命令。',
     serviceStarted: '启动时间',
     sessionsChanged: '选中的桌面会话已不可用。',
     sseClients: 'SSE 客户端',
@@ -360,6 +391,17 @@ const textPacks = {
     readAloud: '朗讀',
     stopReading: '停止朗讀',
     speechUnavailable: '目前瀏覽器不支援朗讀。',
+    speechPanel: '朗讀',
+    speechRate: '語速',
+    speechPitch: '音調',
+    speechVolume: '音量',
+    speechVoice: '音色',
+    speechVoiceDefault: '系統預設',
+    speechPreview: '試聽',
+    speechPreviewSample: '你好，這是 Cherry Studio WebUI 的朗讀試聽。',
+    speechReset: '恢復預設',
+    speechEmptyContent: '這則訊息沒有可朗讀的正文。',
+    speechGeneratingBlocked: '訊息生成中，暫不可朗讀。',
     delete: '刪除',
     deleteMessage: '刪除這則訊息？',
     deleteMessageDescription: '此訊息將從桌面會話中刪除，且無法復原。',
@@ -424,7 +466,7 @@ const textPacks = {
     selectConversation: '選擇一個會話',
     selectFirst: '請先選擇桌面會話',
     send: '傳送',
-    sendPlaceholder: '輸入訊息，按Ctrl+Enter傳送，輸入/搜尋技能或命令。',
+    sendPlaceholder: '輸入訊息，Enter 傳送，Shift+Enter 換行，輸入 / 搜尋技能或命令。',
     serviceStarted: '啟動時間',
     sessionsChanged: '選取的桌面會話已不可用。',
     sseClients: 'SSE 用戶端',
@@ -857,7 +899,10 @@ const App = defineComponent({
     const contextUsage = ref<WebUiContextUsage | null>(null)
     const statusPreviewOpen = ref(false)
     const statusPanelOpen = ref(false)
-    const rightPanelTab = ref<'status' | 'files'>('status')
+    const rightPanelTab = ref<'status' | 'files' | 'speech'>('status')
+    const speechPreferences = ref<SpeechPreferences>(loadSpeechPreferences())
+    const speechVoices = ref<readonly SpeechVoiceOption[]>([])
+    const speechNotice = ref('')
     const workspaceDirectoryEntries = ref<Readonly<Record<string, readonly WebUiWorkspaceFileEntry[]>>>({})
     const workspaceExpandedDirectories = ref<ReadonlySet<string>>(new Set())
     const workspaceFileSearch = ref('')
@@ -890,7 +935,8 @@ const App = defineComponent({
     const speechController = createSpeechSynthesisController({
       onStateChange: (state) => {
         speechState.value = state
-      }
+      },
+      getPreferences: () => speechPreferences.value
     })
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     const pendingChunkRetries = new Map<string, number>()
@@ -1004,9 +1050,145 @@ const App = defineComponent({
     }
 
     const localizedErrorMessage = (error: unknown) => (isAbortError(error) ? text('requestAborted') : toErrorMessage(error))
-    const canReadMessageAloud = (message: WebUiMessageSnapshot) =>
-      speechController.isSupported && message.status !== 'pending' && Boolean(message.content.trim())
     const isReadingMessage = (messageId: string) => speechState.value.isSpeaking && speechState.value.messageId === messageId
+    const refreshSpeechVoices = () => {
+      speechVoices.value = listSpeechVoices()
+      speechController.refreshSupport()
+    }
+    const persistSpeechPreferences = (next: SpeechPreferences) => {
+      speechPreferences.value = next
+      saveSpeechPreferences(next)
+      speechController.applyLivePreferences(next)
+    }
+    const updateSpeechPreference = <K extends keyof SpeechPreferences>(key: K, value: SpeechPreferences[K]) => {
+      persistSpeechPreferences({ ...speechPreferences.value, [key]: value })
+    }
+    const resetSpeechPreferences = () => {
+      persistSpeechPreferences({ ...DEFAULT_SPEECH_PREFERENCES })
+    }
+    const showSpeechNotice = (message: string) => {
+      speechNotice.value = message
+      window.setTimeout(() => {
+        if (speechNotice.value === message) speechNotice.value = ''
+      }, 2600)
+    }
+    const openSpeechPanel = () => {
+      clearStatusPreviewTimers()
+      statusPreviewOpen.value = false
+      statusPanelOpen.value = true
+      rightPanelTab.value = 'speech'
+      refreshSpeechVoices()
+    }
+    const previewSpeechSettings = () => {
+      if (!speechController.refreshSupport()) {
+        showSpeechNotice(text('speechUnavailable'))
+        return
+      }
+      speechController.preview(text('speechPreviewSample'), language.value)
+    }
+    const renderSpeechPanel = () =>
+      h('div', { class: 'speech-settings-panel' }, [
+        !speechController.isSupported
+          ? h('p', { class: 'speech-settings-warning', role: 'status' }, text('speechUnavailable'))
+          : undefined,
+        h('label', { class: 'speech-setting-row' }, [
+          h('span', text('speechRate')),
+          h('div', { class: 'speech-setting-control' }, [
+            h('input', {
+              type: 'range',
+              min: '0.5',
+              max: '2',
+              step: '0.1',
+              value: String(speechPreferences.value.rate),
+              disabled: !speechController.isSupported,
+              'aria-label': text('speechRate'),
+              onInput: (event: Event) => {
+                updateSpeechPreference('rate', Number((event.target as HTMLInputElement).value))
+              }
+            }),
+            h('span', { class: 'speech-setting-value' }, speechPreferences.value.rate.toFixed(1))
+          ])
+        ]),
+        h('label', { class: 'speech-setting-row' }, [
+          h('span', text('speechPitch')),
+          h('div', { class: 'speech-setting-control' }, [
+            h('input', {
+              type: 'range',
+              min: '0',
+              max: '2',
+              step: '0.1',
+              value: String(speechPreferences.value.pitch),
+              disabled: !speechController.isSupported,
+              'aria-label': text('speechPitch'),
+              onInput: (event: Event) => {
+                updateSpeechPreference('pitch', Number((event.target as HTMLInputElement).value))
+              }
+            }),
+            h('span', { class: 'speech-setting-value' }, speechPreferences.value.pitch.toFixed(1))
+          ])
+        ]),
+        h('label', { class: 'speech-setting-row' }, [
+          h('span', text('speechVolume')),
+          h('div', { class: 'speech-setting-control' }, [
+            h('input', {
+              type: 'range',
+              min: '0',
+              max: '1',
+              step: '0.05',
+              value: String(speechPreferences.value.volume),
+              disabled: !speechController.isSupported,
+              'aria-label': text('speechVolume'),
+              onInput: (event: Event) => {
+                updateSpeechPreference('volume', Number((event.target as HTMLInputElement).value))
+              }
+            }),
+            h('span', { class: 'speech-setting-value' }, `${Math.round(speechPreferences.value.volume * 100)}%`)
+          ])
+        ]),
+        h('label', { class: 'speech-setting-row speech-setting-row-select' }, [
+          h('span', text('speechVoice')),
+          h(
+            'select',
+            {
+              class: 'speech-voice-select',
+              value: speechPreferences.value.voiceURI,
+              disabled: !speechController.isSupported,
+              'aria-label': text('speechVoice'),
+              onChange: (event: Event) => {
+                updateSpeechPreference('voiceURI', (event.target as HTMLSelectElement).value)
+              },
+              onFocus: refreshSpeechVoices
+            },
+            [
+              h('option', { value: '' }, text('speechVoiceDefault')),
+              ...speechVoices.value.map((voice) =>
+                h('option', { value: voice.voiceURI, key: voice.voiceURI }, `${voice.name} (${voice.lang})`)
+              )
+            ]
+          )
+        ]),
+        h('div', { class: 'speech-settings-actions' }, [
+          h(
+            'button',
+            {
+              class: 'speech-settings-button',
+              type: 'button',
+              disabled: !speechController.isSupported,
+              onClick: previewSpeechSettings
+            },
+            text('speechPreview')
+          ),
+          h(
+            'button',
+            {
+              class: ['speech-settings-button', 'speech-settings-button-secondary'],
+              type: 'button',
+              onClick: resetSpeechPreferences
+            },
+            text('speechReset')
+          )
+        ])
+      ])
     const localizedSseErrorMessage = (message?: string) =>
       message && isAbortError(message) ? text('requestAborted') : message || text('disconnected')
     const isAbortSseMessage = (message?: string) => Boolean(message && isAbortError(message))
@@ -2188,9 +2370,83 @@ const App = defineComponent({
     }
 
     const toggleReadMessageAloud = (message: WebUiMessageSnapshot) => {
-      if (!canReadMessageAloud(message)) return
+      if (!speechController.refreshSupport()) {
+        showSpeechNotice(text('speechUnavailable'))
+        return
+      }
+      if (message.status === 'pending') {
+        showSpeechNotice(text('speechGeneratingBlocked'))
+        return
+      }
+      if (!message.content.trim()) {
+        showSpeechNotice(text('speechEmptyContent'))
+        return
+      }
       speechController.speak(message.id, message.content, language.value)
     }
+
+    const renderMessageActions = (message: WebUiMessageSnapshot) =>
+      h('div', { class: 'message-actions' }, [
+        message.content
+          ? h(
+              'button',
+              {
+                class: 'message-action-button',
+                type: 'button',
+                title: text('copy'),
+                'aria-label': text('copy'),
+                onClick: () => void copyText(message.content)
+              },
+              h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
+                h('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
+                h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
+              ])
+            )
+          : undefined,
+        message.content
+          ? h(
+              'button',
+              {
+                class: [
+                  'message-action-button',
+                  {
+                    'message-action-button-active': isReadingMessage(message.id),
+                    'message-action-button-unsupported': !speechController.isSupported
+                  }
+                ],
+                type: 'button',
+                disabled: message.status === 'pending' || !message.content.trim(),
+                title: speechController.isSupported
+                  ? isReadingMessage(message.id)
+                    ? text('stopReading')
+                    : text('readAloud')
+                  : text('speechUnavailable'),
+                'aria-label': isReadingMessage(message.id) ? text('stopReading') : text('readAloud'),
+                'aria-pressed': isReadingMessage(message.id) ? 'true' : 'false',
+                onClick: () => toggleReadMessageAloud(message)
+              },
+              renderActionIcon(isReadingMessage(message.id) ? 'stop' : 'volume')
+            )
+          : undefined,
+        h(
+          'button',
+          {
+            class: ['message-action-button', 'message-delete-button'],
+            type: 'button',
+            disabled: activeRunConversationId.value === selectedConversationId.value,
+            title: text('delete'),
+            'aria-label': text('delete'),
+            onClick: () => openDeleteMessage(message.id)
+          },
+          h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
+            h('path', { d: 'M3 6h18' }),
+            h('path', { d: 'M8 6V4h8v2' }),
+            h('path', { d: 'm19 6-1 14H6L5 6' }),
+            h('path', { d: 'M10 11v5' }),
+            h('path', { d: 'M14 11v5' })
+          ])
+        )
+      ])
 
     const copyText = async (value: string) => {
       try {
@@ -2340,6 +2596,10 @@ const App = defineComponent({
     onMounted(() => {
       applyThemeMode()
       void loadAuthStatus()
+      refreshSpeechVoices()
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.addEventListener('voiceschanged', refreshSpeechVoices)
+      }
     })
 
     watch(selectedModel, () => {
@@ -2399,6 +2659,9 @@ const App = defineComponent({
       unsubscribeError()
       sseClient.close()
       delete document.documentElement.dataset.webuiTheme
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.removeEventListener('voiceschanged', refreshSpeechVoices)
+      }
     })
 
     return () =>
@@ -2667,13 +2930,7 @@ const App = defineComponent({
                       )
                     : undefined
                 ]
-              ),
-              h('span', {
-                class: ['mobile-bridge-indicator', `mobile-bridge-indicator-${bridgeState.value}`],
-                role: 'status',
-                title: bridgeDetail.value,
-                'aria-label': bridgeDetail.value
-              })
+              )
             ])
           ]),
           h('div', { class: 'message-stack', 'aria-live': 'polite', ref: messageStack, onScroll: updateMessageScrollState }, [
@@ -2699,62 +2956,7 @@ const App = defineComponent({
                 },
                 [
                   h('header', { class: 'message-header' }, [
-                    h('p', { class: 'message-role' }, messageAuthorName(message.role)),
-                    h('div', { class: 'message-actions' }, [
-                      message.content
-                        ? h(
-                            'button',
-                            {
-                              class: 'message-action-button',
-                              type: 'button',
-                              title: text('copy'),
-                              'aria-label': text('copy'),
-                              onClick: () => void copyText(message.content)
-                            },
-                            h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
-                              h('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
-                              h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
-                            ])
-                          )
-                        : undefined,
-                      message.content
-                        ? h(
-                            'button',
-                            {
-                              class: ['message-action-button', { 'message-action-button-active': isReadingMessage(message.id) }],
-                              type: 'button',
-                              disabled: !canReadMessageAloud(message),
-                              title: speechController.isSupported
-                                ? isReadingMessage(message.id)
-                                  ? text('stopReading')
-                                  : text('readAloud')
-                                : text('speechUnavailable'),
-                              'aria-label': isReadingMessage(message.id) ? text('stopReading') : text('readAloud'),
-                              'aria-pressed': isReadingMessage(message.id) ? 'true' : 'false',
-                              onClick: () => toggleReadMessageAloud(message)
-                            },
-                            renderActionIcon(isReadingMessage(message.id) ? 'stop' : 'volume')
-                          )
-                        : undefined,
-                      h(
-                        'button',
-                        {
-                          class: ['message-action-button', 'message-delete-button'],
-                          type: 'button',
-                          disabled: activeRunConversationId.value === selectedConversationId.value,
-                          title: text('delete'),
-                          'aria-label': text('delete'),
-                          onClick: () => openDeleteMessage(message.id)
-                        },
-                        h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
-                          h('path', { d: 'M3 6h18' }),
-                          h('path', { d: 'M8 6V4h8v2' }),
-                          h('path', { d: 'm19 6-1 14H6L5 6' }),
-                          h('path', { d: 'M10 11v5' }),
-                          h('path', { d: 'M14 11v5' })
-                        ])
-                      )
-                    ])
+                    h('p', { class: 'message-role' }, messageAuthorName(message.role))
                   ]),
                   renderProcessDetails(message),
                   message.attachments?.length
@@ -2771,7 +2973,10 @@ const App = defineComponent({
                     : message.toolCalls?.length
                       ? undefined
                       : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
-                  h('time', { class: 'message-time', datetime: message.createdAt }, new Date(message.createdAt).toLocaleString())
+                  h('footer', { class: 'message-footer' }, [
+                    h('time', { class: 'message-time', datetime: message.createdAt }, new Date(message.createdAt).toLocaleString()),
+                    renderMessageActions(message)
+                  ])
                 ]
               )
             )
@@ -2837,7 +3042,7 @@ const App = defineComponent({
                   composerText.value = (event.target as HTMLTextAreaElement).value
                 },
                 onKeydown: (event: KeyboardEvent) => {
-                  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
                     event.preventDefault()
                     void submitMessage()
                   }
@@ -3039,7 +3244,8 @@ const App = defineComponent({
               : undefined,
             ])
           ]),
-          submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
+          submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined,
+          speechNotice.value ? h('p', { class: 'speech-notice', role: 'status' }, speechNotice.value) : undefined
         ]),
         statusPanelOpen.value
           ? h('button', {
@@ -3081,6 +3287,15 @@ const App = defineComponent({
                       onClick: openFilesPanel
                     },
                     [renderActionIcon('folder'), h('span', text('files'))]
+                  ),
+                  h(
+                    'button',
+                    {
+                      class: ['agent-status-panel-tab', { 'agent-status-panel-tab-active': rightPanelTab.value === 'speech' }],
+                      type: 'button',
+                      onClick: openSpeechPanel
+                    },
+                    [renderActionIcon('volume'), h('span', text('speechPanel'))]
                   )
                 ]),
                 h(
@@ -3099,6 +3314,8 @@ const App = defineComponent({
               ]),
               rightPanelTab.value === 'files'
                 ? renderWorkspaceFilesPanel()
+                : rightPanelTab.value === 'speech'
+                  ? h('div', { class: 'agent-status-panel-scroll' }, [renderSpeechPanel()])
                 : h('div', { class: 'agent-status-panel-scroll' }, [
                     ...renderAgentStatusBody(agentStatus.value, false),
                     h('details', { class: 'status-runtime-details' }, [
@@ -3824,9 +4041,10 @@ style.textContent = `
   }
 
   .agent-status-context-shortcut .agent-status-shortcut-badge {
-    position: static;
-    flex: 0 0 auto;
-    box-shadow: none;
+    top: -2px;
+    right: -2px;
+    z-index: 1;
+    box-shadow: 0 0 0 2px #f6f7fb;
   }
 
   .agent-status-hover-card {
@@ -4584,6 +4802,14 @@ style.textContent = `
     justify-content: space-between;
   }
 
+  .message-footer {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
   .message-actions {
     display: flex;
     gap: 4px;
@@ -4633,6 +4859,10 @@ style.textContent = `
   .message-action-button:disabled {
     cursor: not-allowed;
     opacity: 0.32;
+  }
+
+  .message-action-button-unsupported:not(:disabled) {
+    opacity: 0.38;
   }
 
   .message-action-button-active {
@@ -4987,8 +5217,97 @@ style.textContent = `
   }
 
   .message-time {
-    margin-top: 10px;
+    margin-top: 0;
     margin-bottom: 0;
+  }
+
+  .speech-notice {
+    margin: 8px 4px 0;
+    color: #b45309;
+    font-size: 12px;
+  }
+
+  .speech-settings-panel {
+    display: grid;
+    gap: 14px;
+    padding: 4px 2px 12px;
+  }
+
+  .speech-settings-warning {
+    margin: 0;
+    padding: 10px 12px;
+    color: #92400e;
+    font-size: 13px;
+    line-height: 1.45;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+  }
+
+  .speech-setting-row {
+    display: grid;
+    gap: 8px;
+    color: #334155;
+    font-size: 13px;
+  }
+
+  .speech-setting-control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .speech-setting-control input[type='range'] {
+    width: 100%;
+  }
+
+  .speech-setting-value {
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .speech-setting-row-select {
+    gap: 6px;
+  }
+
+  .speech-voice-select {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 10px;
+    color: #0f172a;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 8px;
+  }
+
+  .speech-settings-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .speech-settings-button {
+    min-height: 34px;
+    padding: 0 12px;
+    color: #ffffff;
+    font-size: 13px;
+    background: #111827;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .speech-settings-button-secondary {
+    color: #1f2937;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+  }
+
+  .speech-settings-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 
   .message-attachments,
@@ -5956,6 +6275,33 @@ style.textContent = `
     box-shadow: 0 0 0 2px #111827;
   }
 
+  :root[data-webui-theme='dark'] .speech-settings-warning {
+    color: #fde68a;
+    background: #422006;
+    border-color: #854d0e;
+  }
+
+  :root[data-webui-theme='dark'] .speech-setting-row,
+  :root[data-webui-theme='dark'] .speech-setting-value {
+    color: #cbd5e1;
+  }
+
+  :root[data-webui-theme='dark'] .speech-voice-select {
+    color: #e5e7eb;
+    background: #1f2937;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .speech-settings-button-secondary {
+    color: #e5e7eb;
+    background: #273449;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .speech-notice {
+    color: #fbbf24;
+  }
+
   :root[data-webui-theme='dark'] .workspace-file-search,
   :root[data-webui-theme='dark'] .workspace-file-preview,
   :root[data-webui-theme='dark'] .workspace-code-preview {
@@ -6171,10 +6517,6 @@ style.textContent = `
       display: none;
     }
 
-    .mobile-bridge-indicator {
-      order: 1;
-    }
-
     .mobile-sidebar-button {
       display: grid;
       width: 36px;
@@ -6193,21 +6535,6 @@ style.textContent = `
       width: 20px;
       height: 20px;
       margin: auto;
-    }
-
-    .mobile-bridge-indicator {
-      width: 10px;
-      height: 10px;
-      background: #dc2626;
-      border-radius: 999px;
-    }
-
-    .mobile-bridge-indicator-connected {
-      background: #16a34a;
-    }
-
-    .mobile-bridge-indicator-offline {
-      background: #dc2626;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -6230,6 +6557,15 @@ style.textContent = `
     .message {
       max-width: 94%;
       padding: 12px 14px;
+    }
+
+    .message-actions {
+      opacity: 1;
+    }
+
+    .message-footer {
+      gap: 8px;
+      align-items: flex-end;
     }
 
     .composer {
