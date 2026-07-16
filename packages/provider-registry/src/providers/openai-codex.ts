@@ -30,7 +30,9 @@ export default defineProvider({
       modelId: 'gpt-5-6-sol',
       apiModelId: 'gpt-5.6-sol',
       limits: { contextWindow: 372000 },
-      reasoning: { supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'low' },
+      // Upstream also advertises `ultra`, but it requires runtime-level delegation support
+      // that Cherry Studio does not provide yet.
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'low' },
       supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
