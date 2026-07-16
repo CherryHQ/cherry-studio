@@ -8,6 +8,7 @@
 
 import { readFile, writeFile } from 'node:fs/promises'
 
+import type { ExportResourceDegradation } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 import * as z from 'zod'
@@ -62,11 +63,27 @@ export interface BackupManifest {
   }
   readonly knowledge: { readonly bases: readonly string[] }
   /**
+   * Staged skill directories (full preset only — zip/local, non-re-downloadable;
+   * TBD-1 (iii): lite omits these and lists them in `degraded`). Each entry is a
+   * successfully staged `{folderName, contentHash}`; a missing skill dir is simply
+   * omitted (the agent_global_skill row stays — never pruned on disk absence).
+   */
+  readonly skills: {
+    readonly folders: readonly { readonly folderName: string; readonly contentHash: string }[]
+  }
+  /**
    * Staged Notes markdown relative paths (full mode; lite excludes file resources
    * → empty). Not DB-gated: missing notes don't prune any DB row (the `note` table
    * holds only overlays); the manifest lists only what was actually staged.
    */
   readonly notes: { readonly paths: readonly string[] }
+  /**
+   * Resources the export intentionally omitted under a preset limitation (TBD-1
+   * (iii): zip/local skill-dir content under lite). Observable — never silently
+   * lost; restore surfaces these so the user knows the lite archive is incomplete
+   * for those skills (their schema row still restores).
+   */
+  readonly degraded: { readonly resources: readonly ExportResourceDegradation[] }
 }
 
 /**
@@ -90,7 +107,25 @@ const manifestSchema = z.object({
   producerAppVersion: z.string(),
   files: z.object({ ids: z.array(z.string()), total: z.number(), totalBytes: z.number() }),
   knowledge: z.object({ bases: z.array(z.string()) }),
-  notes: z.object({ paths: z.array(z.string()) })
+  // skills + degraded are additive on format 1 — default to empty so an archive
+  // produced before this change still parses (BACKUP_FORMAT_VERSION stays 1).
+  skills: z
+    .object({
+      folders: z.array(z.object({ folderName: z.string(), contentHash: z.string() }))
+    })
+    .default({ folders: [] }),
+  notes: z.object({ paths: z.array(z.string()) }),
+  degraded: z
+    .object({
+      resources: z.array(
+        z.object({
+          kind: z.literal('skill-dir-omitted-lite'),
+          folderName: z.string(),
+          contentHash: z.string()
+        })
+      )
+    })
+    .default({ resources: [] })
 })
 
 /** Serialize the manifest as UTF-8 JSON (2-space indent for readability). */

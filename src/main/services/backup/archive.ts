@@ -7,6 +7,7 @@
 //   ├── backup.sqlite     (online db.backup() copy of live)
 //   ├── files/<fileId>    (file blobs, includeFiles=true / full preset only)
 //   ├── knowledge/<baseId>/ (knowledge folders, includeKnowledgeFiles=true only)
+//   ├── skills/<folderName>/ (installed skill dirs, full preset only — zip/local)
 //   └── notes/<relPath>   (Notes markdown bodies, full preset only)
 //
 // Lite mode omits files/ and knowledge/ (caller passes neither dir). Follows the
@@ -36,6 +37,8 @@ export interface ArchiveInputs {
   readonly filesDir?: string
   /** Optional staged dir of knowledge folders (`<baseId>/...`) → stored under `knowledge/`. */
   readonly knowledgeDir?: string
+  /** Optional staged dir of skill folders (`<folderName>/...`) → stored under `skills/` (full preset only). */
+  readonly skillsDir?: string
   /** Optional staged dir of Notes markdown (`<relPath>...`) → stored under `notes/`. */
   readonly notesDir?: string
 }
@@ -107,9 +110,10 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
       })
       // backup.sqlite
       archive.file(inputs.dbCopyPath, { name: 'backup.sqlite' })
-      // Optional file-blob + knowledge + notes trees
+      // Optional file-blob + knowledge + skills + notes trees
       if (inputs.filesDir) archive.directory(inputs.filesDir, 'files')
       if (inputs.knowledgeDir) archive.directory(inputs.knowledgeDir, 'knowledge')
+      if (inputs.skillsDir) archive.directory(inputs.skillsDir, 'skills')
       if (inputs.notesDir) archive.directory(inputs.notesDir, 'notes')
 
       // finalize() returns a Promise that can reject (zlib / source-stream error).

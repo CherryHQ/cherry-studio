@@ -200,9 +200,31 @@ export type ResourceDescriptor =
   | { readonly kind: 'mcp-package-dir'; readonly serverName: string }
   | { readonly kind: 'agent-workspace-dir'; readonly sessionId: string }
 
+/**
+ * A resource the export intentionally omitted (with observability) under a preset
+ * limitation. TBD-1 (iii): lite preset omits zip/local skill-dir file content (the
+ * skill DB row still ships as schema) but records each omission here so it is
+ * visible in the manifest + logs, never silently lost. The orchestrator accumulates
+ * these via FileResourceContext.recordDegraded and writes them to manifest.degraded.
+ */
+export type ExportResourceDegradation = {
+  readonly kind: 'skill-dir-omitted-lite'
+  readonly folderName: string
+  readonly contentHash: string
+}
+
 /** Context for collectFileResources — reads live DB file metadata only. */
 export interface FileResourceContext extends BackupContextBase {
   readonly liveDb: BackupReadonlyDb
+  /** Export preset — collectors branch on it (TBD-1 (iii): SKILLS omits zip/local skill-dir content under lite). */
+  readonly preset: 'full' | 'lite'
+  /**
+   * Sink for preset-limited omissions (TBD-1 (iii)). The orchestrator supplies an
+   * accumulator that logs + carries each record into manifest.degraded; collectors
+   * call it instead of silently dropping a resource. Required so a future caller
+   * cannot silently discard a lite omission.
+   */
+  readonly recordDegraded: (item: ExportResourceDegradation) => void
   /**
    * Notes markdown root — BackupService resolves it from feature.notes.path when
    * set (else feature.notes.data when that dir exists). A set-but-unavailable

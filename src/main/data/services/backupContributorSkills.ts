@@ -11,6 +11,7 @@
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { agentGlobalSkillTable } from '@main/data/db/schemas/agentGlobalSkill'
 
 /**
  * SKILLS domain: globally-enabled skills, keyed by the UNIQUE `folderName`. Per
@@ -47,15 +48,35 @@ export const SKILLS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     ]
   },
   backupPolicy: {},
-  // TODO(C/D track + spec clarification): the domain spec marks SKILLS schema-only
-  // (no file resources), but SkillService reads + symlinks skill content from the directory
-  // {userData}/feature.agents.skills/{folderName}. A schema-only restore re-creates the
-  // agent_global_skill ROW but leaves that directory absent → file reads + agent skill
-  // reconciliation point at a missing folder (codex review P2). Resolve before the
-  // restore pipeline consumes this contributor: (a) if skill folders are regenerable
-  // from `sourceUrl` (git/URL skills) the row alone suffices — confirm + document it;
-  // (b) if user-authored skills (no sourceUrl) keep content only on disk, SKILLS needs
-  // a collectFileResources/restoreResources hook to archive + restore the folder.
-  // Needs SKILLS-owner + spec confirmation; not a finalize concern.
-  operations: undefined
+  // SKILLS is schema-only for marketplace/builtin skills (re-fetchable: marketplace
+  // via sourceUrl re-clone, builtin via app-bundle reinstall on startup). Only
+  // zip/local skills (sourceUrl=null, user-provided, NON-re-downloadable) carry
+  // on-disk content that MUST be archived. TBD-1 (iii): full preset collects their
+  // directory (skill-dir); lite preset keeps schema only but records each omission
+  // via ctx.recordDegraded (manifest.degraded + logger, never silently lost). Reads
+  // the backup.sqlite SNAPSHOT (ctx.liveDb), not the live AgentGlobalSkillService,
+  // so the collected set agrees with the archived DB. Filtering is by `source`, NOT
+  // sourceUrl===null (builtin rows also have null sourceUrl).
+  operations: {
+    collectFileResources: async (ctx) => {
+      // select() returns all columns (BackupReadonlyDb exposes the no-arg select);
+      // we read only folderName/source/contentHash per row below.
+      const rows = await ctx.liveDb.select().from(agentGlobalSkillTable)
+      const descriptors: { kind: 'skill-dir'; folderName: string; contentHash: string }[] = []
+      for (const r of rows) {
+        if (r.source !== 'zip' && r.source !== 'local') continue
+        if (ctx.preset === 'full') {
+          descriptors.push({ kind: 'skill-dir', folderName: r.folderName, contentHash: r.contentHash })
+        } else {
+          // lite: skill content omitted — record the degradation so it is observable
+          ctx.recordDegraded({
+            kind: 'skill-dir-omitted-lite',
+            folderName: r.folderName,
+            contentHash: r.contentHash
+          })
+        }
+      }
+      return descriptors
+    }
+  }
 })

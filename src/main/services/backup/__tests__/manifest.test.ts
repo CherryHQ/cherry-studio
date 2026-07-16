@@ -19,7 +19,9 @@ const SAMPLE: BackupManifest = {
   producerAppVersion: '1.0.0',
   files: { ids: [], total: 0, totalBytes: 0 },
   knowledge: { bases: [] },
-  notes: { paths: [] }
+  skills: { folders: [] },
+  notes: { paths: [] },
+  degraded: { resources: [] }
 }
 
 describe('manifest round-trip', () => {

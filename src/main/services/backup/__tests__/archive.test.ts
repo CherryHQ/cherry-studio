@@ -23,7 +23,9 @@ const MANIFEST_FULL: BackupManifest = {
   producerAppVersion: '1.0.0',
   files: { ids: ['f1'], total: 1, totalBytes: 6 },
   knowledge: { bases: ['base-1'] },
-  notes: { paths: [] }
+  skills: { folders: [] },
+  notes: { paths: [] },
+  degraded: { resources: [] }
 }
 
 const openZip = async (p: string) => {

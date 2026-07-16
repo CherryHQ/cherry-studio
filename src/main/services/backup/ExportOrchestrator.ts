@@ -29,8 +29,13 @@
 import { rm, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { loggerService } from '@logger'
 import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
-import type { FileResourceContext, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
+import type {
+  ExportResourceDegradation,
+  FileResourceContext,
+  ReadonlyBackupRegistry
+} from '@main/data/db/backup/contributorTypes'
 import { type DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import type { ConflictStrategy } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_PHYSICAL_TABLES } from '@main/data/db/backup/exclusions'
@@ -98,6 +103,8 @@ export interface ExportOrchestratorDeps {
   readonly filesRoot: string
   /** Live filesystem root for knowledge base dirs (<baseId>/). */
   readonly knowledgeRoot: string
+  /** Live filesystem root for installed skill dirs (<folderName>/, full preset only). */
+  readonly skillsRoot: string
   /**
    * Resolves the live Notes markdown root, evaluated fresh per export. Unlike the
    * static roots above, Notes is preference-driven — feature.notes.path may point
@@ -123,6 +130,8 @@ const EXPORT_STRATEGY: ConflictStrategy = 'SKIP'
  * See ALWAYS_STRIP_TABLES global strip.
  */
 const ALWAYS_STRIP_DB_TABLES: readonly DbTableName[] = ALWAYS_STRIP_PHYSICAL_TABLES as readonly DbTableName[]
+
+const logger = loggerService.withContext('backup/ExportOrchestrator')
 
 /**
  * Export orchestrator. Pure class (no lifecycle wiring) — BackupService constructs
@@ -165,7 +174,7 @@ export class ExportOrchestrator {
       )
     }
 
-    const { copier, registry, tempDir, filesRoot, knowledgeRoot, stripper } = this.deps
+    const { copier, registry, tempDir, filesRoot, knowledgeRoot, skillsRoot, stripper } = this.deps
     // Notes root is only needed for full-preset PREFERENCES file resources.
     // Resolve lazily below — calling notesRoot() here would abort lite exports when
     // feature.notes.path is set but unavailable, even though lite never stages notes.
@@ -184,6 +193,7 @@ export class ExportOrchestrator {
     let filesDir: string | undefined
     let knowledgeDir: string | undefined
     let notesDir: string | undefined
+    let skillsDir: string | undefined
     let manifest: BackupManifest
     let snapshotDb: Database.Database | undefined
     try {
@@ -219,7 +229,7 @@ export class ExportOrchestrator {
       // and collect cannot desync the archived DB from its blobs.
       snapshotDb = new Database(backupDbPath, { readonly: true })
       const snapshotReadonly = new BackupReadonlyDb(drizzle({ client: snapshotDb, casing: 'snake_case' }))
-      const fileStager = new SqliteFileStager(snapshotReadonly, filesRoot, knowledgeRoot)
+      const fileStager = new SqliteFileStager(snapshotReadonly, filesRoot, knowledgeRoot, skillsRoot)
 
       // 4. collectFileResources per domain (transaction-free, spec §flow step 4).
       //    KNOWLEDGE ids are baseIds (directory-shaped → knowledge/<baseId>/);
@@ -228,6 +238,10 @@ export class ExportOrchestrator {
       const fileIds = new Set<string>()
       const baseIds = new Set<string>()
       const notesRelPaths = new Set<string>()
+      const skillDirs: { folderName: string; contentHash: string }[] = []
+      // TBD-1 (iii): full collects zip/local skill-dir content; lite keeps SKILLS schema
+      // but the contributor records each zip/local omission here (observable, never silent).
+      const degradedResources: ExportResourceDegradation[] = []
       // Resolve Notes root only when full preset will collect PREFERENCES file resources.
       // lite keeps `note` overlay rows in backup.sqlite but must NOT archive bodies —
       // and must not fail on an unavailable custom Notes path.
@@ -240,6 +254,17 @@ export class ExportOrchestrator {
         restoreId: options.restoreId,
         domains,
         strategy: EXPORT_STRATEGY,
+        preset: options.preset,
+        // SKILLS calls this under lite to record zip/local skill content omissions;
+        // logged here (single owner) + accumulated into manifest.degraded.
+        recordDegraded: (item) => {
+          degradedResources.push(item)
+          logger.warn('backup: skill content omitted under preset', {
+            preset: options.preset,
+            kind: item.kind,
+            folderName: item.folderName
+          })
+        },
         // notesRoot is undefined for lite / unit stubs; full resolves via deps.notesRoot
         // (feature.notes.path when set, else feature.notes.data; unavailable custom fails).
         notesRoot
@@ -268,9 +293,12 @@ export class ExportOrchestrator {
               notesRelPaths.add(desc.relPath)
               break
             case 'skill-dir':
+              skillDirs.push({ folderName: desc.folderName, contentHash: desc.contentHash })
+              break
             case 'mcp-package-dir':
             case 'agent-workspace-dir':
-              // Directory-resource staging lands with F2; no contributor emits these yet.
+              // MCP/AGENTS directory staging follows the same contract (audit-confirmed
+              // analogous P0s); SKILLS implements first.
               throw new Error(`backup: directory resource staging not implemented (${desc.kind})`)
             default: {
               const _exhaustive: never = desc
@@ -292,6 +320,7 @@ export class ExportOrchestrator {
       let filesMissing: readonly string[] = []
       let knowledgeMissing: readonly string[] = []
       let notesPaths: readonly string[] = []
+      let skillsStaged: readonly { folderName: string; contentHash: string }[] = []
       if (fileIds.size > 0) {
         filesDir = join(stagingRoot, 'files')
         const r = await fileStager.stageFiles(fileIds, filesDir)
@@ -304,6 +333,11 @@ export class ExportOrchestrator {
         const r = await fileStager.stageKnowledge(baseIds, knowledgeDir)
         knowledgeBases = r.bases
         knowledgeMissing = r.missing
+      }
+      if (skillDirs.length > 0) {
+        skillsDir = join(stagingRoot, 'skills')
+        const r = await fileStager.stageSkillDirs(skillDirs, skillsDir)
+        skillsStaged = r.skills
       }
       if (notesRelPaths.size > 0) {
         // notesRelPaths is only populated on full + PREFERENCES collect, which
@@ -355,14 +389,16 @@ export class ExportOrchestrator {
         producerAppVersion: options.producerAppVersion,
         files: { ids: stagedFileIds, total: filesTotal, totalBytes: filesBytes },
         knowledge: { bases: [...knowledgeBases] },
-        notes: { paths: [...notesPaths] }
+        skills: { folders: [...skillsStaged] },
+        notes: { paths: [...notesPaths] },
+        degraded: { resources: [...degradedResources] }
       }
 
       this.assertNotCancelled(options)
       this.emitProgress(options, 'archive', 0, 1, 'Archiving')
       await assembleArchive(
         options.outputPath,
-        { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir, notesDir },
+        { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir, skillsDir, notesDir },
         options.signal
       )
     } finally {

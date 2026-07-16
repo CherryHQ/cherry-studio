@@ -165,6 +165,7 @@ export class BackupService extends BaseService {
       tempDir: application.getPath('feature.backup.temp'),
       filesRoot: application.getPath('feature.files.data'),
       knowledgeRoot: application.getPath('feature.knowledgebase.data'),
+      skillsRoot: application.getPath('feature.agents.skills'),
       // Notes markdown bodies (PREFERENCES file resource) — full preset only.
       // Notes root is preference-driven (feature.notes.path may sit outside the
       // managed data dir). startBackup resolves it ONCE per export into
@@ -448,7 +449,12 @@ export class BackupService extends BaseService {
       const knowledgeBytes = await this.sumDirBytes(application.getPath('feature.knowledgebase.data'), signal)
       const notesRoot = this.pendingNotesRoot
       const notesBytes = notesRoot ? await this.sumDirBytes(notesRoot, signal) : 0
-      needed += (knowledgeBytes + notesBytes) * 2
+      // Skill dirs (full preset stages zip/local skill content via stageSkillDirs).
+      // Sized as the WHOLE skills tree — a conservative superset (staging copies only
+      // the collected zip/local folders, which aren't known until collect; same
+      // late-pipeline gap as knowledge/notes/external blobs).
+      const skillBytes = await this.sumDirBytes(application.getPath('feature.agents.skills'), signal)
+      needed += (knowledgeBytes + notesBytes + skillBytes) * 2
     }
     // Staging volume (backup.sqlite + staged files) and the output archive volume
     // can differ — e.g. user backs up to an external USB / network drive while

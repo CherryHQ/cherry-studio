@@ -76,6 +76,17 @@ export interface StageNotesResult {
 }
 
 /**
+ * Result of staging skill dirs: which {folderName, contentHash} were copied.
+ * Deliberately NO `missing` field — a skill dir absent on disk is a DEGRADATION
+ * (the agent_global_skill row stays), not a DB-row prune. Exposing it as `missing`
+ * would risk routing it into pruneMissingRows like file/knowledge; instead an
+ * absent dir simply omits the descriptor from `skills`.
+ */
+export interface StageSkillDirsResult {
+  readonly skills: readonly { readonly folderName: string; readonly contentHash: string }[]
+}
+
+/**
  * Port: stage file blobs + knowledge base dirs into temp dirs. Injected into
  * ExportOrchestrator so the IO + DB resolution is testable in isolation.
  */
@@ -83,6 +94,10 @@ export interface FileStager {
   stageFiles(fileIds: ReadonlySet<string>, destDir: string): Promise<StageFilesResult>
   stageKnowledge(baseIds: ReadonlySet<string>, destDir: string): Promise<StageKnowledgeResult>
   stageNotes(notesRoot: string, relPaths: ReadonlySet<string>, destDir: string): Promise<StageNotesResult>
+  stageSkillDirs(
+    skills: ReadonlyArray<{ readonly folderName: string; readonly contentHash: string }>,
+    destDir: string
+  ): Promise<StageSkillDirsResult>
 }
 
 /**
@@ -96,7 +111,8 @@ export class SqliteFileStager implements FileStager {
   constructor(
     private readonly liveDb: BackupReadonlyDb,
     private readonly filesRoot: string,
-    private readonly knowledgeRoot: string
+    private readonly knowledgeRoot: string,
+    private readonly skillsRoot: string
   ) {}
 
   async stageFiles(fileIds: ReadonlySet<string>, destDir: string): Promise<StageFilesResult> {
@@ -252,6 +268,58 @@ export class SqliteFileStager implements FileStager {
   }
 
   /**
+   * Copy each `<skillsRoot>/<folderName>` skill directory to `<destDir>/<folderName>`
+   * (full preset — zip/local, non-re-downloadable skills). Mirrors stageKnowledge's
+   * cp-r + stat classification, but a skill dir is an ordinary file tree (NO WAL
+   * caveat) and a missing dir is a DEGRADATION, not a prune: the agent_global_skill
+   * row stays (the dir may be absent because the user moved it, not because the
+   * registration is invalid). Successfully staged descriptors are returned; an
+   * absent dir simply omits that descriptor (no `missing` list, no row pruning).
+   * EACCES/EIO/EPERM on a PRESENT source aborts — never silently drop a non-
+   * re-downloadable skill the DB references.
+   */
+  async stageSkillDirs(
+    skills: ReadonlyArray<{ readonly folderName: string; readonly contentHash: string }>,
+    destDir: string
+  ): Promise<StageSkillDirsResult> {
+    if (skills.length === 0) return { skills: [] }
+    await mkdir(destDir, { recursive: true })
+
+    const staged: { folderName: string; contentHash: string }[] = []
+    for (const { folderName, contentHash } of skills) {
+      const src = join(this.skillsRoot, folderName)
+      let dirStat
+      try {
+        dirStat = await stat(src)
+      } catch (e) {
+        // Absent skill dir (ENOENT/ENOTDIR) = degradation, not fatal: omit the
+        // descriptor (the row stays). EACCES/EIO/EPERM on a present dir aborts —
+        // never silently drop a non-re-downloadable skill the DB references.
+        if (isMissingPath(e)) continue
+        throw e
+      }
+      if (!dirStat.isDirectory()) continue
+      const dest = join(destDir, folderName)
+      try {
+        await cp(src, dest, { recursive: true })
+      } catch (e) {
+        // Source gone mid-copy (ENOENT, or EACCES/EPERM + confirmed gone) → omit
+        // descriptor + best-effort remove partial dest. Other errors abort.
+        const sourceMissing =
+          isErrnoCode(e, 'ENOENT') ||
+          ((isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) && (await isSourceGone(src)))
+        if (sourceMissing) {
+          await rm(dest, { recursive: true, force: true }).catch(() => {})
+          continue
+        }
+        throw e
+      }
+      staged.push({ folderName, contentHash })
+    }
+    return { skills: staged }
+  }
+
+  /**
    * Copy each `<notesRoot>/<relPath>` markdown file to `<destDir>/<relPath>`,
    * preserving sub-directory structure (mkdir recursive). Missing/unreadable
    * sources (ENOENT / EACCES / EPERM) are skip-and-continue — recorded in
@@ -331,7 +399,8 @@ export class StubFileStager implements FileStager {
   constructor(
     private readonly filesResult: StageFilesResult = { total: 0, totalBytes: 0, missing: [] },
     private readonly knowledgeResult: StageKnowledgeResult = { bases: [], missing: [] },
-    private readonly notesResult: StageNotesResult = { paths: [], missing: [] }
+    private readonly notesResult: StageNotesResult = { paths: [], missing: [] },
+    private readonly skillsResult: StageSkillDirsResult = { skills: [] }
   ) {}
   async stageFiles(): Promise<StageFilesResult> {
     return this.filesResult
@@ -341,5 +410,8 @@ export class StubFileStager implements FileStager {
   }
   async stageNotes(): Promise<StageNotesResult> {
     return this.notesResult
+  }
+  async stageSkillDirs(): Promise<StageSkillDirsResult> {
+    return this.skillsResult
   }
 }

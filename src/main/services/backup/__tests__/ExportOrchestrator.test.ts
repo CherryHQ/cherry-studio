@@ -61,6 +61,7 @@ const newOrch = (dir: string, fixture: string) =>
     tempDir: dir,
     filesRoot: join(dir, 'files-root'),
     knowledgeRoot: join(dir, 'kb-root'),
+    skillsRoot: join(dir, 'skills-root'),
     notesRoot: () => join(dir, 'notes-root'),
     // StubStripper — the STUB_REGISTRY describe never runs lite (lite e2e is in
     // the real-registry describe below); a stub satisfies the required dep.
@@ -303,6 +304,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot,
         knowledgeRoot: kbRoot,
+        skillsRoot: kbRoot,
         notesRoot: () => notesRoot,
         // Full preset strips ALWAYS_STRIP tables (app_state / job) via step 2.5.
         stripper: new SqliteBackupStripper()
@@ -386,6 +388,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot,
         knowledgeRoot: kbRoot,
+        skillsRoot: kbRoot,
         // No Notes root for this fixture — undefined skips notes collect (a missing
         // path string would now throw after the ENOENT harden).
         notesRoot: () => undefined,
@@ -504,6 +507,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot: join(dir, 'files-root'),
         knowledgeRoot: join(dir, 'kb-root'),
+        skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => {
           throw new Error('notesRoot must not be called on lite export')
         },
@@ -625,6 +629,7 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
         tempDir: dir,
         filesRoot: join(dir, 'files-root'),
         knowledgeRoot: join(dir, 'kb-root'),
+        skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => join(dir, 'notes-root'),
         // StubStripper — full preset, no LITE_EXCLUDED strip; isolates the rowScopes filter.
         stripper: new StubStripper()
