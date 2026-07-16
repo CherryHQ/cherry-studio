@@ -21,7 +21,7 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { findTokenLimit } from '@shared/utils/model'
-import type { LanguageModelUsage, UIMessage, UIMessageChunk } from 'ai'
+import type { LanguageModelUsage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
 import { Agent } from '../aiSdk'
 import { AsyncEventQueue } from '../asyncEventQueue'
@@ -39,6 +39,7 @@ import { accumulateAssistantMessage, addSegmentStats, applyApprovalDecisions } f
 import { buildAiSdkAgentParams } from './buildAiSdkAgentParams'
 import { buildTurnMessages } from './sessionHistory'
 import { adaptAgentChunk, stampApprovalRequestChunk } from './streamAdapter'
+import { buildAgentToolSet } from './tools/buildAgentToolSet'
 import { resolveAiSdkAgentModel, resolveAndAssertAiSdkAgentModel } from './validateModel'
 
 const logger = loggerService.withContext('AiSdkRuntimeConnection')
@@ -117,12 +118,24 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
     const turnMessages: UIMessage[] = buildTurnMessages(this.input.sessionId, input) as unknown as UIMessage[]
     let messages: UIMessage[] = turnMessages
 
+    // Policy accessors are closures over the connection's live state, so a
+    // reconcile hot-patch applies to the very next tool call (plan D7/D12).
+    const { tools, skills } = await buildAgentToolSet({
+      agent,
+      workspacePath,
+      policy: {
+        getPermissionMode: () => this.permissionMode,
+        isDisabled: (toolName) => this.disabledTools.has(toolName)
+      }
+    })
+
     const built = await buildAiSdkAgentParams({
       agent,
       sessionId: this.input.sessionId,
       workspacePath,
       provider,
       model,
+      skills,
       requestId: this.input.trace?.turnId || undefined
     })
 
@@ -135,7 +148,7 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
     let assistantSnapshot: UIMessage | undefined
     try {
       for (;;) {
-        const segment = await this.runSegment({ built, model, messages, signal: abort.signal, statsBaseline })
+        const segment = await this.runSegment({ built, tools, model, messages, signal: abort.signal, statsBaseline })
         if (this.closed || abort.signal.aborted) return
         if (segment.approvals.length === 0) break
 
@@ -173,19 +186,20 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
    */
   private async runSegment(ctx: {
     built: Awaited<ReturnType<typeof buildAiSdkAgentParams>>
+    tools: ToolSet
     model: Model
     messages: UIMessage[]
     signal: AbortSignal
     statsBaseline: SegmentStats | null
   }): Promise<{ approvals: PendingApprovalRequest[]; rawChunks: UIMessageChunk[]; lastStats: SegmentStats | null }> {
+    // Per-segment Agent construction is deliberate: a continuation call
+    // executes the approved tools of the previous segment at its top, so the
+    // executor must be rebuilt around the continuation history.
     const executor = new Agent({
       providerId: ctx.built.sdkConfig.providerId,
       providerSettings: ctx.built.sdkConfig.providerSettings,
       modelId: ctx.built.sdkConfig.modelId,
-      // Workspace/MCP/skill tools land in the runtime's tool phase; the loop
-      // core, replay, approval framing, and terminal behavior are tool-set
-      // independent.
-      tools: {},
+      tools: ctx.tools,
       system: ctx.built.system,
       options: ctx.built.options
     })

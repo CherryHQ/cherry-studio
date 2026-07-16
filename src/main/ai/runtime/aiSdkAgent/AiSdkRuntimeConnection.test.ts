@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   resolveAndAssert: vi.fn(),
   resolveOnly: vi.fn(),
   buildParams: vi.fn(),
+  buildToolSet: vi.fn(),
   isHeadless: vi.fn(),
   agentParams: [] as unknown[],
   streamCalls: [] as Array<{ messages: UIMessage[]; signal: AbortSignal; agent: FakeAgent }>,
@@ -66,6 +67,7 @@ vi.mock('./validateModel', () => ({
   resolveAiSdkAgentModel: mocks.resolveOnly
 }))
 vi.mock('./buildAiSdkAgentParams', () => ({ buildAiSdkAgentParams: mocks.buildParams }))
+vi.mock('./tools/buildAgentToolSet', () => ({ buildAgentToolSet: mocks.buildToolSet }))
 vi.mock('../aiSdk', () => ({ Agent: FakeAgent }))
 vi.mock('@application', () => ({
   application: {
@@ -158,6 +160,7 @@ beforeEach(() => {
     options: { maxRetries: 0 },
     maxTurns: 100
   })
+  mocks.buildToolSet.mockResolvedValue({ tools: {}, skills: [] })
 })
 
 async function startConnection() {
@@ -784,6 +787,49 @@ describe('AiSdkRuntimeConnection — context usage', () => {
       percentage: 50,
       model: 'gpt-4o'
     })
+    await connection.close()
+  })
+})
+
+describe('AiSdkRuntimeConnection — tool-set wiring', () => {
+  it('threads the built tool set into every segment executor and skills into param assembly', async () => {
+    const tools = { read: { description: 'r' } }
+    const skills = [{ name: 'code-review', description: 'review', folderName: 'code-review' }]
+    mocks.buildToolSet.mockResolvedValue({ tools, skills })
+
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'hello'))
+    await collectUntilTerminal(connection)
+
+    expect((mocks.agentParams[0] as { tools: unknown }).tools).toBe(tools)
+    expect(mocks.buildParams).toHaveBeenCalledWith(expect.objectContaining({ skills }))
+    expect(mocks.buildToolSet).toHaveBeenCalledWith(
+      expect.objectContaining({ workspacePath: '/work', agent: expect.objectContaining({ id: AGENT_ID }) })
+    )
+    await connection.close()
+  })
+
+  it('hands the tool builder live policy accessors that follow reconcile hot-patches', async () => {
+    mocks.getAgent.mockReturnValue(makeAgent({ disabledTools: ['bash'] }))
+    const connection = await startConnection()
+    connection.send(userInput('u1', 'hello'))
+    await collectUntilTerminal(connection)
+
+    const { policy } = mocks.buildToolSet.mock.calls[0][0] as {
+      policy: { getPermissionMode: () => string; isDisabled: (name: string) => boolean }
+    }
+    expect(policy.getPermissionMode()).toBe('default')
+    expect(policy.isDisabled('bash')).toBe(true)
+    expect(policy.isDisabled('read')).toBe(false)
+
+    // Reconcile swaps the live policy; the SAME accessors reflect it (fire-time reads).
+    mocks.getAgent.mockReturnValue(
+      makeAgent({ disabledTools: ['read'], configuration: { permission_mode: 'acceptEdits' } })
+    )
+    await expect(connection.reconcile({ modelId: MODEL_ID })).resolves.toBe('patched')
+    expect(policy.getPermissionMode()).toBe('acceptEdits')
+    expect(policy.isDisabled('bash')).toBe(false)
+    expect(policy.isDisabled('read')).toBe(true)
     await connection.close()
   })
 })
