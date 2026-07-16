@@ -11,6 +11,7 @@
  * Usage:
  *   pnpm tsx scripts/generate-avatars.ts --type=providers
  *   pnpm tsx scripts/generate-avatars.ts --type=models
+ *   pnpm tsx scripts/generate-avatars.ts --type=providers --only=opencode
  */
 
 import * as fs from 'fs'
@@ -37,6 +38,19 @@ import {
   readColorPrimary
 } from './svg-utils'
 import { createRemoveBackgroundPlugin } from './svgo-remove-background'
+
+function parseOnlyArg(): Set<string> | null {
+  const arg = process.argv.find((item) => item.startsWith('--only='))
+  if (!arg) return null
+
+  const values = arg
+    .split('=')[1]
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  return values.length > 0 ? new Set(values) : null
+}
 
 /**
  * Extract CSS fill values from <style> blocks for class-based styling.
@@ -276,16 +290,18 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
 
 function main() {
   const iconType = parseLogoTypeArg()
+  const only = parseOnlyArg()
   const baseDir = OUTPUT_DIR_MAP[iconType]
   const svgMap = buildSvgMap(iconType)
 
-  console.log(`Generating avatars (type: ${iconType})...\n`)
+  console.log(`Generating avatars (type: ${iconType})${only ? ` [ONLY: ${[...only].join(', ')}]` : ''}...\n`)
 
   const iconDirs = collectIconDirs(baseDir)
+  const selectedIconDirs = only ? iconDirs.filter((dirName) => only.has(dirName)) : iconDirs
   let fullBleedCount = 0
   let paddedCount = 0
 
-  for (const dirName of iconDirs) {
+  for (const dirName of selectedIconDirs) {
     const colorName = getComponentName(baseDir, dirName)
     const avatarName = `${colorName}Avatar`
 
