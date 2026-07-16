@@ -100,6 +100,10 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
   })
 
+  it.each(['pptx', 'PPTX'])('registers the PowerPoint plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')
+  })
+
   it('keeps the text plugin extension whitelist explicit', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })

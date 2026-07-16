@@ -4,6 +4,7 @@ import { normalizeExt } from '@shared/utils/file'
 import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
 import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
+import { powerPointFilePreviewPlugin } from './plugins/powerpoint/powerPointFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
 import { wordFilePreviewPlugin } from './plugins/word/wordFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
@@ -44,6 +45,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
     imageFilePreviewPlugin,
     markdownFilePreviewPlugin,
     pdfFilePreviewPlugin,
+    powerPointFilePreviewPlugin,
     textFilePreviewPlugin,
     wordFilePreviewPlugin
   ]
