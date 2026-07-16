@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "مسیر فضای کاری در دسترس نیست: {{path}}",
+        "missing": "مسیر فضای کاری وجود ندارد: {{path}}",
+        "not_directory": "مسیر فضای کاری یک پوشه نیست: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "درباره",
+    "close": "بستن پنجره",
+    "copy": "کپی",
+    "cut": "برش",
+    "delete": "حذف",
+    "documentation": "مستندات",
+    "edit": "ویرایش",
+    "feedback": "بازخورد",
+    "file": "فایل",
+    "forceReload": "بارگذاری مجدد اجباری",
+    "front": "آوردن همه به جلو",
+    "help": "راهنما",
+    "hide": "مخفی کردن",
+    "hideOthers": "مخفی کردن بقیه",
+    "minimize": "کوچک کردن",
+    "paste": "چسباندن",
+    "quit": "خروج",
+    "redo": "انجام مجدد",
+    "releases": "انتشارها",
+    "reload": "بارگذاری مجدد",
+    "resetZoom": "اندازه واقعی",
+    "selectAll": "انتخاب همه",
+    "services": "سرویس‌ها",
+    "toggleDevTools": "تغییر ابزارهای توسعه‌دهنده",
+    "toggleFullscreen": "تغییر حالت تمام‌صفحه",
+    "undo": "واگرد",
+    "unhide": "نمایش همه",
+    "view": "نما",
+    "website": "وب‌سایت",
+    "window": "پنجره",
+    "zoom": "بزرگنمایی",
+    "zoomIn": "بزرگنمایی به داخل",
+    "zoomOut": "بزرگنمایی به خارج"
+  },
+  "common": {
+    "copy": "کپی",
+    "cut": "برش",
+    "inspect": "بازرسی",
+    "paste": "چسباندن"
+  },
+  "dialog": {
+    "all_files": "همه فایل‌ها",
+    "html_files": "فایل‌های HTML",
+    "open_file": "باز کردن فایل",
+    "pdf_files": "فایل‌های PDF",
+    "png_image": "تصویر PNG",
+    "save_as_html": "ذخیره به عنوان HTML",
+    "save_as_pdf": "ذخیره به عنوان PDF",
+    "save_file": "ذخیره فایل",
+    "select_folder": "انتخاب پوشه",
+    "word_document": "سند Word"
+  },
+  "paintings": {
+    "generate_failed": "خطا در تولید تصویر",
+    "image_mix_failed": "خطا در ترکیب تصاویر"
+  },
+  "selection": {
+    "name": "دستیار انتخاب"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "می‌توانید این صفحه را ببندید و به Cherry Studio بازگردید",
+          "title": "احراز هویت موفقیت‌آمیز بود"
+        }
+      }
+    },
+    "title": "تنظیمات"
+  },
+  "tray": {
+    "quit": "خروج",
+    "show_quick_assistant": "دستیار سریع",
+    "show_window": "نمایش پنجره"
+  }
+}
