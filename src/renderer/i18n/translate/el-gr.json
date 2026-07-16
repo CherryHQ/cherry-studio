@@ -888,8 +888,8 @@
           "label": "Προγραμματιστής"
         },
         "CherryGenerateImage": {
-          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
-          "label": "[to be translated]:Generate Image"
+          "description": "Δημιουργεί μια εικόνα από ένα κείμενο προτροπής χρησιμοποιώντας το διαμορφωμένο σας μοντέλο ζωγραφικής",
+          "label": "Δημιουργία Εικόνας"
         },
         "CherryKbManage": {
           "description": "Προσθέτει, διαγράφει ή ανανεώνει έγγραφα στις βάσεις γνώσης σας",
@@ -1401,7 +1401,7 @@
         "title": "Σε ουρά ({{count}})"
       },
       "generate_image": "Δημιουργία εικόνας",
-      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
+      "generate_image_no_model": "Ρυθμίστε ένα μοντέλο ζωγραφικής στις Ρυθμίσεις › Προεπιλεγμένο Μοντέλο",
       "knowledge_base": "Βάση γνώσεων",
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
       "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων ή ενεργοποιήστε τη χρήση εργαλείων στο prompt",
@@ -1476,9 +1476,9 @@
         "expand": "Επέκταση",
         "file_not_found": "Δεν βρέθηκε το αρχείο: {{path}}",
         "generate_image": {
-          "failed": "[to be translated]:Image generation failed",
-          "generating": "[to be translated]:Generating image…",
-          "title": "[to be translated]:Generated image"
+          "failed": "Η δημιουργία εικόνας απέτυχε",
+          "generating": "Δημιουργία εικόνας…",
+          "title": "Δημιουργημένη εικόνα"
         },
         "open_file": "Άνοιγμα Αρχείου",
         "open_file_error": "Αποτυχία ανοίγματος αρχείου: {{path}}",
@@ -2788,6 +2788,7 @@
           "title": "Εισαγωγή μίας μόνο ιστοσελίδας"
         }
       },
+      "back_to_parent": "Πίσω",
       "bulk": {
         "delete": "Διαγραφή",
         "delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
@@ -2815,6 +2816,7 @@
         "title": "Ανεβάστε την πρώτη σας πηγή δεδομένων"
       },
       "empty_description": "Κανένας πηγή δεδομένων ακόμα",
+      "empty_folder": "Αυτός ο φάκελος είναι κενός",
       "filters": {
         "all": "Όλα",
         "directory": "Φάκελοι",
@@ -2847,9 +2849,9 @@
           "type": "Τύπος",
           "updated_at": "Ενημερωμένο"
         },
+        "open_row": "Άνοιγμα {{title}}",
         "select_all": "Επιλογή όλων",
-        "select_row": "Επιλογή γραμμής",
-        "view_chunks_row": "Προβολή τμημάτων για {{title}}"
+        "select_row": "Επιλογή γραμμής"
       },
       "toolbar": {
         "add": "Προσθήκη Πηγής Δεδομένων"
@@ -2860,6 +2862,8 @@
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
+    "empty_action": "Δημιουργία Βάσης Γνώσης",
+    "empty_description": "Δεν έχετε ακόμα καμία βάση γνώσεων. Δημιουργήστε μία για να αρχίσετε να οργανώνετε και να αναζητάτε τα έγγραφά σας.",
     "error": {
       "directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",
       "failed_base_unknown": "Αυτή η βάση γνώσεων απέτυχε κατά τη μετεγκατάσταση. Ανακατασκευάστε την και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
@@ -6836,8 +6840,8 @@
       },
       "more_actions": "Περισσότερες ενέργειες λίστας μοντέλων",
       "not_enabled_models": "Απενεργοποιημένα",
-      "painting_model": "[to be translated]:Painting Model",
-      "painting_model_description": "[to be translated]:Model used for image generation",
+      "painting_model": "Μοντέλο Ζωγραφικής",
+      "painting_model_description": "Μοντέλο που χρησιμοποιείται για τη δημιουργία εικόνων",
       "provider_id": "Αναγνωριστικό Παρόχου",
       "provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",
       "provider_key_add_failed_by_empty_data": "Η προσθήκη κλειδιού API παρόχου απέτυχε, τα δεδομένα είναι κενά",
