@@ -212,7 +212,7 @@
     "@paddleocr/api-sdk": "^0.2.0",
     "@pierre/diffs": "^1.1.3",
     "@playwright/test": "^1.55.1",
-    "@radix-ui/react-context-menu": "^2.2.16",
+    "@radix-ui/react-context-menu": "^2.3.3",
     "@radix-ui/react-switch": "^1.2.6",
     "@shikijs/markdown-it": "^3.12.0",
     "@swc/core": "^1.15.8",
