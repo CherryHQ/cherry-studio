@@ -1383,8 +1383,8 @@ const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as const
 
 const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnapshot => {
-  const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-  const lastSeenCompletion = cacheService.getShared(getTopicStreamLastSeenCompletionCacheKey(topicId))
+  const statusEntry = cacheService.getSharedSnapshot(getTopicStreamStatusCacheKey(topicId))
+  const lastSeenCompletion = cacheService.getSharedSnapshot(getTopicStreamLastSeenCompletionCacheKey(topicId))
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const streamStatus = {

@@ -3496,8 +3496,10 @@
       "title": "Library"
     },
     "skill_add": {
+      "add": "Add Skill",
       "local_import": "Local import",
-      "online_search": "Online search"
+      "online_search": "Online search",
+      "system_search": "System search"
     },
     "skill_detail": {
       "created_at": "Created",
@@ -3525,6 +3527,19 @@
       "updated": "Sort by updated"
     },
     "subtitle": "Manage your assistants, agents and skills",
+    "system_skill": {
+      "conflict": "Name conflict",
+      "description": "Import skills already installed on this system.",
+      "empty_description": "No importable skills were found in other coding tools on this device.",
+      "empty_title": "No skills available to import",
+      "enable_success": "Enabled {{name}}",
+      "enabled": "Enabled",
+      "import": "Import",
+      "import_success": "Imported {{name}}",
+      "imported": "Imported",
+      "search_placeholder": "Search system skills...",
+      "title": "System skills"
+    },
     "tag_picker": {
       "no_tags": "No tags yet",
       "placeholder": "New tag name..."

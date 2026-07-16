@@ -140,13 +140,14 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+// useAgentSessionSlashCommands now observes the shared slash-command catalog via
+// useSharedCacheValue (globally mocked); with no catalog seeded the composer
+// falls back to the builtin list. This inline cacheService only serves the
+// remaining getCasual/setCasual/subscribe consumers.
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
     setCasual: vi.fn(),
-    // useAgentSessionSlashCommands subscribes to the shared slash-command catalog; no catalog here
-    // means the composer falls back to the builtin list.
-    getShared: vi.fn(() => undefined),
     subscribe: vi.fn(() => () => {})
   }
 }))
