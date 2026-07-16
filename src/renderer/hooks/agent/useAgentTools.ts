@@ -33,7 +33,7 @@ function useMcpToolsCache(serverIds: readonly string[]): Record<string, McpTool[
 
   const readSnapshot = () =>
     Object.fromEntries(
-      uniqueIds.map((id) => [id, cacheService.getShared(mcpToolsCacheKey(id) as SharedCacheKey) ?? []])
+      uniqueIds.map((id) => [id, cacheService.getSharedSnapshot(mcpToolsCacheKey(id) as SharedCacheKey) ?? []])
     ) as Record<string, McpTool[]>
 
   const [snapshot, setSnapshot] = useState<Record<string, McpTool[]>>(readSnapshot)

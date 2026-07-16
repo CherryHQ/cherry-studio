@@ -9,6 +9,7 @@ import {
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
+  ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -19,8 +20,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -60,7 +60,7 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
+import { Bot, Cable, ChevronDown, CircleSlash, Folder, Sparkles, Terminal, TriangleAlert, X, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,7 +100,9 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
@@ -747,60 +749,6 @@ const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter)
   window.requestAnimationFrame(() => inputAdapter?.focus())
 }
 
-const AgentComposerQuickPanelShortcuts = ({
-  reasoningLabel,
-  reasoningLauncher,
-  skillLabel,
-  unifiedPanelControl
-}: {
-  reasoningLabel: string
-  reasoningLauncher?: ComposerToolLauncher
-  skillLabel: string
-  unifiedPanelControl?: AgentComposerUnifiedPanelControl
-}) => {
-  const panelDisabled = !unifiedPanelControl?.available
-  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
-  const reasoningTooltip =
-    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
-  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
-
-  return (
-    <>
-      <Tooltip content={reasoningTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            reasoningLauncher?.active && 'bg-accent'
-          )}
-          aria-label={reasoningLabel}
-          aria-haspopup="menu"
-          disabled={reasoningDisabled}
-          data-active={reasoningLauncher?.active || undefined}
-          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
-          {reasoningIcon}
-        </Button>
-      </Tooltip>
-      <Tooltip content={skillLabel} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
-          aria-label={skillLabel}
-          aria-haspopup="menu"
-          disabled={panelDisabled}
-          onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
-          <Zap size={18} aria-hidden />
-        </Button>
-      </Tooltip>
-    </>
-  )
-}
-
 const AgentComposerContextControlsWithAutoFocus = ({
   inputAdapter,
   ...props
@@ -926,6 +874,15 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
+  const {
+    pinnedIds: pinnedToolIds,
+    setPinnedIds: setPinnedToolIds,
+    resetPinnedIds: resetPinnedToolIds,
+    isDefault: pinnedToolsAtDefault,
+    customizeOpen: customizeToolbarOpen,
+    setCustomizeOpen: setCustomizeToolbarOpen,
+    customizePanelItem
+  } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -1083,13 +1040,15 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  const rootPanelSkillItems = useMemo(
-    () =>
-      createSkillQuickPanelItems(availableSkills, {
+  const rootPanelTrailingItems = useMemo(
+    () => [
+      ...createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
         onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillToken, t]
+      customizePanelItem
+    ],
+    [availableSkills, customizePanelItem, insertSkillToken, t]
   )
 
   const handleRootPanelOpen = useCallback(() => {
@@ -1097,11 +1056,6 @@ const AgentComposerInner = ({
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
   }, [refreshAvailableSkills])
-
-  const reasoningLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'thinking')
-  }, [getLaunchers, toolLaunchersVersion])
 
   useComposerQuoteInsertion(actionsRef)
 
@@ -1372,16 +1326,61 @@ const AgentComposerInner = ({
     </Tooltip>
   ) : undefined
 
+  const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
+    const skillLabel = t('plugins.skills')
+    const slashCommandsLabel = t('chat.input.slash_commands.title')
+    return [
+      {
+        id: 'skills',
+        label: skillLabel,
+        icon: <Zap size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: skillLabel })
+      },
+      {
+        id: 'slash-commands',
+        label: slashCommandsLabel,
+        icon: <Terminal size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+      },
+      {
+        id: ComposerPanelSymbol.McpStatus,
+        label: 'MCP',
+        icon: <Cable size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
+      }
+    ]
+  }, [t])
+
   const renderQuickPanelShortcuts = useCallback(
-    ({ unifiedPanelControl }: { unifiedPanelControl?: AgentComposerUnifiedPanelControl }) => (
-      <AgentComposerQuickPanelShortcuts
-        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
-        reasoningLauncher={reasoningLauncher}
-        skillLabel={t('plugins.skills')}
+    ({
+      inputAdapter,
+      unifiedPanelControl
+    }: {
+      inputAdapter?: AgentComposerInputAdapter
+      unifiedPanelControl?: AgentComposerUnifiedPanelControl
+    }) => (
+      <ComposerToolbarShortcuts
+        pinnedIds={pinnedToolIds}
+        onPinnedIdsChange={setPinnedToolIds}
+        onResetPinnedIds={resetPinnedToolIds}
+        isDefault={pinnedToolsAtDefault}
+        customTools={toolbarCustomTools}
+        customizeOpen={customizeToolbarOpen}
+        onCustomizeOpenChange={setCustomizeToolbarOpen}
+        inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
-    [reasoningLauncher, t]
+    [
+      customizeToolbarOpen,
+      pinnedToolIds,
+      pinnedToolsAtDefault,
+      resetPinnedToolIds,
+      setCustomizeToolbarOpen,
+      setPinnedToolIds,
+      toolbarCustomTools
+    ]
   )
 
   const controlSlots = renderControls({
@@ -1410,69 +1409,71 @@ const AgentComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
-      <ComposerSurface
-        text={text}
-        onTextChange={handleTextChange}
-        tokens={tokens}
-        draftTokens={draftTokens}
-        managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
-        onTokensChange={handleTokensChange}
-        resolveSkillMarker={resolveSkillMarker}
-        placeholder={placeholderText}
-        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
-        sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
-        isLoading={isStreaming}
-        onSendDraft={handleSendDraft}
-        onPause={abortAgentSession}
-        queueContent={
-          queuedFollowups.length > 0 ? (
-            <QueuedFollowupsDock
-              items={queuedFollowups}
-              paused={followupPaused}
-              onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={async (id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                // Only drop the item once the send actually succeeds; a failed manual
-                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                const sent = await sendQueuedPayload(item.payload)
-                if (sent) removeFollowup(id)
-                else toast.error(t('chat.input.send_failed'))
-              }}
-              onEdit={(id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                restoreFollowupDraft(item)
-                removeFollowup(id)
-              }}
-              onRemove={removeFollowup}
-              onReorder={reorderFollowups}
-            />
-          ) : undefined
-        }
-        supportedExts={supportedExts}
-        setFiles={setFiles}
-        filesCount={files.length}
-        isExpanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableDragDrop={config.enableDragDrop ?? true}
-        enableSpellCheck={enableSpellCheck}
-        fontSize={fontSize}
-        narrowMode={forceNarrowLayout || narrowMode}
-        onActionsChange={handleSurfaceActionsChange}
-        onInputHistoryNavigate={handleInputHistoryNavigate}
-        getToolLaunchers={() => getLaunchers()}
-        toolLaunchersVersion={toolLaunchersVersion}
-        suggestionSources={EMPTY_SUGGESTION_SOURCES}
-        resourceProvider={resourceProvider}
-        rootPanelLeadingItems={rootPanelNewSessionItems}
-        rootPanelAdditionalItems={rootPanelSkillItems}
-        onRootPanelOpen={handleRootPanelOpen}
-        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        sendAccessory={sendAccessory}
-        {...controlSlots}
-      />
+      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+        <ComposerSurface
+          text={text}
+          onTextChange={handleTextChange}
+          tokens={tokens}
+          draftTokens={draftTokens}
+          managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
+          onTokensChange={handleTokensChange}
+          resolveSkillMarker={resolveSkillMarker}
+          placeholder={placeholderText}
+          sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
+          sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
+          isLoading={isStreaming}
+          onSendDraft={handleSendDraft}
+          onPause={abortAgentSession}
+          queueContent={
+            queuedFollowups.length > 0 ? (
+              <QueuedFollowupsDock
+                items={queuedFollowups}
+                paused={followupPaused}
+                onTogglePause={() => setFollowupPaused(!followupPaused)}
+                onSteer={async (id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  // Only drop the item once the send actually succeeds; a failed manual
+                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                  const sent = await sendQueuedPayload(item.payload)
+                  if (sent) removeFollowup(id)
+                  else toast.error(t('chat.input.send_failed'))
+                }}
+                onEdit={(id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  restoreFollowupDraft(item)
+                  removeFollowup(id)
+                }}
+                onRemove={removeFollowup}
+                onReorder={reorderFollowups}
+              />
+            ) : undefined
+          }
+          supportedExts={supportedExts}
+          setFiles={setFiles}
+          filesCount={files.length}
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          quickPanelEnabled={config.enableQuickPanel ?? true}
+          enableDragDrop={config.enableDragDrop ?? true}
+          enableSpellCheck={enableSpellCheck}
+          fontSize={fontSize}
+          narrowMode={forceNarrowLayout || narrowMode}
+          onActionsChange={handleSurfaceActionsChange}
+          onInputHistoryNavigate={handleInputHistoryNavigate}
+          getToolLaunchers={() => getLaunchers()}
+          toolLaunchersVersion={toolLaunchersVersion}
+          suggestionSources={EMPTY_SUGGESTION_SOURCES}
+          resourceProvider={resourceProvider}
+          rootPanelLeadingItems={rootPanelNewSessionItems}
+          rootPanelAdditionalItems={rootPanelTrailingItems}
+          onRootPanelOpen={handleRootPanelOpen}
+          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          sendAccessory={sendAccessory}
+          {...controlSlots}
+        />
+      </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )
 }
