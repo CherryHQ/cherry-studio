@@ -586,6 +586,68 @@ describe('ComposerSurface', () => {
     expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
   })
 
+  it('returns to the regular presentation when the compact row overflows horizontally', async () => {
+    mocks.stabilizeEditor = true
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        compactWhenSingleLine
+        renderCompactControls={() => <button type="button">pinned tool</button>}
+      />
+    )
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+    const compactRow = inputbar?.querySelector<HTMLElement>('[data-composer-compact-row]')
+    expect(compactRow).not.toBeNull()
+    Object.defineProperties(compactRow!, {
+      clientWidth: { configurable: true, value: 240 },
+      scrollWidth: { configurable: true, value: 320 }
+    })
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+    expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
+  })
+
+  it('returns to the compact presentation when the compact row fits again', async () => {
+    mocks.stabilizeEditor = true
+    let compactRowScrollWidth = 320
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        compactWhenSingleLine
+        renderCompactControls={() => <button type="button">pinned tool</button>}
+      />
+    )
+
+    const inputbar = document.getElementById('inputbar')
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+    const compactRow = inputbar?.querySelector<HTMLElement>('[data-composer-compact-row]')
+    expect(compactRow).not.toBeNull()
+    Object.defineProperties(compactRow!, {
+      clientWidth: { configurable: true, value: 240 },
+      scrollWidth: { configurable: true, get: () => compactRowScrollWidth }
+    })
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
+
+    compactRowScrollWidth = 240
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
+  })
+
   it('returns to the compact presentation when edited content fits on one line again', async () => {
     mocks.editorScrollHeight = 52
     mocks.stabilizeEditor = true

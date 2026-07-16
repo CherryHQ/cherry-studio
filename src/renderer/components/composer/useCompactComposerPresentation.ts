@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-const COMPOSER_SINGLE_LINE_OVERFLOW_TOLERANCE_PX = 1
+const COMPOSER_OVERFLOW_TOLERANCE_PX = 1
 
 type CompactComposerPresentationOptions = {
   enabled: boolean
@@ -57,14 +57,17 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
 
     if (measurement.revision === requestedRevision || isComposing()) return
 
-    const editorElement = frameRef.current?.querySelector<HTMLElement>('.composer-tiptap')
-    if (!editorElement) return
+    const frame = frameRef.current
+    const editorElement = frame?.querySelector<HTMLElement>('.composer-tiptap')
+    const compactRowElement = frame?.closest<HTMLElement>('[data-composer-compact-row]')
+    if (!editorElement || !compactRowElement) return
 
-    const hasSingleLineOverflow =
-      editorElement.scrollHeight > editorElement.clientHeight + COMPOSER_SINGLE_LINE_OVERFLOW_TOLERANCE_PX
+    const hasEditorOverflow = editorElement.scrollHeight > editorElement.clientHeight + COMPOSER_OVERFLOW_TOLERANCE_PX
+    const hasCompactRowOverflow =
+      compactRowElement.scrollWidth > compactRowElement.clientWidth + COMPOSER_OVERFLOW_TOLERANCE_PX
 
     setMeasurement({
-      presentation: hasSingleLineOverflow ? 'regular' : 'compact',
+      presentation: hasEditorOverflow || hasCompactRowOverflow ? 'regular' : 'compact',
       revision: requestedRevision
     })
   }, [enabled, frameRef, isComposing, measurement.revision, requestMeasurement, requestedRevision])
