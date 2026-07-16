@@ -105,9 +105,6 @@ interface AgentRightPaneMeta {
 
 interface AgentRightPaneState {
   flowTabs: AgentFlowTab[]
-  activeFlowTab?: AgentFlowTab
-  flow: ReturnType<typeof buildAgentToolFlowProjection>
-  status: AgentRightPaneStatus
   previewFileSelection: ArtifactPaneFileSelection | null
   selectedFile: string | null
   fileTreeExpandedIds: ReadonlySet<string>
@@ -147,11 +144,49 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
 }
 
 const AgentRightPaneContext = createContext<AgentRightPaneContextValue | null>(null)
+const AgentRightPaneProjectionSourceContext = createContext<{
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
+} | null>(null)
+const AgentRightPaneStatusContext = createContext<AgentRightPaneStatus | null>(null)
+const EMPTY_AGENT_RIGHT_PANE_STATUS: AgentRightPaneStatus = {
+  tasks: [],
+  completedTaskCount: 0,
+  totalTaskCount: 0,
+  subagents: [],
+  artifacts: []
+}
 
 function useAgentRightPane(): AgentRightPaneContextValue {
   const value = use(AgentRightPaneContext)
   if (!value) throw new Error('useAgentRightPane must be used within <AgentRightPane>')
   return value
+}
+
+function useAgentRightPaneProjectionSource() {
+  const value = use(AgentRightPaneProjectionSourceContext)
+  if (!value) throw new Error('useAgentRightPaneProjectionSource must be used within <AgentRightPane>')
+  return value
+}
+
+function useAgentRightPaneStatus(): AgentRightPaneStatus {
+  const value = use(AgentRightPaneStatusContext)
+  if (!value) throw new Error('useAgentRightPaneStatus must be used within <AgentRightPaneStatusProjectionProvider>')
+  return value
+}
+
+function AgentRightPaneStatusProjectionProvider({ children }: { children: ReactNode }) {
+  const { messages, partsByMessageId } = useAgentRightPaneProjectionSource()
+  const { meta } = useAgentRightPane()
+  const status = useMemo(
+    () =>
+      meta.statusEnabled === false
+        ? EMPTY_AGENT_RIGHT_PANE_STATUS
+        : buildAgentRightPaneStatus(messages, partsByMessageId),
+    [messages, meta.statusEnabled, partsByMessageId]
+  )
+
+  return <AgentRightPaneStatusContext value={status}>{children}</AgentRightPaneStatusContext>
 }
 
 // The workspace file-tree model lives in its own context so its frequent
@@ -210,17 +245,6 @@ function AgentRightPaneStateProvider({
   })
   // Stable callback for effect deps (the model object itself is new each render).
   const { resetLazyChildren: resetFileTreeLazyChildren } = fileTreeModel
-
-  const activeFlowToolCallId = getFlowToolCallId(activeTab)
-  const activeFlowTab = activeFlowToolCallId
-    ? flowTabs.find((flowTab) => flowTab.toolCallId === activeFlowToolCallId)
-    : undefined
-
-  const flow = useMemo(
-    () => buildAgentToolFlowProjection(messages, partsByMessageId, activeFlowTab?.toolCallId),
-    [activeFlowTab?.toolCallId, messages, partsByMessageId]
-  )
-  const status = useMemo(() => buildAgentRightPaneStatus(messages, partsByMessageId), [messages, partsByMessageId])
 
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
@@ -311,9 +335,6 @@ function AgentRightPaneStateProvider({
     () => ({
       state: {
         flowTabs,
-        activeFlowTab,
-        flow,
-        status,
         previewFileSelection,
         selectedFile,
         fileTreeExpandedIds,
@@ -342,7 +363,6 @@ function AgentRightPaneStateProvider({
       }
     }),
     [
-      activeFlowTab,
       agentAvatar,
       agentId,
       agentName,
@@ -351,7 +371,6 @@ function AgentRightPaneStateProvider({
       fileTreeExpandedIds,
       fileTreeSearchKeyword,
       filesEnabled,
-      flow,
       flowTabs,
       openArtifactFile,
       openAgentToolFlow,
@@ -361,17 +380,20 @@ function AgentRightPaneStateProvider({
       sessionId,
       sessionName,
       statusEnabled,
-      status,
       traceId,
       workspaceId,
       workspacePath
     ]
   )
 
+  const projectionSource = useMemo(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+
   return (
-    <AgentRightPaneContext value={value}>
-      <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
-    </AgentRightPaneContext>
+    <AgentRightPaneProjectionSourceContext value={projectionSource}>
+      <AgentRightPaneContext value={value}>
+        <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
+      </AgentRightPaneContext>
+    </AgentRightPaneProjectionSourceContext>
   )
 }
 
@@ -476,15 +498,15 @@ function AgentToolFlowMessageList({
   )
 }
 
-function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
-  const { state } = useAgentRightPane()
-  const { activeTab } = useShellState()
+function ActiveAgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
+  const { messages, partsByMessageId } = useAgentRightPaneProjectionSource()
   const { t } = useTranslation()
+  const flow = useMemo(
+    () => buildAgentToolFlowProjection(messages, partsByMessageId, tab.toolCallId),
+    [messages, partsByMessageId, tab.toolCallId]
+  )
 
-  // Only the active flow tab drives the projection, so skip stale siblings.
-  if (activeTab !== getFlowTabValue(tab.toolCallId)) return null
-
-  if (!state.flow.messages.length) {
+  if (!flow.messages.length) {
     return (
       <EmptyState
         icon={GitBranch}
@@ -496,9 +518,18 @@ function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <AgentToolFlowMessageList messages={state.flow.messages} partsByMessageId={state.flow.partsByMessageId} />
+      <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
     </div>
   )
+}
+
+function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
+  const { activeTab } = useShellState()
+
+  // Only the active flow tab drives the projection, so skip stale siblings.
+  if (activeTab !== getFlowTabValue(tab.toolCallId)) return null
+
+  return <ActiveAgentRightPaneFlowPanel tab={tab} />
 }
 
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
@@ -516,9 +547,9 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
 }
 
 function AgentAgentRightPaneStatusPanel() {
-  const { state, meta } = useAgentRightPane()
+  const { meta } = useAgentRightPane()
   const { t } = useTranslation()
-  const { status } = state
+  const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
@@ -572,10 +603,11 @@ function AgentAgentRightPaneStatusPanel() {
 
 function AgentRightPaneSurface() {
   const { state, actions, meta } = useAgentRightPane()
+  const status = useAgentRightPaneStatus()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const shellState = useShellState()
-  const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
+  const incompleteTasks = Math.max(0, status.totalTaskCount - status.completedTaskCount)
   const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
   const hasFiles = meta.filesEnabled !== false
   const resourcePane = useResourcePane()
@@ -683,7 +715,9 @@ function AgentRightPaneHost() {
     <>
       <AgentRightPaneKeyboardShortcut />
       <Shell.Host>
-        <AgentRightPaneSurface />
+        <AgentRightPaneStatusProjectionProvider>
+          <AgentRightPaneSurface />
+        </AgentRightPaneStatusProjectionProvider>
       </Shell.Host>
     </>
   )
@@ -692,7 +726,9 @@ function AgentRightPaneHost() {
 function AgentRightPaneMaximizedOverlay() {
   return (
     <Shell.MaximizedOverlay>
-      <AgentRightPaneSurface />
+      <AgentRightPaneStatusProjectionProvider>
+        <AgentRightPaneSurface />
+      </AgentRightPaneStatusProjectionProvider>
     </Shell.MaximizedOverlay>
   )
 }
@@ -744,10 +780,11 @@ function AgentRightPaneHighlights({
   compact?: boolean
   includeTasks?: boolean
 }) {
-  const { state, actions } = useAgentRightPane()
+  const { actions } = useAgentRightPane()
+  const status = useAgentRightPaneStatus()
   const { t } = useTranslation()
-  const tasks = includeTasks ? state.status.tasks : []
-  const hasHighlights = tasks.length > 0 || state.status.subagents.length > 0 || state.status.artifacts.length > 0
+  const tasks = includeTasks ? status.tasks : []
+  const hasHighlights = tasks.length > 0 || status.subagents.length > 0 || status.artifacts.length > 0
 
   if (!hasHighlights) return null
 
@@ -775,13 +812,13 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {state.status.subagents.length > 0 && (
+      {status.subagents.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.subagents')}
           icon={<Bot size={14} className="text-muted-foreground" />}
           compact={compact}>
           <ul className="space-y-1">
-            {state.status.subagents.map((subagent) => (
+            {status.subagents.map((subagent) => (
               <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
                 <SubagentStatusIcon status={subagent.status} />
                 <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-xs leading-5">
@@ -793,13 +830,13 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {state.status.artifacts.length > 0 && (
+      {status.artifacts.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.artifacts')}
           icon={<Package size={14} className="text-muted-foreground" />}
           compact={compact}>
           <ul className="space-y-0.5">
-            {state.status.artifacts.map((artifact) => (
+            {status.artifacts.map((artifact) => (
               <li key={`${artifact.toolCallId}-${artifact.path}`}>
                 <button
                   type="button"
@@ -861,7 +898,9 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
     <HoverCard openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>{shortcut}</HoverCardTrigger>
       <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
-        <AgentRightPaneStatusPreview />
+        <AgentRightPaneStatusProjectionProvider>
+          <AgentRightPaneStatusPreview />
+        </AgentRightPaneStatusProjectionProvider>
       </HoverCardContent>
     </HoverCard>
   )

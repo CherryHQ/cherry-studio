@@ -5,7 +5,7 @@
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
  * Generated at: 2026-07-11T04:47:13.147Z
- * Total icons: 35
+ * Total icons: 36
  */
 import { type CompoundIcon } from '../types'
 import { AyaIcon } from './aya'
@@ -32,6 +32,7 @@ import { GptOss20bIcon } from './gpt-oss-20b'
 import { GptOss120bIcon } from './gpt-oss-120b'
 import { GrokIcon } from './grok'
 import { HailuoIcon } from './hailuo'
+import { HappyhorseIcon } from './happyhorse'
 import { HunyuanIcon } from './hunyuan'
 import { IbmIcon } from './ibm'
 import { KimiIcon } from './kimi'
@@ -70,6 +71,7 @@ export const MODEL_ICON_CATALOG = {
   'gpt-oss-20b': GptOss20bIcon,
   grok: GrokIcon,
   hailuo: HailuoIcon,
+  happyhorse: HappyhorseIcon,
   hunyuan: HunyuanIcon,
   ibm: IbmIcon,
   kimi: KimiIcon,

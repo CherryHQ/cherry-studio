@@ -3,6 +3,7 @@ import type { ComposerContextValue } from '@renderer/components/composer/Compose
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
@@ -24,7 +25,7 @@ interface AgentComposerSlotProps {
   composerContext: ComposerContextValue
 }
 
-export default function AgentComposerSlot({
+function AgentComposerSlot({
   agentId,
   isMultiSelectMode,
   session,
@@ -65,3 +66,5 @@ export default function AgentComposerSlot({
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(AgentComposerSlot)

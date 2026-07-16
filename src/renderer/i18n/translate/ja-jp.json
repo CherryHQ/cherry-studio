@@ -888,8 +888,8 @@
           "label": "スケジューラ"
         },
         "CherryGenerateImage": {
-          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
-          "label": "[to be translated]:Generate Image"
+          "description": "設定されたペインティングモデルを使用して、テキストプロンプトから画像を生成します",
+          "label": "画像を生成"
         },
         "CherryKbManage": {
           "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
@@ -1401,7 +1401,7 @@
         "title": "キューに追加済み（{{count}}）"
       },
       "generate_image": "画像を生成する",
-      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
+      "generate_image_no_model": "設定 › デフォルトモデルでペインティングモデルを設定してください",
       "knowledge_base": "ナレッジベース",
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
@@ -1488,9 +1488,9 @@
         "expand": "展開",
         "file_not_found": "ファイルが見つかりません: {{path}}",
         "generate_image": {
-          "failed": "[to be translated]:Image generation failed",
-          "generating": "[to be translated]:Generating image…",
-          "title": "[to be translated]:Generated image"
+          "failed": "画像生成に失敗しました",
+          "generating": "画像を生成中…",
+          "title": "生成された画像"
         },
         "open_file": "ファイルを開く",
         "open_file_error": "ファイルを開けませんでした: {{path}}",
@@ -2800,7 +2800,7 @@
           "title": "単一のウェブページをインポート"
         }
       },
-      "back_to_parent": "[to be translated]:Back",
+      "back_to_parent": "戻る",
       "bulk": {
         "delete": "削除",
         "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
@@ -2828,7 +2828,7 @@
         "title": "最初のデータソースをアップロードしてください"
       },
       "empty_description": "まだデータソースがありません",
-      "empty_folder": "[to be translated]:This folder is empty",
+      "empty_folder": "このフォルダは空です",
       "filters": {
         "all": "すべて",
         "directory": "フォルダ",
@@ -2861,7 +2861,7 @@
           "type": "タイプ",
           "updated_at": "更新済み"
         },
-        "open_row": "[to be translated]:Open {{title}}",
+        "open_row": "{{title}}を開く",
         "select_all": "すべて選択",
         "select_row": "行を選択"
       },
@@ -2874,8 +2874,8 @@
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
-    "empty_action": "[to be translated]:Create Knowledge Base",
-    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty_action": "ナレッジベースを作成",
+    "empty_description": "まだナレッジベースがありません。ドキュメントの整理と検索を開始するために、ナレッジベースを作成してください。",
     "error": {
       "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
       "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
@@ -6852,8 +6852,8 @@
       },
       "more_actions": "モデル一覧のその他の操作",
       "not_enabled_models": "無効",
-      "painting_model": "[to be translated]:Painting Model",
-      "painting_model_description": "[to be translated]:Model used for image generation",
+      "painting_model": "ペインティングモデル",
+      "painting_model_description": "画像生成に使用されたモデル",
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
       "provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",
