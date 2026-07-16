@@ -958,6 +958,34 @@
         "Write": {
           "description": "创建或覆盖文件",
           "label": "写入文件"
+        },
+        "bash": {
+          "description": "执行 Shell 命令",
+          "label": "执行 Shell 命令"
+        },
+        "edit": {
+          "description": "编辑文件",
+          "label": "编辑文件"
+        },
+        "find": {
+          "description": "查找文件",
+          "label": "查找文件"
+        },
+        "grep": {
+          "description": "搜索文件内容",
+          "label": "搜索文件内容"
+        },
+        "ls": {
+          "description": "列出目录内容",
+          "label": "列出目录内容"
+        },
+        "read": {
+          "description": "读取文件",
+          "label": "读取文件"
+        },
+        "write": {
+          "description": "写入文件",
+          "label": "写入文件"
         }
       }
     },
@@ -3125,6 +3153,14 @@
           "plan_model": {
             "hint": "负责任务拆解和决策",
             "label": "Plan 模型"
+          },
+          "runtime": {
+            "label": "运行时",
+            "option": {
+              "claude_code": "Claude Code",
+              "pi": "pi"
+            },
+            "pi_hint": "pi 智能体支持内置工具、技能、MCP 服务器与 Soul 模式，暂不支持计划模式。"
           },
           "small_model": {
             "hint": "负责简单判断和格式化",

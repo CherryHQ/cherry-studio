@@ -26,7 +26,7 @@ describe('resource create DTO mapping', () => {
   })
 
   it('maps every agent-specific field', () => {
-    expect(buildCreateAgentDto(values)).toEqual({
+    expect(buildCreateAgentDto(values, 'claude-code')).toEqual({
       type: 'claude-code',
       name: 'Researcher',
       model: 'provider::model',
@@ -38,6 +38,21 @@ describe('resource create DTO mapping', () => {
       configuration: {
         avatar: '🤖',
         permission_mode: 'bypassPermissions'
+      }
+    })
+  })
+
+  it('uses Pi runtime defaults instead of Claude-only model tiers', () => {
+    expect(buildCreateAgentDto(values, 'pi')).toEqual({
+      type: 'pi',
+      name: 'Researcher',
+      model: 'provider::model',
+      description: 'Investigates a topic',
+      instructions: 'Use cited sources',
+      skillIds: ['skill-1'],
+      configuration: {
+        avatar: '🤖',
+        permission_mode: 'default'
       }
     })
   })

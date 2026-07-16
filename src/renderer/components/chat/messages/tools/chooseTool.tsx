@@ -1,4 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { AgentExecutionTimeline } from './agent'
@@ -14,6 +15,16 @@ const agentGenerateImageToolName = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAM
 const agentTools = new Set<string>(Object.values(AgentToolsType))
 /** cherry-tools that carry short wire names (no `mcp__` prefix) and lack a bespoke card. */
 const CHERRY_AGENT_TOOL_NAMES = new Set(['web_fetch', 'kb_list', 'memory'])
+/**
+ * Built-in tool ids of every agent runtime descriptor (pi's lowercase `read`/`bash`/…, Claude's
+ * capitalized names). Cherry-runtime tools with no bespoke card fall through to the generic
+ * execution-timeline card here instead of vanishing — future-proof for any new runtime's built-ins.
+ */
+const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
+  Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) =>
+    caps.builtinTools().map((tool: { id: string }) => tool.id)
+  )
+)
 
 const isAgentTool = (toolName: string) => {
   if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
@@ -64,6 +75,12 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   }
 
   if (isAgentTool(toolName)) {
+    return <AgentExecutionTimeline toolResponse={toolResponse} />
+  }
+
+  // Cherry agent-runtime built-ins (e.g. pi's lowercase `read`/`bash`) miss every bespoke branch
+  // because their names aren't Claude-cased; route them to the generic card rather than dropping them.
+  if (CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName)) {
     return <AgentExecutionTimeline toolResponse={toolResponse} />
   }
   return null

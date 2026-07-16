@@ -1,5 +1,6 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
-import type { AgentConfiguration } from '@shared/data/types/agent'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
@@ -75,3 +76,10 @@ export const permissionModeCards: PermissionModeCard[] = [
     caution: true
   }
 ]
+
+/** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
+export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
+  if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
+  const modes = new Set(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
+  return permissionModeCards.filter((card) => modes.has(card.mode))
+}

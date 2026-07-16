@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 const wizardValues = {
   avatar: '🤖',
   name: 'New',
+  agentType: 'claude-code' as const,
   modelId: 'p::m',
   description: 'desc',
   prompt: 'Agent instructions',
@@ -36,8 +37,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
 }))
-
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
 
 import { AgentCreateDialog } from '../AgentCreateDialog'
 

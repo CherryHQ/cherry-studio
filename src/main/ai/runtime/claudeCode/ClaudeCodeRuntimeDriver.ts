@@ -21,6 +21,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -39,6 +40,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
+import { AsyncEventQueue } from '../asyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -63,42 +65,8 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
-class AsyncEventQueue<T> implements AsyncIterable<T> {
-  private readonly items: T[] = []
-  private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
-  private closed = false
-
-  push(item: T): void {
-    if (this.closed) return
-    const waiter = this.waiters.shift()
-    if (waiter) {
-      waiter({ value: item, done: false })
-      return
-    }
-    this.items.push(item)
-  }
-
-  close(): void {
-    if (this.closed) return
-    this.closed = true
-    while (this.waiters.length > 0) {
-      this.waiters.shift()?.({ value: undefined as T, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    return {
-      next: () => {
-        const item = this.items.shift()
-        if (item) return Promise.resolve({ value: item, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
-        return new Promise<IteratorResult<T>>((resolve) => {
-          this.waiters.push(resolve)
-        })
-      }
-    }
-  }
-}
+// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
+export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
   private readonly messages: SDKUserMessage[] = []

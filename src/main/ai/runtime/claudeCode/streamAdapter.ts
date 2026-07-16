@@ -31,6 +31,7 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -45,6 +46,7 @@ const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
+export const CLAUDE_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 
 // ── Internal types ──────────────────────────────────────────────────
 
@@ -1153,7 +1155,7 @@ export class ClaudeCodeStreamAdapter {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: 'claude-agent'
+        transport: CLAUDE_TRANSPORT
       }
     }
   }
@@ -1175,7 +1177,7 @@ export class ClaudeCodeStreamAdapter {
     return {
       'claude-code': claudeCode,
       cherry: {
-        transport: 'claude-agent',
+        transport: CLAUDE_TRANSPORT,
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),

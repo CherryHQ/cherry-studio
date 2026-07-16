@@ -1,12 +1,7 @@
+import type { ResourceCreateWizardValues } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
-import type {
-  AgentDetail,
-  ResourceCreateValues,
-  ResourceItem,
-  ResourceType,
-  TagItem
-} from '@renderer/types/resourceCatalog'
+import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { buildCreateAgentDto, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
@@ -188,7 +183,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   )
 
   const handleSubmitCreateResource = useCallback(
-    async (values: ResourceCreateValues) => {
+    async (values: ResourceCreateWizardValues) => {
       const kind = createDialogKind
       if (!kind || creatingResource) return
 
@@ -197,7 +192,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
         if (kind === 'assistant') {
           await createAssistant(buildCreateAssistantDto(values))
         } else {
-          await createAgent(buildCreateAgentDto(values))
+          await createAgent(buildCreateAgentDto(values, values.agentType))
         }
 
         setCreateDialogOpen(false)

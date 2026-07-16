@@ -66,11 +66,13 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<AgentDetail | null>(null)
+  // Edit-dialog model picker tracks the agent's own runtime (D2); create uses the
+  // wizard's built-in runtime selector so no filter prop is passed there.
+  const editModelFilter = useAgentModelFilter(editingAgent?.type)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -158,9 +160,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent({
-          body: buildCreateAgentDto(values)
-        })
+        created = await createAgent({ body: buildCreateAgentDto(values, values.agentType) })
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error
@@ -211,7 +211,6 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={modelFilter}
     />
   )
 
@@ -223,7 +222,7 @@ export function AgentSelector(props: AgentSelectorProps) {
           resource={editingAgent}
           onOpenChange={handleEditDialogOpenChange}
           onSaved={handleEditSaved}
-          modelFilter={modelFilter}
+          modelFilter={editModelFilter}
         />
       </Suspense>
     ) : null

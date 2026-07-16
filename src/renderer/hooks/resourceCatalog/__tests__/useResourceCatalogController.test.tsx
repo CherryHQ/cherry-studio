@@ -9,6 +9,8 @@ import { useResourceCatalogController } from '../useResourceCatalogController'
 type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 
 const controllerMocks = vi.hoisted(() => ({
+  buildCreateAgentDto: vi.fn(),
+  buildCreateAssistantDto: vi.fn(),
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   duplicateAssistant: vi.fn(),
@@ -26,6 +28,11 @@ const controllerMocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@renderer/utils/resourceCatalog', () => ({
+  buildCreateAgentDto: controllerMocks.buildCreateAgentDto,
+  buildCreateAssistantDto: controllerMocks.buildCreateAssistantDto
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -61,6 +68,7 @@ vi.mock('@renderer/hooks/useTags', () => ({
 }))
 
 const createValues = {
+  agentType: 'claude-code' as const,
   avatar: 'A',
   description: 'A focused helper',
   knowledgeBaseIds: ['kb-1'],
@@ -84,6 +92,8 @@ const assistantResource = {
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    controllerMocks.buildCreateAgentDto.mockImplementation((values, agentType) => ({ builtFrom: values, agentType }))
+    controllerMocks.buildCreateAssistantDto.mockImplementation((values) => ({ builtFrom: values }))
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.refetch.mockResolvedValue(undefined)
@@ -115,19 +125,13 @@ describe('useResourceCatalogController', () => {
       await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
 
-    expect(controllerMocks.createAssistant).toHaveBeenCalledWith({
-      description: createValues.description,
-      emoji: createValues.avatar,
-      knowledgeBaseIds: createValues.knowledgeBaseIds,
-      modelId: createValues.modelId,
-      name: createValues.name,
-      prompt: createValues.prompt
-    })
+    expect(controllerMocks.buildCreateAssistantDto).toHaveBeenCalledWith(createValues)
+    expect(controllerMocks.createAssistant).toHaveBeenCalledWith({ builtFrom: createValues })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
   })
 
-  it('creates an agent and refetches the resource list', async () => {
+  it('creates an agent through the centralized runtime-aware DTO mapper', async () => {
     const { result } = renderHook(() => useResourceCatalogController('agent'))
 
     act(() => {
@@ -138,22 +142,26 @@ describe('useResourceCatalogController', () => {
       await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
 
-    expect(controllerMocks.createAgent).toHaveBeenCalledWith({
-      configuration: {
-        avatar: createValues.avatar,
-        permission_mode: 'bypassPermissions'
-      },
-      description: createValues.description,
-      instructions: createValues.prompt,
-      model: createValues.modelId,
-      name: createValues.name,
-      planModel: createValues.modelId,
-      skillIds: createValues.skillIds,
-      smallModel: createValues.modelId,
-      type: 'claude-code'
-    })
+    expect(controllerMocks.buildCreateAgentDto).toHaveBeenCalledWith(createValues, 'claude-code')
+    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: createValues, agentType: 'claude-code' })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
+  })
+
+  it('honors the selected pi runtime instead of hardcoding claude-code', async () => {
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+    const piValues = { ...createValues, agentType: 'pi' as const }
+
+    act(() => {
+      result.current.gridProps.onCreate('agent')
+    })
+
+    await act(async () => {
+      await result.current.dialogs.handleSubmitCreateResource(piValues)
+    })
+
+    expect(controllerMocks.buildCreateAgentDto).toHaveBeenCalledWith(piValues, 'pi')
+    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: piValues, agentType: 'pi' })
   })
 
   it('reports assistant duplicate failures without refetching', async () => {

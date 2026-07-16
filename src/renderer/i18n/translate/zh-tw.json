@@ -958,6 +958,34 @@
         "Write": {
           "description": "建立或覆寫檔案",
           "label": "寫入檔案"
+        },
+        "bash": {
+          "description": "執行 Shell 命令",
+          "label": "執行 Shell 命令"
+        },
+        "edit": {
+          "description": "編輯檔案",
+          "label": "編輯檔案"
+        },
+        "find": {
+          "description": "尋找檔案",
+          "label": "尋找檔案"
+        },
+        "grep": {
+          "description": "搜尋檔案內容",
+          "label": "搜尋檔案內容"
+        },
+        "ls": {
+          "description": "列出目錄內容",
+          "label": "列出目錄內容"
+        },
+        "read": {
+          "description": "讀取檔案",
+          "label": "讀取檔案"
+        },
+        "write": {
+          "description": "寫入檔案",
+          "label": "寫入檔案"
         }
       }
     },
@@ -3125,6 +3153,14 @@
           "plan_model": {
             "hint": "任務分解與規劃",
             "label": "計畫模型"
+          },
+          "runtime": {
+            "label": "執行環境",
+            "option": {
+              "claude_code": "Claude Code",
+              "pi": "pi"
+            },
+            "pi_hint": "pi 智能體支援內建工具、技能、MCP 伺服器與 Soul 模式，暫不支援計劃模式。"
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",

@@ -59,6 +59,7 @@ import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
@@ -75,9 +76,9 @@ import { languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
+import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
 import type { AgentRuntimeUserInput } from '../types'
-import { detectGlobalInstall } from './dependencyGuard'
-import { toolApprovalRegistry } from './ToolApprovalRegistry'
+import { decisionToPermissionResult, toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
@@ -742,20 +743,25 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Approval emitter not ready' }
     }
     return new Promise<PermissionResult>((resolve) => {
-      toolApprovalRegistry.register({
+      const pending = toolApprovalRegistry.register({
         approvalId,
         sessionId: session.id,
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
         signal: opts.signal,
-        resolve
+        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
       })
+      // Skip the approval card when the request resolved synchronously (no pending
+      // entry to answer) — see ToolApprovalRegistry.register.
+      if (!pending) return
       emit({
         type: 'tool-approval-request',
         approvalId,
         toolCallId: opts.toolUseID,
-        providerMetadata: { cherry: { transport: 'claude-agent', toolName } satisfies CherryToolMeta }
+        providerMetadata: {
+          cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
+        }
       })
     })
   }

@@ -48,4 +48,15 @@ describe('chooseTool', () => {
     expect(testIdOf(chooseTool(resp('generate_image', 'mcp')))).toBe('image-card')
     expect(testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('image-card')
   })
+
+  it('routes cherry-runtime built-ins with non-Claude-cased names (pi lowercase) to the generic card', () => {
+    // pi built-ins stream as lowercase `read`/`bash` and resolve to `tool.type === 'builtin'`; they
+    // match no bespoke branch and must fall through to the generic execution-timeline card, not null.
+    expect(testIdOf(chooseTool(resp('read', 'builtin')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('bash', 'builtin')))).toBe('agent-card')
+  })
+
+  it('returns null for an unknown non-cherry tool', () => {
+    expect(chooseTool(resp('totally_unknown_tool', 'builtin'))).toBeNull()
+  })
 })

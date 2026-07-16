@@ -125,6 +125,10 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
+    // pi resume tokens persist the pi session id, never a filesystem path.
+    'feature.agents.pi.root': path.join(appUserData, 'agents', 'pi'), // Cherry-owned pi coding-agent home; exported as PI_CODING_AGENT_DIR
+    'feature.agents.pi.sessions': path.join(appUserData, 'agents', 'pi', 'sessions'), // <root>/sessions; matches pi's getSessionsDir() default
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 

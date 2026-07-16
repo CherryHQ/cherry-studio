@@ -28,9 +28,9 @@ import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
+import { type DispatchDecision, toolApprovalRegistry } from '../runtime/toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -780,6 +780,11 @@ export class AgentSessionRuntimeService extends BaseService {
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+      // Defensively close so the loop terminating for ANY reason (including a bug thrown from
+      // handleRuntimeEvent) disposes the connection. Both drivers' close() is idempotent.
+      void Promise.resolve(connection.close()).catch((error) =>
+        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
       if (entry.connection === connection) {
         entry.connection = undefined
       }

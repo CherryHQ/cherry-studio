@@ -60,6 +60,15 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill basic
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue('agentType', 'pi')
+              form.setValue('name', 'My Resource')
+              form.setValue('modelId', 'provider::model')
+            }}>
+            fill pi basic
+          </button>
         </>
       )
     }
@@ -116,6 +125,7 @@ describe('ResourceCreateWizard', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       avatar: '💬',
       name: 'My Resource',
+      agentType: 'claude-code',
       modelId: 'provider::default',
       description: '',
       prompt: '',
@@ -182,6 +192,7 @@ describe('ResourceCreateWizard', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       avatar: '💬',
       name: 'My Resource',
+      agentType: 'claude-code',
       modelId: 'provider::model',
       description: '',
       prompt: 'be helpful',
@@ -220,6 +231,19 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+  })
+
+  it('shows the capability step for pi agents (skills supported)', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill pi basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+    expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: CREATE })).toBeInTheDocument()
   })
 
   it('does not prefill the default model for agent kind when rejected by the model filter', async () => {

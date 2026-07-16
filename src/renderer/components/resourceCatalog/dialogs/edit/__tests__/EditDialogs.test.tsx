@@ -220,6 +220,20 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
+          'agent.tools.builtin.bash.description': 'Run shell commands',
+          'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.edit.description': 'Edit files',
+          'agent.tools.builtin.edit.label': 'Edit files',
+          'agent.tools.builtin.find.description': 'Find files',
+          'agent.tools.builtin.find.label': 'Find files',
+          'agent.tools.builtin.grep.description': 'Search file contents',
+          'agent.tools.builtin.grep.label': 'Search file contents',
+          'agent.tools.builtin.ls.description': 'List directory contents',
+          'agent.tools.builtin.ls.label': 'List directory contents',
+          'agent.tools.builtin.read.description': 'Read files',
+          'agent.tools.builtin.read.label': 'Read files',
+          'agent.tools.builtin.write.description': 'Write files',
+          'agent.tools.builtin.write.label': 'Write files',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -438,6 +452,13 @@ const AGENT: AgentDetail = {
   modelName: 'Old Model',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z'
+}
+
+const PI_AGENT: AgentDetail = {
+  ...AGENT,
+  id: 'pi-agent-1',
+  type: 'pi',
+  name: 'Pi Agent'
 }
 
 beforeAll(() => {
@@ -905,6 +926,29 @@ describe('edit dialogs', () => {
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           skillUpdates: [{ skillId: 'skill-1', isEnabled: true }]
+        })
+      })
+    )
+  })
+
+  it('shows built-in tools, MCP, and skills for pi agents and auto-saves lowercase disabled tools', async () => {
+    render(<AgentEditDialog open resource={PI_AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    expect(screen.getByRole('tab', { name: 'Built-in tools' })).toBeInTheDocument()
+    // pi now bridges its selected MCP servers into the session, so the MCP tab is available.
+    expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Skills' })).toBeInTheDocument()
+
+    selectTab('Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Read files' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Run shell commands' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Run shell commands' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          disabledTools: ['bash']
         })
       })
     )

@@ -74,8 +74,9 @@ function AgentEditDialogHost({
   onSaved
 }: ResourceEditDialogHostProps & { target: Extract<ResourceEditDialogTarget, { kind: 'agent' }> }) {
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const { agent, error, revalidate } = useAgent(target.id)
+  // Track the agent's own runtime so a pi agent is not offered incompatible models (D2).
+  const modelFilter = useAgentModelFilter(agent?.type)
 
   useEffect(() => {
     if (!error) return

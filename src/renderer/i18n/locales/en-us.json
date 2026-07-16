@@ -958,6 +958,34 @@
         "Write": {
           "description": "Creates or overwrites files",
           "label": "Write"
+        },
+        "bash": {
+          "description": "Run shell commands",
+          "label": "Run shell commands"
+        },
+        "edit": {
+          "description": "Edit files",
+          "label": "Edit files"
+        },
+        "find": {
+          "description": "Find files",
+          "label": "Find files"
+        },
+        "grep": {
+          "description": "Search file contents",
+          "label": "Search file contents"
+        },
+        "ls": {
+          "description": "List directory contents",
+          "label": "List directory contents"
+        },
+        "read": {
+          "description": "Read files",
+          "label": "Read files"
+        },
+        "write": {
+          "description": "Write files",
+          "label": "Write files"
         }
       }
     },
@@ -3125,6 +3153,14 @@
           "plan_model": {
             "hint": "Task decomposition and planning",
             "label": "Plan model"
+          },
+          "runtime": {
+            "label": "Runtime",
+            "option": {
+              "claude_code": "Claude Code",
+              "pi": "pi"
+            },
+            "pi_hint": "pi agents support built-in tools, skills, MCP servers, and Soul mode — plan mode is not available."
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",

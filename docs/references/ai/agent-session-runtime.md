@@ -180,6 +180,84 @@ change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
 
+## pi driver resource boundary
+
+pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
+The driver must not import the user's standalone pi setup from `~/.pi/agent`,
+and must not silently trust executable or prompt resources from a workspace.
+
+Allowed in v1:
+
+- Cherry-owned pi home for SDK runtime state: `application.getPath('feature.agents.pi.root')`,
+  exported to pi as `PI_CODING_AGENT_DIR`. This is not a prompt/skill import
+  surface in v1.
+- Cherry-owned pi sessions: `application.getPath('feature.agents.pi.sessions')`,
+  exported as `PI_CODING_AGENT_SESSION_DIR`. The resume token is the pi session
+  id; reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
+  directory can be relocated without invalidating stored tokens.
+- Cherry agent instructions from the agent record, via `systemPromptOverride`.
+  Soul-mode agents override with the assembled CherryClaw persona
+  (`PromptBuilder` — SOUL.md/USER.md/FACT.md + autonomy-tool guidance +
+  bootstrap) instead of the plain instructions, mirroring the claude driver.
+- Inline Cherry-owned extensions required for the integration: provider
+  injection and tool approval/policy enforcement.
+- Soul-mode autonomy tools (`cron`/`notify`/`config`/`memory`) as pi
+  `customTools`, built from the runtime-neutral definitions in
+  `ai/agents/tools`. The approval gate auto-approves these Cherry-owned tools
+  in every permission mode (unattended heartbeat turns must not block on a
+  renderer prompt), but `disabledTools` still hard-blocks them. Soul is opt-in
+  for pi (create default off) since pi tools run at main-process privilege.
+- The agent's selected MCP servers (`agent.mcps`) bridged into `customTools` via
+  `piMcpToolAdapter`, proxying each call to `McpRuntimeService` (the same runtime
+  the claude SDK bridge uses). Unlike the soul tools these are third-party and
+  are NOT added to `autoApprovedTools` — the approval gate treats a namespaced
+  `mcp__…` tool like any other (prompts in default/acceptEdits, allowed in
+  bypassPermissions). The catalog is warmed once (`refreshTools`, `allSettled`)
+  so a cold cache after boot is not empty and a dead server neither blocks nor
+  fails session start.
+- The agent's enabled Cherry-managed skills, passed explicitly as
+  `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
+  These load even under `noSkills` because the paths are Cherry-owned and
+  resolved from the `agent_skill` join, not discovered from disk.
+- Workspace context files discovered from the cwd ancestry (`AGENTS.md`,
+  `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`). The workspace is trusted because the
+  user picked it by hand in Cherry — there is no separate "do you trust this
+  project?" prompt, matching the claude driver's `project` context source.
+  Context files are workspace **text**, a different trust class than executable
+  extensions (which stay off). This is the only project-discovered resource pi
+  loads; everything else below is still disabled.
+
+Disallowed in v1 unless Cherry adds an explicit trust/import flow:
+
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
+  skill folders such as `~/.agents/skills`.
++- Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
+  `APPEND_SYSTEM.md`; the agent record is the only persona source in v1.
+- Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
+  `.pi/themes`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`.
+- Project `.agents/skills` discovered from the cwd ancestry.
+
+The implementation enforces this by creating pi `SettingsManager` with
+`projectTrusted: true` (the user-selected workspace is trusted, so its context
+files load — parity with the claude driver) and passing empty `systemPrompt` /
+`appendSystemPrompt` so pi does not discover **prompt** files from disk, then
+constructing `DefaultResourceLoader` with `noExtensions`, `noSkills`,
+`noPromptTemplates`, and `noThemes` — but `noContextFiles: false`, the one
+project-discovered surface pi is allowed. Inline extension factories still load
+because they are passed by Cherry code, not discovered from disk; likewise the
+agent's enabled managed skills load via `additionalSkillPaths`, which pi honors
+even under `noSkills` because the paths are supplied by Cherry, not
+disk-discovered.
+
+The trust boundary is therefore **executable/prompt resources off, workspace
+text on**: `noExtensions`/`noSkills`/`noPromptTemplates`/`noThemes` keep arbitrary
+code and Cherry-managed resources from being disk-discovered, while
+`projectTrusted: true` + `noContextFiles: false` load only the workspace's own
+`AGENTS.md`/`CLAUDE.md` text. If future work enables the still-disabled workspace
+resources (extensions, project skills/prompts/themes), it must add a Cherry-owned
+trust prompt and persisted decision first, then selectively pass that decision
+into pi resource loading rather than widening the `no*` flags wholesale.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.

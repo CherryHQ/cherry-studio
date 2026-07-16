@@ -26,11 +26,8 @@ import {
   buildInitialAgentFormState,
   diffAgentSaveIntent
 } from '@renderer/utils/resourceCatalog'
-import {
-  CLAUDE_TOOL_CATEGORIES,
-  type ClaudeToolCategory,
-  claudeUserFacingTools
-} from '@shared/ai/claudecode/toolRegistry'
+import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
@@ -79,8 +76,7 @@ type AgentEditFormValues = {
 type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
 
 const logger = loggerService.withContext('AgentEditDialog')
-const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const
-const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], string> = {
+const PERMISSION_MODE_LABEL_KEYS: Record<AgentPermissionMode, string> = {
   acceptEdits: 'library.config.agent.field.permission_mode.option.acceptEdits',
   bypassPermissions: 'library.config.agent.field.permission_mode.option.bypassPermissions',
   default: 'library.config.agent.field.permission_mode.option.default',
@@ -88,7 +84,9 @@ const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], stri
 }
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
 
-const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
+type BuiltinToolCategory = 'file' | 'shell' | 'search' | 'context' | 'orchestration' | 'media'
+
+const CATEGORY_LABEL_KEYS: Record<BuiltinToolCategory, string> = {
   file: 'library.config.agent.section.tools.category.file',
   shell: 'library.config.agent.section.tools.category.shell',
   search: 'library.config.agent.section.tools.category.search',
@@ -96,13 +94,22 @@ const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
   orchestration: 'library.config.agent.section.tools.category.orchestration',
   media: 'library.config.agent.section.tools.category.media'
 }
-const CATEGORY_LABEL_FALLBACKS: Record<ClaudeToolCategory, string> = {
+const CATEGORY_LABEL_FALLBACKS: Record<BuiltinToolCategory, string> = {
   file: 'File',
   shell: 'Shell',
   search: 'Search',
   context: 'Context',
   orchestration: 'Orchestration',
   media: 'Media'
+}
+const BUILTIN_TOOL_CATEGORY_ORDER = Object.keys(CATEGORY_LABEL_KEYS) as BuiltinToolCategory[]
+
+function isBuiltinToolCategory(value: string): value is BuiltinToolCategory {
+  return value in CATEGORY_LABEL_KEYS
+}
+
+function translateCatalogText(t: ReturnType<typeof useTranslation>['t'], key: string, fallback?: string) {
+  return fallback === undefined ? t(key) : t(key, fallback)
 }
 
 function isToolTab(value: string): value is ToolTab {
@@ -203,6 +210,7 @@ function AgentEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
+  const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -242,13 +250,15 @@ function AgentEditDialogContent({
         label: t('library.config.dialogs.edit.tools_tab'),
         children: [
           { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
-          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
-          { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
+          ...(caps.mcp ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }] : []),
+          ...(caps.skills
+            ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
+            : [])
         ]
       },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
-    [t]
+    [caps.mcp, caps.skills, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -351,6 +361,7 @@ function AgentEditDialogContent({
       <>
         <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
           <AgentBasicFields
+            caps={caps}
             form={form}
             modelFilter={modelFilter}
             portalContainer={dialogContentElement}
@@ -373,6 +384,7 @@ function AgentEditDialogContent({
           <TabsContent value={activeTab} forceMount className="m-0">
             <AgentToolsFields
               agent={resource}
+              caps={caps}
               form={form}
               activeToolTab={activeTab}
               portalContainer={dialogContentElement}
@@ -391,6 +403,7 @@ function AgentEditDialogContent({
 
 function AgentBasicFields({
   form,
+  caps,
   modelFilter,
   portalContainer,
   modelLabels,
@@ -401,6 +414,7 @@ function AgentBasicFields({
   onSettingsNavigate
 }: {
   form: UseFormReturn<AgentEditFormValues>
+  caps: AgentRuntimeCapabilities
   modelFilter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -431,7 +445,7 @@ function AgentBasicFields({
           required
         />
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className={caps.modelTiers ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-3'}>
         <CompactModelField
           form={form}
           name="modelId"
@@ -443,30 +457,34 @@ function AgentBasicFields({
           onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
           onSettingsNavigate={onSettingsNavigate}
         />
-        <CompactModelField
-          form={form}
-          name="planModelId"
-          label={t('library.config.agent.field.plan_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-        <CompactModelField
-          form={form}
-          name="smallModelId"
-          label={t('library.config.agent.field.small_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
+        {caps.modelTiers && (
+          <CompactModelField
+            form={form}
+            name="planModelId"
+            label={t('library.config.agent.field.plan_model.label')}
+            allowClear
+            filter={modelFilter}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+            onSettingsNavigate={onSettingsNavigate}
+          />
+        )}
+        {caps.modelTiers && (
+          <CompactModelField
+            form={form}
+            name="smallModelId"
+            label={t('library.config.agent.field.small_model.label')}
+            allowClear
+            filter={modelFilter}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+            onSettingsNavigate={onSettingsNavigate}
+          />
+        )}
       </div>
       <TextInputField
         form={form}
@@ -474,22 +492,31 @@ function AgentBasicFields({
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
       />
-      <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
-      <HeartbeatSettingsField
+      <PermissionModeField
         form={form}
-        enabled={heartbeatEnabled}
-        onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+        modes={caps.permissionModes}
+        portalContainer={portalContainer}
+        patchAgentForm={patchAgentForm}
       />
+      {caps.heartbeat && (
+        <HeartbeatSettingsField
+          form={form}
+          enabled={heartbeatEnabled}
+          onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+        />
+      )}
     </div>
   )
 }
 
 function PermissionModeField({
   form,
+  modes,
   portalContainer,
   patchAgentForm
 }: {
   form: UseFormReturn<AgentEditFormValues>
+  modes: readonly AgentPermissionMode[]
   portalContainer: HTMLElement | null
   patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
@@ -516,7 +543,7 @@ function PermissionModeField({
                 </SelectTrigger>
               </FormControl>
               <SelectContent portalContainer={portalContainer}>
-                {PERMISSION_MODES.map((mode) => (
+                {modes.map((mode) => (
                   <SelectItem key={mode} value={mode}>
                     {t(PERMISSION_MODE_LABEL_KEYS[mode])}
                   </SelectItem>
@@ -629,6 +656,7 @@ function AgentPromptField({
 
 function AgentToolsFields({
   agent,
+  caps,
   form,
   activeToolTab,
   portalContainer,
@@ -636,6 +664,7 @@ function AgentToolsFields({
   skillsLoading
 }: {
   agent: AgentDetail
+  caps: AgentRuntimeCapabilities
   form: UseFormReturn<AgentEditFormValues>
   activeToolTab: ToolTab
   portalContainer: HTMLElement | null
@@ -648,25 +677,24 @@ function AgentToolsFields({
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
 
-  // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
   // (empty = all enabled); approval is governed solely by the permission-mode cards.
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
-    const tools = claudeUserFacingTools()
-    return CLAUDE_TOOL_CATEGORIES.map((category) => ({
+    const tools = caps.builtinTools().filter((tool) => isBuiltinToolCategory(tool.category))
+    return BUILTIN_TOOL_CATEGORY_ORDER.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
       items: tools
         .filter((tool) => tool.category === category)
         .map<CatalogItem>((tool) => ({
-          id: tool.name,
-          name: t(`agent.tools.builtin.${tool.key}.label`, tool.label),
-          description: t(`agent.tools.builtin.${tool.key}.description`, tool.description),
+          id: tool.id,
+          name: translateCatalogText(t, `${tool.i18nKeyBase}.label`, tool.labelFallback),
+          description: translateCatalogText(t, `${tool.i18nKeyBase}.description`, tool.descriptionFallback),
           icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [t])
+  }, [caps, t])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]

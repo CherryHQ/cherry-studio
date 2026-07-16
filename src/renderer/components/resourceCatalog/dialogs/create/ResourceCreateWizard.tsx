@@ -1,6 +1,7 @@
 import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useDefaultModel } from '@renderer/hooks/useModel'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -35,6 +36,7 @@ function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardF
     avatar: getDefaultAvatar(kind),
     name: '',
     description: '',
+    agentType: 'claude-code',
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -135,15 +137,20 @@ export function ResourceCreateWizard({
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
 
+  const agentType = form.watch('agentType')
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const persona = { id: 'persona' as const, label: t('library.config.dialogs.create.step.persona') }
-    const last =
-      kind === 'assistant'
-        ? { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-        : { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, persona, last]
-  }, [kind, t])
+    if (kind === 'assistant') {
+      return [basic, persona, { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }]
+    }
+    if (!AGENT_RUNTIME_CAPABILITIES[agentType].skills) return [basic, persona]
+    return [basic, persona, { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }]
+  }, [agentType, kind, t])
+
+  useEffect(() => {
+    setStepIndex((index) => Math.min(index, steps.length - 1))
+  }, [steps.length])
 
   useEffect(() => {
     if (!open) return
@@ -234,6 +241,7 @@ export function ResourceCreateWizard({
       await onSubmit({
         avatar: values.avatar,
         name: values.name.trim(),
+        agentType: values.agentType,
         modelId: values.modelId,
         description: values.description.trim(),
         prompt: values.prompt.trim(),
@@ -319,6 +327,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getDefaultAvatar(kind)}
                     modelFilter={modelFilter}
+                    runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}

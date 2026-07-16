@@ -1,5 +1,6 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { isMcpContentBlock } from '@shared/utils/mcp'
@@ -12,7 +13,10 @@ import { AgentToolsType } from './shared/agentToolTypes'
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
-export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
+export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
+export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
+/** Cherry agent-runtime transports — pi tools have no bespoke renderer and fall to the generic card (D8). */
+const CHERRY_AGENT_TRANSPORTS = new Set<string>(Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport))
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 
@@ -142,7 +146,7 @@ function extractParentToolUseId(part: ToolResponsePart): string | undefined {
 function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
   if (!isRecord(metadata)) return false
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
-  return cherry?.transport === CLAUDE_AGENT_TRANSPORT
+  return typeof cherry?.transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(cherry.transport)
 }
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
