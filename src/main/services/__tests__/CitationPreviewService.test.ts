@@ -5,11 +5,12 @@ import type { CitationPreviewService as CitationPreviewServiceType } from '../Ci
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
 const extractPreviewTextMock = vi.hoisted(() => vi.fn())
-const applicationGet = vi.hoisted(() => vi.fn(() => ({ extractPreviewText: extractPreviewTextMock })))
 let mockMainLoggerService: MockMainLoggerService
 let service: CitationPreviewServiceType
 
-vi.mock('@application', () => ({ application: { get: applicationGet } }))
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractPreviewText: extractPreviewTextMock }
+}))
 
 vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: fetchRemoteTextMock
@@ -37,7 +38,6 @@ describe('CitationPreviewService', () => {
     vi.resetModules()
     fetchRemoteTextMock.mockReset()
     extractPreviewTextMock.mockReset()
-    applicationGet.mockClear()
     extractPreviewTextMock.mockImplementation(async (source: string) => source)
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
@@ -73,9 +73,28 @@ describe('CitationPreviewService', () => {
       maxRedirects: 5
     })
     expect(extractPreviewTextMock).toHaveBeenCalledWith(body, {
-      inputKind: 'text',
+      inputKind: 'html',
       maxLength: 100,
       signal: requestInit.signal
+    })
+  })
+
+  it.each([
+    ['title and list', '<title>Foo</title><ul><li>Hello</li></ul>'],
+    ['preformatted text', '<pre>Hello</pre>']
+  ])('routes minimal HTML with %s through the HTML parser', async (_name, body) => {
+    fetchRemoteTextMock.mockResolvedValue(body)
+    extractPreviewTextMock.mockResolvedValue('Hello')
+
+    await expect(service.fetchPreview('https://example.com/minimal', requestContext('request-1'))).resolves.toBe(
+      'Hello'
+    )
+
+    const signal = fetchRemoteTextMock.mock.calls[0]?.[1]?.signal as AbortSignal
+    expect(extractPreviewTextMock).toHaveBeenCalledWith(body, {
+      inputKind: 'html',
+      maxLength: 100,
+      signal
     })
   })
 

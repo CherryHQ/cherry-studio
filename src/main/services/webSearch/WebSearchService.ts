@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
@@ -37,7 +37,6 @@ type PreparedWebSearchContext = {
 
 @Injectable('WebSearchService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ReadableContentService'])
 export class WebSearchService extends BaseService {
   // Service-scoped state preserves API key rotation across IPC calls and is cleared on stop.
   private readonly apiKeyRotationState = new ApiKeyRotationState()

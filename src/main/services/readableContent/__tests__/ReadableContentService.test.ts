@@ -1,7 +1,5 @@
-import { EventEmitter, getEventListeners } from 'node:events'
+import { EventEmitter } from 'node:events'
 
-import { BaseService, Phase } from '@main/core/lifecycle'
-import { getPhase, getServiceName } from '@main/core/lifecycle/decorators'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type WorkerData = {
@@ -49,8 +47,7 @@ function emitResult(worker: FakeWorker, content = 'content', title = ''): void {
 describe('ReadableContentService', () => {
   let service: ReadableContentService
 
-  beforeEach(async () => {
-    BaseService.resetInstances()
+  beforeEach(() => {
     workerMocks.createWorker.mockReset()
     workerMocks.instances.length = 0
     workerMocks.createWorker.mockImplementation((options) => {
@@ -59,47 +56,33 @@ describe('ReadableContentService', () => {
       return worker
     })
     service = new ReadableContentService()
-    await service._doInit()
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     vi.useRealTimers()
-    if (!service.isStopped && !service.isDestroyed) {
-      await service._doStop()
-    }
-    BaseService.resetInstances()
   })
 
-  it('is a WhenReady lifecycle service', () => {
-    expect(getServiceName(ReadableContentService)).toBe('ReadableContentService')
-    expect(getPhase(ReadableContentService)).toBe(Phase.WhenReady)
-  })
-
-  it('runs three workers concurrently and delays the fourth task', async () => {
+  it('holds the queue slot until the worker has terminated', async () => {
     const tasks = Array.from({ length: 4 }, (_, index) =>
       service.extractReadableMarkdown(`<article>${index}</article>`)
     )
+    const firstTermination = deferred<number>()
+    const firstWorker = workerMocks.instances[0]
+    firstWorker.terminate.mockReturnValue(firstTermination.promise)
 
     expect(workerMocks.instances).toHaveLength(3)
 
-    emitResult(workerMocks.instances[0], 'first')
+    emitResult(firstWorker, 'first')
+    await flushPromises()
+
+    expect(workerMocks.instances).toHaveLength(3)
+
+    firstTermination.resolve(0)
     await expect(tasks[0]).resolves.toEqual({ title: '', content: 'first' })
     await vi.waitFor(() => expect(workerMocks.instances).toHaveLength(4))
 
     workerMocks.instances.slice(1).forEach((worker, index) => emitResult(worker, `remaining-${index}`))
     await Promise.all(tasks.slice(1))
-  })
-
-  it('does not accumulate abort listeners on the lifecycle signal after successful tasks', async () => {
-    const shutdownSignal = (service as unknown as { shutdownController: AbortController }).shutdownController.signal
-
-    for (let index = 0; index < 5; index += 1) {
-      const extraction = service.extractReadableMarkdown(`<article>${index}</article>`)
-      emitResult(workerMocks.instances.at(-1)!, `result-${index}`)
-      await extraction
-    }
-
-    expect(getEventListeners(shutdownSignal, 'abort')).toHaveLength(0)
   })
 
   it('does not spawn a worker when a queued task is aborted', async () => {
@@ -121,21 +104,24 @@ describe('ReadableContentService', () => {
     }
   })
 
-  it('terminates once and preserves the caller reason when an active task is aborted', async () => {
+  it('rejects the caller promptly but holds the queue task until an aborted worker terminates', async () => {
     const controller = new AbortController()
     const abortError = Object.assign(new Error('panel closed'), { name: 'AbortError' })
     const extraction = service.extractReadableMarkdown('<article></article>', { signal: controller.signal })
     const worker = workerMocks.instances[0]
+    const termination = deferred<number>()
+    worker.terminate.mockReturnValue(termination.promise)
 
-    const assertion = expect(extraction).rejects.toBe(abortError)
     controller.abort(abortError)
-    worker.emit('exit', 99)
 
-    await assertion
+    await expect(extraction).rejects.toBe(abortError)
     expect(worker.terminate).toHaveBeenCalledOnce()
     expect(worker.listenerCount('message')).toBe(0)
     expect(worker.listenerCount('error')).toBe(0)
     expect(worker.listenerCount('exit')).toBe(0)
+
+    termination.resolve(0)
+    await flushPromises()
   })
 
   it('terminates once and rejects with TimeoutError when parsing times out', async () => {
@@ -224,58 +210,14 @@ describe('ReadableContentService', () => {
     await extraction
   })
 
-  it('aborts queued and active tasks during stop, prevents respawn, and waits for termination', async () => {
-    const tasks = Array.from({ length: 4 }, () => service.extractReadableMarkdown('<article></article>'))
-    const terminations = workerMocks.instances.map(() => deferred<number>())
-    workerMocks.instances.forEach((worker, index) => {
-      worker.terminate.mockImplementation(() => terminations[index].promise)
-    })
-    const settledTasks = Promise.allSettled(tasks)
-    let stopSettled = false
-
-    const stop = service._doStop().then(() => {
-      stopSettled = true
-    })
-    await flushPromises()
-
-    expect(workerMocks.instances).toHaveLength(3)
-    expect(workerMocks.instances.every((worker) => worker.terminate.mock.calls.length === 1)).toBe(true)
-    expect(stopSettled).toBe(false)
-
-    terminations.forEach((termination) => termination.resolve(0))
-    await stop
-    const results = await settledTasks
-
-    expect(results.every((result) => result.status === 'rejected')).toBe(true)
-    expect(stopSettled).toBe(true)
-  })
-
-  it('rejects after stop and accepts tasks again after re-initialization', async () => {
-    await service._doStop()
-
-    await expect(service.extractReadableMarkdown('<article>stopped</article>')).rejects.toThrow(
-      'ReadableContentService is not initialized'
-    )
-    expect(workerMocks.instances).toHaveLength(0)
-
-    await service._doInit()
-    const extraction = service.extractReadableMarkdown('<article>restarted</article>')
-    const worker = workerMocks.instances[0]
-    emitResult(worker, 'restarted')
-
-    await expect(extraction).resolves.toEqual({ title: '', content: 'restarted' })
-  })
-
-  it('keeps stop idempotent when destroy follows it and swallows terminate failures', async () => {
+  it('preserves the worker result when termination fails', async () => {
     const extraction = service.extractReadableMarkdown('<article></article>')
     const worker = workerMocks.instances[0]
     worker.terminate.mockRejectedValue(new Error('terminate failed'))
-    const settledExtraction = extraction.catch(() => undefined)
 
-    await expect(service._doStop()).resolves.toBeUndefined()
-    await expect(service._doDestroy()).resolves.toBeUndefined()
-    await settledExtraction
+    emitResult(worker, 'markdown')
 
+    await expect(extraction).resolves.toEqual({ title: '', content: 'markdown' })
     expect(worker.terminate).toHaveBeenCalledOnce()
   })
 })

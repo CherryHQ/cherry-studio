@@ -2,13 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
 const extractReadableMarkdownMock = vi.hoisted(() => vi.fn())
-const applicationGetMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@application', () => ({
-  application: {
-    get: applicationGetMock
-  }
-}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -25,6 +18,10 @@ vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: fetchRemoteTextMock
 }))
 
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: extractReadableMarkdownMock }
+}))
+
 import { fetchWebSearchContent } from '../fetchContent'
 
 describe('fetchWebSearchContent', () => {
@@ -32,13 +29,6 @@ describe('fetchWebSearchContent', () => {
     fetchRemoteTextMock.mockReset()
     extractReadableMarkdownMock.mockReset()
     extractReadableMarkdownMock.mockResolvedValue({ title: '', content: '' })
-    applicationGetMock.mockReset()
-    applicationGetMock.mockImplementation((serviceName: string) => {
-      if (serviceName === 'ReadableContentService') {
-        return { extractReadableMarkdown: extractReadableMarkdownMock }
-      }
-      throw new Error(`Unexpected service: ${serviceName}`)
-    })
   })
 
   it('normalizes empty readability output to an empty string', async () => {
@@ -63,7 +53,6 @@ describe('fetchWebSearchContent', () => {
     const result = await fetchWebSearchContent('https://example.com/article', { signal: controller.signal })
 
     expect(extractReadableMarkdownMock).toHaveBeenCalledWith(html, { signal: controller.signal })
-    expect(applicationGetMock).toHaveBeenCalledWith('ReadableContentService')
     expect(result.title).toBe('Worker title')
     expect(result.content).toBe('hello')
   })

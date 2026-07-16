@@ -1,5 +1,4 @@
-import { BaseService } from '@main/core/lifecycle'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../readableContentWorker?nodeWorker', async () => {
   const { Worker } = await import('node:worker_threads')
@@ -30,17 +29,8 @@ const ARTICLE_HTML = `
 describe('ReadableContentService integration', () => {
   let service: ReadableContentService
 
-  beforeEach(async () => {
-    BaseService.resetInstances()
+  beforeEach(() => {
     service = new ReadableContentService()
-    await service._doInit()
-  })
-
-  afterEach(async () => {
-    if (!service.isStopped && !service.isDestroyed) {
-      await service._doStop()
-    }
-    BaseService.resetInstances()
   })
 
   it('extracts a title and readable markdown in a real worker', async () => {
@@ -56,6 +46,14 @@ describe('ReadableContentService integration', () => {
     await expect(service.extractPreviewText(body, { inputKind: 'text', maxLength: 100 })).resolves.toBe(
       `Visible ${'x'.repeat(92)}...`
     )
+  })
+
+  it.each([
+    ['title and list', '<title>Foo</title><ul><li>Hello</li></ul>'],
+    ['preformatted text', '<pre>Hello</pre>'],
+    ['plain text', 'Hello']
+  ])('extracts preview text from %s input through the HTML parser', async (_name, source) => {
+    await expect(service.extractPreviewText(source, { inputKind: 'html', maxLength: 100 })).resolves.toBe('Hello')
   })
 
   it('keeps the main event loop responsive while parsing large HTML', async () => {

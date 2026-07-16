@@ -1,6 +1,6 @@
-import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { readableContentService } from '@main/services/readableContent'
 import { isAbortError } from '@main/utils/error'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
@@ -29,10 +29,6 @@ type PreviewJob = {
   readonly consumers: Set<string>
   readonly controller: AbortController
   readonly promise: Promise<string>
-}
-
-function looksLikeHtml(text: string): boolean {
-  return /<\s*(?:!doctype|html|head|body|article|main|section|div|p|h[1-6])\b/i.test(text)
 }
 
 function createErrorLogContext(safeUrl: string, error: unknown): { origin: string; errorName: string } {
@@ -66,8 +62,8 @@ async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise
       maxRedirects: 5
     })
 
-    return await application.get('ReadableContentService').extractPreviewText(responseText, {
-      inputKind: looksLikeHtml(responseText) ? 'html' : 'text',
+    return await readableContentService.extractPreviewText(responseText, {
+      inputKind: 'html',
       maxLength: MAX_PREVIEW_LENGTH,
       signal
     })
@@ -81,7 +77,6 @@ async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise
 
 @Injectable('CitationPreviewService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ReadableContentService'])
 export class CitationPreviewService extends BaseService {
   private readonly queue = new PQueue({ concurrency: 3 })
   private readonly jobs = new Map<string, PreviewJob>()

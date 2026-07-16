@@ -1,7 +1,6 @@
 import type { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import PQueue from 'p-queue'
 
 import type { ReadableContentWorkerInput, ReadableContentWorkerMessage } from './readableContentWorker'
@@ -35,41 +34,14 @@ function getAbortReason(signal: AbortSignal): Error {
   return new DOMException('Readable content extraction aborted', 'AbortError')
 }
 
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
-
 function createTimeoutError(timeoutMs: number): Error {
   const error = new Error(`Readable content extraction timed out after ${timeoutMs}ms`)
   error.name = 'TimeoutError'
   return error
 }
 
-@Injectable('ReadableContentService')
-@ServicePhase(Phase.WhenReady)
-export class ReadableContentService extends BaseService {
+export class ReadableContentService {
   private readonly queue = new PQueue({ concurrency: 3 })
-  private readonly taskControllers = new Set<AbortController>()
-  private readonly terminationPromises = new Set<Promise<void>>()
-  private acceptingTasks = false
-  private shutdownController: AbortController | null = null
-  private teardownPromise: Promise<void> | null = null
-
-  protected onInit(): void {
-    this.acceptingTasks = true
-    this.shutdownController = new AbortController()
-    this.teardownPromise = null
-  }
-
-  protected onStop(): Promise<void> {
-    return this.teardown('Readable content service is stopping')
-  }
-
-  protected onDestroy(): Promise<void> {
-    return this.teardown('Readable content service is being destroyed')
-  }
 
   extractReadableMarkdown(html: string, options: ReadableContentOptions = {}): Promise<ReadableContentResult> {
     return this.enqueue({ format: 'markdown', inputKind: 'html', source: html }, options)
@@ -85,40 +57,21 @@ export class ReadableContentService extends BaseService {
     input: ReadableContentWorkerInput,
     options: ReadableContentOptions
   ): Promise<ReadableContentResult> {
-    const shutdownSignal = this.shutdownController?.signal
-    if (!this.acceptingTasks || !shutdownSignal || shutdownSignal.aborted) {
-      throw new Error('ReadableContentService is not initialized')
+    const signal = options.signal ?? new AbortController().signal
+    if (signal.aborted) {
+      throw getAbortReason(signal)
     }
-    if (options.signal?.aborted) {
-      throw getAbortReason(options.signal)
-    }
-
-    const taskController = new AbortController()
-    const handleCallerAbort = (): void => taskController.abort(getAbortReason(options.signal!))
-    const cleanupTask = (): void => {
-      options.signal?.removeEventListener('abort', handleCallerAbort)
-      this.taskControllers.delete(taskController)
-    }
-
-    this.taskControllers.add(taskController)
-    options.signal?.addEventListener('abort', handleCallerAbort, { once: true })
 
     try {
-      const queuedTask = this.queue.add(async () => {
-        try {
-          return await this.runWorker(input, taskController.signal, options.timeoutMs)
-        } finally {
-          cleanupTask()
-        }
-      })
-      const result = await this.waitForQueueTask(queuedTask, taskController.signal)
+      const queuedTask = this.queue.add(() => this.runWorker(input, signal, options.timeoutMs))
+      const result = await this.waitForQueueTask(queuedTask, signal)
       if (!result) {
         throw new Error('Readable content extraction task did not return a result')
       }
       return result
     } catch (error) {
-      if (taskController.signal.aborted) {
-        throw getAbortReason(taskController.signal)
+      if (signal.aborted) {
+        throw getAbortReason(signal)
       }
       throw error
     }
@@ -178,8 +131,7 @@ export class ReadableContentService extends BaseService {
         if (settled) return
         settled = true
         cleanup()
-        this.trackTermination(worker)
-        callback()
+        void this.terminateWorker(worker).then(callback)
       }
 
       const handleAbort = (): void => {
@@ -217,42 +169,13 @@ export class ReadableContentService extends BaseService {
     })
   }
 
-  private trackTermination(worker: Worker): void {
-    const termination = worker.terminate().then(
-      () => undefined,
-      (error) => {
-        logger.warn('Failed to terminate readable content worker', error as Error)
-      }
-    )
-
-    this.terminationPromises.add(termination)
-    void termination.finally(() => {
-      this.terminationPromises.delete(termination)
-    })
-  }
-
-  private teardown(reason: string): Promise<void> {
-    if (this.teardownPromise) {
-      return this.teardownPromise
-    }
-
-    this.acceptingTasks = false
-    const shutdownController = this.shutdownController
-    const abortError = createAbortError(reason)
-    shutdownController?.abort(abortError)
-    for (const taskController of this.taskControllers) {
-      taskController.abort(abortError)
-    }
-    this.teardownPromise = this.finishTeardown(shutdownController)
-    return this.teardownPromise
-  }
-
-  private async finishTeardown(shutdownController: AbortController | null): Promise<void> {
-    await this.queue.onIdle()
-    await Promise.all(this.terminationPromises)
-
-    if (this.shutdownController === shutdownController) {
-      this.shutdownController = null
+  private async terminateWorker(worker: Worker): Promise<void> {
+    try {
+      await worker.terminate()
+    } catch (error) {
+      logger.warn('Failed to terminate readable content worker', error as Error)
     }
   }
 }
+
+export const readableContentService = new ReadableContentService()
