@@ -28,13 +28,13 @@ interface ShowcaseProps {
 }
 
 const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
-  <div className="flex flex-wrap gap-8 p-2">
+  <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-8">
     {icons.map(({ Component, name }) => (
-      <div key={name} className="flex flex-col items-center justify-center min-w-12">
-        <div className="border-gray-200 border rounded-md p-2 w-min" style={{ fontSize }}>
+      <div key={name} className="flex min-w-0 flex-col items-center justify-center">
+        <div className="w-min rounded-md border border-gray-200" style={{ fontSize }}>
           <Component />
         </div>
-        <p className="text-sm text-center mt-2">{name}</p>
+        <p className="mt-2 w-full break-words text-center text-sm">{name}</p>
       </div>
     ))}
   </div>
@@ -61,42 +61,38 @@ interface LightVsDarkGridProps {
 }
 
 const LightVsDarkGrid = ({ icons, fontSize }: LightVsDarkGridProps) => (
-  <div className="flex flex-wrap gap-6 p-2">
+  <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-6">
     {icons.map(({ Component, name }) => (
-      <div key={name} className="flex flex-col items-center gap-1">
-        <div className="flex gap-2" style={{ fontSize }}>
-          <div className="border-gray-200 border rounded-md p-2 bg-white">
+      <div key={name} className="flex min-w-0 flex-col items-center gap-1">
+        <div className="grid grid-cols-2 gap-2" style={{ fontSize }}>
+          <div className="rounded-md border border-gray-200 bg-white">
             <Component variant="light" />
           </div>
-          <div className="border-gray-700 border rounded-md p-2 bg-neutral-900">
+          <div className="rounded-md border border-gray-700 bg-neutral-900">
             <Component variant="dark" />
           </div>
+          <span className="text-center text-xs text-gray-400">Light</span>
+          <span className="text-center text-xs text-gray-400">Dark</span>
         </div>
-        <div className="flex gap-2 text-xs text-gray-400">
-          <span>Light</span>
-          <span>Dark</span>
-        </div>
-        <p className="text-sm">{name}</p>
+        <p className="w-full break-words text-center text-sm">{name}</p>
       </div>
     ))}
   </div>
 )
 
 const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
-  <div className="flex flex-wrap gap-6 p-2">
+  <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-6">
     {icons.map(({ Component, name }) => {
       const AvatarComponent = Component.Avatar
       return (
-        <div key={name} className="flex flex-col items-center gap-1 w-24">
-          <div className="flex gap-2">
-            <AvatarComponent size={size} shape="circle" />
-            <AvatarComponent size={size} shape="rounded" />
+        <div key={name} className="flex min-w-0 flex-col items-center gap-1">
+          <div className="grid grid-cols-2 gap-2">
+            <AvatarComponent className="border border-gray-200" size={size} shape="circle" />
+            <AvatarComponent className="border border-gray-200" size={size} shape="rounded" />
+            <span className="text-center text-xs text-gray-400">Circle</span>
+            <span className="text-center text-xs text-gray-400">Rounded</span>
           </div>
-          <div className="flex gap-2 text-xs text-gray-400">
-            <span>Circle</span>
-            <span>Rounded</span>
-          </div>
-          <p className="text-sm">{name}</p>
+          <p className="w-full break-words text-center text-sm">{name}</p>
         </div>
       )
     })}
@@ -179,7 +175,7 @@ type Story = StoryObj<typeof AllIconsShowcase>
  */
 export const AllLogos: Story = {
   args: {
-    fontSize: 32
+    fontSize: 48
   }
 }
 
@@ -200,7 +196,7 @@ export const AllLogos: Story = {
 export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {
   render: (args) => <LightVsDarkShowcase {...args} />,
   args: {
-    fontSize: 32
+    fontSize: 48
   }
 }
 
@@ -220,6 +216,6 @@ export const LightVsDark: StoryObj<typeof LightVsDarkShowcase> = {
 export const Avatars: StoryObj<typeof AvatarShowcase> = {
   render: (args) => <AvatarShowcase {...args} />,
   args: {
-    fontSize: 32
+    fontSize: 48
   }
 }
