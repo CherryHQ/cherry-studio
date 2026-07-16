@@ -336,8 +336,7 @@ vi.mock('../Chat', () => ({
     onNewTopic,
     onLocateMessageHandled,
     onPaneCollapse,
-    onPaneAutoCollapseChange,
-    rightPane
+    onPaneAutoCollapseChange
   }: {
     activeTopic?: Topic
     centerSurface?: { content?: ReactNode } | null
@@ -353,7 +352,6 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
-    rightPane?: ReactNode
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
 
@@ -427,7 +425,7 @@ vi.mock('../Chat', () => ({
             </button>
           </>
         )}
-        {rightPane}
+        <div data-testid="topic-right-pane-viewport" />
         {pane}
       </section>
     )

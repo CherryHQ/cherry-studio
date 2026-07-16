@@ -24,7 +24,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
@@ -33,7 +33,7 @@ import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
-import { useAgentChatRuntimeState } from './useAgentChatRuntimeState'
+import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
@@ -99,8 +99,6 @@ interface AgentChatLayoutProps {
   topBar?: ReactNode
   topRightTool?: ReactNode
 }
-
-type AgentChatSessionLayoutProps = Omit<AgentChatLayoutProps, 'center' | 'messages' | 'partsByMessageId'>
 
 const AgentChat = ({
   centerSurface,
@@ -168,6 +166,60 @@ const AgentChat = ({
         (!!activeSession && activeSessionSource === 'none'))
   )
   const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const runtime = useAgentChatRuntimeState({
+    sessionId: sessionSnapshot?.id ?? '',
+    sessionMessagesEnabled,
+    sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
+    reservedMessages: EMPTY_MESSAGES
+  })
+  const {
+    hasOlder: runtimeHasOlder,
+    isLoading: runtimeIsLoading,
+    loadOlder: runtimeLoadOlder,
+    sessionId: runtimeSessionId,
+    uiMessages: runtimeUiMessages
+  } = runtime
+  const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
+
+  useEffect(() => {
+    if (!runtimeSessionId || !locateMessageId) {
+      locateLoadRequestRef.current = undefined
+      return
+    }
+
+    if (runtimeUiMessages.some((message) => message.id === locateMessageId)) {
+      locateLoadRequestRef.current = undefined
+      window.requestAnimationFrame(() => {
+        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+      })
+      onLocateMessageHandled?.()
+      return
+    }
+
+    if (runtimeHasOlder && !runtimeIsLoading) {
+      const requestKey = `${runtimeSessionId}:${locateMessageId}:${runtimeUiMessages.length}`
+      if (locateLoadRequestRef.current !== requestKey) {
+        locateLoadRequestRef.current = requestKey
+        runtimeLoadOlder?.()
+      }
+      return
+    }
+
+    if (!runtimeHasOlder && !runtimeIsLoading) {
+      locateLoadRequestRef.current = undefined
+      onLocateMessageHandled?.()
+    }
+  }, [
+    locateMessageId,
+    onLocateMessageHandled,
+    runtimeHasOlder,
+    runtimeIsLoading,
+    runtimeLoadOlder,
+    runtimeSessionId,
+    runtimeUiMessages,
+    sessionTopicId
+  ])
   const rightPaneTools =
     !centerSurface && (sessionSnapshot || resourcePane) ? (
       <>
@@ -222,21 +274,48 @@ const AgentChat = ({
       />
     )
     centerClassName = 'transform-[translateZ(0)] relative justify-between'
+    center = (
+      <AgentChatSessionCenter
+        key={sessionSnapshot.id}
+        session={sessionSnapshot}
+        runtime={runtime}
+        homeWelcomeText={t('agent.home.welcome_title')}
+        agentId={sendableAgentId}
+        activeAgent={activeAgent}
+        isMultiSelectMode={isMultiSelectMode}
+        sessionMessagesEnabled={sessionMessagesEnabled}
+        onOpenCitationsPanel={handleOpenCitationsPanel}
+        onWorkspaceChange={onSessionWorkspaceChange}
+        workspaceChanging={replacingSessionWorkspace}
+        onCreateEmptySession={
+          sessionAgentId && onCreateEmptySession
+            ? () =>
+                onCreateEmptySession({
+                  agentId: sessionAgentId,
+                  ...getNewSessionWorkspaceDefaults(sessionSnapshot)
+                })
+            : undefined
+        }
+      />
+    )
   }
 
-  const layoutProps: AgentChatSessionLayoutProps = {
+  const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    center,
     centerClassName,
     centerSurface,
     className: cn(messageStyle, {
       'multi-select-mode': Boolean(!centerSurface && sessionSnapshot && isMultiSelectMode)
     }),
     conversationState,
+    messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
     onPaneAutoCollapseChange,
     onPaneCollapse,
     pane,
     paneOpen,
     panePosition,
+    partsByMessageId: sessionSnapshot ? runtime.partsByMessageId : EMPTY_PARTS,
     resourcePaneRevealRequest,
     sessionSnapshot,
     sidePanel,
@@ -249,115 +328,41 @@ const AgentChat = ({
       defaultOpen={sessionPaneOpen}
       onOpenChange={onSessionPaneOpenChange}
       resourcePane={resourcePane}>
-      {sessionSnapshot ? (
-        <AgentChatSessionFrame
-          key={sessionSnapshot.id}
-          session={sessionSnapshot}
-          layoutProps={layoutProps}
-          homeWelcomeText={t('agent.home.welcome_title')}
-          agentId={sendableAgentId}
-          activeAgent={activeAgent}
-          isMultiSelectMode={isMultiSelectMode}
-          sessionMessagesEnabled={sessionMessagesEnabled}
-          sessionHistoryFetchOnMount={shouldFetchSessionHistoryOnMount}
-          onOpenCitationsPanel={handleOpenCitationsPanel}
-          locateMessageId={locateMessageId}
-          onLocateMessageHandled={onLocateMessageHandled}
-          onWorkspaceChange={onSessionWorkspaceChange}
-          workspaceChanging={replacingSessionWorkspace}
-          onCreateEmptySession={
-            sessionAgentId && onCreateEmptySession
-              ? () =>
-                  onCreateEmptySession({
-                    agentId: sessionAgentId,
-                    ...getNewSessionWorkspaceDefaults(sessionSnapshot)
-                  })
-              : undefined
-          }
-        />
-      ) : (
-        <AgentChatLayout {...layoutProps} center={center} messages={EMPTY_MESSAGES} partsByMessageId={EMPTY_PARTS} />
-      )}
+      <AgentChatLayout {...layoutProps} />
     </AgentRightPane.Shell>
   )
 }
 
-// ── Inner: mounted only when agentId + sessionId are resolved ──
-
-interface AgentChatSessionFrameProps {
+interface AgentChatSessionCenterProps {
   session: AgentSessionEntity
-  layoutProps: AgentChatSessionLayoutProps
+  runtime: AgentChatRuntimeState
   homeWelcomeText?: string
   agentId?: string
   activeAgent: GetAgentResponse | undefined
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
-  sessionHistoryFetchOnMount?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
-  locateMessageId?: string
-  onLocateMessageHandled?: () => void
   onCreateEmptySession?: () => void | Promise<unknown>
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
 }
 
-const AgentChatSessionFrame = ({
+const AgentChatSessionCenter = ({
   session,
-  layoutProps,
+  runtime,
   homeWelcomeText,
   agentId,
   activeAgent,
   isMultiSelectMode,
   sessionMessagesEnabled,
-  sessionHistoryFetchOnMount,
   onOpenCitationsPanel,
-  locateMessageId,
-  onLocateMessageHandled,
   onCreateEmptySession,
   onWorkspaceChange,
   workspaceChanging
-}: AgentChatSessionFrameProps) => {
-  const runtime = useAgentChatRuntimeState({
-    session,
-    sessionMessagesEnabled,
-    sessionHistoryFetchOnMount,
-    reservedMessages: EMPTY_MESSAGES
-  })
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
-  const locateLoadRequestRef = useRef<string | undefined>(undefined)
-  const { hasOlder, isLoading, loadOlder, uiMessages } = runtime
+}: AgentChatSessionCenterProps) => {
+  const { hasOlder, isLoading, uiMessages } = runtime
   const isEmptyConversation = !isLoading && !runtime.isPending && !hasOlder && uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
-
-  useEffect(() => {
-    if (!locateMessageId) {
-      locateLoadRequestRef.current = undefined
-      return
-    }
-
-    if (uiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
-      })
-      onLocateMessageHandled?.()
-      return
-    }
-
-    if (hasOlder && !isLoading) {
-      const requestKey = `${locateMessageId}:${uiMessages.length}`
-      if (locateLoadRequestRef.current !== requestKey) {
-        locateLoadRequestRef.current = requestKey
-        loadOlder?.()
-      }
-      return
-    }
-
-    if (!hasOlder && !isLoading) {
-      locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
-    }
-  }, [hasOlder, isLoading, locateMessageId, loadOlder, onLocateMessageHandled, sessionTopicId, uiMessages])
 
   const composer = (
     <AgentComposerSlot
@@ -398,21 +403,7 @@ const AgentChatSessionFrame = ({
   )
 
   return (
-    <AgentChatLayout
-      {...layoutProps}
-      center={
-        layoutProps.centerSurface?.content ?? (
-          <ConversationStageCenter
-            placement="docked"
-            main={main}
-            composer={composer}
-            homeWelcomeText={homeWelcomeText}
-          />
-        )
-      }
-      messages={runtime.uiMessages}
-      partsByMessageId={runtime.partsByMessageId}
-    />
+    <ConversationStageCenter placement="docked" main={main} composer={composer} homeWelcomeText={homeWelcomeText} />
   )
 }
 

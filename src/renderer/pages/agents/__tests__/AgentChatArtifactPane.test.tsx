@@ -2,7 +2,7 @@ import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -196,8 +196,11 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
     const overlaySelection =
       previewFileSelection ?? (selectedFile && workspacePath ? { workspacePath, filePath: selectedFile } : null)
+    const previousWorkspacePathRef = useRef(workspacePath)
 
     useEffect(() => {
+      if (previousWorkspacePathRef.current === workspacePath) return
+      previousWorkspacePathRef.current = workspacePath
       setViewMode('preview')
     }, [workspacePath])
 
