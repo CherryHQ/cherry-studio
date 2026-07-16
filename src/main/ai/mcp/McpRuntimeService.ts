@@ -444,7 +444,13 @@ export class McpRuntimeService extends BaseService {
                 requestInit: {
                   headers: prepareHeaders()
                 },
-                authProvider
+                authProvider,
+                reconnectionOptions: {
+                  maxRetries: 0,
+                  initialReconnectionDelay: 1000,
+                  maxReconnectionDelay: 30000,
+                  reconnectionDelayGrowFactor: 1.5
+                }
               }
               // redact headers before logging
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
