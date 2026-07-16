@@ -12,16 +12,19 @@ import {
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TopicBranchPanel from './TopicBranchPanel'
+
+const TracePane = lazy(() =>
+  import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
+)
 
 interface TopicRightPaneSurfaceProps {
   topicId?: string
@@ -209,7 +212,11 @@ function TopicRightPaneSurface({
       )}
       {hasBranchPanel && enableDeveloperMode && (
         <Shell.Panel value="trace">
-          <TracePane payload={{ topicId: topicId ?? '', traceId: traceId ?? '' }} />
+          {shellState.activeTab === 'trace' && (
+            <Suspense fallback={null}>
+              <TracePane payload={{ topicId: topicId ?? '', traceId: traceId ?? '' }} />
+            </Suspense>
+          )}
         </Shell.Panel>
       )}
     </Shell.Tabs>
