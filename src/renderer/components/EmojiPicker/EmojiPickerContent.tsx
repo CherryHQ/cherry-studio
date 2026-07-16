@@ -31,6 +31,7 @@ const CHERRY_PICKER_STYLE = {
   '--epr-text-color': 'var(--color-popover-foreground)',
   '--epr-category-label-bg-color': 'var(--color-popover)',
   '--epr-category-label-text-color': 'var(--color-popover-foreground)',
+  '--epr-category-label-height': '32px',
   '--epr-category-icon-active-color': 'var(--color-primary)',
   '--epr-search-input-bg-color': 'var(--color-background)',
   '--epr-search-input-bg-color-active': 'var(--color-background)',
@@ -38,7 +39,7 @@ const CHERRY_PICKER_STYLE = {
   '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
   '--epr-search-border-color': 'var(--color-input)',
   '--epr-search-border-color-active': 'var(--color-ring)',
-  '--epr-header-padding': '10px var(--epr-horizontal-padding) 8px',
+  '--epr-header-padding': '6px var(--epr-horizontal-padding) 4px',
   '--epr-emoji-hover-color': 'var(--color-accent)',
   '--epr-emoji-variation-indicator-color': 'var(--color-border)',
   '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
