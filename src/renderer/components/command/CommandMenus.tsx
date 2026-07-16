@@ -17,7 +17,9 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  Scrollbar,
+  Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
@@ -27,10 +29,12 @@ import {
   useCommandShortcutPreferences,
   useResolvedCommandMenu
 } from '@renderer/hooks/command'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getCommandShortcutLabel } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type {
   MenuLocation,
+  MenuPresentationMode,
   NativePopupMenuItem,
   NativePopupMenuModel,
   ResolvedMenuItem,
@@ -53,6 +57,7 @@ export type CommandContextMenuExtraItem =
       label: string
       enabled?: boolean
       icon?: React.ReactNode
+      description?: React.ReactNode
       children: readonly CommandContextMenuExtraItem[]
     }
   | {
@@ -60,6 +65,7 @@ export type CommandContextMenuExtraItem =
       id: string
       label: string
       enabled?: boolean
+      description?: React.ReactNode
       destructive?: boolean
       checked?: boolean
       /** Prefer this for command-backed items; the menu resolves platform and user preference. */
@@ -238,21 +244,29 @@ function CommandContextMenuExtraItemView({
   }
 
   if (item.type === 'submenu') {
-    return (
+    const submenu = (
       <ContextMenuSub>
         <ContextMenuSubTrigger disabled={item.enabled === false}>
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          {item.children.map((child, index) => (
-            <CommandContextMenuExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
-          ))}
+          <Scrollbar className="-mr-1 max-h-72 overflow-x-hidden pr-1">
+            {item.children.map((child, index) => (
+              <CommandContextMenuExtraItemView
+                key={`${child.type}-${index}`}
+                item={child}
+                onSelectItem={onSelectItem}
+              />
+            ))}
+          </Scrollbar>
         </ContextMenuSubContent>
       </ContextMenuSub>
     )
+
+    return <ExtraMenuItemTooltip content={item.description}>{submenu}</ExtraMenuItemTooltip>
   }
 
-  return (
+  const menuItem = (
     <ContextMenuItem
       disabled={item.enabled === false}
       variant={item.destructive ? 'destructive' : 'default'}
@@ -261,6 +275,18 @@ function CommandContextMenuExtraItemView({
         {item.label}
       </ContextMenuItemContent>
     </ContextMenuItem>
+  )
+
+  return <ExtraMenuItemTooltip content={item.description}>{menuItem}</ExtraMenuItemTooltip>
+}
+
+function ExtraMenuItemTooltip({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) {
+  if (!content) return children
+
+  return (
+    <Tooltip content={content} placement="right" delay={300} classNames={{ placeholder: 'block' }}>
+      {children}
+    </Tooltip>
   )
 }
 
@@ -385,6 +411,8 @@ export function CommandContextMenu({
 
   const handleCherryContextMenu = useCallback(
     (event: React.MouseEvent) => {
+      event.stopPropagation()
+
       if (!getExtraItems) {
         return
       }
@@ -436,13 +464,7 @@ export function CommandContextMenu({
     [getExtraItems, onOpenChange]
   )
 
-  const handleCherrySelectItem = useCallback(
-    (action: () => void) => {
-      handleCherryOpenChange(false)
-      queueMicrotask(action)
-    },
-    [handleCherryOpenChange]
-  )
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
 
   const handleNativeContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -534,28 +556,30 @@ export function CommandContextMenu({
       <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent
-        className={contentClassName}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}>
-        {combinedItems.map((item, index) =>
-          isExtraMenuItem(item) ? (
-            <CommandContextMenuExtraItemView
-              key={`extra-${item.id}`}
-              item={item}
-              onSelectItem={handleCherrySelectItem}
-            />
-          ) : (
-            <CommandMenuItemView
-              key={`${item.type}-${index}`}
-              item={item}
-              onExecute={runtime.execute}
-              onSelectItem={handleCherrySelectItem}
-              renderIcon={renderIcon}
-            />
-          )
-        )}
-      </ContextMenuContent>
+      {combinedItems.length > 0 && (
+        <ContextMenuContent
+          className={contentClassName}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}>
+          {combinedItems.map((item, index) =>
+            isExtraMenuItem(item) ? (
+              <CommandContextMenuExtraItemView
+                key={`extra-${item.id}`}
+                item={item}
+                onSelectItem={handleCherrySelectItem}
+              />
+            ) : (
+              <CommandMenuItemView
+                key={`${item.type}-${index}`}
+                item={item}
+                onExecute={runtime.execute}
+                onSelectItem={handleCherrySelectItem}
+                renderIcon={renderIcon}
+              />
+            )
+          )}
+        </ContextMenuContent>
+      )}
     </ContextMenu>
   )
 }
@@ -635,21 +659,25 @@ function CommandDropdownExtraItemView({
   }
 
   if (item.type === 'submenu') {
-    return (
+    const submenu = (
       <DropdownMenuSub>
         <DropdownMenuSubTrigger disabled={item.enabled === false}>
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          {item.children.map((child, index) => (
-            <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
-          ))}
+          <Scrollbar className="-mr-1 max-h-72 overflow-x-hidden pr-1">
+            {item.children.map((child, index) => (
+              <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
+            ))}
+          </Scrollbar>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     )
+
+    return <ExtraMenuItemTooltip content={item.description}>{submenu}</ExtraMenuItemTooltip>
   }
 
-  return (
+  const menuItem = (
     <DropdownMenuItem
       disabled={item.enabled === false}
       variant={item.destructive ? 'destructive' : 'default'}
@@ -659,6 +687,8 @@ function CommandDropdownExtraItemView({
       </ContextMenuItemContent>
     </DropdownMenuItem>
   )
+
+  return <ExtraMenuItemTooltip content={item.description}>{menuItem}</ExtraMenuItemTooltip>
 }
 
 /**
@@ -679,7 +709,8 @@ export function CommandPopupMenu({
   onOpenChange,
   disabled,
   renderIcon,
-  extraItems = EMPTY_EXTRA_ITEMS
+  extraItems = EMPTY_EXTRA_ITEMS,
+  presentationMode
 }: {
   location: MenuLocation
   children: React.ReactNode
@@ -693,13 +724,14 @@ export function CommandPopupMenu({
   disabled?: boolean
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
+  presentationMode?: MenuPresentationMode
 }): React.ReactNode {
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
+  const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
@@ -772,13 +804,7 @@ export function CommandPopupMenu({
     [onOpenChange, open]
   )
 
-  const handleCherrySelectItem = useCallback(
-    (action: () => void) => {
-      handleCherryOpenChange(false)
-      queueMicrotask(action)
-    },
-    [handleCherryOpenChange]
-  )
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
 
   if (disabled || combinedItems.length === 0) {
     return <>{children}</>

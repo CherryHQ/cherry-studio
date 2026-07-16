@@ -1,27 +1,16 @@
 import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { ipcApi } from '@renderer/ipc'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import {
-  buildSidebarAppOpenMetadata,
-  getSidebarApp,
-  getSidebarAppTabInstanceKey,
-  tabBelongsToApp
-} from '@renderer/utils/sidebar'
-import { IpcChannel } from '@shared/IpcChannel'
+import { buildSidebarAppOpenMetadata, getSidebarApp } from '@renderer/utils/sidebar'
 import { useMemo } from 'react'
 import { v4 as uuid } from 'uuid'
 
 export interface ConversationNavigation {
   /**
-   * Focus the tab already showing conversation `key`; returns true if one was focused.
-   * `excludeTabId` skips a tab (the caller's own) so an in-page click can fall through
-   * to navigating the current tab instead of bouncing to itself.
-   */
-  focusExistingTab: (key: string, options?: { excludeTabId?: string }) => boolean
-  /**
-   * Focus the tab showing `key`, else open a new base-route tab with instance metadata.
-   * `forceNew` skips the focus step and always opens a fresh duplicate tab.
+   * Open a new base-route tab with instance metadata. Detached windows return
+   * `undefined` instead of creating a hidden internal tab.
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
   /**
@@ -36,52 +25,19 @@ export interface ConversationNavigation {
   openConversationWindow: (key: string, title?: string) => void
 }
 
-// Only conversation apps that own a resource sidebar emit a reveal on focus/open.
+// Only conversation apps that own a resource sidebar emit a reveal on open.
 function resolveRevealSource(appId: SidebarAppId): ResourceListRevealSource | null {
   return appId === 'assistants' || appId === 'agents' ? appId : null
-}
-
-function findConversationTabId(
-  tabs: TabsContextValue | null,
-  appId: SidebarAppId,
-  key: string,
-  excludeTabId?: string
-): string | undefined {
-  const app = getSidebarApp(appId)
-  if (!tabs || !app?.instanceKey) return undefined
-  return tabs.tabs.find(
-    (tab) =>
-      tab.type === 'route' &&
-      tab.id !== excludeTabId &&
-      tabBelongsToApp(app, tab.url) &&
-      getSidebarAppTabInstanceKey(app, tab) === key
-  )?.id
-}
-
-function focusConversationTabImpl(
-  tabs: TabsContextValue | null,
-  appId: SidebarAppId,
-  key: string,
-  excludeTabId?: string
-): boolean {
-  const id = findConversationTabId(tabs, appId, key, excludeTabId)
-  if (!id || !tabs) return false
-  tabs.setActiveTab(id)
-  const source = resolveRevealSource(appId)
-  if (source) emitResourceListReveal({ source, tabId: id })
-  return true
 }
 
 function openConversationTabImpl(
   tabs: TabsContextValue | null,
   appId: SidebarAppId,
   key: string,
-  title?: string,
-  forceNew?: boolean
+  title?: string
 ): string | undefined {
   const app = getSidebarApp(appId)
   if (!tabs || !app?.instanceKey) return
-  if (!forceNew && focusConversationTabImpl(tabs, appId, key)) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
   const openedId = tabs.openTab(app.routePrefix, { forceNew: true, title, ...(metadata && { metadata }) })
   const source = resolveRevealSource(appId)
@@ -93,9 +49,9 @@ function openConversationWindowImpl(appId: SidebarAppId, key: string, title?: st
   const app = getSidebarApp(appId)
   if (!app?.instanceKey) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
-  // Mirrors TabsContext.detachTab's Tab_Detach payload, but with a fresh tab id and
+  // Mirrors TabsContext.detachTab's tab.detach payload, but with a fresh tab id and
   // without closing any current-window tab — this is "open elsewhere", not "move".
-  window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+  void ipcApi.request('tab.detach', {
     id: uuid(),
     url: app.instanceKey.urlForKey(key),
     title,
@@ -119,8 +75,8 @@ export function useConversationNavigation(appId: SidebarAppId): ConversationNavi
 
   return useMemo<ConversationNavigation>(
     () => ({
-      focusExistingTab: (key, options) => focusConversationTabImpl(tabs, appId, key, options?.excludeTabId),
-      openConversationTab: (key, title, options) => openConversationTabImpl(tabs, appId, key, title, options?.forceNew),
+      openConversationTab: (key, title) =>
+        isDetachedWindowFrame ? undefined : openConversationTabImpl(tabs, appId, key, title),
       openConversation: (key, title) => {
         if (tabs && !isDetachedWindowFrame) return openConversationTabImpl(tabs, appId, key, title)
         openConversationWindowImpl(appId, key, title)

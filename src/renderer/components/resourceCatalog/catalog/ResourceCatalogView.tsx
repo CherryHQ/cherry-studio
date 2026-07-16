@@ -3,7 +3,8 @@ import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialo
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { SkillDetailDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
 import { AgentEditDialog, AssistantEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { ImportAssistantDialog, ImportSkillDialog } from '@renderer/components/resourceCatalog/dialogs/import'
+import { ImportAssistantDialog } from '@renderer/components/resourceCatalog/dialogs/import'
+import { ImportSkillDialog, SkillMarketplaceDialog } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
@@ -85,11 +86,8 @@ export function ResourceCatalogView({
           onOpenAssistantChat={onOpenAssistantChat}
         />
       ) : null}
-      <ImportSkillDialog
-        open={dialogs.skillImportOpen}
-        onOpenChange={dialogs.setSkillImportOpen}
-        onInstalled={refetch}
-      />
+      <ImportSkillDialog open={dialogs.skillImportOpen} onOpenChange={dialogs.setSkillImportOpen} />
+      <SkillMarketplaceDialog open={dialogs.skillMarketplaceOpen} onOpenChange={dialogs.setSkillMarketplaceOpen} />
       <ResourceCreateWizard
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}

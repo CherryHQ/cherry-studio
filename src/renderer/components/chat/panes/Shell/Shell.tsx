@@ -3,8 +3,6 @@ import { CommandTooltip } from '@renderer/components/command'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { Maximize2, Minimize2, X } from 'lucide-react'
@@ -35,13 +33,16 @@ export interface ShellState {
   pdfLayoutRefreshKey: number
 }
 
-interface ShellActions {
+export interface ShellActions {
   close: (afterClose?: () => void) => void
   finishClose: () => void
+  minimize: () => void
   openTab: (tab: string) => void
   toggleMaximized: () => void
   refreshPdfLayout: () => void
 }
+
+export type ShellTabShortcutOpenBehavior = 'hide' | 'toggle-active'
 
 interface ShellContextValue {
   state: ShellState
@@ -62,6 +63,10 @@ export function useShellActions(): ShellActions {
   const actions = use(ShellActionsContext)
   if (!actions) throw new Error('useShellActions must be used within <Shell>')
   return actions
+}
+
+export function useOptionalShellActions(): ShellActions | undefined {
+  return use(ShellActionsContext) ?? undefined
 }
 
 export function useShellState(): ShellState {
@@ -113,6 +118,22 @@ function ShellProvider({
     closeCallbacksRef.current = []
     for (const callback of callbacks) callback()
   }, [])
+
+  useEffect(() => {
+    if (openRef.current === defaultOpen) return
+
+    openRef.current = defaultOpen
+    setOpen(defaultOpen)
+    if (defaultOpen) {
+      setActiveTab(defaultTab)
+      setPdfLayoutPending(true)
+    } else {
+      setMaximized(false)
+      setPdfLayoutPending(false)
+      finishClose()
+    }
+  }, [defaultOpen, defaultTab, finishClose])
+
   const close = useCallback((afterClose?: () => void) => {
     if (!openRef.current) {
       afterClose?.()
@@ -136,6 +157,10 @@ function ShellProvider({
     })
     onOpenChangeRef.current?.(true)
   }, [])
+  const minimize = useCallback(() => {
+    setPdfLayoutPending(false)
+    setMaximized(false)
+  }, [])
   const toggleMaximized = useCallback(() => {
     setPdfLayoutPending(false)
     setMaximized((currentMaximized) => !currentMaximized)
@@ -150,8 +175,8 @@ function ShellProvider({
     [activeTab, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
   )
   const actions = useMemo<ShellActions>(
-    () => ({ close, finishClose, openTab, toggleMaximized, refreshPdfLayout }),
-    [close, finishClose, openTab, refreshPdfLayout, toggleMaximized]
+    () => ({ close, finishClose, minimize, openTab, toggleMaximized, refreshPdfLayout }),
+    [close, finishClose, minimize, openTab, refreshPdfLayout, toggleMaximized]
   )
 
   return (
@@ -300,7 +325,8 @@ function ShellTabShortcut({
   label,
   icon,
   disabled = false,
-  tooltip = label,
+  tooltip,
+  openBehavior = 'hide',
   className,
   onClick,
   ...buttonProps
@@ -309,37 +335,48 @@ function ShellTabShortcut({
   label: string
   icon: ReactNode
   tooltip?: ReactNode | false
+  openBehavior?: ShellTabShortcutOpenBehavior
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
   const { state, actions } = useShell()
+  const active = state.open && state.activeTab === tab
+  const togglesActive = openBehavior === 'toggle-active'
+  const ariaLabel = label
+  const tooltipContent = tooltip === false ? false : (tooltip ?? ariaLabel)
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       onClick?.(event)
       if (event.defaultPrevented) return
+      if (togglesActive && state.open && state.activeTab === tab) {
+        actions.close()
+        return
+      }
       actions.openTab(tab)
     },
-    [actions, onClick, tab]
+    [actions, onClick, state.activeTab, state.open, tab, togglesActive]
   )
 
-  if (state.open || state.maximized) return null
+  if (state.maximized || (state.open && openBehavior === 'hide')) return null
 
   const button = (
     <NavbarIcon
       {...buttonProps}
       tone="conversation"
       className={cn('[&_svg]:!size-3.5 shrink-0', className)}
+      active={active}
       disabled={disabled}
-      aria-label={label}
+      aria-label={ariaLabel}
+      aria-pressed={togglesActive ? active : undefined}
       data-shell-tab-shortcut={tab}
       onClick={handleClick}>
       {icon}
     </NavbarIcon>
   )
 
-  if (tooltip === false) return button
+  if (tooltipContent === false) return button
 
   return (
-    <Tooltip content={tooltip} delay={800}>
+    <Tooltip content={tooltipContent} delay={800}>
       {button}
     </Tooltip>
   )
@@ -352,51 +389,82 @@ function ShellTabs({ children }: { children: ReactNode }) {
       value={state.activeTab}
       onValueChange={actions.openTab}
       variant="line"
-      className="h-full gap-0 overflow-hidden bg-card text-card-foreground">
+      className="h-full gap-0 overflow-hidden text-card-foreground">
       {children}
     </Tabs>
   )
 }
 
 // Header bar: the tab strip plus the pane-level maximize toggle.
-// `extraTrailing` hosts the navbar-right cluster (sub-window controls, pane toggle) when the
-// pane is open; ConversationShell hides its closed-state topbar cluster in that state so the
-// cluster doesn't sit on top of this header.
-function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
+// `extraTrailing` hosts pane-header-only controls. Consumers that keep pane entries outside the
+// pane can switch this header to title mode and leave the entry cluster in ConversationShell.
+function ShellTabList({
+  children,
+  extraTrailing,
+  title,
+  showTabs = true
+}: {
+  children: ReactNode
+  extraTrailing?: ReactNode
+  title?: ReactNode
+  showTabs?: boolean
+}) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
-  const { mode } = useWindowFrame()
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
-  // When the pane is maximized inside a sub-window, this header becomes the window's top edge
-  // — clear the macOS traffic lights and let the user drag the window from the tab strip,
-  // matching ConversationShellTopBar.
-  const isWindowTopBar = state.maximized && mode === 'window'
+  const closeLabel = t('common.close_sidebar')
+  const maximizeButton = (
+    <Tooltip content={maximizeLabel} delay={800}>
+      <NavbarIcon
+        tone="conversation"
+        className="[&_svg]:!size-3.5 shrink-0"
+        aria-label={maximizeLabel}
+        aria-pressed={state.maximized}
+        onClick={actions.toggleMaximized}>
+        <MaximizeIcon />
+      </NavbarIcon>
+    </Tooltip>
+  )
+  const closeButton = (
+    <Tooltip content={closeLabel} delay={800}>
+      <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={() => actions.close()}>
+        <RightSidebarCollapseIcon />
+      </NavbarIcon>
+    </Tooltip>
+  )
   return (
     <div
       data-testid="shell-tab-list"
       className={cn(
         // Match ConversationShell's edge inset so the closed-state expand button and
         // opened-state close button keep the same distance from the nearest edge.
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
-        isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
-        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]'
       )}>
-      <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
-        <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
-      </HorizontalScrollContainer>
+      {showTabs ? (
+        <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
+          <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
+        </HorizontalScrollContainer>
+      ) : (
+        <div
+          data-testid="shell-tab-title"
+          className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
+          {title}
+        </div>
+      )}
       <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-        <Tooltip content={maximizeLabel} delay={800}>
-          <NavbarIcon
-            tone="conversation"
-            className="[&_svg]:!size-3.5 shrink-0"
-            aria-label={maximizeLabel}
-            aria-pressed={state.maximized}
-            onClick={actions.toggleMaximized}>
-            <MaximizeIcon />
-          </NavbarIcon>
-        </Tooltip>
-        {extraTrailing}
+        {showTabs ? (
+          <>
+            {maximizeButton}
+            {extraTrailing}
+          </>
+        ) : (
+          <>
+            {extraTrailing}
+            {maximizeButton}
+            {closeButton}
+          </>
+        )}
       </div>
     </div>
   )

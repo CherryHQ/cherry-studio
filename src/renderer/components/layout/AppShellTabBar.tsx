@@ -14,15 +14,12 @@ import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
-function isHomeTab(tab: Pick<Tab, 'id'>) {
-  return tab.id === 'home'
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
   tabs: Tab[]
   activeTabId: string
+  isFullscreen?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   addTab?: (tab: Tab) => void
@@ -100,6 +97,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 // Threshold below which the right-side X is hidden and icon-overlay X is used instead
 const NARROW_TAB_THRESHOLD = 64
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
 
 function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
   if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
@@ -154,8 +152,9 @@ const NormalTabButton = ({
     [tabRef, ref]
   )
 
-  const showRightClose = showClose && !isNarrow
-  const showIconOverlayClose = showClose && isNarrow
+  const canClose = showClose
+  const showRightClose = canClose && !isNarrow
+  const showIconOverlayClose = canClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -169,6 +168,19 @@ const NormalTabButton = ({
       type="button"
       onPointerDown={drag.onPointerDown}
       onClick={onSelect}
+      onAuxClick={(e) => {
+        if (e.button === 1 && canClose) {
+          e.preventDefault()
+          e.stopPropagation()
+          onClose()
+        }
+      }}
+      onDoubleClick={(e) => {
+        if (!canClose) return
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }}
       style={{
         transform: `translateX(${drag.translateX}px)`,
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
@@ -177,13 +189,13 @@ const NormalTabButton = ({
       }}
       className={cn(
         'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1 pl-2' : 'px-2',
+        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
-      <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-        <TabIcon tab={tab} size={13} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
+      <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        <TabIcon tab={tab} size={14} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
         {showIconOverlayClose && (
           <div
             role="button"
@@ -204,8 +216,11 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
-        style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
+        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        style={{
+          maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
+        }}>
         {tab.title}
       </span>
       {/* Right-side close button — only on wide tabs */}
@@ -253,18 +268,14 @@ interface TabCapabilities {
 
 /**
  * Single source of truth for what a tab can do, derived from its zone and the
- * tab counts. A window always keeps at least one normal tab, so the last normal
- * tab can't be closed / pinned / detached and therefore shows no menu. Pinned
- * tabs can always be unpinned but never closed directly; reordering is per-zone.
+ * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
+ * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
+ * can always be unpinned but never closed directly; reordering is per-zone.
  */
 export function getTabCapabilities(
   tab: Pick<Tab, 'id' | 'isPinned'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
 ): TabCapabilities {
-  if (isHomeTab(tab)) {
-    return { menu: false, reorder: false, togglePin: false, detach: false, close: false }
-  }
-
   const detach = ctx.canDetach
   if (tab.isPinned) {
     const hasSiblings = ctx.pinnedCount > 1
@@ -272,11 +283,11 @@ export function getTabCapabilities(
   }
   const hasSiblings = ctx.normalCount > 1
   return {
-    menu: hasSiblings,
+    menu: true,
     reorder: hasSiblings,
-    togglePin: hasSiblings,
-    detach: hasSiblings && detach,
-    close: hasSiblings
+    togglePin: true,
+    detach,
+    close: true
   }
 }
 
@@ -361,6 +372,7 @@ const TabRightClickMenu = ({
 export const AppShellTabBar = ({
   tabs,
   activeTabId,
+  isFullscreen = false,
   setActiveTab,
   closeTab,
   reorderTabs,
@@ -402,8 +414,7 @@ export const AppShellTabBar = ({
     return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
   const hasUnpinnedTabs = normalTabs.length > 0
-  const homeTabIndex = normalTabs.findIndex(isHomeTab)
-  const normalReorderStartIndex = homeTabIndex === -1 ? 0 : homeTabIndex + 1
+  const normalReorderStartIndex = 0
   // Shared input for `getTabCapabilities` — every per-tab affordance is derived
   // from this, so the render stays declarative.
   const tabContext = useMemo(
@@ -471,7 +482,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad') })
+    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -484,12 +495,13 @@ export const AppShellTabBar = ({
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
-          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+          'pl-0'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+          style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

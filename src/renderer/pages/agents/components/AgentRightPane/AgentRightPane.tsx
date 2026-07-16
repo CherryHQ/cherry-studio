@@ -3,12 +3,10 @@ import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/compon
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import {
-  ArtifactFilePreview,
+  type ArtifactPaneFileSelection,
   ArtifactPaneView,
-  isOfficeDocumentFile,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
-import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
@@ -33,15 +31,13 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useFileSize } from '@renderer/hooks/useFileSize'
-import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import {
   Activity,
   Bot,
@@ -73,7 +69,6 @@ import {
 // projections, agent session metadata — and feeds it into Shell.* slots.
 
 const FLOW_TAB_PREFIX = 'flow:'
-const FILE_PREVIEW_TAB = 'file-preview'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
@@ -90,27 +85,9 @@ function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
   return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
 }
 
-function getFilePreviewTitle(filePath: string): string {
-  const segments = filePath
-    .trim()
-    .split(/[/\\]+/)
-    .filter(Boolean)
-  return segments.at(-1) ?? filePath
-}
-
-function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath) || isOfficeDocumentFile(filePath)
-}
-
 interface AgentFlowTab {
   toolCallId: string
   toolName?: string
-  title: string
-}
-
-interface AgentFilePreviewTab {
-  workspacePath: string
-  filePath: string
   title: string
 }
 
@@ -122,19 +99,14 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
-  modelFallback?: ModelSnapshot
   filesEnabled?: boolean
   statusEnabled?: boolean
 }
 
 interface AgentRightPaneState {
   flowTabs: AgentFlowTab[]
-  activeFlowTab?: AgentFlowTab
-  flow: ReturnType<typeof buildAgentToolFlowProjection>
-  status: AgentRightPaneStatus
-  filePreview: AgentFilePreviewTab | null
+  previewFileSelection: ArtifactPaneFileSelection | null
   selectedFile: string | null
-  fileTreeOpen: boolean
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
   workspaceId?: string
@@ -147,7 +119,6 @@ interface AgentRightPaneActions {
   closeFilePreview: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
-  setFileTreeOpen: (open: boolean) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
 }
@@ -173,11 +144,49 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
 }
 
 const AgentRightPaneContext = createContext<AgentRightPaneContextValue | null>(null)
+const AgentRightPaneProjectionSourceContext = createContext<{
+  messages: CherryUIMessage[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
+} | null>(null)
+const AgentRightPaneStatusContext = createContext<AgentRightPaneStatus | null>(null)
+const EMPTY_AGENT_RIGHT_PANE_STATUS: AgentRightPaneStatus = {
+  tasks: [],
+  completedTaskCount: 0,
+  totalTaskCount: 0,
+  subagents: [],
+  artifacts: []
+}
 
 function useAgentRightPane(): AgentRightPaneContextValue {
   const value = use(AgentRightPaneContext)
   if (!value) throw new Error('useAgentRightPane must be used within <AgentRightPane>')
   return value
+}
+
+function useAgentRightPaneProjectionSource() {
+  const value = use(AgentRightPaneProjectionSourceContext)
+  if (!value) throw new Error('useAgentRightPaneProjectionSource must be used within <AgentRightPane>')
+  return value
+}
+
+function useAgentRightPaneStatus(): AgentRightPaneStatus {
+  const value = use(AgentRightPaneStatusContext)
+  if (!value) throw new Error('useAgentRightPaneStatus must be used within <AgentRightPaneStatusProjectionProvider>')
+  return value
+}
+
+function AgentRightPaneStatusProjectionProvider({ children }: { children: ReactNode }) {
+  const { messages, partsByMessageId } = useAgentRightPaneProjectionSource()
+  const { meta } = useAgentRightPane()
+  const status = useMemo(
+    () =>
+      meta.statusEnabled === false
+        ? EMPTY_AGENT_RIGHT_PANE_STATUS
+        : buildAgentRightPaneStatus(messages, partsByMessageId),
+    [messages, meta.statusEnabled, partsByMessageId]
+  )
+
+  return <AgentRightPaneStatusContext value={status}>{children}</AgentRightPaneStatusContext>
 }
 
 // The workspace file-tree model lives in its own context so its frequent
@@ -208,25 +217,26 @@ function AgentRightPaneStateProvider({
   agentName,
   agentAvatar,
   filesEnabled = true,
-  modelFallback,
   statusEnabled = true
 }: AgentRightPaneProviderProps) {
-  const { activeTab } = useShellState()
+  const shellState = useShellState()
+  const { activeTab } = shellState
   const { openTab } = useShellActions()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
-  const [filePreview, setFilePreview] = useState<AgentFilePreviewTab | null>(null)
+  const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [fileTreeOpen, setFileTreeOpen] = useState(false)
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
   const previousWorkspaceKeyRef = useRef(workspaceKey)
+  const lastSelectableFileRef = useRef<string | null>(null)
+  const fileTreeModelOpen = filesEnabled !== false && shellState.open && activeTab === 'files'
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
   // maximize/minimize no longer remounts + rematerializes the workspace tree.
   const fileTreeModel = useArtifactFileTreeModel({
     workspacePath,
-    treeOpen: fileTreeOpen,
+    treeOpen: fileTreeModelOpen,
     expandedIds: fileTreeExpandedIds,
     searchKeyword: fileTreeSearchKeyword,
     enableFileSearch: true,
@@ -235,17 +245,6 @@ function AgentRightPaneStateProvider({
   })
   // Stable callback for effect deps (the model object itself is new each render).
   const { resetLazyChildren: resetFileTreeLazyChildren } = fileTreeModel
-
-  const activeFlowToolCallId = getFlowToolCallId(activeTab)
-  const activeFlowTab = activeFlowToolCallId
-    ? flowTabs.find((flowTab) => flowTab.toolCallId === activeFlowToolCallId)
-    : undefined
-
-  const flow = useMemo(
-    () => buildAgentToolFlowProjection(messages, partsByMessageId, activeFlowTab?.toolCallId),
-    [activeFlowTab?.toolCallId, messages, partsByMessageId]
-  )
-  const status = useMemo(() => buildAgentRightPaneStatus(messages, partsByMessageId), [messages, partsByMessageId])
 
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
@@ -266,39 +265,64 @@ function AgentRightPaneStateProvider({
     (path: string) => {
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
       if (!selection) return
-      setFilePreview({
-        ...selection,
-        title: getFilePreviewTitle(selection.filePath)
-      })
-      openTab(FILE_PREVIEW_TAB)
+      setPreviewFileSelection(selection)
+      if (selection.workspacePath === workspacePath) {
+        setSelectedFile(selection.filePath)
+      } else {
+        setSelectedFile(null)
+      }
+      openTab('files')
     },
     [openTab, workspacePath]
+  )
+
+  const selectFile = useCallback(
+    (file: string | null) => {
+      setPreviewFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
+      setSelectedFile(file)
+    },
+    [workspacePath]
   )
 
   useEffect(() => {
     if (previousWorkspaceKeyRef.current === workspaceKey) return
     previousWorkspaceKeyRef.current = workspaceKey
     setSelectedFile(null)
-    setFilePreview(null)
+    setPreviewFileSelection(null)
     setFileTreeExpandedIds(new Set())
     setFileTreeSearchKeyword('')
+    lastSelectableFileRef.current = null
     // The lazy-children map now lives in the surviving provider, so its reset on
     // workspace change must be explicit (previously it rode the pane remount).
     resetFileTreeLazyChildren()
-    if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-  }, [activeTab, resetFileTreeLazyChildren, openTab, workspaceKey])
+  }, [resetFileTreeLazyChildren, workspaceKey])
 
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
   useEffect(() => {
-    if (!selectedFile || !fileTreeModel.hasLoaded) return
-    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) return
+    if (!selectedFile || !fileTreeModel.hasLoaded) {
+      if (!selectedFile) lastSelectableFileRef.current = null
+      return
+    }
+    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) {
+      lastSelectableFileRef.current = selectedFile
+      return
+    }
+    if (lastSelectableFileRef.current !== selectedFile) return
+    if (
+      previewFileSelection &&
+      previewFileSelection.workspacePath === workspacePath &&
+      previewFileSelection.filePath === selectedFile
+    ) {
+      setPreviewFileSelection(null)
+    }
+    lastSelectableFileRef.current = null
     setSelectedFile(null)
-  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, selectedFile])
+  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, previewFileSelection, selectedFile, workspacePath])
   const closeFilePreview = useCallback(() => {
-    if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-    setFilePreview(null)
-  }, [activeTab, openTab])
+    setPreviewFileSelection(null)
+    setSelectedFile(null)
+  }, [])
   const closeFlowTab = useCallback(
     (toolCallId: string) => {
       setFlowTabs((currentTabs) => currentTabs.filter((tab) => tab.toolCallId !== toolCallId))
@@ -311,12 +335,8 @@ function AgentRightPaneStateProvider({
     () => ({
       state: {
         flowTabs,
-        activeFlowTab,
-        flow,
-        status,
-        filePreview,
+        previewFileSelection,
         selectedFile,
-        fileTreeOpen,
         fileTreeExpandedIds,
         fileTreeSearchKeyword,
         workspaceId,
@@ -327,8 +347,7 @@ function AgentRightPaneStateProvider({
         openArtifactFile,
         closeFilePreview,
         closeFlowTab,
-        setSelectedFile,
-        setFileTreeOpen,
+        setSelectedFile: selectFile,
         setFileTreeExpandedIds,
         setFileTreeSearchKeyword
       },
@@ -340,42 +359,41 @@ function AgentRightPaneStateProvider({
         agentName,
         agentAvatar,
         filesEnabled,
-        modelFallback,
         statusEnabled
       }
     }),
     [
-      activeFlowTab,
       agentAvatar,
       agentId,
       agentName,
       closeFilePreview,
       closeFlowTab,
       fileTreeExpandedIds,
-      fileTreeOpen,
       fileTreeSearchKeyword,
       filesEnabled,
-      filePreview,
-      flow,
       flowTabs,
-      modelFallback,
       openArtifactFile,
       openAgentToolFlow,
+      previewFileSelection,
+      selectFile,
       selectedFile,
       sessionId,
       sessionName,
       statusEnabled,
-      status,
       traceId,
       workspaceId,
       workspacePath
     ]
   )
 
+  const projectionSource = useMemo(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+
   return (
-    <AgentRightPaneContext value={value}>
-      <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
-    </AgentRightPaneContext>
+    <AgentRightPaneProjectionSourceContext value={projectionSource}>
+      <AgentRightPaneContext value={value}>
+        <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
+      </AgentRightPaneContext>
+    </AgentRightPaneProjectionSourceContext>
   )
 }
 
@@ -404,48 +422,17 @@ function AgentRightPaneFilesPanel() {
   return (
     <ArtifactPaneView
       workspacePath={state.workspacePath}
+      previewFileSelection={state.previewFileSelection}
+      onPreviewClose={actions.closeFilePreview}
       pdfLayoutPending={shellState.pdfLayoutPending}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       enableFileSearch
       model={model}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
-      treeOpen={state.fileTreeOpen}
-      onTreeOpenChange={actions.setFileTreeOpen}
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
-  )
-}
-
-function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
-  const shellState = useShellState()
-  const isOfficeDocumentPreview = isOfficeDocumentFile(preview.filePath)
-  const shouldSniffFile = !isOfficeDocumentPreview && !/\.pdf$/i.test(preview.filePath)
-  const sniffedIsText = useIsTextFile(preview.workspacePath, preview.filePath, { enabled: shouldSniffFile })
-  const isText = shouldSniffFile ? sniffedIsText : 'binary'
-  const fileSize = useFileSize(preview.workspacePath, preview.filePath)
-
-  return (
-    <div
-      className={cn(
-        'h-full min-h-0 bg-card text-card-foreground',
-        isFramedFilePreview(preview.filePath) ? 'overflow-hidden' : 'overflow-auto'
-      )}>
-      <ArtifactFilePreview
-        workspacePath={preview.workspacePath}
-        filePath={preview.filePath}
-        isText={isText}
-        fileSize={fileSize}
-        officeActions={
-          isOfficeDocumentPreview ? (
-            <OpenExternalAppButton workdir={preview.workspacePath} filePath={preview.filePath} />
-          ) : undefined
-        }
-        pdfLayoutPending={shellState.pdfLayoutPending}
-        pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
-      />
-    </div>
   )
 }
 
@@ -481,7 +468,6 @@ function AgentToolFlowMessageList({
         }
       : undefined,
     assistantId: meta.agentId,
-    modelFallback: meta.modelFallback,
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
@@ -512,15 +498,15 @@ function AgentToolFlowMessageList({
   )
 }
 
-function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
-  const { state } = useAgentRightPane()
-  const { activeTab } = useShellState()
+function ActiveAgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
+  const { messages, partsByMessageId } = useAgentRightPaneProjectionSource()
   const { t } = useTranslation()
+  const flow = useMemo(
+    () => buildAgentToolFlowProjection(messages, partsByMessageId, tab.toolCallId),
+    [messages, partsByMessageId, tab.toolCallId]
+  )
 
-  // Only the active flow tab drives the projection, so skip stale siblings.
-  if (activeTab !== getFlowTabValue(tab.toolCallId)) return null
-
-  if (!state.flow.messages.length) {
+  if (!flow.messages.length) {
     return (
       <EmptyState
         icon={GitBranch}
@@ -532,9 +518,18 @@ function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <AgentToolFlowMessageList messages={state.flow.messages} partsByMessageId={state.flow.partsByMessageId} />
+      <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
     </div>
   )
+}
+
+function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
+  const { activeTab } = useShellState()
+
+  // Only the active flow tab drives the projection, so skip stale siblings.
+  if (activeTab !== getFlowTabValue(tab.toolCallId)) return null
+
+  return <ActiveAgentRightPaneFlowPanel tab={tab} />
 }
 
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
@@ -552,9 +547,9 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
 }
 
 function AgentAgentRightPaneStatusPanel() {
-  const { state, meta } = useAgentRightPane()
+  const { meta } = useAgentRightPane()
   const { t } = useTranslation()
-  const { status } = state
+  const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
@@ -608,43 +603,35 @@ function AgentAgentRightPaneStatusPanel() {
 
 function AgentRightPaneSurface() {
   const { state, actions, meta } = useAgentRightPane()
+  const status = useAgentRightPaneStatus()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const { mode, chrome } = useWindowFrame()
-  const isWindow = mode === 'window'
-  const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
+  const shellState = useShellState()
+  const incompleteTasks = Math.max(0, status.totalTaskCount - status.completedTaskCount)
   const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
   const hasFiles = meta.filesEnabled !== false
   const resourcePane = useResourcePane()
   const hasStatus = meta.statusEnabled !== false
   const hasTrace = enableDeveloperMode && !!traceTopicId
-
-  // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
-  // (sub-window controls + pane toggle) so they don't overlap this header.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasFiles) && <AgentRightPaneFilesToggle />}
-    </>
-  )
+  const activeFlowTab = state.flowTabs.find((tab) => getFlowTabValue(tab.toolCallId) === shellState.activeTab)
+  const activeTitle =
+    shellState.activeTab === RESOURCE_PANE_TAB && resourcePane
+      ? resourcePane.label
+      : shellState.activeTab === 'files'
+        ? t('agent.right_pane.tabs.files')
+        : shellState.activeTab === 'status'
+          ? t('agent.right_pane.tabs.status')
+          : shellState.activeTab === 'trace'
+            ? t('trace.label')
+            : (activeFlowTab?.title ?? t('agent.right_pane.tabs.files'))
 
   return (
     <Shell.Tabs>
-      <Shell.TabList extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false}>
         <ResourcePaneTab />
         {hasFiles && (
-          <Shell.Tab
-            value="files"
-            icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}>
-            {state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
-          </Shell.Tab>
-        )}
-        {hasFiles && state.filePreview && (
-          <Shell.Tab
-            value={FILE_PREVIEW_TAB}
-            icon={<FileText className="size-3.5" />}
-            onClose={actions.closeFilePreview}>
-            {state.filePreview.title}
+          <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
+            {t('agent.right_pane.tabs.files')}
           </Shell.Tab>
         )}
         {state.flowTabs.map((flowTab) => (
@@ -682,11 +669,6 @@ function AgentRightPaneSurface() {
           <AgentRightPaneFilesPanel />
         </Shell.Panel>
       )}
-      {hasFiles && state.filePreview && (
-        <Shell.Panel value={FILE_PREVIEW_TAB}>
-          <AgentFilePreviewPanel preview={state.filePreview} />
-        </Shell.Panel>
-      )}
       {state.flowTabs.map((flowTab) => (
         <Shell.Panel key={flowTab.toolCallId} value={getFlowTabValue(flowTab.toolCallId)}>
           <AgentRightPaneFlowPanel tab={flowTab} />
@@ -706,31 +688,48 @@ function AgentRightPaneSurface() {
   )
 }
 
+function AgentRightPaneKeyboardShortcut() {
+  const { meta } = useAgentRightPane()
+  const resourcePane = useResourcePane()
+  const { open } = useShellState()
+  const actions = useShellActions()
+  const isActiveTab = useIsActiveTab()
+  const hasFiles = meta.filesEnabled !== false
+  const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'files'
+  const enabled = isActiveTab && Boolean(resourcePane || hasFiles)
+  const handleToggle = useCallback(() => {
+    if (open) {
+      actions.close()
+      return
+    }
+    actions.openTab(targetTab)
+  }, [actions, open, targetTab])
+
+  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
+
+  return null
+}
+
 function AgentRightPaneHost() {
   return (
-    <Shell.Host>
-      <AgentRightPaneSurface />
-    </Shell.Host>
+    <>
+      <AgentRightPaneKeyboardShortcut />
+      <Shell.Host>
+        <AgentRightPaneStatusProjectionProvider>
+          <AgentRightPaneSurface />
+        </AgentRightPaneStatusProjectionProvider>
+      </Shell.Host>
+    </>
   )
 }
 
 function AgentRightPaneMaximizedOverlay() {
   return (
     <Shell.MaximizedOverlay>
-      <AgentRightPaneSurface />
+      <AgentRightPaneStatusProjectionProvider>
+        <AgentRightPaneSurface />
+      </AgentRightPaneStatusProjectionProvider>
     </Shell.MaximizedOverlay>
-  )
-}
-
-function AgentRightPaneFilesToggle() {
-  const isActiveTab = useIsActiveTab()
-  const resourcePane = useResourcePane()
-  return (
-    <Shell.Toggle
-      tab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
-      command="topic.sidebar.toggle"
-      commandEnabled={isActiveTab}
-    />
   )
 }
 
@@ -781,10 +780,11 @@ function AgentRightPaneHighlights({
   compact?: boolean
   includeTasks?: boolean
 }) {
-  const { state, actions } = useAgentRightPane()
+  const { actions } = useAgentRightPane()
+  const status = useAgentRightPaneStatus()
   const { t } = useTranslation()
-  const tasks = includeTasks ? state.status.tasks : []
-  const hasHighlights = tasks.length > 0 || state.status.subagents.length > 0 || state.status.artifacts.length > 0
+  const tasks = includeTasks ? status.tasks : []
+  const hasHighlights = tasks.length > 0 || status.subagents.length > 0 || status.artifacts.length > 0
 
   if (!hasHighlights) return null
 
@@ -812,13 +812,13 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {state.status.subagents.length > 0 && (
+      {status.subagents.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.subagents')}
           icon={<Bot size={14} className="text-muted-foreground" />}
           compact={compact}>
           <ul className="space-y-1">
-            {state.status.subagents.map((subagent) => (
+            {status.subagents.map((subagent) => (
               <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
                 <SubagentStatusIcon status={subagent.status} />
                 <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-xs leading-5">
@@ -830,19 +830,19 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {state.status.artifacts.length > 0 && (
+      {status.artifacts.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.artifacts')}
           icon={<Package size={14} className="text-muted-foreground" />}
           compact={compact}>
           <ul className="space-y-0.5">
-            {state.status.artifacts.map((artifact) => (
+            {status.artifacts.map((artifact) => (
               <li key={`${artifact.toolCallId}-${artifact.path}`}>
                 <button
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-primary transition-colors hover:bg-foreground/5">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>
@@ -880,27 +880,34 @@ function AgentRightPaneStatusPreview() {
 function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   const shellState = useShellState()
   const { t } = useTranslation()
-  if (disabled || shellState.open || shellState.maximized) return null
+  if (disabled || shellState.maximized) return null
+
+  const shortcut = (
+    <Shell.TabShortcut
+      tab="status"
+      label={t('agent.right_pane.tabs.status')}
+      icon={<Activity className="size-3.5" />}
+      tooltip={false}
+      openBehavior="toggle-active"
+    />
+  )
+
+  if (shellState.open) return shortcut
 
   return (
     <HoverCard openDelay={150} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <Shell.TabShortcut
-          tab="status"
-          label={t('agent.right_pane.tabs.status')}
-          icon={<Activity className="size-3.5" />}
-          tooltip={false}
-        />
-      </HoverCardTrigger>
+      <HoverCardTrigger asChild>{shortcut}</HoverCardTrigger>
       <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
-        <AgentRightPaneStatusPreview />
+        <AgentRightPaneStatusProjectionProvider>
+          <AgentRightPaneStatusPreview />
+        </AgentRightPaneStatusProjectionProvider>
       </HoverCardContent>
     </HoverCard>
   )
 }
 
 function AgentRightPaneShortcuts() {
-  const { state, meta } = useAgentRightPane()
+  const { meta } = useAgentRightPane()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const hasFiles = meta.filesEnabled !== false
@@ -913,12 +920,20 @@ function AgentRightPaneShortcuts() {
       {hasFiles && (
         <Shell.TabShortcut
           tab="files"
-          label={state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
-          icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}
+          label={t('agent.right_pane.tabs.files')}
+          icon={<FolderOpen className="size-3.5" />}
+          openBehavior="toggle-active"
         />
       )}
       {hasStatus && <AgentRightPaneStatusShortcut />}
-      {hasTrace && <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />}
+      {hasTrace && (
+        <Shell.TabShortcut
+          tab="trace"
+          label={t('trace.label')}
+          icon={<Waypoints className="size-3.5" />}
+          openBehavior="toggle-active"
+        />
+      )}
     </>
   )
 }
@@ -928,7 +943,6 @@ function AgentRightPaneShortcuts() {
 export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
-  FilesToggle: AgentRightPaneFilesToggle,
   Shortcuts: AgentRightPaneShortcuts
 })
 

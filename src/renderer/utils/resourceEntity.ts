@@ -29,6 +29,26 @@ export function isUntouchedSinceCreation(item: { createdAt?: string; updatedAt?:
 }
 
 /**
+ * Selection policy for "which row becomes active after the active one is deleted": pick the next
+ * row in the given display-ordered list, or the previous row when the deleted row was last. Returns
+ * `undefined` when `id` is not present or was the only row (callers decide the empty fallback).
+ *
+ * `orderedList` must be the list in *visible display order* (and scoped to the surface the deleted
+ * row lived in), and must still contain the deleted row — call this on the pre-refresh snapshot.
+ * Centralizes the topic and agent-session delete-selection so both surfaces stay consistent instead
+ * of one picking the display neighbour and the other the raw API/orderKey head.
+ */
+export function pickNeighbourAfterRemoval<T extends { id: string }>(
+  orderedList: readonly T[],
+  id: string
+): T | undefined {
+  if (orderedList.length <= 1) return undefined
+  const index = orderedList.findIndex((item) => item.id === id)
+  if (index === -1) return undefined
+  return orderedList[index + 1 === orderedList.length ? index - 1 : index + 1]
+}
+
+/**
  * Return the entity with the most recent `updatedAt` (ISO string). Ties keep the first item;
  * a missing or unparseable `updatedAt` sorts as oldest. Returns `undefined` for an empty list.
  */

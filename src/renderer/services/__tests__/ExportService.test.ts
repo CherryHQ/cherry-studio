@@ -1,6 +1,7 @@
 // Import Message, MessageBlock, and necessary enums
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
+import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -17,14 +18,6 @@ beforeEach(() => {
         read: vi.fn().mockResolvedValue('[]'),
         writeWithId: vi.fn()
       }
-    },
-    configurable: true
-  })
-  Object.defineProperty(window, 'toast', {
-    value: {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn()
     },
     configurable: true
   })
@@ -333,6 +326,21 @@ describe('ExportService', () => {
       expect(markdown).toContain('Parts-only content')
     })
 
+    it('uses the frozen producing author for the header, surviving rename/delete', async () => {
+      const message = createExportView([{ type: 'text', text: 'snapshotted reply' }])
+      message.messageSnapshot = {
+        id: 'a1',
+        name: 'My Assistant',
+        emoji: '🎯',
+        model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+      }
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('## 🎯 My Assistant')
+      expect(markdown).not.toContain('## 🤖 Assistant')
+    })
+
     it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
       const message = createExportView(
         [
@@ -600,7 +608,7 @@ describe('ExportService', () => {
 
       expect(addNote).not.toHaveBeenCalled()
       expect(loggerErrorSpy).toHaveBeenCalledWith('导出到笔记失败:', exportError)
-      expect(window.toast.error).toHaveBeenCalledWith('message.error.notes.export')
+      expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
 
       loggerErrorSpy.mockRestore()
     })

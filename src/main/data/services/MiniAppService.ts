@@ -19,13 +19,23 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
+import { miniAppLogoRef } from '@shared/data/types/file'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
+import { clearSingleFileRefTx, getLogoFileId, type LogoBindInput, reconcileLogoSlotTx } from './utils/logoRef'
+import { resolveLogoSrc } from './utils/logoSrc'
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
+
+/**
+ * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
+ * through the `mini_app.set_logo` IpcApi command); the command orchestrator
+ * passes a `LogoBindInput` here after creating the `file_entry`.
+ */
+export type UpdateMiniAppInput = UpdateMiniAppDto & { logo?: LogoBindInput }
 
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
@@ -58,7 +68,12 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     presetMiniAppId,
     name: clean.name,
     url: clean.url,
-    logo: clean.logo,
+    // Preset icon key stays on `logo`; an uploaded logo's file id lives in the
+    // ref table (single source of truth) and resolves main-side to a ready
+    // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
+    // renderer never reconstructs a disk path.
+    logo: clean.logoKey,
+    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(clean.appId))),
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),
@@ -74,6 +89,11 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
   }
 
   return app
+}
+
+/** The mini-app logo slot for a given appId. */
+function logoSlot(appId: string) {
+  return { sourceType: miniAppLogoRef.sourceType, sourceId: appId }
 }
 
 export class MiniAppService {
@@ -119,6 +139,9 @@ export class MiniAppService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.appId), dto.logo) ?? {
+            logoKey: null
+          }
           const inserted = insertWithOrderKey(
             tx,
             miniAppTable,
@@ -127,7 +150,7 @@ export class MiniAppService {
               presetMiniAppId: null,
               name: dto.name,
               url: dto.url,
-              logo: dto.logo,
+              logoKey: logoCols.logoKey,
               status
             },
             {
@@ -159,7 +182,7 @@ export class MiniAppService {
    * status lands at the visible tail; moving into `disabled` lands at the
    * disabled tail.
    */
-  update(appId: string, dto: UpdateMiniAppDto): MiniApp {
+  update(appId: string, dto: UpdateMiniAppInput): MiniApp {
     const hasStatusUpdate = dto.status !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
 
@@ -196,7 +219,11 @@ export class MiniAppService {
 
           if (dto.name !== undefined) updates.name = dto.name
           if (dto.url !== undefined) updates.url = dto.url
-          if (dto.logo !== undefined) updates.logo = dto.logo
+          // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
+          const logoCols = reconcileLogoSlotTx(tx, logoSlot(appId), dto.logo)
+          if (logoCols) {
+            updates.logoKey = logoCols.logoKey
+          }
 
           if (hasStatusUpdate) {
             const targetStatus = dto.status as MiniAppStatus
@@ -281,6 +308,10 @@ export class MiniAppService {
             )
           }
 
+          // DB-only: drop the logo slot's ref (the file is preserved per the
+          // file layer's policy), then delete the row. The FK cascade would also
+          // clear it on row delete; the explicit clear keeps the intent local.
+          clearSingleFileRefTx(tx, logoSlot(appId))
           tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId)).run()
         }),
       defaultHandlersFor('MiniApp', appId)

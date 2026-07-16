@@ -47,7 +47,7 @@ function makeListener(modelId?: UniqueModelId) {
     backend: new TemporaryChatBackend({
       topicId: 'abc',
       modelId,
-      modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+      messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
     })
   })
 }
@@ -362,6 +362,18 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const listener = makeListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
+
+    expect(appendMessageMock).not.toHaveBeenCalled()
+  })
+
+  it('skips persistence when onPaused arrives without a finalMessage and there is no placeholder row', async () => {
+    const listener = makeListener()
+
+    await listener.onPaused({
+      finalMessage: undefined,
+      status: 'paused',
+      timings: { startedAt: 1000, completedAt: 2500.9 }
+    })
 
     expect(appendMessageMock).not.toHaveBeenCalled()
   })

@@ -1,6 +1,5 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -24,6 +23,8 @@ import {
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
@@ -31,6 +32,9 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
+
+import { BACKUP_V2_READY, BackupUnavailableGate } from './BackupUnavailableGate'
+import NutstorePathPopup from './NutstorePathPopup'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -74,7 +78,8 @@ const NutstoreSettings: FC = () => {
         if (decrypted) {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
-          if (!nutstorePath) {
+          // Don't seed the v1 Nutstore path default while v2 backup is gated (silent v1 pref write)
+          if (!nutstorePath && BACKUP_V2_READY) {
             void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
           }
@@ -85,14 +90,10 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
-    const confirmedLogout = await new Promise<boolean>((resolve) => {
-      window.modal.confirm({
-        centered: true,
-        title: t('settings.data.nutstore.logout.title'),
-        content: t('settings.data.nutstore.logout.content'),
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false)
-      })
+    const confirmedLogout = await popup.confirm({
+      centered: true,
+      title: t('settings.data.nutstore.logout.title'),
+      content: t('settings.data.nutstore.logout.content')
     })
     if (confirmedLogout) {
       void setNutstoreToken('')
@@ -107,7 +108,7 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+    toast[isConnectedToNutstore ? 'success' : 'error']({
       timeout: 2000,
       title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')
@@ -213,161 +214,163 @@ const NutstoreSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.nutstore.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>
-          {isLogin ? t('settings.data.nutstore.isLogin') : t('settings.data.nutstore.notLogin')}
-        </SettingRowTitle>
-        {isLogin ? (
-          <RowFlex className="items-center justify-between gap-1.25">
-            <Button
-              variant={nsConnected ? 'ghost' : 'outline'}
-              onClick={handleCheckConnection}
-              disabled={checkConnectionLoading}>
-              {checkConnectionLoading ? (
-                <Loader2 className="animate-spin" size={14} />
-              ) : nsConnected ? (
-                <Check size={14} />
-              ) : (
-                t('settings.data.nutstore.checkConnection.name')
-              )}
-            </Button>
-            <Button variant="destructive" onClick={handleLayout}>
-              {t('settings.data.nutstore.logout.button')}
-            </Button>
-          </RowFlex>
-        ) : (
-          <Button onClick={handleClickNutstoreSSO} variant="outline">
-            {t('settings.data.nutstore.login.button')}
-          </Button>
-        )}
-      </SettingRow>
-      <SettingDivider />
-      {isLogin && (
-        <>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-            <span className="text-foreground-muted">{nutstoreUsername}</span>
-          </SettingRow>
-
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.nutstore.path.label')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1">
-              <Input
-                placeholder={t('settings.data.nutstore.path.placeholder')}
-                style={{ width: 250 }}
-                value={nutstorePath}
-                onChange={(e) => {
-                  void setNutstorePath(e.target.value)
-                }}
-              />
-              <Button variant="outline" onClick={handleClickPathChange} size="icon">
-                <FolderOpen size={14} />
+      <BackupUnavailableGate>
+        <SettingRow>
+          <SettingRowTitle>
+            {isLogin ? t('settings.data.nutstore.isLogin') : t('settings.data.nutstore.notLogin')}
+          </SettingRowTitle>
+          {isLogin ? (
+            <RowFlex className="items-center justify-between gap-1.25">
+              <Button
+                variant={nsConnected ? 'ghost' : 'outline'}
+                onClick={handleCheckConnection}
+                disabled={checkConnectionLoading}>
+                {checkConnectionLoading ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : nsConnected ? (
+                  <Check size={14} />
+                ) : (
+                  t('settings.data.nutstore.checkConnection.name')
+                )}
+              </Button>
+              <Button variant="destructive" onClick={handleLayout}>
+                {t('settings.data.nutstore.logout.button')}
               </Button>
             </RowFlex>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={showBackupModal} disabled={backuping} variant="outline">
-                {t('settings.data.nutstore.backup.button')}
-              </Button>
-              <Button onClick={showBackupManager} disabled={!nutstoreToken} variant="outline">
-                {t('settings.data.nutstore.restore.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
-            <Selector
-              size={14}
-              value={nutstoreSyncInterval}
-              onChange={onSyncIntervalChange}
-              options={[
-                { label: t('settings.data.webdav.autoSync.off'), value: 0 },
-                { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
-                { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
-                { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
-                { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
-                { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
-                { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
-                { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
-                { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
-                { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
-              ]}
-            />
-          </SettingRow>
-          {nutstoreAutoSync && nutstoreSyncInterval > 0 && (
-            <>
-              <SettingDivider />
-              <SettingRow>
-                <SettingRowTitle>{t('settings.data.webdav.syncStatus')}</SettingRowTitle>
-                {renderSyncStatus()}
-              </SettingRow>
-            </>
+          ) : (
+            <Button onClick={handleClickNutstoreSSO} variant="outline">
+              {t('settings.data.nutstore.login.button')}
+            </Button>
           )}
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
-            <Selector
-              size={14}
-              value={nutstoreMaxBackups}
-              onChange={onMaxBackupsChange}
-              disabled={!nutstoreToken}
-              options={[
-                { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
-                { label: '1', value: 1 },
-                { label: '3', value: 3 },
-                { label: '5', value: 5 },
-                { label: '10', value: 10 },
-                { label: '20', value: 20 },
-                { label: '50', value: 50 }
-              ]}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={nutstoreSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
-        </>
-      )}
-      <>
-        <WebdavBackupModal
-          isModalVisible={isModalVisible}
-          handleBackup={handleBackup}
-          handleCancel={handleCancel}
-          backuping={backuping}
-          customFileName={customFileName}
-          setCustomFileName={setCustomFileName}
-          customLabels={{
-            modalTitle: t('settings.data.nutstore.backup.modal.title'),
-            filenamePlaceholder: t('settings.data.nutstore.backup.modal.filename.placeholder')
-          }}
-        />
+        </SettingRow>
+        <SettingDivider />
+        {isLogin && (
+          <>
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
+              <span className="text-foreground-muted">{nutstoreUsername}</span>
+            </SettingRow>
 
-        <WebdavBackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          webdavConfig={{
-            webdavHost: NUTSTORE_HOST,
-            webdavUser: nutstoreUsername,
-            webdavPass: nutstorePass,
-            webdavPath: nutstorePath
-          }}
-          restoreMethod={restoreFromNutstore}
-          customLabels={{
-            restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
-            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
-            invalidConfigMessage: t('message.error.invalid.nutstore')
-          }}
-        />
-      </>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.nutstore.path.label')}</SettingRowTitle>
+              <RowFlex className="justify-between gap-1">
+                <Input
+                  placeholder={t('settings.data.nutstore.path.placeholder')}
+                  style={{ width: 250 }}
+                  value={nutstorePath}
+                  onChange={(e) => {
+                    void setNutstorePath(e.target.value)
+                  }}
+                />
+                <Button variant="outline" onClick={handleClickPathChange} size="icon">
+                  <FolderOpen size={14} />
+                </Button>
+              </RowFlex>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+              <RowFlex className="justify-between gap-1.25">
+                <Button onClick={showBackupModal} disabled={backuping} variant="outline">
+                  {t('settings.data.nutstore.backup.button')}
+                </Button>
+                <Button onClick={showBackupManager} disabled={!nutstoreToken} variant="outline">
+                  {t('settings.data.nutstore.restore.button')}
+                </Button>
+              </RowFlex>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
+              <Selector
+                size={14}
+                value={nutstoreSyncInterval}
+                onChange={onSyncIntervalChange}
+                options={[
+                  { label: t('settings.data.webdav.autoSync.off'), value: 0 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
+                ]}
+              />
+            </SettingRow>
+            {nutstoreAutoSync && nutstoreSyncInterval > 0 && (
+              <>
+                <SettingDivider />
+                <SettingRow>
+                  <SettingRowTitle>{t('settings.data.webdav.syncStatus')}</SettingRowTitle>
+                  {renderSyncStatus()}
+                </SettingRow>
+              </>
+            )}
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
+              <Selector
+                size={14}
+                value={nutstoreMaxBackups}
+                onChange={onMaxBackupsChange}
+                disabled={!nutstoreToken}
+                options={[
+                  { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
+                  { label: '1', value: 1 },
+                  { label: '3', value: 3 },
+                  { label: '5', value: 5 },
+                  { label: '10', value: 10 },
+                  { label: '20', value: 20 },
+                  { label: '50', value: 50 }
+                ]}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+              <Switch checked={nutstoreSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+            </SettingRow>
+            <SettingRow>
+              <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+            </SettingRow>
+          </>
+        )}
+        <>
+          <WebdavBackupModal
+            isModalVisible={isModalVisible}
+            handleBackup={handleBackup}
+            handleCancel={handleCancel}
+            backuping={backuping}
+            customFileName={customFileName}
+            setCustomFileName={setCustomFileName}
+            customLabels={{
+              modalTitle: t('settings.data.nutstore.backup.modal.title'),
+              filenamePlaceholder: t('settings.data.nutstore.backup.modal.filename.placeholder')
+            }}
+          />
+
+          <WebdavBackupManager
+            visible={backupManagerVisible}
+            onClose={closeBackupManager}
+            webdavConfig={{
+              webdavHost: NUTSTORE_HOST,
+              webdavUser: nutstoreUsername,
+              webdavPass: nutstorePass,
+              webdavPath: nutstorePath
+            }}
+            restoreMethod={restoreFromNutstore}
+            customLabels={{
+              restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
+              restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
+              invalidConfigMessage: t('message.error.invalid.nutstore')
+            }}
+          />
+        </>
+      </BackupUnavailableGate>
     </SettingGroup>
   )
 }

@@ -18,6 +18,7 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -49,11 +50,6 @@ vi.mock('@main/apiServer/services/models', () => ({
   }
 }))
 
-// Mock workspace seeding — filesystem ops not needed in unit tests
-vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
-  seedWorkspaceTemplates: vi.fn()
-}))
-
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
   const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -62,6 +58,7 @@ describe('AgentService', () => {
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
   beforeEach(async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
     await dbh.db
       .insert(userProviderTable)
       .values({ providerId: 'anthropic', name: 'anthropic', orderKey: generateOrderKeyBetween(null, null) })
@@ -132,10 +129,10 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
-  async function insertGlobalSkill(id: string, folderName?: string): Promise<void> {
+  async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
-      .values({ id, name: id, folderName: folderName ?? id, source: 'local', contentHash: `hash-${id}` })
+      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
       .onConflictDoNothing()
   }
 
@@ -206,6 +203,70 @@ describe('AgentService', () => {
       })
       const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('builtin_role write protection', () => {
+    it('rejects createAgent when configuration carries a builtin_role', async () => {
+      const error = captureError(() =>
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Forged Assistant',
+          model: TEST_MODEL_ID,
+          configuration: { builtin_role: 'assistant' }
+        })
+      )
+      expect(error).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringContaining('builtin_role')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Assistant'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { configuration: { builtin_role: 'assistant' } })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(created.id)?.configuration?.builtin_role).toBeUndefined()
+    })
+
+    it('rejects updateAgent changing an existing builtin_role', async () => {
+      // Seed through the internal tx path, as the Cherry Assistant seeder does.
+      const agentId = 'agent_builtin_change'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
+    })
+
+    it('preserves the builtin_role when an update omits it from configuration', async () => {
+      const agentId = 'agent_builtin_preserve'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+
+      const updated = agentService.updateAgent(agentId, { configuration: { avatar: '🅰️' } })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🅰️')
+    })
+
+    it('accepts an update that carries the existing builtin_role unchanged', async () => {
+      const agentId = 'agent_builtin_roundtrip'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const updated = agentService.updateAgent(agentId, {
+        configuration: { builtin_role: 'assistant', avatar: '🍒' }
+      })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🍒')
     })
   })
 
@@ -300,7 +361,7 @@ describe('AgentService', () => {
     })
   })
 
-  describe('skillIds round-trip', () => {
+  describe('skill enablement round-trip', () => {
     it('enables the provided global skills for the new agent on create', async () => {
       await insertGlobalSkill('skill_a')
       await insertGlobalSkill('skill_b')
@@ -376,15 +437,119 @@ describe('AgentService', () => {
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Raced Skill'))
       expect(agents).toHaveLength(0)
     })
+
+    it('leaves skill rows unchanged when update omits skillUpdates', async () => {
+      await insertGlobalSkill('skill_a')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Preserve',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a']
+      })
+
+      agentService.updateAgent(created.id, { name: 'Renamed Skill Preserve' })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId)).toEqual(['skill_a'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+    })
+
+    it('applies skillUpdates without replacing omitted skill rows', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+      await insertGlobalSkill('skill_c')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Replace',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a', 'skill_b']
+      })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [
+          { skillId: 'skill_a', isEnabled: false },
+          { skillId: 'skill_c', isEnabled: true }
+        ]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ skillId: 'skill_a', isEnabled: false }),
+          expect.objectContaining({ skillId: 'skill_b', isEnabled: true }),
+          expect.objectContaining({ skillId: 'skill_c', isEnabled: true })
+        ])
+      )
+      expect(rows).toHaveLength(3)
+    })
+
+    it('writes an explicit disabled row when a builtin skill is disabled', async () => {
+      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Builtin Disable',
+        model: TEST_MODEL_ID
+      })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [{ skillId: 'skill_builtin', isEnabled: false }]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual([expect.objectContaining({ skillId: 'skill_builtin', isEnabled: false })])
+    })
+
+    it('preserves disabled builtin rows when applying other skill updates', async () => {
+      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
+      await insertGlobalSkill('skill_regular')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Builtin Preserve',
+        model: TEST_MODEL_ID
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: created.id, skillId: 'skill_builtin', isEnabled: false })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [{ skillId: 'skill_regular', isEnabled: true }]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ skillId: 'skill_builtin', isEnabled: false }),
+          expect.objectContaining({ skillId: 'skill_regular', isEnabled: true })
+        ])
+      )
+      expect(rows).toHaveLength(2)
+    })
+
+    it('rejects update skillUpdates when a selected skill does not exist', async () => {
+      await insertGlobalSkill('skill_a')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Bad Update',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a']
+      })
+
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { skillUpdates: [{ skillId: 'missing_skill', isEnabled: true }] })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId)).toEqual(['skill_a'])
+    })
   })
 
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
-      const deleted = agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id)
 
-      expect(deleted).toBe(true)
+      expect(result.deleted).toBe(true)
+      expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
     })
@@ -425,9 +590,10 @@ describe('AgentService', () => {
         }
       ])
 
-      const deleted = agentService.deleteAgent(id, { deleteSessions: true })
+      const result = agentService.deleteAgent(id, { deleteSessions: true })
 
-      expect(deleted).toBe(true)
+      expect(result.deleted).toBe(true)
+      expect(result.deletedSessionIds).toEqual(['session-delete-with-agent'])
       const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
@@ -675,6 +841,27 @@ describe('AgentService', () => {
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
     })
+
+    it('searches the localized blank builtin description server-side and returns it for display', async () => {
+      await insertAgent({
+        id: 'agent_builtin_assistant',
+        name: 'Cherry Assistant',
+        description: '',
+        configuration: { builtin_role: 'assistant' }
+      })
+
+      const { agents, total } = agentService.listAgents({ search: 'diagnose issues' })
+
+      expect(total).toBe(1)
+      expect(agents).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_assistant',
+          // Preserve the persistence contract: renderer display fallback must not
+          // masquerade as a user-owned database description.
+          description: ''
+        })
+      ])
+    })
   })
 
   describe('search', () => {
@@ -718,6 +905,24 @@ describe('AgentService', () => {
         }
       ])
       expect(result[0]).not.toHaveProperty('modelName')
+    })
+
+    it('matches and displays the localized blank builtin description in global search', async () => {
+      await insertAgent({
+        id: 'agent_builtin_global_search',
+        name: 'Cherry Assistant',
+        description: '',
+        configuration: { builtin_role: 'assistant' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'collect FAQs', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_global_search',
+          subtitle:
+            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
     })
   })
 

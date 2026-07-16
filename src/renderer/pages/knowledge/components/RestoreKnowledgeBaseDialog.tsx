@@ -1,5 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import type { FormEvent } from 'react'
@@ -53,6 +55,7 @@ const RestoreKnowledgeBaseDialog = ({
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
     setValues(createInitialValues(defaultName, initialEmbeddingModelId))
@@ -100,7 +103,7 @@ const RestoreKnowledgeBaseDialog = ({
     // Restore drops root items whose source is gone (a v1-migrated directory child's virtual path,
     // a deleted file). Tell the user instead of silently restoring fewer items than expected.
     if (result.skippedMissingSourceCount > 0) {
-      window.toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
+      toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
     }
 
     onRestored(result.base)
@@ -137,6 +140,7 @@ const RestoreKnowledgeBaseDialog = ({
                 placeholder={t('knowledge.not_set')}
                 filter={isEmbeddingModel}
                 invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onSettingsNavigate={handleSettingsNavigate}
                 onChange={handleEmbeddingModelChange}
               />
               {hasAttemptedSubmit && !values.embeddingModelId ? (

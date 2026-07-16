@@ -28,6 +28,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
@@ -60,6 +61,12 @@ import {
   GlobalSearchRow,
   GlobalSearchState
 } from './GlobalSearchResults'
+import type {
+  GlobalSearchAgentSessionMessageSelectionPayload,
+  GlobalSearchAgentSessionSelectionPayload,
+  GlobalSearchTopicMessageSelectionPayload,
+  GlobalSearchTopicSelectionPayload
+} from './globalSearchSelectionEvents'
 import {
   getGlobalSearchFooterItemId,
   getGlobalSearchOptionDomId,
@@ -220,6 +227,10 @@ function emitGlobalSearchSelection(eventName: string, payload: unknown, context:
   void Promise.resolve(EventEmitter.emit(eventName, payload)).catch((error) => {
     logger.error('Failed to emit global search selection event', error as Error, context)
   })
+}
+
+function logMissingSelectionTarget(context: Record<string, unknown>) {
+  logger.warn('Skipped global search selection event without target tab', context)
 }
 
 function getGroupedVirtualListRowIndex<TGroup, TItem, TFooter>(
@@ -465,12 +476,25 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     async (topicId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const topic = mapApiTopicToRendererTopic(apiTopic)
-      chatNav.openConversationTab(topic.id)
+      const targetTabId = chatNav.openConversationTab(topic.id)
+      if (!targetTabId) {
+        logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topicId })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic, {
-          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
-          topicId
-        })
+        emitGlobalSearchSelection(
+          EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
+          {
+            targetTabId,
+            topic
+          } satisfies GlobalSearchTopicSelectionPayload,
+          {
+            eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
+            targetTabId,
+            topicId
+          }
+        )
       })
       onClose()
     },
@@ -479,12 +503,25 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openSession = useCallback(
     (sessionId: string) => {
-      agentNav.openConversationTab(sessionId)
+      const targetTabId = agentNav.openConversationTab(sessionId)
+      if (!targetTabId) {
+        logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId, {
-          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
-          sessionId
-        })
+        emitGlobalSearchSelection(
+          EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
+          {
+            sessionId,
+            targetTabId
+          } satisfies GlobalSearchAgentSessionSelectionPayload,
+          {
+            eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
+            sessionId,
+            targetTabId
+          }
+        )
       })
       onClose()
     },
@@ -508,14 +545,20 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
       await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`])
-      chatNav.openConversationTab(topic.id)
+      const targetTabId = chatNav.openConversationTab(topic.id)
+      if (!targetTabId) {
+        logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, messageId, topicId })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
-          { topic, messageId },
+          { messageId, targetTabId, topic } satisfies GlobalSearchTopicMessageSelectionPayload,
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
             messageId,
+            targetTabId,
             topicId
           }
         )
@@ -533,15 +576,25 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         `/agent-sessions/${sessionId}`,
         `/agent-sessions/${sessionId}/messages`
       ])
-      agentNav.openConversationTab(sessionId)
+      const targetTabId = agentNav.openConversationTab(sessionId)
+      if (!targetTabId) {
+        logMissingSelectionTarget({
+          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
+          messageId,
+          sessionId
+        })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
-          { sessionId, messageId },
+          { messageId, sessionId, targetTabId } satisfies GlobalSearchAgentSessionMessageSelectionPayload,
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
             messageId,
-            sessionId
+            sessionId,
+            targetTabId
           }
         )
       })
@@ -569,14 +622,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       if (target.sourceType === 'topic') {
         void openTopicMessageById(target.topicId, target.messageId).catch((error) => {
           logOpenFailure(error, target)
-          window.toast?.error(t('globalSearch.open_failed'))
+          toast.error(t('globalSearch.open_failed'))
         })
         return
       }
 
       void openSessionMessageById(target.sessionId, target.messageId).catch((error) => {
         logOpenFailure(error, target)
-        window.toast?.error(t('globalSearch.open_failed'))
+        toast.error(t('globalSearch.open_failed'))
       })
     },
     [openSessionMessageById, openTopicMessageById, t]
@@ -724,7 +777,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         }
       } catch (error) {
         logOpenFailure(error, getOpenItemLogContext(item))
-        window.toast?.error(t('globalSearch.open_failed'))
+        toast.error(t('globalSearch.open_failed'))
       }
     },
     [onClose, openGlobalSearchFooter, openKnowledgeBase, openMessagePanelItem, openSession, openTab, openTopic, t]

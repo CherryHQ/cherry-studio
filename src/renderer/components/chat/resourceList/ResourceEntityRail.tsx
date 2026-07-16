@@ -3,6 +3,7 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -22,8 +23,9 @@ import {
 export type ResourceEntityRailItem = {
   id: string
   name: string
-  icon: ReactNode
+  icon?: ReactNode
   orderKey?: string
+  reorderable?: boolean
   /**
    * When true, a *visible* entity floats into the "已固定" section at the top and cannot be dragged.
    * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
@@ -31,6 +33,7 @@ export type ResourceEntityRailItem = {
   pinned?: boolean
   /** Single user tag name. Only consulted when the rail runs with `groupByTag`; undefined → "未分组". */
   tag?: string
+  trailingAction?: ReactNode
 }
 
 // Pinned entities float into a "已固定" section at the top; the rest sit under the "助手" / "智能体"
@@ -71,12 +74,14 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   defaultGroupLabel?: string
   /**
    * Group the non-pinned entities by their `tag` into collapsible sections (the pinned section stays
-   * on top). Drag-reorder is disabled while on, since `orderKey` is a single flat order. Off → the
-   * flat "助手"/"智能体" section.
+   * on top). Drag-reorder still updates the flat orderKey; it does not change the entity tag.
+   * Off → the flat "助手"/"智能体" section.
    */
   groupByTag?: boolean
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
+  headerActions?: ReactNode
+  historyRecordsActive?: boolean
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
   /** When provided, a history-records button sits next to the add button. */
@@ -85,6 +90,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   onSelect: (item: T) => void | Promise<void>
+  onSelectedClick?: (item: T) => void | Promise<void>
+  selectedClickId?: string | null
   selectedId?: string | null
   status?: ResourceListStatus
   variant: 'agent' | 'assistant'
@@ -118,6 +125,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   groupByTag = false,
   emptyFallback,
   getContextMenuActions,
+  headerActions,
+  historyRecordsActive = false,
   listRef,
   onAdd,
   onOpenHistoryRecords,
@@ -125,37 +134,61 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   onContextMenuAction,
   onReorder,
   onSelect,
+  onSelectedClick,
+  selectedClickId,
   selectedId,
   status = 'idle',
   variant,
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  // Tag grouping splits the flat order across sections, so dragging an item between tags would have
-  // no meaningful `orderKey` target — disable reorder entirely while grouping by tag.
-  const reorderEnabled = !!onReorder && !groupByTag
+  const reorderEnabled = !!onReorder
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const effectiveSelectedId = hasActiveCenterSurface ? null : selectedId
+  const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
+  const handleItemClick = useCallback(
+    (item: T) => {
+      if (effectiveSelectedClickId === item.id && onSelectedClick) {
+        void onSelectedClick(item)
+        return
+      }
+      void onSelect(item)
+    },
+    [effectiveSelectedClickId, onSelect, onSelectedClick]
+  )
+  // Keyboard activation (Enter/Space) goes through the list's `selectItem` action, not the row's
+  // onClick, so route it back through `handleItemClick` to keep keyboard and mouse in sync —
+  // including the "activate the already-selected entity to toggle its pane" behavior.
+  const handleSelectItemById = useCallback(
+    (id: string) => {
+      const item = items.find((entry) => entry.id === id)
+      if (item) handleItemClick(item)
+    },
+    [handleItemClick, items]
+  )
   const runContextMenuAction = useCallback(
-    (item: T, action: ResolvedAction<TActionContext>) => {
+    async (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
 
       const confirm = action.confirm
       if (confirm) {
-        void window.modal.confirm({
+        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
+        // surfaces failures (toast + retry), so a rejected action is never silent.
+        await ConfirmActionPopup.show({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
-          centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined,
-          onOk: () => onContextMenuAction(item, action)
+          danger: confirm.destructive,
+          action: () => onContextMenuAction(item, action)
         })
         return
       }
 
-      window.requestAnimationFrame(() => void onContextMenuAction(item, action))
+      await onContextMenuAction(item, action)
     },
     [onContextMenuAction]
   )
@@ -163,36 +196,45 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     (item: T) => {
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
-      const trailingActionCount = hasVisibleMenuActions ? 1 : 0
+      const hasTrailingAction = Boolean(item.trailingAction)
+      const trailingActionCount = (hasTrailingAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
       const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
+      // No row onClick: selection for mouse, row-Enter, and listbox-keyboard all funnel through
+      // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
+      // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" onClick={() => void onSelect(item)}>
-          <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
-            {item.icon}
-          </ResourceList.ItemLeadingSlot>
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
+          {item.icon && (
+            <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
+              {item.icon}
+            </ResourceList.ItemLeadingSlot>
+          )}
           <ResourceList.ItemTitle
             className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
             title={item.name}>
             {item.name}
           </ResourceList.ItemTitle>
-          {hasVisibleMenuActions && (
+          {(hasTrailingAction || hasVisibleMenuActions) && (
             // Stop clicks bubbling to the row's onClick: the "more" menu portals its content out of
             // the DOM but React still routes the menu-item click up the React tree (…→ ItemActions →
             // row), which would otherwise select the entity when a menu action (e.g. edit) is picked.
             <ResourceList.ItemActions onClick={(event) => event.stopPropagation()}>
-              <Tooltip title={t('common.more')} delay={500}>
-                <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
-                  <ResourceList.GroupHeaderActionButton
-                    type="button"
-                    aria-label={t('common.more')}
-                    onClick={(event) => event.stopPropagation()}>
-                    <MoreHorizontal className="block" />
-                  </ResourceList.GroupHeaderActionButton>
-                </CommandPopupMenu>
-              </Tooltip>
+              {hasVisibleMenuActions && (
+                <Tooltip title={t('common.more')} delay={500}>
+                  <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+                    <ResourceList.GroupHeaderActionButton
+                      type="button"
+                      aria-label={t('common.more')}
+                      onClick={(event) => event.stopPropagation()}>
+                      <MoreHorizontal className="block" />
+                    </ResourceList.GroupHeaderActionButton>
+                  </CommandPopupMenu>
+                </Tooltip>
+              )}
+              {item.trailingAction}
             </ResourceList.ItemActions>
           )}
         </ResourceList.Item>
@@ -209,7 +251,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceListActionContextMenu>
       )
     },
-    [getContextMenuActions, onContextMenuAction, onSelect, runContextMenuAction, t]
+    [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
   const providerItems = useMemo(
@@ -256,7 +298,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     <Provider
       variant={variant}
       items={providerItems}
-      selectedId={hasActiveResourceMenuItem ? null : selectedId}
+      selectedId={effectiveSelectedId}
+      onSelectItem={handleSelectItemById}
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}
@@ -267,9 +310,13 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         itemSameGroup: reorderEnabled,
         itemCrossGroup: false
       }}
-      canDragItem={({ item }) => reorderEnabled && !item.pinned}
-      canDropItem={({ activeItem, targetGroupId }) =>
-        reorderEnabled && !activeItem.pinned && targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID
+      canDragItem={({ item }) => reorderEnabled && item.reorderable !== false && !item.pinned}
+      canDropItem={({ activeItem, sourceGroupId, targetGroupId }) =>
+        reorderEnabled &&
+        activeItem.reorderable !== false &&
+        !activeItem.pinned &&
+        targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
+        sourceGroupId === targetGroupId
       }
       onReorder={reorderEnabled ? onReorder : undefined}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
@@ -281,15 +328,22 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             aria-label={addLabel}
             onClick={() => void onAdd()}
             actions={
-              onOpenHistoryRecords ? (
-                <Tooltip title={t('history.records.shortTitle')} delay={500}>
-                  <ResourceList.HeaderActionButton
-                    type="button"
-                    aria-label={t('history.records.shortTitle')}
-                    onClick={() => onOpenHistoryRecords()}>
-                    <History className="block" />
-                  </ResourceList.HeaderActionButton>
-                </Tooltip>
+              headerActions || onOpenHistoryRecords ? (
+                <>
+                  {headerActions}
+                  {onOpenHistoryRecords && (
+                    <Tooltip title={t('history.records.shortTitle')} delay={500}>
+                      <ResourceList.HeaderActionButton
+                        type="button"
+                        aria-label={t('history.records.shortTitle')}
+                        aria-current={historyRecordsActive ? 'page' : undefined}
+                        className={cn(historyRecordsActive && 'bg-muted text-foreground!')}
+                        onClick={() => onOpenHistoryRecords()}>
+                        <History className="block" />
+                      </ResourceList.HeaderActionButton>
+                    </Tooltip>
+                  )}
+                </>
               ) : undefined
             }
           />

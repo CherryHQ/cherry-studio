@@ -1,7 +1,7 @@
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -37,10 +37,6 @@ export interface AgentRuntimeUserInput {
   systemReminder?: boolean
 }
 
-export type AgentRuntimePolicyUpdate =
-  | { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
-  | { type: 'tool-policy'; agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'> }
-
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'resume-token'; token: string }
@@ -57,7 +53,22 @@ export type AgentRuntimeEvent =
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
+   *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
+   *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   | { type: 'error'; error: unknown }
+
+/**
+ * Verdict of {@link AgentRuntimeConnection.reconcile}.
+ * - `current`: connection matches the desired config.
+ * - `patched`: live-appliable facts were hot-patched; the connection is now current.
+ * - `rebuild`: spawn-frozen config is stale — the host reconnects at a safe boundary (any live
+ *   patches were still applied first).
+ * - `invalid`: the desired config can no longer be derived (agent/session/model deleted) — close.
+ * - `failed`: a live patch failed — fail closed; the connection may be enforcing the OLD policy.
+ */
+export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
@@ -66,17 +77,36 @@ export interface AgentRuntimeConnection {
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
    * current turn instead of opening a new one; if the turn ends before it is injected the connection
-   * emits `steer-undelivered`. Returns false when there is no live turn to steer, so the host queues
-   * the message as the next turn. Omitted ⇒ no native steer ⇒ host always queues.
+   * emits `steer-undelivered`. Returns false when there is no live turn or the message cannot be
+   * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
+   * host always queues.
    */
   redirect?(input: AgentRuntimeUserInput): boolean
-  applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
+  /**
+   * Re-derive the session's desired config and reconcile the running connection against it.
+   * Live-appliable facts (tool policy) are patched in place FIRST — even mid-turn, so a security
+   * tighten is never deferred behind a rebuild a live turn postpones — then the rebuild signature
+   * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
+   * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
+   *
+   * `modelId` is the model the connection should serve right now (a live turn's captured model, or
+   * the agent's latest) — the same pinning the host uses for `connect`.
+   */
+  // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
+  reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
    * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
    * Optional ⇒ the host treats the runtime as unable to report usage.
    */
   getContextUsage?(): Promise<AgentSessionContextUsage | null>
+  /**
+   * Read this session's available slash command catalog (`query.supportedCommands()`), including
+   * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
+   * it (no query yet, or a driver that doesn't support it). Optional ⇒ the host falls back to the
+   * static builtin list.
+   */
+  getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   close(): void | Promise<void>
 }
 

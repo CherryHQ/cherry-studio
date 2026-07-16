@@ -21,6 +21,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
 import { parseJSON } from '@renderer/utils/json'
@@ -172,7 +174,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         const isMcpbImport = importMethod === 'mcpb'
 
         if (!packageFile) {
-          window.toast.error(
+          toast.error(
             t(
               isMcpbImport
                 ? 'settings.mcp.addServer.importFrom.noMcpbFile'
@@ -186,12 +188,13 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // Process package file
         try {
           const installTimestamp = Date.now()
+          const packageBuffer = await packageFile.arrayBuffer()
           const result = isMcpbImport
-            ? await window.api.mcp.uploadMcpb(packageFile)
-            : await window.api.mcp.uploadDxt(packageFile)
+            ? await ipcApi.request('mcp.package.upload_mcpb', { buffer: packageBuffer, fileName: packageFile.name })
+            : await ipcApi.request('mcp.package.upload_dxt', { buffer: packageBuffer, fileName: packageFile.name })
 
           if (!result.success) {
-            window.toast.error(
+            toast.error(
               result.error ||
                 t(
                   isMcpbImport
@@ -207,7 +210,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
           // Check for duplicate names
           if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
-            window.toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
+            toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
             setLoading(false)
             return
           }
@@ -260,8 +263,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           setTimeoutTimer(
             'handleOk',
             () => {
-              window.api.mcp
-                .checkMcpConnectivity(createdServer.id)
+              ipcApi
+                .request('mcp.server.check_connectivity', { serverId: createdServer.id })
                 .then((isConnected) => {
                   logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
                   void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
@@ -280,7 +283,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           ) // Delay to ensure server is properly added to store
         } catch (error) {
           logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error as Error)
-          window.toast.error(
+          toast.error(
             t(
               isMcpbImport
                 ? 'settings.mcp.addServer.importFrom.mcpbProcessFailed'
@@ -330,8 +333,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         onClose()
 
         // 在背景非同步檢查伺服器可用性並更新狀態
-        window.api.mcp
-          .checkMcpConnectivity(createdServer.id)
+        ipcApi
+          .request('mcp.server.check_connectivity', { serverId: createdServer.id })
           .then((isConnected) => {
             logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
             void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
@@ -340,7 +343,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           })
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
-            window.toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+            toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
           })
       }
     } finally {

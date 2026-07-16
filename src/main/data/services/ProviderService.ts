@@ -14,12 +14,20 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import {
+  clearSingleFileRefTx,
+  getLogoFileId,
+  type LogoBindInput,
+  reconcileLogoSlotTx
+} from '@data/services/utils/logoRef'
+import { resolveLogoSrc } from '@data/services/utils/logoSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
+import { providerLogoRef } from '@shared/data/types/file'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -35,6 +43,13 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
+/**
+ * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
+ * through the `provider.set_logo` IpcApi command); the command orchestrator
+ * passes a `LogoBindInput` here after creating the `file_entry`.
+ */
+export type UpdateProviderInput = UpdateProviderDto & { logo?: LogoBindInput }
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
   if (!isManagedCherryAiProviderId(providerId) || Object.keys(dto).length === 0) {
@@ -119,18 +134,30 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
+    // Preset icon key stays on `logo`; an uploaded logo's file id lives in the
+    // ref table (single source of truth) and resolves main-side to a ready
+    // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
+    // renderer never reconstructs a disk path.
+    logo: row.logoKey ?? undefined,
+    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
+    authOptional: presetMetadata.authOptional,
     apiKeys,
     authType,
     apiFeatures,
     settings,
     isEnabled: row.isEnabled
   }
+}
+
+/** The provider logo slot for a given providerId. */
+function logoSlot(providerId: string) {
+  return { sourceType: providerLogoRef.sourceType, sourceId: providerId }
 }
 
 class ProviderService {
@@ -197,24 +224,25 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
-    const db = application.get('DbService').getDb()
-
-    const values: NewUserProviderInput = {
-      providerId: dto.providerId,
-      presetProviderId: dto.presetProviderId ?? null,
-      name: dto.name,
-      endpointConfigs: dto.endpointConfigs ?? null,
-      defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
-      apiKeys: dto.apiKeys ?? [],
-      authConfig: dto.authConfig ?? null,
-      apiFeatures: dto.apiFeatures ?? null,
-      providerSettings: dto.providerSettings ?? null,
-      isEnabled: false
-    }
-
     const row = withSqliteErrors(
       () =>
-        db.transaction((tx) => {
+        application.get('DbService').withWriteTx((tx) => {
+          const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto.logo) ?? {
+            logoKey: null
+          }
+          const values: NewUserProviderInput = {
+            providerId: dto.providerId,
+            presetProviderId: dto.presetProviderId ?? null,
+            name: dto.name,
+            logoKey: logoCols.logoKey,
+            endpointConfigs: dto.endpointConfigs ?? null,
+            defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
+            apiKeys: dto.apiKeys ?? [],
+            authConfig: dto.authConfig ?? null,
+            apiFeatures: dto.apiFeatures ?? null,
+            providerSettings: dto.providerSettings ?? null,
+            isEnabled: false
+          }
           return insertWithOrderKey(tx, userProviderTable, values, {
             pkColumn: userProviderTable.providerId
           }) as UserProviderRow
@@ -230,9 +258,11 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider
+   * Update an existing provider. A false-to-true enabled transition moves the
+   * provider to the first position in the same transaction; redundant enabled
+   * writes preserve the user's current order.
    */
-  update(providerId: string, dto: UpdateProviderDto): Provider {
+  update(providerId: string, dto: UpdateProviderInput): Provider {
     assertManagedCherryAiProviderPatchAllowed(providerId, dto)
 
     // Read + merge + write the providerSettings JSON in ONE serialized write
@@ -246,7 +276,10 @@ class ProviderService {
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
-        .select({ providerSettings: userProviderTable.providerSettings })
+        .select({
+          providerSettings: userProviderTable.providerSettings,
+          isEnabled: userProviderTable.isEnabled
+        })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
@@ -259,6 +292,11 @@ class ProviderService {
       const updates: Partial<InsertUserProviderRow> = {}
 
       if (dto.name !== undefined) updates.name = dto.name
+      // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
+      const logoCols = reconcileLogoSlotTx(tx, logoSlot(providerId), dto.logo)
+      if (logoCols) {
+        updates.logoKey = logoCols.logoKey
+      }
       if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
       if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
@@ -267,6 +305,16 @@ class ProviderService {
         updates.providerSettings = {
           ...(current.providerSettings as Partial<ProviderSettings> | null),
           ...dto.providerSettings
+        }
+      }
+
+      if (dto.isEnabled === true && !current.isEnabled) {
+        try {
+          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
+            pkColumn: userProviderTable.providerId
+          })
+        } catch (error) {
+          this.rethrowOrderError(error)
         }
       }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
@@ -598,9 +646,7 @@ class ProviderService {
    * cannot be deleted. User-created providers that inherit from a preset can be deleted.
    */
   delete(providerId: string): void {
-    const db = application.get('DbService').getDb()
-
-    db.transaction((tx) => {
+    application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({ presetProviderId: userProviderTable.presetProviderId })
         .from(userProviderTable)
@@ -635,6 +681,11 @@ class ProviderService {
         'model',
         models.map((model) => model.id)
       )
+
+      // DB-only: drop the logo slot's ref (the file is preserved per the
+      // file layer's policy). The FK cascade would also clear it on row delete;
+      // the explicit clear keeps the intent local to this flow.
+      clearSingleFileRefTx(tx, logoSlot(providerId))
 
       const deleted = tx
         .delete(userProviderTable)

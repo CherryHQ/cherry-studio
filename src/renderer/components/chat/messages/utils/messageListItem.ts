@@ -1,7 +1,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   isUniqueModelId,
@@ -16,32 +16,6 @@ import type { MessageListItem } from '../types'
 export interface MessageListItemContext {
   assistantId?: string
   topicId: string
-  modelFallback?: ModelSnapshot
-}
-
-export function modelToSnapshot(model: Model | SharedModel | undefined): ModelSnapshot | undefined {
-  if (!model) return undefined
-  if ('providerId' in model) {
-    const { providerId, modelId } = isUniqueModelId(model.id)
-      ? parseUniqueModelId(model.id)
-      : { providerId: model.providerId, modelId: model.id }
-    return {
-      id: model.apiModelId ?? modelId,
-      name: model.name,
-      provider: providerId,
-      ...(model.group && { group: model.group })
-    }
-  }
-
-  const { providerId, modelId } = isUniqueModelId(model.id)
-    ? parseUniqueModelId(model.id)
-    : { providerId: model.provider, modelId: model.id }
-  return {
-    id: modelId,
-    name: model.name,
-    provider: providerId,
-    ...(model.group && { group: model.group })
-  }
 }
 
 function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats | undefined {
@@ -59,12 +33,19 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
 
 export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItemContext): MessageListItem {
   const metadata = message.metadata ?? {}
-  const modelSnapshot = metadata.modelSnapshot ?? (message.role === 'assistant' ? ctx.modelFallback : undefined)
+  const messageSnapshot = metadata.messageSnapshot
+  // The snapshot IS the producing author (model nested). Model priority: the frozen author's model →
+  // the row's own frozen `modelId`. Both are captured at send time, so switching the live model or
+  // assistant never moves a past message's header.
+  const author = messageSnapshot
+  let model = author?.model
+  if (!model && metadata.modelId && isUniqueModelId(metadata.modelId)) {
+    const { providerId, modelId } = parseUniqueModelId(metadata.modelId)
+    model = { id: modelId, name: modelId, provider: providerId }
+  }
   const modelId =
     metadata.modelId ??
-    (message.role === 'assistant' && modelSnapshot
-      ? createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
-      : undefined)
+    (message.role === 'assistant' && model ? createUniqueModelId(model.provider, model.id) : undefined)
 
   return {
     id: message.id,
@@ -75,7 +56,8 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
-    modelSnapshot,
+    model,
+    messageSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
     stats: statsFromMetadata(message.metadata)
@@ -83,12 +65,12 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
 }
 
 export function getMessageListItemModel(message: MessageListItem): Model | undefined {
-  if (message.modelSnapshot) {
+  if (message.model) {
     return {
-      id: message.modelSnapshot.id,
-      name: message.modelSnapshot.name,
-      provider: message.modelSnapshot.provider,
-      group: message.modelSnapshot.group ?? ''
+      id: message.model.id,
+      name: message.model.name,
+      provider: message.model.provider,
+      group: message.model.group ?? ''
     }
   }
 
@@ -142,6 +124,37 @@ export function getDirectAssistantModelsByUserId(messages: MessageListItem[]): M
   return modelsByUserId
 }
 
+function directAssistantModelEqual(previous: SharedModel, next: SharedModel): boolean {
+  return (
+    previous.id === next.id &&
+    previous.providerId === next.providerId &&
+    previous.apiModelId === next.apiModelId &&
+    previous.name === next.name &&
+    previous.group === next.group &&
+    previous.supportsStreaming === next.supportsStreaming &&
+    previous.isEnabled === next.isEnabled &&
+    previous.isHidden === next.isHidden
+  )
+}
+
+/** Reuse the previous derived map when streaming changed metadata but not its model topology. */
+export function shareDirectAssistantModelsByUserId(
+  previous: Map<string, SharedModel[]> | undefined,
+  next: Map<string, SharedModel[]>
+): Map<string, SharedModel[]> {
+  if (!previous || previous.size !== next.size) return next
+
+  for (const [userId, nextModels] of next) {
+    const previousModels = previous.get(userId)
+    if (!previousModels || previousModels.length !== nextModels.length) return next
+    for (let index = 0; index < nextModels.length; index++) {
+      if (!directAssistantModelEqual(previousModels[index], nextModels[index])) return next
+    }
+  }
+
+  return previous
+}
+
 export function getMessageListItemModelName(message: MessageListItem): string {
   const model = getMessageListItemModel(message)
   return model?.name || model?.id || message.modelId || ''
@@ -168,6 +181,7 @@ export function createMessageExportView(message: MessageListItem, parts: CherryM
     status: message.status,
     modelId: message.modelId,
     model,
+    messageSnapshot: message.messageSnapshot,
     parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
     stats: message.stats,

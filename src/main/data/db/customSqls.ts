@@ -6,7 +6,7 @@
  * - Triggers
  * - Custom indexes with expressions
  *
- * These are executed after every migration via DbService.runCustomMigrations() (i.e. every boot).
+ * These are executed after every migration via applyMigrations() (i.e. every boot).
  * All statements must be idempotent: virtual tables use CREATE ... IF NOT EXISTS; triggers use
  * DROP TRIGGER IF EXISTS + CREATE (so an edited trigger body takes effect on existing DBs).
  *

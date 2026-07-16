@@ -108,7 +108,7 @@ function resolvePrivateClipboardToken(
     }
   }
 
-  if (token.kind === 'quote' || token.kind === 'promptVariable') {
+  if (token.kind === 'folder' || token.kind === 'quote' || token.kind === 'promptVariable') {
     return {
       token: {
         id: token.id,

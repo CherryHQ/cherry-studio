@@ -9,6 +9,7 @@ import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
@@ -32,8 +33,7 @@ const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
   files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
   code_tools: 'linear-gradient(135deg, #1F2937, #374151)',
-  notes: 'linear-gradient(135deg, #F97316, #FB923C)',
-  openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
+  notes: 'linear-gradient(135deg, #F97316, #FB923C)'
 }
 
 export default function LaunchpadPage() {
@@ -187,7 +187,7 @@ export default function LaunchpadPage() {
       const nextItems = arrayMove(orderedMiniApps, oldIndex, newIndex)
       setOrderedMiniApps(nextItems)
       reorderMiniAppsByStatus('pinned', nextItems).catch(() => {
-        window.toast?.error(t('miniApp.reorder_failed'))
+        toast.error(t('miniApp.reorder_failed'))
       })
     },
     [orderedMiniApps, reorderMiniAppsByStatus, t]

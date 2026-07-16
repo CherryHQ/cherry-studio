@@ -22,7 +22,7 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   /** Orders an entity's own resources so `handleSelect` can enter the first one (time/pin precedence). */
   sortResourcesForEntity: (resources: TResource[]) => readonly TResource[]
   onPickResource: (resource: TResource) => void
-  onStartDraft: (entityId: string) => void | Promise<void>
+  onCreateResource: (entityId: string) => void | Promise<unknown>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
   onReorderError: (error: unknown) => void
@@ -39,7 +39,7 @@ type UseResourceEntityRailResult<TEntity> = {
 /**
  * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
  * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
- * first resource (or a blank draft), and reordering persists the real `orderKey`. Data fetching,
+ * first resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
  * pins, deletion, and context menus stay in the per-variant component.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
@@ -51,7 +51,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   isError,
   sortResourcesForEntity,
   onPickResource,
-  onStartDraft,
+  onCreateResource,
   reorder,
   refetchEntities,
   onReorderError
@@ -98,16 +98,16 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     (item: TEntity) => {
       // A visible rail entity always owns at least one loaded resource (rail visibility derives from
       // `resources`), so enter its first/most-recent resource — no need to wait for the full load.
-      // Only the (effectively unreachable) no-resource case falls back to a blank draft.
+      // Only the (effectively unreachable) no-resource case falls back to creating a blank resource.
       const entityResources = resources.filter((resource) => getResourceParentId(resource) === item.id)
       const first = sortResourcesForEntity(entityResources)[0]
       if (first) {
         onPickResource(first)
         return
       }
-      void onStartDraft(item.id)
+      void onCreateResource(item.id)
     },
-    [getResourceParentId, onPickResource, onStartDraft, resources, sortResourcesForEntity]
+    [getResourceParentId, onCreateResource, onPickResource, resources, sortResourcesForEntity]
   )
 
   const handleReorder = useCallback(
@@ -119,6 +119,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       const activeIndex = nextIds.indexOf(activeId)
       const overIndex = nextIds.indexOf(payload.overId)
       if (activeIndex < 0 || overIndex < 0) return
+      if (items[activeIndex]?.reorderable === false || items[overIndex]?.reorderable === false) return
 
       nextIds.splice(activeIndex, 1)
       const adjustedOverIndex = nextIds.indexOf(payload.overId)

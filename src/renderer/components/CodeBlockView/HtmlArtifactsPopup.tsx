@@ -24,6 +24,7 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { FilePngIcon } from '@renderer/components/icons/FileIcons'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
@@ -115,7 +116,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const [fontSize] = usePreference('chat.message.font_size')
-  const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
@@ -157,7 +158,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
           await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
             if (blob) {
               await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-              window.toast.success(t('message.copy.success'))
+              toast.success(t('message.copy.success'))
             }
           })
         }

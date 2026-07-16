@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import type { Options as ImageCompressionOptions } from 'browser-image-compression'
 import type * as HtmlToImage from 'html-to-image'
 
 const logger = loggerService.withContext('Utils:image')
@@ -29,35 +28,50 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
   })
 }
 
-/**
- * 压缩图像文件，限制最大大小和尺寸。
- * @param {File} file 要压缩的图像文件
- * @returns {Promise<File>} 压缩后的图像文件
- */
-export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
-  const { default: imageCompression } = await import('browser-image-compression')
+/** Target square dimension for a normalized entity image (mirrors main-side sharp). */
+const ENTITY_IMAGE_DIMENSION = 128
+/** Max original entity-image upload accepted in the renderer (avatar / logo). */
+export const MAX_ENTITY_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
-  return await imageCompression(file, {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 300,
-    useWebWorker: false,
-    ...options
-  })
+/** Localized "too large" message if the file exceeds the cap, else null. */
+export function checkEntityImageSize(file: File): string | null {
+  return file.size > MAX_ENTITY_IMAGE_UPLOAD_BYTES
+    ? i18n.t('message.error.avatar_image_too_large', { limit: '10MB' })
+    : null
 }
 
 /**
- * 将上传的头像图片转换为可直接存储/预览的 base64 data URL。
- * GIF 原样保留以保留动画，其余压缩到头像尺寸。
- * @param {File} file 用户上传的图片文件
- * @returns {Promise<string>} base64 data URL
+ * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
+ * renderer via the native canvas — the same shape main-side sharp produces (short
+ * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
+ * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
+ * failure — the caller surfaces it so the user can retry; the raw bytes are never
+ * sent to main, which could not decode them either.
  */
-export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
-  const processed = file.type === 'image/gif' ? file : await compressImage(file)
-  const base64 = await convertToBase64(processed)
-  if (typeof base64 !== 'string') {
-    throw new Error('Failed to encode avatar image')
+export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    try {
+      // Cover crop: sample the largest centered square, scale it to 128×128.
+      const side = Math.min(bitmap.width, bitmap.height)
+      const sx = (bitmap.width - side) / 2
+      const sy = (bitmap.height - side) / 2
+      const canvas = document.createElement('canvas')
+      canvas.width = ENTITY_IMAGE_DIMENSION
+      canvas.height = ENTITY_IMAGE_DIMENSION
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('no 2d context')
+      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION)
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
+      if (!blob) throw new Error('toBlob returned null')
+      return new Uint8Array(await blob.arrayBuffer())
+    } finally {
+      bitmap.close()
+    }
+  } catch (error) {
+    logger.error('Failed to process entity image', error as Error)
+    throw new Error(i18n.t('message.error.image_process_failed'))
   }
-  return base64
 }
 
 /**
@@ -118,8 +132,9 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       // check if the size of the element is too large
       const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
-        window.toast.error(i18n.t('message.error.dimension_too_large'))
-        return Promise.reject()
+        // utils must not toast (it would import the renderer services layer); reject
+        // with the message so the calling component surfaces it.
+        return Promise.reject(new Error(i18n.t('message.error.dimension_too_large')))
       }
 
       const filterHiddenElements = (node: Node) => {
@@ -511,6 +526,39 @@ export const svgToPngBlob = (svgElement: SVGElement, scale = 3): Promise<Blob> =
 export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   const svgData = new XMLSerializer().serializeToString(svgElement)
   return new Blob([svgData], { type: 'image/svg+xml' })
+}
+
+export type ImageInput = SVGElement | HTMLImageElement | string | Blob
+
+export interface ImagePreviewOptions {
+  format?: 'svg' | 'png' | 'jpeg'
+  scale?: number
+  quality?: number
+}
+
+/**
+ * Resolve any supported image input to a previewable URL. SVG elements and blobs
+ * produce an object URL the caller must revoke (test with `url.startsWith('blob:')`).
+ */
+export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePreviewOptions = {}): Promise<string> => {
+  if (input instanceof SVGElement) {
+    const blob = options.format === 'svg' ? svgToSvgBlob(input) : await svgToPngBlob(input, options.scale || 3)
+    return URL.createObjectURL(blob)
+  }
+
+  if (input instanceof HTMLImageElement) {
+    return input.src
+  }
+
+  if (typeof input === 'string') {
+    return input
+  }
+
+  if (input instanceof Blob) {
+    return URL.createObjectURL(input)
+  }
+
+  throw new Error('Unsupported input type')
 }
 
 /**

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,6 +25,26 @@ const LEGACY_LIBRARY_PINNED_TAB: Tab = {
   type: 'route',
   url: '/app/library?resourceType=assistant',
   title: 'Library',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
+const PINNED_OPENCLAW_TAB: Tab = {
+  id: 'openclaw',
+  type: 'route',
+  url: '/app/openclaw',
+  title: 'OpenClaw',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
+const PINNED_CODE_TAB: Tab = {
+  id: 'code',
+  type: 'route',
+  url: '/app/code',
+  title: 'Code',
   lastAccessTime: 0,
   isDormant: false,
   isPinned: true
@@ -63,7 +83,8 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   const titles: Record<string, Record<string, string>> = {
     '/app/agents': { en: 'Agent', zh: '代理' },
     '/app/chat': { en: 'Chat', zh: '聊天' },
-    '/app/files': { en: 'Files', zh: '文件' }
+    '/app/files': { en: 'Files', zh: '文件' },
+    '/app/launchpad': { en: 'Launchpad', zh: '启动台' }
   }
   return {
     ...actual,
@@ -71,9 +92,14 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   }
 })
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn() },
+  useIpcOn: vi.fn()
+}))
+
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import { TabsProvider } from '../TabsProvider'
+import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
 function TabTitleWriter() {
   const { tabs, updateTab } = useTabsContext()
@@ -96,6 +122,98 @@ function PinnedRouteTitle() {
 function TabIds() {
   const { tabs } = useTabsContext()
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
+function BatchCloseControls() {
+  const { activeTabId, addTab, closeTabs, setActiveTab, tabs } = useTabsContext()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          for (const id of ['b', 'c', 'd']) {
+            addTab({
+              id,
+              type: 'route',
+              url: `/app/chat?topicId=${id}`,
+              title: id.toUpperCase(),
+              lastAccessTime: 0,
+              isDormant: false
+            })
+          }
+        }}>
+        Seed tabs
+      </button>
+      <button type="button" onClick={() => setActiveTab('c')}>
+        Activate C
+      </button>
+      <button type="button" onClick={() => closeTabs(['b', 'c'])}>
+        Close B and C
+      </button>
+      <div data-testid="active-tab-id">{activeTabId}</div>
+      <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+    </>
+  )
+}
+
+function TabSnapshot() {
+  const { activeTabId, tabs } = useTabsContext()
+  return (
+    <div>
+      <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="tab-urls">{tabs.map((tab) => tab.url).join(',')}</div>
+      <div data-testid="tab-titles">{tabs.map((tab) => tab.title).join(',')}</div>
+      <div data-testid="active-tab-id">{activeTabId}</div>
+    </div>
+  )
+}
+
+function CloseTabOnMount({ tabId }: { tabId: string }) {
+  const { closeTab } = useTabsContext()
+  const didCloseRef = useRef(false)
+
+  useEffect(() => {
+    if (didCloseRef.current) return
+    didCloseRef.current = true
+    closeTab(tabId)
+  }, [closeTab, tabId])
+
+  return <TabSnapshot />
+}
+
+function CloseHomeAfterSecondTabOpens() {
+  const { closeTab, openTab, tabs } = useTabsContext()
+  const didOpenRef = useRef(false)
+  const didCloseRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/agents', { id: 'agents', forceNew: true })
+  }, [openTab])
+
+  useEffect(() => {
+    if (didCloseRef.current || !tabs.some((tab) => tab.id === 'agents')) return
+    didCloseRef.current = true
+    closeTab('home')
+  }, [closeTab, tabs])
+
+  return <TabSnapshot />
+}
+
+// Opens the same URL as the initial tab with forceNew, the way the tab bar's + button does.
+function ForceNewSameUrlOpener() {
+  const { openTab } = useTabsContext()
+  const didOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/launchpad', { forceNew: true })
+  }, [openTab])
+
+  return <TabSnapshot />
 }
 
 // Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
@@ -212,5 +330,158 @@ describe('TabsProvider', () => {
 
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([PINNED_FILES_TAB]))
+  })
+
+  // Reviewer B7: OpenClaw's sidebar entry + /app/openclaw route were removed (folded into Code), so a
+  // persisted OpenClaw pin must be redirected to /app/code on restore instead of resurrecting a dead
+  // route — and the reconciled list written back to the cache.
+  it('redirects a persisted OpenClaw pinned tab to the Code page on restore', async () => {
+    pinnedTabsValue = [PINNED_OPENCLAW_TAB, PINNED_FILES_TAB]
+
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <TabSnapshot />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/code,/app/files,/app/chat')
+    await waitFor(() =>
+      expect(setPinnedTabsMock).toHaveBeenCalledWith([
+        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' },
+        PINNED_FILES_TAB
+      ])
+    )
+  })
+
+  it('closes active and adjacent tabs atomically when closing a batch', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close B and C' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+  })
+
+  it('opens launchpad when closing the only tab', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <CloseTabOnMount tabId="home" />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/launchpad'))
+    expect(screen.getByTestId('tab-titles')).toHaveTextContent('Launchpad')
+    expect(screen.getByTestId('active-tab-id')).not.toHaveTextContent('home')
+  })
+
+  it('does not open launchpad when closing one tab while another remains', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <CloseHomeAfterSecondTabOpens />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('agents'))
+    expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/agents')
+    expect(screen.getByTestId('tab-urls')).not.toHaveTextContent('/app/launchpad')
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('agents')
+  })
+
+  it('creates a second tab for an already-open URL when forceNew is set', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/launchpad',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <ForceNewSameUrlOpener />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/launchpad,/app/launchpad'))
+    const ids = (screen.getByTestId('tab-ids').textContent ?? '').split(',')
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+  })
+})
+
+describe('migratePinnedTabs', () => {
+  it('redirects an OpenClaw pin to the Code page and flags the change', () => {
+    const { tabs, changed } = migratePinnedTabs([PINNED_OPENCLAW_TAB, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([{ ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' }, PINNED_FILES_TAB])
+  })
+
+  it('drops the OpenClaw pin instead of duplicating an existing Code pin', () => {
+    const { tabs, changed } = migratePinnedTabs([PINNED_CODE_TAB, PINNED_OPENCLAW_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_CODE_TAB])
+  })
+
+  it('collapses two OpenClaw pins into a single Code pin', () => {
+    const { tabs } = migratePinnedTabs([PINNED_OPENCLAW_TAB, { ...PINNED_OPENCLAW_TAB, id: 'openclaw2' }])
+    expect(tabs).toEqual([{ ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' }])
+  })
+
+  it('drops legacy library pins', () => {
+    const { tabs, changed } = migratePinnedTabs([LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_FILES_TAB])
+  })
+
+  it('is a no-op when nothing needs migrating', () => {
+    const input = [PINNED_FILES_TAB, PINNED_CODE_TAB]
+    const { tabs, changed } = migratePinnedTabs(input)
+    expect(changed).toBe(false)
+    expect(tabs).toEqual(input)
   })
 })

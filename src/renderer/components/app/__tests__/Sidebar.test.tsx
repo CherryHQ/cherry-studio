@@ -29,6 +29,7 @@ type FakeMiniApp = {
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
   openTab: vi.fn(),
+  openSettingsTab: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   activeTab: {
@@ -120,7 +121,11 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('../../Popups/UserPopup', () => ({
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
+vi.mock('../../UserPopup', () => ({
   default: {
     show: mocks.showUserPopup
   }
@@ -324,7 +329,7 @@ describe('app Sidebar', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
   })
 
   it('derives conversation detach URLs from instance metadata', () => {
@@ -340,6 +345,21 @@ describe('app Sidebar', () => {
         metadata: { instanceAppId: 'agents', instanceKey: 'current-session' }
       })
     ).toBe('/app/agents?sessionId=current-session')
+  })
+
+  it('uses the conversation base route when instance metadata represents a draft', () => {
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/chat?topicId=previous-topic',
+        metadata: { instanceAppId: 'assistants' }
+      })
+    ).toBe('/app/chat')
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/agents?sessionId=previous-session',
+        metadata: { instanceAppId: 'agents' }
+      })
+    ).toBe('/app/agents')
   })
 
   it('keeps a message-only detach URL when there is no normal instance key', () => {

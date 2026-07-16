@@ -5,6 +5,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
@@ -14,6 +15,7 @@ import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '
 import type { IndexableKnowledgeItem } from '../types/items'
 import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../utils/indexing/chunk'
 import { embedKnowledgeTexts } from '../utils/indexing/embed'
+import { refineLocalEmbeddingChunks } from '../utils/indexing/localEmbeddingTokenLimit'
 import { toMaterialRelativePath } from '../utils/indexing/materialFields'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { captureNoteSnapshotFile } from '../utils/sources/noteSnapshot'
@@ -72,7 +74,7 @@ export function createIndexDocumentsJobHandler(
       // lock; these phases can be slow and do not mutate shared state.
       const readableItem = await ensureSnapshot(ctx, item, knowledgeLockManager)
       const documents = await readItemDocuments(ctx, readableItem)
-      const chunked = chunkItemDocuments(base, documents)
+      const chunked = await chunkItemDocuments(base, documents, ctx.signal)
       if (chunked.chunks.length === 0) {
         // Deliberate: the item still completes (an empty material is written) so the
         // UI doesn't show a stuck/failed item, but leave a trace — an image-only PDF
@@ -238,8 +240,17 @@ async function ensureSnapshot(
   })
 }
 
-function chunkItemDocuments(base: KnowledgeBase, documents: LoadedDocuments): ChunkedKnowledgeContent {
-  return chunkKnowledgeDocuments(base, documents)
+async function chunkItemDocuments(
+  base: KnowledgeBase,
+  documents: LoadedDocuments,
+  signal: AbortSignal
+): Promise<ChunkedKnowledgeContent> {
+  const chunked = chunkKnowledgeDocuments(base, documents)
+  if (base.embeddingModelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || chunked.chunks.length === 0) {
+    return chunked
+  }
+
+  return await refineLocalEmbeddingChunks(base, chunked, signal)
 }
 
 /**

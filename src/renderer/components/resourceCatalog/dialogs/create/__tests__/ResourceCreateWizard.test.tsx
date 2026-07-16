@@ -1,26 +1,70 @@
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const modelHook = vi.hoisted(() => ({
+  defaultModel: undefined as Model | undefined
+}))
+
+function makeModel(id: UniqueModelId = 'provider::default'): Model {
+  return {
+    id,
+    providerId: 'provider',
+    apiModelId: id.split('::')[1],
+    name: 'Default model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel })
+}))
+
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; PersonaStep fills the prompt.
-vi.mock('../steps/BasicInfoStep', () => ({
-  BasicInfoStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
-    <button
-      type="button"
-      onClick={() => {
-        form.setValue('name', 'My Resource')
-        form.setValue('modelId', 'provider::model')
-      }}>
-      fill basic
-    </button>
-  )
-}))
+vi.mock('../steps/BasicInfoStep', async () => {
+  const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
+
+  return {
+    BasicInfoStep: ({
+      form
+    }: {
+      form: {
+        control: ReactHookForm.Control<{ modelId: string | null }>
+        setValue: (name: string, value: unknown) => void
+      }
+    }) => {
+      const modelId = useWatch({ control: form.control, name: 'modelId' })
+
+      return (
+        <>
+          <div data-testid="model-id">{modelId ?? 'empty'}</div>
+          <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
+            fill name
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue('name', 'My Resource')
+              form.setValue('modelId', 'provider::model')
+            }}>
+            fill basic
+          </button>
+        </>
+      )
+    }
+  }
+})
 vi.mock('../steps/PersonaStep', () => ({
   PersonaStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
     <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
@@ -41,9 +85,80 @@ const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
 const CANCEL = 'common.cancel'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  modelHook.defaultModel = undefined
+})
 
 describe('ResourceCreateWizard', () => {
+  it('prefills the model from the default model when the wizard opens', async () => {
+    modelHook.defaultModel = makeModel()
+
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+  })
+
+  it('submits the default model when the user does not choose another model', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    modelHook.defaultModel = makeModel()
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      avatar: '💬',
+      name: 'My Resource',
+      modelId: 'provider::default',
+      description: '',
+      prompt: '',
+      knowledgeBaseIds: [],
+      skillIds: []
+    })
+  })
+
+  it('does not prefill a default model rejected by the wizard model filter', async () => {
+    modelHook.defaultModel = makeModel()
+
+    render(
+      <ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
+    )
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+  })
+
+  it('removes an auto-selected default model if the model filter later excludes it', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = makeModel()
+    let defaultModelAllowed = true
+    const modelFilter = () => defaultModelAllowed
+    const props = {
+      kind: 'agent' as const,
+      open: true,
+      onOpenChange: vi.fn(),
+      onSubmit: vi.fn(),
+      modelFilter
+    }
+    const { rerender } = render(<ResourceCreateWizard {...props} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    defaultModelAllowed = false
+    rerender(<ResourceCreateWizard {...props} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+  })
+
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
@@ -105,5 +220,25 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+  })
+
+  it('does not prefill the default model for agent kind when rejected by the model filter', async () => {
+    modelHook.defaultModel = makeModel()
+
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
+    )
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+  })
+
+  it('prefills the default model for agent kind when accepted by the model filter', async () => {
+    modelHook.defaultModel = makeModel()
+
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => true} />
+    )
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
   })
 })

@@ -12,7 +12,7 @@
  */
 
 import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, RuntimeReasoning, ThinkingTokenLimits } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -93,6 +93,19 @@ export const isNonChatModel = (model: Model): boolean =>
   isGenerateAudioModel(model) ||
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
+
+/**
+ * Models the API gateway can route — the single predicate shared by the gateway's
+ * `/v1/models` listing and the renderer's gateway model picker, so the CLI can only
+ * pick what the gateway will actually serve. Excludes non-chat models (the gateway
+ * only proxies chat dialects), the CherryAI managed default (the gateway's own
+ * guard), and models of a provider whose id contains ':' — the gateway address
+ * ("providerId:apiModelId") splits on the FIRST ':', so such ids cannot round-trip.
+ */
+export const isGatewayRoutableModel = (model: Model): boolean => {
+  if (model.providerId.includes(':') || isNonChatModel(model)) return false
+  return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
+}
 
 // ---------------------------------------------------------------------------
 // Reasoning configuration

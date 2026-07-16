@@ -37,14 +37,15 @@ const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const appQuitMock = vi.fn()
+const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
 const relaunchMock = vi.fn()
 const exitMock = vi.fn()
 
 const setVersionIncompatibleMock = vi.fn()
-const existsSyncMock = vi.fn()
-const checkUpgradePathMock = vi.fn()
-const readPreviousVersionMock = vi.fn()
+const setDataLocationNoticeMock = vi.fn()
+const pinUserDataPathMock = vi.fn()
+const evaluateCandidateVersionMock = vi.fn()
 const getBlockMessageMock = vi.fn()
 
 const defaultMigrationPaths = {
@@ -52,7 +53,13 @@ const defaultMigrationPaths = {
   versionLogFile: '/mock/version.log',
   databaseFile: '/mock/userData/cherrystudio.sqlite'
 }
-const defaultResolveResult = { paths: defaultMigrationPaths, userDataChanged: false, inaccessibleLegacyPath: null }
+const defaultResolveResult = {
+  paths: defaultMigrationPaths,
+  userDataChanged: false,
+  inaccessibleLegacyPath: null,
+  legacyDataConfirmed: false,
+  dataLocation: undefined
+}
 
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', async () => {
@@ -78,9 +85,10 @@ function stubMigrationV2() {
       registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
       unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
       resolveMigrationPaths: resolveMigrationPathsMock,
+      pinUserDataPath: pinUserDataPathMock,
       setVersionIncompatible: setVersionIncompatibleMock,
-      checkUpgradePathCompatibility: checkUpgradePathMock,
-      readPreviousVersion: readPreviousVersionMock,
+      setDataLocationNotice: setDataLocationNoticeMock,
+      evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
       isSchemaOutOfSyncError
     }
@@ -106,15 +114,9 @@ function stubElectron() {
 function stubApplication() {
   vi.doMock('@application', () => ({
     application: {
-      quit: appQuitMock
+      quit: appQuitMock,
+      relaunch: appRelaunchMock
     }
-  }))
-}
-
-function stubFs() {
-  vi.doMock('node:fs', () => ({
-    __esModule: true,
-    default: { existsSync: existsSyncMock }
   }))
 }
 
@@ -147,13 +149,14 @@ beforeEach(() => {
   showErrorBoxMock.mockReset()
   showMessageBoxMock.mockReset()
   appQuitMock.mockReset()
+  appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
   relaunchMock.mockReset()
   exitMock.mockReset()
   setVersionIncompatibleMock.mockReset()
-  existsSyncMock.mockReset()
-  checkUpgradePathMock.mockReset()
-  readPreviousVersionMock.mockReset()
+  setDataLocationNoticeMock.mockReset()
+  pinUserDataPathMock.mockReset()
+  evaluateCandidateVersionMock.mockReset()
   getBlockMessageMock.mockReset()
 })
 
@@ -192,7 +195,8 @@ describe('runV2MigrationGate', () => {
       await runV2MigrationGate()
 
       expect(initializeMock).toHaveBeenCalledTimes(1)
-      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths)
+      // Now threads the gate-resolved legacyDataConfirmed flag into the engine.
+      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false)
       expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
       expect(registerMigratorsMock).toHaveBeenCalledWith(migrators)
     })
@@ -201,16 +205,17 @@ describe('runV2MigrationGate', () => {
   describe('handled path — migration runs', () => {
     it("returns 'handled' and leaves IPC handlers registered when the migration window starts", async () => {
       needsMigrationMock.mockResolvedValue(true)
-      existsSyncMock.mockReturnValue(true)
-      readPreviousVersionMock.mockReturnValue('1.9.0')
-      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
       migrationWindowCreateMock.mockImplementation(() => {
         /* no-op — success */
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -344,16 +349,17 @@ describe('runV2MigrationGate', () => {
   describe('handled path — migration window start fails', () => {
     it("returns 'handled', unregisters IPC handlers, and quits when migrationWindowManager.create() throws", async () => {
       needsMigrationMock.mockResolvedValue(true)
-      existsSyncMock.mockReturnValue(true)
-      readPreviousVersionMock.mockReturnValue('1.9.0')
-      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
       migrationWindowCreateMock.mockImplementation(() => {
         throw new Error('window create failed')
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -370,14 +376,15 @@ describe('runV2MigrationGate', () => {
 
     it("returns 'handled' when waitForReady() rejects after window create succeeds", async () => {
       needsMigrationMock.mockResolvedValue(true)
-      existsSyncMock.mockReturnValue(true)
-      readPreviousVersionMock.mockReturnValue('1.9.0')
-      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
       migrationWindowWaitForReadyMock.mockRejectedValue(new Error('waitForReady rejected'))
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -392,17 +399,18 @@ describe('runV2MigrationGate', () => {
   describe('handled path — version compatibility check fails', () => {
     it("returns 'handled' and shows version_incompatible window when version check blocks", async () => {
       needsMigrationMock.mockResolvedValue(true)
-      existsSyncMock.mockReturnValue(true)
-      readPreviousVersionMock.mockReturnValue('1.5.0')
-      checkUpgradePathMock.mockReturnValue({
-        outcome: 'block',
-        reason: 'v1_too_old',
-        details: { previousVersion: '1.5.0', requiredVersion: '1.9.0' }
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: {
+          outcome: 'block',
+          reason: 'v1_too_old',
+          details: { previousVersion: '1.5.0', requiredVersion: '1.9.0' }
+        },
+        previousVersion: '1.5.0',
+        versionLogExists: true
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -425,11 +433,14 @@ describe('runV2MigrationGate', () => {
 
     it('falls back to dialog when version_incompatible window fails to create', async () => {
       needsMigrationMock.mockResolvedValue(true)
-      existsSyncMock.mockReturnValue(false)
-      checkUpgradePathMock.mockReturnValue({
-        outcome: 'block',
-        reason: 'no_version_log',
-        details: { requiredVersion: '1.9.0' }
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: {
+          outcome: 'block',
+          reason: 'no_version_log',
+          details: { requiredVersion: '1.9.0' }
+        },
+        previousVersion: null,
+        versionLogExists: false
       })
       getBlockMessageMock.mockReturnValue('Cannot determine your previous version.')
       migrationWindowCreateMock.mockImplementation(() => {
@@ -438,7 +449,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -453,16 +463,17 @@ describe('runV2MigrationGate', () => {
 
     it('proceeds to migration window when version check passes', async () => {
       needsMigrationMock.mockResolvedValue(true)
-      existsSyncMock.mockReturnValue(true)
-      readPreviousVersionMock.mockReturnValue('1.9.0')
-      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
       migrationWindowCreateMock.mockImplementation(() => {
         /* no-op — success */
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -474,6 +485,160 @@ describe('runV2MigrationGate', () => {
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
       expect(closeMock).not.toHaveBeenCalled()
       expect(appQuitMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('inaccessible legacy path — three-option dialog', () => {
+    function stubInaccessible(inaccessiblePath = '/unmounted/custom') {
+      resolveMigrationPathsMock.mockReturnValue({
+        paths: defaultMigrationPaths,
+        userDataChanged: false,
+        inaccessibleLegacyPath: inaccessiblePath,
+        legacyDataConfirmed: false,
+        dataLocation: undefined
+      })
+    }
+
+    it('offers Retry / Use Default / Quit and relaunches on Retry (response 0)', async () => {
+      stubInaccessible()
+      showMessageBoxMock.mockResolvedValue({ response: 0 })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      // Regression: the old dialog only had Retry/Quit, dead-ending abandoned dirs.
+      const [{ buttons }] = showMessageBoxMock.mock.calls[0]
+      expect(buttons).toEqual(['Retry', 'Use Default Directory', 'Quit'])
+      expect(appRelaunchMock).toHaveBeenCalledTimes(1)
+      expect(pinUserDataPathMock).not.toHaveBeenCalled()
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+
+    it('quits when the user chooses Quit (response 2)', async () => {
+      stubInaccessible()
+      showMessageBoxMock.mockResolvedValue({ response: 2 })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(pinUserDataPathMock).not.toHaveBeenCalled()
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+
+    it('pins the default dir and falls through to the normal flow on Use Default (response 1)', async () => {
+      stubInaccessible()
+      showMessageBoxMock.mockResolvedValue({ response: 1 })
+      needsMigrationMock.mockResolvedValue(false) // empty default → nothing to migrate
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      // No early return: pin the default, fall through, initialize on default,
+      // and reach the normal skipped path.
+      expect(pinUserDataPathMock).toHaveBeenCalledWith('/mock/userData')
+      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false)
+      expect(appRelaunchMock).not.toHaveBeenCalled()
+      expect(appQuitMock).not.toHaveBeenCalled()
+      expect(result).toBe('skipped')
+    })
+
+    it('quits with a fatal error when pinning the default dir fails on Use Default (response 1)', async () => {
+      stubInaccessible()
+      showMessageBoxMock.mockResolvedValue({ response: 1 })
+      // Strict pin persistence fails — must not silently proceed into migration
+      // on an unpersisted pin (that would relaunch into the old dir and loop).
+      pinUserDataPathMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('userData pin persistence failure', () => {
+    it('quits with a fatal error when resolveMigrationPaths cannot persist the pin', async () => {
+      // The only throwing operation in resolveMigrationPaths() is the strict
+      // pinUserDataPath() persist on the redirect branch.
+      resolveMigrationPathsMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('data-location notice', () => {
+    it('seeds the recovered directory before registering IPC handlers on the migrate path', async () => {
+      resolveMigrationPathsMock.mockReturnValue({
+        paths: defaultMigrationPaths,
+        userDataChanged: true,
+        inaccessibleLegacyPath: null,
+        legacyDataConfirmed: true,
+        dataLocation: '/Volumes/Data/CherryStudio'
+      })
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.12',
+        versionLogExists: true
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(setDataLocationNoticeMock).toHaveBeenCalledWith('/Volumes/Data/CherryStudio')
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not seed a notice when dataLocation is absent', async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.12',
+        versionLogExists: true
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      expect(setDataLocationNoticeMock).not.toHaveBeenCalled()
     })
   })
 })

@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { isBinaryExists } from '@main/utils/binaryResolver'
 import type { binaryRequestSchemas } from '@shared/ipc/schemas/binary'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -14,5 +15,7 @@ export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
   'binary.get_state': async () => application.get('BinaryManager').getState(),
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
   'binary.get_tool_dir': async (name) => application.get('BinaryManager').getToolDir(name),
-  'binary.probe_bundled': async () => application.get('BinaryManager').probeBundled()
+  'binary.probe_bundled': async () => application.get('BinaryManager').probeBundled(),
+  'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force),
+  'binary.is_installed': async (name) => isBinaryExists(name)
 }

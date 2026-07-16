@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { toast } from '@renderer/services/toast'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useState } from 'react'
@@ -20,10 +21,10 @@ function reportFailure(t: (key: string) => string, fallbackKey: string) {
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      window.toast?.error?.(e.message || t(fallbackKey))
+      toast.error(e.message || t(fallbackKey))
     } else {
       logger.error('mutation failed', err as Error)
-      window.toast?.error?.(t(fallbackKey))
+      toast.error(t(fallbackKey))
     }
   }
 }

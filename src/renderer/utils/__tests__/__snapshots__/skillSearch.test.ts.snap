@@ -79,6 +79,7 @@ exports[`Skill search API schemas > ClawhubSearchResponseSchema > should snapsho
   "results": [
     {
       "displayName": "Code Reviewer Pro",
+      "ownerHandle": "devmaster",
       "score": 0.95,
       "slug": "code-reviewer-pro",
       "summary": "Advanced code review with security analysis",
@@ -87,6 +88,7 @@ exports[`Skill search API schemas > ClawhubSearchResponseSchema > should snapsho
     },
     {
       "displayName": "Test Suite Generator",
+      "ownerHandle": "testdev",
       "score": 0.82,
       "slug": "test-suite-gen",
       "summary": "Automatically generate comprehensive test suites",
@@ -170,28 +172,6 @@ exports[`Skill search normalizers > normalizeClaudePlugins > should normalize fi
     "stars": 42,
   },
   {
-    "author": "community",
-    "description": null,
-    "downloads": 300,
-    "installSource": "claude-plugins://",
-    "name": "test-generator",
-    "slug": "cp-002",
-    "sourceRegistry": "claude-plugins.dev",
-    "sourceUrl": null,
-    "stars": 10,
-  },
-  {
-    "author": "devtools-org",
-    "description": "Generate technical documentation",
-    "downloads": 0,
-    "installSource": "claude-plugins:devtools-org/claude-skills/",
-    "name": "docs-writer",
-    "slug": "cp-003",
-    "sourceRegistry": "claude-plugins.dev",
-    "sourceUrl": "https://github.com/devtools-org/claude-skills",
-    "stars": 0,
-  },
-  {
     "author": "vercel-labs",
     "description": "React and Next.js performance optimization guidelines",
     "downloads": 8500,
@@ -208,23 +188,25 @@ exports[`Skill search normalizers > normalizeClaudePlugins > should normalize fi
 exports[`Skill search normalizers > normalizeClawhub > should normalize fixture to unified results 1`] = `
 [
   {
-    "author": null,
+    "author": "devmaster",
     "description": "Advanced code review with security analysis",
     "downloads": 0,
     "installSource": "clawhub:code-reviewer-pro",
     "name": "Code Reviewer Pro",
     "slug": "code-reviewer-pro",
     "sourceRegistry": "clawhub.ai",
+    "sourceUrl": "https://clawhub.ai/devmaster/skills/code-reviewer-pro",
     "stars": 0,
   },
   {
-    "author": null,
+    "author": "testdev",
     "description": "Automatically generate comprehensive test suites",
     "downloads": 0,
     "installSource": "clawhub:test-suite-gen",
     "name": "Test Suite Generator",
     "slug": "test-suite-gen",
     "sourceRegistry": "clawhub.ai",
+    "sourceUrl": "https://clawhub.ai/testdev/skills/test-suite-gen",
     "stars": 0,
   },
 ]

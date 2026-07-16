@@ -22,6 +22,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
@@ -29,6 +30,7 @@ import {
   messageToMarkdownWithReasoning,
   topicToMarkdown
 } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { XIcon } from 'lucide-react'
@@ -214,7 +216,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.api.obsidian.getVaults()
+        const vaultsData = await ipcApi.request('export.obsidian.get_vaults')
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
@@ -241,7 +243,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         try {
           setLoading(true)
           setError(null)
-          const filesData = await window.api.obsidian.getFiles(selectedVault)
+          const filesData = await ipcApi.request('export.obsidian.get_files', { vaultName: selectedVault })
           setFiles(filesData)
         } catch (error) {
           logger.error('获取Obsidian文件失败:', error as Error)
@@ -278,7 +280,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
     }
     if (content === '') {
-      window.toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+      toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
       return
     }
     await navigator.clipboard.writeText(content)

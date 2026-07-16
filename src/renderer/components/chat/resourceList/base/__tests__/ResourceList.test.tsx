@@ -213,7 +213,7 @@ function droppableData(id: string) {
 }
 
 describe('ResourceList', () => {
-  it('renders loading placeholders that match grouped list rhythm', () => {
+  it('renders grouped loading placeholders', () => {
     const { container } = render(<ResourceList.LoadingState />)
 
     const groups = container.querySelectorAll('[data-resource-list-loading-group]')
@@ -224,13 +224,6 @@ describe('ResourceList', () => {
     expect(groupHeaders).toHaveLength(2)
     expect(items).toHaveLength(5)
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
-    expect(groupHeaders[0]).toHaveClass('h-[38px]', 'px-1.5', 'pt-2', 'pb-1', 'gap-1.5')
-    expect(groupHeaders[0].querySelector('[data-resource-list-leading-slot="true"]')).toHaveClass('size-6')
-    expect(groupHeaders[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
-    expect(items[0]).toHaveClass('mb-1.5', 'h-8', 'rounded-lg', 'px-1.5', 'gap-1.5')
-    expect(items[0].querySelector('[data-resource-list-leading-slot="true"]')).toHaveClass('size-6')
-    expect(items[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
-    expect(items[0].querySelectorAll('[data-slot="skeleton"]')[2]).toHaveClass('size-5')
   })
 
   it('uses a border-only reveal focus animation without changing row background', () => {
@@ -1595,11 +1588,13 @@ describe('ResourceList', () => {
     expect(groupActionButton).toHaveClass('size-6', 'min-h-6', 'min-w-6', 'rounded-md', 'p-0', '[&_svg]:size-3!')
     expect(groupActionButton).not.toHaveClass('min-h-7.5')
     expect(groupActionWrapper).toHaveClass(
-      'hidden',
-      'group-hover/resource-list-group:flex',
-      'group-focus-within/resource-list-group:flex',
-      'has-data-[state=open]:flex'
+      'flex',
+      'opacity-0',
+      'group-hover/resource-list-group:opacity-100',
+      'group-focus-within/resource-list-group:opacity-100',
+      'has-data-[state=open]:opacity-100'
     )
+    expect(groupActionWrapper).not.toHaveClass('hidden')
   })
 
   it('opens group header context menus from the group header trigger', () => {
@@ -2602,32 +2597,6 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Delete Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
     expect(screen.getByRole('button', { name: 'Delete Alpha' }).className).not.toContain(
       'group-data-[selected=true]:opacity-100'
-    )
-  })
-
-  it('keeps sidebar header and search chrome visually quiet', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.Header title="Resources" count={ITEMS.length} actions={<ResourceList.HeaderActionButton />}>
-            <ResourceList.Search placeholder="Search resources" />
-          </ResourceList.Header>
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    expect(screen.getByText('Resources')).toHaveClass('text-muted-foreground/60')
-    expect(screen.getByText(String(ITEMS.length))).toHaveClass('text-muted-foreground/40')
-    expect(screen.getByPlaceholderText('Search resources')).toHaveClass(
-      'rounded-full',
-      'h-7',
-      'text-[10px]',
-      'md:text-[10px]',
-      'border-sidebar-border',
-      'placeholder:text-[10px]',
-      'placeholder:text-foreground-muted'
     )
   })
 

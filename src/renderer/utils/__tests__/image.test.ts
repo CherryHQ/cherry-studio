@@ -1,22 +1,19 @@
-import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   captureElement,
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataUrl,
-  compressImage,
+  checkEntityImageSize,
   convertToBase64,
-  fileToAvatarDataUrl,
-  makeSvgSizeAdaptive
+  makeSvgSizeAdaptive,
+  MAX_ENTITY_IMAGE_UPLOAD_BYTES,
+  prepareEntityImageBytes
 } from '../image'
 
 // mock 依赖
-vi.mock('browser-image-compression', () => ({
-  default: vi.fn(() => Promise.resolve(new File(['compressed'], 'compressed.png', { type: 'image/png' })))
-}))
 vi.mock('html-to-image', () => ({
   toCanvas: vi.fn(() =>
     Promise.resolve({
@@ -26,7 +23,11 @@ vi.mock('html-to-image', () => ({
   )
 }))
 
-// mock window.toast
+// Deterministic i18n for checkEntityImageSize (avoids depending on real init).
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: string, opts?: Record<string, unknown>) => `${key}:${JSON.stringify(opts)}` }
+}))
+
 beforeEach(() => {
   vi.mocked(htmlToImage.toCanvas).mockReset()
   vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
@@ -35,10 +36,6 @@ beforeEach(() => {
       toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
     } as unknown as HTMLCanvasElement)
   )
-
-  window.toast = {
-    error: vi.fn()
-  } as any
 })
 
 describe('utils/image', () => {
@@ -51,43 +48,60 @@ describe('utils/image', () => {
     })
   })
 
-  describe('compressImage', () => {
-    it('should compress image file', async () => {
-      const file = new File(['img'], 'img.png', { type: 'image/png' })
-      const result = await compressImage(file)
-      expect(result).toBeInstanceOf(File)
-      expect(result.name).toBe('compressed.png')
+  describe('checkEntityImageSize', () => {
+    const makeFile = (size: number): File => {
+      const file = new File(['x'], 'avatar.png', { type: 'image/png' })
+      Object.defineProperty(file, 'size', { value: size })
+      return file
+    }
+
+    it('returns null when the file is within the limit', () => {
+      expect(checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES))).toBeNull()
     })
 
-    it('should pass custom compression options', async () => {
-      const file = new File(['img'], 'img.png', { type: 'image/png' })
-
-      await compressImage(file, { maxSizeMB: 0.25, maxWidthOrHeight: 256 })
-
-      expect(imageCompression).toHaveBeenLastCalledWith(
-        file,
-        expect.objectContaining({
-          maxSizeMB: 0.25,
-          maxWidthOrHeight: 256,
-          useWebWorker: false
-        })
-      )
+    it('returns a localized message when the file exceeds the limit', () => {
+      const message = checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES + 1))
+      expect(message).toContain('message.error.avatar_image_too_large')
+      expect(message).toContain('10MB')
     })
   })
 
-  describe('fileToAvatarDataUrl', () => {
-    it('should encode a compressed non-GIF image as a base64 data URL', async () => {
-      const png = new File(['hello'], 'a.png', { type: 'image/png' })
-      const dataUrl = await fileToAvatarDataUrl(png)
-      // The mocked compressor yields a PNG, so the encoded result is a PNG data URL.
-      expect(dataUrl).toMatch(/^data:image\/png;base64,/)
+  describe('prepareEntityImageBytes', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
     })
 
-    it('should encode a GIF without compressing it', async () => {
-      const gif = new File(['gif-bytes'], 'a.gif', { type: 'image/gif' })
-      const dataUrl = await fileToAvatarDataUrl(gif)
-      // Untouched GIF bytes encode to a gif data URL (not the compressor's png).
-      expect(dataUrl).toMatch(/^data:image\/gif;base64,/)
+    it('throws a localized retry error when the canvas cannot decode the input', async () => {
+      // No raw fallback: a decode failure (SVG / corrupt / odd format) surfaces so the
+      // user can retry — raw bytes are never sent to main, which could not decode them.
+      vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('cannot decode')))
+      const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
+
+      await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
+    })
+
+    it('cover-crops the largest centered square into a 128×128 WebP', async () => {
+      const close = vi.fn()
+      // 200×100 landscape → centered 100×100 square (sx=50, sy=0) scaled to 128².
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 200, height: 100, close }))
+      const drawImage = vi.fn()
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        drawImage
+      } as unknown as CanvasRenderingContext2D)
+      const webp = new Uint8Array([9, 8, 7])
+      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
+        this: HTMLCanvasElement,
+        cb: BlobCallback
+      ) {
+        cb({ arrayBuffer: async () => webp.buffer } as Blob)
+      })
+
+      const out = await prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
+
+      expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128)
+      expect(out).toEqual(webp)
+      expect(close).toHaveBeenCalled()
     })
   })
 
@@ -221,8 +235,7 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollWidth', { value: 40000, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
-      await expect(captureScrollable(ref)).rejects.toBeUndefined()
-      expect(window.toast.error).toHaveBeenCalled()
+      await expect(captureScrollable(ref)).rejects.toThrow()
       expect(div.classList.contains('hide-scrollbar')).toBe(false)
     })
   })

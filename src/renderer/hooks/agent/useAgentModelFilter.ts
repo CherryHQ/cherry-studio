@@ -10,11 +10,9 @@
  * those make sense as chat targets).
  */
 
-import { useProviders } from '@renderer/hooks/useProvider'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { isNonChatModel } from '@shared/utils/model'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
@@ -38,27 +36,14 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
-  const { providers } = useProviders()
-
-  const geminiProviderIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const provider of providers) {
-      if (isGeminiProvider(provider)) {
-        ids.add(provider.id)
-      }
-    }
-    return ids
-  }, [providers])
-
   return useMemo<AgentModelFilter>(() => {
     const predicate: AgentModelFilter = (model: Model) => {
-      if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        return !geminiProviderIds.has(model.providerId)
+        return isGatewayRoutableModel(model)
       }
-      return true
+      return baseAgentFilter(model)
     }
     predicate[AGENT_ONLY_FILTER] = true
     return predicate
-  }, [agentType, geminiProviderIds])
+  }, [agentType])
 }

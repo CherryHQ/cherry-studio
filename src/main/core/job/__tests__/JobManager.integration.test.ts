@@ -23,8 +23,9 @@
  */
 
 import { application } from '@application'
-import { jobTable } from '@data/db/schemas/job'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
@@ -84,6 +85,20 @@ async function drainAllQueues(jm: JobManager): Promise<void> {
 interface BootstrapOptions {
   /** Register these handlers BEFORE _doInit so onReady's recovery sees them. */
   handlers?: Array<[string, JobHandler]>
+  /**
+   * Invoked after `_doAllReady()` schedules the quiet-window timer but before
+   * it is advanced — models calls arriving before startup recovery runs.
+   * Receives the JobManager being bootstrapped (the caller's destructured
+   * binding does not exist yet at hook time).
+   */
+  beforeRecovery?: (jobManager: JobManager) => Promise<void> | void
+  /**
+   * Return while fake timers are still installed so the test can advance
+   * schedule timers armed during recovery (their due time lies beyond the
+   * quiet-window advance, and `useRealTimers` would discard them). The
+   * caller MUST call `vi.useRealTimers()` itself.
+   */
+  keepFakeTimers?: boolean
 }
 
 async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
@@ -139,12 +154,13 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
   // completes before we switch back.
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   void jobManager._doAllReady()
+  if (opts.beforeRecovery) await opts.beforeRecovery(jobManager)
   await vi.advanceTimersByTimeAsync(60_000)
   await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
   for (let i = 0; i < 5; i++) {
     await vi.advanceTimersByTimeAsync(100)
   }
-  vi.useRealTimers()
+  if (!opts.keepFakeTimers) vi.useRealTimers()
   return { scheduler, jobManager }
 }
 
@@ -332,12 +348,8 @@ describe('JobManager integration', () => {
 
       // Release the gate → the single execution finalizes the row once.
       releaseGate()
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
       expect(executeCount).toBe(1)
 
       await teardownManager(scheduler, jobManager)
@@ -478,6 +490,186 @@ describe('JobManager integration', () => {
     })
   })
 
+  describe('startup recovery — once schedules', () => {
+    const onceNoopHandler: JobHandler = {
+      recovery: 'abandon',
+      cancelTimeoutMs: 1000,
+      defaultConcurrency: 1,
+      async execute() {
+        return {}
+      }
+    }
+
+    function armedScheduleIds(jm: JobManager): Set<string> {
+      return new Set((jm as unknown as { scheduleDisposables: Map<string, unknown> }).scheduleDisposables.keys())
+    }
+
+    it('does not re-arm a spent once schedule (fired one-shot must not replay on restart)', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at: now - 60_000 },
+          jobInputTemplate: { message: 'spent' },
+          enabled: true,
+          lastRun: now - 60_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(0)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(false)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms and fires a never-fired once schedule whose at-time passed while the app was closed', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      await dbh.insert(jobScheduleTable).values({
+        type: 'task.once',
+        trigger: { kind: 'once', at: now - 60_000 },
+        jobInputTemplate: { message: 'missed' },
+        enabled: true,
+        lastRun: null,
+        nextRun: null,
+        catchUpPolicy: { kind: 'skip-missed' },
+        metadata: {}
+      })
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms a manually pre-fired once schedule whose natural fire is still pending', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at: now + 600_000 },
+          jobInputTemplate: { message: 'pending-natural-fire' },
+          enabled: true,
+          // Manual trigger writes lastRun before the natural fire happens
+          // (triggerJobScheduleNowById's non-cron fallback) — a bare lastRun
+          // null-check would wrongly treat this schedule as spent.
+          lastRun: now - 1_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(0)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(true)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('persists a natural fire clamped to trigger.at so an early fire does not replay on restart', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      // The once timer elapses on fake timers while Date.now() stays on the
+      // real clock — advancing 31s fires the timer while wall time barely
+      // moves, an amplified reproduction of the monotonic/wall-clock mismatch
+      // that makes natural fires observe Date.now() < trigger.at.
+      const at = Date.now() + 30_000
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at },
+          jobInputTemplate: { message: 'early-natural-fire' },
+          enabled: true,
+          lastRun: null,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const boot1 = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]],
+        keepFakeTimers: true
+      })
+      await vi.advanceTimersByTimeAsync(31_000)
+      for (let i = 0; i < 5; i++) {
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      vi.useRealTimers()
+      await drainAllQueues(boot1.jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+      const fired = jobScheduleService.getById(row.id)
+      expect(fired?.lastRun).not.toBeNull()
+      expect(Date.parse(fired!.lastRun!)).toBeGreaterThanOrEqual(at)
+
+      await teardownManager(boot1.scheduler, boot1.jobManager)
+
+      // Simulated restart: the spent row must be skipped, not replayed.
+      const boot2 = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+      await drainAllQueues(boot2.jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+      expect(armedScheduleIds(boot2.jobManager).has(row.id)).toBe(false)
+
+      await teardownManager(boot2.scheduler, boot2.jobManager)
+    })
+
+    it('treats a manual fire of an overdue never-fired once as its fire — no make-up run after recovery', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at: now - 60_000 },
+          jobInputTemplate: { message: 'manual-during-quiet-window' },
+          enabled: true,
+          lastRun: null,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]],
+        beforeRecovery: async (bootingManager) => {
+          expect(await bootingManager.triggerJobScheduleNowById(row.id)).toBe(true)
+        }
+      })
+      await drainAllQueues(jobManager)
+
+      expect(jobService.list({ type: 'task.once' })).toHaveLength(1)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(false)
+
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
   describe('graceful shutdown', () => {
     it('aborts in-flight handlers and resolves the finished promise quickly', async () => {
       const { scheduler, jobManager } = await bootstrapManager({
@@ -497,12 +689,8 @@ describe('JobManager integration', () => {
       await new Promise<void>((r) => setTimeout(r, 50))
 
       const stopPromise = jobManager._doStop()
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('cancelled')
+      const settled = await handle.finished
+      expect(settled.status).toBe('cancelled')
 
       await stopPromise
       await teardownManager(scheduler, jobManager)
@@ -576,12 +764,8 @@ describe('JobManager integration', () => {
 
       // Occupant finishes → frees the global slot → must wake qA.
       await occupant.finished
-      const settled = await Promise.race([
-        starved.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await starved.finished
+      expect(settled.status).toBe('completed')
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
@@ -777,12 +961,8 @@ describe('JobManager integration', () => {
         { behavior: 'immediate' }
       )
 
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
       // Both writes of the tx are visible.
       expect(jobService.count({ queue: 'biz' })).toBe(1)
 
@@ -881,13 +1061,83 @@ describe('JobManager integration', () => {
 
       expect(handle.snapshot.status).toBe('delayed')
 
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 3000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
 
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('delayed promotion re-arm on early once-fire', () => {
+    // The once-timer elapses on the monotonic clock while promoteDelayedDue
+    // compares scheduledAt <= Date.now() on the wall clock; the domains round
+    // to whole ms independently, so a fire can land with Date.now() still 1ms
+    // short of scheduledAt and promote nothing (measured locally at ~0.4% of
+    // fires). These tests pin the miss deterministically by no-oping the FIRST
+    // promotion pass; the job must still complete via a re-armed second pass.
+    it('re-arms the delayed-job promotion when the first fire misses', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.delayed.skew', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      promoteSpy.mockImplementationOnce(() => 0)
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          handle = jobManager.enqueueTx(
+            tx,
+            'tx.delayed.skew' as never,
+            { message: 'later', sleepMs: 5 } as never,
+            {
+              scheduledAt: Date.now() + 50
+            } as never
+          )
+        },
+        { behavior: 'immediate' }
+      )
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      // The mocked miss must have been followed by a real promotion pass.
+      expect(promoteSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      promoteSpy.mockRestore()
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms the retry promotion when the first fire misses', async () => {
+      let attempts = 0
+      const handler: JobHandler = {
+        recovery: 'retry',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        defaultRetryPolicy: { maxAttempts: 2, backoff: 'fixed', baseDelayMs: 50, maxDelayMs: 50 },
+        async execute() {
+          attempts++
+          if (attempts === 1) throw new Error('first-attempt-fails')
+          return { echoed: 'recovered' }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['retry.skew.task', handler]]
+      })
+
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      promoteSpy.mockImplementationOnce(() => 0)
+
+      const handle = jobManager.enqueue('retry.skew.task' as never, { message: 'flaky-once' } as never)
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      expect(attempts).toBe(2)
+      expect(promoteSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      promoteSpy.mockRestore()
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
     })

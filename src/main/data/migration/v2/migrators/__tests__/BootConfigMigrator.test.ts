@@ -9,20 +9,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
-// Mock bootConfigService — the migrator writes via .set() and .flush(), then
-// validates via .get(). We spy on the mutations and stub the reads.
+// Mock bootConfigService — the migrator writes via .set() and .persist() (the
+// strict, throwing flush variant), then validates via .get(). We spy on the
+// mutations and stub the reads.
 const bootConfigStore: Record<string, unknown> = {}
 const mockBootConfigSet = vi.fn((key: string, value: unknown) => {
   bootConfigStore[key] = value
 })
 const mockBootConfigGet = vi.fn((key: string) => bootConfigStore[key])
-const mockBootConfigFlush = vi.fn()
+const mockBootConfigPersist = vi.fn()
 
 vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: {
     set: mockBootConfigSet,
     get: mockBootConfigGet,
-    flush: mockBootConfigFlush
+    persist: mockBootConfigPersist
   }
 }))
 
@@ -106,7 +107,25 @@ describe('BootConfigMigrator', () => {
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', {
         '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data'
       })
-      expect(mockBootConfigFlush).toHaveBeenCalled()
+      expect(mockBootConfigPersist).toHaveBeenCalled()
+    })
+
+    it('returns { success: false } when persisting boot config fails', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        legacyHomeConfig: { '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data' }
+      })
+
+      await migrator.prepare(ctx)
+
+      mockBootConfigPersist.mockImplementationOnce(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+
+      const executed = await migrator.execute()
+
+      expect(executed.success).toBe(false)
+      expect(executed.error).toContain('ENOSPC')
     })
 
     it('skips the configfile source when reader returns null (no v1 config file)', async () => {
@@ -150,6 +169,51 @@ describe('BootConfigMigrator', () => {
       await migrator.execute()
 
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', multiInstall)
+    })
+  })
+
+  describe('configfile source — preserves preboot-pinned current-exe entry', () => {
+    // Regression for the pin-clobber bug: the migration gate's preboot step
+    // (pinUserDataPath) writes app.user_data_path[currentExe] → recovered dir
+    // BEFORE migration runs. In the real bug scenario (v1 exe path changed),
+    // the legacy config is keyed by the OLD exe, so a wholesale set() would
+    // drop the freshly-pinned current-exe entry and, after relaunch, the app
+    // would miss its own migrated directory. The migrator must MERGE, keeping
+    // existing (pinned) entries.
+    const CURRENT_EXE = '/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio'
+    const OLD_EXE = '/Applications/CherryStudio.app/Contents/MacOS/CherryStudio'
+    const RECOVERED_DIR = '/Volumes/Ext/CherryData'
+
+    it('merges the legacy record with an existing entry keyed by a different exe', async () => {
+      // Seed the preboot pin (current exe → recovered dir).
+      bootConfigStore['app.user_data_path'] = { [CURRENT_EXE]: RECOVERED_DIR }
+
+      const migrator = await createMigrator()
+      // Legacy config records the SAME dir but under the OLD exe path.
+      const ctx = createMockContext({ legacyHomeConfig: { [OLD_EXE]: RECOVERED_DIR } })
+
+      await migrator.prepare(ctx)
+      await migrator.execute()
+
+      // Both keys survive; the pinned current-exe entry is NOT dropped.
+      expect(bootConfigStore['app.user_data_path']).toEqual({
+        [CURRENT_EXE]: RECOVERED_DIR,
+        [OLD_EXE]: RECOVERED_DIR
+      })
+    })
+
+    it('lets the existing (pinned) entry win on a key conflict', async () => {
+      // Same exe key present in both boot-config (pin) and legacy record but
+      // pointing at different dirs — the authoritative pin must be preserved.
+      bootConfigStore['app.user_data_path'] = { [CURRENT_EXE]: RECOVERED_DIR }
+
+      const migrator = await createMigrator()
+      const ctx = createMockContext({ legacyHomeConfig: { [CURRENT_EXE]: '/stale/legacy/dir' } })
+
+      await migrator.prepare(ctx)
+      await migrator.execute()
+
+      expect(bootConfigStore['app.user_data_path']).toEqual({ [CURRENT_EXE]: RECOVERED_DIR })
     })
   })
 

@@ -6,12 +6,13 @@
  */
 
 import { application } from '@application'
+import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
-import { type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
+import { type Message as SharedMessage, type MessageSnapshot, toContentRole } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -25,6 +26,29 @@ import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
+
+/** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
+function resolveAssistantIdentity(assistantId: string | undefined) {
+  if (!assistantId) return undefined
+  const a = assistantDataService.getById(assistantId)
+  return { id: a.id, name: a.name, emoji: a.emoji }
+}
+
+/** Author snapshot for an assistant reply: the assistant with its model nested inside. */
+function buildAssistantMessageSnapshot(
+  model: Model,
+  assistant: { id: string; name: string; emoji: string } | undefined
+): MessageSnapshot | undefined {
+  if (!assistant) return undefined
+  return {
+    ...assistant,
+    model: {
+      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+      name: model.name,
+      provider: model.providerId
+    }
+  }
+}
 
 function startTurnRootSpans(
   topicId: string,
@@ -97,7 +121,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       parentId: message.parentId,
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
-      modelSnapshot: message.modelSnapshot ?? undefined,
+      messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
       createdAt: message.createdAt,
       stats: message.stats ?? undefined,
@@ -122,18 +146,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-    const { assistantId, defaultModelId } = resolveAssistantModelId(topic?.assistantId)
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
-      return this.prepareSteerContinuation(subscriber, req, assistantId, defaultModelId)
+      return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
     }
+
+    const selectedModelId = req.mentionedModelIds?.[0]
+    const { assistantId, defaultModelId } =
+      !topic?.assistantId && selectedModelId
+        ? { assistantId: undefined, defaultModelId: selectedModelId }
+        : resolveAssistantModelId(topic?.assistantId)
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
       // Stamp the row with the model the user selected for this steer so the continuation answers
@@ -145,11 +174,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         parentId: req.parentAnchorId,
         data: { parts: req.userMessageParts },
         status: 'success',
-        modelId: steerModelId,
-        modelSnapshot: (() => {
-          const { providerId, modelId: rawModelId } = parseUniqueModelId(steerModelId)
-          return { id: rawModelId, name: rawModelId, provider: providerId }
-        })()
+        // User rows carry only `modelId` (read by steer-continuation); the author snapshot
+        // lives on the assistant reply, which is what the header renders.
+        modelId: steerModelId
       })
 
       return {
@@ -182,6 +209,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
     // for non-regenerate, so passing undefined parentAnchorId is harmless.
     const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
+    const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
@@ -193,11 +221,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               parentId: req.parentAnchorId,
               data: { parts: req.userMessageParts },
               status: 'success' as const,
-              modelId: defaultModelId,
-              modelSnapshot: (() => {
-                const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
-                return { id: rawModelId, name: rawModelId, provider: providerId }
-              })()
+              modelId: defaultModelId
             }
           } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
@@ -217,11 +241,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           data: { parts: [] },
           status: 'pending',
           modelId: model.id,
-          modelSnapshot: {
-            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-            name: model.name,
-            provider: model.providerId
-          }
+          messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
         }))
       })
 
@@ -248,11 +268,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             modelId: model.id,
             backend: new MessageServiceBackend({
               assistantMessageId: placeholder.id,
-              modelSnapshot: {
-                id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-                name: model.name,
-                provider: model.providerId
-              },
               afterPersist: attachAutoRename
                 ? async (finalMessage) => {
                     await topicNamingService.maybeRenameFromConversationSummary(
@@ -275,7 +290,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const history = this.buildHistory(userMessage.id)
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
-        request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+        request: this.buildStreamRequest(
+          req.topicId,
+          assistantId,
+          model.id,
+          history,
+          placeholder.id,
+          req.knowledgeBaseIds
+        ),
         rootSpan
       }))
       // Author the turn span's input attributes here, where the built request payload is available.
@@ -313,8 +335,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareContinueDispatch(
     subscriber: StreamListener,
     req: MainContinueConversationRequest,
-    assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const anchor = messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
@@ -329,8 +350,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
-    const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = resolveModels([continueModelId], defaultModelId)
+    const continueModelId = (anchor.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const [model] = resolveModels([continueModelId], continueModelId)
 
     // `ai.turn` span under the topic's container trace; end it explicitly if
     // anything below throws or it leaks.
@@ -348,14 +369,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({
-            assistantMessageId: anchor.id,
-            modelSnapshot: anchor.modelSnapshot ?? {
-              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-              name: model.name,
-              provider: model.providerId
-            }
-          }),
+          backend: new MessageServiceBackend({ assistantMessageId: anchor.id }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
@@ -368,7 +382,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id, undefined),
             rootSpan
           }
         ],
@@ -390,8 +404,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareSteerContinuation(
     subscriber: StreamListener,
     req: MainSteerContinuationRequest,
-    assistantId: string | undefined,
-    defaultModelId: UniqueModelId
+    assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const userMessage = messageService.getById(req.userMessageId)
     if (userMessage.role !== 'user') {
@@ -401,13 +414,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'steer-continuation' anchor does not belong to topic ${req.topicId}`)
     }
 
-    const steerModelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = resolveModels([steerModelId], defaultModelId)
-    const modelSnapshot = {
-      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-      name: model.name,
-      provider: model.providerId
-    }
+    const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const [model] = resolveModels([steerModelId], steerModelId)
+    const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
 
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
@@ -416,7 +425,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const { placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: { mode: 'existing', id: req.userMessageId },
-        placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, modelSnapshot }]
+        placeholders: [
+          { role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, messageSnapshot }
+        ]
       })
       const placeholder = placeholders[0]
 
@@ -425,7 +436,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, modelSnapshot }),
+          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
@@ -438,7 +449,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id, undefined),
             rootSpan
           }
         ],
@@ -471,7 +482,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
-    messageId: string
+    messageId: string,
+    knowledgeBaseIds: string[] | undefined
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -479,7 +491,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId,
       messages: history,
-      messageId
+      messageId,
+      knowledgeBaseIds
     }
   }
 }

@@ -290,7 +290,8 @@ registerToolbarAction({
   icon: <EditIcon size={15} />,
   availability: toolbarAvailability(
     'user-edit',
-    ({ actions, isUserMessage, startEditingMessage }) => isUserMessage && !!actions.editMessage && !!startEditingMessage
+    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
+      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
   )
 })
 
@@ -403,8 +404,12 @@ registerAction({
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isEditable, isUserMessage, startEditingMessage }) =>
-    isEditable && !!actions.editMessage && !!startEditingMessage && isUserMessage
+  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
+    !isTranslating &&
+    isEditable &&
+    !!actions.editMessage &&
+    !!startEditingMessage &&
+    (isUserMessage || isAssistantMessage)
 })
 
 registerAction({
@@ -415,8 +420,17 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isLastMessage }) =>
-    !!actions.startMessageBranch && isAssistantMessage && !isLastMessage
+  availability: ({ actions, isAssistantMessage, isLastMessage, t }) => {
+    if (!actions.startMessageBranch || !isAssistantMessage) return false
+    if (isLastMessage) {
+      return {
+        visible: true,
+        enabled: false,
+        reason: t('chat.message.new.branch.disabled.latest')
+      }
+    }
+    return true
+  }
 })
 
 registerAction({

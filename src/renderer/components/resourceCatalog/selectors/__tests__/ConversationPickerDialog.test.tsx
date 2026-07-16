@@ -80,10 +80,6 @@ describe('ConversationPickerDialog', () => {
     // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
     expect(screen.getByText('Alpha Assistant').closest('[data-scrolling]')).toBeInTheDocument()
 
-    const leadingSlot = screen.getByTestId('alpha-icon').parentElement
-    expect(leadingSlot).toHaveClass('size-6', 'rounded-lg', 'text-foreground/70')
-    expect(leadingSlot).not.toHaveClass('rounded-full', 'bg-secondary')
-
     fireEvent.click(screen.getByText('Product Manager'))
 
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1])

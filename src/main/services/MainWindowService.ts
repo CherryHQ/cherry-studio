@@ -7,6 +7,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
@@ -128,37 +129,27 @@ export class MainWindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.MainWindow_SetMinimumSize, (_, width: number, height: number) => {
-      this.requireMainWindow().setMinimumSize(width, height)
-    })
-
-    this.ipcHandle(IpcChannel.MainWindow_ResetMinimumSize, () => {
-      const mainWindow = this.requireMainWindow()
-      mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-      const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-      if (width < MIN_WINDOW_WIDTH) {
-        mainWindow.setSize(MIN_WINDOW_WIDTH, height)
-      }
-    })
-
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
+  }
 
-    // ─── Main-window-specific handlers migrated from src/main/ipc.ts ───
-    // Each reads `this.mainWindow` at call time, so a main window that was
-    // destroyed and rebuilt (singleton reopen path) is handled correctly.
+  /** Set the main window's minimum size (window.main.set_minimum_size). */
+  public setMainWindowMinimumSize(width: number, height: number): void {
+    this.requireMainWindow().setMinimumSize(width, height)
+  }
 
-    this.ipcHandle(IpcChannel.MainWindow_Reload, () => {
-      this.mainWindow?.reload()
-    })
+  /** Reset the main window's minimum size, growing it back if it shrank below the floor. */
+  public resetMainWindowMinimumSize(): void {
+    const mainWindow = this.requireMainWindow()
+    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    if (width < MIN_WINDOW_WIDTH) {
+      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
+    }
+  }
 
-    // Renderer tells main that a notification was clicked → broadcast the
-    // click back to all main-window consumers. Distinct from the Electron
-    // native-notification click path in NotificationService, which also
-    // broadcasts 'notification-click'; both share the same bare-string
-    // channel on the receiver side.
-    this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
-      application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
-    })
+  /** Reload the main window if present (read at call time for singleton-reopen safety). */
+  public reloadMainWindow(): void {
+    this.mainWindow?.reload()
   }
 
   /**
@@ -170,7 +161,7 @@ export class MainWindowService extends BaseService {
    * only carries static defaults. Position/size are restored by WindowManager
    * (rememberBounds), not injected here.
    */
-  private openMainWindow(): void {
+  private openMainWindow(initData?: MainWindowInitData): void {
     const preferenceService = application.get('PreferenceService')
     const windowManager = application.get('WindowManager')
 
@@ -183,6 +174,7 @@ export class MainWindowService extends BaseService {
     // onWindowCreatedByType fires synchronously during open() on fresh-create,
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
+      initData,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && {
@@ -442,7 +434,7 @@ export class MainWindowService extends BaseService {
     // No 'closed' handler — WM emits onWindowDestroyedByType which clears this.mainWindow.
   }
 
-  public showMainWindow() {
+  public showMainWindow(initData?: MainWindowInitData) {
     // Lift any close-to-tray override so the Dock icon reappears as the user
     // brings the main window back. Idempotent when the app is not currently
     // in tray mode — WM deduplicates via its dockShouldBeVisible flag.
@@ -452,6 +444,7 @@ export class MainWindowService extends BaseService {
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore()
+        this.pushMainWindowInitData(initData)
         return
       }
 
@@ -472,6 +465,7 @@ export class MainWindowService extends BaseService {
             w.focus()
           }
         })
+        this.pushMainWindowInitData(initData)
         return
       }
 
@@ -506,11 +500,18 @@ export class MainWindowService extends BaseService {
       if (!isLinux) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
+      this.pushMainWindowInitData(initData)
     } else {
       // Singleton: WM creates a fresh window when none exists; openMainWindow re-injects
       // the dynamic options (windowState bounds, theme, zoom) since the registry only carries statics.
-      this.openMainWindow()
+      this.openMainWindow(initData)
     }
+  }
+
+  private pushMainWindowInitData(initData?: MainWindowInitData) {
+    if (!initData) return
+
+    application.get('WindowManager').pushInitDataToType(WindowType.Main, initData)
   }
 
   public toggleMainWindow() {

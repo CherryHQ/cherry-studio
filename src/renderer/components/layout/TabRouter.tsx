@@ -1,4 +1,5 @@
-import { PortalContainerProvider } from '@cherrystudio/ui'
+import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
+import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -22,7 +23,9 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   // Create independent router instance per tab (only once)
   const router = useMemo(() => {
     const history = createMemoryHistory({ initialEntries: [tab.url] })
-    return createRouter({ routeTree, history })
+    // defaultErrorComponent contains a route render error to its tab; without it the
+    // error bubbles to the window-level boundary and tears down the whole window.
+    return createRouter({ routeTree, history, defaultErrorComponent: RouteErrorFallback })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
 
@@ -60,7 +63,9 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
             background tab's still-open surface stays hidden with its owning tab. */}
         <div ref={captureTabPortalContainer} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
-            <RouterProvider router={router} />
+            <DialogPortalContainerProvider container={tabPortalContainer}>
+              <RouterProvider router={router} />
+            </DialogPortalContainerProvider>
           </PortalContainerProvider>
         </div>
       </TabIdProvider>

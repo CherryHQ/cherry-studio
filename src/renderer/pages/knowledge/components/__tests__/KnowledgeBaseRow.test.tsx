@@ -83,11 +83,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -113,6 +111,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
@@ -131,6 +130,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
@@ -139,7 +139,7 @@ describe('KnowledgeBaseRow', () => {
     expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
   })
 
-  it('does not render a hover more button; actions are only reachable via right-click', () => {
+  it('renders a hover more button that shares the row action menu', () => {
     render(
       <KnowledgeBaseRow
         base={createKnowledgeBase()}
@@ -148,14 +148,16 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
 
-    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+    // Always mounted (revealed on hover via CSS); it opens the same menu as right-click.
+    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
   })
 
-  it('lets long names use the full row width now that no trailing button is reserved', () => {
+  it('lets long names use the remaining row width beside the trailing more button', () => {
     render(
       <KnowledgeBaseRow
         base={createKnowledgeBase({ name: 'A very long knowledge base name that should stay within the text column' })}
@@ -164,6 +166,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )

@@ -31,262 +31,118 @@
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "Agregar",
-        "bindAgent": "Agente vinculante",
-        "chatIdsAutoTrackHint": "Cuando se deja vacío, el sistema lo rastreará automáticamente: primero debes enviar un mensaje al Bot en la plataforma, luego el sistema registrará el ID del chat para futuras notificaciones.",
-        "comingSoon": "Próximamente",
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Asesor integrado de Cherry Studio. Diagnosticar problemas, guiar operaciones, recopilar preguntas frecuentes, enviar errores/solicitudes de funciones y buscar/crear Habilidades"
+      }
+    },
+    "channels": {
+      "add": "Agregar",
+      "bindAgent": "Agente vinculante",
+      "chatIdsAutoTrackHint": "Cuando se deja vacío, el sistema lo rastreará automáticamente: primero debes enviar un mensaje al Bot en la plataforma, luego el sistema registrará el ID del chat para futuras notificaciones.",
+      "comingSoon": "Próximamente",
+      "connected": "Conectado",
+      "connecting": "Conectando",
+      "createError": "Error al crear el canal",
+      "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
+      "deleteError": "Error al eliminar el canal",
+      "description": "Conecte su agente a plataformas de mensajería.",
+      "disconnected": "Desconectado",
+      "discord": {
+        "botToken": "Token del Bot",
+        "botTokenPlaceholder": "Introduce tu token de bot de Discord",
+        "channelIds": "IDs de canales permitidos",
+        "channelIdsHint": "Formato: canal:id o mp:id. Dejar vacío para permitir todos.",
+        "channelIdsPlaceholder": "canal:123456789, md:987654321",
+        "description": "Recibir y responder mensajes a través de un bot de Discord usando la pasarela WebSocket.",
+        "title": "Discord",
+        "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
+      },
+      "error": "Error",
+      "feishu": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "Introduzca el App Secret de su aplicación Feishu",
+        "chatIds": "IDs de chat permitidos",
+        "chatIdsHint": "IDs de chat separados por comas. Deje vacío para permitir todos los chats.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "Conectado",
-        "connecting": "Conectando",
-        "createError": "Error al crear el canal",
-        "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
-        "deleteError": "Error al eliminar el canal",
-        "description": "Conecte su agente a plataformas de mensajería.",
+        "description": "Recibir y responder mensajes a través de un bot de Feishu/Lark usando WebSocket.",
+        "domain": "Dominio",
+        "domainFeishu": "Feishu (China)",
+        "domainLark": "Lark (Internacional)",
+        "encryptKey": "Clave de cifrado",
+        "encryptKeyPlaceholder": "Introduzca la clave de cifrado de su aplicación Feishu",
+        "loginHint": "No se han configurado credenciales. Activa el canal para iniciar el registro con código QR o introduce manualmente el ID de la aplicación y el secreto de la aplicación.",
+        "qrExpired": "Código QR expirado. Por favor, inténtalo de nuevo cambiando el canal.",
+        "qrHint": "Esperando el escaneo del código QR...",
+        "qrScanHint": "Abre Feishu en tu teléfono y escanea el código QR para crear una aplicación de bot.",
+        "qrTitle": "Registro con código QR de Feishu",
+        "title": "Feishu",
+        "verificationToken": "Token de verificación",
+        "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
+      },
+      "logs": "Registros",
+      "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
+      "noLogs": "Aún no hay registros",
+      "notifyReceiver": "Recibir notificaciones de tareas",
+      "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Ingrese su App ID de QQ Bot",
+        "chatIds": "IDs de chat permitidos",
+        "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Dejar vacío para permitir todos.",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
+        "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
+        "title": "QQ",
+        "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
+      },
+      "security": {
+        "inheritFromAgent": "Heredar del agente",
+        "permissionMode": "Modo de Permisos del Canal",
+        "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
+      },
+      "selectAgent": "Selecciona un agente para vincular",
+      "slack": {
+        "appToken": "Token a nivel de aplicación",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Token del Bot",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "IDs de Canales Permitidos",
+        "channelIdsHint": "IDs de canales de Slack. Dejar vacío para permitir todos.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Recibe y responde a mensajes mediante un bot de Slack usando el modo Socket.",
+        "title": "Slack",
+        "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
+      },
+      "tab": "Canales",
+      "telegram": {
+        "botToken": "Token del bot",
+        "botTokenPlaceholder": "Ingrese su token de bot de Telegram",
+        "chatIds": "IDs de chat permitidos",
+        "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los chats.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Recibir y responder mensajes a través de un bot de Telegram usando long polling.",
+        "title": "Telegram"
+      },
+      "title": "Canales",
+      "updateError": "Error al actualizar el canal",
+      "wechat": {
+        "addAccount": "Agregar cuenta de WeChat",
+        "chatIds": "IDs de Usuario Permitidos",
+        "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los usuarios.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Conectado",
+        "description": "Recibe y responde a mensajes a través de WeChat utilizando la API de iLink Bot.",
         "disconnected": "Desconectado",
-        "discord": {
-          "botToken": "Token del Bot",
-          "botTokenPlaceholder": "Introduce tu token de bot de Discord",
-          "channelIds": "IDs de canales permitidos",
-          "channelIdsHint": "Formato: canal:id o mp:id. Dejar vacío para permitir todos.",
-          "channelIdsPlaceholder": "canal:123456789, md:987654321",
-          "description": "Recibir y responder mensajes a través de un bot de Discord usando la pasarela WebSocket.",
-          "title": "Discord",
-          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
-        },
-        "error": "Error",
-        "feishu": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
-          "appSecret": "App Secret",
-          "appSecretPlaceholder": "Introduzca el App Secret de su aplicación Feishu",
-          "chatIds": "IDs de chat permitidos",
-          "chatIdsHint": "IDs de chat separados por comas. Deje vacío para permitir todos los chats.",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "Conectado",
-          "description": "Recibir y responder mensajes a través de un bot de Feishu/Lark usando WebSocket.",
-          "domain": "Dominio",
-          "domainFeishu": "Feishu (China)",
-          "domainLark": "Lark (Internacional)",
-          "encryptKey": "Clave de cifrado",
-          "encryptKeyPlaceholder": "Introduzca la clave de cifrado de su aplicación Feishu",
-          "loginHint": "No se han configurado credenciales. Activa el canal para iniciar el registro con código QR o introduce manualmente el ID de la aplicación y el secreto de la aplicación.",
-          "qrExpired": "Código QR expirado. Por favor, inténtalo de nuevo cambiando el canal.",
-          "qrHint": "Esperando el escaneo del código QR...",
-          "qrScanHint": "Abre Feishu en tu teléfono y escanea el código QR para crear una aplicación de bot.",
-          "qrTitle": "Registro con código QR de Feishu",
-          "title": "Feishu",
-          "verificationToken": "Token de verificación",
-          "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
-        },
-        "logs": "Registros",
-        "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
-        "noLogs": "Aún no hay registros",
-        "notifyReceiver": "Recibir notificaciones de tareas",
-        "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Ingrese su App ID de QQ Bot",
-          "chatIds": "IDs de chat permitidos",
-          "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Dejar vacío para permitir todos.",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
-          "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
-          "title": "QQ",
-          "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
-        },
-        "security": {
-          "inheritFromAgent": "Heredar del agente",
-          "permissionMode": "Modo de Permisos del Canal",
-          "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
-        },
-        "selectAgent": "Selecciona un agente para vincular",
-        "slack": {
-          "appToken": "Token a nivel de aplicación",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Token del Bot",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "IDs de Canales Permitidos",
-          "channelIdsHint": "IDs de canales de Slack. Dejar vacío para permitir todos.",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "Recibe y responde a mensajes mediante un bot de Slack usando el modo Socket.",
-          "title": "Slack",
-          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
-        },
-        "soulModeRequired": "Este agente no tiene el Modo Autónomo habilitado. Las funciones del canal no funcionarán. Por favor, habilítalo en la configuración del agente.",
-        "tab": "Canales",
-        "telegram": {
-          "botToken": "Token del bot",
-          "botTokenPlaceholder": "Ingrese su token de bot de Telegram",
-          "chatIds": "IDs de chat permitidos",
-          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los chats.",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Recibir y responder mensajes a través de un bot de Telegram usando long polling.",
-          "title": "Telegram"
-        },
-        "title": "Canales",
-        "updateError": "Error al actualizar el canal",
-        "wechat": {
-          "addAccount": "Agregar cuenta de WeChat",
-          "chatIds": "IDs de Usuario Permitidos",
-          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los usuarios.",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "Conectado",
-          "description": "Recibe y responde a mensajes a través de WeChat utilizando la API de iLink Bot.",
-          "disconnected": "Desconectado",
-          "loginHint": "El primer inicio de sesión requiere escanear un código QR. Verifica los registros de la aplicación para obtener la URL de inicio de sesión.",
-          "qrHint": "Abre WeChat en tu teléfono, escanea el código QR para iniciar sesión.",
-          "qrTitle": "Inicio de sesión con código QR de WeChat",
-          "title": "WeChat",
-          "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
-        }
-      },
-      "heartbeat": {
-        "enabled": "Habilitar Heartbeat",
-        "enabledHelper": "Cuando está habilitado y heartbeat.md existe en el espacio de trabajo, el programador lee su contenido y lo envía a la sesión principal en el intervalo configurado.",
-        "interval": "Intervalo (minutos)",
-        "intervalHelper": "Con qué frecuencia se ejecuta el heartbeat, en minutos."
-      },
-      "sandbox": {
-        "description": "Restringe el acceso al sistema de archivos y red del agente al directorio del espacio de trabajo usando sandboxing a nivel de sistema operativo.",
-        "helper": "Restringir el acceso al sistema de archivos y comandos a la ruta del espacio de trabajo.",
-        "label": "Modo Sandbox"
-      },
-      "scheduler": {
-        "cron": {
-          "helper": "Expresión cron estándar (ej: '*/30 * * * *' para cada 30 minutos).",
-          "label": "Expresión Cron",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "El programador activa el agente automáticamente según un horario.",
-        "enabled": "Habilitar programador",
-        "enabledHelper": "Cuando está habilitado, el agente se ejecutará automáticamente según el horario configurado.",
-        "errors": {
-          "invalidCron": "Expresión cron inválida",
-          "invalidDelay": "El retraso debe ser un número positivo",
-          "invalidInterval": "El intervalo debe ser un número positivo"
-        },
-        "interval": {
-          "helper": "Con qué frecuencia debe ejecutarse el agente, en segundos.",
-          "label": "Intervalo (segundos)"
-        },
-        "lastRun": "Última ejecución",
-        "never": "Nunca",
-        "nextRun": "Próxima ejecución",
-        "oneTime": {
-          "helper": "Retraso único en segundos antes de que el agente se ejecute.",
-          "label": "Retraso (segundos)"
-        },
-        "status": {
-          "running": "Ejecutando",
-          "stopped": "Detenido",
-          "tickInProgress": "Tick en progreso"
-        },
-        "tab": "Programador",
-        "title": "Configuración del programador",
-        "type": {
-          "cron": "Expresión Cron",
-          "interval": "Intervalo fijo",
-          "label": "Tipo de programación",
-          "one-time": "Retraso único"
-        }
-      },
-      "soul": {
-        "description": "El alma define la personalidad y el comportamiento base del agente. Se lee desde soul.md en la raíz del espacio de trabajo.",
-        "empty": "No se encontró soul.md en la raíz del espacio de trabajo. Cree uno para definir la personalidad del agente.",
-        "enabled": "Habilitar alma",
-        "enabledHelper": "Cuando está habilitado, el agente lee soul.md desde la raíz del espacio de trabajo y lo antepone al prompt del sistema.",
-        "fileLabel": "soul.md",
-        "preview": "Vista previa del alma",
-        "tab": "Alma",
-        "title": "Configuración del alma"
-      },
-      "tasks": {
-        "add": "Agregar tarea",
-        "cancel": "Cancelar",
-        "channels": {
-          "label": "Enviar a Canales",
-          "noActiveChatIds": "Los canales seleccionados no tienen destinatarios disponibles (ID de chat). Es posible que los resultados de la tarea no se entreguen. Primero, envíe un mensaje al Bot en la plataforma.",
-          "placeholder": "Seleccionar canales para recibir resultados"
-        },
-        "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
-        "delete": {
-          "confirm": "¿Está seguro de que desea eliminar esta tarea?",
-          "label": "Eliminar"
-        },
-        "edit": "Editar",
-        "empty": "No hay tareas programadas. Agregue una para comenzar.",
-        "error": {
-          "createFailed": "Error al crear la tarea",
-          "deleteFailed": "Error al eliminar la tarea",
-          "loadFailed": "Error al cargar las tareas",
-          "runFailed": "Error al ejecutar la tarea",
-          "updateFailed": "Error al actualizar la tarea"
-        },
-        "frequency": {
-          "everyPrefix": "Cada",
-          "everySuffix": "minutos",
-          "label": "Frecuencia de ejecución"
-        },
-        "intervalPlaceholder": "Al menos 1",
-        "intervalUnit": "minutos",
-        "lastRun": "Última ejecución",
-        "logs": {
-          "cancelled": "Cancelado",
-          "completed": "Completado",
-          "duration": "Duración",
-          "empty": "Aún no hay historial de ejecución.",
-          "failed": "Fallido",
-          "justNow": "ahora mismo",
-          "label": "Historial de ejecución",
-          "loadError": "Error al cargar el historial de ejecución",
-          "result": "Resultado",
-          "runAt": "Ejecutado en",
-          "running": "Corriendo...",
-          "search": "Buscar registros...",
-          "status": "Estado",
-          "viewSession": "Ver sesión"
-        },
-        "name": {
-          "label": "Nombre",
-          "placeholder": "ej: Revisión de código diaria"
-        },
-        "nextRun": "Próxima ejecución",
-        "oncePlaceholder": "Seleccionar fecha y hora",
-        "pause": "Pausar",
-        "prompt": {
-          "expand": "Expandir editor",
-          "label": "Prompt",
-          "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
-        },
-        "resume": "Reanudar",
-        "run": "Ejecutar",
-        "runTriggered": "Tarea activada",
-        "save": "Guardar",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "Intervalo",
-          "once": "Una vez"
-        },
-        "status": {
-          "active": "Activo",
-          "completed": "Completado",
-          "paused": "Pausado"
-        },
-        "tab": "Tareas",
-        "time": {
-          "hoursAgo": "hace {{count}}h",
-          "minutesAgo": "{{count}}m hace"
-        },
-        "timeout": {
-          "label": "Tiempo máximo de ejecución",
-          "placeholder": "Sin límite"
-        },
-        "title": "Tareas programadas"
-      },
-      "warning": {
-        "bypassPermissions": "Los agentes CherryClaw se ejecutan en modo automático completo por defecto. Todas las herramientas se ejecutan sin pedir aprobación."
+        "loginHint": "El primer inicio de sesión requiere escanear un código QR. Verifica los registros de la aplicación para obtener la URL de inicio de sesión.",
+        "qrHint": "Abre WeChat en tu teléfono, escanea el código QR para iniciar sesión.",
+        "qrTitle": "Inicio de sesión con código QR de WeChat",
+        "title": "WeChat",
+        "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
       }
     },
     "delete": {
@@ -339,14 +195,19 @@
     "home": {
       "welcome_title": "¿De qué hablaremos hoy?"
     },
+    "icon": {
+      "type": "Icono de Agente"
+    },
     "input": {
-      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando",
-      "soul_placeholder": "Ayúdame a conectarme a Telegram"
+      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
     },
     "list": {
       "error": {
         "failed": "Error al listar agentes."
       }
+    },
+    "manage": {
+      "title": "Gestionar Agentes"
     },
     "pin": {
       "title": "Agente Pin"
@@ -499,6 +360,7 @@
         "label": "Herramientas preaprobadas",
         "placeholder": "Seleccionar herramientas preaprobadas"
       },
+      "auto_rename": "Generar nombre de tarea",
       "create": {
         "error": {
           "failed": "Error al añadir una sesión"
@@ -712,12 +574,6 @@
         "tab": "Habilidades",
         "title": "Habilidades Instaladas"
       },
-      "soulMode": {
-        "description": "Cuando está habilitado, el agente utiliza un mensaje del sistema personalizado desde archivos soul del espacio de trabajo, inyecta herramientas de gestión de tareas autónomas y desactiva las herramientas interactivas no adecuadas para el funcionamiento autónomo.",
-        "disabledBadge": "Desactivado por el Modo Autónomo",
-        "disabledTooltip": "Esta herramienta se desactiva automáticamente cuando el Modo Autónomo está activo.",
-        "title": "Modo Autónomo"
-      },
       "tooling": {
         "mcp": {
           "description": "Conecta servidores MCP para desbloquear herramientas adicionales que puedes aprobar arriba.",
@@ -784,6 +640,94 @@
       }
     },
     "sidebar_title": "Agentes",
+    "skill": {
+      "manage": {
+        "title": "Gestionar habilidades"
+      }
+    },
+    "tasks": {
+      "add": "Agregar tarea",
+      "cancel": "Cancelar",
+      "channels": {
+        "label": "Enviar a Canales",
+        "noActiveChatIds": "Los canales seleccionados no tienen destinatarios disponibles (ID de chat). Es posible que los resultados de la tarea no se entreguen. Primero, envíe un mensaje al Bot en la plataforma.",
+        "placeholder": "Seleccionar canales para recibir resultados"
+      },
+      "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
+      "delete": {
+        "confirm": "¿Está seguro de que desea eliminar esta tarea?",
+        "label": "Eliminar"
+      },
+      "edit": "Editar",
+      "empty": "No hay tareas programadas. Agregue una para comenzar.",
+      "error": {
+        "createFailed": "Error al crear la tarea",
+        "deleteFailed": "Error al eliminar la tarea",
+        "loadFailed": "Error al cargar las tareas",
+        "runFailed": "Error al ejecutar la tarea",
+        "updateFailed": "Error al actualizar la tarea"
+      },
+      "frequency": {
+        "everyPrefix": "Cada",
+        "everySuffix": "minutos",
+        "label": "Frecuencia de ejecución"
+      },
+      "intervalPlaceholder": "Al menos 1",
+      "intervalUnit": "minutos",
+      "lastRun": "Última ejecución",
+      "logs": {
+        "cancelled": "Cancelado",
+        "completed": "Completado",
+        "duration": "Duración",
+        "empty": "Aún no hay historial de ejecución.",
+        "failed": "Fallido",
+        "justNow": "ahora mismo",
+        "label": "Historial de ejecución",
+        "loadError": "Error al cargar el historial de ejecución",
+        "result": "Resultado",
+        "runAt": "Ejecutado en",
+        "running": "Corriendo...",
+        "search": "Buscar registros...",
+        "status": "Estado",
+        "viewSession": "Ver sesión"
+      },
+      "name": {
+        "label": "Nombre",
+        "placeholder": "ej: Revisión de código diaria"
+      },
+      "nextRun": "Próxima ejecución",
+      "oncePlaceholder": "Seleccionar fecha y hora",
+      "pause": "Pausar",
+      "prompt": {
+        "expand": "Expandir editor",
+        "label": "Prompt",
+        "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
+      },
+      "resume": "Reanudar",
+      "run": "Ejecutar",
+      "runTriggered": "Tarea activada",
+      "save": "Guardar",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "Intervalo",
+        "once": "Una vez"
+      },
+      "status": {
+        "active": "Activo",
+        "completed": "Completado",
+        "paused": "Pausado"
+      },
+      "tab": "Tareas",
+      "time": {
+        "hoursAgo": "hace {{count}}h",
+        "minutesAgo": "{{count}}m hace"
+      },
+      "timeout": {
+        "label": "Tiempo máximo de ejecución",
+        "placeholder": "Sin límite"
+      },
+      "title": "Tareas programadas"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -935,6 +879,18 @@
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "Inspecciona y gestiona esta configuración de agente y canales",
+          "label": "Configuración del Agente"
+        },
+        "CherryCron": {
+          "description": "Gestiona el programador dentro de la aplicación",
+          "label": "Planificador"
+        },
+        "CherryGenerateImage": {
+          "description": "Genera una imagen a partir de un texto descriptivo utilizando tu modelo de pintura configurado",
+          "label": "Generar Imagen"
+        },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
           "label": "Gestionar conocimiento"
@@ -943,6 +899,10 @@
           "description": "Busca en tus bases de conocimiento",
           "label": "Búsqueda de conocimiento"
         },
+        "CherryNotify": {
+          "description": "Envía una notificación a través de un canal conectado",
+          "label": "Notificar"
+        },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
           "label": "Obtención web"
@@ -950,10 +910,6 @@
         "CherryWebSearch": {
           "description": "Busca en la web a través de tu proveedor configurado",
           "label": "Búsqueda en la web"
-        },
-        "ClawCron": {
-          "description": "Gestiona el programador dentro de la aplicación",
-          "label": "Planificador"
         },
         "Edit": {
           "description": "Realiza ediciones dirigidas a archivos específicos",
@@ -1087,6 +1043,7 @@
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
       "menu_title": "Eliminar todas las conversaciones con el asistente",
+      "success_title": "Se eliminaron {{count}} temas",
       "title": "Vaciar Tema"
     },
     "copy": {
@@ -1296,12 +1253,14 @@
       "add": "Agregar etiqueta",
       "delete": "Eliminar etiqueta",
       "deleteConfirm": "¿Está seguro de que desea eliminar esta etiqueta?",
+      "group_by": "Agrupar por etiqueta",
       "manage": "Gestión de etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Aún no hay etiquetas",
       "settings": {
         "title": "Configuración de etiquetas"
       },
+      "ungroup": "Desactivar la agrupación de etiquetas",
       "untagged": "Sin agrupar"
     },
     "title": "Asistente",
@@ -1442,7 +1401,7 @@
         "title": "En cola ({{count}})"
       },
       "generate_image": "Generar imagen",
-      "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
+      "generate_image_no_model": "Configura un modelo de pintura en Configuración › Modelo predeterminado",
       "knowledge_base": "Base de conocimientos",
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
@@ -1458,6 +1417,7 @@
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
+      "resize_height": "Ajustar altura de entrada",
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
@@ -1476,6 +1436,7 @@
         },
         "title": "Recursos"
       },
+      "restore": "Restaurar",
       "send": "Enviar",
       "send_failed": "Error al enviar el mensaje",
       "settings": "Configuración",
@@ -1484,8 +1445,7 @@
           "clear": "Borrar historial de conversación",
           "compact": "Conversación compacta con instrucciones de enfoque opcionales",
           "context": "Visualiza el uso del contexto actual como una cuadrícula coloreada",
-          "cost": "Mostrar estadísticas de uso de tokens (consulte la guía de seguimiento de costos para obtener detalles específicos de la suscripción)",
-          "todos": "Lista de tareas pendientes actuales"
+          "usage": "Mostrar costo de sesión, límites de uso del plan y estadísticas de actividad"
         },
         "description": "Comandos de sesión de agente con barra",
         "title": "Comandos de barra"
@@ -1515,6 +1475,11 @@
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
         "file_not_found": "Archivo no encontrado: {{path}}",
+        "generate_image": {
+          "failed": "La generación de la imagen falló",
+          "generating": "Generando imagen…",
+          "title": "Imagen generada"
+        },
         "open_file": "Abrir archivo",
         "open_file_error": "Error al abrir el archivo: {{path}}",
         "reveal_in_finder": "Mostrar en el Finder"
@@ -1563,8 +1528,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Caché {{hit_rate}}%",
+        "tooltip": "Lectura de caché {{cache_read}} / escritura de caché {{cache_write}} / sin caché {{no_cache}} · {{saved}} tokens de entrada guardados"
       },
       "editing_current": "Este mensaje está siendo editado en el compositor",
       "flow": {
@@ -1583,6 +1548,11 @@
       "new": {
         "branch": {
           "created": "Nueva rama creada",
+          "disabled": {
+            "active": "Este nodo ya está seleccionado. Continúa escribiendo para extender la rama desde aquí.",
+            "latest": "Ya estás al final de esta rama. Continúa escribiendo para extenderla.",
+            "no_follow_up": "Todavía no hay seguimiento después de este mensaje. Cambia a este nodo y continúa escribiendo en su lugar."
+          },
           "label": "Rama nueva"
         },
         "context": "Limpiar contexto"
@@ -1613,6 +1583,13 @@
       "top": "Volver arriba"
     },
     "resend": "Reenviar",
+    "resource_view": {
+      "menu": {
+        "agent": "Agentes",
+        "assistant": "Asistentes",
+        "skill": "Habilidades"
+      }
+    },
     "save": {
       "file": {
         "title": "Guardar en archivo local"
@@ -1697,6 +1674,7 @@
               "tip": "El tema se guardará en la base de conocimientos en forma de contexto de conversación completo."
             }
           },
+          "source_fallback": "Conversación",
           "success": "El tema se ha guardado correctamente en la base de conocimiento ({{count}} elementos)",
           "title": "Guardar tema en la base de conocimientos"
         }
@@ -1906,54 +1884,212 @@
     }
   },
   "code": {
+    "add_provider_hint": "Añadir proveedor en Configuración → Servicio de modelo",
+    "add_provider_hint_anthropic_messages": "Configura un endpoint de Mensajes de Anthropic en Configuración → Servicio de Modelo",
+    "add_provider_hint_gemini": "Configura un endpoint de Gemini en Configuración → Servicio de modelo",
+    "add_provider_hint_openai_responses": "Configura un endpoint de Respuestas de OpenAI en Configuración → Servicio de Modelo",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Desactivar Contexto 1M",
+        "disable_attribution_header": "Desactivar encabezado de atribución",
+        "disable_auto_upgrade": "Desactivar actualización automática",
+        "disable_bundled_skills": "Desactivar habilidades incluidas",
+        "disable_compact": "Desactivar compactación",
+        "disable_extra_usage_command": "Desactivar Comando de Uso Adicional",
+        "disable_nonessential_traffic": "Desactivar Tráfico No Esencial",
+        "disable_terminal_title": "Desactivar título de terminal",
+        "effort_level_hint": "Nivel de Esfuerzo",
+        "enable_teammates": "Habilitar compañeros de equipo",
+        "enable_tool_search": "Activar búsqueda de herramientas",
+        "fable_model": "Fábula",
+        "haiku_model": "Haiku",
+        "hide_attribution": "Ocultar atribución de IA",
+        "max_context_tokens_hint": "Tokens de Contexto Máximos",
+        "max_output_tokens_hint": "Tokens de salida máximos",
+        "model_column": "Modelo de solicitud",
+        "model_roles": "Mapeo de roles del modelo",
+        "model_roles_hint": "Sobrescribir los modelos utilizados para subtareas en segundo plano (por ejemplo, compactación, títulos). Dejar vacío para seguir el modelo principal.",
+        "options": "Opciones Rápidas",
+        "opus_model": "Opus",
+        "permissions_allow": "Permitir (separados por comas)",
+        "permissions_deny": "Denegar (separado por comas)",
+        "permissions_hint": "Preaprobar o denegar patrones de herramientas. Admite comodines como Read(secrets-*/config.json).",
+        "role_column": "Rol",
+        "sonnet_model": "Soneto",
+        "subagent_model": "Subagent"
+      },
+      "codex": {
+        "disable_response_storage": "Desactivar Almacenamiento de Respuestas",
+        "goal_mode": "Activar Modo de Objetivo",
+        "remote_compaction": "Habilitar compactación remota"
+      },
+      "gemini": {
+        "checkpointing": "Activar puntos de control",
+        "disable_usage_stats": "Desactivar estadísticas de uso",
+        "hide_banner": "Ocultar Banner de Inicio",
+        "vim_mode": "Activar Modo Vim"
+      },
+      "kimi": {
+        "disable_telemetry": "Desactivar telemetría",
+        "keep_background_tasks": "Mantener tareas en segundo plano al salir",
+        "micro_compaction": "Habilitar Micro Compactación",
+        "plan_mode": "Modo de Plan Predeterminado",
+        "thinking": "Activar Pensamiento"
+      },
+      "opencode": {
+        "auto_compact": "Compactación automática",
+        "enable_reasoning": "Habilitar Razonamiento"
+      },
+      "permission_mode": "Aprobación de permiso",
+      "permission_modes": {
+        "accept_edits": "Aceptar ediciones",
+        "ask": "Preguntar",
+        "auto": "Auto",
+        "auto_edit": "Edición automática",
+        "bypass_high_risk": "Omitir permisos (alto riesgo)",
+        "default": "Predeterminado",
+        "default_allow_all": "Predeterminado (Permitir todo)",
+        "deny": "Denegar",
+        "full_access_high_risk": "Acceso Completo (Alto Riesgo)",
+        "manual": "Manual",
+        "plan": "Plan",
+        "read_only": "Solo lectura",
+        "workspace": "Espacio de trabajo",
+        "yolo_high_risk": "YOLO (Alto Riesgo)"
+      },
+      "qwen": {
+        "classify_all_shell": "Clasificar Todos los Comandos de Shell",
+        "disable_auto_update": "Desactivar actualización automática",
+        "disable_usage_stats": "Desactivar estadísticas de uso",
+        "hide_banner": "Ocultar Banner de Inicio",
+        "vim_mode": "Activar modo Vim"
+      },
+      "reasoning_effort": "Esfuerzo de razonamiento",
+      "reasoning_efforts": {
+        "default": "Predeterminado",
+        "high": "Alto",
+        "low": "Bajo",
+        "medium": "Medio",
+        "minimal": "Mínimo",
+        "xhigh": "Extra Alto"
+      },
+      "select_placeholder": "Seleccionar…"
+    },
+    "api_gateway": {
+      "description": "Cualquier CLI, cualquier modelo",
+      "requires_running": "Mantén Cherry Studio en ejecución después de habilitarlo: la CLI externa se conecta a la puerta de enlace que aloja.",
+      "title": "Puerta de enlace unificada"
+    },
+    "apply_failed": "Error al escribir la configuración de la CLI en el archivo del sistema",
     "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",
     "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
+    "can_upgrade": "Actualización disponible",
+    "clear_config_failed": "Error al borrar la configuración de la CLI. Es posible que sus credenciales sigan estando en los archivos de configuración de la herramienta.",
+    "cli_config": {
+      "format_failed": "Error de formato. Verifica la sintaxis del archivo.",
+      "hint": "Este es el contenido que se escribirá en el archivo de configuración CLI del sistema. Las claves de API no se guardan en las preferencias.",
+      "title": "Archivo de Configuración CLI",
+      "unknown_model": "Modelo desconocido",
+      "unknown_provider": "Proveedor desconocido"
+    },
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "CLI de Gemini",
+      "github_copilot_cli": "CLI de GitHub Copilot",
+      "kimi_code": "Código Kimi",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Código Qwen"
+    },
+    "collapse": "Colapsar",
+    "config_json_hint": "Pega o edita JSON en bruto; se mantiene sincronizado con los campos de arriba",
+    "configure": "Configurar",
+    "configuring_provider": "Configurar {{provider}}",
     "count_one": "{{count}} artículo",
     "count_other": "{{count}} artículos",
+    "current_config": "Actual",
+    "current_config_settings": "Configuración Actual",
     "custom_path": "Ruta personalizada",
     "custom_path_error": "Error al establecer la ruta de terminal personalizada",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "disable": "Desactivar",
+    "edit_config": "Editar Configuración",
+    "enable": "Habilitar",
+    "enabled": "Habilitado",
+    "endpoint_default": "Usando el proveedor predeterminado",
+    "endpoint_hint": "Endpoint / Clave en Model Service",
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
+    "format_json": "Format",
     "hero_tagline": "Elige una herramienta CLI para configurar",
+    "install": "Instalar",
     "install_bun": "Instalar Bun",
+    "install_error": "Instalación fallida",
+    "install_success": "Instalación exitosa",
+    "install_tool_first": "Instala {{toolName}} primero para seleccionar un proveedor",
+    "installing": "Instalando…",
     "installing_bun": "Instalando...",
+    "latest": "Último",
     "launch": {
       "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
       "error": "Error al iniciar, intente nuevamente",
       "label": "Iniciar",
       "launched": "Lanzado",
       "success": "Inicio exitoso",
+      "title": "Lanzar {{tool}}",
       "validation_error": "Complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Iniciando...",
     "model": "modelo",
     "model_hint": "Elige qué modelo de IA debe usar la herramienta CLI",
+    "model_hint_config": "Seleccione el modelo a utilizar",
+    "model_mode": {
+      "common": "General",
+      "detailed": "Detallado"
+    },
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
+    "model_providers": "Proveedores de Modelos",
     "model_required": "Seleccione el modelo",
+    "model_selection": "Selección de modelo",
+    "more": "Más",
+    "move_provider_to_top": "Mover proveedor a la parte superior",
+    "no_matching_providers": "No se encontraron proveedores coincidentes",
+    "no_model_for_provider": "No hay modelo disponible para este proveedor",
+    "no_providers_description": "Habilita un proveedor compatible en Configuración → Servicio de modelo",
+    "no_providers_title": "No hay proveedores habilitados",
+    "no_tools": "No hay herramientas disponibles",
+    "not_installed": "No instalado",
+    "open_provider_settings": "Configuración del proveedor abierto",
+    "own_login": {
+      "title": "{{toolName}} Oficial"
+    },
+    "providerless_hint": "Esta herramienta se autentica a través de su propio flujo de inicio de sesión: simplemente elige un directorio de trabajo y lánzala. Ejecuta la herramienta una vez para iniciar sesión.",
+    "providers": "Proveedores",
+    "raw_config": "Configuración en bruto (JSON)",
+    "search_provider_placeholder": "Proveedores de búsqueda…",
     "select_folder": "Seleccionar carpeta",
+    "select_provider_before_launch": "Seleccione un proveedor antes de lanzar {{toolName}}",
+    "select_tool_to_start": "Seleccione una herramienta CLI de la izquierda para comenzar la configuración",
     "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
     "terminal": "terminal",
     "terminal_hint": "Elige qué aplicación de terminal utilizar para ejecutar la CLI",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
-    "tool_description": {
-      "claude_code": "El asistente oficial de codificación con IA de línea de comandos de Anthropic",
-      "gemini_cli": "Asistente oficial de línea de comandos de Google Gemini",
-      "github_copilot_cli": "Compañero oficial de línea de comandos de GitHub Copilot",
-      "kimi_cli": "Asistente de línea de comandos Kimi de Moonshot",
-      "openai_codex": "CLI oficial de OpenAI para generación de código",
-      "opencode": "Agente de codificación multi-modelo de código abierto",
-      "qoder_cli": "Herramienta de codificación en línea de comandos agentica de Alibaba Qoder",
-      "qwen_code": "Herramienta de codificación CLI de código abierto de Alibaba Tongyi"
-    },
+    "tool_parameters": "Configuración de Parámetros",
+    "up_to_date": "Actualizado",
     "update_options": "Opciones de actualización",
+    "upgrade": "Actualizar",
+    "upgrade_error": "La actualización falló",
+    "upgrade_success": "Actualización exitosa",
     "working_directory": "directorio de trabajo",
     "working_directory_hint": "El directorio de trabajo en el que se ejecuta la herramienta CLI"
   },
@@ -2059,6 +2195,7 @@
     "generate_random_seed": "Generar semilla aleatoria",
     "get_embedding_dimension": "Obtener dimensión de incrustación",
     "go_to_settings": "Ir a la configuración",
+    "help": "Ayuda",
     "html_preview": "Vista previa de HTML",
     "i_know": "Entendido",
     "ignore": "Ignorar",
@@ -2163,6 +2300,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Edición de Imágenes (OpenAI)",
     "image-generation": "Generación de Imágenes (OpenAI)",
     "jina-rerank": "Reordenamiento Jina",
     "openai": "OpenAI",
@@ -2328,6 +2466,7 @@
       "no_match_description": "No hay archivos que coincidan con los filtros actuales",
       "no_match_title": "No se encontraron archivos coincidentes"
     },
+    "empty_trash": "Vaciar papelera",
     "error": {
       "delete_failed": "Error al eliminar archivos",
       "delete_partial_failed": "Algunos archivos no pudieron ser eliminados",
@@ -2345,6 +2484,7 @@
     "missing": "Faltante",
     "modified_at": "Modificado en",
     "name": "Nombre del archivo",
+    "no_actions": "No hay acciones disponibles",
     "open": "Abrir",
     "other": "Otro",
     "permanent_delete": "Eliminar permanentemente",
@@ -2358,13 +2498,18 @@
     "remove_from_library": "Eliminar de la biblioteca",
     "rename": "Renombrar",
     "restore": "Restaurar",
+    "select_all": "Seleccionar archivos visibles",
+    "select_all_short": "Seleccionar todo",
+    "select_file": "Seleccionar {{name}}",
     "selected_count": "{{count}} archivos seleccionados",
+    "selected_missing_hint": "Algunos archivos seleccionados no se encuentran. Localícelos o elimine sus registros.",
     "show_in_folder": "Mostrar en carpeta",
     "size": "Tamaño",
     "text": "Texto",
     "title": "Archivo",
     "trash": "Basura",
     "type": "Tipo",
+    "upload": "Subir archivos",
     "video": "Video"
   },
   "globalSearch": {
@@ -2463,9 +2608,7 @@
       "message": "Localizar mensaje"
     },
     "records": {
-      "agentSubtitle": "{{count}} tareas",
       "agentTitle": "Historial del Agente",
-      "assistantSubtitle": "{{count}} conversaciones",
       "bulkDelete": "Eliminación por lotes",
       "bulkDeleteSessions": {
         "description": "¿Eliminar {{count}} tarea(s) seleccionada(s)?",
@@ -2487,11 +2630,19 @@
         "target": "Asistente objetivo",
         "title": "Mover conversaciones seleccionadas"
       },
+      "clearSearch": "Borrar búsqueda",
       "empty": {
         "description": "No hay conversaciones para los filtros actuales.",
         "sessionsDescription": "No hay tareas para los filtros actuales.",
         "sessionsTitle": "Sin tareas",
         "title": "Sin conversaciones"
+      },
+      "filter": {
+        "selectAgent": "Seleccionar un agente",
+        "selectAssistant": "Seleccionar un asistente",
+        "statusLabel": "Estado",
+        "statusPlaceholder": "Seleccionar estado",
+        "unlinkedAssistant": "Asistente no vinculado"
       },
       "loading": {
         "description": "Cargando lista de conversaciones.",
@@ -2499,15 +2650,9 @@
         "sessionsTitle": "Cargando tareas",
         "title": "Cargando conversaciones"
       },
-      "resultCount": "{{count}} resultados",
       "searchSession": "Buscar tareas...",
       "searchTopic": "Buscar conversaciones...",
       "shortTitle": "Historia",
-      "sidebar": {
-        "searchAssistant": "Buscar asistentes...",
-        "status": "Estado",
-        "unknownAssistant": "Asistente no vinculado"
-      },
       "status": {
         "completed": "Completado",
         "failed": "Falló",
@@ -2515,11 +2660,10 @@
       },
       "table": {
         "actions": "Acciones",
+        "conversation": "Conversación",
         "emptyValue": "—",
-        "messages": "Mensajes",
         "session": "Tarea",
-        "time": "Tiempo",
-        "title": "Título"
+        "time": "Tiempo"
       },
       "title": "Historial de conversación"
     },
@@ -2644,6 +2788,7 @@
           "title": "Importar una sola página web"
         }
       },
+      "back_to_parent": "Atrás",
       "bulk": {
         "delete": "Eliminar",
         "delete_confirm_description": "¿Eliminar {{count}} fuentes de datos seleccionadas? Esta acción no se puede deshacer.",
@@ -2671,6 +2816,7 @@
         "title": "Carga tu primera fuente de datos"
       },
       "empty_description": "Aún no hay fuentes de datos",
+      "empty_folder": "Esta carpeta está vacía",
       "filters": {
         "all": "Todo",
         "directory": "Carpetas",
@@ -2703,9 +2849,9 @@
           "type": "Tipo",
           "updated_at": "Actualizado"
         },
+        "open_row": "Abrir {{title}}",
         "select_all": "Seleccionar todo",
-        "select_row": "Seleccionar fila",
-        "view_chunks_row": "Ver fragmentos para {{title}}"
+        "select_row": "Seleccionar fila"
       },
       "toolbar": {
         "add": "Agregar fuente de datos"
@@ -2716,6 +2862,8 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
+    "empty_action": "Crear Base de Conocimientos",
+    "empty_description": "Aún no tienes ninguna base de conocimientos. Crea una para empezar a organizar y buscar tus documentos.",
     "error": {
       "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
       "failed_base_unknown": "Esta base de conocimientos falló durante la migración. Reconstrúyela y elige un nuevo modelo de incrustación.",
@@ -2748,7 +2896,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} fuentes",
-      "documents_count": "{{count}} documentos",
       "updated_at": "Actualizado {{time}}"
     },
     "name_required": "Se requiere el nombre de la base de conocimientos",
@@ -2767,6 +2914,8 @@
       "chunking": "Fragmentación",
       "default_separator": "Auto (recomendado)",
       "document_count": "Recuento de documentos",
+      "download_local_embedding": "Descargar Modelo Local",
+      "download_local_embedding_failed": "Error al descargar el modelo de incrustación local",
       "embedding_model": "Modelo de incrustación",
       "embedding_model_select": "Selección de Modelo",
       "file_processing": "Procesamiento de archivos",
@@ -2777,15 +2926,11 @@
         "chunk_size": "Recuento objetivo de tokens para cada fragmento de documento. Esto afecta la granularidad de recuperación y la longitud del contexto.",
         "document_count": "Número máximo de fragmentos de documento devueltos para cada recuperación. Valores más altos cubren más contenido pero utilizan más contexto.",
         "embedding_model": "Se utiliza para convertir el contenido de la base de conocimientos en vectores. Cambiar el modelo suele requerir reindexar el contenido existente.",
-        "hybrid_alpha": "Peso de puntuación vectorial en la recuperación híbrida. Valores más altos favorecen el emparejamiento semántico.",
         "processor": "Analizador utilizado al importar archivos para extraer el texto del cuerpo, tablas y contenido relacionado.",
         "rerank_model": "Modelo utilizado para reordenar los resultados de recuperación inicial y mejorar la relevancia del fragmento final.",
-        "search_mode": "Elige un modo de recuperación: búsqueda vectorial para coincidencia semántica, búsqueda de texto completo para palabras clave o búsqueda híbrida para ambas.",
         "smart_chunking": "Dividir automáticamente según la estructura de Markdown (encabezados, bloques de código, párrafos) y nunca dividir dentro de un bloque de código. Desactivar para dividir únicamente por el separador.",
-        "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta.",
-        "threshold_disabled": "Este modo de recuperación devuelve resultados ordenados y no utiliza un umbral de similitud."
+        "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta."
       },
-      "hybrid_alpha": "Alfa Híbrida",
       "processor": "Proveedor de Procesamiento",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de Reordenamiento",
@@ -2794,16 +2939,11 @@
       "retrieval": "Configuración de recuperación",
       "save_action": "Guardar",
       "saved": "Guardado",
-      "search_mode": {
-        "bm25": "Búsqueda de texto completo",
-        "hybrid": "Búsqueda híbrida (recomendada)",
-        "title": "Modo de búsqueda",
-        "vector": "Búsqueda Vectorial"
-      },
       "separator_rule": "Regla de Separador",
       "smart_chunking": "Fragmentación Inteligente",
       "threshold": "Umbral de Similitud",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "Usar Modelo Local"
     },
     "recall": {
       "collapse": "Colapsar fragmento",
@@ -2908,7 +3048,8 @@
       "preview_description": "Descripción general",
       "preview_prompt": "Indicación",
       "scroll_left": "Desplazar categorías a la izquierda",
-      "scroll_right": "Desplazar las categorías hacia la derecha"
+      "scroll_right": "Desplazar las categorías hacia la derecha",
+      "title": "Biblioteca de Asistentes"
     },
     "badge": {
       "update": "Actualizar"
@@ -2973,11 +3114,10 @@
             "placeholder": "Dale un nombre al agente"
           },
           "permission_mode": {
-            "help": "Cambiar a bypassPermissions es equivalente a activar el modo Soul",
             "label": "Modo de permiso",
             "option": {
               "acceptEdits": "Aceptar ediciones",
-              "bypassPermissions": "Omitir permisos (Alma)",
+              "bypassPermissions": "Omitir permisos",
               "default": "Predeterminado",
               "plan": "Modo de planificación"
             }
@@ -2989,10 +3129,6 @@
           "small_model": {
             "hint": "Verificaciones ligeras y formato",
             "label": "Modelo pequeño (opcional)"
-          },
-          "soul_enabled": {
-            "help": "Cuando está habilitado, otorga automáticamente bypassPermissions",
-            "label": "Modo alma"
           }
         },
         "model_config": "Configuración del modelo",
@@ -3034,6 +3170,7 @@
             "no_skills_enabled": "Sin habilidades habilitadas",
             "search_placeholder": "Buscar herramientas o servidores...",
             "skills_coming_soon": "Asignaciones de habilidades próximamente",
+            "skills_enable_all": "Habilitar todo",
             "skills_require_save": "Guardar antes de habilitar habilidades",
             "tab": {
               "mcp": "Servidor MCP",
@@ -3122,6 +3259,7 @@
           "avatar_aria": "Elegir avatar",
           "back": "Atrás",
           "capability": {
+            "builtin_badge": "Habilitado por defecto",
             "import": "Importar habilidad",
             "no_skills": "No hay habilidades instaladas",
             "search": "Habilidades de búsqueda"
@@ -3155,6 +3293,7 @@
       },
       "knowledge": {
         "add": "Agregar base de conocimientos",
+        "create_first": "Conocimiento Abierto para crear uno",
         "desc": "Vincula una o más bases de conocimiento; se recuperarán fragmentos relevantes durante el chat",
         "doc_count": "{{count}} documentos",
         "empty_desc": "Una vez vinculado, el asistente puede responder basándose en el contenido del documento",
@@ -3168,6 +3307,7 @@
         "title": "Bases de conocimiento"
       },
       "prompt": {
+        "copy_variable": "Copiar {{variable}}",
         "create_title": "Nueva Solicitud",
         "dblclick_hint": "Haz doble clic en la vista previa para volver al modo de edición",
         "desc": "El mensaje del sistema se envía como el contexto inicial del asistente",
@@ -3343,6 +3483,10 @@
       "tags": "Etiquetas",
       "title": "Biblioteca"
     },
+    "skill_add": {
+      "local_import": "Importación local",
+      "online_search": "Búsqueda en línea"
+    },
     "skill_detail": {
       "created_at": "Creado",
       "delete_description": "Elimina esta habilidad y toda su configuración. Esta acción no se puede deshacer.",
@@ -3353,6 +3497,15 @@
       "no_description": "Sin descripción",
       "source_files": "Archivos fuente",
       "updated_at": "Actualizado recientemente"
+    },
+    "skill_marketplace": {
+      "empty_description": "Busca en los registros en línea para encontrar habilidades instalables.",
+      "empty_title": "Buscar habilidades",
+      "no_results_description": "Prueba otra palabra clave o importa un archivo ZIP local o un directorio.",
+      "no_results_title": "No se encontraron habilidades",
+      "search_failed_description": "La búsqueda falló. Por favor, inténtelo de nuevo más tarde.",
+      "search_placeholder": "Buscar habilidades...",
+      "title": "Búsqueda de habilidades en línea"
     },
     "sort": {
       "created": "Ordenar por fecha de cre",
@@ -3469,6 +3622,7 @@
     },
     "empty_url": "No se puede descargar la imagen, es posible que la descripción contenga contenido sensible o palabras prohibidas",
     "error": {
+      "avatar_image_too_large": "La imagen es demasiado grande (máx {{limit}})",
       "chunk_overlap_too_large": "El solapamiento del fragmento no puede ser mayor que el tamaño del fragmento",
       "copy": "Fallo al copiar",
       "dimension_too_large": "La dimensión del contenido es demasiado grande",
@@ -3490,6 +3644,7 @@
         "text_extraction_failed": "Error al extraer el texto de {{name}}"
       },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
+      "image_process_failed": "No se pudo procesar la imagen, por favor intente de nuevo",
       "invalid": {
         "api": {
           "host": "Dirección API inválida",
@@ -3654,6 +3809,8 @@
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
       "activity": {
+        "analyze": "Analizar",
+        "analyzing": "Analizando",
         "archive": "archivo",
         "assistantTask": "tarea",
         "availableFeatures": "características disponibles",
@@ -3661,24 +3818,28 @@
         "branch": "rama de código",
         "build": "Construir",
         "building": "Construcción",
+        "calendar": "calendario",
         "check": "Verificar",
         "checking": "Comprobando",
         "codeFiles": "archivos de código",
         "codeHostInfo": "información de alojamiento de código",
-        "commandName": "comando {{name}}",
         "configFiles": "documentos del proyecto y archivos de configuración",
         "copy": "Copiar",
         "copying": "Copiando",
         "create": "Crear",
         "creating": "Creando",
         "currentFolder": "carpeta actual",
+        "data": "datos",
         "delete": "Eliminar",
         "deleting": "Eliminando",
         "documentFiles": "archivos de documentos",
         "download": "Descargar",
         "downloading": "Descargando",
+        "email": "correo electrónico",
+        "environmentInfo": "información del entorno",
         "executeCommand": "Ejecutar comando",
         "executingCommand": "Ejecutando comando",
+        "extensionFailed": "La extensión falló",
         "extract": "Extraer",
         "extracting": "Extrayendo",
         "file": "archivo",
@@ -3707,6 +3868,10 @@
         "repository": "repositorio de código",
         "search": "Encontrar",
         "searching": "Encontrando",
+        "send": "Enviar",
+        "sending": "Enviando",
+        "start": "Iniciar",
+        "starting": "Comenzando",
         "switch": "Interruptor",
         "switching": "Cambio",
         "sync": "Sincronizar",
@@ -3716,6 +3881,8 @@
         "translationFiles": "archivos de traducción",
         "upload": "Cargar",
         "uploading": "Cargando",
+        "usedExtension": "Usó una extensión",
+        "usingExtension": "Usando una extensión",
         "view": "Vista",
         "viewing": "Visualización",
         "webPage": "página web",
@@ -3727,6 +3894,7 @@
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
+      "collapse": "Colapsar",
       "completed": "Completado",
       "error": "Se ha producido un error",
       "groupHeader": "{{count}} llamadas a herramientas",
@@ -3771,6 +3939,7 @@
         "usingTools": "Trabajando en la tarea"
       },
       "preview": "Vista previa",
+      "processed": "Procesado",
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
       "runningHeader": "Trabajando…",
@@ -3907,6 +4076,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configurar modelos personalizados",
       "pin": "Anclar este modelo",
       "unpin": "Desanclar modelo"
     },
@@ -4022,10 +4192,13 @@
     "drop_markdown_hint": "Arrastre y suelte archivos o carpetas de .md aquí para importar",
     "empty": "Sin notas por el momento",
     "expand": "expandir",
+    "exportToPDF": "Exportar a PDF",
     "exportToWord": "Exportar a Word",
     "export_failed": "Exportación a la base de conocimientos fallida",
     "export_knowledge": "exportar notas a la base de conocimientos",
     "export_success": "Exportado con éxito a la base de conocimientos",
+    "export_to_pdf_failed": "No se pudo exportar a PDF",
+    "export_to_pdf_success": "Exportado a PDF",
     "export_to_word_failed": "Error al exportar a Word",
     "folder": "carpeta",
     "load_failed": "Error al cargar la nota",
@@ -4042,6 +4215,8 @@
     "no_valid_files": "No se ha cargado un archivo válido",
     "open_folder": "abrir carpeta externa",
     "open_outside": "Abrir desde el exterior",
+    "print": "Imprimir",
+    "print_failed": "Error al imprimir la nota",
     "rename": "renombrar",
     "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "rename_failed": "Error al renombrar la nota",
@@ -4182,6 +4357,7 @@
       "select_provider_model": "Por favor, selecciona primero un proveedor y un modelo."
     },
     "gateway": {
+      "open_dashboard": "Abrir OpenClaw",
       "port": "Puerto",
       "restart": "Reiniciar",
       "start": "Iniciar Gateway",
@@ -4195,7 +4371,6 @@
       "hint": "macOS: brew install git | Windows: Descarga desde git-scm.com (asegúrate de agregar Git al PATH durante la instalación)",
       "title": "Git Requerido"
     },
-    "install_progress": "Progreso de instalación",
     "installed_at": "OpenClaw instalado en",
     "migration": {
       "description": "Se ha detectado una versión desactualizada de OpenClaw instalada a través de npm. Por favor, reinstala para obtener la última versión oficial.",
@@ -4256,7 +4431,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "¿Estás seguro de que quieres desinstalar OpenClaw? Presiona OK para confirmar.",
-    "uninstall_progress": "Desinstalación en progreso",
     "uninstalled": {
       "description": "OpenClaw se ha desinstalado correctamente.",
       "title": "Desinstalación completada"
@@ -4681,7 +4855,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Álibaba Nube BaiLiàn",
     "deepseek": "Profundo Buscar",
@@ -4694,6 +4868,7 @@
     "github": "GitHub Modelos",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hùnyuán",
@@ -4702,6 +4877,7 @@
     "jina": "Jina",
     "lanyun": "Tecnología Lanyun",
     "lmstudio": "Estudio LM",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -4717,6 +4893,8 @@
     "ollama": "Ollama",
     "open-mineru": "Abrir MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -5302,6 +5480,16 @@
       "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
+    "agent": {
+      "position": {
+        "label": "Posición de sesión",
+        "left": "Izquierda",
+        "right": "Derecha"
+      }
+    },
+    "appearance": {
+      "title": "Apariencia"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5353,7 +5541,8 @@
       },
       "backup": {
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
-        "skip_file_data_title": "Copia de seguridad reducida"
+        "skip_file_data_title": "Copia de seguridad reducida",
+        "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
       },
       "clear_cache": {
         "button": "Limpiar caché",
@@ -5370,6 +5559,7 @@
         "cloud_storage": "Configuración de almacenamiento en la nube",
         "export_settings": "Configuración de exportación",
         "import_settings": "Importar configuración",
+        "note_export": "Exportación de notas",
         "third_party": "Conexiones de terceros"
       },
       "export_menu": {
@@ -5385,75 +5575,6 @@
         "siyuan": "Exportar a Siyuan Notes",
         "title": "Exportar configuración del menú",
         "yuque": "Exportar a Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Seleccionar archivo de copia de seguridad"
-        },
-        "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
-        "file": {
-          "button": "Exportar a archivo",
-          "content": "Exportar datos como archivo de respaldo que puede ser importado en el móvil a través de un archivo.",
-          "export_failed": "Exportación fallida",
-          "export_success": "Exportación exitosa",
-          "title": "Exportar como archivo"
-        },
-        "lan": {
-          "button": "Iniciar transferencia",
-          "connected": "Conectado",
-          "connection_failed": "Conexión fallida",
-          "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
-          "device_list_title": "Dispositivos de red local",
-          "discovered_devices": "Dispositivos descubiertos",
-          "error": {
-            "file_too_large": "Archivo demasiado grande, se admite un máximo de 500 MB",
-            "init_failed": "Falló la inicialización",
-            "invalid_file_type": "Solo se admiten archivos ZIP",
-            "no_file": "Ningún archivo seleccionado",
-            "no_ip": "No se puede obtener la dirección IP",
-            "not_connected": "Por favor, completa primero el apretón de manos.",
-            "send_failed": "Error al enviar el archivo"
-          },
-          "file_transfer": {
-            "cancelled": "Transferencia cancelada",
-            "failed": "Error en la transferencia del archivo: {{message}}",
-            "progress": "Enviando... {{progress}}%",
-            "success": "Archivo enviado con éxito"
-          },
-          "handshake": {
-            "button": "Apretón de manos",
-            "failed": "Error de handshake: {{message}}",
-            "in_progress": "Estrechando manos...",
-            "success": "Handshake completado con {{device}}",
-            "test_message_received": "Recibido pong de {{device}}",
-            "test_message_sent": "Enviado payload de prueba hello world"
-          },
-          "idle_hint": "Escaneo pausado. Inicia el escaneo para encontrar pares de Cherry Studio en tu red local.",
-          "ip_addresses": "Direcciones IP",
-          "last_seen": "Visto por última vez a las {{time}}",
-          "metadata": "Metadatos",
-          "no_connection_warning": "Por favor, abre Transferencia LAN en la aplicación móvil Cherry Studio.",
-          "no_devices": "Aún no se han encontrado pares en LAN",
-          "scan_devices": "Escanear dispositivos",
-          "scanning_hint": "Escaneando tu red local en busca de pares de Cherry Studio...",
-          "send_file": "Enviar archivo",
-          "status": {
-            "completed": "Transferencia completada",
-            "connected": "Conectado",
-            "connecting": "Conectando...",
-            "disconnected": "Desconectado",
-            "error": "Error de conexión",
-            "initializing": "Inicializando conexión...",
-            "preparing": "Preparando transferencia...",
-            "sending": "Transfiriendo {{progress}}%"
-          },
-          "status_badge_idle": "Ocioso",
-          "status_badge_scanning": "Escaneando",
-          "stop_scan": "Detener escaneo",
-          "title": "Transferencia de red local",
-          "transfer_progress": "Progreso de transferencia"
-        },
-        "title": "Exportar al teléfono"
       },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
@@ -5931,6 +6052,74 @@
         "token_placeholder": "Ingrese el Token de Yuque"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Buscar actualizaciones",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
+      "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Instalar",
+      "installError": "Failed to install tool",
+      "installing": "Instalando...",
+      "invalidTool": "Nombre de herramienta o clave inválida",
+      "localModels": {
+        "cancel": "Cancelar",
+        "description": "Modelos que se ejecutan localmente en tu dispositivo: descárgalos una vez y úsalos sin conexión sin necesidad de clave API.",
+        "download": "Descargar",
+        "embedding": {
+          "name": "Embedding Local",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "La descarga falló. Comprueba tu conexión e inténtalo de nuevo.",
+          "inUse": "Todavía utilizado por una base de conocimientos; los pesos se mantuvieron.",
+          "removeFailed": "Error al eliminar. Consulta los registros para más detalles."
+        },
+        "ocr": {
+          "name": "OCR local",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "Eliminar",
+        "status": {
+          "downloading": "Descargando…",
+          "ready": "Listo"
+        },
+        "title": "Modelos Locales"
+      },
+      "notInstalled": "No instalado",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Dependencias del entorno",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version",
+      "updateCheckFailed": "Error al buscar actualizaciones"
+    },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
       "help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
@@ -5991,7 +6180,7 @@
       },
       "title": "Configuración de visualización",
       "topic": {
-        "title": "Configuración de tema"
+        "title": "Configuración de vista de conversación"
       },
       "zoom": {
         "title": "Configuración de zoom"
@@ -6197,6 +6386,9 @@
         "button": "Obtener Servidores",
         "success": "Servidores MCP obtenidos con éxito"
       },
+      "filter": {
+        "label": "Filtro"
+      },
       "findMore": "Más servidores MCP",
       "headers": "Encabezados",
       "headersTooltip": "Encabezados personalizados para solicitudes HTTP",
@@ -6237,6 +6429,7 @@
       "noDescriptionAvailable": "Sin descripción disponible por ahora",
       "noLogs": "Aún no hay registros",
       "noServers": "No se han configurado servidores",
+      "notInstalled": "No instalado",
       "not_support": "El modelo no es compatible",
       "npx_list": {
         "actions": "Acciones",
@@ -6266,6 +6459,7 @@
         "title": "¿Ejecutar MCP externo?"
       },
       "provider": "Proveedor",
+      "providerNotFound": "Proveedor de MCP no encontrado",
       "providerPlaceholder": "Nombre del proveedor",
       "providerUrl": "URL del proveedor",
       "providers": "Proveedores",
@@ -6312,13 +6506,6 @@
         "getToken": "Obtener token de API",
         "getTokenDescription": "Obtener un token de API personal desde su cuenta",
         "noServersAvailable": "No hay servidores MCP disponibles",
-        "providerDescriptions": {
-          "302ai": "302.Servicio MCP de la Plataforma AI",
-          "bailian": "Servicio MCP de la Plataforma Bailian de Alibaba Cloud",
-          "lanyun": "Plataforma en la nube de tecnología Lanyun Servicio MCP",
-          "mcprouter": "Plataforma de Enrutamiento MCP Servicio MCP",
-          "modelscope": "Servicio MCP de la Plataforma ModelScope"
-        },
         "selectProvider": "Seleccionar proveedor:",
         "setToken": "Ingrese su token",
         "success": "Servidor MCP sincronizado correctamente",
@@ -6375,10 +6562,11 @@
       "user": "Usuario"
     },
     "menuGroups": {
-      "appSettings": "Configuración de la aplicación",
-      "integrations": "Modelos",
-      "productivity": "Productividad",
-      "services": "Complementos",
+      "automation": "Automatización",
+      "capabilities": "Capacidades y Herramientas",
+      "models": "Modelos",
+      "personal": "Personal",
+      "quickAccess": "Acceso rápido",
       "system": "Sistema"
     },
     "messages": {
@@ -6498,7 +6686,8 @@
         },
         "model_id": {
           "label": "ID del modelo",
-          "placeholder": "Obligatorio, por ejemplo, gpt-3.5-turbo",
+          "placeholder": "Por ejemplo, gpt-5.5",
+          "required": "Introduzca el ID del modelo",
           "select": {
             "placeholder": "Seleccionar modelo"
           },
@@ -6506,7 +6695,7 @@
         },
         "model_name": {
           "label": "Nombre del modelo",
-          "placeholder": "Por ejemplo, GPT-3.5",
+          "placeholder": "Por ejemplo, GPT-5.5",
           "tooltip": "Por ejemplo, GPT-4"
         },
         "supported_text_delta": {
@@ -6575,14 +6764,18 @@
       },
       "group_disable": "Deshabilitar este grupo",
       "group_enable": "Habilitar este grupo",
-      "list_title": "Model list",
+      "list_title": "Modelos",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "label": "Agregar modelo en la lista"
+          "label": "Añadir todos los modelos"
         },
+        "add_success_enable_failed": "Se agregaron modelos, pero no se pudo habilitar el proveedor.",
         "add_whole_group": "Agregar todo el grupo",
+        "clean_stale_models": "Limpiar modelos obsoletos",
+        "clean_stale_success": "Se limpiaron {{count}} modelos obsoletos",
+        "default_model_cannot_remove": "El modelo predeterminado no se puede eliminar.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6604,11 +6797,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Volver a obtener la lista de modelos",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Eliminar modelo de la lista",
+        "remove_listed": "Eliminar todos los modelos",
         "remove_model": "Eliminar modelo",
+        "remove_skipped_default_in_use": "Se omitieron {{count}} modelos predeterminados",
         "remove_whole_group": "Eliminar todo el grupo",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Obsoleto",
+        "stale_filter": "Obsoleto",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6644,6 +6840,8 @@
       },
       "more_actions": "Más acciones de la lista de modelos",
       "not_enabled_models": "Deshabilitados",
+      "painting_model": "Modelo de pintura",
+      "painting_model_description": "Modelo utilizado para la generación de imágenes",
       "provider_id": "ID del proveedor",
       "provider_key_add_confirm": "¿Desea agregar una clave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Error al agregar la clave API del proveedor: los datos están vacíos",
@@ -6668,7 +6866,7 @@
         "custom_add": "Personalizado",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Añadir"
+        "pull_short": "Obtener lista de modelos"
       },
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
@@ -6695,7 +6893,7 @@
       "assistant": "Mensaje del asistente",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
-      "title": "Configuración de notificaciones"
+      "title": "Notificaciones"
     },
     "openai": {
       "service_tier": {
@@ -6731,48 +6929,6 @@
       }
     },
     "parameter_settings": "Configuración de Parámetros",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
-      "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Instalar",
-      "installError": "Failed to install tool",
-      "installing": "Instalando...",
-      "invalidTool": "Nombre de herramienta o clave inválida",
-      "notInstalled": "No instalado",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Dependencias del entorno",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
@@ -6794,6 +6950,7 @@
         "reorderFailed": "Error al reordenar los prompts",
         "updateFailed": "Error al actualizar el aviso"
       },
+      "manage": "Gestionar Indicaciones",
       "title": "Gestión de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduce el título del prompt",
@@ -6801,6 +6958,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Añadir proveedor",
         "name": {
           "label": "Nombre del proveedor",
           "placeholder": "Por ejemplo, OpenAI",
@@ -6942,15 +7100,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "El proveedor de Claude Code está disponible solo para Agentes: no se puede usar en chat o asistentes.",
+        "description": "Inicia sesión con tu suscripción de Claude",
+        "description_detail": "Este proveedor reutiliza el inicio de sesión de la CLI de Claude Code (Claude Pro/Max) y solo está disponible para Agentes. Abre una terminal y ejecuta `claude /login` para iniciar sesión.",
+        "launch_failed": "No se pudo abrir la terminal. Ejecuta `claude /login` manualmente para iniciar sesión.",
+        "legal_link": "Legal y Cumplimiento",
+        "logged_in": "Iniciado sesión en Claude Code",
+        "logged_in_detail": "Los agentes utilizarán las credenciales de tu suscripción a Claude Code CLI.",
+        "open_terminal": "Abrir terminal para iniciar sesión",
+        "recheck": "Volver a verificar"
+      },
+      "codex": {
+        "account": "Cuenta: {{accountId}}",
+        "description": "Inicia sesión con tu suscripción a ChatGPT",
+        "description_detail": "Este proveedor utiliza tu inicio de sesión de ChatGPT Plus/Pro (OAuth) para acceder a los modelos OpenAI Codex. Tu navegador se abrirá para completar el inicio de sesión.",
+        "logged_in": "Conectado a OpenAI Codex",
+        "sign_in_button": "Iniciar sesión con ChatGPT",
+        "sign_in_failed": "Error al iniciar sesión. Inténtalo de nuevo.",
+        "sign_in_success": "Sesión iniciada en OpenAI Codex",
+        "signing_in": "Esperando al navegador…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7017,6 +7185,7 @@
         "fill_after_create": "Los campos de autenticación se pueden completar después de crear",
         "menu_label": "Agregar instancia"
       },
+      "enable_failed_after_connection": "Conexión exitosa, pero el proveedor no pudo ser habilitado.",
       "filter": {
         "agent": "Soporte de Agente",
         "all": "Todos los Proveedores",
@@ -7026,6 +7195,15 @@
       },
       "filter_agent": "Proveedores compatibles con el agente de filtrado",
       "get_api_key": "Haga clic aquí para obtener la clave",
+      "grok_cli": {
+        "description": "Inicia sesión con tu suscripción a SuperGrok",
+        "description_detail": "Este proveedor utiliza tu inicio de sesión de xAI SuperGrok (OAuth) para acceder a los modelos de Grok CLI (Grok Build, Composer). Tu navegador se abrirá para completar el inicio de sesión.",
+        "logged_in": "Conectado a Grok CLI",
+        "sign_in_button": "Iniciar sesión con xAI",
+        "sign_in_failed": "Error al iniciar sesión. Por favor, inténtelo de nuevo.",
+        "sign_in_success": "Conectado a Grok CLI",
+        "signing_in": "Esperando al navegador…"
+      },
       "logo_upload_failed": "Error al procesar la imagen seleccionada",
       "misc": "otro",
       "more_endpoints": {
@@ -7190,6 +7368,7 @@
       "all_enable": "Habilitar todo",
       "bind_first_to_enable": "Primero vincula un atajo para cambiar su estado de activación",
       "categories": {
+        "all": "Todos",
         "assistant": "Herramientas de asistente de IA",
         "chat": "Interacción de mensajes",
         "general": "Global y Ventana",
@@ -7205,6 +7384,7 @@
       "empty": "No hay accesos directos disponibles en este grupo",
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
+      "filter": "Filtro",
       "label": "Tecla",
       "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
@@ -7212,6 +7392,7 @@
       "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
       "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
+      "print": "Imprimir",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset": "Restablecer",
@@ -7241,6 +7422,9 @@
     },
     "skills": {
       "author": "Autor",
+      "batchInstallComplete": "{{count}} habilidades instaladas",
+      "batchInstallPartialFailed": "Instaladas {{success}}/{{total}} habilidades, {{failed}} fallidas",
+      "batchInstallQueued": "En cola",
       "batchUninstallSuccess": "{{count}} habilidades desinstaladas",
       "builtin": "Integrado",
       "confirmBatchUninstall": "¿Estás seguro de que quieres desinstalar las {{count}} habilidades seleccionadas?",
@@ -7273,6 +7457,9 @@
       "uninstallSuccess": "Habilidad desinstalada: {{name}}",
       "viewSource": "Ver fuente",
       "zip": "CÓDIGO POSTAL"
+    },
+    "system": {
+      "title": "Sistema"
     },
     "theme": {
       "color_primary": "Color del tema",
@@ -7319,6 +7506,13 @@
           "doc2x": {
             "description": "Motor avanzado de restauración de archivos.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) ejecutándose en proceso — completamente offline, sin clave API, con reconocimiento en un hilo en segundo plano para que la interfaz permanezca responsiva. Descarga el modelo (~140MB) en Dependencias del Entorno antes del primer uso.",
+            "name": "PaddleOCR Local",
+            "status": {
+              "local": "Funciona completamente en tu dispositivo"
+            }
           },
           "mineru": {
             "description": "Herramienta de extracción de PDF de alta calidad de código abierto de OpenDataLab.",
@@ -7536,6 +7730,7 @@
   },
   "title": {
     "apps": "Aplicaciones",
+    "chat": "Chat",
     "code": "Código",
     "files": "Archivos",
     "home": "Inicio",
@@ -7546,7 +7741,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configuración",
-    "store": "Biblioteca de asistentes",
     "translate": "Traducir",
     "work": "Trabajo"
   },

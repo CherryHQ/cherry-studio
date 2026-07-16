@@ -32,4 +32,21 @@ describe('useTemporaryTopic', () => {
       }
     })
   })
+
+  it('does not persist a lone surrogate when the placeholder name cut lands inside an emoji', async () => {
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    await act(async () => {
+      await result.current.persist('字'.repeat(29) + '😀' + '文'.repeat(10))
+    })
+
+    expect(dataApiService.patch).toHaveBeenCalledWith('/topics/temp-topic-1', {
+      body: {
+        name: '字'.repeat(29),
+        isNameManuallyEdited: false
+      }
+    })
+  })
 })

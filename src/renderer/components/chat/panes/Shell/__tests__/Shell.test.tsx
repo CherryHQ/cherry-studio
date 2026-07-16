@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -207,6 +207,16 @@ function ShellStateSnapshot() {
   )
 }
 
+function ShellMinimizeButton() {
+  const actions = useShellActions()
+
+  return (
+    <button type="button" onClick={actions.minimize}>
+      minimize shell
+    </button>
+  )
+}
+
 function triggerRightSidebarShortcut() {
   const handler = shortcutHandlers.get('topic.sidebar.toggle')
   if (!handler) throw new Error('Expected right sidebar shortcut to be registered')
@@ -326,6 +336,41 @@ describe('Shell.Toggle', () => {
     expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
   })
 
+  it('syncs when the owning component changes the default open state', () => {
+    const { rerender } = render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
+
+    rerender(
+      <Shell defaultTab="files" defaultOpen={false}>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:trace:false')
+
+    rerender(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+  })
+
   it('does not rerender actions-only consumers when shell state changes', () => {
     render(
       <Shell defaultTab="files">
@@ -380,6 +425,29 @@ describe('Shell.Toggle', () => {
     triggerRightSidebarShortcut()
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
+  it('minimizes from maximized mode without closing the pane', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <Shell.Tabs>
+          <Shell.TabList>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+        <ShellMinimizeButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    triggerRightSidebarShortcut()
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'minimize shell' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
   })
 
   it('does not respond to the right sidebar shortcut when disabled', () => {
@@ -453,6 +521,31 @@ describe('Shell.TabShortcut', () => {
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
     expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
+  })
+
+  it('can stay visible while open and close the active tab without changing its view label', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut
+          tab="files"
+          label="Files"
+          icon={<span data-testid="files-icon" />}
+          openBehavior="toggle-active"
+        />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'common.close_sidebar' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
   })
 })
 
@@ -536,9 +629,8 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    // The opened-pane header uses ConversationShell's edge inset so the tab row is balanced
-    // while the right side still reserves frameless window controls when present.
-    expect(tabList).toHaveClass('pr-[calc(0.5rem+var(--window-controls-width,0px))]', 'pl-2')
+    // The pane header uses the same balanced inset in embedded and detached conversations.
+    expect(tabList).toHaveClass('px-2')
     expect(tabList).not.toHaveClass('pr-11')
     expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
     expect(tabsList).not.toHaveClass('overflow-x-auto')
@@ -551,9 +643,7 @@ describe('Shell.TabList', () => {
     expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
     expect(minimizeButton).not.toHaveAttribute('data-active')
     expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
-    // embedded mode (no WindowFrameProvider) stays no-drag and uses the symmetric pl-2 inset
-    // even when maximized — the traffic-light inset is sub-window-only.
-    expect(tabList).toHaveClass('pl-2')
+    expect(tabList).toHaveClass('px-2', '[-webkit-app-region:no-drag]')
     expect(tabList).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 
@@ -576,7 +666,35 @@ describe('Shell.TabList', () => {
     expect(maximize.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('promotes the header to a drag region when maximized inside a sub-window', () => {
+  it('renders a title-mode header with pane-level maximize and close controls', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Tabs>
+          <Shell.TabList title="Files" showTabs={false}>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Files')
+    expect(screen.queryByTestId('shell-tab-scroll-container')).toBeNull()
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+
+    const closeButton = screen.getByRole('button', { name: 'common.close_sidebar' })
+    expect(closeButton).not.toHaveAttribute('data-shell-tab-shortcut')
+    expect(closeButton).toHaveAttribute('data-tone', 'conversation')
+    expect(closeButton).not.toHaveClass('[&_svg]:!size-3.5')
+    expect(within(closeButton).getByTestId('collapse-icon')).toBeInTheDocument()
+    expect(closeButton.querySelector('.lucide-x')).toBeNull()
+
+    fireEvent.click(closeButton)
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
+  it('keeps the pane header below the detached-window title bar when maximized', () => {
     render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <Shell defaultTab="files">
@@ -591,13 +709,37 @@ describe('Shell.TabList', () => {
 
     const tabList = screen.getByTestId('shell-tab-list')
 
-    // docked (pane open but not maximized) still gates drag off — chat navbar owns the drag region.
     expect(tabList).toHaveClass('[-webkit-app-region:no-drag]')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(tabList).toHaveClass('[-webkit-app-region:drag]')
-    expect(tabList).not.toHaveClass('[-webkit-app-region:no-drag]')
+    expect(tabList).toHaveClass('[-webkit-app-region:no-drag]', 'px-2')
+    expect(tabList).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
+  })
+
+  it('keeps the title-mode pane header below the detached-window title bar when maximized', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <Shell defaultTab="files" defaultOpen>
+          <Shell.Tabs>
+            <Shell.TabList title="Files" showTabs={false}>
+              <Shell.Tab value="files">Files</Shell.Tab>
+            </Shell.TabList>
+          </Shell.Tabs>
+        </Shell>
+      </WindowFrameProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    const tabList = screen.getByTestId('shell-tab-list')
+    const title = screen.getByTestId('shell-tab-title')
+    const controls = title.nextElementSibling
+
+    expect(tabList).toHaveClass('[-webkit-app-region:no-drag]', 'px-2')
+    expect(tabList).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
+    expect(title).toHaveClass('flex-1', 'select-none')
+    expect(controls).toHaveClass('[-webkit-app-region:no-drag]')
   })
 })
 

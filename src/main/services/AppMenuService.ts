@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getI18n } from '@main/i18n'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/adapters/nativeMenuAdapter'
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -86,7 +87,7 @@ export class AppMenuService extends BaseService {
             type: 'custom',
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              application.get('SettingsWindowService').open('/settings/about')
+              openSettingsInMainWindow('/settings/about')
             }
           },
           getCommandItem('app.settings.open'),

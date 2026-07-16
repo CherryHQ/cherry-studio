@@ -112,11 +112,10 @@ export class ProtocolService extends BaseService {
       }
 
       // Default branch: deep link with no main-process handler. Fan out to every
-      // managed renderer (Main / Settings / SubWindow / pooled tool surfaces);
+      // managed renderer (Main / SubWindow / pooled tool surfaces);
       // consumers (oauth.ts, useNutstoreSso, ...) filter by urlObj.hostname/pathname.
       // broadcast() — not broadcastToType(Main) — because the flow-initiating
-      // window is not necessarily Main: the Settings window owns CherryIN OAuth
-      // in v2. Trade-off: the payload reaches renderers that don't need it; if
+      // window is not necessarily Main. Trade-off: the payload reaches renderers that don't need it; if
       // selective routing is required (e.g. to confine OAuth `code`), promote
       // that scheme to its own switch case alongside mcp/providers/navigate.
       //
@@ -127,7 +126,7 @@ export class ProtocolService extends BaseService {
       // PR #14631 review #4282327822 (Important #5). When adding such a host,
       // either route it through a dedicated case or add a parameter allowlist /
       // sensitive-name strip to this default broadcast.
-      application.get('WindowManager').broadcast('protocol-data', {
+      application.get('IpcApiService').broadcast('navigation.protocol_data', {
         url,
         params: Object.fromEntries(params.entries())
       })

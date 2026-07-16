@@ -1,10 +1,11 @@
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
-import { ComposerToken } from '@renderer/components/composer/tokenView'
+import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -29,6 +30,9 @@ interface Props {
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  userContentExpanded?: boolean
+  onUserContentExpandedChange?: (expanded: boolean) => void
 }
 
 const composerTokenIcon: Partial<
@@ -40,7 +44,13 @@ const composerTokenIcon: Partial<
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
 
-const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>(['file', 'knowledge', 'quote', 'skill'])
+const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
+  'file',
+  'folder',
+  'knowledge',
+  'quote',
+  'skill'
+])
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
@@ -66,15 +76,28 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
   )
 }
 
-function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
+function ComposerMessageTokenChip({
+  token,
+  readOnlyFilePreviews
+}: {
+  token: ComposerMessageToken
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+}) {
   if (isComposerTokenBackedMessageToken(token)) {
-    return <ComposerToken token={token} />
+    const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
+    const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
+
+    return <ComposerToken token={token} readOnly readOnlyFilePreview={readOnlyFilePreview} />
   }
 
   return <LegacyComposerMessageTokenChip token={token} />
 }
 
-function renderComposerMessageContent(content: string, composer: ComposerMessageSnapshot) {
+function renderComposerMessageContent(
+  content: string,
+  composer: ComposerMessageSnapshot,
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+) {
   const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
   let cursor = 0
@@ -90,7 +113,13 @@ function renderComposerMessageContent(content: string, composer: ComposerMessage
       cursor = offset
     }
 
-    nodes.push(<ComposerMessageTokenChip key={`${token.id}:${token.index}`} token={token} />)
+    nodes.push(
+      <ComposerMessageTokenChip
+        key={`${token.id}:${token.index}`}
+        token={token}
+        readOnlyFilePreviews={readOnlyFilePreviews}
+      />
+    )
 
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
@@ -142,7 +171,7 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
   return { markdown, tokens }
 }
 
-function buildUserMessagePreview(content: string) {
+export function buildUserMessagePreview(content: string) {
   let effectiveLineCount = 0
   const lineRegex = /([^\r\n]*)(\r\n|\r|\n|$)/g
 
@@ -228,19 +257,33 @@ const MainTextBlock: React.FC<Props> = ({
   citationReferences,
   role,
   mentions = [],
-  composer
+  composer,
+  readOnlyFilePreviews,
+  userContentExpanded,
+  onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
   const userMessagePreview = useMemo(() => buildUserMessagePreview(content), [content])
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
-  const [isUserContentExpanded, setIsUserContentExpanded] = useState(false)
+  const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
+  const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
+  const setUserContentExpanded = useCallback(
+    (expanded: boolean | ((current: boolean) => boolean)) => {
+      const nextExpanded = typeof expanded === 'function' ? expanded(isUserContentExpanded) : expanded
+      if (userContentExpanded === undefined) {
+        setInternalUserContentExpanded(nextExpanded)
+      }
+      onUserContentExpandedChange?.(nextExpanded)
+    },
+    [isUserContentExpanded, onUserContentExpandedChange, userContentExpanded]
+  )
 
   useEffect(() => {
     if (!isUserContentCollapsible) {
-      setIsUserContentExpanded(false)
+      setUserContentExpanded(false)
     }
-  }, [isUserContentCollapsible])
+  }, [isUserContentCollapsible, setUserContentExpanded])
 
   const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
 
@@ -281,12 +324,12 @@ const MainTextBlock: React.FC<Props> = ({
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
         const token =
           rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
-        if (token) return <ComposerMessageTokenChip token={token} />
+        if (token) return <ComposerMessageTokenChip token={token} readOnlyFilePreviews={readOnlyFilePreviews} />
 
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, id]
+    [composerMarkdownContent?.tokens, id, readOnlyFilePreviews]
   )
 
   return (
@@ -305,7 +348,7 @@ const MainTextBlock: React.FC<Props> = ({
         <CollapsibleUserMessageContent
           isCollapsible={isUserContentCollapsible}
           isExpanded={isUserContentExpanded}
-          onToggle={() => setIsUserContentExpanded((expanded) => !expanded)}>
+          onToggle={() => setUserContentExpanded((expanded) => !expanded)}>
           {composerMarkdownContent ? (
             <ChatMarkdown
               block={{ ...block, content: composerMarkdownContent.markdown }}
@@ -315,7 +358,7 @@ const MainTextBlock: React.FC<Props> = ({
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
-                ? renderComposerMessageContent(userDisplayContent, composer)
+                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
                 : userDisplayContent}
             </p>
           ) : (

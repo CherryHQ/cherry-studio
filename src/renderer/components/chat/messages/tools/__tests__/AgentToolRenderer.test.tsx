@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
@@ -27,14 +28,23 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  usePartsMap: () => mockPartsMap()
-}))
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    usePartsMap: () => mockPartsMap()
+  }
+})
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
   useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+}))
+
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: mockThemeState.theme })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -129,16 +139,15 @@ describe('AgentToolRenderer', () => {
     'message.tools.activity.assistantTask': 'task',
     'message.tools.activity.availableFeatures': 'available features',
     'message.tools.activity.availableResources': 'available resources',
-    'message.tools.activity.commandName': '{{name}} command',
     'message.tools.activity.create': 'Create',
     'message.tools.activity.currentFolder': 'current folder',
-    'message.tools.activity.executeCommand': 'Run command',
-    'message.tools.activity.executingCommand': 'Running command',
+    'message.tools.activity.executeCommand': 'Run task',
+    'message.tools.activity.executingCommand': 'Running task',
     'message.tools.activity.file': 'file',
     'message.tools.activity.handle': 'Handle',
     'message.tools.activity.handling': 'Handling',
     'message.tools.activity.installing': 'Installing',
-    'message.tools.activity.projectDependencies': 'project dependencies',
+    'message.tools.activity.projectDependencies': 'project requirements',
     'message.tools.activity.searching': 'Finding',
     'message.tools.activity.taskId': 'Task {{id}}',
     'message.tools.activity.taskList': 'task list',
@@ -151,6 +160,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.input': 'Input',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
+    'agent.sidebar_title': 'Agents',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -165,6 +175,7 @@ describe('AgentToolRenderer', () => {
   beforeEach(() => {
     mockPartsMap.mockReturnValue(null) // no parts context: no pending approval
     mockMessageListActions.mockReturnValue({})
+    mockThemeState.theme = 'light'
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | Record<string, string | number>) => {
         // Handle plural keys with count option
@@ -217,6 +228,24 @@ describe('AgentToolRenderer', () => {
       expect(isValidAgentToolsType('')).toBe(false)
       expect(isValidAgentToolsType(null)).toBe(false)
       expect(isValidAgentToolsType(undefined)).toBe(false)
+    })
+  })
+
+  describe('unknown MCP tool rendering', () => {
+    it('shows the tool type before the MCP tool name', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__exa__web_search_exa',
+          name: 'mcp__exa__web_search_exa',
+          description: 'Search the web',
+          type: 'provider'
+        },
+        status: 'done'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByRole('button', { name: 'MCP Server Tool exa:web_search_exa' })).toBeInTheDocument()
     })
   })
 
@@ -687,18 +716,20 @@ describe('AgentToolRenderer', () => {
         },
         status: 'done',
         arguments: {
-          path: '/settings/provider',
-          query: { id: 'openai' }
+          path: '/app/agents',
+          query: { sessionId: 'session-1' }
         },
-        response: 'Navigated to /settings/provider'
+        response: 'Navigate link created: /app/agents'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText(/Agents/)).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button'))
 
       expect(navigateToRoute).toHaveBeenCalledWith({
-        path: '/settings/provider',
-        query: { id: 'openai' }
+        path: '/app/agents',
+        query: { sessionId: 'session-1' }
       })
     })
   })
@@ -731,7 +762,7 @@ describe('AgentToolRenderer', () => {
       expect(disclosure).toHaveClass('border-none')
       expect(disclosure).toHaveClass('bg-transparent')
       expect(disclosure).not.toHaveClass('rounded-[7px]')
-      expect(screen.getByTestId('wrench-icon')).toBeInTheDocument()
+      expect(screen.queryByTestId('wrench-icon')).toBeNull()
 
       const title = screen.getByText('tool_search · ns=mcp:tavily')
       expect(title).toHaveClass('font-normal')
@@ -766,6 +797,34 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('agent tool flow action', () => {
+    it('routes a nested subagent click through the real tool group and renderer chain', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+        status: 'done',
+        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+        response: 'ok'
+      })
+
+      render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
+
+      const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
+      fireEvent.click(groupTrigger)
+
+      const agentRow = screen
+        .getAllByRole('button')
+        .find((element) => element !== groupTrigger && element.tagName === 'DIV')
+      expect(agentRow).toBeDefined()
+      fireEvent.click(agentRow!)
+
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'Agent',
+        title: 'Inspect renderer'
+      })
+    })
+
     it('opens the right-pane flow only from subagent rows', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })
@@ -799,12 +858,21 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
+      const toolHeader = screen.getByText('View').closest('[role="button"]')!
+      expect(toolHeader).toHaveClass('w-fit')
+      expect(toolHeader).not.toHaveClass('w-full')
+
+      fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
       expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
+      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
+        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
+      )
+      expect(terminal?.className).toContain('bg-[#f5f5f5]')
+      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
-      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
+      fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()

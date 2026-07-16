@@ -5,15 +5,22 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ModelSelectorModelItem } from './types'
 import { getProviderDisplayName } from './utils'
 
 type HoverCardPortalContainer = ComponentPropsWithoutRef<typeof HoverCardContent>['portalContainer']
+type HoverCardSide = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['side']>
+type HorizontalHoverCardSide = Extract<HoverCardSide, 'left' | 'right'>
+type HoverCardAlign = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['align']>
 
 const NUMBER_FORMATTER = new Intl.NumberFormat(undefined)
+const DETAIL_CARD_TARGET_WIDTH = 336
+const DETAIL_CARD_SIDE_OFFSET = 8
+const DETAIL_CARD_COLLISION_PADDING = 12
+const DETAIL_CARD_OPEN_DELAY = 1500
 
 const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
   auto: 'assistants.settings.reasoning_effort.auto',
@@ -36,6 +43,51 @@ const IMAGE_MODE_LABEL_KEYS: Record<string, string> = {
 
 function formatNumber(value: number | null | undefined): string | undefined {
   return value == null ? undefined : NUMBER_FORMATTER.format(value)
+}
+
+function getViewportSize() {
+  if (typeof window === 'undefined') {
+    return { width: 0, height: 0 }
+  }
+
+  return {
+    width: document.documentElement.clientWidth || window.innerWidth,
+    height: document.documentElement.clientHeight || window.innerHeight
+  }
+}
+
+function getAvailableSpaceForSide(
+  triggerRect: DOMRect,
+  side: HorizontalHoverCardSide,
+  viewport: { width: number; height: number }
+) {
+  switch (side) {
+    case 'right':
+      return viewport.width - triggerRect.right - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+    case 'left':
+      return triggerRect.left - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+  }
+}
+
+function getDetailCardSide(trigger: HTMLElement): HorizontalHoverCardSide {
+  const triggerRect = trigger.getBoundingClientRect()
+  const viewport = getViewportSize()
+  const rightSpace = getAvailableSpaceForSide(triggerRect, 'right', viewport)
+  const leftSpace = getAvailableSpaceForSide(triggerRect, 'left', viewport)
+
+  if (rightSpace >= DETAIL_CARD_TARGET_WIDTH) {
+    return 'right'
+  }
+
+  if (leftSpace >= DETAIL_CARD_TARGET_WIDTH) {
+    return 'left'
+  }
+
+  return rightSpace >= leftSpace ? 'right' : 'left'
+}
+
+function getDetailCardAlign(): HoverCardAlign {
+  return 'start'
 }
 
 function compactList(values: readonly string[] | undefined, limit = 3): string | undefined {
@@ -80,7 +132,7 @@ function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelect
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)
 
   return (
-    <div className="max-h-[min(420px,70vh)] overflow-auto p-3">
+    <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
       <div className="min-w-0 space-y-1">
         <div className="truncate font-medium text-foreground text-sm" title={model.name}>
           {model.name}
@@ -137,17 +189,33 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   children: ReactNode
 }) {
   const providerName = getProviderDisplayName(provider)
+  const triggerRef = useRef<HTMLElement | null>(null)
+  const [side, setSide] = useState<HorizontalHoverCardSide>('right')
+  const align = getDetailCardAlign()
+  const setTriggerElement = useCallback((element: HTMLAnchorElement | null) => {
+    triggerRef.current = element
+  }, [])
+
+  const updateSide = useCallback(() => {
+    if (!triggerRef.current) {
+      return
+    }
+
+    setSide(getDetailCardSide(triggerRef.current))
+  }, [])
 
   return (
-    <HoverCard openDelay={450} closeDelay={100}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
+    <HoverCard openDelay={DETAIL_CARD_OPEN_DELAY} closeDelay={100} onOpenChange={(open) => open && updateSide()}>
+      <HoverCardTrigger asChild ref={setTriggerElement}>
+        {children}
+      </HoverCardTrigger>
       <HoverCardContent
-        side="right"
-        align="start"
-        sideOffset={8}
-        collisionPadding={12}
+        side={side}
+        align={align}
+        sideOffset={DETAIL_CARD_SIDE_OFFSET}
+        collisionPadding={DETAIL_CARD_COLLISION_PADDING}
         portalContainer={portalContainer ?? undefined}
-        className="w-84 p-0">
+        className="w-84 max-w-(--radix-hover-card-content-available-width) p-0">
         <ModelSelectorDetailCardBody item={item} providerName={providerName} />
       </HoverCardContent>
     </HoverCard>

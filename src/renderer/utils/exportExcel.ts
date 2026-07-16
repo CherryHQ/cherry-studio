@@ -1,5 +1,5 @@
-import * as XLSX from '@e965/xlsx'
 import dayjs from 'dayjs'
+import { t } from 'i18next'
 
 /**
  * 解析 Markdown 表格为二维数组
@@ -55,6 +55,9 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
     return false
   }
 
+  // 按需加载 xlsx（约 0.6 MB），避免进入窗口首屏静态图
+  const XLSX = await import('@e965/xlsx')
+
   // 创建工作表
   const worksheet = XLSX.utils.aoa_to_sheet(data)
 
@@ -76,23 +79,10 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
   // 生成默认文件名
   const fileName = `table_${dayjs().format('YYYY-MM-DD_HHmmss')}.xlsx`
 
-  // 让用户选择保存位置
-  const savePath = await window.api.file.selectFolder({
-    title: 'Select folder to save Excel file'
+  // 打开“另存为”对话框，允许用户修改默认文件名
+  const savedPath = await window.api.file.save(fileName, uint8Array, {
+    filters: [{ name: t('common.export.excel'), extensions: ['xlsx'] }]
   })
 
-  if (!savePath) {
-    return false
-  }
-
-  // 写入文件到用户选择的目录
-  const filePath = `${savePath}/${fileName}`
-
-  try {
-    await window.api.file.write(filePath, uint8Array)
-  } catch (error) {
-    throw new Error(`Failed to write Excel file to ${filePath}: ${error}`)
-  }
-
-  return true
+  return Boolean(savedPath)
 }

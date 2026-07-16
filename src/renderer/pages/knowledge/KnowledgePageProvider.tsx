@@ -5,15 +5,14 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
-import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemType } from '@shared/data/types/knowledge'
 import {
   createContext,
-  type MouseEvent as ReactMouseEvent,
   type PropsWithChildren,
   type RefObject,
   use,
@@ -34,10 +33,6 @@ import {
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
 
-const NAVIGATOR_DEFAULT_WIDTH = 240
-const NAVIGATOR_MIN_WIDTH = 220
-const NAVIGATOR_MAX_WIDTH = 360
-
 type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
 type CreateKnowledgeBase = ReturnType<typeof useCreateKnowledgeBase>['createBase']
@@ -51,7 +46,6 @@ interface KnowledgePageContextValue {
   selectedBaseId: string
   selectedItemId: string | null
   activeTab: KnowledgeTabKey
-  navigatorWidth: number
   contentRef: RefObject<HTMLDivElement | null>
   editingBase: EditableKnowledgeBase | null
   editingGroup: EditableKnowledgeGroup | null
@@ -82,7 +76,7 @@ interface KnowledgePageContextValue {
   handleRagConfigDrawerOpenChange: (open: boolean) => void
   handleRecallTestDrawerOpenChange: (open: boolean) => void
   openCreateBaseDialog: (groupId?: string) => void
-  openCreateGroupDialog: () => void
+  openCreateGroupDialog: (baseIdToMove?: string) => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
   openRestoreBaseDialog: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
@@ -100,7 +94,6 @@ interface KnowledgePageContextValue {
   moveBase: (baseId: string, groupId: string | null) => Promise<void>
   deleteBase: (baseId: string) => Promise<void>
   deleteGroup: (groupId: string) => Promise<void>
-  startNavigatorResize: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
 const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(null)
@@ -121,7 +114,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const pendingSelectedBaseListRef = useRef<KnowledgeBase[] | null>(null)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
-  const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
   const [restoringBase, setRestoringBase] = useState<KnowledgeBase | null>(null)
@@ -136,8 +128,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
+  // Set when the create-group dialog is opened from a base's context menu: the
+  // freshly created group immediately adopts that base (create-and-move in one go).
+  const [pendingGroupMoveBaseId, setPendingGroupMoveBaseId] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const contentLeftRef = useRef(0)
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
@@ -241,7 +235,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setIsRecallTestDrawerOpen(open)
   }, [])
 
-  const openCreateGroupDialog = useCallback(() => {
+  const openCreateGroupDialog = useCallback((baseIdToMove?: string) => {
+    setPendingGroupMoveBaseId(baseIdToMove ?? null)
     setIsCreateGroupDialogOpen(true)
   }, [])
 
@@ -279,6 +274,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateGroupDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateGroupDialogOpen(open)
+
+    if (!open) {
+      setPendingGroupMoveBaseId(null)
+    }
   }, [])
 
   const handleRenameBaseDialogOpenChange = useCallback((open: boolean) => {
@@ -322,12 +321,32 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     [bases]
   )
 
+  const moveBase = useCallback(
+    async (baseId: string, groupId: string | null) => {
+      try {
+        await updateBase(baseId, { groupId })
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
+      }
+    },
+    [t, updateBase]
+  )
+
   const submitCreateGroup = useCallback(
     async (name: string) => {
-      await createGroup(name)
+      const group = await createGroup(name)
+      const baseIdToMove = pendingGroupMoveBaseId
       setIsCreateGroupDialogOpen(false)
+      setPendingGroupMoveBaseId(null)
+
+      // Opened from a base's context menu: the new group adopts that base right
+      // away. moveBase surfaces its own failure toast and never rejects, so a
+      // failed move can't resurrect the already-closed dialog.
+      if (baseIdToMove) {
+        await moveBase(baseIdToMove, group.id)
+      }
     },
-    [createGroup]
+    [createGroup, moveBase, pendingGroupMoveBaseId]
   )
 
   const submitRenameBase = useCallback(
@@ -364,23 +383,12 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     [editingGroup, updateGroup]
   )
 
-  const moveBase = useCallback(
-    async (baseId: string, groupId: string | null) => {
-      try {
-        await updateBase(baseId, { groupId })
-      } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
-      }
-    },
-    [t, updateBase]
-  )
-
   const handleDeleteBase = useCallback(
     async (baseId: string) => {
       try {
         await deleteBase(baseId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
       }
     },
     [deleteBase, t]
@@ -391,25 +399,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await deleteGroup(groupId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.groups.error.failed_to_delete')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.groups.error.failed_to_delete')))
       }
     },
     [deleteGroup, t]
-  )
-
-  const handleNavigatorResizeMove = useCallback((moveEvent: MouseEvent) => {
-    const nextWidth = moveEvent.clientX - contentLeftRef.current
-    setNavigatorWidth(Math.min(NAVIGATOR_MAX_WIDTH, Math.max(NAVIGATOR_MIN_WIDTH, nextWidth)))
-  }, [])
-
-  const { startResizing: startNavigatorResizeDrag } = useResizeDrag({ onMove: handleNavigatorResizeMove })
-
-  const startNavigatorResize = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      contentLeftRef.current = contentRef.current?.getBoundingClientRect().left ?? 0
-      startNavigatorResizeDrag(event)
-    },
-    [startNavigatorResizeDrag]
   )
 
   const value = useMemo<KnowledgePageContextValue>(
@@ -421,7 +414,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBaseId,
       selectedItemId,
       activeTab,
-      navigatorWidth,
       contentRef,
       editingBase,
       editingGroup,
@@ -469,8 +461,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       submitRenameGroup,
       moveBase,
       deleteBase: handleDeleteBase,
-      deleteGroup: handleDeleteGroup,
-      startNavigatorResize
+      deleteGroup: handleDeleteGroup
     }),
     [
       activeTab,
@@ -511,7 +502,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isUpdatingGroup,
       isRestoringBase,
       moveBase,
-      navigatorWidth,
       openAddSourceDialog,
       closeItemChunks,
       openItemChunks,
@@ -525,7 +515,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedItemId,
-      startNavigatorResize,
       submitCreateGroup,
       submitRenameBase,
       submitRenameGroup

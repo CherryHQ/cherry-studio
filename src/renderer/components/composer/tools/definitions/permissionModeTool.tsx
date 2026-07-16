@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -42,11 +43,6 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       const configuration = agent.configuration ?? defaultConfiguration
       const updatedConfiguration = { ...configuration, permission_mode: nextMode }
 
-      // Disable soul mode when switching away from bypassPermissions
-      if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
-        updatedConfiguration.soul_enabled = false
-      }
-
       void updateAgent({ id: agentId, configuration: updatedConfiguration }, { showSuccessToast: false })
     },
     [currentMode, agent, agentId, updateAgent]
@@ -79,6 +75,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         order: 80,
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: getPermissionModeIcon(currentMode),
         suffix: tooltipTitle,
         submenu: modeSubmenu

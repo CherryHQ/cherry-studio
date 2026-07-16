@@ -1,18 +1,10 @@
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  EmojiAvatar,
-  Form,
-  Scrollbar
-} from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { Model } from '@shared/data/types/model'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BasicInfoStep } from './steps/BasicInfoStep'
@@ -48,19 +40,6 @@ function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardF
     knowledgeBaseIds: [],
     skillIds: []
   }
-}
-
-/**
- * Header avatar — watches `avatar` in isolation so emoji changes re-render only
- * this leaf, never the dialog shell.
- */
-function HeaderAvatar({ control, fallback }: { control: Control<ResourceCreateWizardFormValues>; fallback: string }) {
-  const avatar = useWatch({ control, name: 'avatar' })
-  return (
-    <EmojiAvatar size={40} className="shrink-0 cursor-default hover:opacity-100">
-      {avatar || fallback}
-    </EmojiAvatar>
-  )
 }
 
 /**
@@ -139,14 +118,20 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
+  const { defaultModel } = useDefaultModel()
+  const selectableDefaultModelId =
+    open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
+  const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
+  const [dialogKey, setDialogKey] = useState(0)
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
-  // protection (overlay / Esc / X) stays locked for the entire submit, not just the
-  // window after the parent renders its loading state — otherwise a failure would write
-  // its error into an already-closed form. Subscribing to isSubmitting (not form values)
-  // keeps the shell off the field-edit re-render path the comment below relies on.
+  // protection (overlay / Esc / X / knowledge-page navigation) stays locked for the
+  // entire submit, not just the window after the parent renders its loading state —
+  // otherwise a failure would write its error into an already-closed form. Subscribing
+  // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
 
@@ -162,10 +147,43 @@ export function ResourceCreateWizard({
 
   useEffect(() => {
     if (!open) return
+    autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
+
+  // Preference/model hydration may finish after the dialog opens. Seed only an
+  // empty field, and retract only a value that this effect auto-selected if it
+  // later falls outside the active model filter.
+  useEffect(() => {
+    if (!open) {
+      autoSelectedDefaultModelIdRef.current = null
+      return
+    }
+
+    const currentModelId = form.getValues('modelId')
+    const autoSelectedModelId = autoSelectedDefaultModelIdRef.current
+    if (
+      autoSelectedModelId &&
+      currentModelId === autoSelectedModelId &&
+      selectableDefaultModelId !== autoSelectedModelId
+    ) {
+      autoSelectedDefaultModelIdRef.current = null
+      form.setValue('modelId', null, { shouldDirty: false, shouldTouch: false })
+      return
+    }
+
+    if (currentModelId || !selectableDefaultModelId) {
+      if (autoSelectedModelId && currentModelId !== autoSelectedModelId) {
+        autoSelectedDefaultModelIdRef.current = null
+      }
+      return
+    }
+
+    autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
+    form.setValue('modelId', selectableDefaultModelId, { shouldDirty: false, shouldTouch: false })
+  }, [form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
 
@@ -177,6 +195,37 @@ export function ResourceCreateWizard({
     setStepIndex((index) => Math.min(index + 1, steps.length - 1))
   }
   const goBack = () => setStepIndex((index) => Math.max(index - 1, 0))
+
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        setDialogKey((key) => key + 1)
+        runPendingCloseAction()
+        return
+      }
+
+      setDialogKey((key) => key + 1)
+      onOpenChange(false)
+    },
+    [onOpenChange, open, runPendingCloseAction]
+  )
+
+  useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
 
   const handleCreate = form.handleSubmit(async (values) => {
     if (!values.modelId) return
@@ -204,21 +253,17 @@ export function ResourceCreateWizard({
   const currentStep = steps[stepIndex]
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
+    <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
-        {/* Header — avatar + title + step progress */}
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
-          <HeaderAvatar control={form.control} fallback={getDefaultAvatar(kind)} />
+        {/* Header — title */}
+        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base">{title}</DialogTitle>
-            <DialogDescription className="truncate text-muted-foreground text-xs">
-              {t('library.config.dialogs.create.guided_progress', { current: stepIndex + 1, total: steps.length })}
-            </DialogDescription>
           </div>
         </div>
 
@@ -274,13 +319,14 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getDefaultAvatar(kind)}
                     modelFilter={modelFilter}
+                    onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (
                   <PersonaStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep form={form} portalContainer={dialogContentElement} />
+                  <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />

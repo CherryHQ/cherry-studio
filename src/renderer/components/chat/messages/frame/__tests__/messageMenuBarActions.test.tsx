@@ -226,7 +226,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -248,7 +248,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
   })
 
   it('keeps edit menu action for root messages', () => {
@@ -271,6 +271,29 @@ describe('messageMenuBarActions', () => {
     )
 
     expect(menuActions.map((action) => action.id)).toContain('edit')
+  })
+
+  it('keeps assistant reply editing in the menu without a redundant toolbar action', () => {
+    const context = createActionContext({
+      actions: {
+        editMessage: vi.fn()
+      } as MessageListActions
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
+    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).toContain('edit')
+  })
+
+  it('hides edit actions while an assistant reply is being translated', () => {
+    const context = createActionContext({
+      actions: {
+        editMessage: vi.fn()
+      } as MessageListActions,
+      isTranslating: true
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
+    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).not.toContain('edit')
   })
 
   it('resolves assistant toolbar actions from capabilities', () => {
@@ -579,7 +602,7 @@ describe('messageMenuBarActions', () => {
     expect(menuActions[3]?.children.map((action) => action.id)).toEqual(['export.markdown'])
   })
 
-  it('hides new branch from the latest message menu', () => {
+  it('shows disabled new branch with a reason in the latest message menu', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createActionContext({
         actions: {
@@ -595,7 +618,12 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(menuActions.map((action) => action.id)).toEqual(['multi-select'])
+    expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select'])
+    expect(menuActions[0]?.availability).toEqual({
+      visible: true,
+      enabled: false,
+      reason: 'chat.message.new.branch.disabled.latest'
+    })
   })
 
   it('hides new branch from user message menus', () => {

@@ -1,15 +1,8 @@
-import {
-  ImmersiveNarrowReportProvider,
-  ImmersiveNavbarStateProvider,
-  resolveImmersiveNavbar
-} from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
@@ -17,7 +10,8 @@ import {
   CHAT_CENTER_MIN_USABLE_WIDTH,
   CHAT_SHELL_TRANSITION,
   type ChatPanePosition,
-  RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
+  RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH,
+  RESOURCE_LIST_PANE_MIN_WIDTH
 } from './paneLayout'
 import { RightPaneHost } from './RightPaneHost'
 
@@ -38,6 +32,7 @@ interface ChatAppShellBaseProps {
   centerRef?: Ref<HTMLDivElement>
   centerClassName?: string
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
 }
 
 type ChatAppShellMainProps = ChatAppShellBaseProps & {
@@ -53,6 +48,19 @@ type ChatAppShellCenterContentProps = ChatAppShellBaseProps & {
 }
 
 export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterContentProps
+
+type AutoCollapseSource = 'center' | 'shell'
+
+function getResourceListPaneAutoCollapseWidth() {
+  if (typeof document === 'undefined') {
+    return RESOURCE_LIST_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH
+  }
+
+  const paneWidth = Number.parseFloat(document.documentElement.style.getPropertyValue('--assistants-width'))
+  const resolvedPaneWidth = Number.isFinite(paneWidth) && paneWidth > 0 ? paneWidth : RESOURCE_LIST_PANE_MIN_WIDTH
+
+  return Math.max(RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH, resolvedPaneWidth + CHAT_CENTER_MIN_USABLE_WIDTH)
+}
 
 export function ChatAppShell({
   topBar,
@@ -72,31 +80,38 @@ export function ChatAppShell({
   centerId,
   centerRef,
   centerClassName,
-  onPaneCollapse
+  onPaneCollapse,
+  onPaneAutoCollapseChange
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
   const rootRef = useRef<HTMLDivElement>(null)
   const centerInnerRef = useRef<HTMLDivElement | null>(null)
   const leftPaneOpenRef = useRef(leftPaneOpen)
-  const onPaneCollapseRef = useRef(onPaneCollapse)
+  const onPaneAutoCollapseChangeRef = useRef(onPaneAutoCollapseChange)
+  const autoCollapseReasonsRef = useRef<Record<AutoCollapseSource, boolean>>({ center: false, shell: false })
   const previousShellWidthRef = useRef<number | null>(null)
   const previousCenterWidthRef = useRef<number | null>(null)
 
-  // Immersive navbar owner: the top bar floats over the message list when the list is narrow
-  // (centered) and the center is wide enough for the navbar's edge clusters. Decided from a single
-  // self-measurement (the center's own width) + a `narrow` boolean the list reports up — no probe,
-  // no occupant scraping. When floating, a CSS clamp keeps the navbar's clusters inside the gutters.
-  const isWindow = useWindowFrame().mode === 'window'
-  const [centerWidth, setCenterWidth] = useState(0)
-  const [narrow, setNarrow] = useState(false)
-  const reportNarrow = useCallback((next: boolean) => {
-    setNarrow((current) => (current === next ? current : next))
+  const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
+    const reasons = autoCollapseReasonsRef.current
+    const wasCollapsed = reasons.center || reasons.shell
+    reasons[source] = collapsed
+    const isCollapsed = reasons.center || reasons.shell
+
+    if (wasCollapsed !== isCollapsed) {
+      onPaneAutoCollapseChangeRef.current?.(isCollapsed)
+    }
   }, [])
-  const immersive = useMemo(
-    () => resolveImmersiveNavbar({ narrow, centerWidth, isWindow }),
-    [narrow, centerWidth, isWindow]
-  )
+
+  useEffect(() => {
+    return () => {
+      const reasons = autoCollapseReasonsRef.current
+      if (reasons.center || reasons.shell) {
+        onPaneAutoCollapseChangeRef.current?.(false)
+      }
+    }
+  }, [])
 
   // Merge the forwarded centerRef with our own ref so we can measure the center element's width.
   const assignCenterRef = useCallback(
@@ -110,31 +125,37 @@ export function ChatAppShell({
 
   useEffect(() => {
     leftPaneOpenRef.current = leftPaneOpen
-    onPaneCollapseRef.current = onPaneCollapse
-  }, [leftPaneOpen, onPaneCollapse])
+    onPaneAutoCollapseChangeRef.current = onPaneAutoCollapseChange
+  }, [leftPaneOpen, onPaneAutoCollapseChange])
 
   useLayoutEffect(() => {
     const center = centerInnerRef.current
     if (!center || typeof ResizeObserver === 'undefined') return
     const initialCenterWidth = center.getBoundingClientRect().width
-    previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : CHAT_CENTER_MIN_USABLE_WIDTH
-    setCenterWidth(initialCenterWidth)
+    previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : null
     const observer = new ResizeObserver(([entry]) => {
       const previousCenterWidth = previousCenterWidthRef.current
       const nextCenterWidth = entry.contentRect.width
       previousCenterWidthRef.current = nextCenterWidth
-      setCenterWidth(nextCenterWidth)
 
       if (previousCenterWidth === null) return
-      if (!leftPaneOpenRef.current) return
-      if (previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH) return
-      if (nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH) return
 
-      onPaneCollapseRef.current?.()
+      if (
+        leftPaneOpenRef.current &&
+        previousCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH &&
+        nextCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH
+      ) {
+        updatePaneAutoCollapse('center', true)
+        return
+      }
+
+      if (previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH && nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH) {
+        updatePaneAutoCollapse('center', false)
+      }
     })
     observer.observe(center)
     return () => observer.disconnect()
-  }, [])
+  }, [updatePaneAutoCollapse])
 
   useEffect(() => {
     const root = rootRef.current
@@ -143,19 +164,24 @@ export function ChatAppShell({
     const observer = new ResizeObserver(([entry]) => {
       const previousShellWidth = previousShellWidthRef.current
       const nextShellWidth = entry.contentRect.width
+      const autoCollapseWidth = getResourceListPaneAutoCollapseWidth()
       previousShellWidthRef.current = nextShellWidth
 
       if (previousShellWidth === null) return
-      if (!leftPaneOpenRef.current) return
-      if (previousShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH) return
-      if (nextShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH) return
 
-      onPaneCollapseRef.current?.()
+      if (leftPaneOpenRef.current && previousShellWidth >= autoCollapseWidth && nextShellWidth < autoCollapseWidth) {
+        updatePaneAutoCollapse('shell', true)
+        return
+      }
+
+      if (previousShellWidth < autoCollapseWidth && nextShellWidth >= autoCollapseWidth) {
+        updatePaneAutoCollapse('shell', false)
+      }
     })
 
     observer.observe(root)
     return () => observer.disconnect()
-  }, [])
+  }, [updatePaneAutoCollapse])
 
   return (
     <div
@@ -164,10 +190,7 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar
-          open={leftPaneOpen}
-          style={isWindow ? { paddingTop: TITLE_BAR_HEIGHT_PX } : undefined}
-          onPaneCollapse={onPaneCollapse}>
+        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
           {pane}
         </PageSidebar>
 
@@ -180,31 +203,20 @@ export function ChatAppShell({
             transition={CHAT_SHELL_TRANSITION}
             className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
             {topBar && (
-              <div
-                data-chat-navbar-floating={immersive.floating ? '' : undefined}
-                className={cn(
-                  'z-10',
-                  immersive.floating
-                    ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
-                    : 'relative shrink-0'
-                )}>
+              <div className="relative z-10 shrink-0 bg-background">
                 <ErrorBoundary>{topBar}</ErrorBoundary>
               </div>
             )}
-            <ImmersiveNarrowReportProvider value={reportNarrow}>
-              <ImmersiveNavbarStateProvider value={immersive}>
-                {hasCenterContent ? (
-                  <ErrorBoundary>{centerContent}</ErrorBoundary>
-                ) : (
-                  <>
-                    <ErrorBoundary>
-                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                    </ErrorBoundary>
-                    {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                  </>
-                )}
-              </ImmersiveNavbarStateProvider>
-            </ImmersiveNarrowReportProvider>
+            {hasCenterContent ? (
+              <ErrorBoundary>{centerContent}</ErrorBoundary>
+            ) : (
+              <>
+                <ErrorBoundary>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                </ErrorBoundary>
+                {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+              </>
+            )}
             {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
           </motion.div>
           {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}

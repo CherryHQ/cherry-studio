@@ -17,6 +17,7 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
@@ -31,8 +32,9 @@ import {
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -48,7 +50,8 @@ import {
   FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
-  TextInputField
+  TextInputField,
+  useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 
@@ -65,10 +68,10 @@ type AgentEditFormValues = {
   smallModelId: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  skillIds: string[]
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
-  soulEnabled: boolean
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -121,10 +124,10 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     smallModelId: form.smallModel,
     instructions: form.instructions,
     mcps: [...form.mcps],
+    skillIds: [...form.skillIds],
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
-    soulEnabled: form.soulEnabled,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval
   }
@@ -149,10 +152,10 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     smallModel: values.smallModelId || '',
     instructions: values.instructions,
     mcps: values.mcps,
+    skillIds: values.skillIds,
     disabledTools: values.disabledTools,
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
-    soulEnabled: values.soulEnabled,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
@@ -163,9 +166,9 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
+  form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
-  form.setValue('soulEnabled', next.soulEnabled, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
 }
@@ -204,15 +207,32 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
+  const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
+  const { skills, loading: skillsLoading } = useInstalledSkills(resource.id || undefined, {
+    enabled: open && Boolean(resource.id)
+  })
+  const skillIdsFromQueryKey = useMemo(
+    () =>
+      skills
+        .filter((skill) => skill.isEnabled)
+        .map((skill) => skill.id)
+        .join('\0'),
+    [skills]
+  )
+  const skillIdsFromQuery = useMemo(
+    () => (skillIdsFromQueryKey ? skillIdsFromQueryKey.split('\0') : []),
+    [skillIdsFromQueryKey]
+  )
   const saveIntent = useMemo(() => {
-    const baseline = buildInitialAgentFormState(resource)
+    const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
     return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+  }, [baselineSkillIds, resource, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -232,90 +252,139 @@ function AgentEditDialogContent({
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
     setActiveTab('basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
+    setBaselineSkillIds([])
+    setBaselineSkillAgentId(null)
   }, [defaultValues, form, open, resource])
+
+  useEffect(() => {
+    if (!open || skillsLoading || baselineSkillAgentId === resource.id) return
+    setBaselineSkillIds(skillIdsFromQuery)
+    form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
+    setBaselineSkillAgentId(resource.id)
+  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return
     setActiveTab('basic')
   }, [activeTab, leafTabIds])
 
-  const isSubmitting = form.formState.isSubmitting
-  const canSave = Boolean(saveIntent) && !isSubmitting
   const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  // Tracks whether the most recent save attempt failed, so the close path can
+  // keep the dialog open (and the error visible) instead of closing over a loss.
+  const saveFailedRef = useRef(false)
 
-  const handleSubmit = form.handleSubmit(async () => {
+  const persist = async () => {
     const pending = saveIntent
     if (!pending) return
 
     form.clearErrors('root')
+    saveFailedRef.current = false
 
     let updated: Awaited<ReturnType<typeof updateAgent>>
     try {
       updated = await updateAgent(pending.payload)
     } catch (error) {
-      logger.error('Failed to save agent edit dialog', error as Error, { agentId: resource.id })
+      logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      saveFailedRef.current = true
       return
     }
 
-    onOpenChange(false)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /agents/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  const flush = useDebouncedAutoSave({
+    enabled: open,
+    changeKey: canPersist ? JSON.stringify(values) : null,
+    onSave: persist
   })
+
+  // On close with a pending edit, flush through the same serialized save queue and
+  // only close once it settles — so a failed final save stays visible instead of
+  // being silently dropped, and we never race a second concurrent save.
+  const handleOpenChange = (next: boolean) => {
+    if (next || !canPersist) {
+      onOpenChange(next)
+      return
+    }
+    void (async () => {
+      await flush()
+      if (saveFailedRef.current) return
+      onOpenChange(false)
+    })()
+  }
+  // Route the settings-navigate close through handleOpenChange so it flushes too.
+  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
   return (
     <EditDialogShell
       activeTab={activeTab}
-      canSave={canSave}
       form={form}
-      isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
-      onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
+      groupPresentation="inline"
       tabs={tabs}
       title={t('library.config.dialogs.edit.agent_title')}>
-      <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
-        <AgentBasicFields
-          form={form}
-          modelFilter={modelFilter}
-          portalContainer={dialogContentElement}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          patchAgentForm={patchAgentForm}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-        />
-      </TabsContent>
-      <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
-        <AgentPromptField form={form} portalContainer={dialogContentElement} />
-      </TabsContent>
-      {isToolTab(activeTab) ? (
-        <TabsContent value={activeTab} forceMount className="m-0">
-          <AgentToolsFields
-            agent={resource}
+      <>
+        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+          <AgentBasicFields
             form={form}
-            activeToolTab={activeTab}
+            modelFilter={modelFilter}
             portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            patchAgentForm={patchAgentForm}
+            emojiPickerOpen={emojiPickerOpen}
+            setEmojiPickerOpen={setEmojiPickerOpen}
+            onSettingsNavigate={closeBeforeAction}
           />
         </TabsContent>
-      ) : null}
-      <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-        <AgentAdvancedFields form={form} />
-      </TabsContent>
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
+          <AgentPromptField form={form} portalContainer={dialogContentElement} />
+        </TabsContent>
+        {isToolTab(activeTab) ? (
+          <TabsContent value={activeTab} forceMount className="m-0">
+            <AgentToolsFields
+              agent={resource}
+              form={form}
+              activeToolTab={activeTab}
+              portalContainer={dialogContentElement}
+              skills={skills}
+              skillsLoading={skillsLoading}
+            />
+          </TabsContent>
+        ) : null}
+        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+          <AgentAdvancedFields form={form} />
+        </TabsContent>
+      </>
     </EditDialogShell>
   )
 }
@@ -328,7 +397,8 @@ function AgentBasicFields({
   setModelLabels,
   patchAgentForm,
   emojiPickerOpen,
-  setEmojiPickerOpen
+  setEmojiPickerOpen,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: (model: Model) => boolean
@@ -338,13 +408,13 @@ function AgentBasicFields({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
-  const soulEnabled = form.watch('soulEnabled')
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="grid grid-cols-[auto_1fr] gap-4">
         <AvatarField
           form={form}
@@ -371,6 +441,7 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+          onSettingsNavigate={onSettingsNavigate}
         />
         <CompactModelField
           form={form}
@@ -382,6 +453,7 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+          onSettingsNavigate={onSettingsNavigate}
         />
         <CompactModelField
           form={form}
@@ -393,6 +465,7 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+          onSettingsNavigate={onSettingsNavigate}
         />
       </div>
       <TextInputField
@@ -401,48 +474,13 @@ function AgentBasicFields({
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
       />
-      <SoulModeField form={form} patchAgentForm={patchAgentForm} />
-      {!soulEnabled && (
-        <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
-      )}
+      <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       <HeartbeatSettingsField
         form={form}
         enabled={heartbeatEnabled}
         onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
       />
     </div>
-  )
-}
-
-function SoulModeField({
-  form,
-  patchAgentForm
-}: {
-  form: UseFormReturn<AgentEditFormValues>
-  patchAgentForm: (patch: Partial<AgentFormState>) => void
-}) {
-  const { t } = useTranslation()
-  const label = t('library.config.agent.field.soul_enabled.label')
-
-  return (
-    <FormField
-      control={form.control}
-      name="soulEnabled"
-      render={({ field }) => (
-        <FormItem>
-          <div className="flex items-center justify-between gap-3">
-            <FieldLabelWithHelp label={label} help={t('library.config.agent.field.soul_enabled.help')} />
-            <Switch
-              size="sm"
-              checked={field.value}
-              aria-label={label}
-              onCheckedChange={(checked) => patchAgentForm({ soulEnabled: checked })}
-            />
-          </div>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
   )
 }
 
@@ -464,7 +502,9 @@ function PermissionModeField({
       render={({ field }) => (
         <FormItem>
           <div className="flex items-center justify-between gap-3">
-            <FormLabel>{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <FormLabel className="font-normal text-[13px]">
+              {t('library.config.agent.field.permission_mode.label')}
+            </FormLabel>
             <Select
               value={field.value || 'default'}
               onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
@@ -511,7 +551,7 @@ function HeartbeatSettingsField({
         render={({ field }) => (
           <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel>{label}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{label}</FormLabel>
               <FormControl>
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
               </FormControl>
@@ -527,7 +567,9 @@ function HeartbeatSettingsField({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center justify-between gap-3">
-                <FormLabel>{t('library.config.agent.field.heartbeat_interval.label')}</FormLabel>
+                <FormLabel className="font-normal text-[13px]">
+                  {t('library.config.agent.field.heartbeat_interval.label')}
+                </FormLabel>
                 <FormControl>
                   <EditableNumber
                     min={1}
@@ -576,6 +618,7 @@ function AgentPromptField({
           value={field.value}
           onChange={field.onChange}
           placeholder={t('library.config.agent.field.instructions.placeholder')}
+          fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />
@@ -588,16 +631,21 @@ function AgentToolsFields({
   agent,
   form,
   activeToolTab,
-  portalContainer
+  portalContainer,
+  skills,
+  skillsLoading
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
   activeToolTab: ToolTab
   portalContainer: HTMLElement | null
+  skills: InstalledSkill[]
+  skillsLoading: boolean
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
   const mcps = form.watch('mcps')
+  const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
@@ -637,7 +685,6 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
-  const { skills, loading: skillsLoading, toggle: toggleSkill } = useInstalledSkills(agent.id || undefined)
   const skillCatalog = useMemo<CatalogItem[]>(
     () =>
       skills.map((skill) => ({
@@ -648,17 +695,13 @@ function AgentToolsFields({
       })),
     [skills]
   )
-  const enabledSkillIds = useMemo(
-    () => new Set(skills.filter((skill) => skill.isEnabled).map((skill) => skill.id)),
-    [skills]
-  )
-  const flipSkill = async (id: string, nextEnabled: boolean) => {
-    try {
-      await toggleSkill(id, nextEnabled)
-    } catch {
-      // useInstalledSkills owns toast/logging for toggle failures.
-    }
-  }
+  const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
+  const setSkillEnabled = (id: string, enabled: boolean) =>
+    form.setValue(
+      'skillIds',
+      enabled ? Array.from(new Set([...skillIds, id])) : skillIds.filter((skillId) => skillId !== id),
+      { shouldDirty: true }
+    )
 
   return (
     <div className="grid gap-4">
@@ -693,7 +736,7 @@ function AgentToolsFields({
           enabledIds={enabledSkillIds}
           loading={skillsLoading}
           disabled={!canManageSkills}
-          onToggle={flipSkill}
+          onToggle={setSkillEnabled}
           emptyLabel={
             canManageSkills
               ? t('library.config.agent.section.tools.no_skills_enabled')

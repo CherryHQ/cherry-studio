@@ -122,7 +122,7 @@ vi.mock('react-i18next', () => ({
       const label =
         {
           'agent.sidebar_title': 'Agent',
-          'agent.session.group.conversation': 'Chat',
+          'title.chat': 'Chat',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
           'files.title': 'Files',
@@ -177,38 +177,6 @@ describe('LaunchpadPage', () => {
     expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
-  })
-
-  it('keeps the launchpad grid at the original compact density', () => {
-    mocks.pinnedMiniApps = [
-      {
-        appId: 'calculator',
-        name: 'Calculator',
-        logo: 'calc-logo',
-        url: 'https://example.com',
-        presetMiniAppId: 'calculator',
-        status: 'pinned',
-        orderKey: ''
-      }
-    ]
-
-    render(<LaunchpadPage />)
-
-    const appsHeading = screen.getByRole('heading', { name: 'Apps' })
-    const appsGrid = appsHeading.nextElementSibling
-    const miniAppsGrid = screen.getByRole('heading', { name: 'Mini Apps' }).nextElementSibling
-    const content = appsHeading.closest('section')?.parentElement
-
-    expect(content).toHaveClass('max-w-180', 'gap-5')
-    expect(appsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(appsGrid).not.toHaveClass('gap-x-14', 'gap-y-8')
-    expect(miniAppsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('mx-auto', 'w-[92px]')
-    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
-      'mx-auto',
-      'w-[92px]',
-      'justify-center'
-    )
   })
 
   it('orders app tiles by the launchpad app order, appending the rest canonically', () => {

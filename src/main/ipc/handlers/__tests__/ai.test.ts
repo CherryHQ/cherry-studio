@@ -25,6 +25,8 @@ const aiStreamManager = {
 }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
+const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
+const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = { runTask: vi.fn() }
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
@@ -42,6 +44,10 @@ beforeEach(() => {
         return aiStreamManager
       case 'ClaudeCodeWarmQueryManager':
         return claudeCodeWarmQueryManager
+      case 'AgentSessionRuntimeService':
+        return agentSessionRuntimeService
+      case 'ClaudeCodeTraceBridgeService':
+        return claudeCodeTraceBridgeService
       case 'AgentJobsService':
         return agentJobsService
       case 'WindowManager':
@@ -70,8 +76,9 @@ describe('aiHandlers', () => {
 
   it('check_model forwards the request and returns latency', async () => {
     aiService.checkModel.mockResolvedValue({ latency: 42 })
-    const result = await aiHandlers['ai.check_model']({ uniqueModelId: 'openai::gpt-4o', timeout: 5000 }, ctx)
-    expect(aiService.checkModel).toHaveBeenCalledWith({ uniqueModelId: 'openai::gpt-4o', timeout: 5000 })
+    const request = { uniqueModelId: 'openai::gpt-4o', apiKeyOverride: 'sk-selected', timeout: 5000 } as const
+    const result = await aiHandlers['ai.check_model'](request, ctx)
+    expect(aiService.checkModel).toHaveBeenCalledWith(request)
     expect(result).toEqual({ latency: 42 })
   })
 
@@ -84,7 +91,7 @@ describe('aiHandlers', () => {
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
-    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox' }
+    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox', paramValues: {} }
     const out = { files: [] }
     aiService.runImageRequest.mockResolvedValue(out)
 
@@ -195,15 +202,23 @@ describe('aiHandlers — streaming', () => {
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
-  it('prewarm_agent_session delegates to ClaudeCodeWarmQueryManager', async () => {
-    claudeCodeWarmQueryManager.prewarmAgentSession.mockResolvedValue(undefined)
+  it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
+    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
+    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
-    expect(claudeCodeWarmQueryManager.prewarmAgentSession).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
-  it('close_agent_session_warm delegates to ClaudeCodeWarmQueryManager', async () => {
+  it('prewarm_agent_session does not prime a connection while trace mode is on', async () => {
+    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
+    await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
+    expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
+  })
+
+  it('close_agent_session_warm releases the warm query and the primed connection', async () => {
     await aiHandlers['ai.close_agent_session_warm']({ sessionId: 's1' }, ctx)
     expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.releaseIdleConnection).toHaveBeenCalledWith('s1')
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {

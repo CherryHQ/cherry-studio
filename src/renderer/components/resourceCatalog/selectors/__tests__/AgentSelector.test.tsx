@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -9,7 +10,6 @@ const {
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
-  toggleSkillMock,
   togglePinMock,
   updateAgentMock,
   useMutationMock,
@@ -20,7 +20,6 @@ const {
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
-  toggleSkillMock: vi.fn(),
   togglePinMock: vi.fn(),
   updateAgentMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -81,6 +80,11 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
+  ...(await importOriginal<typeof UseModelModule>()),
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
@@ -97,8 +101,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     skills: [],
-    loading: false,
-    toggle: toggleSkillMock
+    loading: false
   })
 }))
 
@@ -123,8 +126,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.name': 'Name',
           'common.required_field': 'Required',
           'common.save': 'Save',
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.edit.title': 'Edit agent',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
@@ -142,8 +143,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use soul.md.',
-          'library.config.agent.field.soul_enabled.label': 'Soul',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
@@ -178,6 +177,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
+import { toast } from '@renderer/services/toast'
 
 import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
 
@@ -199,7 +199,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -221,7 +220,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -234,8 +232,6 @@ const AGENTS_RESPONSE = {
   total: 2,
   page: 1
 } as const
-
-const toastErrorMock = vi.fn()
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -253,7 +249,6 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
-  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 beforeEach(() => {
@@ -455,6 +450,23 @@ describe('AgentSelector', () => {
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
+  it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    await openCreateDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+
   it('creates an agent, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const { onChange } = renderSelector()
     await openCreateDialog()
@@ -481,8 +493,7 @@ describe('AgentSelector', () => {
           skillIds: [],
           configuration: {
             avatar: '🤖',
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
+            permission_mode: 'bypassPermissions'
           }
         }
       })
@@ -527,7 +538,7 @@ describe('AgentSelector', () => {
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
 
-    expect(toastErrorMock).toHaveBeenCalledWith('Created, but refresh failed')
+    expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
@@ -540,11 +551,50 @@ describe('AgentSelector', () => {
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
+  })
+
+  it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+  it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
 
   it('does not show the empty state while the agents query is loading', () => {

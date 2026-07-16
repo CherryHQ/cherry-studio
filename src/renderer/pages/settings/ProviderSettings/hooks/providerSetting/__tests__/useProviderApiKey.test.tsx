@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,9 +25,6 @@ describe('useProviderApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
-    ;(window as any).toast = {
-      error: vi.fn()
-    }
     apiKeysData = {
       keys: []
     }
@@ -136,7 +134,7 @@ describe('useProviderApiKey', () => {
       await Promise.resolve()
     })
 
-    expect(window.toast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
     expect(result.current.inputApiKey).toBe('sk-failing')
     expect(result.current.hasPendingSync).toBe(true)
   })
@@ -153,6 +151,23 @@ describe('useProviderApiKey', () => {
     })
 
     expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: expect.any(String), key: 'sk-now', isEnabled: true }])
+  })
+
+  it('reports immediate commit failures without clearing pending sync state', async () => {
+    updateApiKeysMock.mockRejectedValueOnce(new Error('network down'))
+    const { result } = renderHook(() => useProviderApiKey('openai'))
+
+    act(() => {
+      result.current.setInputApiKey('sk-failing-now')
+    })
+
+    await act(async () => {
+      await expect(result.current.commitInputApiKeyNow()).rejects.toThrow('network down')
+    })
+
+    expect(toast.error).toHaveBeenCalled()
+    expect(result.current.inputApiKey).toBe('sk-failing-now')
+    expect(result.current.hasPendingSync).toBe(true)
   })
 
   it('keeps api key input local to each store', () => {

@@ -12,6 +12,8 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
@@ -46,7 +48,7 @@ const NotesSettings: FC = () => {
       }
     } catch (error) {
       logger.error('Failed to select directory:', error as Error)
-      window.toast.error(t('notes.settings.data.select_directory_failed'))
+      toast.error(t('notes.settings.data.select_directory_failed'))
     } finally {
       setIsSelecting(false)
     }
@@ -54,7 +56,7 @@ const NotesSettings: FC = () => {
 
   const handleApplyPath = async () => {
     if (!tempPath) {
-      window.toast.error(t('notes.settings.data.path_required'))
+      toast.error(t('notes.settings.data.path_required'))
       return
     }
 
@@ -63,27 +65,27 @@ const NotesSettings: FC = () => {
       const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
 
       if (!isValidDir) {
-        window.toast.error(t('notes.settings.data.invalid_directory'))
+        toast.error(t('notes.settings.data.invalid_directory'))
         return
       }
 
       updateNotesPath(tempPath)
-      window.toast.success(t('notes.settings.data.path_updated'))
+      toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
-      window.toast.error(t('notes.settings.data.apply_path_failed'))
+      toast.error(t('notes.settings.data.apply_path_failed'))
     }
   }
 
   const handleResetToDefault = async () => {
     try {
-      const info = await window.api.getAppInfo()
+      const info = await ipcApi.request('app.get_info')
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
-      window.toast.success(t('notes.settings.data.reset_to_default'))
+      toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
-      window.toast.error(t('notes.settings.data.reset_failed'))
+      toast.error(t('notes.settings.data.reset_failed'))
     }
   }
 

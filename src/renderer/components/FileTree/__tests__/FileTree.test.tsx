@@ -166,6 +166,27 @@ describe('FileTree - editable form (all callbacks)', () => {
 
     expect(screen.getByText('Menu for Root')).toBeInTheDocument()
   })
+
+  it('stops row context-menu events after opening the row menu', () => {
+    const onWrapperContextMenu = vi.fn()
+
+    render(
+      <div onContextMenu={onWrapperContextMenu}>
+        <FileTree
+          nodes={nodes}
+          defaultExpandedIds={new Set(['root'])}
+          getMenuItems={(n) => [{ type: 'item', id: `menu-${n.id}`, label: `Menu for ${n.name}`, onSelect: () => {} }]}
+          renderList={passthroughRenderList}
+        />
+      </div>
+    )
+
+    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
+    fireEvent.contextMenu(rootRow)
+
+    expect(screen.getByText('Menu for Root')).toBeInTheDocument()
+    expect(onWrapperContextMenu).not.toHaveBeenCalled()
+  })
 })
 
 describe('FileTree - icon behaviour', () => {
@@ -243,8 +264,15 @@ describe('FileTree - icon behaviour', () => {
 
 describe('FileTree - search box', () => {
   it('does not render the search input when showSearch is omitted', () => {
-    render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
+    render(
+      <FileTree
+        nodes={nodes}
+        searchToolbar={<span data-testid="search-toolbar">Tools</span>}
+        renderList={passthroughRenderList}
+      />
+    )
     expect(screen.queryByTestId('file-tree-search-input')).toBeNull()
+    expect(screen.queryByTestId('search-toolbar')).toBeNull()
   })
 
   it('renders the search input when showSearch is true', () => {
@@ -288,6 +316,30 @@ describe('FileTree - search box', () => {
     )
     await user.type(screen.getByTestId('file-tree-search-input'), 'a')
     expect(onSearchKeywordChange).toHaveBeenCalledWith('a')
+  })
+
+  it('renders the search toolbar and keeps the clear button usable', async () => {
+    const onSearchKeywordChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        showSearch
+        searchKeyword="abc"
+        searchClearLabel="Clear files search"
+        searchToolbar={
+          <button type="button" data-testid="search-toolbar">
+            Refresh
+          </button>
+        }
+        onSearchKeywordChange={onSearchKeywordChange}
+        renderList={passthroughRenderList}
+      />
+    )
+
+    expect(screen.getByTestId('search-toolbar')).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Clear files search'))
+    expect(onSearchKeywordChange).toHaveBeenCalledWith('')
   })
 
   it('clears the keyword via the clear button', async () => {
