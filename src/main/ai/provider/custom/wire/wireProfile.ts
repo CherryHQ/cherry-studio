@@ -83,8 +83,12 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
   forward: ['resolution', 'quality', 'outputFormat', 'background'],
   fields: {
     outputCompression: {
-      contribute: (value, all) =>
-        all.outputFormat === 'jpeg' || all.outputFormat === 'webp' ? { output_compression: value as JSONValue } : {}
+      contribute: (value, all): Record<string, JSONValue> => {
+        if (all.outputFormat === 'jpeg' || all.outputFormat === 'webp') {
+          return { output_compression: value as JSONValue }
+        }
+        return {}
+      }
     }
   }
 }
