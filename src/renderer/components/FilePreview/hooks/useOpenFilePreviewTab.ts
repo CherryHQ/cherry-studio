@@ -7,16 +7,17 @@ import {
 import type { FilePath } from '@shared/types/file'
 import { useCallback } from 'react'
 
-export function useOpenFilePreviewTab(): (filePath: FilePath) => string {
+export function useOpenFilePreviewTab(): (filePath: FilePath, fileName?: string) => string {
   const { openTab, tabs, updateTab } = useTabs()
 
   return useCallback(
-    (filePath: FilePath) => {
+    (filePath: FilePath, fileName?: string) => {
       const target = createFilePreviewTabTarget(filePath)
+      const title = fileName || target.title
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === target.url)
 
       if (existingTab) {
-        const tabId = openTab(target.url, { title: target.title })
+        const tabId = openTab(target.url, { title })
         updateTab(tabId, {
           metadata: {
             ...existingTab.metadata,
@@ -27,7 +28,7 @@ export function useOpenFilePreviewTab(): (filePath: FilePath) => string {
       }
 
       return openTab(target.url, {
-        title: target.title,
+        title,
         metadata: { [FILE_PREVIEW_REFRESH_KEY]: 0 }
       })
     },

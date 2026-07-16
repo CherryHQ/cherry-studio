@@ -60,7 +60,7 @@ export function OpenPreviewButton({ filePath }: { filePath: FilePath }) {
 }
 ```
 
-The hook does not set `forceNew`. Equivalent normalized paths produce the same URL and reuse an existing tab. Reopening an existing tab increments its internal refresh key so the mounted plugin reloads the file. The returned string is the tab ID when the caller needs it.
+The hook does not set `forceNew`. Equivalent normalized paths produce the same URL and reuse an existing tab. Reopening an existing tab increments its internal refresh key so the mounted plugin reloads the file. Pass the file's display name as the optional second argument when it differs from the physical path basename. The returned string is the tab ID when the caller needs it.
 
 Embedded and tab previews are host composition choices, not `FilePreview` display variants. If users can switch between them, keep that choice in the calling page: set the current `filePath` for embedded mode or call `openFilePreviewTab(filePath)` for tab mode. Do not move this mode state into `FilePreview`.
 

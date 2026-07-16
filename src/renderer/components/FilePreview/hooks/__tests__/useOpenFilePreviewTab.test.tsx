@@ -65,6 +65,19 @@ describe('useOpenFilePreviewTab', () => {
     })
   })
 
+  it('uses the provided file name as the tab title', () => {
+    const { result } = renderHook(() => useOpenFilePreviewTab())
+
+    act(() => {
+      result.current('/tmp/storage/opaque-id.docx' as FilePath, 'Quarterly report.docx')
+    })
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/file-preview?path=%2Ftmp%2Fstorage%2Fopaque-id.docx', {
+      metadata: { filePreviewRefreshKey: 0 },
+      title: 'Quarterly report.docx'
+    })
+  })
+
   it('uses the same URL for lexically equivalent paths', () => {
     const { result } = renderHook(() => useOpenFilePreviewTab())
 

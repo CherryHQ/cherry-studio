@@ -2539,8 +2539,7 @@
       "title": "永久删除文件？"
     },
     "preview": {
-      "error": "打开文件失败",
-      "open": "预览"
+      "error": "打开文件失败"
     },
     "remove_from_library": "从库中移除",
     "rename": "重命名",

@@ -5,8 +5,6 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -427,11 +425,11 @@ describe('FilesPage file operations', () => {
     })
     renderFilesPage()
 
-    fireEvent.click(screen.getByRole('button', { name: 'files.preview.open' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: [entry.id] })
-      expect(filePreviewMocks.openFilePreviewTab).toHaveBeenCalledWith('/tmp/report.md')
+      expect(filePreviewMocks.openFilePreviewTab).toHaveBeenCalledWith('/tmp/report.md', 'report.md')
     })
   })
 
@@ -439,7 +437,7 @@ describe('FilesPage file operations', () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     renderFilesPage()
 
-    fireEvent.click(screen.getByRole('button', { name: 'files.preview.open' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
 
     await waitFor(() => {
       expect(errorSpy).toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
@@ -811,23 +809,6 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('files.error.rename_failed')
-    })
-  })
-
-  it('falls back to show in folder when default-open is blocked as unsafe', async () => {
-    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
-      if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.open') return Promise.reject(new IpcError(fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE))
-      if (route === 'file.show_in_folder') return Promise.resolve(undefined)
-      return Promise.resolve(input)
-    })
-    renderFilesPage()
-
-    fireEvent.doubleClick(screen.getByText('report.md'))
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'entry', entryId: entry.id })
     })
   })
 

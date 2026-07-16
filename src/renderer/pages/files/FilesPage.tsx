@@ -18,7 +18,6 @@ import { loggerService } from '@logger'
 import { useOpenFilePreviewTab } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -570,20 +569,11 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      void safeOpen(createFileEntryHandle(file.id)).catch(() => {
-        toast.error(t('files.preview.error'))
-      })
-    },
-    [t]
-  )
-
-  const handlePreview = useCallback(
-    (file: FileItem) => {
       void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
         .then((physicalPaths) => {
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
-          openFilePreviewTab(normalizeFilePreviewPath(filePath))
+          openFilePreviewTab(normalizeFilePreviewPath(filePath), file.name)
         })
         .catch((error: unknown) => {
           const normalized = error instanceof Error ? error : new Error(String(error))
@@ -1011,7 +1001,6 @@ function FilesPage() {
                   files={filteredFiles}
                   selectedIds={selectedIds}
                   onSelect={handleSelect}
-                  onPreview={handlePreview}
                   onOpen={handleOpen}
                   onSelectAll={handleSelectAllVisible}
                   visibleSelectionState={visibleSelectionState}
