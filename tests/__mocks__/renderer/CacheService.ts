@@ -193,6 +193,12 @@ export const createMockCacheService = (
       return entry.value as InferSharedCacheValue<K>
     }),
 
+    // Pure physical read (external-store snapshot reader): no TTL evaluation,
+    // no eviction, no notification, no schema-default fallback.
+    getSharedSnapshot: vi.fn(<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
+      return sharedCache.get(key)?.value as InferSharedCacheValue<K> | undefined
+    }),
+
     setShared: vi.fn(<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void => {
       const entry: CacheEntry = {
         value,
@@ -422,6 +428,10 @@ export const MockCacheService = {
     // ============ Shared Cache (Type-safe) ============
     getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
       return mockCacheService.getShared(key) as InferSharedCacheValue<K> | undefined
+    }
+
+    getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+      return mockCacheService.getSharedSnapshot(key) as InferSharedCacheValue<K> | undefined
     }
 
     setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {

@@ -33,7 +33,7 @@ function buildAgentSessionStreamStatusesSnapshot(sessionIds: readonly string[]):
   const entries: Array<[string, AgentSessionStreamState]> = []
 
   for (const sessionId of sessionIds) {
-    const entry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
+    const entry = cacheService.getSharedSnapshot(getAgentSessionStreamStatusCacheKey(sessionId))
     const status = toAgentSessionStreamState(entry)
     if (status) entries.push([sessionId, status])
   }
