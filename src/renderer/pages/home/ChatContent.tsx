@@ -195,6 +195,7 @@ const ChatContentInner: FC<InnerProps> = ({
       topic={topic}
       messages={runtime.messages}
       partsByMessageId={runtime.partsByMessageId}
+      streamingLayers={runtime.streamingLayers}
       isInitialLoading={isHistoryLoading}
       isMessagesStale={isHistoryStale}
       loadOlder={loadOlder}
