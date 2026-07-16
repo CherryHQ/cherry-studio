@@ -2441,52 +2441,6 @@
     },
     "user": "使用者"
   },
-  "file_preview": {
-    "invalid_path": {
-      "description": "檔案預覽需要有效的本機絕對路徑。",
-      "title": "無法預覽此檔案"
-    },
-    "load_error": {
-      "description": "無法載入此檔案的預覽內容。",
-      "title": "預覽失敗"
-    },
-    "loading": "正在載入預覽...",
-    "markdown": {
-      "empty": {
-        "description": "此 Markdown 檔案沒有內容。",
-        "title": "檔案為空"
-      },
-      "mode": {
-        "label": "Markdown 檢視模式",
-        "preview": "預覽",
-        "source": "原始碼"
-      },
-      "read_error": {
-        "title": "無法讀取此檔案"
-      },
-      "too_large": {
-        "description": "無法預覽大於 {{limit}} MiB 的 Markdown 檔案。",
-        "title": "檔案過大"
-      }
-    },
-    "text": {
-      "empty": {
-        "description": "此文字檔案沒有內容。",
-        "title": "檔案為空"
-      },
-      "read_error": {
-        "title": "無法讀取此檔案"
-      },
-      "too_large": {
-        "description": "無法預覽大於 {{limit}} MiB 的文字檔案。",
-        "title": "檔案過大"
-      }
-    },
-    "unsupported": {
-      "description": "此檔案類型暫不支援預覽。",
-      "title": "暫不支援預覽"
-    }
-  },
   "files": {
     "actions": "操作",
     "all": "所有檔案",
