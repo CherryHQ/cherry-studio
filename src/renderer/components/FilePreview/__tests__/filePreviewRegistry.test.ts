@@ -96,6 +96,10 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('pdf')
   })
 
+  it.each(['docx', 'DOCX'])('registers the Word plugin for .%s files', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
+  })
+
   it('keeps the text plugin extension whitelist explicit', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })

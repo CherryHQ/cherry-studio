@@ -2,7 +2,7 @@
 
 `FilePreview` is a read-only preview host for local files. Callers provide a file path and decide where the preview appears. The matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
 
-The built-in plugins currently support images, PDF, Markdown, and text/source files.
+The built-in plugins currently support images, PDF, Word (`.docx`), Markdown, and text/source files.
 
 ## Path Contract
 

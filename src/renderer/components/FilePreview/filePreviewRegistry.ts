@@ -5,6 +5,7 @@ import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
 import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
+import { wordFilePreviewPlugin } from './plugins/word/wordFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
 export interface FilePreviewRegistry {
@@ -39,5 +40,11 @@ export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRe
 }
 
 export const filePreviewRegistry = createFilePreviewRegistry({
-  extensionPlugins: [imageFilePreviewPlugin, markdownFilePreviewPlugin, pdfFilePreviewPlugin, textFilePreviewPlugin]
+  extensionPlugins: [
+    imageFilePreviewPlugin,
+    markdownFilePreviewPlugin,
+    pdfFilePreviewPlugin,
+    textFilePreviewPlugin,
+    wordFilePreviewPlugin
+  ]
 })
