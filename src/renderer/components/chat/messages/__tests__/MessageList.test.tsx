@@ -111,21 +111,16 @@ vi.mock('../list/MessageAnchorLine', () => ({
   default: () => null
 }))
 
-vi.mock('../list/MessageGroup', async () => {
-  const { useMessageEnterMotionActive } = await import('../../motion/messageEnterMotion')
-
-  const MessageEnterProbe = ({ messageId }: { messageId: string }) => {
-    const active = useMessageEnterMotionActive(messageId)
-    return <span data-testid={`message-enter-${messageId}`}>{String(active)}</span>
-  }
-
+vi.mock('../list/MessageGroup', () => {
   return {
     __esModule: true,
     default: ({
       messages,
+      enteringMessageIds,
       registerMessageElement
     }: {
       messages: MessageListItem[]
+      enteringMessageIds?: ReadonlySet<string>
       registerMessageElement?: (id: string, element: HTMLElement | null) => void
     }) => (
       <div data-testid="message-group">
@@ -140,7 +135,9 @@ vi.mock('../list/MessageGroup', async () => {
               ref={setRef}
               className="fold"
               data-testid={`message-node-${message.id}`}>
-              <MessageEnterProbe messageId={message.id} />
+              <span data-testid={`message-enter-${message.id}`}>
+                {String(enteringMessageIds?.has(message.id) ?? false)}
+              </span>
             </div>
           )
         })}

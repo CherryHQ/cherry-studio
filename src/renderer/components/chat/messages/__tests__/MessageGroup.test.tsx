@@ -6,7 +6,6 @@ import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/r
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MessageEnterMotionProvider } from '../../motion/messageEnterMotion'
 import type { MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -705,15 +704,47 @@ describe('MessageGroup', () => {
     const topic = { id: 'topic-1' } as Topic
 
     const { container } = render(
-      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-inline-1'])}>
-        <MessageGroup messages={[message]} topic={topic} />
-      </MessageEnterMotionProvider>
+      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-inline-1'])} />
     )
 
     const messageElement = container.querySelector('#message-user-inline-1 .message')
 
     expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-inline')
     expect(messageElement).toHaveClass('animation-chat-message-enter-inline')
+  })
+
+  it('rerenders only when enter motion changes for a message in the group', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const messages = [
+      {
+        ...createMessage('user-inline-1', 0, 'vertical'),
+        role: 'user'
+      } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    ]
+    const topic = { id: 'topic-1' } as Topic
+    const view = render(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
+    const initialRenderCount = mocks.MessageContent.mock.calls.length
+
+    view.rerender(
+      <MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['unrelated-message'])} />
+    )
+    expect(mocks.MessageContent).toHaveBeenCalledTimes(initialRenderCount)
+
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['user-inline-1'])} />)
+    expect(mocks.MessageContent.mock.calls.length).toBeGreaterThan(initialRenderCount)
+    expect(view.container.querySelector('#message-user-inline-1 .message')).toHaveAttribute(
+      'data-message-enter-motion',
+      'user-inline'
+    )
   })
 
   it('keeps user bubble content and footer out of the assistant title-column offset', () => {
@@ -767,9 +798,7 @@ describe('MessageGroup', () => {
     const topic = { id: 'topic-1' } as Topic
 
     const { container } = render(
-      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-bubble-1'])}>
-        <MessageGroup messages={[message]} topic={topic} />
-      </MessageEnterMotionProvider>
+      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-bubble-1'])} />
     )
 
     const messageElement = container.querySelector('#message-user-bubble-1 .message')
