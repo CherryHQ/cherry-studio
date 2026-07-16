@@ -226,7 +226,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -248,7 +248,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
   })
 
   it('keeps edit menu action for root messages', () => {

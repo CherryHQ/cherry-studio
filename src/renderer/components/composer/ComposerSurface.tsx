@@ -553,6 +553,7 @@ export default function ComposerSurface({
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
+  const isEditing = !!editingState
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
@@ -570,6 +571,7 @@ export default function ComposerSurface({
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
   const isExpandedRef = useRef(isExpanded)
+  const isEditingRef = useRef(isEditing)
   const filesCountRef = useRef(filesCount)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
 
@@ -578,6 +580,7 @@ export default function ComposerSurface({
   useLayoutEffect(() => {
     quickPanelRef.current = quickPanel
     isExpandedRef.current = isExpanded
+    isEditingRef.current = isEditing
     filesCountRef.current = filesCount
     sendDisabledRef.current = sendDisabled
     sendBlockedReasonRef.current = sendBlockedReason
@@ -587,6 +590,7 @@ export default function ComposerSurface({
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
+    isEditing,
     isExpanded,
     onInputHistoryNavigate,
     onSendDraft,
@@ -1326,13 +1330,15 @@ export default function ComposerSurface({
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
+        const isShiftEnterPressed =
+          isEnterPressed && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
         const qp = quickPanelRef.current
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
           const handled = qp.dispatchKeyDown(event)
           if (handled) return true
-          if (qp.isVisible && isEnterPressed && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (qp.isVisible && isShiftEnterPressed) {
             return false
           }
           if (qp.isVisible && isEnterPressed) {
@@ -1382,6 +1388,10 @@ export default function ComposerSurface({
             promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
             return true
           }
+        }
+
+        if (isEditingRef.current && isShiftEnterPressed) {
+          return false
         }
 
         if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
@@ -1917,7 +1927,7 @@ export default function ComposerSurface({
               onClick={editingState.onLocate}
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+              className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
               aria-label={t('chat.input.locate_editing_message')}>
               <LocateFixed size={14} />
             </Button>
@@ -1929,7 +1939,7 @@ export default function ComposerSurface({
             onClick={editingState.onCancel}
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+            className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
             aria-label={t('chat.input.cancel_editing')}>
             <X size={14} />
           </Button>

@@ -758,13 +758,13 @@ describe('ComposerSurface', () => {
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
     expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(locateButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(locateButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(cancelButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
     expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
 
     fireEvent.click(cancelButton)
@@ -3936,6 +3936,26 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('preserves Shift+Enter newline while editing even when it is configured as the send shortcut', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Shift+Enter'
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onSendDraft={onSendDraft}
+        editingState={{ messageId: 'message-1', onCancel: vi.fn() }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
     expect(event.defaultPrevented).toBe(false)
     expect(onSendDraft).not.toHaveBeenCalled()
   })
