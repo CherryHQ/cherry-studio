@@ -1,7 +1,10 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { FilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, LoaderCircle } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useMemo } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -33,17 +36,33 @@ const FILE_PREVIEW_STATE_KEYS = {
 
 interface FilePreviewStateProps {
   kind: FilePreviewStateKind
+  filePath?: FilePath
 }
 
-function FilePreviewState({ kind }: FilePreviewStateProps) {
+function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
   const { t } = useTranslation()
   const Icon = kind === 'unsupported' ? FileQuestion : kind === 'invalid_path' ? FileX2 : FileWarning
   const keys = FILE_PREVIEW_STATE_KEYS[kind]
+  // Only the "unsupported" state can fall back to an external open: the path is
+  // already validated (unlike invalid_path) and points at a real file we simply
+  // cannot render inline. `safeOpen` enforces the unsafe-extension policy.
+  const openablePath = kind === 'unsupported' ? filePath : undefined
+  const handleOpenWithDefaultApp = () => {
+    if (!openablePath) return
+    void safeOpen(createFilePathHandle(openablePath)).catch(() => toast.error(t('file_preview.unsupported.open_error')))
+  }
 
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <EmptyState icon={Icon} title={t(keys.title)} description={t(keys.description)} className="h-full" />
+        <EmptyState
+          icon={Icon}
+          title={t(keys.title)}
+          description={t(keys.description)}
+          className="h-full"
+          actionLabel={openablePath ? t('file_preview.unsupported.action') : undefined}
+          onAction={openablePath ? handleOpenWithDefaultApp : undefined}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )
@@ -138,7 +157,7 @@ export function FilePreview({ filePath, header, refreshKey = 0 }: FilePreviewPro
     preview = extensionPlugin ? (
       <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} refreshKey={refreshKey} />
     ) : (
-      <FilePreviewState kind="unsupported" />
+      <FilePreviewState kind="unsupported" filePath={file.filePath} />
     )
   }
 
