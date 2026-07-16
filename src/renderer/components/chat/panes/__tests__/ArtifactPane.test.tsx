@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { toast } from '@renderer/services/toast'
 import type { SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -9,10 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, {
   ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
-  ArtifactFilePreview,
   ArtifactPaneView,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
+import { useArtifactFileEditor } from '../useArtifactFileEditor'
 import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /**
@@ -57,6 +58,35 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
   )
 }
 
+function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const model = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: true,
+    expandedIds,
+    searchKeyword,
+    enableFileSearch: true,
+    selectedFile,
+    onExpandedIdsChange: setExpandedIds
+  })
+  const fileEditor = useArtifactFileEditor()
+
+  return (
+    <ArtifactPaneView
+      workspacePath={workspacePath}
+      enableFileSearch
+      model={model}
+      selectedFile={selectedFile}
+      onSelectedFileChange={setSelectedFile}
+      searchKeyword={searchKeyword}
+      onSearchKeywordChange={setSearchKeyword}
+      fileEditor={fileEditor}
+    />
+  )
+}
+
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
   treeDispose: vi.fn(),
@@ -68,6 +98,7 @@ const mocks = vi.hoisted(() => ({
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   getMetadata: vi.fn(),
+  fileWrite: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
   windowOpen: vi.fn(),
@@ -201,7 +232,22 @@ vi.mock('@cherrystudio/ui', async () => {
       delete domProps.attached
       return <div {...domProps}>{children}</div>
     },
-    CodeEditor: ({ value }: { value: string }) => <div data-testid="code-editor">{value}</div>,
+    CodeEditor: ({
+      value,
+      onChange,
+      fontSize
+    }: {
+      value: string
+      onChange?: (content: string) => void
+      fontSize?: number
+    }) => (
+      <textarea
+        data-testid="code-editor"
+        data-font-size={fontSize}
+        value={value}
+        onChange={(event) => onChange?.(event.currentTarget.value)}
+      />
+    ),
     MenuItem: ({
       label,
       icon,
@@ -530,7 +576,8 @@ describe('ArtifactPane', () => {
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
           listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata
+          getMetadata: mocks.getMetadata,
+          write: mocks.fileWrite
         },
         fs: {
           read: mocks.fsRead,
@@ -1513,25 +1560,76 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
-  it('skips preview for oversized UTF-8 draft content when disk metadata is below the size cap', () => {
+  it('skips preview for oversized UTF-8 draft content when disk metadata is below the size cap', async () => {
     const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
     expect(oversizedDraft.length).toBeLessThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     expect(new Blob([oversizedDraft]).size).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.fsRead.mockResolvedValue(new TextEncoder().encode('# small'))
 
-    render(
-      <ArtifactFilePreview
-        workspacePath="/tmp/workspace"
-        filePath="draft.md"
-        isText="text"
-        fileSize={{ status: 'ok', size: 1024 }}
-        contentOverride={oversizedDraft}
-      />
-    )
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
 
-    expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument()
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: oversizedDraft } })
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.preview' }))
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
     expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
     expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(mocks.fileWrite).not.toHaveBeenCalled()
+  })
+
+  it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
+    const encoded = new TextEncoder().encode('first\r\nsecond\r\n')
+    const source = new Uint8Array(encoded.length + 3)
+    source.set([0xef, 0xbb, 0xbf])
+    source.set(encoded, 3)
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\r\nsecond\r\n')
+    mocks.fsRead.mockResolvedValue(source)
+    mocks.fileWrite.mockResolvedValue(undefined)
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+
+    const editor = await screen.findByTestId<HTMLTextAreaElement>('code-editor')
+    expect(editor).toHaveAttribute('data-font-size', '14')
+    expect(editor.value).toBe('first\nsecond\n')
+
+    fireEvent.change(editor, { target: { value: 'changed\ncontent\n' } })
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(mocks.fileWrite).toHaveBeenCalledTimes(1))
+    const written = mocks.fileWrite.mock.calls[0][1] as Uint8Array
+    expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+    expect(new TextDecoder().decode(written.slice(3))).toBe('changed\r\ncontent\r\n')
+  })
+
+  it('keeps invalid UTF-8 files preview-only and explains why editing is unavailable', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['legacy.txt'])
+    mocks.fsReadText.mockResolvedValue('legacy preview')
+    // GBK bytes for "你好" are accepted by text sniffing but must not enter the UTF-8 editor.
+    mocks.fsRead.mockResolvedValue(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-legacy.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-legacy.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('agent.preview_pane.edit.unsupported'))
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('legacy preview')
+    expect(mocks.fileWrite).not.toHaveBeenCalled()
   })
 
   it('still renders PDFs above the 2 MB size cap', async () => {

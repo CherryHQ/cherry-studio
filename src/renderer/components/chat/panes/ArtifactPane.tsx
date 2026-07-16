@@ -37,7 +37,7 @@ import { useTranslation } from 'react-i18next'
 
 import { type ArtifactPaneFileSelection, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import type { ArtifactFileEditor } from './useArtifactFileEditor'
+import { type ArtifactFileEditor, UnsupportedArtifactFileEditError } from './useArtifactFileEditor'
 import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
@@ -699,6 +699,10 @@ export function ArtifactPaneView({
     (mode: 'preview' | 'edit') => {
       if (!fileEditor || !overlaySelection) return
       void fileEditor.setMode(overlaySelection, mode).catch((error: unknown) => {
+        if (error instanceof UnsupportedArtifactFileEditError) {
+          toast.error(t('agent.preview_pane.edit.unsupported'))
+          return
+        }
         logger.error('Failed to open text file editor', error as Error)
         toast.error(t('agent.preview_pane.edit.open_failed'))
       })
@@ -848,6 +852,7 @@ export function ArtifactPaneView({
                 height="100%"
                 expanded={false}
                 wrapped={false}
+                fontSize={14}
                 style={{ minHeight: 0 }}
                 options={{ keymap: true, lineNumbers: true }}
               />

@@ -227,7 +227,8 @@
         "open_failed": "无法打开此文件进行编辑。",
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。",
-        "unsaved": "未保存"
+        "unsaved": "未保存",
+        "unsupported": "此文件可以预览，但暂时无法在这里安全编辑。目前仅支持换行符统一为 LF 或 CRLF 的 UTF-8 文本文件。"
       },
       "empty": {
         "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",

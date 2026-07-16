@@ -2,22 +2,33 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fileMocks = vi.hoisted(() => ({
-  readExternal: vi.fn(),
-  write: vi.fn()
-}))
+const fileMocks = vi.hoisted(() => ({ write: vi.fn() }))
+const fsMocks = vi.hoisted(() => ({ read: vi.fn() }))
 
-import { useArtifactFileEditor } from '../useArtifactFileEditor'
+import { UnsupportedArtifactFileEditError, useArtifactFileEditor } from '../useArtifactFileEditor'
 
 const selection = { workspacePath: '/ws', filePath: 'notes.txt' }
 const otherSelection = { workspacePath: '/ws', filePath: 'other.txt' }
 
 const initialContent = 'hello\n'
+const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf])
+
+function utf8(content: string): Uint8Array {
+  return new TextEncoder().encode(content)
+}
+
+function withUtf8Bom(content: string): Uint8Array {
+  const encoded = utf8(content)
+  const result = new Uint8Array(UTF8_BOM.length + encoded.length)
+  result.set(UTF8_BOM)
+  result.set(encoded, UTF8_BOM.length)
+  return result
+}
 
 beforeEach(() => {
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { file: fileMocks }
+    value: { file: fileMocks, fs: fsMocks }
   })
 })
 
@@ -28,25 +39,27 @@ afterEach(() => {
 
 describe('useArtifactFileEditor', () => {
   it('enters edit mode by loading the file content', async () => {
-    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
+    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await act(async () => {
       await result.current.setMode(selection, 'edit')
     })
 
-    expect(fileMocks.readExternal).toHaveBeenCalledWith('/ws/notes.txt')
+    expect(fsMocks.read).toHaveBeenCalledWith('/ws/notes.txt')
     expect(result.current.getSession(selection)).toMatchObject({
       mode: 'edit',
       status: 'ready',
       draft: 'hello\n',
-      savedContent: 'hello\n'
+      savedContent: 'hello\n',
+      lineEnding: 'lf',
+      hasBom: false
     })
     expect(result.current.hasUnsavedChanges).toBe(false)
   })
 
   it('saves a dirty draft through the existing file writer and records the new content', async () => {
-    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
+    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -58,7 +71,7 @@ describe('useArtifactFileEditor', () => {
       await result.current.save(selection)
     })
 
-    expect(fileMocks.write).toHaveBeenCalledWith('/ws/notes.txt', 'changed\n')
+    expect(fileMocks.write).toHaveBeenCalledWith('/ws/notes.txt', utf8('changed\n'))
     expect(result.current.getSession(selection)).toMatchObject({
       status: 'ready',
       draft: 'changed\n',
@@ -68,7 +81,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('keeps the dirty draft ready for retry when saving fails', async () => {
-    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
+    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -92,7 +105,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('discard restores the last saved content', async () => {
-    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
+    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -105,7 +118,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('reload replaces the draft with fresh file content', async () => {
-    fileMocks.readExternal.mockResolvedValueOnce(initialContent)
+    fsMocks.read.mockResolvedValueOnce(utf8(initialContent))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -113,7 +126,7 @@ describe('useArtifactFileEditor', () => {
     act(() => result.current.updateDraft(selection, 'draft'))
 
     const newer = 'newer\n'
-    fileMocks.readExternal.mockResolvedValueOnce(newer)
+    fsMocks.read.mockResolvedValueOnce(utf8(newer))
     await act(async () => {
       await result.current.reload(selection)
     })
@@ -126,7 +139,7 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('replaces the active session when another file loads', async () => {
-    fileMocks.readExternal.mockResolvedValue(initialContent)
+    fsMocks.read.mockResolvedValue(utf8(initialContent))
     const { result } = renderHook(() => useArtifactFileEditor())
     await act(async () => {
       await result.current.setMode(selection, 'edit')
@@ -147,8 +160,8 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('clears the active session and invalidates an outstanding load', async () => {
-    let resolveLoad!: (value: string) => void
-    fileMocks.readExternal.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
+    let resolveLoad!: (value: Uint8Array) => void
+    fsMocks.read.mockImplementationOnce(() => new Promise((resolve) => (resolveLoad = resolve)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     let load: Promise<void> | undefined
@@ -157,7 +170,7 @@ describe('useArtifactFileEditor', () => {
     })
     act(() => result.current.clear())
     await act(async () => {
-      resolveLoad(initialContent)
+      resolveLoad(utf8(initialContent))
       await load
     })
 
@@ -166,20 +179,20 @@ describe('useArtifactFileEditor', () => {
   })
 
   it('ignores a stale read response after a newer load starts', async () => {
-    let resolveFirst!: (value: string) => void
-    fileMocks.readExternal.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+    let resolveFirst!: (value: Uint8Array) => void
+    fsMocks.read.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
     const { result } = renderHook(() => useArtifactFileEditor())
 
     let first: Promise<void> | undefined
     act(() => {
       first = result.current.setMode(selection, 'edit')
     })
-    fileMocks.readExternal.mockResolvedValueOnce('second\n')
+    fsMocks.read.mockResolvedValueOnce(utf8('second\n'))
     await act(async () => {
       await result.current.reload(selection)
     })
     await act(async () => {
-      resolveFirst('first\n')
+      resolveFirst(utf8('first\n'))
       await first
     })
 
@@ -188,7 +201,7 @@ describe('useArtifactFileEditor', () => {
 
   it('drops the session and rethrows when the initial load fails', async () => {
     const readError = new Error('read failed')
-    fileMocks.readExternal.mockRejectedValueOnce(readError)
+    fsMocks.read.mockRejectedValueOnce(readError)
     const { result } = renderHook(() => useArtifactFileEditor())
 
     await expect(
@@ -198,5 +211,51 @@ describe('useArtifactFileEditor', () => {
     ).rejects.toBe(readError)
 
     expect(result.current.getSession(selection)).toBeUndefined()
+  })
+
+  it('normalizes CRLF while editing and restores CRLF with the UTF-8 BOM on save', async () => {
+    fsMocks.read.mockResolvedValueOnce(withUtf8Bom('first\r\nsecond\r\n'))
+    const { result } = renderHook(() => useArtifactFileEditor())
+
+    await act(async () => {
+      await result.current.setMode(selection, 'edit')
+    })
+
+    expect(result.current.getSession(selection)).toMatchObject({
+      draft: 'first\nsecond\n',
+      savedContent: 'first\nsecond\n',
+      lineEnding: 'crlf',
+      hasBom: true
+    })
+
+    act(() => result.current.updateDraft(selection, 'changed\ncontent\n'))
+    fileMocks.write.mockResolvedValueOnce(undefined)
+    await act(async () => {
+      await result.current.save(selection)
+    })
+
+    expect(fileMocks.write).toHaveBeenCalledWith('/ws/notes.txt', withUtf8Bom('changed\r\ncontent\r\n'))
+  })
+
+  it('keeps invalid UTF-8 and mixed-line-ending files preview-only', async () => {
+    // GBK bytes for "你好" are not valid UTF-8.
+    fsMocks.read.mockResolvedValueOnce(new Uint8Array([0xc4, 0xe3, 0xba, 0xc3]))
+    const { result } = renderHook(() => useArtifactFileEditor())
+
+    await expect(
+      act(async () => {
+        await result.current.setMode(selection, 'edit')
+      })
+    ).rejects.toMatchObject({ reason: 'encoding' })
+    expect(result.current.getSession(selection)).toBeUndefined()
+
+    fsMocks.read.mockResolvedValueOnce(utf8('first\r\nsecond\n'))
+    await expect(
+      act(async () => {
+        await result.current.setMode(selection, 'edit')
+      })
+    ).rejects.toBeInstanceOf(UnsupportedArtifactFileEditError)
+    expect(result.current.getSession(selection)).toBeUndefined()
+    expect(fileMocks.write).not.toHaveBeenCalled()
   })
 })

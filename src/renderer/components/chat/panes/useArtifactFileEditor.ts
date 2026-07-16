@@ -4,12 +4,18 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
 
 type ArtifactFileEditorMode = 'preview' | 'edit'
+type ArtifactFileLineEnding = 'lf' | 'crlf'
+type UnsupportedArtifactFileEditReason = 'encoding' | 'mixed-line-endings'
+
+const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf])
 
 interface ArtifactFileEditSession {
   mode: ArtifactFileEditorMode
   status: 'loading' | 'ready' | 'saving'
   draft: string
   savedContent: string
+  lineEnding: ArtifactFileLineEnding
+  hasBom: boolean
 }
 
 interface StoredArtifactFileEditSession extends ArtifactFileEditSession {
@@ -25,6 +31,57 @@ export interface ArtifactFileEditor {
   discard: (selection: ArtifactPaneFileSelection) => void
   reload: (selection: ArtifactPaneFileSelection) => Promise<void>
   clear: () => void
+}
+
+export class UnsupportedArtifactFileEditError extends Error {
+  constructor(public readonly reason: UnsupportedArtifactFileEditReason) {
+    super(`Artifact file editing is not supported (${reason})`)
+    this.name = 'UnsupportedArtifactFileEditError'
+  }
+}
+
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes.length >= UTF8_BOM.length && UTF8_BOM.every((value, index) => bytes[index] === value)
+}
+
+function decodeArtifactFile(bytes: Uint8Array): {
+  content: string
+  lineEnding: ArtifactFileLineEnding
+  hasBom: boolean
+} {
+  const hasBom = hasUtf8Bom(bytes)
+  let content: string
+  try {
+    content = new TextDecoder('utf-8', { fatal: true }).decode(hasBom ? bytes.slice(UTF8_BOM.length) : bytes)
+  } catch {
+    throw new UnsupportedArtifactFileEditError('encoding')
+  }
+
+  // NUL is a strong binary signal even when its byte sequence is technically valid UTF-8.
+  if (content.includes('\0')) throw new UnsupportedArtifactFileEditError('encoding')
+
+  const withoutCrlf = content.replace(/\r\n/g, '')
+  const hasCrlf = content.includes('\r\n')
+  if (withoutCrlf.includes('\r') || (hasCrlf && withoutCrlf.includes('\n'))) {
+    throw new UnsupportedArtifactFileEditError('mixed-line-endings')
+  }
+
+  return {
+    content: hasCrlf ? content.replace(/\r\n/g, '\n') : content,
+    lineEnding: hasCrlf ? 'crlf' : 'lf',
+    hasBom
+  }
+}
+
+function encodeArtifactFile(content: string, lineEnding: ArtifactFileLineEnding, hasBom: boolean): Uint8Array {
+  const normalized = content.replace(/\r\n?/g, '\n')
+  const encoded = new TextEncoder().encode(lineEnding === 'crlf' ? normalized.replace(/\n/g, '\r\n') : normalized)
+  if (!hasBom) return encoded
+
+  const withBom = new Uint8Array(UTF8_BOM.length + encoded.length)
+  withBom.set(UTF8_BOM)
+  withBom.set(encoded, UTF8_BOM.length)
+  return withBom
 }
 
 function getSelectionPath(selection: ArtifactPaneFileSelection): string {
@@ -68,11 +125,14 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
         mode: requestedMode ?? previousSession?.mode ?? 'preview',
         status: 'loading',
         draft: previousSession?.draft ?? '',
-        savedContent: previousSession?.savedContent ?? ''
+        savedContent: previousSession?.savedContent ?? '',
+        lineEnding: previousSession?.lineEnding ?? 'lf',
+        hasBom: previousSession?.hasBom ?? false
       })
 
       try {
-        const content = await window.api.file.readExternal(filePath)
+        const bytes = new Uint8Array(await window.api.fs.read(filePath))
+        const snapshot = decodeArtifactFile(bytes)
         if (requestVersionRef.current !== requestVersion) return
 
         setSession((current) => {
@@ -81,8 +141,10 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
             filePath,
             mode: requestedMode ?? current.mode,
             status: 'ready',
-            draft: content,
-            savedContent: content
+            draft: snapshot.content,
+            savedContent: snapshot.content,
+            lineEnding: snapshot.lineEnding,
+            hasBom: snapshot.hasBom
           }
         })
       } catch (error) {
@@ -125,7 +187,7 @@ export function useArtifactFileEditor(): ArtifactFileEditor {
       setSession((current) => (current?.filePath === filePath ? { ...current, status: 'saving' as const } : current))
 
       try {
-        await window.api.file.write(filePath, submittedDraft)
+        await window.api.file.write(filePath, encodeArtifactFile(submittedDraft, session.lineEnding, session.hasBom))
         if (requestVersionRef.current !== requestVersion) return
 
         setSession((current) => {

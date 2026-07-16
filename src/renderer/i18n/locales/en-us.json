@@ -227,7 +227,8 @@
         "open_failed": "Unable to open this file for editing.",
         "refresh_failed": "Unable to reload the latest file content.",
         "save_failed": "Unable to save this file.",
-        "unsaved": "Unsaved"
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
       },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
