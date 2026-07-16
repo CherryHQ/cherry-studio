@@ -235,7 +235,7 @@ describe('AppShellTabBar', () => {
     expect(closeOthersButtons).toHaveLength(4)
     await user.click(closeOthersButtons[2])
 
-    expect(closeTabs).toHaveBeenCalledWith(['a', 'c'])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'c'], 'b')
   })
 
   it('clears the whole normal zone when batch-closing from a pinned tab', async () => {
@@ -263,11 +263,11 @@ describe('AppShellTabBar', () => {
 
     // The pinned tab renders first, so its buttons come before the normal tabs'.
     await user.click(screen.getAllByTestId('menu-tab.close-to-right')[0])
-    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'], 'p')
 
     closeTabs.mockClear()
     await user.click(screen.getAllByTestId('menu-tab.close-others')[0])
-    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'], 'p')
   })
 
   it('closes the tabs to the right from the context menu', async () => {
@@ -298,7 +298,7 @@ describe('AppShellTabBar', () => {
     expect(closeToRightButtons).toHaveLength(2)
     await user.click(closeToRightButtons[0])
 
-    expect(closeTabs).toHaveBeenCalledWith(['b', 'c'])
+    expect(closeTabs).toHaveBeenCalledWith(['b', 'c'], 'a')
   })
 
   it('lets the home tab expose menu affordances like a normal tab', () => {

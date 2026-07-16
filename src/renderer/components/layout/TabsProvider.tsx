@@ -252,7 +252,7 @@ export function TabsProvider({
   )
 
   const closeTabs = useCallback(
-    (ids: readonly string[]) => {
+    (ids: readonly string[], activateId?: string) => {
       const closingIdSet = new Set(ids)
       if (closingIdSet.size === 0) return
 
@@ -266,10 +266,17 @@ export function TabsProvider({
       if (fallbackTab) {
         newActiveId = fallbackTab.id
       } else if (closingIdSet.has(activeTabId)) {
-        const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
-        const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
-        const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
-        newActiveId = (leftTab ?? rightTab)?.id ?? ''
+        // Prefer the caller-designated survivor (e.g. the tab whose menu ran
+        // "close others"); otherwise fall back to the nearest neighbor.
+        const preferredTab = activateId ? remainingTabs.find((tab) => tab.id === activateId) : undefined
+        if (preferredTab) {
+          newActiveId = preferredTab.id
+        } else {
+          const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+          const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+          const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+          newActiveId = (leftTab ?? rightTab)?.id ?? ''
+        }
       }
 
       const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))

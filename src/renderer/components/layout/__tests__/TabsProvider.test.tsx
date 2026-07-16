@@ -148,8 +148,14 @@ function BatchCloseControls() {
       <button type="button" onClick={() => setActiveTab('c')}>
         Activate C
       </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate Home
+      </button>
       <button type="button" onClick={() => closeTabs(['b', 'c'])}>
         Close B and C
+      </button>
+      <button type="button" onClick={() => closeTabs(['home', 'b', 'd'], 'c')}>
+        Close others around C
       </button>
       <div data-testid="active-tab-id">{activeTabId}</div>
       <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
@@ -372,6 +378,36 @@ describe('TabsProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+  })
+
+  it('activates the designated survivor instead of the nearest neighbor when the active tab is batch-closed', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    // Active tab (home) sits left of the designated survivor (c) with the
+    // pinned files tab further left — without activateId the nearest-left rule
+    // would land on the pinned tab instead of c.
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Home' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close others around C' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,c'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c')
   })
 
   it('opens launchpad when closing the only tab', async () => {

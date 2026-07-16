@@ -22,7 +22,7 @@ type AppShellTabBarProps = {
   isFullscreen?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
-  closeTabs: (ids: readonly string[]) => void
+  closeTabs: (ids: readonly string[], activateId?: string) => void
   addTab?: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   pinTab: (id: string) => void
@@ -503,10 +503,14 @@ export const AppShellTabBar = ({
   )
 
   // Batch close actions only touch the normal zone — pinned tabs are exempt,
-  // matching browser convention.
+  // matching browser convention. The right-clicked tab is passed as the
+  // preferred survivor so focus lands on it when the active tab gets closed.
   const handleCloseOthers = useCallback(
     (tabId: string) => {
-      closeTabs(normalTabs.filter((t) => t.id !== tabId).map((t) => t.id))
+      closeTabs(
+        normalTabs.filter((t) => t.id !== tabId).map((t) => t.id),
+        tabId
+      )
     },
     [normalTabs, closeTabs]
   )
@@ -516,7 +520,10 @@ export const AppShellTabBar = ({
       // A pinned tab is not in normalTabs (index -1): the whole normal zone
       // sits to its right, so slice(0) closes every normal tab.
       const index = normalTabs.findIndex((t) => t.id === tabId)
-      closeTabs(normalTabs.slice(index + 1).map((t) => t.id))
+      closeTabs(
+        normalTabs.slice(index + 1).map((t) => t.id),
+        tabId
+      )
     },
     [normalTabs, closeTabs]
   )
