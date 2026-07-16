@@ -230,12 +230,44 @@ describe('AppShellTabBar', () => {
       />
     )
 
-    // Only the three normal tabs offer the action; the pinned tab is exempt.
+    // All four tabs offer the action; the pinned tab renders first in the strip.
     const closeOthersButtons = screen.getAllByTestId('menu-tab.close-others')
-    expect(closeOthersButtons).toHaveLength(3)
-    await user.click(closeOthersButtons[1])
+    expect(closeOthersButtons).toHaveLength(4)
+    await user.click(closeOthersButtons[2])
 
     expect(closeTabs).toHaveBeenCalledWith(['a', 'c'])
+  })
+
+  it('clears the whole normal zone when batch-closing from a pinned tab', async () => {
+    const user = userEvent.setup()
+    const closeTabs = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
+      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="a"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        closeTabs={closeTabs}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    // The pinned tab renders first, so its buttons come before the normal tabs'.
+    await user.click(screen.getAllByTestId('menu-tab.close-to-right')[0])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'])
+
+    closeTabs.mockClear()
+    await user.click(screen.getAllByTestId('menu-tab.close-others')[0])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'])
   })
 
   it('closes the tabs to the right from the context menu', async () => {
@@ -469,7 +501,7 @@ describe('AppShellTabBar', () => {
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
   })
 
-  it('allows the last normal tab to close while forbidding direct close on pinned tabs', () => {
+  it('allows both the last normal tab and pinned tabs to close from the menu', () => {
     const tabs: Tab[] = [
       { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
       { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
@@ -490,7 +522,7 @@ describe('AppShellTabBar', () => {
     )
 
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(2)
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
+    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
     expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(0)
   })
 
@@ -515,7 +547,7 @@ describe('AppShellTabBar', () => {
       />
     )
 
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
+    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(3)
   })
   it('closes a normal tab on double click or middle click', () => {
     const handleDoubleClick = vi.fn()
@@ -642,17 +674,24 @@ describe('getTabCapabilities', () => {
     })
   })
 
-  it('lets pinned tabs unpin but never close, reordering only with siblings', () => {
-    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1 }))).toEqual({
+  it('lets pinned tabs unpin and close via menu, batch-closing only the normal zone', () => {
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1, normalCount: 1 }))).toEqual({
       menu: true,
       reorder: false,
       togglePin: true,
       detach: true,
-      close: false,
-      closeOthers: false,
-      closeToRight: false
+      close: true,
+      closeOthers: true,
+      closeToRight: true
     })
     expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
+  })
+
+  it('hides batch close on pinned tabs when no normal tabs exist', () => {
+    const caps = getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2, normalCount: 0 }))
+    expect(caps.close).toBe(true)
+    expect(caps.closeOthers).toBe(false)
+    expect(caps.closeToRight).toBe(false)
   })
 
   it('offers close-to-right only while normal tabs exist to the right', () => {

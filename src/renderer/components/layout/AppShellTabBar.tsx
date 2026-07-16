@@ -275,10 +275,11 @@ interface TabCapabilities {
  * Single source of truth for what a tab can do, derived from its zone and the
  * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
  * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
- * can always be unpinned but never closed directly (batch close actions exempt
- * them too, matching browser convention); reordering is per-zone.
- * `normalIndex` is the tab's position within the normal zone — required to
- * offer "close tabs to the right".
+ * can be closed via the context menu (no inline X), and the batch close actions
+ * only ever clear the normal zone — pinned tabs are exempt as close *targets*,
+ * matching browser convention. Reordering is per-zone. `normalIndex` is the
+ * tab's position within the normal zone — required to offer "close tabs to the
+ * right"; for a pinned tab every normal tab counts as being to its right.
  */
 export function getTabCapabilities(
   tab: Pick<Tab, 'id' | 'isPinned'>,
@@ -292,9 +293,9 @@ export function getTabCapabilities(
       reorder: hasSiblings,
       togglePin: true,
       detach,
-      close: false,
-      closeOthers: false,
-      closeToRight: false
+      close: true,
+      closeOthers: ctx.normalCount > 0,
+      closeToRight: ctx.normalCount > 0
     }
   }
   const hasSiblings = ctx.normalCount > 1
@@ -512,8 +513,9 @@ export const AppShellTabBar = ({
 
   const handleCloseToRight = useCallback(
     (tabId: string) => {
+      // A pinned tab is not in normalTabs (index -1): the whole normal zone
+      // sits to its right, so slice(0) closes every normal tab.
       const index = normalTabs.findIndex((t) => t.id === tabId)
-      if (index === -1) return
       closeTabs(normalTabs.slice(index + 1).map((t) => t.id))
     },
     [normalTabs, closeTabs]
