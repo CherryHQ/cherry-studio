@@ -22,9 +22,13 @@ preference. The layout is derived from the resource-list display mode.
 
 - Display mode and topic/session position are stored as Preference data.
 - `topic.tab.show` controls whether the left resource list is expanded.
-- Classic-layout right-pane open state is persisted per surface via
-  `useClassicLayoutRightPaneOpen(surface, isClassic)`: `ui.chat.right_pane_open`
-  for Home and `ui.agent.right_pane_open` for Agent.
+- Classic-layout right-pane state is persisted independently per surface via
+  `useClassicLayoutRightPaneOpen(surface, { enabled, defaultOpen })`:
+  `ui.chat.right_pane_open_override` for Home and
+  `ui.agent.right_pane_open_override` for Agent. A `null` override delegates to
+  the page default: the pane opens when the topic/session list is positioned on
+  the right in a main window. Explicit open/closed choices persist across page
+  re-entry.
 - Resource-list collapsed groups are stored per display mode in renderer persist
   cache.
 
@@ -50,6 +54,10 @@ the first resource tab through `ResourcePaneProvider` / `useResourcePane`.
 
 - Home lists topics; Agent lists sessions.
 - Lists are scoped to the current assistant/agent.
+- When no explicit pane override exists, placing the topic/session list on the
+  right opens both the left owner rail and the right resource list by default.
+- Manually closing the right pane stores an explicit override, matching the left
+  rail's re-entry behavior.
 - The right panel shares the existing Shell right-pane chrome with branch, trace,
   files, status, and flow tabs.
 - Right-panel topic/session lists stay time-grouped and do not write the left
