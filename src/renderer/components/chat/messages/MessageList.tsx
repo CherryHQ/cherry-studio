@@ -290,7 +290,10 @@ const MessageList = () => {
     const containerRect = scrollElement.getBoundingClientRect()
     const scrollRange = scrollElement.scrollHeight - scrollElement.clientHeight
     const atBottom = scrollElement.scrollTop >= scrollRange - 2
-    const viewportCenter = atBottom
+    // The reading line sits near the viewport top (so a turn jumped to via its
+    // tick immediately reads as current); at the very bottom it clamps to the
+    // bottom edge so the last turn wins regardless of its height.
+    const readingLineY = atBottom
       ? containerRect.bottom - 1
       : containerRect.top + Math.min(120, containerRect.height * 0.25)
     let bestMatch: { messageId: string; distance: number } | null = null
@@ -305,9 +308,9 @@ const MessageList = () => {
       if (visibleHeight <= 0) continue
 
       const distance =
-        rect.top <= viewportCenter && rect.bottom >= viewportCenter
+        rect.top <= readingLineY && rect.bottom >= readingLineY
           ? 0
-          : Math.min(Math.abs(rect.top - viewportCenter), Math.abs(rect.bottom - viewportCenter))
+          : Math.min(Math.abs(rect.top - readingLineY), Math.abs(rect.bottom - readingLineY))
 
       if (!bestMatch || distance < bestMatch.distance) {
         bestMatch = { messageId, distance }

@@ -7,7 +7,7 @@ import type { MessageListItem } from '../types'
 
 interface MessageLineProps {
   messages: MessageListItem[]
-  /** Message currently at the viewport center; highlights its turn's tick. */
+  /** Message under the viewport-top reading line; highlights its turn's tick. */
   activeMessageId?: string | null
   /** 0–1 fade driven by the content's rail gutter — the rail eases in/out with width. */
   railOpacity?: number
