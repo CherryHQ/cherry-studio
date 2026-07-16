@@ -24,7 +24,10 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
-const PAGE_SIZE = 50
+// Sized so one page (~75 turns) fills the anchor rail's visible capacity on a
+// typical full-height window (~73 ticks at 10px pitch) — the rail then shows a
+// complete strip on entry instead of visibly growing as older pages stream in.
+const PAGE_SIZE = 150
 
 interface DisplayBranchMessage {
   message: SharedMessage
