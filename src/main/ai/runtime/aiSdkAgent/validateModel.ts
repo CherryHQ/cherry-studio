@@ -41,6 +41,19 @@ export function assertAiSdkAgentProviderUsable(provider: Provider, model: Model)
 }
 
 /**
+ * Resolve a unique model id to its provider/model rows. Derivation only —
+ * throws the data layer's notFound when either row is gone, without judging
+ * usability (reconcile maps that to `invalid`; a merely unusable model must
+ * fail the turn instead of invalidating the session).
+ */
+export function resolveAiSdkAgentModel(uniqueModelId: UniqueModelId): { provider: Provider; model: Model } {
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
+  return { provider, model }
+}
+
+/**
  * Resolve a unique model id to its provider/model and assert usability.
  * A missing provider or model throws the data layer's notFound — equally
  * fail-closed for dispatch validation.
@@ -49,9 +62,7 @@ export function resolveAndAssertAiSdkAgentModel(uniqueModelId: UniqueModelId): {
   provider: Provider
   model: Model
 } {
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const provider = providerService.getByProviderId(providerId)
-  const model = modelService.getByKey(providerId, modelId)
+  const { provider, model } = resolveAiSdkAgentModel(uniqueModelId)
   assertAiSdkAgentProviderUsable(provider, model)
   return { provider, model }
 }

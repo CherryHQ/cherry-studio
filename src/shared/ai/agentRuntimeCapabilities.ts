@@ -1,3 +1,5 @@
+import { AI_SDK_AGENT_BUILTIN_TOOLS } from '@shared/ai/aiSdkAgentBuiltinTools'
+import { isAiSdkAgentCompatibleModel } from '@shared/ai/aiSdkAgentCompatibility'
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
@@ -66,6 +68,10 @@ const PI_BUILTIN_COMMANDS = [
   { command: '/compact', description: 'Compact conversation with optional focus instructions' }
 ] as const satisfies readonly SlashCommand[]
 
+const AI_SDK_AGENT_BUILTIN_COMMANDS = [
+  { command: '/compact', description: 'Compact conversation with optional focus instructions' }
+] as const satisfies readonly SlashCommand[]
+
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
@@ -115,6 +121,34 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     transport: 'pi-agent',
     builtinTools: () =>
       PI_BUILTIN_TOOLS.map((tool) => ({
+        id: tool.name,
+        i18nKeyBase: `agent.tools.builtin.${tool.name}`,
+        category: tool.category
+      }))
+  },
+  'ai-sdk': {
+    labelKey: 'library.config.agent.field.runtime.option.ai_sdk',
+    labelFallback: 'AI SDK Agent',
+    hintKey: 'library.config.agent.field.runtime.ai_sdk_hint',
+    // No plan mode: AI SDK exposes no plan-mode control channel.
+    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
+    modelTiers: false,
+    // No heartbeat orchestration until this runtime has the autonomy-tool contract;
+    // headless scheduled/channel turns still run through the generic dispatch path.
+    heartbeat: false,
+    mcp: true,
+    skills: true,
+    claudeRegistryTools: false,
+    slashCommands: AI_SDK_AGENT_BUILTIN_COMMANDS,
+    // Tools execute at main-process privilege with no OS sandbox → gated by default.
+    createDefaults: { permissionMode: 'default' },
+    // Fail-closed (shared predicate): provider required, external-CLI-only and the managed
+    // CherryAI default barred, native function calling required, endpoint must be drivable
+    // by the in-process AI SDK chat pipeline.
+    isModelCompatible: isAiSdkAgentCompatibleModel,
+    transport: 'ai-sdk-agent',
+    builtinTools: () =>
+      AI_SDK_AGENT_BUILTIN_TOOLS.map((tool) => ({
         id: tool.name,
         i18nKeyBase: `agent.tools.builtin.${tool.name}`,
         category: tool.category
