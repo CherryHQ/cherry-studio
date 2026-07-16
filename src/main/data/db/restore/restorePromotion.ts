@@ -199,6 +199,12 @@ function assertNoAddConflicts(ctx: PromotionContext): void {
     if (entry.kind === 'blob-add' || entry.kind === 'dir-add' || entry.kind === 'note-add') {
       const live = resolveEntry(ctx, entry.livePath)
       if (fs.existsSync(live)) {
+        // TODO(skills-restore §7.2): SKILLS dir-add (folderName) same-name conflict must
+        // NOT expire the whole restore like blob/note add does — it should keep the local
+        // dir (no-clobber, never-delete-local) + record degraded + reconcileSkills, per
+        // skills-directory-resource design §7.2. This generic fatal rule stays correct for
+        // blob/note add; specialize it for SKILLS dir-add when #07-13 lands SKILLS restore
+        // promotion (dir-add candidate keyed by folderName, not file_entry.id).
         throw new Error(`add target already exists: ${entry.livePath} (${entry.kind})`)
       }
     }
