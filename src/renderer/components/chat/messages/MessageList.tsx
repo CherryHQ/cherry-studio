@@ -41,9 +41,18 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+/** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
+ * override is invisible until the rail gutter adds onto it. */
+const CHAT_SIDE_PADDING_PX = 24
+/** Max gutter the content yields on both sides as the column widens. The total
+ * (base + max = 48px) exactly covers the rail's 32px hit strip + its margin, so
+ * hover growth never touches the content nor does content enter the strip. */
+const RAIL_GUTTER_MAX_PX = 24
+/** Below this chat-column width the content keeps its full width and the rail is gone. */
+const RAIL_GUTTER_START_PX = 700
+/** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
+const RAIL_GUTTER_FADE_PX = 120
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
-/** Below this chat-column width the anchor rail fades out instead of crowding the content. */
-const ANCHOR_RAIL_MIN_WIDTH_PX = 768
 
 interface ActiveMessageOutline {
   messageId: string
@@ -86,17 +95,17 @@ function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
 }
 
 type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
-  className?: string
   groupKey: string
   isLive: boolean
   narrowMode: boolean
+  railGutterPx: number
 }
 
 function MessageGroupLayer({
-  className,
   groupKey,
   isLive,
   narrowMode,
+  railGutterPx,
   messages,
   partsByMessageId,
   ...messageGroupProps
@@ -104,7 +113,15 @@ function MessageGroupLayer({
   void isLive
   return (
     <PartsProvider value={partsByMessageId ?? null}>
-      <NarrowLayout narrowMode={narrowMode} withSidePadding className={className}>
+      <NarrowLayout
+        narrowMode={narrowMode}
+        withSidePadding
+        // The gutter is mirrored on the left so the column stays
+        // centred and both margins match while the rail fades in.
+        style={{
+          paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+          paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+        }}>
         <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
       </NarrowLayout>
     </PartsProvider>
@@ -134,8 +151,8 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
   if (previous.isLive || next.isLive) return false
   return (
     previous.groupKey === next.groupKey &&
-    previous.className === next.className &&
     previous.narrowMode === next.narrowMode &&
+    previous.railGutterPx === next.railGutterPx &&
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.topic === next.topic &&
@@ -155,7 +172,7 @@ const MessageList = () => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
-  const { setForceWideLayout } = useChatLayoutMode()
+  const { setForceWideLayout, setRailGutterPx: publishRailGutter } = useChatLayoutMode()
   const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -163,8 +180,13 @@ const MessageList = () => {
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
-  const [anchorRailVisible, setAnchorRailVisible] = useState(false)
+  const [railGutterPx, setRailGutterPx] = useState(0)
   const bottomOverlayInsets = useChatBottomOverlayInset()
+
+  // The gutter follows only the width (and the anchor preference) — NOT the turn
+  // count. With anchor navigation on, a wide window always yields the gutter, so
+  // when the conversation grows past the rail's turn threshold the rail simply
+  // fades into space that was already there, with no content jump.
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -233,6 +255,13 @@ const MessageList = () => {
     setForceWideLayout(useWideMessageLayout)
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
+
+  // Publish the rail gutter so the composer yields the same right-hand space and
+  // stays aligned with the message column as it shifts.
+  useEffect(() => {
+    publishRailGutter(railGutterPx)
+    return () => publishRailGutter(0)
+  }, [publishRailGutter, railGutterPx])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -597,16 +626,24 @@ const MessageList = () => {
   }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
 
   useEffect(() => {
-    if (!shouldTrackAnchorPosition) return
+    if (!shouldTrackAnchorPosition) {
+      setRailGutterPx(0)
+      return
+    }
     const scrollElement = messageListRef.current?.getScrollElement()
     if (!scrollElement) return
 
-    const updateRailVisibility = () => {
-      const isWide = scrollElement.clientWidth >= ANCHOR_RAIL_MIN_WIDTH_PX
-      setAnchorRailVisible((current) => (current === isWide ? current : isWide))
+    const updateRailGutter = () => {
+      // The content yields a right-hand gutter that grows smoothly with the column
+      // width; the rail fades in within it. Tracking width continuously (rather
+      // than toggling at a threshold) means the content shifts smoothly and never
+      // jumps, and the gutter collapses to 0 when narrow so no space is wasted.
+      const ramp = (scrollElement.clientWidth - RAIL_GUTTER_START_PX) / RAIL_GUTTER_FADE_PX
+      const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
+      setRailGutterPx((current) => (current === gutter ? current : gutter))
     }
-    updateRailVisibility()
-    const resizeObserver = new ResizeObserver(updateRailVisibility)
+    updateRailGutter()
+    const resizeObserver = new ResizeObserver(updateRailGutter)
     resizeObserver.observe(scrollElement)
 
     let frame: number | null = null
@@ -673,7 +710,14 @@ const MessageList = () => {
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
       key={data.listKey}>
       {beforeList && (
-        <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding className="shrink-0">
+        <NarrowLayout
+          narrowMode={messageListNarrowMode}
+          withSidePadding
+          className="shrink-0"
+          style={{
+            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+          }}>
           {beforeList}
         </NarrowLayout>
       )}
@@ -701,13 +745,10 @@ const MessageList = () => {
                   ? messageTail
                   : undefined
               const props: MessageGroupLayerProps = {
-                className:
-                  messageNavigation === 'anchor' && anchorRailVisible
-                    ? 'pr-12 transition-[padding] duration-300'
-                    : undefined,
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,
                 narrowMode: messageListNarrowMode,
+                railGutterPx,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
@@ -766,7 +807,8 @@ const MessageList = () => {
         <MessageAnchorLine
           messages={messages}
           activeMessageId={activeAnchorMessageId}
-          visible={anchorRailVisible}
+          hasOlder={hasOlder}
+          railOpacity={railGutterPx / RAIL_GUTTER_MAX_PX}
           scrollToMessageId={scrollToMessageById}
         />
       )}

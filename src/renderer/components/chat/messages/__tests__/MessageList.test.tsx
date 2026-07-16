@@ -30,7 +30,7 @@ const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
-  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
+  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn(), setRailGutterPx: vi.fn() })
 }))
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
