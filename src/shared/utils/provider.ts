@@ -84,7 +84,7 @@ export function isCherryAIProvider(provider: Provider): boolean {
 }
 
 export function isNewApiProvider(provider: Provider): boolean {
-  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
+  return matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
@@ -99,7 +99,7 @@ export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
 
-export function matchesPreset(provider: Provider, presetId: string): boolean {
+export function matchesPreset(provider: Pick<Provider, 'id' | 'presetProviderId'>, presetId: string): boolean {
   return provider.id === presetId || provider.presetProviderId === presetId
 }
 
@@ -158,8 +158,7 @@ export function isSupportUrlContextProvider(provider: Provider): boolean {
     isVertexProvider(provider) ||
     isAnthropicProvider(provider) ||
     isAzureOpenAIProvider(provider) ||
-    isNewApiProvider(provider) ||
-    provider.id === 'cherryin'
+    isNewApiProvider(provider)
   )
 }
 

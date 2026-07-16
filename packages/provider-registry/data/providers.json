@@ -8,6 +8,10 @@
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
         },
+        "google-generate-content": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
+        },
         "openai-chat-completions": {
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
@@ -1459,5 +1463,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "6dd76cf1b8f4d058"
+  "version": "5ce59900a797d975"
 }

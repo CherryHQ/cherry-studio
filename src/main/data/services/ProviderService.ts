@@ -224,6 +224,11 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
+    const endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
+      dto.endpointConfigs,
+      dto.presetProviderId ?? null
+    )
+
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -235,7 +240,7 @@ class ProviderService {
             presetProviderId: dto.presetProviderId ?? null,
             name: dto.name,
             logoKey: logoCols.logoKey,
-            endpointConfigs: dto.endpointConfigs ?? null,
+            endpointConfigs,
             defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
             apiKeys: dto.apiKeys ?? [],
             authConfig: dto.authConfig ?? null,
