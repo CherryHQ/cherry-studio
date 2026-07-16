@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => {
   }
 
   class MockIntersectionObserver {
-    constructor(_callback: IntersectionObserverCallback) {}
+    constructor() {}
     observe() {}
     unobserve() {}
     disconnect() {}
