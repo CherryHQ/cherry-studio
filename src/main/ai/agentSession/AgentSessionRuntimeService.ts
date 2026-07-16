@@ -7,6 +7,7 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
+import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
   type AgentSessionCompactionAnchorData,
@@ -144,6 +145,9 @@ type AgentSessionRuntimeEntry = {
   /** Whether the post-steer continuation turn should keep responder-less/headless enforcement. */
   rollHeadless?: boolean
   compacting?: boolean
+  /** A `system/api_retry` backoff is in flight — set so its ephemeral cache state is cleared exactly
+   *  once when content resumes / the turn settles / the connection closes. */
+  retrying?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -811,6 +815,9 @@ export class AgentSessionRuntimeService extends BaseService {
         this.refreshContextUsage(entry)
         break
       case 'chunk': {
+        // Any content chunk means the retried request succeeded and the stream resumed — clear the
+        // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
+        if (entry.retrying) this.clearApiRetry(entry)
         // Mid-roll: A1a is closed and A2's stream isn't open yet — buffer the post-steer chunks so
         // `flushRollBuffer` can replay them into A2 in order (see `steer-boundary`).
         if (entry.rolling) {
@@ -853,6 +860,9 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'compaction-error':
         this.handleCompactionError(entry, event.error)
         break
+      case 'api-retry':
+        this.handleApiRetry(entry, event.retry)
+        break
       case 'context-usage':
         this.persistContextUsage(entry, event.usage)
         break
@@ -862,6 +872,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishSupportedCommands(entry, event.commands)
         break
       case 'turn-complete':
+        this.clearApiRetry(entry)
         this.closeCurrentTurn(entry, 'success')
         this.refreshContextUsage(entry)
         break
@@ -907,6 +918,22 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
     this.settleCompactionError(entry, error)
+  }
+
+  private handleApiRetry(entry: AgentSessionRuntimeEntry, retry: AgentSessionApiRetryInfo): void {
+    if (!this.isCurrentEntry(entry)) return
+    entry.retrying = true
+    application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), {
+      status: 'retrying',
+      startedAt: new Date().toISOString(),
+      ...retry
+    })
+  }
+
+  private clearApiRetry(entry: AgentSessionRuntimeEntry): void {
+    if (!entry.retrying) return
+    entry.retrying = false
+    application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
@@ -960,6 +987,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
+    this.clearApiRetry(entry)
     if (entry.compacting) {
       this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
     }
@@ -985,6 +1013,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || entry.currentTurn !== turn || turn.terminalStatus) return
     if (turn.admitted) return
     turn.admitted = true
+    // A fresh request starts clean — drop any retry status left over from the previous turn.
+    this.clearApiRetry(entry)
     entry.status = 'active'
     // `Set.delete` returns whether it was queued as a steer — consume the flag as we admit the turn.
     const systemReminder = entry.steerMessageIds?.delete(turn.userMessage.id) ?? false
@@ -1370,6 +1400,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     entry.compacting = false
+    this.clearApiRetry(entry)
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
 

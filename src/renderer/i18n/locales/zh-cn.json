@@ -360,6 +360,11 @@
         "label": "预先授权工具",
         "placeholder": "选择预先授权的工具"
       },
+      "api_retry": {
+        "reason": "请求失败（{{error}}，HTTP {{status}}），正在重试",
+        "retrying": "正在重试 {{attempt}}/{{max}}…",
+        "retrying_in": "{{seconds}} 秒后重试 {{attempt}}/{{max}}"
+      },
       "auto_rename": "生成任务名",
       "create": {
         "error": {

@@ -138,7 +138,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     const result = adapter.handleMessage({
       type: 'system',
-      subtype: 'api_retry',
+      subtype: 'hook_started',
       session_id: 'sdk-control',
       uuid: crypto.randomUUID()
     } as any)
@@ -146,9 +146,29 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
     expect(loggerMocks.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Received system message subtype: api_retry'),
+      expect.stringContaining('Received system message subtype: hook_started'),
       expect.anything()
     )
+  })
+
+  it('drops api_retry silently — the driver intercepts it as an ephemeral runtime event', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID(),
+      attempt: 3,
+      max_retries: 10,
+      retry_delay_ms: 1234,
+      error_status: 500,
+      error: 'server_error'
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
   })
 
   it('maps thinking token estimates to message metadata', () => {

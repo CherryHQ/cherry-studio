@@ -679,6 +679,44 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('maps an SDK api_retry message to an ephemeral api-retry runtime event', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'resume-1',
+      attempt: 7,
+      max_retries: 10,
+      retry_delay_ms: 36_000,
+      error_status: 500,
+      error: 'server_error'
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'api-retry',
+        retry: {
+          attempt: 7,
+          maxRetries: 10,
+          retryDelayMs: 36_000,
+          errorStatus: 500,
+          errorCategory: 'server_error'
+        }
+      }
+    })
+
+    void connection.close()
+  })
+
   it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

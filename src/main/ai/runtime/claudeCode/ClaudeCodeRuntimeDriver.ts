@@ -347,6 +347,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           continue
         }
 
+        // A failed API request is backing off before a retry. Surface it as ephemeral session status
+        // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
+        // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
+        if (message.type === 'system' && message.subtype === 'api_retry') {
+          this.eventQueue.push({
+            type: 'api-retry',
+            retry: {
+              attempt: message.attempt,
+              maxRetries: message.max_retries,
+              retryDelayMs: message.retry_delay_ms,
+              errorStatus: message.error_status,
+              errorCategory: message.error
+            }
+          })
+          continue
+        }
+
         // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
         // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
         if (message.type === 'system' && message.subtype === 'commands_changed') {

@@ -39,6 +39,7 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'bottomOverlay'
   | 'isInitialLoading'
   | 'isMessagesStale'
   | 'hasOlder'

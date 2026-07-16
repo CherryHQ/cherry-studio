@@ -1,3 +1,4 @@
+import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -52,6 +53,10 @@ export type AgentRuntimeEvent =
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string }
+  /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
+   *  session status — the host surfaces it in the message stream and clears it when content resumes,
+   *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
+  | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at

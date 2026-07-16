@@ -35,6 +35,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import {
   consumePendingAgentSessionImageActions,
   rejectPendingAgentSessionImageActions,
@@ -276,6 +277,7 @@ export function useAgentMessageListProviderValue({
       messages: messageItems,
       partsByMessageId,
       streamingLayers,
+      bottomOverlay: normalInteractionsEnabled ? <AgentSessionApiRetryStatus sessionId={sessionId} /> : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -301,9 +303,11 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      normalInteractionsEnabled,
       partsByMessageId,
       renderConfig,
       selectionController.selection,
+      sessionId,
       streamingLayers,
       topic
     ]

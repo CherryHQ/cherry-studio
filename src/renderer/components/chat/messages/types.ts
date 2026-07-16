@@ -260,6 +260,9 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Floating node anchored at the bottom of the stream, above the composer (e.g. an ephemeral
+   *  status pill). Renders nothing when the list has no such state. */
+  bottomOverlay?: ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   hasOlder?: boolean
