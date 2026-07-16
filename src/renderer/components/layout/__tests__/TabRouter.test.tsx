@@ -4,10 +4,11 @@ import '@testing-library/jest-dom/vitest'
 // Import the real component from its source path: the `@cherrystudio/ui` barrel
 // is globally mocked for renderer tests, but this deeper specifier is not.
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
+import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
 import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -79,6 +80,7 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 afterEach(() => {
@@ -174,6 +176,60 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     expect(bRoot.querySelector('[data-testid="test-dialog-content"]')).toBeInTheDocument()
     expect(bRoot.style.display).toBe('none')
     expect(aRoot.querySelector('[data-testid="test-dialog-content"]')).not.toBeInTheDocument()
+  })
+
+  it('keeps a trigger-search Combobox anchored after switching away and back', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.matches('[data-slot="popover-anchor"]'))
+        return DOMRect.fromRect({ x: 120, y: 40, width: 260, height: 36 })
+      if (this.matches('[role="combobox"]')) return DOMRect.fromRect({ x: 120, y: 40, width: 100, height: 36 })
+      return DOMRect.fromRect({ x: 0, y: 0, width: 100, height: 40 })
+    })
+
+    function PageWithCombobox({ url }: { url: string }) {
+      if (url !== '/b') return null
+
+      return (
+        <Combobox
+          options={[
+            { value: 'alpha', label: 'Alpha' },
+            { value: 'beta', label: 'Beta' }
+          ]}
+          searchPlacement="trigger"
+          placeholder="Choose font"
+          emptyText="No fonts"
+        />
+      )
+    }
+
+    const anchorWidth = (root: HTMLElement) =>
+      root
+        .querySelector<HTMLElement>('[data-slot="popover-content"]')
+        ?.parentElement?.style.getPropertyValue('--radix-popper-anchor-width')
+
+    try {
+      knobs.renderPage = (url) => <PageWithCombobox url={url} />
+
+      const { rerender } = render(<Shell activeId="b" />)
+      const bRoot = tabRoot('/b')
+      const trigger = screen.getByRole('combobox')
+
+      fireEvent.click(trigger)
+      await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
+
+      fireEvent.keyDown(trigger, { key: 'Escape' })
+      await waitFor(() => expect(bRoot.querySelector('[data-slot="popover-content"]')).not.toBeInTheDocument())
+
+      rerender(<Shell activeId="a" />)
+      rerender(<Shell activeId="b" />)
+
+      fireEvent.click(screen.getByRole('combobox'))
+      await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
+    } finally {
+      rectSpy.mockRestore()
+    }
   })
 })
 
