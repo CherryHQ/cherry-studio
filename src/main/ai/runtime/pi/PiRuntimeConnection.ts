@@ -569,8 +569,8 @@ function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boole
 
 /** Spawn-frozen Pi inputs, intentionally excluding the approval gate's live permission mode. */
 function buildPiConnectionSignature(agent: AgentEntity, modelId: UniqueModelId): string {
-  const { updatedAt: _updatedAt, configuration, ...agentFacts } = agent
-  const { permission_mode: _permissionMode, ...configurationFacts } = configuration ?? {}
+  const agentFacts = { ...agent, updatedAt: undefined }
+  const configurationFacts = { ...agent.configuration, permission_mode: undefined }
   return JSON.stringify({
     agent: { ...agentFacts, configuration: configurationFacts },
     modelId
