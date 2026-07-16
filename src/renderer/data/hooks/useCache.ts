@@ -311,13 +311,17 @@ export function useSharedCache<K extends SharedCacheKey>(
   initValue?: InferSharedCacheValue<K>
 ): [InferSharedCacheValue<K>, (value: CacheSetStateAction<InferSharedCacheValue<K>>) => void] {
   /**
-   * Subscribe to shared cache changes using React's useSyncExternalStore
-   * This ensures the component re-renders when the shared cache value changes
+   * Subscribe to shared cache changes using React's useSyncExternalStore.
+   * This ensures the component re-renders when the shared cache value changes.
+   * The snapshot is the pure physical reader (getSharedSnapshot): an
+   * external-store getSnapshot must not mutate the store or flip with time —
+   * the TTL-aware, lazily-evicting getShared stays reserved for imperative
+   * reads and the setter's functional updater.
    */
   const value = useSyncExternalStore(
     useCallback((callback) => cacheService.subscribe(key, callback), [key]),
-    useCallback(() => cacheService.getShared(key), [key]),
-    useCallback(() => cacheService.getShared(key), [key]) // SSR snapshot
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]),
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]) // SSR snapshot
   )
 
   /**
@@ -387,6 +391,50 @@ export function useSharedCache<K extends SharedCacheKey>(
   )
 
   return [value ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>), setValue]
+}
+
+/**
+ * React hook for READ-ONLY observation of a cross-window shared cache key.
+ *
+ * Use this whenever the window only displays a value that another process owns
+ * (typically a main service publishing via `setShared`). Unlike `useSharedCache`,
+ * mounting it has zero side effects on the cache:
+ * - never writes the schema default back (a writable hook mounting during the
+ *   "owner hasn't published yet" race materializes the default, broadcasts it
+ *   to every window, and can clobber the owner's real value)
+ * - never pins the key against deletion (no `registerHook`)
+ * - returns no setter and accepts no `initValue`/TTL
+ *
+ * Snapshot semantics: reads the local physical mirror via `getSharedSnapshot`
+ * (event-driven, no TTL evaluation, no store mutation). Returns `undefined`
+ * when the key is physically absent or after the owner's deletion tombstone
+ * arrives; an expired entry may briefly retain its old value until Main's
+ * lazy cleanup / GC broadcasts the tombstone (eventual consistency — see
+ * cache-overview.md).
+ *
+ * Fallbacks are the consumer's job: apply `?? fallback` with a REFERENCE-STABLE
+ * default — a module-level const for objects/arrays, or an unconditionally
+ * evaluated `useMemo` when the default depends on props. Never place a hook
+ * call on the right side of `??` (conditional hook call).
+ *
+ * @param key - Cache key from the predefined schema (fixed or matching template)
+ * @returns The observed value, or undefined when physically absent
+ *
+ * @example
+ * ```typescript
+ * const EMPTY_PROGRESS: JobProgress = { progress: 0 }
+ *
+ * function useJobProgress(jobId: string): JobProgress {
+ *   return useSharedCacheValue(`jobs.progress.${jobId}` as const) ?? EMPTY_PROGRESS
+ * }
+ * ```
+ */
+export function useSharedCacheValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+  return useSyncExternalStore(
+    useCallback((callback) => cacheService.subscribe(key, callback), [key]),
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]),
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]) // SSR snapshot
+  )
 }
 
 /**

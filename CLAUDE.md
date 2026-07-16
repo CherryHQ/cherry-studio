@@ -151,7 +151,7 @@ A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary 
 | System                                                     | Use Case                            | APIs                                                       |
 | ---------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
 | [BootConfig](docs/references/data/boot-config-overview.md) | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
-| [Cache](docs/references/data/cache-overview.md)            | Temp data (can lose)                | `useCache`, `useSharedCache`, `usePersistCache`            |
+| [Cache](docs/references/data/cache-overview.md)            | Temp data (can lose)                | `useCache`, `useSharedCache`, `useSharedCacheValue`, `usePersistCache` |
 | [Preference](docs/references/data/preference-overview.md)  | User settings                       | `usePreference`                                            |
 | [DataApi](docs/references/data/data-api-overview.md)       | Business data (**critical**)        | `useQuery`, `useMutation`                                  |
 
