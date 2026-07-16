@@ -55,8 +55,28 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'text', text: 'after file' }
       )
     },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'cited answer [1]',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: {
+                  source: 'websearch',
+                  results: [{ number: 1, url: 'https://example.com', title: 'Example' }]
+                }
+              }
+            ]
+          }
+        }
+      })
+    },
     { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) }
-  ])('rejects parts that Composer cannot write back without reordering', ({ messageParts }) => {
+  ])('rejects parts that Composer cannot safely write back', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })

@@ -9,7 +9,7 @@
  */
 
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { TranslationPartData } from '@shared/data/types/uiParts'
+import { readCherryMeta, type TranslationPartData } from '@shared/data/types/uiParts'
 
 /**
  * Extract concatenated **text-part** content from parts.
@@ -57,7 +57,8 @@ export function hasTranslationParts(parts: CherryMessagePart[]): boolean {
 /**
  * Assistant edits rebuild text/file parts as one Composer draft. They are safe only when those
  * editable parts form one contiguous run and already follow the order Composer writes back:
- * text first, then files. Translation parts are derived and are removed when the edit is saved.
+ * text first, then files. Text parts with references are rejected until Composer can round-trip
+ * their metadata. Translation parts are derived and are removed when the edit is saved.
  */
 export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolean {
   let hasText = false
@@ -69,7 +70,7 @@ export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolea
     if (part.type === 'data-translation') continue
 
     if (part.type === 'text') {
-      if (editableRunEnded || hasFile) return false
+      if (editableRunEnded || hasFile || readCherryMeta(part)?.references?.length) return false
       hasText ||= part.text.trim().length > 0
       hasEditablePart = true
       continue
