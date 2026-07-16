@@ -1,8 +1,16 @@
 import { ExternalLink } from 'lucide-react'
 
-const RADEON_CLOUD_MODELS_URL = 'https://developer.amd.com.cn/radeon/modelapis'
+const RADEON_CLOUD_MODELS_URL = 'https://developer.amd.com.cn/radeon/tokenfactory'
 
-const RADEON_CLOUD_MODELS = ['Qwen3.6-35B-A3B', 'DeepSeek-V4-Flash', 'MiniMax M3', 'Kimi 2.6'] as const
+const RADEON_CLOUD_MODELS = [
+  'Qwen3.6-35B-A3B',
+  'DeepSeek-V4-Flash',
+  'DeepSeek-V4-Pro',
+  'GLM 5.1',
+  'GLM 5.2',
+  'OpenAI gpt-oss-120b',
+  'Kimi K2.6'
+] as const
 
 export default function RadeonCloudModelCards() {
   return (

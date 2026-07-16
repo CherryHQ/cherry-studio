@@ -36,9 +36,9 @@
       "id": "radeon-cloud",
       "metadata": {
         "website": {
-          "apiKey": "https://developer.amd.com.cn/radeon/modelapis",
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory",
           "docs": "https://developer.amd.com.cn/radeon/",
-          "models": "https://developer.amd.com.cn/radeon/modelapis",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory",
           "official": "https://developer.amd.com.cn/radeon/"
         }
       },
