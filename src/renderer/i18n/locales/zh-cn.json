@@ -4949,7 +4949,9 @@
       }
     },
     "tooltip": {
-      "pin": "窗口置顶"
+      "open": "打开快捷助手",
+      "pin": "窗口置顶",
+      "restore_main": "回到主窗口"
     }
   },
   "restore": {
@@ -7317,6 +7319,7 @@
       "click_tray_to_show": "点击托盘图标启动",
       "enable_quick_assistant": "启用快捷助手",
       "read_clipboard_at_startup": "启动时读取剪贴板",
+      "show_in_tab_bar": "在标签栏显示图标入口",
       "title": "快捷助手",
       "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
     },

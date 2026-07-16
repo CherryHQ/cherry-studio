@@ -44,6 +44,9 @@ const QuickAssistantSettings: FC = () => {
   const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
     'feature.quick_assistant.click_tray_to_show'
   )
+  const [showQuickAssistantInTabBar, setShowQuickAssistantInTabBar] = usePreference(
+    'feature.quick_assistant.show_in_tab_bar'
+  )
   const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
     'feature.quick_assistant.read_clipboard_at_startup'
   )
@@ -113,6 +116,19 @@ const QuickAssistantSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
               <Switch checked={clickTrayToShowQuickAssistant} onCheckedChange={handleClickTrayToShowQuickAssistant} />
+            </SettingRow>
+          </>
+        )}
+        {enableQuickAssistant && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.quickAssistant.show_in_tab_bar')}</SettingRowTitle>
+              <Switch
+                aria-label={t('settings.quickAssistant.show_in_tab_bar')}
+                checked={showQuickAssistantInTabBar}
+                onCheckedChange={(checked) => void setShowQuickAssistantInTabBar(checked)}
+              />
             </SettingRow>
           </>
         )}
