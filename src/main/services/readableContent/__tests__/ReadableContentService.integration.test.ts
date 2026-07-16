@@ -1,5 +1,14 @@
 import { BaseService } from '@main/core/lifecycle'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('../readableContentWorker?nodeWorker', async () => {
+  const { Worker } = await import('node:worker_threads')
+
+  return {
+    default: (options: ConstructorParameters<typeof Worker>[1]) =>
+      new Worker(`${process.cwd()}/src/main/services/readableContent/readableContentWorker.ts`, options)
+  }
+})
 
 import { ReadableContentService } from '../ReadableContentService'
 

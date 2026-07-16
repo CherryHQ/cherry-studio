@@ -1,31 +1,16 @@
-import { createRequire } from 'node:module'
-import { Worker } from 'node:worker_threads'
+import type { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import PQueue from 'p-queue'
 
-import { readableContentWorkerSource } from './readableContentWorkerSource'
+import type { ReadableContentWorkerInput, ReadableContentWorkerMessage } from './readableContentWorker'
+// oxlint-disable-next-line import/default -- Electron Vite exposes ?nodeWorker imports as default worker factories.
+import createReadableContentWorker from './readableContentWorker?nodeWorker'
 
 const logger = loggerService.withContext('ReadableContentService')
 
-const SAFE_JSDOM_URL = 'http://localhost/'
 const DEFAULT_PARSE_TIMEOUT_MS = 10_000
-const moduleRequire = createRequire(import.meta.url)
-const JSDOM_MODULE_PATH = moduleRequire.resolve('jsdom')
-const READABILITY_MODULE_PATH = moduleRequire.resolve('@mozilla/readability')
-const TURNDOWN_MODULE_PATH = moduleRequire.resolve('turndown')
-
-type ReadableContentWorkerInput = {
-  readonly format: 'markdown' | 'preview'
-  readonly inputKind: 'html' | 'text'
-  readonly maxLength?: number
-  readonly source: string
-}
-
-type ReadableContentWorkerMessage =
-  | { type: 'result'; title: string; content: string }
-  | { type: 'error'; message: string }
 
 export type ReadableContentResult = {
   title: string
@@ -177,16 +162,7 @@ export class ReadableContentService extends BaseService {
     }
 
     return new Promise((resolve, reject) => {
-      const worker = new Worker(readableContentWorkerSource, {
-        eval: true,
-        workerData: {
-          baseUrl: SAFE_JSDOM_URL,
-          ...input,
-          jsdomModulePath: JSDOM_MODULE_PATH,
-          readabilityModulePath: READABILITY_MODULE_PATH,
-          turndownModulePath: TURNDOWN_MODULE_PATH
-        }
-      })
+      const worker = createReadableContentWorker({ workerData: input })
       const timeoutMs = requestedTimeoutMs ?? DEFAULT_PARSE_TIMEOUT_MS
       let settled = false
 

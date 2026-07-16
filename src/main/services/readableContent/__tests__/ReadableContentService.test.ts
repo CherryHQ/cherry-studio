@@ -15,31 +15,17 @@ class FakeWorker extends EventEmitter {
   readonly terminate = vi.fn<() => Promise<number>>(() => Promise.resolve(0))
   readonly unref = vi.fn()
 
-  constructor(
-    readonly source: string,
-    readonly options: { eval: boolean; workerData: WorkerData }
-  ) {
+  constructor(readonly options: { workerData: WorkerData }) {
     super()
   }
 }
 
-const workerMocks = vi.hoisted(() => ({ instances: [] as FakeWorker[] }))
-
-vi.mock('node:worker_threads', () => ({
-  Worker: class extends EventEmitter {
-    readonly terminate = vi.fn<() => Promise<number>>(() => Promise.resolve(0))
-    readonly unref = vi.fn()
-    readonly source: string
-    readonly options: { eval: boolean; workerData: WorkerData }
-
-    constructor(source: string, options: { eval: boolean; workerData: WorkerData }) {
-      super()
-      this.source = source
-      this.options = options
-      workerMocks.instances.push(this as unknown as FakeWorker)
-    }
-  }
+const workerMocks = vi.hoisted(() => ({
+  createWorker: vi.fn<(options: { workerData: WorkerData }) => FakeWorker>(),
+  instances: [] as FakeWorker[]
 }))
+
+vi.mock('../readableContentWorker?nodeWorker', () => ({ default: workerMocks.createWorker }))
 
 import { ReadableContentService } from '../ReadableContentService'
 
@@ -65,7 +51,13 @@ describe('ReadableContentService', () => {
 
   beforeEach(async () => {
     BaseService.resetInstances()
+    workerMocks.createWorker.mockReset()
     workerMocks.instances.length = 0
+    workerMocks.createWorker.mockImplementation((options) => {
+      const worker = new FakeWorker(options)
+      workerMocks.instances.push(worker)
+      return worker
+    })
     service = new ReadableContentService()
     await service._doInit()
   })
@@ -203,8 +195,7 @@ describe('ReadableContentService', () => {
     const extraction = service.extractPreviewText('plain source', { inputKind: 'text', maxLength: 100 })
     const worker = workerMocks.instances[0]
 
-    expect(worker.options).toMatchObject({
-      eval: true,
+    expect(worker.options).toEqual({
       workerData: {
         format: 'preview',
         inputKind: 'text',
@@ -215,6 +206,22 @@ describe('ReadableContentService', () => {
 
     emitResult(worker, 'preview')
     await expect(extraction).resolves.toBe('preview')
+  })
+
+  it('starts the bundled worker without runtime module paths', async () => {
+    const extraction = service.extractReadableMarkdown('<article></article>')
+    const worker = workerMocks.instances[0]
+
+    expect(workerMocks.createWorker).toHaveBeenCalledWith({
+      workerData: { format: 'markdown', inputKind: 'html', source: '<article></article>' }
+    })
+    expect(worker.options).not.toHaveProperty('eval')
+    expect(worker.options.workerData).not.toHaveProperty('jsdomModulePath')
+    expect(worker.options.workerData).not.toHaveProperty('readabilityModulePath')
+    expect(worker.options.workerData).not.toHaveProperty('turndownModulePath')
+
+    emitResult(worker, 'markdown')
+    await extraction
   })
 
   it('aborts queued and active tasks during stop, prevents respawn, and waits for termination', async () => {
