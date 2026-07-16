@@ -38,19 +38,22 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/(?:^|[-_/])sora(?:[-_\d]|$)/i, 'sora'],
   // Claude / Anthropic models
   [/(claude|anthropic-)/i, 'claude'],
-  // Google models (nano-banana = Gemini 2.5 Flash Image)
-  [/gemini|veo|imagen|nano-banana/i, 'gemini'],
+  // Google models (nano-banana = Gemini 2.5 Flash Image; lyria = music gen)
+  [/gemini|veo|imagen|lyria|nano-banana/i, 'gemini'],
   [/gemma/i, 'gemma'],
   // Chinese models
   // `wan` is delimiter-bounded so `taiwan-llm` doesn't misfire to the Qwen icon
   [/qwen|qwq|qvq|(?:^|[-_/])wan(?:[-_\d]|$)|z-image/i, 'qwen'],
   [/glm/i, 'glm'],
-  [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
-  [/hunyuan/i, 'hunyuan'],
+  // `seed` delimiter-bounded (mirrors VENDOR_PATTERNS.doubao) so `bytedance-seed`'s bare
+  // `seed-2.0-lite`/`seed-1.6` match, while `seedream`/`seedance` keep their explicit alts
+  [/doubao|seedream|seedance|ep-202|(?:^|[-_/])seed(?:[-_\d]|$)/i, 'doubao'],
+  [/^(?:hunyuan|hy-|hy\d)/i, 'hunyuan'],
   [/kimi|moonshot/i, 'kimi'],
   // Other model-specific icons
   [/grok/i, 'grok'],
   [/hailuo/i, 'hailuo'],
+  [/happy-?horse/i, 'happyhorse'],
   [/codegeex/i, 'codegeex'],
   [/mimo/i, 'mimo'],
   [/palm|bison/i, 'palm'],
@@ -72,7 +75,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // OpenAI (incl. embedding, TTS, etc.)
   [
-    /gpt-5|gpt-4|gpt-3|o1-|o3-|o4-|chatgpt|dall-e|whisper|tts-|text-embedding-ada|text-embedding-3|babbage|davinci/i,
+    /\bgpt\b|(?:^|[-_/])o[134](?:[-_]|$)|chatgpt|dall-e|whisper|tts-|text-embedding-ada|text-embedding-3|babbage|davinci/i,
     'openai'
   ],
   // Google (incl. embedding models)
