@@ -11,8 +11,6 @@ import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'a
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
-import { createHttpTraceFetch } from '../../../observability'
-import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -38,6 +36,7 @@ import type { RequestFeature } from './feature'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
+import { applyHttpTrace, resolveSdkConfig } from './sdkConfig'
 
 const logger = loggerService.withContext('buildAgentParams')
 
@@ -127,22 +126,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
-}
-
-async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
-  return {
-    ...(await providerToAiSdkConfig(provider, model, { apiKeyOverride })),
-    modelId: model.apiModelId ?? model.id
-  }
-}
-
-export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
-  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
-    topicId,
-    modelName: model.name ?? model.id
-  })
 }
 
 /**
@@ -272,7 +255,12 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
   const { headers, maxRetries } = request.requestOptions ?? {}
   const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
-  const telemetry = buildTelemetry(scope)
+  const telemetry = buildTelemetry({
+    topicId: requestContext.topicId,
+    requestId: requestContext.requestId,
+    model,
+    sdkConfig
+  })
 
   return {
     maxRetries: maxRetries ?? 0,
