@@ -1,9 +1,14 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionRuntimeStateTable } from '@data/db/schemas/agentSessionRuntimeState'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionRuntimeStateService } from '@data/services/AgentSessionRuntimeStateService'
+import { toModelMessages } from '@main/ai/messages/messageRules'
+import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
+import type { UIMessage } from 'ai'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -740,5 +745,161 @@ describe('AgentSessionMessageService', () => {
       nonNumericKeyError = error
     }
     expect(nonNumericKeyError).toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+
+  describe('listRuntimeHistory', () => {
+    const OLDEST = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e210'
+    const TIE_INCLUDED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e220'
+    const BOUNDARY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e230'
+    const TIE_EXCLUDED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e240'
+    const QUEUED_FOLLOW_UP = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e250'
+
+    type SeedRow = {
+      id: string
+      createdAt: number
+      role?: 'user' | 'assistant' | 'system'
+      status?: 'pending' | 'success' | 'error' | 'paused'
+      parts?: MessageData['parts']
+      sessionId?: string
+    }
+
+    async function seedRows(rows: SeedRow[]) {
+      await dbh.db.insert(agentSessionMessageTable).values(
+        rows.map((row) => ({
+          id: row.id,
+          sessionId: row.sessionId ?? SESSION_ID,
+          role: row.role ?? 'assistant',
+          data: { parts: row.parts ?? [{ type: 'text' as const, text: row.id }] },
+          status: row.status ?? 'success',
+          createdAt: row.createdAt,
+          updatedAt: row.createdAt
+        }))
+      )
+    }
+
+    it('returns rows ascending by (createdAt, id), strictly before the boundary tuple', async () => {
+      await seedRows([
+        // Insert out of order to prove ordering comes from the query, not insertion.
+        { id: QUEUED_FOLLOW_UP, createdAt: 300, role: 'user' },
+        { id: TIE_EXCLUDED, createdAt: 200 },
+        { id: BOUNDARY, createdAt: 200, role: 'user' },
+        { id: TIE_INCLUDED, createdAt: 200 },
+        { id: OLDEST, createdAt: 100, role: 'user' }
+      ])
+
+      const items = agentSessionMessageService.listRuntimeHistory(SESSION_ID, { beforeMessageId: BOUNDARY })
+
+      // Same-createdAt rows split on the id tiebreak; the boundary itself and the
+      // later queued follow-up never leak into the current turn's replay.
+      expect(items.map((item) => item.id)).toEqual([OLDEST, TIE_INCLUDED])
+
+      // The runtime driver appends the incoming user row after this query: the
+      // current prompt then appears exactly once and the queued follow-up not at all.
+      const replay = [...items.map((item) => item.id), BOUNDARY]
+      expect(replay.filter((id) => id === BOUNDARY)).toHaveLength(1)
+      expect(replay).not.toContain(QUEUED_FOLLOW_UP)
+    })
+
+    it('excludes pending rows and keeps paused and error rows', async () => {
+      await seedRows([
+        { id: OLDEST, createdAt: 100, status: 'error' },
+        { id: TIE_INCLUDED, createdAt: 150, status: 'paused' },
+        { id: TIE_EXCLUDED, createdAt: 200, status: 'pending' },
+        { id: BOUNDARY, createdAt: 300, role: 'user' }
+      ])
+
+      const items = agentSessionMessageService.listRuntimeHistory(SESSION_ID, { beforeMessageId: BOUNDARY })
+
+      expect(items.map((item) => item.id)).toEqual([OLDEST, TIE_INCLUDED])
+    })
+
+    it('never returns rows from another session', async () => {
+      await seedSession({ id: 'session-other', name: 'Other', orderKey: 'z0' })
+      await seedRows([
+        { id: OLDEST, createdAt: 100 },
+        { id: TIE_EXCLUDED, createdAt: 100, sessionId: 'session-other' },
+        { id: BOUNDARY, createdAt: 200, role: 'user' }
+      ])
+
+      const items = agentSessionMessageService.listRuntimeHistory(SESSION_ID, { beforeMessageId: BOUNDARY })
+
+      expect(items.map((item) => item.id)).toEqual([OLDEST])
+    })
+
+    it('throws notFound when the boundary row is missing from the session', async () => {
+      await seedSession({ id: 'session-other', name: 'Other', orderKey: 'z0' })
+      await seedRows([{ id: TIE_EXCLUDED, createdAt: 100, sessionId: 'session-other' }])
+
+      expect(() =>
+        agentSessionMessageService.listRuntimeHistory(SESSION_ID, { beforeMessageId: BOUNDARY })
+      ).toThrowError()
+      // A boundary row in a different session is equally invalid.
+      expect(() =>
+        agentSessionMessageService.listRuntimeHistory(SESSION_ID, { beforeMessageId: TIE_EXCLUDED })
+      ).toThrowError()
+    })
+
+    it('invalidates runtime compaction state in the same transaction as a message delete', async () => {
+      await seedRows([
+        { id: OLDEST, createdAt: 100 },
+        { id: TIE_INCLUDED, createdAt: 200 }
+      ])
+      agentSessionRuntimeStateService.saveState({
+        sessionId: SESSION_ID,
+        runtimeType: 'ai-sdk',
+        compactedThroughMessageId: OLDEST,
+        summary: 'summary',
+        compactionModelId: 'provider::model'
+      })
+
+      // Deleting a non-anchor row: only the service-level invalidation (not the
+      // anchor FK cascade) can clear the state.
+      agentSessionMessageService.deleteSessionMessage(SESSION_ID, TIE_INCLUDED)
+
+      expect(await dbh.db.select().from(agentSessionRuntimeStateTable)).toHaveLength(0)
+      expect(agentSessionRuntimeStateService.getState(SESSION_ID, 'ai-sdk')).toBeNull()
+    })
+
+    it('replays completed tool effects from a failed turn while conversion strips the dangling tail', async () => {
+      await seedRows([
+        { id: OLDEST, createdAt: 100, role: 'user', parts: [{ type: 'text', text: 'Q' }] },
+        {
+          id: TIE_INCLUDED,
+          createdAt: 200,
+          status: 'error',
+          parts: [
+            { type: 'text', text: 'wrote file' },
+            {
+              type: 'tool-write',
+              toolCallId: 'call-done',
+              state: 'output-available',
+              input: { path: 'a.txt' },
+              output: { ok: true }
+            },
+            { type: 'tool-write', toolCallId: 'call-dangling', state: 'input-available', input: { path: 'b.txt' } }
+          ]
+        },
+        { id: BOUNDARY, createdAt: 300, role: 'user' }
+      ])
+
+      const items = agentSessionMessageService.listRuntimeHistory(SESSION_ID, { beforeMessageId: BOUNDARY })
+      const model = await toModelMessages(
+        items.map((item) => ({ id: item.id, role: item.role, parts: item.data.parts ?? [] }) as UIMessage)
+      )
+
+      expect(model[0]).toEqual({ role: 'user', content: [{ type: 'text', text: 'Q' }] })
+      expect(model[1]).toMatchObject({
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'wrote file' },
+          { type: 'tool-call', toolCallId: 'call-done', toolName: 'write', input: { path: 'a.txt' } }
+        ]
+      })
+      expect(model[2]).toMatchObject({
+        role: 'tool',
+        content: [{ type: 'tool-result', toolCallId: 'call-done', toolName: 'write' }]
+      })
+      expect(JSON.stringify(model)).not.toContain('call-dangling')
+    })
   })
 })

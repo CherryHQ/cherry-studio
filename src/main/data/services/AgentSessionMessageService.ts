@@ -23,9 +23,10 @@ import {
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
-import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
+import { agentSessionRuntimeStateService } from './AgentSessionRuntimeStateService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -195,6 +196,52 @@ export class AgentSessionMessageService {
     return { items, nextCursor }
   }
 
+  /**
+   * Model-replay read for Cherry-managed agent runtimes: the session's rows in
+   * stable ascending `(createdAt, id)` order, strictly before the given
+   * message's tuple.
+   *
+   * The exclusive boundary is the current turn's persisted user row. Busy-session
+   * follow-ups are persisted immediately (before they enter the pending-turn
+   * queue), so an unbounded query would leak queued future prompts into the
+   * current turn and duplicate the current prompt when the driver appends it.
+   * The boundary row must exist — a runtime turn without a durable user row is
+   * not a valid replay input.
+   *
+   * `pending` rows are excluded (in-flight, nothing replayable). `success`,
+   * `paused`, and `error` rows are returned as stored; the runtime's model
+   * conversion pipeline strips dangling tool calls and non-model parts.
+   */
+  listRuntimeHistory(sessionId: string, options: { beforeMessageId: string }): AgentSessionMessageEntity[] {
+    const database = application.get('DbService').getDb()
+
+    const [boundary] = database
+      .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.beforeMessageId)))
+      .limit(1)
+      .all()
+    if (!boundary) throw DataApiErrorFactory.notFound('Message', options.beforeMessageId)
+
+    const rows = database
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          ne(sessionMessagesTable.status, 'pending'),
+          or(
+            lt(sessionMessagesTable.createdAt, boundary.createdAt),
+            and(eq(sessionMessagesTable.createdAt, boundary.createdAt), lt(sessionMessagesTable.id, boundary.id))
+          )
+        )
+      )
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .all()
+
+    return rows.map((row) => this.rowToEntity(row))
+  }
+
   deleteSessionMessage(sessionId: string, messageId: string): void {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
@@ -210,7 +257,7 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const result = withSqliteErrors(
-      () => this.deleteSessionMessageTx(database, sessionId, messageId),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
@@ -223,6 +270,11 @@ export class AgentSessionMessageService {
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
       .run()
+    // Deleted content must not survive inside a runtime compaction summary, so
+    // the checkpoint dies in the same transaction as the message.
+    if (result.changes > 0) {
+      agentSessionRuntimeStateService.invalidateStateTx(tx, sessionId)
+    }
     return { rowsAffected: result.changes }
   }
 
