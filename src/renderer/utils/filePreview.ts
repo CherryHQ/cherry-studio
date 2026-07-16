@@ -2,6 +2,7 @@ import type { FilePath } from '@shared/types/file'
 import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
 
 export const FILE_PREVIEW_ROUTE = '/app/file-preview'
+export const FILE_PREVIEW_REFRESH_KEY = 'filePreviewRefreshKey'
 
 export interface FilePreviewRouteSearch {
   path: FilePath | undefined
@@ -11,6 +12,11 @@ export interface FilePreviewTabTarget {
   filePath: FilePath
   title: string
   url: string
+}
+
+export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | undefined): number {
+  const value = metadata?.[FILE_PREVIEW_REFRESH_KEY]
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
 
 export function normalizeFilePreviewPath(filePath: string): FilePath {

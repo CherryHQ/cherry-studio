@@ -98,7 +98,7 @@ function destroyLoadingTask(loadingTask: PDFDocumentLoadingTask, filePath: strin
   })
 }
 
-export default function PdfFilePreview({ filePath, fileName }: FilePreviewPluginProps) {
+export default function PdfFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -249,7 +249,7 @@ export default function PdfFilePreview({ filePath, fileName }: FilePreviewPlugin
         loadingTask = null
       }
     }
-  }, [filePath])
+  }, [filePath, refreshKey])
 
   useEffect(() => {
     const container = containerRef.current

@@ -27,12 +27,13 @@ import type { FilePath } from '@shared/types/file'
 
 interface FileDetailsProps {
   filePath: FilePath
+  refreshKey?: number
 }
 
-export function FileDetails({ filePath }: FileDetailsProps) {
+export function FileDetails({ filePath, refreshKey }: FileDetailsProps) {
   return (
     <section className="flex min-h-0 flex-1">
-      <FilePreview filePath={filePath} />
+      <FilePreview filePath={filePath} refreshKey={refreshKey} />
     </section>
   )
 }
@@ -58,7 +59,7 @@ export function OpenPreviewButton({ filePath }: { filePath: FilePath }) {
 }
 ```
 
-The hook does not set `forceNew`. Equivalent normalized paths produce the same URL and reuse an existing tab. The returned string is the tab ID when the caller needs it.
+The hook does not set `forceNew`. Equivalent normalized paths produce the same URL and reuse an existing tab. Reopening an existing tab increments its internal refresh key so the mounted plugin reloads the file. The returned string is the tab ID when the caller needs it.
 
 Embedded and tab previews are host composition choices, not `FilePreview` display variants. If users can switch between them, keep that choice in the calling page: set the current `filePath` for embedded mode or call `openFilePreviewTab(filePath)` for tab mode. Do not move this mode state into `FilePreview`.
 
@@ -95,12 +96,13 @@ Descriptor rules:
 - `load` must resolve to a module with a default React component export. Keep large rendering libraries inside the lazy module rather than the descriptor.
 - The registry is static configuration. There is no runtime registration, priority, or caller override API.
 
-The plugin component receives the normalized path and extracted filename:
+The plugin component receives the normalized path, extracted filename, and a required refresh key:
 
 ```ts
 interface FilePreviewPluginProps {
   filePath: FilePath
   fileName: string
+  refreshKey: number
 }
 ```
 
@@ -111,8 +113,9 @@ import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { ExampleFilePreviewToolbar } from './ExampleFilePreviewToolbar'
 
-export default function ExampleFilePreview({ filePath, fileName }: FilePreviewPluginProps) {
-  // The plugin owns file loading, view state, and toolbar actions here.
+export default function ExampleFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+  // Load in an effect that depends on filePath and refreshKey. The plugin owns
+  // file loading, view state, and toolbar actions here.
 
   return (
     <FilePreviewLayout.Frame>
@@ -135,7 +138,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 
 ## Composition Rules
 
-Keep the public `FilePreview` props minimal: it accepts only `filePath`. Follow these boundaries when adding formats or capabilities:
+Keep the public `FilePreview` props minimal: `filePath` and optional `refreshKey`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -150,10 +153,11 @@ This composition lets the same plugin work in embedded and tab hosts without for
 
 - Plugins read files through `window.api`. Use `window.api.fs.readText` for text and `window.api.fs.read` for binary data.
 - When a plugin needs metadata or a size guard before reading, use the file IPC API with `createFilePathHandle(filePath)`.
+- Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
 - `FilePreview` owns invalid-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.
-- Cancel, disconnect, or destroy file reads, workers, listeners, and third-party instances when the component unmounts or `filePath` changes.
+- Cancel, disconnect, or destroy file reads, workers, listeners, and third-party instances when the component unmounts, `filePath` changes, or `refreshKey` changes.
 
 ## UI and Copy
 
@@ -167,7 +171,7 @@ This composition lets the same plugin work in embedded and tab hosts without for
 A new plugin should have focused coverage for at least these cases:
 
 - Its extensions resolve to the correct plugin without conflicting with existing extensions.
-- The lazy component receives the normalized `filePath` and correct `fileName`.
+- The lazy component receives the normalized `filePath`, correct `fileName`, and current `refreshKey`.
 - Loading, success, empty, and read-error states remain contained within the preview region.
 - Toolbar actions, disabled states, and cleanup behavior work as expected.
 

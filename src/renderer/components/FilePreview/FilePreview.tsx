@@ -71,18 +71,19 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: FilePath
   plugin: FilePreviewPlugin
+  refreshKey: number
 }
 
-function FilePreviewPluginRenderer({ fileName, filePath, plugin }: FilePreviewPluginRendererProps) {
+function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: FilePreviewPluginRendererProps) {
   const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
 
   return (
     <ErrorBoundary
-      key={`${plugin.id}:${filePath}`}
+      key={`${plugin.id}:${filePath}:${refreshKey}`}
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview filePath={filePath} fileName={fileName} />
+        <PluginPreview filePath={filePath} fileName={fileName} refreshKey={refreshKey} />
       </Suspense>
     </ErrorBoundary>
   )
@@ -90,9 +91,10 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin }: FilePreviewPl
 
 export interface FilePreviewProps {
   filePath: FilePath
+  refreshKey?: number
 }
 
-export function FilePreview({ filePath }: FilePreviewProps) {
+export function FilePreview({ filePath, refreshKey = 0 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -106,7 +108,7 @@ export function FilePreview({ filePath }: FilePreviewProps) {
 
   const extensionPlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
   if (extensionPlugin) {
-    return <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} />
+    return <FilePreviewPluginRenderer {...file} plugin={extensionPlugin} refreshKey={refreshKey} />
   }
 
   return <FilePreviewState kind="unsupported" />

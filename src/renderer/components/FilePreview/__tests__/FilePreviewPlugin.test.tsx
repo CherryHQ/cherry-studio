@@ -43,8 +43,13 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
-    default: ({ filePath, fileName }: { filePath: FilePath; fileName: string }) => (
-      <div data-testid="plugin-preview" data-file-path={filePath} data-file-name={fileName} />
+    default: ({ filePath, fileName, refreshKey }: { filePath: FilePath; fileName: string; refreshKey: number }) => (
+      <div
+        data-testid="plugin-preview"
+        data-file-path={filePath}
+        data-file-name={fileName}
+        data-refresh-key={refreshKey}
+      />
     )
   })
 })
@@ -65,10 +70,11 @@ describe('FilePreview plugin loading', () => {
   })
 
   it('lazy loads a matching plugin with the canonical file descriptor', async () => {
-    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as FilePath} refreshKey={4} />)
 
     expect(await screen.findByTestId('plugin-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-name', 'README.md')
+    expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-refresh-key', '4')
     expect(mocks.load).toHaveBeenCalledTimes(1)
   })
 

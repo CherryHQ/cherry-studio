@@ -102,7 +102,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   )
 }
 
-export default function TextFilePreview({ filePath }: FilePreviewPluginProps) {
+export default function TextFilePreview({ filePath, refreshKey }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
 
   useEffect(() => {
@@ -137,7 +137,7 @@ export default function TextFilePreview({ filePath }: FilePreviewPluginProps) {
     return () => {
       cancelled = true
     }
-  }, [filePath])
+  }, [filePath, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>

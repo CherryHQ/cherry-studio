@@ -109,4 +109,17 @@ describe('image file preview plugin', () => {
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
     expect(secondImage).toHaveStyle({ transform: 'scale(1) rotate(0deg) scaleX(1) scaleY(1)' })
   })
+
+  it('rebuilds the image preview when the refresh key changes', async () => {
+    const filePath = '/tmp/photos/refresh.jpg' as FilePath
+    const { rerender } = render(<FilePreview filePath={filePath} refreshKey={0} />)
+    const firstImage = await screen.findByRole('img', { name: 'refresh.jpg' })
+    fireEvent.load(firstImage)
+
+    rerender(<FilePreview filePath={filePath} refreshKey={1} />)
+
+    const refreshedImage = await screen.findByRole('img', { name: 'refresh.jpg' })
+    expect(refreshedImage).not.toBe(firstImage)
+    expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
+  })
 })

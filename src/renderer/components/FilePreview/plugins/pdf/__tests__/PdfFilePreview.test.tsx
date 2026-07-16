@@ -159,6 +159,10 @@ vi.mock('react-i18next', () => ({
 
 const filePath = '/tmp/workspace/paper.pdf' as FilePath
 
+function renderPreview(refreshKey = 0) {
+  return render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" refreshKey={refreshKey} />)
+}
+
 async function flushPdfEffects() {
   await Promise.resolve()
   await Promise.resolve()
@@ -192,7 +196,7 @@ describe('PdfFilePreview', () => {
   })
 
   it('loads the PDF into a continuous pdf.js viewer below a fixed toolbar', async () => {
-    render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" />)
+    renderPreview()
 
     expect(screen.getByRole('toolbar')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
@@ -223,7 +227,7 @@ describe('PdfFilePreview', () => {
       return 1
     })
 
-    render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" />)
+    renderPreview()
     await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
@@ -250,7 +254,7 @@ describe('PdfFilePreview', () => {
   })
 
   it('updates PDF page colors when the app theme changes without rebuilding the viewer', async () => {
-    render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" />)
+    renderPreview()
     await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
 
     document.documentElement.style.setProperty('--color-background', 'rgb(30, 31, 32)')
@@ -268,7 +272,7 @@ describe('PdfFilePreview', () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mocks.fsRead.mockRejectedValueOnce(new Error('sensitive parser details'))
 
-    render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" />)
+    renderPreview()
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
     expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.load_error.title')
@@ -280,8 +284,18 @@ describe('PdfFilePreview', () => {
     )
   })
 
+  it('reloads the document when the refresh key changes', async () => {
+    const view = renderPreview()
+    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
+
+    view.rerender(<PdfFilePreview filePath={filePath} fileName="paper.pdf" refreshKey={1} />)
+
+    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
+    expect(mocks.fsRead).toHaveBeenLastCalledWith(filePath)
+  })
+
   it('destroys loading, document, viewer, event, timer, and animation resources on unmount', async () => {
-    const { unmount } = render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" />)
+    const { unmount } = renderPreview()
     await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(mocks.pdfDocument))
 
     const container = screen.getByTestId('pdfjs-viewer-container')

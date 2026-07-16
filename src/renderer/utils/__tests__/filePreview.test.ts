@@ -4,6 +4,7 @@ import {
   createFilePreviewTabTarget,
   getFilePreviewExtension,
   getFilePreviewFileName,
+  getFilePreviewRefreshKey,
   normalizeFilePreviewPath,
   parseFilePreviewRouteSearch
 } from '../filePreview'
@@ -64,5 +65,13 @@ describe('file preview route target', () => {
     })
     expect(parseFilePreviewRouteSearch({ path: 'relative/report.md' })).toEqual({ path: undefined })
     expect(parseFilePreviewRouteSearch({})).toEqual({ path: undefined })
+  })
+
+  it('accepts only non-negative safe integer refresh keys', () => {
+    expect(getFilePreviewRefreshKey({ filePreviewRefreshKey: 3 })).toBe(3)
+    expect(getFilePreviewRefreshKey({ filePreviewRefreshKey: -1 })).toBe(0)
+    expect(getFilePreviewRefreshKey({ filePreviewRefreshKey: 1.5 })).toBe(0)
+    expect(getFilePreviewRefreshKey({ filePreviewRefreshKey: '3' })).toBe(0)
+    expect(getFilePreviewRefreshKey(undefined)).toBe(0)
   })
 })

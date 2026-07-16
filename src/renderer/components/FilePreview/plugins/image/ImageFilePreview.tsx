@@ -13,18 +13,18 @@ import { ImageFilePreviewToolbar } from './ImageFilePreviewToolbar'
 
 const logger = loggerService.withContext('ImageFilePreview')
 
-export default function ImageFilePreview({ filePath, fileName }: FilePreviewPluginProps) {
+export default function ImageFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<'error' | 'loading' | 'ready'>('loading')
   const transformControls = useImagePreviewTransform()
   const item = useMemo(
     () => ({
-      id: filePath,
+      id: `${filePath}:${refreshKey}`,
       src: toSafeFileUrl(filePath, getFilePreviewExtension(filePath)),
       alt: fileName,
       title: fileName
     }),
-    [fileName, filePath]
+    [fileName, filePath, refreshKey]
   )
 
   if (status === 'error') {

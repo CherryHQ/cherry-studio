@@ -4,6 +4,7 @@ import type { ComponentType } from 'react'
 export interface FilePreviewPluginProps {
   filePath: FilePath
   fileName: string
+  refreshKey: number
 }
 
 export interface FilePreviewPlugin {

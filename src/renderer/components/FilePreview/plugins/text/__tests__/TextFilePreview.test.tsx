@@ -34,6 +34,10 @@ vi.mock('react-i18next', () => ({
 
 const filePath = '/tmp/workspace/example.ts' as FilePath
 
+function renderPreview(refreshKey = 0) {
+  return render(<TextFilePreview filePath={filePath} fileName="example.ts" refreshKey={refreshKey} />)
+}
+
 describe('TextFilePreview', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -49,7 +53,7 @@ describe('TextFilePreview', () => {
   })
 
   it('renders highlighted source without line wrapping', async () => {
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: filePath })
@@ -63,7 +67,7 @@ describe('TextFilePreview', () => {
   it('shows a zero-byte empty state without reading the file', async () => {
     mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 0 })
 
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     await screen.findByText('file_preview.text.empty.title')
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.text.empty.title')
@@ -73,7 +77,7 @@ describe('TextFilePreview', () => {
   it('rejects files over 2 MiB before reading their contents', async () => {
     mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 2 * 1024 * 1024 + 1 })
 
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.text.too_large.description')
@@ -83,7 +87,7 @@ describe('TextFilePreview', () => {
   it('reads files at exactly the 2 MiB limit', async () => {
     mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 2 * 1024 * 1024 })
 
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
@@ -93,7 +97,7 @@ describe('TextFilePreview', () => {
     mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 3 })
     mocks.readText.mockResolvedValueOnce(' \n')
 
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ value: ' \n' }))
@@ -104,7 +108,7 @@ describe('TextFilePreview', () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mocks.readText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.read_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('EACCES: permission denied')
@@ -122,11 +126,21 @@ describe('TextFilePreview', () => {
       })
     )
 
-    render(<TextFilePreview filePath={filePath} fileName="example.ts" />)
+    renderPreview()
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
 
     resolveMetadata?.({ kind: 'file', size: 24 })
     await waitFor(() => expect(screen.getByTestId('code-viewer')).toBeInTheDocument())
+  })
+
+  it('reloads when the refresh key changes', async () => {
+    const view = renderPreview()
+    await screen.findByTestId('code-viewer')
+
+    view.rerender(<TextFilePreview filePath={filePath} fileName="example.ts" refreshKey={1} />)
+
+    await waitFor(() => expect(mocks.getMetadata).toHaveBeenCalledTimes(2))
+    expect(mocks.readText).toHaveBeenCalledTimes(2)
   })
 })

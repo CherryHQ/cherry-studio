@@ -118,7 +118,7 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
   )
 }
 
-export default function MarkdownFilePreview({ filePath }: FilePreviewPluginProps) {
+export default function MarkdownFilePreview({ filePath, refreshKey }: FilePreviewPluginProps) {
   const markdownId = useId()
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
@@ -150,7 +150,7 @@ export default function MarkdownFilePreview({ filePath }: FilePreviewPluginProps
     return () => {
       cancelled = true
     }
-  }, [filePath])
+  }, [filePath, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>
