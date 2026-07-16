@@ -136,15 +136,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const hooks = this.composedHooks()
 
     let writerSettled = false
-    const settleWriter = async (err?: unknown): Promise<void> => {
+    const settleWriter = async (failure?: { error: unknown }): Promise<void> => {
       if (writerSettled) return
       writerSettled = true
       this.currentWriter = undefined
       try {
-        if (err === undefined) {
-          await writer.close()
+        if (failure) {
+          await writer.abort(failure.error)
         } else {
-          await writer.abort(err)
+          await writer.close()
         }
       } catch {
         // The transform stream's writer may already be closing from a peer
@@ -180,8 +180,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         abortSignal: signal
       })
 
+      // AI SDK converts full-stream errors to lossy UI error chunks. Capture the
+      // original error here so downstream transport can retain provider details.
+      const capturedUiErrors: unknown[] = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        onError: (error) => {
+          capturedUiErrors.push(error)
+          return error instanceof Error ? error.message : String(error)
+        },
         generateMessageId: () => {
           if (!hasUsedProvidedMessageId && params.messageId) {
             hasUsedProvidedMessageId = true
@@ -191,19 +198,24 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
       })
       const reader = uiStream.getReader()
-      let readError: unknown
+      let readFailure: { error: unknown } | undefined
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done || signal.aborted) break
+          if (value.type === 'error' && capturedUiErrors.length > 0) {
+            const originalError = capturedUiErrors.shift()
+            await reader.cancel(originalError).catch(() => {})
+            throw originalError
+          }
           await writer.write(value)
         }
       } catch (error) {
-        readError = error
+        readFailure = { error }
       } finally {
         reader.releaseLock()
       }
-      if (readError) throw readError
+      if (readFailure) throw readFailure.error
 
       // onFinish is success-only by current design: it fires only when the
       // stream drains cleanly, never on the error/abort path below (which
@@ -225,7 +237,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             logger.error('agentLoop error', err)
           }
         }
-        await settleWriter(err)
+        await settleWriter({ error: err })
       })
 
     return readable

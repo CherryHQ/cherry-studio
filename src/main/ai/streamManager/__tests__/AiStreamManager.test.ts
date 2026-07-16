@@ -1,7 +1,7 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
+import { APICallError, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamRequest } from '../../types/requests'
@@ -1472,7 +1472,41 @@ describe('AiStreamManager', () => {
   // and `runExecutionLoop` routes it through `onExecutionError` with the
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
-  describe('mid-stream error chunk', () => {
+  describe('stream errors', () => {
+    it('serializes API error status and retryability from a rejecting stream', async () => {
+      vi.useRealTimers()
+
+      const apiError = new APICallError({
+        message: 'Upstream unavailable',
+        url: 'https://api.example.com/chat/completions',
+        requestBodyValues: {},
+        statusCode: 503,
+        responseHeaders: {},
+        responseBody: '',
+        isRetryable: true
+      })
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          start(controller) {
+            controller.error(apiError)
+          }
+        })
+      )
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(listener.errorResults).toHaveLength(1)
+      expect(listener.errorResults[0].error).toMatchObject({ statusCode: 503, isRetryable: true })
+    })
+
     it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
       // readUIMessageStream's accumulator needs real microtask / timer
       // scheduling; fake timers starve its reader loop (see live finalMessage
