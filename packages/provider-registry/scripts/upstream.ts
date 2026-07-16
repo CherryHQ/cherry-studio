@@ -12,7 +12,7 @@
  */
 import * as z from 'zod'
 
-import type { ModelConfig } from '../src/schemas/model'
+import type { ImageGenerationSupport, ModelConfig, SupportSpec } from '../src/schemas/model'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'max', 'auto'])
@@ -184,6 +184,56 @@ export function parseOrEntry(raw: unknown): CherryMeta | null {
   }) as CherryMeta
 }
 
+const OR_IMAGE_PARAM_KEYS = {
+  aspect_ratio: 'aspectRatio',
+  background: 'background',
+  n: 'numImages',
+  output_compression: 'outputCompression',
+  output_format: 'outputFormat',
+  quality: 'quality',
+  resolution: 'resolution',
+  seed: 'seed'
+} as const
+
+const OrParamDescriptor = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('enum'), values: z.array(z.string()).min(1) }).loose(),
+  z.object({ type: z.literal('range'), min: z.number(), max: z.number() }).loose(),
+  z.object({ type: z.literal('boolean') }).loose()
+])
+
+type OrParamDescriptor = z.infer<typeof OrParamDescriptor>
+
+function toSupportSpec(key: keyof typeof OR_IMAGE_PARAM_KEYS, descriptor: OrParamDescriptor): SupportSpec {
+  if (descriptor.type === 'enum') return { type: 'enum', options: descriptor.values }
+  if (descriptor.type === 'range') return { type: 'range', min: descriptor.min, max: descriptor.max, step: 1 }
+  // OpenRouter uses a boolean descriptor to mean that an otherwise scalar parameter is supported
+  // (currently `seed`), not that the request value itself is boolean. A text field preserves the
+  // unbounded integer input; imageParamsSchema performs the integer coercion at the IPC boundary.
+  return key === 'seed' ? { type: 'text' } : { type: 'switch' }
+}
+
+/** Convert `/images/models` parameter descriptors into OpenRouter-specific painting controls. */
+export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | null {
+  const p = OrEntry.safeParse(raw)
+  if (!p.success || Array.isArray(p.data.supported_parameters) || !p.data.supported_parameters) return null
+
+  const supports: NonNullable<ImageGenerationSupport['modes']['generate']>['supports'] = {}
+  for (const [wireKey, canonicalKey] of Object.entries(OR_IMAGE_PARAM_KEYS)) {
+    const parsed = OrParamDescriptor.safeParse(p.data.supported_parameters[wireKey])
+    if (parsed.success) supports[canonicalKey] = toSupportSpec(wireKey as keyof typeof OR_IMAGE_PARAM_KEYS, parsed.data)
+  }
+
+  const inputReferences = OrParamDescriptor.safeParse(p.data.supported_parameters.input_references)
+  const supportsEdit = inputReferences.success && inputReferences.data.type === 'range' && inputReferences.data.max > 0
+
+  return {
+    modes: {
+      generate: { supports },
+      ...(supportsEdit ? { edit: { supports } } : {})
+    }
+  }
+}
+
 // ── merge across sources (the fix for the minimax-m3 video gap) ───────────────
 const uniqOrdered = (arr: string[]) => [
   ...CAP_ORDER.filter((x) => arr.includes(x)),
@@ -235,5 +285,7 @@ export const ModelsDevApiSchema = z.record(
 export type ModelsDevApi = z.infer<typeof ModelsDevApiSchema>
 
 /** OpenRouter `/api/v1/models`: `{ data: [{ id, … }] }`. */
-export const OpenRouterApiSchema = z.object({ data: z.array(z.object({ id: z.string() }).loose()).optional() }).loose()
+export const OpenRouterApiSchema = z
+  .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).loose()).optional() })
+  .loose()
 export type OpenRouterApi = z.infer<typeof OpenRouterApiSchema>

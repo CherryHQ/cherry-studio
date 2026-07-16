@@ -31,7 +31,8 @@ import {
   type OpenRouterApi,
   OpenRouterApiSchema,
   parseMdEntry,
-  parseOrEntry
+  parseOrEntry,
+  parseOrImageGeneration
 } from './upstream'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -260,7 +261,11 @@ function buildProviders(): ProviderEntry[] {
  * `modelsDevProvider`, one row per served model carrying that listing's PRICING. `modelId` resolves to a
  * base row or is standalone with a `name`.
  */
-function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { overrides: any[] } {
+function buildProviderModels(
+  md: ModelsDevApi,
+  orImageModels: OpenRouterApi,
+  baseIds: Set<string>
+): { overrides: any[] } {
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
@@ -297,6 +302,32 @@ function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { override
       }
       addModel(row)
     }
+  }
+  // OpenRouter's dedicated image catalog publishes typed, per-model parameter descriptors. Keep
+  // these as provider overrides: the same canonical model can expose different controls through
+  // another provider, and the raw org/model id must remain the API id used for lookup and requests.
+  for (const model of orImageModels.data ?? []) {
+    const imageGeneration = parseOrImageGeneration(model)
+    const modelId = canonOf(model.id)
+    if (!imageGeneration || !modelId) continue
+    const meta = parseOrEntry(model)
+    const imageRow = {
+      providerId: 'openrouter',
+      modelId,
+      apiModelId: model.id,
+      ...(!baseIds.has(modelId) ? { name: model.name ?? model.id, ownedBy: model.id.split('/')[0] } : {}),
+      capabilities: { add: ['image-generation'] },
+      endpointTypes: ['openai-image-generation'],
+      ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),
+      ...(meta?.outputModalities ? { outputModalities: meta.outputModalities } : {}),
+      imageGeneration
+    }
+    // `/models` may already have contributed pricing for this exact OpenRouter model. Enrich that
+    // row in place so its pricing and the image catalog's controls coexist instead of first-wins
+    // deduplication silently dropping one side.
+    const existing = rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id)
+    if (existing) Object.assign(existing, imageRow)
+    else addModel(imageRow)
   }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
   return { overrides: rows }
@@ -357,7 +388,7 @@ void (async () => {
   fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
   console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
-  const pm = buildProviderModels(md, new Set(models.keys()))
+  const pm = buildProviderModels(md, orImageModels, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 })()

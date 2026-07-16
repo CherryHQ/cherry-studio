@@ -4635,6 +4635,7 @@
     "number_images": "Number Images",
     "number_images_tip": "Number of images to generate ({{min}}-{{max}})",
     "operation_failed": "Operation failed, please try again later",
+    "output_compression": "Output Compression",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",

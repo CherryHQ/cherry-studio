@@ -4635,6 +4635,7 @@
     "number_images": "生成数量",
     "number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
     "operation_failed": "操作失败，请稍后重试",
+    "output_compression": "输出压缩率",
     "paint_course": "教程",
     "per_image": "每张图片",
     "per_images": "每张图片",
