@@ -1681,6 +1681,60 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
   })
 
+  it('uses the pre-delete topic snapshot when refresh completes before deletion resolves', async () => {
+    const topics = [
+      createApiTopic({
+        id: 'topic-a1-first',
+        name: 'A1 First',
+        assistantId: 'assistant-1',
+        orderKey: 'a'
+      }),
+      createApiTopic({
+        id: 'topic-a1-second',
+        name: 'A1 Second',
+        assistantId: 'assistant-1',
+        orderKey: 'b'
+      })
+    ]
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
+    let resolveDelete: (() => void) | undefined
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    const { onNewTopic, rerenderTopicList, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
+      assistantTopicsSource
+    })
+
+    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+
+    const refreshedTopics = topics.filter((topic) => topic.id !== 'topic-a1-second')
+    Object.assign(assistantTopicsSource, {
+      pages: [{ items: refreshedTopics }],
+      topics: refreshedTopics
+    })
+    rerenderTopicList()
+    await act(async () => {
+      resolveDelete?.()
+    })
+
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
+    )
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
   it('opens a fresh topic for the assistant, not another assistant, when deleting its only topic in the modern sidebar', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1814,7 +1868,15 @@ describe('Topics', () => {
       siyuan: true,
       yuque: true
     }
-    MockUsePreference.useMultiplePreferences.mockReturnValue([exportMenuOptions, vi.fn()])
+    let previousPreferenceKeys: unknown
+    let stableExportMenuOptions = exportMenuOptions
+    MockUsePreference.useMultiplePreferences.mockImplementation((keys) => {
+      if (keys !== previousPreferenceKeys) {
+        previousPreferenceKeys = keys
+        stableExportMenuOptions = { ...exportMenuOptions }
+      }
+      return [stableExportMenuOptions, vi.fn()] as never
+    })
     cacheHookMocks.values.set('topic.renaming', [])
     cacheHookMocks.values.set('topic.newly_renamed', [])
     const topicPinsQuery = {
@@ -1849,6 +1911,9 @@ describe('Topics', () => {
 
     rerenderTopicList(undefined, createRendererTopic({ id: 'topic-2', name: 'Topic 2' }))
 
+    expect(MockUsePreference.useMultiplePreferences.mock.calls.at(-1)?.[0]).toBe(
+      MockUsePreference.useMultiplePreferences.mock.calls[0][0]
+    )
     expect(topicRowRenderMocks.counts.get('topic-1')).toBeGreaterThan(initialRenderCounts.get('topic-1') ?? 0)
     expect(topicRowRenderMocks.counts.get('topic-2')).toBeGreaterThan(initialRenderCounts.get('topic-2') ?? 0)
     expect(topicRowRenderMocks.counts.get('topic-3')).toBe(initialRenderCounts.get('topic-3'))
