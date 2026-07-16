@@ -5,7 +5,7 @@ const DoubaoLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0.5 0 23.289 24" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
       <g clipPath={`url(#${iconId}-doubaolight__a)`}>
         <path
           fill="#1E37FC"

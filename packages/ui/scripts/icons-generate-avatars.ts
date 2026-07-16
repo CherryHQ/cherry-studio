@@ -32,6 +32,7 @@ import {
   getComponentName,
   isImageBased,
   isWhiteFill,
+  type LogoType,
   OUTPUT_DIR_MAP,
   parseLogoTypeArg,
   parseSvgPathBounds,
@@ -288,9 +289,9 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
 // Main
 // ──────────────────────────────────────────────────────────
 
-export function generateAvatars() {
-  const iconType = parseLogoTypeArg()
-  const only = parseOnlyArg()
+export function generateAvatars(options: { iconType?: LogoType; only?: Set<string> | null } = {}) {
+  const iconType = options.iconType ?? parseLogoTypeArg()
+  const only = options.only === undefined ? parseOnlyArg() : options.only
   const baseDir = OUTPUT_DIR_MAP[iconType]
   const svgMap = buildSvgMap(iconType)
 

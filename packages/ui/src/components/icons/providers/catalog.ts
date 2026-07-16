@@ -4,7 +4,7 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-16T08:11:36.663Z
+ * Generated at: 2026-07-16T09:17:19.073Z
  * Total icons: 160
  */
 import { type CompoundIcon } from '../types'

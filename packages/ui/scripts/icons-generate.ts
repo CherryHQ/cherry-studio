@@ -5,6 +5,7 @@
  * Use --force to skip cache and regenerate all files.
  *
  * Modes:
+ *   no --type        generate icons, providers, and models in sequence
  *   --type=icons      icons/general/*.svg                     → src/components/icons/general/{name}.tsx      (flat)
  *   --type=providers  generate provider icons, avatars, barrels, and catalogs
  *   --type=models     generate model icons, avatars, barrels, and catalogs
@@ -17,9 +18,9 @@ import path from 'path'
 import { generateMeta } from './codegen'
 import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, tightenSvgViewBox } from './svg-utils'
 
-type IconType = 'icons' | 'providers' | 'models'
+export type IconType = 'icons' | 'providers' | 'models'
 
-const DEFAULT_TYPE: IconType = 'icons'
+const ICON_TYPES: IconType[] = ['icons', 'providers', 'models']
 const HASH_CACHE_FILE = path.join(__dirname, '../.icons-hash.json')
 const LOGO_MINIMUM_FRAME_RATIO = 100 / 120
 
@@ -54,14 +55,18 @@ function computeHash(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex')
 }
 
-function parseTypeArg(): IconType {
+function parseTypeArg(): IconType | null {
   const arg = process.argv.find((item) => item.startsWith('--type='))
-  if (!arg) return DEFAULT_TYPE
+  if (!arg) return null
 
   const value = arg.split('=')[1]
   if (value === 'icons' || value === 'providers' || value === 'models') return value
 
   throw new Error(`Invalid --type value: ${value}. Use "icons", "providers", or "models".`)
+}
+
+export function resolveIconTypes(requestedType: IconType | null): IconType[] {
+  return requestedType ? [requestedType] : [...ICON_TYPES]
 }
 
 function parseOnlyArg(): Set<string> | null {
@@ -386,11 +391,7 @@ ${exports}
 /**
  * Main function
  */
-async function main() {
-  const type = parseTypeArg()
-  const force = process.argv.includes('--force')
-  const only = parseOnlyArg()
-
+async function generateType(type: IconType, force: boolean, only: Set<string> | null) {
   console.log(
     `Starting icon generation (type: ${type})${force ? ' [FORCE]' : ''}${only ? ` [ONLY: ${[...only].join(', ')}]` : ''}...\n`
   )
@@ -406,7 +407,7 @@ async function main() {
         console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
     }
 
-    const hashCache = force && !only ? {} : await loadHashCache()
+    const hashCache = await loadHashCache()
     const newHashCache: HashCache = { ...hashCache }
     let generated = 0
     let skipped = 0
@@ -456,7 +457,7 @@ async function main() {
     console.log(`\nGeneration complete! ${generated} generated, ${skipped} unchanged (cached)`)
 
     const { generateAvatars } = await import('./icons-generate-avatars')
-    generateAvatars()
+    generateAvatars({ iconType: type, only })
     return
   }
 
@@ -471,7 +472,7 @@ async function main() {
   const svgFiles = files.filter((f) => f.endsWith('.svg'))
   console.log(`Found ${svgFiles.length} SVG files in ${inputDir}\n`)
 
-  const hashCache = force ? {} : await loadHashCache()
+  const hashCache = await loadHashCache()
   const newHashCache: HashCache = { ...hashCache }
   const components: Array<{ filename: string; componentName: string }> = []
   let skipped = 0
@@ -518,4 +519,20 @@ async function main() {
   )
 }
 
-void main()
+async function main() {
+  const requestedType = parseTypeArg()
+  const force = process.argv.includes('--force')
+  const only = parseOnlyArg()
+
+  if (only && requestedType !== 'providers' && requestedType !== 'models') {
+    throw new Error('--only requires --type=providers or --type=models.')
+  }
+
+  for (const type of resolveIconTypes(requestedType)) {
+    await generateType(type, force, only)
+  }
+}
+
+if (require.main === module) {
+  void main()
+}
