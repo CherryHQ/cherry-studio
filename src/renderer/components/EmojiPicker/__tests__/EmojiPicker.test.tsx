@@ -143,6 +143,7 @@ describe('EmojiPicker', () => {
       '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
       '--epr-search-border-color': 'var(--color-input)',
       '--epr-search-border-color-active': 'var(--color-ring)',
+      '--epr-header-padding': '10px var(--epr-horizontal-padding) 8px',
       '--epr-emoji-hover-color': 'var(--color-accent)',
       '--epr-emoji-variation-indicator-color': 'var(--color-border)',
       '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
@@ -150,7 +151,6 @@ describe('EmojiPicker', () => {
 
     for (const property of [
       '--epr-horizontal-padding',
-      '--epr-header-padding',
       '--epr-category-navigation-button-size',
       '--epr-emoji-size',
       '--epr-emoji-padding'
