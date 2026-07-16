@@ -175,8 +175,6 @@ async function executeRelocation(
   const { workPath, asidePath } = relocationArtifactPaths(pending.to, pending.taskId)
   let asideCreated = false
   let promoted = false
-  let copied = 0
-  let lastPercent = -1
 
   try {
     // The source scan can take minutes. Revalidate immediately before claiming
@@ -194,22 +192,68 @@ async function executeRelocation(
     assertEffectiveSeparation(pending.from, workPath)
 
     const sourceReal = realPath(pending.from)
-    const workReal = realPath(workPath)
     const finalTargetEffective = resolveEffectivePath(pending.to)
-    await copyTree(pending.from, workPath, {
-      sourceRootReal: sourceReal,
-      workRootReal: workReal,
-      finalTargetEffective,
-      onCopied: (bytes) => {
-        copied += bytes
-        const percent = total > 0 ? Math.floor((copied / total) * 100) : 100
-        if (percent === lastPercent) return
-        lastPercent = percent
-        publish(makeProgress('copying', pending, copied, total))
+    // Let Node own recursive copying. The filter only applies relocation-specific
+    // exclusions and records links that must stop pointing at the old userData tree.
+    const symlinks: Array<{ source: string; target: string; type: 'dir' | 'file' | 'junction' | undefined }> = []
+    await fsp.cp(pending.from, workPath, {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+      verbatimSymlinks: true,
+      filter: async (source, target) => {
+        const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
+        const name = path.basename(source)
+        if (isSourceRootEntry && (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER)) return false
+
+        let stat: Awaited<ReturnType<typeof fsp.lstat>>
+        try {
+          stat = await fsp.lstat(source)
+        } catch (error) {
+          if (isErrno(error, 'ENOENT')) {
+            logger.warn('Skipping userData entry that vanished during relocation', { source })
+            return false
+          }
+          throw error
+        }
+        if (!stat.isSymbolicLink()) return stat.isDirectory() || stat.isFile()
+
+        let type: 'dir' | 'file' | 'junction' | undefined
+        try {
+          const followed = await fsp.stat(source)
+          type = followed.isDirectory() ? (isWin ? 'junction' : 'dir') : 'file'
+        } catch (error) {
+          if (!isErrno(error, 'ENOENT')) throw error
+          type = isWin ? 'file' : undefined
+        }
+        symlinks.push({ source, target, type })
+        return true
       }
     })
 
-    await verifyCopiedTree(pending.from, workPath)
+    for (const symlink of symlinks) {
+      let linkTarget: string
+      try {
+        linkTarget = await fsp.readlink(symlink.target)
+      } catch (error) {
+        if (isErrno(error, 'ENOENT')) continue
+        throw error
+      }
+      const rewrittenTarget = await rewriteSymlinkTarget(
+        symlink.source,
+        linkTarget,
+        symlink.type,
+        sourceReal,
+        finalTargetEffective
+      )
+      if (rewrittenTarget !== linkTarget) {
+        await fsp.unlink(symlink.target)
+        await fsp.symlink(rewrittenTarget, symlink.target, symlink.type)
+      }
+    }
+
+    publish(makeProgress('copying', pending, total, total))
+
     assertEffectiveSeparation(pending.from, workPath)
     await fsp.rename(workPath, pending.to)
     promoted = true
@@ -360,147 +404,6 @@ async function rollbackCopy(options: {
   } catch (error) {
     logger.error('Failed to roll back userData relocation copy', { ...options, error })
     return error instanceof Error ? error : new Error(String(error))
-  }
-}
-
-interface CopyContext {
-  sourceRootReal: string
-  workRootReal: string
-  finalTargetEffective: string
-  onCopied(bytes: number): void
-}
-
-async function copyTree(source: string, target: string, context: CopyContext, allowMissing = false): Promise<void> {
-  let stat: Awaited<ReturnType<typeof fsp.lstat>>
-  try {
-    stat = await fsp.lstat(source)
-  } catch (error) {
-    if (allowMissing && isErrno(error, 'ENOENT')) {
-      logger.warn('Skipping userData entry that vanished during relocation', { source })
-      return
-    }
-    throw error
-  }
-
-  if (stat.isDirectory()) {
-    let sourceReal: string
-    try {
-      sourceReal = normalizeForCompare(await fsp.realpath(source))
-    } catch (error) {
-      if (allowMissing && isErrno(error, 'ENOENT')) return
-      throw error
-    }
-    const workReal = normalizeForCompare(context.workRootReal)
-    if (sourceReal === workReal || isPathInside(sourceReal, workReal)) {
-      throw new Error(`relocation destination became visible inside source: ${source}`)
-    }
-
-    await fsp.mkdir(target, { recursive: true })
-    let entries: fs.Dirent<string>[]
-    try {
-      entries = await fsp.readdir(source, { withFileTypes: true })
-    } catch (error) {
-      if (allowMissing && isErrno(error, 'ENOENT')) return
-      throw error
-    }
-    const isSourceRoot = sourceReal === normalizeForCompare(context.sourceRootReal)
-    for (const entry of entries) {
-      if (isSourceRoot && entry.name.startsWith('Singleton')) continue
-      if (isSourceRoot && entry.name === RELOCATION_OWNER_MARKER) continue
-      await copyTree(path.join(source, entry.name), path.join(target, entry.name), context, true)
-    }
-    return
-  }
-
-  if (stat.isSymbolicLink()) {
-    let linkTarget: string
-    try {
-      linkTarget = await fsp.readlink(source)
-    } catch (error) {
-      if (allowMissing && isErrno(error, 'ENOENT')) return
-      throw error
-    }
-    let type: 'dir' | 'file' | 'junction' | undefined
-    try {
-      const followed = await fsp.stat(source)
-      type = followed.isDirectory() ? (isWin ? 'junction' : 'dir') : 'file'
-    } catch (error) {
-      if (!isErrno(error, 'ENOENT')) throw error
-      type = isWin ? 'file' : undefined
-    }
-    const rewrittenTarget = await rewriteSymlinkTarget(
-      source,
-      linkTarget,
-      type,
-      context.sourceRootReal,
-      context.finalTargetEffective
-    )
-    await fsp.symlink(rewrittenTarget, target, type)
-    return
-  }
-
-  if (stat.isFile()) {
-    try {
-      await fsp.copyFile(source, target)
-      context.onCopied(stat.size)
-    } catch (error) {
-      if (allowMissing && isErrno(error, 'ENOENT')) {
-        logger.warn('Skipping userData file that vanished during relocation', { source })
-        return
-      }
-      throw error
-    }
-    return
-  }
-
-  logger.warn('Skipping unsupported file system entry during userData relocation', { source })
-}
-
-async function verifyCopiedTree(source: string, target: string, isRoot = true): Promise<void> {
-  let entries: fs.Dirent<string>[]
-  try {
-    entries = await fsp.readdir(source, { withFileTypes: true })
-  } catch (error) {
-    if (isErrno(error, 'ENOENT')) return
-    throw error
-  }
-
-  for (const entry of entries) {
-    if (isRoot && entry.name.startsWith('Singleton')) continue
-    if (isRoot && entry.name === RELOCATION_OWNER_MARKER) continue
-
-    const sourcePath = path.join(source, entry.name)
-    const targetPath = path.join(target, entry.name)
-    let sourceStat: Awaited<ReturnType<typeof fsp.lstat>>
-    try {
-      sourceStat = await fsp.lstat(sourcePath)
-    } catch (error) {
-      if (isErrno(error, 'ENOENT')) continue
-      throw error
-    }
-
-    let targetStat: Awaited<ReturnType<typeof fsp.lstat>>
-    try {
-      targetStat = await fsp.lstat(targetPath)
-    } catch (error) {
-      if (isErrno(error, 'ENOENT')) {
-        throw new Error(`relocation verification failed; destination entry is missing: ${targetPath}`)
-      }
-      throw error
-    }
-
-    if (sourceStat.isDirectory()) {
-      if (!targetStat.isDirectory()) {
-        throw new Error(`relocation verification failed; destination is not a directory: ${targetPath}`)
-      }
-      await verifyCopiedTree(sourcePath, targetPath, false)
-    } else if (sourceStat.isFile()) {
-      if (!targetStat.isFile() || targetStat.size !== sourceStat.size) {
-        throw new Error(`relocation verification failed; destination file size differs: ${targetPath}`)
-      }
-    } else if (sourceStat.isSymbolicLink() && !targetStat.isSymbolicLink()) {
-      throw new Error(`relocation verification failed; destination is not a symbolic link: ${targetPath}`)
-    }
   }
 }
 

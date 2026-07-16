@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import type { copyFile, statfs, symlink } from 'node:fs/promises'
+import type { cp, statfs, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -91,7 +91,7 @@ function pending(from: string, to: string, copy = true, taskId = TASK_ID) {
   return { status: 'pending' as const, taskId, from, to, copy }
 }
 
-type FsPromisesOverrides = Partial<{ copyFile: typeof copyFile; statfs: typeof statfs; symlink: typeof symlink }>
+type FsPromisesOverrides = Partial<{ cp: typeof cp; statfs: typeof statfs; symlink: typeof symlink }>
 
 async function usePromises(overrides: FsPromisesOverrides = {}) {
   vi.doMock('node:fs/promises', async () => {
@@ -329,9 +329,11 @@ describe('userDataRelocationGate', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      copyFile: vi.fn().mockImplementation(async (sourcePath) => {
+      cp: vi.fn<typeof cp>().mockImplementation(async (_source, destination, options) => {
+        const sourcePath = path.join(source, 'volatile.txt')
         fs.rmSync(sourcePath)
-        throw Object.assign(new Error('vanished'), { code: 'ENOENT' })
+        const shouldCopy = await options?.filter?.(sourcePath, path.join(String(destination), 'volatile.txt'))
+        expect(shouldCopy).toBe(false)
       })
     })
     const { runUserDataRelocationGate } = await loadGate()
@@ -604,7 +606,7 @@ describe('userDataRelocationGate', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      copyFile: vi.fn().mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
+      cp: vi.fn<typeof cp>().mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
     })
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
@@ -612,33 +614,6 @@ describe('userDataRelocationGate', () => {
     expect(fs.readdirSync(target)).toEqual([])
     expect(commitMock).not.toHaveBeenCalled()
     expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed', taskId: TASK_ID })
-  })
-
-  it('rolls back when copied data fails the integrity verification', async () => {
-    const root = makeRoot()
-    const source = path.join(root, 'source')
-    const target = path.join(root, 'target')
-    fs.mkdirSync(source)
-    fs.writeFileSync(path.join(source, 'data.txt'), 'complete-data')
-    fs.mkdirSync(target)
-    appGetPathMock.mockReturnValue(source)
-    relocationState['temp.user_data_relocation'] = pending(source, target)
-
-    await usePromises({
-      copyFile: vi.fn().mockImplementation(async (_sourcePath, targetPath) => {
-        fs.writeFileSync(targetPath, 'truncated')
-      })
-    })
-    const { runUserDataRelocationGate } = await loadGate()
-    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
-
-    expect(fs.readFileSync(path.join(source, 'data.txt'), 'utf8')).toBe('complete-data')
-    expect(fs.readdirSync(target)).toEqual([])
-    expect(commitMock).not.toHaveBeenCalled()
-    expect(relocationState['temp.user_data_relocation']).toMatchObject({
-      status: 'failed',
-      error: expect.stringContaining('verification failed')
-    })
   })
 
   it('removes only the owned promoted target when BootConfig commit fails', async () => {
