@@ -19,14 +19,17 @@ describe('RadeonCloudModelCards', () => {
     render(<RadeonCloudModelCards />)
 
     expect(screen.getByTestId('radeon-cloud-model-cards')).toBeInTheDocument()
-    expect(screen.getAllByRole('link')).toHaveLength(7)
+    expect(screen.getByText('AMD GPU Cloud')).toBeInTheDocument()
+    expect(screen.getByText('Official Model APIs')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'AMD GPU Cloud Model APIs' })).toHaveAttribute('href', MODELS_URL)
+    expect(screen.getAllByTestId('radeon-cloud-model-link')).toHaveLength(7)
     expect(screen.getAllByTestId('radeon-cloud-model-icon')).toHaveLength(7)
 
     for (const modelName of MODEL_NAMES) {
       expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('href', MODELS_URL)
       expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('target', '_blank')
       expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('rel', 'noreferrer')
-      expect(screen.getByRole('link', { name: modelName })).toHaveClass('h-[88px]')
+      expect(screen.getByRole('link', { name: modelName })).toHaveClass('h-[68px]')
     }
   })
 })

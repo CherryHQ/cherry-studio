@@ -9,9 +9,10 @@ interface RadeonCloudModelCard {
   publisher: string
   service: 'Radeon Cloud' | 'Fireworks'
   type: 'LLM (Text)' | 'VLM (Vision)'
-  credit: 'AMD GPU CLOUD' | 'FIREWORKS CREDITS'
   icon: IconRef
 }
+
+const RADEON_CLOUD_ICON = providerIconRef('radeon-cloud')
 
 const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
   {
@@ -19,7 +20,6 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'Qwen',
     service: 'Radeon Cloud',
     type: 'VLM (Vision)',
-    credit: 'AMD GPU CLOUD',
     icon: providerIconRef('qwen')
   },
   {
@@ -27,7 +27,6 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'DeepSeek',
     service: 'Radeon Cloud',
     type: 'LLM (Text)',
-    credit: 'AMD GPU CLOUD',
     icon: providerIconRef('deepseek')
   },
   {
@@ -35,7 +34,6 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'DeepSeek',
     service: 'Fireworks',
     type: 'LLM (Text)',
-    credit: 'FIREWORKS CREDITS',
     icon: providerIconRef('deepseek')
   },
   {
@@ -43,7 +41,6 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'Z.ai',
     service: 'Fireworks',
     type: 'LLM (Text)',
-    credit: 'FIREWORKS CREDITS',
     icon: providerIconRef('z-ai')
   },
   {
@@ -51,7 +48,6 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'Z.ai',
     service: 'Fireworks',
     type: 'LLM (Text)',
-    credit: 'FIREWORKS CREDITS',
     icon: providerIconRef('z-ai')
   },
   {
@@ -59,7 +55,6 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'OpenAI',
     service: 'Fireworks',
     type: 'LLM (Text)',
-    credit: 'FIREWORKS CREDITS',
     icon: modelIconRef('gpt-oss-120b')
   },
   {
@@ -67,69 +62,83 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
     publisher: 'Moonshot',
     service: 'Fireworks',
     type: 'VLM (Vision)',
-    credit: 'FIREWORKS CREDITS',
     icon: modelIconRef('kimi')
   }
 ]
 
 function RadeonCloudModelCard({ model }: { model: RadeonCloudModelCard }) {
   const Icon = useIcon(model.icon)
-  const isAmdCredit = model.credit === 'AMD GPU CLOUD'
 
   return (
     <a
+      data-testid="radeon-cloud-model-link"
       href={RADEON_CLOUD_MODELS_URL}
       target="_blank"
       rel="noreferrer"
       aria-label={model.name}
-      className="group grid h-[88px] min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-muted bg-background px-3.5 py-3 text-left shadow-none transition-[border-color,background-color,box-shadow] hover:border-border-hover hover:bg-accent/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35">
+      className="group grid h-[68px] min-w-0 grid-cols-[36px_minmax(0,1fr)_28px] items-center gap-3 px-4 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 focus-visible:ring-inset">
       <span
         data-testid="radeon-cloud-model-icon"
-        className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-subtle bg-muted/30">
+        className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-subtle bg-muted/25">
         {Icon ? (
-          <Icon.Avatar size={40} shape="rounded" />
+          <Icon.Avatar size={36} shape="rounded" />
         ) : (
-          <Avatar className="size-10 rounded-lg">
+          <Avatar className="size-9 rounded-lg">
             <AvatarFallback className="rounded-lg font-semibold text-sm">{model.publisher[0]}</AvatarFallback>
           </Avatar>
         )}
       </span>
 
-      <span className="flex min-w-0 flex-col justify-center gap-2">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 font-medium text-foreground-secondary text-xs leading-none">{model.publisher}</span>
-          <span className="h-px min-w-3 flex-1 bg-border-subtle" aria-hidden />
-        </span>
-        <span className="truncate font-semibold text-[15px] text-foreground leading-tight">{model.name}</span>
-        <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs leading-none">
-          <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">{model.service}</span>
-          <span className="rounded-full bg-primary/8 px-2 py-1 font-medium text-primary">{model.type}</span>
+      <span className="flex min-w-0 flex-col justify-center gap-1.5">
+        <span className="truncate font-semibold text-foreground text-sm leading-tight">{model.name}</span>
+        <span className="truncate text-muted-foreground text-xs leading-tight">
+          {model.publisher} · {model.service} · {model.type}
         </span>
       </span>
 
-      <span className="flex h-full min-w-[116px] shrink-0 flex-col items-end justify-between">
-        <span
-          className={
-            isAmdCredit
-              ? 'rounded-md bg-[#eee8ff] px-2 py-1 font-semibold text-[#6840d8] text-xs leading-none dark:bg-[#6840d8]/20 dark:text-[#c7b5ff]'
-              : 'rounded-md bg-[#fff0ee] px-2 py-1 font-semibold text-[#c84035] text-xs leading-none dark:bg-[#c84035]/20 dark:text-[#ffaaa3]'
-          }>
-          {model.credit}
-        </span>
-        <span className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors group-hover:bg-accent group-hover:text-foreground">
-          <ExternalLink className="size-3.5" aria-hidden />
-        </span>
+      <span className="flex size-7 items-center justify-center rounded-md text-muted-foreground/50 transition-colors group-hover:bg-accent group-hover:text-foreground">
+        <ExternalLink className="size-3.5" aria-hidden />
       </span>
     </a>
   )
 }
 
 export default function RadeonCloudModelCards() {
+  const RadeonCloudIcon = useIcon(RADEON_CLOUD_ICON)
+
   return (
-    <div data-testid="radeon-cloud-model-cards" className="grid grid-cols-1 gap-2.5">
-      {RADEON_CLOUD_MODELS.map((model) => (
-        <RadeonCloudModelCard key={model.name} model={model} />
-      ))}
-    </div>
+    <section
+      data-testid="radeon-cloud-model-cards"
+      className="overflow-hidden rounded-lg border border-border-muted bg-background">
+      <div className="flex min-h-[72px] items-center gap-3 border-border-subtle border-b bg-muted/20 px-4 py-3">
+        <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-subtle bg-background">
+          {RadeonCloudIcon ? (
+            <RadeonCloudIcon.Avatar size={40} shape="rounded" />
+          ) : (
+            <Avatar className="size-10 rounded-lg">
+              <AvatarFallback className="rounded-lg font-semibold text-sm">AMD</AvatarFallback>
+            </Avatar>
+          )}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="truncate font-semibold text-[15px] text-foreground leading-tight">AMD GPU Cloud</span>
+          <span className="truncate text-muted-foreground text-xs leading-tight">Official Model APIs</span>
+        </span>
+        <a
+          href={RADEON_CLOUD_MODELS_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="AMD GPU Cloud Model APIs"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border-muted bg-background px-2.5 font-medium text-foreground-secondary text-xs transition-colors hover:border-border-hover hover:bg-accent focus-visible:outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35">
+          Model APIs
+          <ExternalLink className="size-3.5" aria-hidden />
+        </a>
+      </div>
+      <div className="divide-y divide-border-subtle">
+        {RADEON_CLOUD_MODELS.map((model) => (
+          <RadeonCloudModelCard key={model.name} model={model} />
+        ))}
+      </div>
+    </section>
   )
 }
