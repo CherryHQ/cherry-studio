@@ -1,33 +1,91 @@
 /**
- * Durable per-turn replay for the AI SDK agent runtime (plan D2/D4).
+ * Durable per-turn replay for the AI SDK agent runtime (plan D2/D4/D10).
  *
  * The AI SDK has no remote session handle: every turn rebuilds the model
  * conversation from SQLite. `listRuntimeHistory` supplies the replayable rows
  * strictly before the incoming user row's `(createdAt, id)` tuple — busy
  * follow-ups are persisted before they queue, so the exclusive boundary is
  * what keeps the current prompt from duplicating and future queued prompts
- * from leaking into this turn. The incoming message is appended here exactly
- * once; model conversion (dangling tool calls, data-only parts, empty turns)
- * stays in the existing `toModelMessages` rules inside `Agent.stream`.
+ * from leaking into this turn. When a compaction checkpoint exists, the rows
+ * at or before its anchor are represented by the stored summary and only
+ * post-anchor rows replay verbatim. The incoming message is appended here
+ * exactly once; model conversion (dangling tool calls, data-only parts, empty
+ * turns) stays in the existing `toModelMessages` rules inside `Agent.stream`.
  */
 
+import type { AgentSessionRuntimeStateRow } from '@data/db/schemas/agentSessionRuntimeState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionRuntimeStateService } from '@data/services/AgentSessionRuntimeStateService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { buildAgentUserContent } from '../agentUserContent'
+import { parseManualCompactCommand } from '../compactCommand'
 import type { AgentRuntimeUserInput } from '../types'
 
+/** The `runtime_type` this driver stamps on its durable compaction state. */
+export const AI_SDK_RUNTIME_TYPE = 'ai-sdk'
+
 /**
- * Build the full UIMessage input for one turn: bounded durable history plus
- * the incoming user message. Throws (`Message not found`) when the incoming
- * row is not durable — a production AI SDK turn requires the persisted user
- * row as its replay boundary; there is no synthetic-turn fallback.
+ * Build the full UIMessage input for one turn: stored summary (when a
+ * compaction checkpoint exists), bounded durable history, and the incoming
+ * user message. Throws (`Message not found`) when the incoming row is not
+ * durable — a production AI SDK turn requires the persisted user row as its
+ * replay boundary; there is no synthetic-turn fallback.
  */
 export function buildTurnMessages(sessionId: string, input: AgentRuntimeUserInput): CherryUIMessage[] {
-  const rows = agentSessionMessageService.listRuntimeHistory(sessionId, { beforeMessageId: input.message.id })
-  return [...rows.map(toReplayUiMessage), toIncomingUiMessage(input)]
+  const { state, rows } = loadReplayContext(sessionId, input.message.id)
+  return [...(state ? [buildSummaryUiMessage(state)] : []), ...rows.map(toReplayUiMessage), toIncomingUiMessage(input)]
+}
+
+/**
+ * The shared replay row selection: compaction-anchor lower bound plus the
+ * `/compact` filter. `compaction.ts` summarizes exactly what this returns, so
+ * replay and summarization can never disagree about which rows are live.
+ *
+ * Persisted `/compact` user rows are excluded — they are stored as ordinary
+ * user text but are commands to Cherry, not conversation (pi never sees them
+ * either: its replay is SDK-internal). No paired assistant row exists for a
+ * compact turn, so dropping the user row drops the whole exchange.
+ */
+export function loadReplayContext(
+  sessionId: string,
+  beforeMessageId: string
+): { state: AgentSessionRuntimeStateRow | null; rows: AgentSessionMessageEntity[] } {
+  const state = agentSessionRuntimeStateService.getState(sessionId, AI_SDK_RUNTIME_TYPE)
+  const rows = agentSessionMessageService.listRuntimeHistory(sessionId, {
+    beforeMessageId,
+    ...(state ? { afterMessageId: state.compactedThroughMessageId } : {})
+  })
+  return { state, rows: rows.filter((row) => !isCompactCommandRow(row)) }
+}
+
+/** Project durable rows onto the UIMessages the model replay consumes (exported for `compaction.ts`). */
+export function toReplayUiMessages(rows: readonly AgentSessionMessageEntity[]): CherryUIMessage[] {
+  return rows.map(toReplayUiMessage)
+}
+
+/**
+ * The stored summary enters the model conversation as one synthetic user
+ * message — the same shape compaction feeds back into the next summarization,
+ * so repeated compaction folds prior summaries instead of losing them.
+ */
+export function buildSummaryUiMessage(state: AgentSessionRuntimeStateRow): CherryUIMessage {
+  return {
+    id: `compaction-summary-${state.compactedThroughMessageId}`,
+    role: 'user',
+    parts: [
+      {
+        type: 'text',
+        text: `The earlier part of this conversation was compacted. This summary replaces everything before this point:\n\n${state.summary}`
+      }
+    ]
+  } as CherryUIMessage
+}
+
+function isCompactCommandRow(row: AgentSessionMessageEntity): boolean {
+  return row.role === 'user' && parseManualCompactCommand(buildAgentUserContent(row)) !== undefined
 }
 
 /**

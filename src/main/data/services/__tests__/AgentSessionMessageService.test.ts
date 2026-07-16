@@ -839,6 +839,36 @@ describe('AgentSessionMessageService', () => {
       ).toThrowError()
     })
 
+    it('afterMessageId bounds the window from below, exclusive on the (createdAt, id) tuple', async () => {
+      await seedRows([
+        { id: OLDEST, createdAt: 100, role: 'user' },
+        // Same createdAt as the anchor with a greater id: only the tuple
+        // tiebreak (not a plain createdAt compare) keeps this row in.
+        { id: TIE_INCLUDED, createdAt: 100 },
+        { id: TIE_EXCLUDED, createdAt: 200 },
+        { id: BOUNDARY, createdAt: 300, role: 'user' }
+      ])
+
+      const items = agentSessionMessageService.listRuntimeHistory(SESSION_ID, {
+        beforeMessageId: BOUNDARY,
+        afterMessageId: OLDEST
+      })
+
+      // The anchor row itself is summarized, never replayed verbatim.
+      expect(items.map((item) => item.id)).toEqual([TIE_INCLUDED, TIE_EXCLUDED])
+    })
+
+    it('throws notFound when the afterMessageId anchor is missing from the session', async () => {
+      await seedRows([{ id: BOUNDARY, createdAt: 300, role: 'user' }])
+
+      expect(() =>
+        agentSessionMessageService.listRuntimeHistory(SESSION_ID, {
+          beforeMessageId: BOUNDARY,
+          afterMessageId: OLDEST
+        })
+      ).toThrowError()
+    })
+
     it('invalidates runtime compaction state in the same transaction as a message delete', async () => {
       await seedRows([
         { id: OLDEST, createdAt: 100 },

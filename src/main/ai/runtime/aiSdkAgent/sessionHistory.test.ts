@@ -4,14 +4,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRuntimeUserInput } from '../types'
 
 const mocks = vi.hoisted(() => ({
-  listRuntimeHistory: vi.fn()
+  listRuntimeHistory: vi.fn(),
+  getState: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { listRuntimeHistory: mocks.listRuntimeHistory }
 }))
 
+vi.mock('@data/services/AgentSessionRuntimeStateService', () => ({
+  agentSessionRuntimeStateService: { getState: mocks.getState }
+}))
+
 const { buildTurnMessages } = await import('./sessionHistory')
+
+const compactionState = {
+  sessionId: 'sess-1',
+  runtimeType: 'ai-sdk',
+  version: 1,
+  compactedThroughMessageId: 'anchor-1',
+  summary: 'User asked about widgets; assistant fixed widget.ts.',
+  summaryTokenCount: 12,
+  sourceTokenCount: 300,
+  compactionModelId: 'openai::gpt-test',
+  createdAt: 0,
+  updatedAt: 0
+}
 
 function makeRow(overrides: Partial<AgentSessionMessageEntity>): AgentSessionMessageEntity {
   return {
@@ -38,6 +56,7 @@ function userInput(overrides: Partial<AgentSessionMessageEntity>, systemReminder
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.listRuntimeHistory.mockReturnValue([])
+  mocks.getState.mockReturnValue(null)
 })
 
 describe('buildTurnMessages', () => {
@@ -169,5 +188,49 @@ describe('buildTurnMessages', () => {
     })
 
     expect(() => buildTurnMessages('sess-1', userInput({ id: 'ghost' }))).toThrowError('Message not found')
+  })
+
+  describe('after compaction', () => {
+    it('replays the stored summary plus only post-anchor rows — pre-anchor rows are never resent', () => {
+      mocks.getState.mockReturnValue(compactionState)
+      mocks.listRuntimeHistory.mockReturnValue([
+        makeRow({ id: 'u5', role: 'user' }),
+        makeRow({ id: 'a5', role: 'assistant', data: { parts: [{ type: 'text', text: 'tail answer' }] } })
+      ])
+
+      const messages = buildTurnMessages('sess-1', userInput({ id: 'u6' }))
+
+      // The anchor lower bound is pushed into the query itself, so a fresh
+      // connection after a restart reconstructs the same effective context.
+      expect(mocks.listRuntimeHistory).toHaveBeenCalledWith('sess-1', {
+        beforeMessageId: 'u6',
+        afterMessageId: 'anchor-1'
+      })
+      expect(messages.map((message) => message.id)).toEqual(['compaction-summary-anchor-1', 'u5', 'a5', 'u6'])
+      const [summary] = messages as unknown as [{ role: string; parts: [{ type: 'text'; text: string }] }]
+      expect(summary.role).toBe('user')
+      expect(summary.parts[0].text).toContain('was compacted')
+      expect(summary.parts[0].text).toContain(compactionState.summary)
+    })
+
+    it('omits summary and lower bound when no checkpoint exists', () => {
+      buildTurnMessages('sess-1', userInput({ id: 'u2' }))
+
+      expect(mocks.listRuntimeHistory).toHaveBeenCalledWith('sess-1', { beforeMessageId: 'u2' })
+    })
+  })
+
+  it('filters persisted /compact command rows out of replay', () => {
+    mocks.listRuntimeHistory.mockReturnValue([
+      makeRow({ id: 'u1', role: 'user' }),
+      makeRow({ id: 'c1', role: 'user', data: { parts: [{ type: 'text', text: '/compact focus on the bug' }] } }),
+      makeRow({ id: 'a1', role: 'assistant', data: { parts: [{ type: 'text', text: 'answer' }] } }),
+      // Mentioning the command mid-text is conversation, not a command.
+      makeRow({ id: 'u2', role: 'user', data: { parts: [{ type: 'text', text: 'what does /compact do?' }] } })
+    ])
+
+    const messages = buildTurnMessages('sess-1', userInput({ id: 'u3' }))
+
+    expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2', 'u3'])
   })
 })

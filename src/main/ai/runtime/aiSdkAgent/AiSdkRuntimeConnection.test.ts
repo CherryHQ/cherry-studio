@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
   getAgent: vi.fn(),
   listRuntimeHistory: vi.fn(),
+  getState: vi.fn(),
+  compactSession: vi.fn(),
   resolveAndAssert: vi.fn(),
   resolveOnly: vi.fn(),
   buildParams: vi.fn(),
@@ -62,12 +64,19 @@ vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { listRuntimeHistory: mocks.listRuntimeHistory }
 }))
+vi.mock('@data/services/AgentSessionRuntimeStateService', () => ({
+  agentSessionRuntimeStateService: { getState: mocks.getState }
+}))
 vi.mock('./validateModel', () => ({
   resolveAndAssertAiSdkAgentModel: mocks.resolveAndAssert,
   resolveAiSdkAgentModel: mocks.resolveOnly
 }))
 vi.mock('./buildAiSdkAgentParams', () => ({ buildAiSdkAgentParams: mocks.buildParams }))
 vi.mock('./tools/buildAgentToolSet', () => ({ buildAgentToolSet: mocks.buildToolSet }))
+vi.mock('./compaction', () => ({
+  AUTO_COMPACT_THRESHOLD_PERCENT: 80,
+  compactSession: mocks.compactSession
+}))
 vi.mock('../aiSdk', () => ({ Agent: FakeAgent }))
 vi.mock('@application', () => ({
   application: {
@@ -148,6 +157,7 @@ beforeEach(() => {
   mocks.getById.mockReturnValue({ id: SESSION_ID, agentId: AGENT_ID, workspace: { path: '/work' } })
   mocks.getAgent.mockReturnValue(makeAgent())
   mocks.listRuntimeHistory.mockReturnValue([])
+  mocks.getState.mockReturnValue(null)
   const resolved = {
     provider: { id: 'openai' },
     model: { id: MODEL_ID, providerId: 'openai', apiModelId: 'gpt-4o', contextWindow: 2000 }
@@ -161,6 +171,7 @@ beforeEach(() => {
     maxTurns: 100
   })
   mocks.buildToolSet.mockResolvedValue({ tools: {}, skills: [] })
+  mocks.compactSession.mockResolvedValue({ trigger: 'manual', completedAt: '2026-07-16T00:00:00.000Z' })
 })
 
 async function startConnection() {
@@ -830,6 +841,150 @@ describe('AiSdkRuntimeConnection — tool-set wiring', () => {
     expect(policy.getPermissionMode()).toBe('acceptEdits')
     expect(policy.isDisabled('bash')).toBe(false)
     expect(policy.isDisabled('read')).toBe(true)
+    await connection.close()
+  })
+})
+
+describe('AiSdkRuntimeConnection — compaction', () => {
+  /** Script every segment to report 90% occupancy of the 2000-token window. */
+  function measureHighUsage() {
+    mocks.streamScript = (controller, agent) => {
+      agent.fire('onStepFinish', { usage: { inputTokens: 1700, outputTokens: 100 } })
+      controller.enqueue({ type: 'text-start', id: 't1' })
+      controller.enqueue({ type: 'text-end', id: 't1' })
+      controller.close()
+    }
+  }
+
+  it('runs a manual /compact as its own turn: events only, no model turn, no tool build', async () => {
+    const anchor = { trigger: 'manual', completedAt: '2026-07-16T00:00:00.000Z', postTokens: 40 }
+    mocks.compactSession.mockResolvedValue(anchor)
+    const connection = await startConnection()
+
+    connection.send(userInput('u1', '/compact focus on the tests'))
+    const events = await collectUntilTerminal(connection)
+
+    expect(events.map((event) => event.type)).toEqual(['compaction-start', 'compaction-complete', 'turn-complete'])
+    expect(events[0]).toMatchObject({ trigger: 'manual' })
+    expect(events[1]).toMatchObject({ anchor })
+    expect(mocks.compactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: SESSION_ID,
+        boundaryMessageId: 'u1',
+        trigger: 'manual',
+        focus: 'focus on the tests',
+        modelId: MODEL_ID
+      })
+    )
+    expect(mocks.streamCalls).toHaveLength(0)
+    expect(mocks.buildToolSet).not.toHaveBeenCalled()
+    await connection.close()
+  })
+
+  it('completes a no-op manual /compact without an anchor', async () => {
+    mocks.compactSession.mockResolvedValue(null)
+    const connection = await startConnection()
+
+    connection.send(userInput('u1', '/compact'))
+    const events = await collectUntilTerminal(connection)
+
+    expect(events.map((event) => event.type)).toEqual(['compaction-start', 'compaction-complete', 'turn-complete'])
+    expect(events[1]).not.toHaveProperty('anchor')
+    // Bare `/compact` carries no focus.
+    expect(mocks.compactSession).toHaveBeenCalledWith(expect.objectContaining({ focus: undefined }))
+    await connection.close()
+  })
+
+  it('fails a manual /compact with a single terminal error, never turn-complete', async () => {
+    mocks.compactSession.mockRejectedValue(new Error('summarizer down'))
+    const connection = await startConnection()
+
+    connection.send(userInput('u1', '/compact'))
+    const events = await collectUntilTerminal(connection)
+
+    expect(events.map((event) => event.type)).toEqual(['compaction-start', 'error'])
+    expect((events[1] as { error: Error }).error.message).toBe('summarizer down')
+    await connection.close()
+  })
+
+  it('treats a systemReminder /compact as steer text, not a command', async () => {
+    const connection = await startConnection()
+
+    connection.send(userInput('u1', '/compact now', true))
+    const events = await collectUntilTerminal(connection)
+
+    expect(mocks.compactSession).not.toHaveBeenCalled()
+    expect(mocks.streamCalls).toHaveLength(1)
+    expect(events.at(-1)?.type).toBe('turn-complete')
+    await connection.close()
+  })
+
+  it('auto-compacts pre-turn once measured occupancy crosses the threshold, then resets the measurement', async () => {
+    const anchor = { trigger: 'auto', completedAt: '2026-07-16T00:00:00.000Z' }
+    mocks.compactSession.mockResolvedValue(anchor)
+    const connection = await startConnection()
+
+    // Turn 1 measures 90% but must not compact (threshold is pre-turn, and
+    // the session starts unmeasured — no fabricated usage).
+    measureHighUsage()
+    connection.send(userInput('u1', 'big work'))
+    await collectUntilTerminal(connection)
+    expect(mocks.compactSession).not.toHaveBeenCalled()
+
+    // Turn 2 crosses: compact first, then replay (fresh anchor), then run.
+    mocks.streamScript = undefined
+    connection.send(userInput('u2', 'next'))
+    const events = await collectUntilTerminal(connection)
+
+    expect(mocks.compactSession).toHaveBeenCalledTimes(1)
+    expect(mocks.compactSession).toHaveBeenCalledWith(
+      expect.objectContaining({ trigger: 'auto', boundaryMessageId: 'u2', preTokens: 1800 })
+    )
+    // Replay is read AFTER the compaction settles so the turn uses the new anchor.
+    expect(mocks.listRuntimeHistory.mock.invocationCallOrder[1]).toBeGreaterThan(
+      mocks.compactSession.mock.invocationCallOrder[0]
+    )
+    expect(events.slice(0, 2).map((event) => event.type)).toEqual(['compaction-start', 'compaction-complete'])
+    expect(events.at(-1)?.type).toBe('turn-complete')
+    // Occupancy resets on success: turn 2 measured nothing, so usage is unknown again.
+    expect(await connection.getContextUsage()).toBeNull()
+    await connection.close()
+  })
+
+  it('keeps auto-compaction failure non-terminal: the turn proceeds uncompacted', async () => {
+    mocks.compactSession.mockRejectedValue(new Error('provider down'))
+    const connection = await startConnection()
+
+    measureHighUsage()
+    connection.send(userInput('u1', 'big work'))
+    await collectUntilTerminal(connection)
+
+    connection.send(userInput('u2', 'next'))
+    const events = await collectUntilTerminal(connection)
+
+    expect(events.slice(0, 2).map((event) => event.type)).toEqual(['compaction-start', 'compaction-error'])
+    expect(events[1]).toMatchObject({ error: 'provider down' })
+    expect(events.filter((event) => event.type === 'error')).toHaveLength(0)
+    expect(events.at(-1)?.type).toBe('turn-complete')
+    await connection.close()
+  })
+
+  it('stays bounded under a small synthetic window: exactly one compaction per crossing turn', async () => {
+    mocks.compactSession.mockResolvedValue({ trigger: 'auto', completedAt: '2026-07-16T00:00:00.000Z' })
+    const connection = await startConnection()
+
+    // Every turn re-measures 90% of the 2000-token window, so every turn
+    // after the first crosses the threshold again.
+    measureHighUsage()
+    for (const id of ['u1', 'u2', 'u3', 'u4']) {
+      connection.send(userInput(id, `work ${id}`))
+      const events = await collectUntilTerminal(connection)
+      expect(events.at(-1)?.type).toBe('turn-complete')
+    }
+
+    // Turns 2–4 compact once each; turn 1 is unmeasured. One bounded
+    // summarization per crossing — no recursion, no silent truncation.
+    expect(mocks.compactSession).toHaveBeenCalledTimes(3)
     await connection.close()
   })
 })

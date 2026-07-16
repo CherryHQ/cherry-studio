@@ -23,8 +23,11 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { findTokenLimit } from '@shared/utils/model'
 import type { LanguageModelUsage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
+import { buildAgentUserContent } from '../agentUserContent'
+import type { SdkConfig } from '../aiSdk'
 import { Agent } from '../aiSdk'
 import { AsyncEventQueue } from '../asyncEventQueue'
+import { parseManualCompactCommand } from '../compactCommand'
 import type { DispatchDecision } from '../toolApproval/ToolApprovalRegistry'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
@@ -37,6 +40,7 @@ import type {
 import type { PendingApprovalRequest, SegmentStats, SettledApproval } from './approvalContinuation'
 import { accumulateAssistantMessage, addSegmentStats, applyApprovalDecisions } from './approvalContinuation'
 import { buildAiSdkAgentParams } from './buildAiSdkAgentParams'
+import { AUTO_COMPACT_THRESHOLD_PERCENT, compactSession } from './compaction'
 import { buildTurnMessages } from './sessionHistory'
 import { adaptAgentChunk, stampApprovalRequestChunk } from './streamAdapter'
 import { buildAgentToolSet } from './tools/buildAgentToolSet'
@@ -113,10 +117,15 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
     }
     const { provider, model } = resolveAndAssertAiSdkAgentModel(this.input.modelId)
 
-    // Replay boundary requires the incoming user row to be durable (plan D4) —
-    // this throws when it is not, failing the turn instead of double-sending.
-    const turnMessages: UIMessage[] = buildTurnMessages(this.input.sessionId, input) as unknown as UIMessage[]
-    let messages: UIMessage[] = turnMessages
+    // A manual `/compact [focus]` is its own host turn (plan D10, pi parity).
+    // A `systemReminder` input is a re-queued steer, never a command.
+    const manualCompact = input.systemReminder
+      ? undefined
+      : parseManualCompactCommand(buildAgentUserContent(input.message))
+    if (manualCompact) {
+      await this.runManualCompactTurn(input, manualCompact.instructions, { agent, workspacePath, provider, model })
+      return
+    }
 
     // Policy accessors are closures over the connection's live state, so a
     // reconcile hot-patch applies to the very next tool call (plan D7/D12).
@@ -147,6 +156,20 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
     // trailing assistant message instead of appending a second one.
     let assistantSnapshot: UIMessage | undefined
     try {
+      // Pre-turn auto-compaction (plan D10): only a measured occupancy can trip
+      // the threshold, and success resets the measurement — so at most one
+      // attempt per turn, and never on a session's first turn.
+      if (this.latestContextUsage && this.latestContextUsage.percentage >= AUTO_COMPACT_THRESHOLD_PERCENT) {
+        await this.tryAutoCompact(input, built.sdkConfig, abort.signal)
+        if (this.closed || abort.signal.aborted) return
+      }
+
+      // Replay boundary requires the incoming user row to be durable (plan D4) —
+      // this throws when it is not, failing the turn instead of double-sending.
+      // Built AFTER the compaction gate so the turn replays the fresh anchor.
+      const turnMessages: UIMessage[] = buildTurnMessages(this.input.sessionId, input) as unknown as UIMessage[]
+      let messages: UIMessage[] = turnMessages
+
       for (;;) {
         const segment = await this.runSegment({ built, tools, model, messages, signal: abort.signal, statsBaseline })
         if (this.closed || abort.signal.aborted) return
@@ -175,6 +198,75 @@ export class AiSdkRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'context-usage', usage: this.latestContextUsage })
     }
     this.eventQueue.push({ type: 'turn-complete' })
+  }
+
+  /**
+   * A manual `/compact` runs no model turn: compaction events plus
+   * `turn-complete` on success; a throw propagates to `send`'s single terminal
+   * error (pi parity — the host settles the compacting state on either). A
+   * no-op (nothing beyond the retained tail) completes without an anchor.
+   */
+  private async runManualCompactTurn(
+    input: AgentRuntimeUserInput,
+    focus: string,
+    ctx: Pick<Parameters<typeof buildAiSdkAgentParams>[0], 'agent' | 'workspacePath' | 'provider' | 'model'>
+  ): Promise<void> {
+    // Agent system prompt, tools, and skills are irrelevant to summarization —
+    // only the provider execution config is reused.
+    const built = await buildAiSdkAgentParams({
+      ...ctx,
+      sessionId: this.input.sessionId,
+      requestId: this.input.trace?.turnId || undefined
+    })
+    const abort = new AbortController()
+    this.activeTurnAbort = abort
+    this.eventQueue.push({ type: 'compaction-start', trigger: 'manual' })
+    try {
+      const anchor = await compactSession({
+        sessionId: this.input.sessionId,
+        boundaryMessageId: input.message.id,
+        trigger: 'manual',
+        focus: focus || undefined,
+        sdkConfig: built.sdkConfig,
+        modelId: this.input.modelId,
+        preTokens: this.latestContextUsage?.totalTokens,
+        signal: abort.signal
+      })
+      if (this.closed || abort.signal.aborted) return
+      // Occupancy is unknown until the next measured step (pi parity).
+      if (anchor) this.latestContextUsage = null
+      this.eventQueue.push(anchor ? { type: 'compaction-complete', anchor } : { type: 'compaction-complete' })
+      this.eventQueue.push({ type: 'turn-complete' })
+    } finally {
+      if (this.activeTurnAbort === abort) this.activeTurnAbort = undefined
+    }
+  }
+
+  /**
+   * Automatic threshold compaction is non-terminal by contract: on failure the
+   * turn proceeds uncompacted and any context overflow surfaces as the turn's
+   * own provider error — no silent truncation, no hidden retry loop.
+   */
+  private async tryAutoCompact(input: AgentRuntimeUserInput, sdkConfig: SdkConfig, signal: AbortSignal): Promise<void> {
+    this.eventQueue.push({ type: 'compaction-start', trigger: 'auto' })
+    try {
+      const anchor = await compactSession({
+        sessionId: this.input.sessionId,
+        boundaryMessageId: input.message.id,
+        trigger: 'auto',
+        sdkConfig,
+        modelId: this.input.modelId,
+        preTokens: this.latestContextUsage?.totalTokens,
+        signal
+      })
+      if (this.closed || signal.aborted) return
+      if (anchor) this.latestContextUsage = null
+      this.eventQueue.push(anchor ? { type: 'compaction-complete', anchor } : { type: 'compaction-complete' })
+    } catch (error) {
+      if (this.closed || signal.aborted) return
+      logger.warn('ai-sdk auto compaction failed; continuing the turn uncompacted', { error })
+      this.eventQueue.push({ type: 'compaction-error', error: error instanceof Error ? error.message : String(error) })
+    }
   }
 
   /**

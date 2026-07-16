@@ -23,7 +23,7 @@ import {
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
-import { and, asc, desc, eq, inArray, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { agentSessionRuntimeStateService } from './AgentSessionRuntimeStateService'
@@ -211,17 +211,33 @@ export class AgentSessionMessageService {
    * `pending` rows are excluded (in-flight, nothing replayable). `success`,
    * `paused`, and `error` rows are returned as stored; the runtime's model
    * conversion pipeline strips dangling tool calls and non-model parts.
+   *
+   * `afterMessageId` is the exclusive LOWER tuple bound — the compaction
+   * anchor. Rows at or before it are represented by the stored summary, so
+   * replay reads only what follows. Both boundary rows must exist: the anchor
+   * is FK-pinned by `agent_session_runtime_state` and any message deletion
+   * invalidates that state in the same transaction, so a missing row means a
+   * broken invariant, not a recoverable input.
    */
-  listRuntimeHistory(sessionId: string, options: { beforeMessageId: string }): AgentSessionMessageEntity[] {
+  listRuntimeHistory(
+    sessionId: string,
+    options: { beforeMessageId: string; afterMessageId?: string }
+  ): AgentSessionMessageEntity[] {
     const database = application.get('DbService').getDb()
 
-    const [boundary] = database
-      .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
-      .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.beforeMessageId)))
-      .limit(1)
-      .all()
-    if (!boundary) throw DataApiErrorFactory.notFound('Message', options.beforeMessageId)
+    const resolveBoundary = (messageId: string) => {
+      const [row] = database
+        .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+        .limit(1)
+        .all()
+      if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+      return row
+    }
+
+    const boundary = resolveBoundary(options.beforeMessageId)
+    const anchor = options.afterMessageId ? resolveBoundary(options.afterMessageId) : undefined
 
     const rows = database
       .select()
@@ -233,7 +249,13 @@ export class AgentSessionMessageService {
           or(
             lt(sessionMessagesTable.createdAt, boundary.createdAt),
             and(eq(sessionMessagesTable.createdAt, boundary.createdAt), lt(sessionMessagesTable.id, boundary.id))
-          )
+          ),
+          anchor
+            ? or(
+                gt(sessionMessagesTable.createdAt, anchor.createdAt),
+                and(eq(sessionMessagesTable.createdAt, anchor.createdAt), gt(sessionMessagesTable.id, anchor.id))
+              )
+            : undefined
         )
       )
       .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
