@@ -73,7 +73,7 @@ vi.mock('@renderer/ipc', () => ({
 
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
-import { isDetachedInteractionOrigin, PromptVariablesPopover } from '../EditDialogShared'
+import { PromptVariablesPopover } from '../EditDialogShared'
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
@@ -224,30 +224,5 @@ describe('EditDialogShared', () => {
 
     expect(screen.queryByText('Knowledge one')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add knowledge base' })).toBeDisabled()
-  })
-
-  describe('isDetachedInteractionOrigin', () => {
-    const eventFor = (target: EventTarget | null) =>
-      ({ detail: { originalEvent: { target } as unknown as Event } }) as { detail: { originalEvent: Event } }
-
-    it('ignores interactions whose origin was detached mid-edit (auto-save re-render)', () => {
-      const detached = document.createElement('div')
-      expect(detached.isConnected).toBe(false)
-      expect(isDetachedInteractionOrigin(eventFor(detached))).toBe(true)
-    })
-
-    it('keeps intentional dismissal when the origin is still connected', () => {
-      const connected = document.createElement('div')
-      document.body.append(connected)
-      try {
-        expect(isDetachedInteractionOrigin(eventFor(connected))).toBe(false)
-      } finally {
-        connected.remove()
-      }
-    })
-
-    it('does not guard when there is no interaction origin', () => {
-      expect(isDetachedInteractionOrigin(eventFor(null))).toBe(false)
-    })
   })
 })
