@@ -561,6 +561,21 @@ describe('AgentSelector', () => {
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
   })
 
+  it('keeps the edit dialog open after an auto-save while editing', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+
+    // Regression: `onSaved` fires after every debounced auto-save, and the selector used to close
+    // the dialog there — dismissing it mid-edit.
+    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
+  })
+
   it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
     const onDialogCloseAutoFocus = vi.fn()
     render(

@@ -115,18 +115,6 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
 }
 
 /**
- * True when a Radix outside-interaction originated from a node that has already been detached
- * from the document. An auto-save re-render (the prompt CodeMirror editor rebuilding its DOM
- * after a post-save refetch) can detach the node an interaction started on; Radix then misreads
- * the interaction as an outside click and dismisses the dialog mid-edit. Genuine overlay/outside
- * interactions keep a connected origin, so guarding on this preserves intentional dismissal.
- */
-export function isDetachedInteractionOrigin(event: { detail: { originalEvent: Event } }): boolean {
-  const origin = event.detail.originalEvent.target as Node | null
-  return Boolean(origin && !origin.isConnected)
-}
-
-/**
  * Debounced auto-save for the edit dialogs. Re-arms whenever `changeKey` changes
  * (a serialized snapshot of the pending diff) and fires `onSave` after `delay`ms
  * of quiet. `changeKey === null` means nothing to save.
@@ -465,11 +453,6 @@ export function EditDialogShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
-        onInteractOutside={(event) => {
-          if (isDetachedInteractionOrigin(event)) {
-            event.preventDefault()
-          }
-        }}
         className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200">
         <Form {...form}>
           {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's

@@ -495,6 +495,21 @@ describe('AssistantSelector', () => {
     expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
   })
 
+  it('keeps the edit dialog open after an auto-save while editing', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+
+    // Regression: `onSaved` fires after every debounced auto-save, and the selector used to close
+    // the dialog there — dismissing it mid-edit.
+    expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
+  })
+
   it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
     const onDialogCloseAutoFocus = vi.fn()
     render(

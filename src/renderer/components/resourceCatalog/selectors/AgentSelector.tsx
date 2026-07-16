@@ -193,9 +193,10 @@ export function AgentSelector(props: AgentSelectorProps) {
     [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
+  // The edit dialog auto-saves, so `onSaved` fires after every debounced change — not just on
+  // close. It must only refresh the list; closing here would dismiss the dialog mid-edit. The
+  // dialog is closed through `handleEditDialogOpenChange` when the user actually dismisses it.
   const handleEditSaved = useCallback(async () => {
-    setEditDialogOpen(false)
-    setEditingAgent(null)
     try {
       await refetch()
     } catch (error) {
