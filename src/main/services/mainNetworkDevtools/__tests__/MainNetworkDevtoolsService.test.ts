@@ -40,7 +40,6 @@ import { installBundledDevtools } from '@main/core/devtools'
 import {
   captureRequestBody,
   describeHttpRequest,
-  getMainNetworkDevtoolsPort,
   type MainNetworkDevtoolsEvent,
   MainNetworkDevtoolsService,
   redactHeaders,
@@ -319,10 +318,6 @@ describe('MainNetworkDevtoolsService helpers', () => {
       completedAt: expect.any(Number),
       duration: expect.any(Number)
     })
-  })
-
-  it('uses the fixed websocket port shared by the DevTools panel', () => {
-    expect(getMainNetworkDevtoolsPort()).toBe(38997)
   })
 })
 

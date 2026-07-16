@@ -6,7 +6,7 @@ const clearEl = document.getElementById('clear')
 const statusEl = document.getElementById('status')
 const COPY_FEEDBACK_DURATION_MS = 2500
 const RECONNECT_INTERVAL_MS = 1000
-// Keep in sync with MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT in src/main/services/mainNetworkDevtools/mainNetworkDevtoolsAccess.ts.
+// Keep in sync with MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT in src/main/services/mainNetworkDevtools/MainNetworkDevtoolsService.ts.
 const MAIN_NETWORK_DEVTOOLS_PORT = 38997
 
 let events = []

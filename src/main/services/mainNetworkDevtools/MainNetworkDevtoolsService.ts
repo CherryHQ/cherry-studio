@@ -10,11 +10,11 @@ import { isDev } from '@main/core/platform'
 import { net } from 'electron'
 import WebSocket, { WebSocketServer } from 'ws'
 
-import { getMainNetworkDevtoolsPort } from './mainNetworkDevtoolsAccess'
-
-export { getMainNetworkDevtoolsPort } from './mainNetworkDevtoolsAccess'
-
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
+
+// Fixed localhost port the bundled DevTools panel connects to. Keep in sync with
+// resources/devtools/main-network/panel.js.
+const MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT = 38997
 
 const MAX_EVENTS = 1000
 const MAX_BODY_CHARS = 128 * 1024
@@ -532,7 +532,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.broadcast({ type: 'event', event })
   }
 
-  private async startWebSocketServer(port = getMainNetworkDevtoolsPort()): Promise<number> {
+  private async startWebSocketServer(port = MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT): Promise<number> {
     const server = new WebSocketServer({ host: '127.0.0.1', port })
 
     server.on('error', (error) => {
