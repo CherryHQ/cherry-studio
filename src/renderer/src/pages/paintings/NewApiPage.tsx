@@ -38,10 +38,11 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Avatar, Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
+import { Avatar, Button, Empty, InputNumber, Segmented, Select, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { RcFile } from 'antd/es/upload'
 import type { UploadFile } from 'antd/es/upload/interface'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -824,8 +825,10 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                           onBlur={() => handleCustomSizeBlur('height')}
                         />
                         <CustomSizeUnit>px</CustomSizeUnit>
+                        <Tooltip title={t('paintings.gpt_image_custom_size_hint')}>
+                          <InfoIcon />
+                        </Tooltip>
                       </CustomSizeRow>
-                      <CustomSizeHint>{t('paintings.gpt_image_custom_size_hint')}</CustomSizeHint>
                     </CustomSizeContainer>
                   )}
                 </>
@@ -1063,10 +1066,16 @@ const CustomSizeUnit = styled.span`
   font-size: 11px;
 `
 
-const CustomSizeHint = styled.div`
-  color: var(--color-text-3);
-  font-size: 12px;
-  line-height: 1.4;
+const InfoIcon = styled(Info)`
+  color: var(--color-text-2);
+  cursor: help;
+  height: 16px;
+  opacity: 0.6;
+  width: 16px;
+
+  &:hover {
+    opacity: 1;
+  }
 `
 
 const ProviderLogo = styled(Avatar)`
