@@ -80,7 +80,13 @@ export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
  * supplied by the AI SDK's typed image options; these are the remaining model-
  * advertised fields that must ride under `providerOptions.openrouter`. */
 export const OPENROUTER_WIRE_PROFILE: WireProfile = {
-  forward: ['resolution', 'quality', 'outputFormat', 'background', 'outputCompression']
+  forward: ['resolution', 'quality', 'outputFormat', 'background'],
+  fields: {
+    outputCompression: {
+      contribute: (value, all) =>
+        all.outputFormat === 'jpeg' || all.outputFormat === 'webp' ? { output_compression: value as JSONValue } : {}
+    }
+  }
 }
 
 /**

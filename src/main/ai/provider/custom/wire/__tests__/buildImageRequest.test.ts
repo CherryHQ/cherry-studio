@@ -38,6 +38,12 @@ describe('buildVendorProviderOptions — OpenRouter image API', () => {
       }
     })
   })
+
+  it('omits output compression unless the request explicitly selects jpeg or webp', () => {
+    expect(engine('openrouter', { quality: 'high', outputCompression: 0 })).toEqual({
+      openrouter: { quality: 'high' }
+    })
+  })
 })
 
 describe('buildVendorProviderOptions — diffusion family (passthrough)', () => {

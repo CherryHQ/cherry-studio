@@ -222,6 +222,16 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
     const parsed = OrParamDescriptor.safeParse(p.data.supported_parameters[wireKey])
     if (parsed.success) supports[canonicalKey] = toSupportSpec(wireKey as keyof typeof OR_IMAGE_PARAM_KEYS, parsed.data)
   }
+  // OpenRouter rejects output_compression unless output_format is explicitly jpeg/webp. Some
+  // OpenAI image entries currently advertise compression without advertising output_format; exposing
+  // that orphaned slider makes its default `0` produce an invalid request, so omit the unusable knob.
+  const outputFormat = supports.outputFormat
+  if (
+    supports.outputCompression &&
+    (outputFormat?.type !== 'enum' || !outputFormat.options.some((value) => value === 'jpeg' || value === 'webp'))
+  ) {
+    delete supports.outputCompression
+  }
 
   const inputReferences = OrParamDescriptor.safeParse(p.data.supported_parameters.input_references)
   const supportsEdit = inputReferences.success && inputReferences.data.type === 'range' && inputReferences.data.max > 0

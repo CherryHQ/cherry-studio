@@ -14694,12 +14694,6 @@
                 "step": 1,
                 "type": "range"
               },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "type": "range"
-              },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
@@ -14715,12 +14709,6 @@
               "numImages": {
                 "max": 10,
                 "min": 1,
-                "step": 1,
-                "type": "range"
-              },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
                 "step": 1,
                 "type": "range"
               },
@@ -15034,12 +15022,6 @@
                 "step": 1,
                 "type": "range"
               },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "type": "range"
-              },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
@@ -15055,12 +15037,6 @@
               "numImages": {
                 "max": 10,
                 "min": 1,
-                "step": 1,
-                "type": "range"
-              },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
                 "step": 1,
                 "type": "range"
               },
@@ -15111,12 +15087,6 @@
                 "step": 1,
                 "type": "range"
               },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "type": "range"
-              },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
@@ -15132,12 +15102,6 @@
               "numImages": {
                 "max": 10,
                 "min": 1,
-                "step": 1,
-                "type": "range"
-              },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
                 "step": 1,
                 "type": "range"
               },
@@ -15290,12 +15254,6 @@
                 "step": 1,
                 "type": "range"
               },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "type": "range"
-              },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
@@ -15311,12 +15269,6 @@
               "numImages": {
                 "max": 10,
                 "min": 1,
-                "step": 1,
-                "type": "range"
-              },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
                 "step": 1,
                 "type": "range"
               },
@@ -15353,12 +15305,6 @@
                 "step": 1,
                 "type": "range"
               },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "type": "range"
-              },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
@@ -15374,12 +15320,6 @@
               "numImages": {
                 "max": 10,
                 "min": 1,
-                "step": 1,
-                "type": "range"
-              },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
                 "step": 1,
                 "type": "range"
               },
@@ -15416,12 +15356,6 @@
                 "step": 1,
                 "type": "range"
               },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "type": "range"
-              },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
@@ -15437,12 +15371,6 @@
               "numImages": {
                 "max": 10,
                 "min": 1,
-                "step": 1,
-                "type": "range"
-              },
-              "outputCompression": {
-                "max": 100,
-                "min": 0,
                 "step": 1,
                 "type": "range"
               },
@@ -22321,5 +22249,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f29cec304df39d8e"
+  "version": "aa60cb7a244cab31"
 }

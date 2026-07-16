@@ -76,6 +76,19 @@ describe('parseOrImageGeneration', () => {
     })
   })
 
+  it('drops orphaned output compression that OpenRouter would reject without jpeg/webp format', () => {
+    expect(
+      parseOrImageGeneration({
+        supported_parameters: {
+          quality: { type: 'enum', values: ['auto', 'high'] },
+          output_compression: { type: 'range', min: 0, max: 100 }
+        }
+      })
+    ).toEqual({
+      modes: { generate: { supports: { quality: { type: 'enum', options: ['auto', 'high'] } } } }
+    })
+  })
+
   it('keeps an empty generate mode for image models that advertise no optional parameters', () => {
     expect(parseOrImageGeneration({ supported_parameters: {} })).toEqual({
       modes: { generate: { supports: {} } }
