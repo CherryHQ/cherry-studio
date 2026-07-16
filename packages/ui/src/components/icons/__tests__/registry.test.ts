@@ -82,6 +82,55 @@ describe('resolveModelIconRef — pattern boundaries (#10, #11, #12)', () => {
   })
 })
 
+describe('vendor-pattern parity with VENDOR_PATTERNS (icon routing drift)', () => {
+  it('lyria routes to the Gemini model icon (namespaced OpenRouter id)', () => {
+    expect(resolveModelIconRef('google/lyria-3-pro-preview')?.key).toBe('gemini')
+  })
+
+  it('happyhorse-* video ids route to the happyhorse model icon', () => {
+    expect(resolveModelIconRef('happyhorse-1.1-i2v')?.key).toBe('happyhorse')
+    expect(resolveModelIconRef('happyhorse-1.0-video-edit')?.key).toBe('happyhorse')
+  })
+
+  it('bare ByteDance seed ids route to the Doubao icon (delimiter-bounded)', () => {
+    expect(resolveModelIconRef('seed-2.0-lite')?.key).toBe('doubao')
+    expect(resolveModelIconRef('seed-1.6-flash')?.key).toBe('doubao')
+    expect(resolveModelIconRef('seedream-4-5')?.key).toBe('doubao')
+    expect(resolveModelIconRef('seedance-1-0')?.key).toBe('doubao')
+    // guard: `seed` embedded in another word must not misfire
+    expect(resolveModelIconRef('linseed-embedding')?.key).not.toBe('doubao')
+  })
+
+  it('Hunyuan hy-* and hyN ids route to the Hunyuan icon without matching embedded fragments', () => {
+    expect(resolveModelIconRef('hy-role')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('hy-mt2-pro')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('hy-image-v3-0')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('hy3-preview')?.key).toBe('hunyuan')
+    expect(resolveModelIconRef('myhy3-model')?.key).not.toBe('hunyuan')
+    expect(resolveModelIconRef('hybrid-model')?.key).not.toBe('hunyuan')
+  })
+
+  it('novel gpt-* families route to the OpenAI provider icon', () => {
+    expect(resolveIconRef('gpt-audio', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'openai' })
+    )
+    expect(resolveIconRef('gpt-chat-latest', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'openai' })
+    )
+  })
+
+  it('bare/namespaced o-series ids route to the OpenAI provider icon', () => {
+    expect(resolveIconRef('openai/o3', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'openai' })
+    )
+    expect(resolveModelToProviderIconRef('o3')?.key).toBe('openai')
+    expect(resolveModelToProviderIconRef('o1')?.key).toBe('openai')
+    expect(resolveModelToProviderIconRef('o3-mini')?.key).toBe('openai')
+    // guard: not matched inside another word
+    expect(resolveModelToProviderIconRef('mano3')?.key).not.toBe('openai')
+  })
+})
+
 describe('resolveIconRef — full fallback chain', () => {
   it('prefers the dedicated model icon', () => {
     expect(resolveIconRef('claude-sonnet-5', 'openrouter')).toEqual(
