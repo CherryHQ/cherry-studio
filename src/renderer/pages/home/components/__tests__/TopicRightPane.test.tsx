@@ -367,7 +367,7 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'false')
-    expect(branchPane.parentElement).toHaveAttribute('hidden')
+    expect(branchPane).not.toBeVisible()
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))

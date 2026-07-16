@@ -6,7 +6,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { cn } from '@renderer/utils/style'
 import { Maximize2, Minimize2 } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
 import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -478,32 +478,39 @@ export function RightPanelShortcut({
   icon,
   disabled = false,
   tooltip,
-  className
-}: {
+  className,
+  onClick,
+  ...buttonProps
+}: Omit<ComponentProps<typeof NavbarIcon>, 'active' | 'aria-label' | 'children' | 'onClick' | 'tone'> & {
   tab: string
   label: string
   icon: ReactNode
-  disabled?: boolean
   tooltip?: ReactNode | false
-  className?: string
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
   const ready = actions.canOpen(tab)
   const active = state.isActive(tab)
   const tooltipContent = tooltip === false ? false : (tooltip ?? label)
-  const handleClick = useCallback(() => {
-    if (active) {
-      actions.close()
-      return
-    }
-    actions.tryOpen(tab)
-  }, [actions, active, tab])
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      onClick?.(event)
+      if (event.defaultPrevented) return
+      if (active) {
+        actions.close()
+        return
+      }
+      actions.tryOpen(tab)
+    },
+    [actions, active, onClick, tab]
+  )
 
   if (!ready || state.presentationMaximized) return null
 
   const button = (
     <NavbarIcon
+      {...buttonProps}
       tone="conversation"
       className={cn('[&_svg]:!size-3.5 shrink-0', className)}
       active={active}

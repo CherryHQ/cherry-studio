@@ -337,19 +337,8 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
 }))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: ({
-    active,
-    payload
-  }: {
-    active?: boolean
-    payload: { topicId: string; traceId: string; modelName?: string } | null
-  }) => (
-    <div
-      data-testid="trace-pane"
-      data-active={active ? 'true' : 'false'}
-      data-topic-id={payload?.topicId}
-      data-trace-id={payload?.traceId}
-    />
+  TracePane: ({ payload }: { payload: { topicId: string; traceId: string; modelName?: string } | null }) => (
+    <div data-testid="trace-pane" data-topic-id={payload?.topicId} data-trace-id={payload?.traceId} />
   )
 }))
 
@@ -1000,12 +989,12 @@ describe('AgentChat artifact pane', () => {
     const tracePane = screen.getByTestId('trace-pane')
     expect(tracePane).toHaveAttribute('data-topic-id', 'agent-session:session-1')
     expect(tracePane).toHaveAttribute('data-trace-id', 'trace-a')
-    expect(tracePane).toHaveAttribute('data-active', 'true')
+    expect(tracePane).toBeVisible()
 
     openFilesPane()
 
     expect(screen.getByTestId('trace-pane')).toBe(tracePane)
-    expect(tracePane).toHaveAttribute('data-active', 'false')
+    expect(tracePane).not.toBeVisible()
   })
 
   it('opens message file paths in the files tab overlay', () => {

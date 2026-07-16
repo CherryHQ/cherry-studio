@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { PropsWithChildren, ReactNode } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,8 +26,13 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
-  default: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button type="button" {...props}>
+  default: ({
+    children,
+    active,
+    tone,
+    ...props
+  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; tone?: string }>) => (
+    <button type="button" data-active={active || undefined} data-tone={tone} {...props}>
       {children}
     </button>
   )
@@ -250,7 +255,7 @@ describe('RightPanel', () => {
     )
 
     expect(commandMock.handler).toBeDefined()
-    commandMock.handler?.()
+    act(() => commandMock.handler?.())
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
   })
 
