@@ -64,7 +64,7 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.37': 363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a
   '@ai-sdk/openai@3.0.53': 83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530
   '@ai-sdk/xai@3.0.83': cea8532677e6ed5c42055d3f359c447d0eff682ae359d922da2f891a61518a45
-  '@napi-rs/system-ocr@1.0.2': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
+  '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
   '@openrouter/ai-sdk-provider@2.10.0': f8cab9aaf0cc924aa3fe397e1f35a8b3ed28ce980a526f8bb2254e595495ab39
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
@@ -85,9 +85,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.185
         version: 0.3.185(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
-      '@expo/sudo-prompt':
-        specifier: ^9.3.2
-        version: 9.3.2
       '@huggingface/transformers':
         specifier: 4.2.0
         version: 4.2.0
@@ -98,8 +95,8 @@ importers:
         specifier: 0.1.97
         version: 0.1.97
       '@napi-rs/system-ocr':
-        specifier: 1.0.2
-        version: 1.0.2(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)
+        specifier: 1.1.0
+        version: 1.1.0(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)
       '@paymoapp/electron-shutdown-handler':
         specifier: 1.1.2
         version: 1.1.2
@@ -179,15 +176,6 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
-      '@agentic/exa':
-        specifier: ^7.3.3
-        version: 7.6.9(zod@4.3.4)
-      '@agentic/searxng':
-        specifier: ^7.3.3
-        version: 7.6.9(zod@4.3.4)
-      '@agentic/tavily':
-        specifier: ^7.3.3
-        version: 7.6.9(zod@4.3.4)
       '@ai-sdk/amazon-bedrock':
         specifier: ^4.0.96
         version: 4.0.96(zod@4.3.4)
@@ -1228,17 +1216,17 @@ importers:
         specifier: 0.1.97
         version: 0.1.97
       '@napi-rs/system-ocr-darwin-arm64':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.1.0
+        version: 1.1.0
       '@napi-rs/system-ocr-darwin-x64':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.1.0
+        version: 1.1.0
       '@napi-rs/system-ocr-win32-arm64-msvc':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.1.0
+        version: 1.1.0
       '@napi-rs/system-ocr-win32-x64-msvc':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.1.0
+        version: 1.1.0
 
   packages/ai-sdk-provider:
     dependencies:
@@ -1632,26 +1620,6 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
-
-  '@agentic/core@7.6.9':
-    resolution: {integrity: sha512-B6l6lDjigCf4HKt1vN+0nii1FbfyICgZgxiEIkNuEZAPTLlLr0BC0z6dgCPVdiiZrJJPXdLw30kqQ7nlwzUUTQ==}
-    peerDependencies:
-      zod: ^3.25.67
-
-  '@agentic/exa@7.6.9':
-    resolution: {integrity: sha512-qvVOhFmDmLAsTL4fkh0616NSAsfX8xKo92uCnRYbtGkXpHrTk/9DFLveck/giY6Fl5aGkae+vNvTCXc0Etgozg==}
-    peerDependencies:
-      zod: ^3.25.67
-
-  '@agentic/searxng@7.6.9':
-    resolution: {integrity: sha512-2VfS833PV9ZiEZnKE4g1h+raKmr3OP81G936hXIEs4MYtn0shdgfIwo0dNlCDbz1dDUoO7sRHTvF8+I8b7wPNw==}
-    peerDependencies:
-      zod: ^3.25.67
-
-  '@agentic/tavily@7.6.9':
-    resolution: {integrity: sha512-x85HFhTZBKeHvOZJzzRusJO6gi65gcVWyB0K9IzxZMARklSzzr/ADF2YYpdzZAQc0JvUrtFCQA8mfs3y5F6TCg==}
-    peerDependencies:
-      zod: ^3.25.67
 
   '@ai-sdk/amazon-bedrock@4.0.96':
     resolution: {integrity: sha512-Mc4Ias2jRMD1jOB6xWtKNPdhECeuCZyIlbr9EAGfBnyBt++sS13ziZh9qv9TdyMCAZJ7xoQcpbchoRJcKwPdpA==}
@@ -2961,9 +2929,6 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@expo/sudo-prompt@9.3.2':
-    resolution: {integrity: sha512-HHQigo3rQWKMDzYDLkubN5WQOYXJJE2eNqIQC2axC2iO3mHdwnIR7FgZVvHWtBwAdzBgAP0ECp8KqS8TiMKvgw==}
-
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
 
@@ -3653,32 +3618,32 @@ packages:
     resolution: {integrity: sha512-8cFniXvrIEnVwuNSRCW9wirRZbHvrD3JVujdS2P5n5xiJZNZMOZcfOvJ1pb66c7jXMKHHglJEDVJGbm8XWFcXQ==}
     engines: {node: '>= 10'}
 
-  '@napi-rs/system-ocr-darwin-arm64@1.0.2':
-    resolution: {integrity: sha512-/9E1T4+Pzbk8eI1QC1a1wimj4wgweKn9NUGtmO9Vf0rDi1TxYaJsv6ioSzdmhlazkKxd27Brk5VfLfUg6Bha6A==}
+  '@napi-rs/system-ocr-darwin-arm64@1.1.0':
+    resolution: {integrity: sha512-aZc7WKUxKCRD+HSOuAwWmxyjHgNuHoVBRF2UIq4fvWN5/xkdbl6NaiYdcIisILWbplwpGszRaKdOeQ8VJwOYDg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
 
-  '@napi-rs/system-ocr-darwin-x64@1.0.2':
-    resolution: {integrity: sha512-z8FiuVjMEXrqU9O5tIWfLkNWzyx8moQZ/kgYo1jPvbiaC+bA0gBBo9X8C1dYrF7Q3nLug0zTU59FMAESXbhJpA==}
+  '@napi-rs/system-ocr-darwin-x64@1.1.0':
+    resolution: {integrity: sha512-qcNDsBKQZSOH7dNardoqaiwq57pZKcwdoAaGiAa+ywks27yJYfYms18XoPY2FLlRTNs3odUypMQ+VQa0VY5n5w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
 
-  '@napi-rs/system-ocr-win32-arm64-msvc@1.0.2':
-    resolution: {integrity: sha512-5ygjw6gcHazDcNciqzRrRurjQC9syaQJ9Q0PTh+23sgmFR3ct4Xt/tDEstNiqoxADesJL41GwGMmMlI1rrFMkg==}
+  '@napi-rs/system-ocr-win32-arm64-msvc@1.1.0':
+    resolution: {integrity: sha512-pf/sm+sSQaNiAA2sOnwdyGh+cidDhvgxoNuYLYjWdo/YvyRHj3wEWHM+pF4FAXR6cvR4znd0/fvyzIMrdPx0uw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
 
-  '@napi-rs/system-ocr-win32-x64-msvc@1.0.2':
-    resolution: {integrity: sha512-LXo7WdwJ46r4r+a+iDk8QH3+6Z2tThRfTMq1WNhv+gsbsAsgY68FYFLQPdOO+Ek6P75E5y46aDBdhJNEAaccdA==}
+  '@napi-rs/system-ocr-win32-x64-msvc@1.1.0':
+    resolution: {integrity: sha512-kMYoHhTztTZ3bXDrjmKkp1icGLifTjM82iAOw2AqJLSRYzUqsxEUGc4GXN/39mEIws+bHzkV/riBNY5uV+gP0w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
 
-  '@napi-rs/system-ocr@1.0.2':
-    resolution: {integrity: sha512-L6qM8ybM8RltTjLAG8rAeg/Jxgu13mxko4zL+SEWhhIikMkgjnSgvpThXueXHqt5mI9Ts96Dgc8Kpb3Y9Zj2nQ==}
+  '@napi-rs/system-ocr@1.1.0':
+    resolution: {integrity: sha512-WWAe4AsuvBuC8qhREnShyk7D2tFa3l+eP/37vU/a07K+FlnKm02COwCLZi7pLsqWUbctHguOg4kSf/SqpTm0Yg==}
     engines: {node: '>= 10'}
 
   '@napi-rs/wasm-runtime@1.1.1':
@@ -8440,14 +8405,6 @@ packages:
     resolution: {integrity: sha512-e48kc2IjU+2Zw8cTb6VZcJQ3lgVbS4uuB1TfCHbiZIP/haNXm+SVyhu+87jts5/3ROpd82GSVCoNs/z8l4ZOaQ==}
     engines: {node: '>=4'}
 
-  dedent@1.7.1:
-    resolution: {integrity: sha512-9JmrhGZpOlEgOLdQgSm0zxFaYoQon408V1v49aqTWuXENVlnCuY9JBZcXZiCsZQWDjTm5Qf/nIvAy77mXDAjEg==}
-    peerDependencies:
-      babel-plugin-macros: ^3.1.0
-    peerDependenciesMeta:
-      babel-plugin-macros:
-        optional: true
-
   deep-eql@5.0.2:
     resolution: {integrity: sha512-h5k/5U50IJJFpzfL6nO9jaaumfjO/f2NjK/oYB2Djzm4p9L+3T9qWpZqZ2hAbLPuuYq9wrU08WQyBTL5GbPk5Q==}
     engines: {node: '>=6'}
@@ -8503,10 +8460,6 @@ packages:
 
   delaunator@5.0.1:
     resolution: {integrity: sha512-8nvh+XBe96aCESrGOqMp/84b13H9cdKbG5P2ejQCh4d4sK9RL4371qou9drQjMhvnPmhWl5hnmqbEE0fXr9Xnw==}
-
-  delay@6.0.0:
-    resolution: {integrity: sha512-2NJozoOHQ4NuZuVIr5CWd0iiLVIRSDepakaovIN+9eIDHEhdCAEvSy2cuf1DCrPPQLvHmbqTHODlhHg8UCy4zw==}
-    engines: {node: '>=16'}
 
   delayed-stream@1.0.0:
     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
@@ -10284,10 +10237,6 @@ packages:
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
 
-  jsonrepair@3.13.1:
-    resolution: {integrity: sha512-WJeiE0jGfxYmtLwBTEk8+y/mYcaleyLXWaqp5bJu0/ZTSeG0KQq/wWQ8pmnkKenEdN6pdnn6QtcoSUkbqDHWNw==}
-    hasBin: true
-
   jszip@3.10.1:
     resolution: {integrity: sha512-xXDvecyTpGLrqFrvkrUSoxxfJI5AH7U8zxxtVclpsUtMCq4JQ290LY8AW5c7Ggnr/Y/oK+bQMbqK2qmtk3pN4g==}
 
@@ -11323,12 +11272,6 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai-zod-to-json-schema@1.1.2:
-    resolution: {integrity: sha512-c23mG4XutId7WAQmmB/TRMF7sY1Y7Z78bEqJUpgAzBXGxlGAWU56a0eqoGVqPCqjOpSuHFC2uT2WMHn6/molsg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.23.8
-
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
@@ -11412,10 +11355,6 @@ packages:
   p-retry@4.6.2:
     resolution: {integrity: sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ==}
     engines: {node: '>=8'}
-
-  p-throttle@6.2.0:
-    resolution: {integrity: sha512-NCKkOVj6PZa6NiTmfvGilDdf6vO1rFCD3KDnkHko8dTOtkpk4cSR/VTAhhLMG9aiQ7/A9HYgEDNmxzf6hxzR3g==}
-    engines: {node: '>=18'}
 
   p-timeout@6.1.4:
     resolution: {integrity: sha512-MyIV3ZA/PmyBN/ud8vV9XzwTrNtR4jFrObymZYnZqMmW0zA8Z17vnT0rBgFE/TlohB+YCHqXMgZzb3Csp49vqg==}
@@ -13274,10 +13213,6 @@ packages:
     resolution: {integrity: sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==}
     engines: {node: '>=12.20'}
 
-  type-fest@4.41.0:
-    resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
-    engines: {node: '>=16'}
-
   type-fest@5.4.2:
     resolution: {integrity: sha512-FLEenlVYf7Zcd34ISMLo3ZzRE1gRjY1nMDTp+bQRBiPsaKyIW8K3Zr99ioHDUgA9OGuGGJPyYpNcffGmBhJfGg==}
     engines: {node: '>=20'}
@@ -13925,12 +13860,6 @@ packages:
     peerDependencies:
       zod: ^3.25 || ^4
 
-  zod-validation-error@3.5.4:
-    resolution: {integrity: sha512-+hEiRIiPobgyuFlEojnqjJnhFvg4r/i3cqgcm67eehZf/WBaK3g6cD02YU9mtdVxZjv8CzCA9n/Rhrs3yAAvAw==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      zod: ^3.24.4
-
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
@@ -13970,45 +13899,6 @@ packages:
 snapshots:
 
   '@adobe/css-tools@4.4.4': {}
-
-  '@agentic/core@7.6.9(zod@4.3.4)':
-    dependencies:
-      dedent: 1.7.1
-      delay: 6.0.0
-      jsonrepair: 3.13.1
-      ky: 1.8.1
-      openai-zod-to-json-schema: 1.1.2(zod@4.3.4)
-      p-throttle: 6.2.0
-      type-fest: 4.41.0
-      zod: 4.3.4
-      zod-validation-error: 3.5.4(zod@4.3.4)
-    transitivePeerDependencies:
-      - babel-plugin-macros
-
-  '@agentic/exa@7.6.9(zod@4.3.4)':
-    dependencies:
-      '@agentic/core': 7.6.9(zod@4.3.4)
-      ky: 1.8.1
-      zod: 4.3.4
-    transitivePeerDependencies:
-      - babel-plugin-macros
-
-  '@agentic/searxng@7.6.9(zod@4.3.4)':
-    dependencies:
-      '@agentic/core': 7.6.9(zod@4.3.4)
-      ky: 1.8.1
-      zod: 4.3.4
-    transitivePeerDependencies:
-      - babel-plugin-macros
-
-  '@agentic/tavily@7.6.9(zod@4.3.4)':
-    dependencies:
-      '@agentic/core': 7.6.9(zod@4.3.4)
-      ky: 1.8.1
-      p-throttle: 6.2.0
-      zod: 4.3.4
-    transitivePeerDependencies:
-      - babel-plugin-macros
 
   '@ai-sdk/amazon-bedrock@4.0.96(zod@4.3.4)':
     dependencies:
@@ -15908,8 +15798,6 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@expo/sudo-prompt@9.3.2': {}
-
   '@floating-ui/core@1.7.3':
     dependencies:
       '@floating-ui/utils': 0.2.10
@@ -16620,24 +16508,24 @@ snapshots:
       '@napi-rs/canvas-win32-arm64-msvc': 0.1.97
       '@napi-rs/canvas-win32-x64-msvc': 0.1.97
 
-  '@napi-rs/system-ocr-darwin-arm64@1.0.2':
+  '@napi-rs/system-ocr-darwin-arm64@1.1.0':
     optional: true
 
-  '@napi-rs/system-ocr-darwin-x64@1.0.2':
+  '@napi-rs/system-ocr-darwin-x64@1.1.0':
     optional: true
 
-  '@napi-rs/system-ocr-win32-arm64-msvc@1.0.2':
+  '@napi-rs/system-ocr-win32-arm64-msvc@1.1.0':
     optional: true
 
-  '@napi-rs/system-ocr-win32-x64-msvc@1.0.2':
+  '@napi-rs/system-ocr-win32-x64-msvc@1.1.0':
     optional: true
 
-  '@napi-rs/system-ocr@1.0.2(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)':
+  '@napi-rs/system-ocr@1.1.0(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)':
     optionalDependencies:
-      '@napi-rs/system-ocr-darwin-arm64': 1.0.2
-      '@napi-rs/system-ocr-darwin-x64': 1.0.2
-      '@napi-rs/system-ocr-win32-arm64-msvc': 1.0.2
-      '@napi-rs/system-ocr-win32-x64-msvc': 1.0.2
+      '@napi-rs/system-ocr-darwin-arm64': 1.1.0
+      '@napi-rs/system-ocr-darwin-x64': 1.1.0
+      '@napi-rs/system-ocr-win32-arm64-msvc': 1.1.0
+      '@napi-rs/system-ocr-win32-x64-msvc': 1.1.0
 
   '@napi-rs/wasm-runtime@1.1.1':
     dependencies:
@@ -21765,8 +21653,6 @@ snapshots:
       pify: 2.3.0
       strip-dirs: 2.1.0
 
-  dedent@1.7.1: {}
-
   deep-eql@5.0.2: {}
 
   deep-extend@0.6.0: {}
@@ -21816,8 +21702,6 @@ snapshots:
   delaunator@5.0.1:
     dependencies:
       robust-predicates: 3.0.2
-
-  delay@6.0.0: {}
 
   delayed-stream@1.0.0: {}
 
@@ -23872,8 +23756,6 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
-  jsonrepair@3.13.1: {}
-
   jszip@3.10.1:
     dependencies:
       lie: 3.3.0
@@ -25184,10 +25066,6 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai-zod-to-json-schema@1.1.2(zod@4.3.4):
-    dependencies:
-      zod: 4.3.4
-
   openapi-types@12.1.3: {}
 
   opencollective-postinstall@2.0.3: {}
@@ -25294,8 +25172,6 @@ snapshots:
     dependencies:
       '@types/retry': 0.12.0
       retry: 0.13.1
-
-  p-throttle@6.2.0: {}
 
   p-timeout@6.1.4: {}
 
@@ -27472,8 +27348,6 @@ snapshots:
 
   type-fest@2.19.0: {}
 
-  type-fest@4.41.0: {}
-
   type-fest@5.4.2:
     dependencies:
       tagged-tag: 1.0.0
@@ -28192,10 +28066,6 @@ snapshots:
       zod: 3.25.76
 
   zod-to-json-schema@3.25.1(zod@4.3.4):
-    dependencies:
-      zod: 4.3.4
-
-  zod-validation-error@3.5.4(zod@4.3.4):
     dependencies:
       zod: 4.3.4
 

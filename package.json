@@ -97,11 +97,10 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.185",
-    "@expo/sudo-prompt": "^9.3.2",
     "@huggingface/transformers": "4.2.0",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@napi-rs/canvas": "0.1.80",
-    "@napi-rs/system-ocr": "1.0.2",
+    "@napi-rs/system-ocr": "1.1.0",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
@@ -130,9 +129,6 @@
     "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
-    "@agentic/exa": "^7.3.3",
-    "@agentic/searxng": "^7.3.3",
-    "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^4.0.96",
     "@ai-sdk/anthropic": "^3.0.71",
     "@ai-sdk/azure": "^3.0.54",
@@ -482,9 +478,9 @@
     "@napi-rs/canvas-linux-x64-musl": "0.1.97",
     "@napi-rs/canvas-win32-arm64-msvc": "0.1.97",
     "@napi-rs/canvas-win32-x64-msvc": "0.1.97",
-    "@napi-rs/system-ocr-darwin-arm64": "1.0.2",
-    "@napi-rs/system-ocr-darwin-x64": "1.0.2",
-    "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
-    "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2"
+    "@napi-rs/system-ocr-darwin-arm64": "1.1.0",
+    "@napi-rs/system-ocr-darwin-x64": "1.1.0",
+    "@napi-rs/system-ocr-win32-arm64-msvc": "1.1.0",
+    "@napi-rs/system-ocr-win32-x64-msvc": "1.1.0"
   }
 }
