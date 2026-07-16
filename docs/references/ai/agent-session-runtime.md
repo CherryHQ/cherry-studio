@@ -258,6 +258,76 @@ resources (extensions, project skills/prompts/themes), it must add a Cherry-owne
 trust prompt and persisted decision first, then selectively pass that decision
 into pi resource loading rather than widening the `no*` flags wholesale.
 
+## AI SDK driver
+
+The `ai-sdk` runtime drives the agent's selected provider/model through the
+in-process AI SDK chat pipeline (`Agent`), with Cherry's host staying fully
+authoritative. There is no remote session handle at all:
+
+- **Per-turn durable replay, no resume token.** Every `send()` rebuilds the
+  model conversation from SQLite: `listRuntimeHistory` returns the session's
+  rows in ascending `(createdAt, id)` order strictly before the incoming user
+  row's tuple (so queued follow-ups never leak into the current turn), and the
+  driver appends the incoming message exactly once. Recovery after a restart
+  is therefore free — the connection emits no `resume-token`, ever.
+- **No native steer.** AI SDK v6 has no mid-turn user-input channel, so the
+  driver does not implement `redirect()`. A live follow-up takes the host's
+  queue path (`pendingTurns` + steer system-reminder on the next turn). This
+  is the supported optional-steering fallback, not feature loss; aborting the
+  active turn to fake a steer is explicitly rejected because it can repeat
+  tool side effects.
+- **One host turn, N execution segments.** The SDK's tool-approval protocol is
+  request → terminate → restart: a segment that ends with pending approval
+  requests is followed — inside the same host turn — by a continuation segment
+  whose history carries the decisions, so approved tools execute at the top of
+  the next `streamText` call. Only the final segment's `finish` reaches the
+  renderer; the whole turn stays one assistant message.
+- **Live policy, frozen config.** `reconcile()` swaps the permission-mode /
+  disabled-tools policy first (tool wrappers read it through closures at
+  fire-time, so a hot-patch applies to the very next call) and only then
+  compares the spawn-frozen connection signature (model, workspace,
+  instructions, MCP selection, max turns) to decide `rebuild`.
+- **Context usage and durable compaction.** Occupancy is measured from each
+  step's usage against the model's context window and never fabricated —
+  `getContextUsage()` is `null` until the first measured step. `/compact
+  [focus]` (exact first token, shared parse in `runtime/compactCommand.ts`)
+  runs as its own host turn; automatic compaction runs pre-turn at 80%
+  measured occupancy. One bounded summarization request (`Agent.generate`,
+  `tools: {}`) folds the oldest replayable prefix plus any prior summary into
+  the `agent_session_runtime_state` checkpoint; replay then prepends the
+  stored summary and reads only post-anchor rows. Manual failure is the turn's
+  single terminal error; auto failure is a non-terminal `compaction-error` and
+  the turn proceeds uncompacted. Deleting any session message invalidates the
+  checkpoint in the same write transaction, so deleted content cannot survive
+  inside a summary. Persisted `/compact` user rows are commands, not
+  conversation — replay and summarization both filter them.
+
+### AI SDK driver trust boundary
+
+Tools execute at main-process privilege and there is **no OS sandbox** — this
+is the runtime's central trust tradeoff, and why `createDefaults` keeps
+`permissionMode: 'default'` (approval prompts on):
+
+- **Workspace file tools** (`read`/`write`/`edit`/`ls`/`glob`/`grep`) reuse the
+  builtin filesystem MCP handlers rooted at the session workspace;
+  `validatePath` hard-fails absolute, `../`, and symlink escapes rather than
+  prompting.
+- **`bash` is bounded but not sandboxed**: cwd pinned to the workspace, output
+  capped, timeout clamped (default 120s, max 600s), process-tree kill on
+  timeout/abort, and environment stripped of key/token/secret-shaped
+  variables. An approved command can still touch anything the user's account
+  can — the renderer warning and default approval gate are the mitigation.
+  Global-install commands are hard-denied without an approval card.
+- **Approval classes** live in one wrapper (`applyToolPolicy`): read-only
+  tools auto-approve; `write`/`edit` prompt in `default` and auto-approve in
+  `acceptEdits`; `bash` and every MCP tool prompt in both;
+  `bypassPermissions` prompts for nothing. Disabled tools both refuse approval
+  and throw at execute, so a doomed call never shows a card. Headless turns
+  auto-deny anything that would prompt.
+- **Skills** resolve only through `SkillService` by catalog name (never a
+  model-supplied path); MCP servers come only from `agent.mcps`, warmed
+  cache-only like the other drivers.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.
@@ -303,3 +373,9 @@ Focused tests:
 - `src/main/ai/__tests__/AiService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/aiSdkAgent/AiSdkRuntimeConnection.test.ts`
+- `src/main/ai/runtime/aiSdkAgent/sessionHistory.test.ts`
+- `src/main/ai/runtime/aiSdkAgent/compaction.test.ts`
+- `src/main/ai/runtime/aiSdkAgent/tools/*.test.ts`
+- `src/main/data/services/__tests__/AgentSessionMessageService.test.ts`
+- `src/main/data/services/__tests__/AgentSessionRuntimeStateService.test.ts`

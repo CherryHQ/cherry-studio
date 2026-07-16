@@ -97,7 +97,13 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`
-       events if the runtime compacts its own history.
+       events if the runtime compacts its own history. Manual `/compact`
+       parses through the shared `runtime/compactCommand.ts`, and if your
+       runtime replays history from Cherry's SQLite rows (instead of an
+       SDK-internal session), it must also **filter persisted command rows
+       out of replay** — a `/compact` user row is a command to Cherry, not
+       conversation, but it is stored like any other user message (see the
+       ai-sdk driver's `loadReplayContext`).
 
 3. **Stream adapter** — convert runtime-native events into
    `UIMessageChunk`s. Import your transport constant from the descriptor
