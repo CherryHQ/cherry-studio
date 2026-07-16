@@ -52,11 +52,14 @@ const BaseNavigatorContent = ({
   return (
     <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-2.5 pb-3">
       {sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
-        // Truly empty stays quiet — the content pane owns the empty state.
-        // An empty result while bases exist means the search matched nothing.
+        // Truly empty names the list state here; the content pane carries the
+        // "build knowledge with AI" invitation. An empty result while bases
+        // exist means the search matched nothing.
         hasBases ? (
           <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
-        ) : null
+        ) : (
+          <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
+        )
       ) : flatSection ? (
         <div className="space-y-1">
           {flatSection.items.map((base) => (
