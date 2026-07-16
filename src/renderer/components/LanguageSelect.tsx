@@ -178,7 +178,7 @@ const LanguageSelect = (props: Props) => {
         options={displayedOptions}
         placeholder={placeholder ?? t('common.select')}
         popoverClassName={cn(
-          'w-(--radix-popover-trigger-width)',
+          'w-[var(--radix-popover-trigger-width)]',
           listHeight && '[&_[data-slot=command-list]]:max-h-[160px]'
         )}
         renderOption={renderOption}
