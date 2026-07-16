@@ -111,7 +111,7 @@ describe('AgentSpeedControl UI', () => {
   } as Model
 
   it('opens the ordered effort slider directly without the former nested menus', () => {
-    render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="high" />)
+    const { container } = render(<ControlledSpeedControl model={orderedEffortModel} initialEffort="high" />)
 
     const trigger = screen.getByRole('button', { name: 'agent.speed.title' })
     expect(trigger).toHaveTextContent('assistants.settings.reasoning_effort.high')
@@ -126,6 +126,10 @@ describe('AgentSpeedControl UI', () => {
     expect(slider).toHaveAttribute('data-value', '2')
     expect(slider).toHaveAttribute('data-min-value-text', 'assistants.settings.reasoning_effort.off')
     expect(slider).toHaveAttribute('data-second-value-text', 'assistants.settings.reasoning_effort.auto')
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="0"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="1"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="2"]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="3"]')).toBeInTheDocument()
   })
 
   it('shows the compact slider with the Fast lightning action', async () => {
@@ -144,11 +148,10 @@ describe('AgentSpeedControl UI', () => {
       'dark:[&_[data-slot=slider-thumb]]:bg-neutral-100!',
       '[&_[data-slot=slider-track]]:h-2.5',
       '[&_[data-slot=slider-track]]:bg-muted',
+      'dark:[&_[data-slot=slider-track]]:bg-neutral-700!',
       '[&_[data-slot=slider-track]]:shadow-inner'
     )
     expect(slider).not.toHaveClass('agent-effort-slider')
-    expect(container.querySelectorAll('[data-slot="agent-effort-step"]')).toHaveLength(3)
-    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="3"]')).not.toBeInTheDocument()
     expect(screen.getByText('agent.speed.faster')).toBeInTheDocument()
     expect(screen.getByText('agent.speed.smarter')).toBeInTheDocument()
     expect(screen.getByTestId('agent-effort-slider-label')).toHaveTextContent(
@@ -163,6 +166,10 @@ describe('AgentSpeedControl UI', () => {
         'assistants.settings.reasoning_effort.off'
       )
     )
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="0"]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="1"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="2"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="agent-effort-step"][data-index="3"]')).toBeInTheDocument()
 
     const fastIconButton = screen.getByRole('button', { name: 'agent.speed.fast' })
     expect(fastIconButton.querySelector('.lucide-zap')).toBeInTheDocument()
