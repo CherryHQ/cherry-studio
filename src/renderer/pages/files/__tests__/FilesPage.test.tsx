@@ -993,4 +993,22 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.rename'))
     expect(screen.getByDisplayValue('photo.png')).toBeInTheDocument()
   })
+
+  it('opens the embedded preview when clicking an image in the image grid', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+    fireEvent.click(await screen.findByAltText('photo.png'))
+
+    await waitFor(() => {
+      expect(filePreviewMocks.render).toHaveBeenCalledWith({ filePath: '/tmp/photo.png', refreshKey: 0 })
+    })
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/photo.png')
+  })
 })

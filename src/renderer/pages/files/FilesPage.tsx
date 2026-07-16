@@ -1024,8 +1024,6 @@ function FilesPage() {
               {isImageGrid ? (
                 <FileGrid
                   files={filteredFiles}
-                  selectedIds={new Set()}
-                  onSelect={() => {}}
                   onOpen={handleOpen}
                   onDelete={(id) => handleDelete(new Set([id]))}
                   isTrash={isTrash}
