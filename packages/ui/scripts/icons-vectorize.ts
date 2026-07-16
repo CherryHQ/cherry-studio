@@ -237,7 +237,6 @@ async function main() {
     console.log(`Output: ${outputDir}`)
     console.log(`\nNext steps:`)
     console.log(`  pnpm icons:generate --type=${label}`)
-    console.log(`  pnpm icons:generate:avatars --type=${label}`)
   }
 }
 

@@ -5,8 +5,7 @@
  *   1. Vectorize  — convert PNG/JPG to SVG (skipped if no raster files or --skip-vectorize)
  *   2. Validate   — check SVG quality (exits on errors)
  *   3. Normalize  — normalize SVG viewBox dimensions to 32x32
- *   4. Generate   — emit light.tsx + dark.tsx + meta.ts per logo
- *   5. Avatars    — emit avatar.tsx + index.tsx + barrel + catalog
+ *   4. Generate   — emit icon components, avatars, barrels, and catalogs
  *
  * Usage:
  *   tsx scripts/icons-pipeline.ts --dir=providers
@@ -127,10 +126,6 @@ async function main() {
     {
       name: 'Generate',
       args: ['scripts/icons-generate.ts', `--type=${dir}`, ...(force ? ['--force'] : [])]
-    },
-    {
-      name: 'Avatars',
-      args: ['scripts/icons-generate-avatars.ts', `--type=${dir}`]
     }
   ]
 
