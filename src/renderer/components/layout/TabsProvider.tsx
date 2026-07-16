@@ -293,7 +293,9 @@ export function TabsProvider({
 
       if (pinnedIds.size > 0 || wakeInPinned) {
         setPinnedTabs((prev) => {
-          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : prev
+          // The persist-cache updater receives a readonly view and must return
+          // a fresh mutable array, so the no-filter branch copies.
+          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : [...prev]
           return wakeInPinned ? next.map(wake) : next
         })
       }
