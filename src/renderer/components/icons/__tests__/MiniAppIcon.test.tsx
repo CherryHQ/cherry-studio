@@ -31,10 +31,10 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
   CompoundLogo.colorPrimary = '#000000'
   return {
     getMiniAppsLogoRef: (logo: unknown) =>
-      logo === 'compound-logo'
-        ? { kind: 'provider', key: 'compound-logo', meta: { id: 'compound-logo', colorPrimary: '#000000' } }
+      logo === 'compound-logo' || logo === 'felo'
+        ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
         : undefined,
-    useMiniAppLogo: (logo: unknown) => (logo === 'compound-logo' ? CompoundLogo : undefined)
+    useMiniAppLogo: (logo: unknown) => (logo === 'compound-logo' || logo === 'felo' ? CompoundLogo : undefined)
   }
 })
 
@@ -118,6 +118,17 @@ describe('MiniAppIcon', () => {
     expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
       width: '40px',
       height: '40px'
+    })
+  })
+
+  it('constrains configured full-bleed icons in plain mode', () => {
+    const { container } = render(<MiniAppIcon app={{ ...baseApp, logo: 'felo' }} appearance="plain" size={56} />)
+
+    expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
+      width: '40px',
+      height: '40px',
+      borderRadius: '10px',
+      overflow: 'hidden'
     })
   })
 })
