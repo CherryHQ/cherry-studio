@@ -888,8 +888,8 @@
           "label": "Планировщик"
         },
         "CherryGenerateImage": {
-          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
-          "label": "[to be translated]:Generate Image"
+          "description": "Генерирует изображение из текстового запроса с использованием настроенной модели рисования",
+          "label": "Сгенерировать изображение"
         },
         "CherryKbManage": {
           "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
@@ -1401,7 +1401,7 @@
         "title": "В очереди ({{count}})"
       },
       "generate_image": "Сгенерировать изображение",
-      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
+      "generate_image_no_model": "Настройте модель для рисования в разделе Настройки › Модель по умолчанию",
       "knowledge_base": "База знаний",
       "knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
       "knowledge_base_unavailable": "Выберите модель с поддержкой инструментов или включите использование инструментов в запросе",
@@ -1488,9 +1488,9 @@
         "expand": "Развернуть",
         "file_not_found": "Файл не найден: {{path}}",
         "generate_image": {
-          "failed": "[to be translated]:Image generation failed",
-          "generating": "[to be translated]:Generating image…",
-          "title": "[to be translated]:Generated image"
+          "failed": "Ошибка генерации изображения",
+          "generating": "Генерация изображения…",
+          "title": "Сгенерированное изображение"
         },
         "open_file": "Открыть файл",
         "open_file_error": "Не удалось открыть файл: {{path}}",
@@ -2800,7 +2800,7 @@
           "title": "Импортировать одну веб-страницу"
         }
       },
-      "back_to_parent": "[to be translated]:Back",
+      "back_to_parent": "Назад",
       "bulk": {
         "delete": "Удалить",
         "delete_confirm_description": "Удалить {{count}} выбранных источников данных? Это действие нельзя отменить.",
@@ -2828,7 +2828,7 @@
         "title": "Загрузите свой первый источник данных"
       },
       "empty_description": "Источников данных пока нет",
-      "empty_folder": "[to be translated]:This folder is empty",
+      "empty_folder": "Эта папка пуста",
       "filters": {
         "all": "Все",
         "directory": "Папки",
@@ -2861,7 +2861,7 @@
           "type": "Тип",
           "updated_at": "Обновлено"
         },
-        "open_row": "[to be translated]:Open {{title}}",
+        "open_row": "Открыть {{title}}",
         "select_all": "Выбрать все",
         "select_row": "Выбрать строку"
       },
@@ -2874,8 +2874,8 @@
     "embedding_model": "Модель встраивания",
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
-    "empty_action": "[to be translated]:Create Knowledge Base",
-    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty_action": "Создать базу знаний",
+    "empty_description": "У вас пока нет баз знаний. Создайте одну, чтобы начать организовывать и искать ваши документы.",
     "error": {
       "directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
       "failed_base_unknown": "Эта база знаний не удалась при миграции. Пересоберите её и выберите новую модель встраивания.",
@@ -6852,8 +6852,8 @@
       },
       "more_actions": "Дополнительные действия со списком моделей",
       "not_enabled_models": "Отключены",
-      "painting_model": "[to be translated]:Painting Model",
-      "painting_model_description": "[to be translated]:Model used for image generation",
+      "painting_model": "Модель живописи",
+      "painting_model_description": "Модель, используемая для генерации изображений",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",

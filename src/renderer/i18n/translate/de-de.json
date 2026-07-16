@@ -888,8 +888,8 @@
           "label": "Scheduler"
         },
         "CherryGenerateImage": {
-          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
-          "label": "[to be translated]:Generate Image"
+          "description": "Erzeugt ein Bild aus einem Textprompt unter Verwendung Ihres konfigurierten Malmodells",
+          "label": "Bild generieren"
         },
         "CherryKbManage": {
           "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
@@ -1401,7 +1401,7 @@
         "title": "In Warteschlange ({{count}})"
       },
       "generate_image": "Bild generieren",
-      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
+      "generate_image_no_model": "Konfigurieren Sie ein Malmodell unter Einstellungen › Standardmodell",
       "knowledge_base": "Wissensdatenbank",
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
@@ -1488,9 +1488,9 @@
         "expand": "Ausklappen",
         "file_not_found": "Datei nicht gefunden: {{path}}",
         "generate_image": {
-          "failed": "[to be translated]:Image generation failed",
-          "generating": "[to be translated]:Generating image…",
-          "title": "[to be translated]:Generated image"
+          "failed": "Bildgenerierung fehlgeschlagen",
+          "generating": "Bild wird generiert…",
+          "title": "Generiertes Bild"
         },
         "open_file": "Datei öffnen",
         "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
@@ -2800,7 +2800,7 @@
           "title": "Importiere eine einzelne Webseite"
         }
       },
-      "back_to_parent": "[to be translated]:Back",
+      "back_to_parent": "Zurück",
       "bulk": {
         "delete": "Löschen",
         "delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",
@@ -2828,7 +2828,7 @@
         "title": "Laden Sie Ihre erste Datenquelle hoch"
       },
       "empty_description": "Noch keine Datenquellen",
-      "empty_folder": "[to be translated]:This folder is empty",
+      "empty_folder": "Dieser Ordner ist leer",
       "filters": {
         "all": "Alle",
         "directory": "Ordner",
@@ -2861,7 +2861,7 @@
           "type": "Typ",
           "updated_at": "Aktualisiert"
         },
-        "open_row": "[to be translated]:Open {{title}}",
+        "open_row": "{{title}} öffnen",
         "select_all": "Alle auswählen",
         "select_row": "Zeile auswählen"
       },
@@ -2874,8 +2874,8 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
-    "empty_action": "[to be translated]:Create Knowledge Base",
-    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty_action": "Wissensdatenbank erstellen",
+    "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
       "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
@@ -6852,8 +6852,8 @@
       },
       "more_actions": "Weitere Aktionen für die Modellliste",
       "not_enabled_models": "Deaktiviert",
-      "painting_model": "[to be translated]:Painting Model",
-      "painting_model_description": "[to be translated]:Model used for image generation",
+      "painting_model": "Malermodell",
+      "painting_model_description": "Modell für die Bildgenerierung",
       "provider_id": "Dienstanbieter-ID",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
       "provider_key_add_failed_by_empty_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Daten sind leer",
