@@ -20,17 +20,23 @@ import { useRecentEmojis } from './useRecentEmojis'
 const logger = loggerService.withContext('EmojiPicker')
 
 const CHERRY_PICKER_STYLE = {
-  '--epr-bg-color': 'var(--color-card)',
+  '--epr-bg-color': 'var(--color-popover)',
   '--epr-picker-border-color': 'transparent',
   '--epr-picker-border-radius': 'var(--radius-lg)',
   '--epr-highlight-color': 'var(--color-primary)',
   '--epr-hover-bg-color': 'var(--color-accent)',
   '--epr-hover-bg-color-reduced-opacity': 'var(--color-accent)',
   '--epr-focus-bg-color': 'var(--color-accent)',
-  '--epr-text-color': 'var(--color-card-foreground)',
-  '--epr-category-label-bg-color': 'var(--color-card)',
-  '--epr-category-label-text-color': 'var(--color-card-foreground)',
+  '--epr-text-color': 'var(--color-popover-foreground)',
+  '--epr-category-label-bg-color': 'var(--color-popover)',
+  '--epr-category-label-text-color': 'var(--color-popover-foreground)',
   '--epr-category-icon-active-color': 'var(--color-primary)',
+  '--epr-search-input-bg-color': 'var(--color-background)',
+  '--epr-search-input-bg-color-active': 'var(--color-background)',
+  '--epr-search-input-text-color': 'var(--color-foreground)',
+  '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
+  '--epr-search-border-color': 'var(--color-input)',
+  '--epr-search-border-color-active': 'var(--color-ring)',
   '--epr-emoji-hover-color': 'var(--color-accent)',
   '--epr-emoji-variation-indicator-color': 'var(--color-border)',
   '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
@@ -140,8 +146,9 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
   }
 
   return (
-    <div className="h-88 max-h-[min(22rem,calc(100vh-6rem))] w-80 max-w-[calc(100vw-2rem)] rounded-lg bg-card text-card-foreground">
+    <div className="h-88 max-h-[min(22rem,calc(100vh-6rem))] w-80 max-w-[calc(100vw-2rem)] rounded-lg bg-popover text-popover-foreground">
       <EmojiPickerReact
+        autoFocusSearch
         categories={categories}
         className="cherry-emoji-picker-react"
         emojiData={emojiData}
@@ -149,7 +156,9 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
         emojiVersion="13.0"
         height="100%"
         previewConfig={{ showPreview: false }}
-        searchDisabled
+        searchClearButtonLabel={t('common.clear')}
+        searchDisabled={false}
+        searchPlaceholder={t('emoji_picker.search')}
         skinTonesDisabled
         style={CHERRY_PICKER_STYLE}
         suggestedEmojisMode={SuggestionMode.RECENT}

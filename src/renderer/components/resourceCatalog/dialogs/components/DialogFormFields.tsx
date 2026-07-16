@@ -38,7 +38,9 @@ export const EmojiAvatarPicker: FC<{
           </EmojiAvatar>
         </Button>
       </PopoverTrigger>
-      <PopoverContent portalContainer={portalContainer} className="w-auto p-0">
+      <PopoverContent
+        portalContainer={portalContainer}
+        className="w-auto border border-border bg-popover p-0 text-popover-foreground shadow-lg">
         <EmojiPicker
           onEmojiClick={(emoji) => {
             onChange(emoji)

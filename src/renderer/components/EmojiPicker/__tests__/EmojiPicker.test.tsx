@@ -21,7 +21,7 @@ vi.mock('emoji-picker-react', () => {
     return (
       <div className={props.className} data-emoji-version={props.emojiVersion} data-testid="emoji-picker-react">
         {!props.searchDisabled ? (
-          <input aria-label={props.searchPlaceholder} placeholder={props.searchPlaceholder} />
+          <input aria-label="Type to search for an emoji" placeholder={props.searchPlaceholder} />
         ) : null}
         <div aria-label="Emoji categories" role="tablist" />
         {props.previewConfig?.showPreview ? <div data-testid="emoji-preview">preview</div> : null}
@@ -83,14 +83,18 @@ describe('EmojiPicker', () => {
     emojiPickerPropsMock.value = undefined
   })
 
-  it('renders emoji-picker-react with search disabled and category navigation enabled', () => {
+  it('enables localized vendor search with autofocus and category navigation', () => {
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
 
     expect(screen.getByTestId('emoji-picker-react')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('emoji_picker.search')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('emoji_picker.search')).toBeInTheDocument()
     expect(screen.getByRole('tablist', { name: 'Emoji categories' })).toBeInTheDocument()
-    expect(emojiPickerPropsMock.value.searchDisabled).toBe(true)
-    expect(emojiPickerPropsMock.value.searchPlaceholder).toBeUndefined()
+    expect(emojiPickerPropsMock.value).toMatchObject({
+      autoFocusSearch: true,
+      searchClearButtonLabel: 'common.clear',
+      searchDisabled: false,
+      searchPlaceholder: 'emoji_picker.search'
+    })
     expect(emojiPickerPropsMock.value.categories.map((item: any) => item.category)).toEqual([
       'suggested',
       'smileys_people',
@@ -117,18 +121,28 @@ describe('EmojiPicker', () => {
       'h-88',
       'w-80',
       'max-h-[min(22rem,calc(100vh-6rem))]',
-      'max-w-[calc(100vw-2rem)]'
+      'max-w-[calc(100vw-2rem)]',
+      'bg-popover',
+      'text-popover-foreground'
     )
 
     expect(emojiPickerPropsMock.value.width).toBe('100%')
     expect(emojiPickerPropsMock.value.height).toBe('100%')
     expect(emojiPickerPropsMock.value.className).toBe('cherry-emoji-picker-react')
     expect(emojiPickerPropsMock.value.style).toMatchObject({
-      '--epr-bg-color': 'var(--color-card)',
+      '--epr-bg-color': 'var(--color-popover)',
       '--epr-picker-border-color': 'transparent',
       '--epr-highlight-color': 'var(--color-primary)',
       '--epr-hover-bg-color-reduced-opacity': 'var(--color-accent)',
-      '--epr-category-label-text-color': 'var(--color-card-foreground)',
+      '--epr-text-color': 'var(--color-popover-foreground)',
+      '--epr-category-label-bg-color': 'var(--color-popover)',
+      '--epr-category-label-text-color': 'var(--color-popover-foreground)',
+      '--epr-search-input-bg-color': 'var(--color-background)',
+      '--epr-search-input-bg-color-active': 'var(--color-background)',
+      '--epr-search-input-text-color': 'var(--color-foreground)',
+      '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
+      '--epr-search-border-color': 'var(--color-input)',
+      '--epr-search-border-color-active': 'var(--color-ring)',
       '--epr-emoji-hover-color': 'var(--color-accent)',
       '--epr-emoji-variation-indicator-color': 'var(--color-border)',
       '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
