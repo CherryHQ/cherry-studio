@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TracePage } from '../TracePage'
@@ -74,5 +74,16 @@ describe('TracePage', () => {
     expect(screen.getByTestId('trace-table')).toHaveClass('min-w-0', 'overflow-hidden')
     expect(screen.getByTestId('trace-table')).not.toHaveClass('min-w-[640px]')
     expect(spanName).toHaveClass('min-w-0', 'flex-1')
+  })
+
+  it('pauses polling while a retained trace panel is inactive', async () => {
+    mocks.getTraceData.mockResolvedValue([])
+    const { rerender } = render(<TracePage topicId="topic-a" traceId="trace-a" active={false} />)
+
+    expect(mocks.getTraceData).not.toHaveBeenCalled()
+
+    rerender(<TracePage topicId="topic-a" traceId="trace-a" active />)
+
+    await waitFor(() => expect(mocks.getTraceData).toHaveBeenCalledWith('topic-a', 'trace-a'))
   })
 })

@@ -13,6 +13,7 @@ const shellProps = vi.hoisted(() => ({
     topBar?: ReactNode
     sidePanel?: ReactNode
     centerOverlay?: ReactNode
+    rightPane?: ReactNode
   } | null
 }))
 
@@ -45,6 +46,7 @@ vi.mock('../ChatAppShell', () => ({
     topBar?: ReactNode
     sidePanel?: ReactNode
     centerOverlay?: ReactNode
+    rightPane?: ReactNode
   }) => {
     shellProps.current = props
     return (
@@ -53,6 +55,7 @@ vi.mock('../ChatAppShell', () => ({
         {props.sidePanel}
         {props.centerContent}
         {props.centerOverlay}
+        {props.rightPane}
       </div>
     )
   }

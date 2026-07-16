@@ -5,17 +5,29 @@ import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactEleme
 import { cloneElement, isValidElement, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock, useCommandHandlerMock } = vi.hoisted(
-  () => ({
+import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
+
+const { buildAgentToolFlowProjectionMock, fileTreeModelState, useArtifactFileTreeModelMock, useCommandHandlerMock } =
+  vi.hoisted(() => ({
+    buildAgentToolFlowProjectionMock: vi.fn(),
     fileTreeModelState: {
       hasLoaded: false,
       nodeById: new Map<string, { kind: string }>()
     },
-    resetLazyChildrenMock: vi.fn(),
     useArtifactFileTreeModelMock: vi.fn(),
     useCommandHandlerMock: vi.fn()
-  })
-)
+  }))
+
+vi.mock('../agentRightPaneProjection', async (importActual) => {
+  const actual = await importActual<typeof AgentRightPaneProjection>()
+  return {
+    ...actual,
+    buildAgentToolFlowProjection: (...args: Parameters<typeof actual.buildAgentToolFlowProjection>) => {
+      buildAgentToolFlowProjectionMock(...args)
+      return actual.buildAgentToolFlowProjection(...args)
+    }
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -48,21 +60,29 @@ vi.mock('@cherrystudio/ui', () => ({
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   RightPaneHost: ({
     children,
-    onCloseAnimationComplete,
+    keepMounted,
+    maximized,
+    onLayoutAnimationComplete,
     open,
     style
   }: PropsWithChildren<{
-    onCloseAnimationComplete?: () => void
+    keepMounted?: boolean
+    maximized?: boolean
+    onLayoutAnimationComplete?: (mode: 'closed' | 'docked' | 'maximized') => void
     open?: boolean
     style?: CSSProperties
   }>) => {
     useEffect(() => {
-      if (!open) onCloseAnimationComplete?.()
-    }, [onCloseAnimationComplete, open])
+      onLayoutAnimationComplete?.(!open ? 'closed' : maximized ? 'maximized' : 'docked')
+    }, [maximized, onLayoutAnimationComplete, open])
 
     return (
-      <section data-testid="right-pane" data-open={String(Boolean(open))} style={style}>
-        {open ? children : null}
+      <section
+        data-testid="right-pane"
+        data-open={String(Boolean(open))}
+        data-maximized={String(Boolean(maximized))}
+        style={style}>
+        {open || keepMounted ? children : null}
       </section>
     )
   }
@@ -136,7 +156,9 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
 }))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: () => <div data-testid="trace-pane" />
+  TracePane: ({ active }: { active?: boolean }) => (
+    <div data-testid="trace-pane" data-active={String(Boolean(active))} />
+  )
 }))
 
 vi.mock('@renderer/components/command', () => ({
@@ -191,11 +213,31 @@ vi.mock('motion/react', () => ({
   useReducedMotion: () => false
 }))
 
+// A stable `t` identity mirrors production react-i18next; a fresh closure per render
+// would invalidate the provider's scope memo and break render-isolation assertions.
+const stableT = (key: string) => key
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: stableT })
 }))
 
-import { AgentRightPane } from '../AgentRightPane'
+import { AgentRightPane, useAgentRightPaneActions } from '../AgentRightPane'
+
+function OpenFlowButton() {
+  const { openAgentToolFlow } = useAgentRightPaneActions()
+
+  return (
+    <button
+      type="button"
+      onClick={() => openAgentToolFlow({ toolCallId: 'flow-1', toolName: 'task', title: 'Inspect flow' })}>
+      open flow
+    </button>
+  )
+}
+
+function ArtifactCapabilityProbe() {
+  const { canOpenArtifactFile } = useAgentRightPaneActions()
+  return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
+}
 
 describe('AgentRightPane', () => {
   const triggerRightSidebarShortcut = () => {
@@ -213,8 +255,7 @@ describe('AgentRightPane', () => {
     fileTreeModelState.nodeById = new Map()
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
-      nodeById: fileTreeModelState.nodeById,
-      resetLazyChildren: resetLazyChildrenMock
+      nodeById: fileTreeModelState.nodeById
     }))
   })
 
@@ -227,7 +268,7 @@ describe('AgentRightPane', () => {
         messages={[]}
         partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
@@ -266,7 +307,7 @@ describe('AgentRightPane', () => {
         workspacePath="/workspace"
         messages={[]}
         partsByMessageId={{}}>
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
@@ -289,7 +330,7 @@ describe('AgentRightPane', () => {
   it('opens files from the sidebar command when no resource pane is available', () => {
     render(
       <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
@@ -300,24 +341,104 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
   })
 
-  it('hides file and status shortcuts when their matching tabs are disabled', () => {
+  it('does not expose artifact opening without a workspace path', () => {
+    const { rerender } = render(
+      <AgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <ArtifactCapabilityProbe />
+        <AgentRightPane.Shortcuts />
+      </AgentRightPane>
+    )
+
+    expect(screen.getByTestId('can-open-artifact-file')).toHaveTextContent('false')
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
+
+    rerender(
+      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <ArtifactCapabilityProbe />
+        <AgentRightPane.Shortcuts />
+      </AgentRightPane>
+    )
+
+    expect(screen.getByTestId('can-open-artifact-file')).toHaveTextContent('true')
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+  })
+
+  it('hides conversation shortcuts when the conversation is unavailable', () => {
     render(
       <AgentRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
-        filesEnabled={false}
-        statusEnabled={false}
+        conversationState="unavailable"
         sessionId="session-a"
         workspacePath="/workspace"
         messages={[]}
         partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
+  })
+
+  it('resolves a dynamic flow panel from the declared flow capability', () => {
+    render(
+      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+    expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('retains an inactive flow without re-projecting every runtime update', () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'task',
+      state: 'input-available',
+      input: { prompt: 'Inspect the workspace' }
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+    const { rerender } = render(
+      <AgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    expect(screen.getByTestId('message-list')).toBeInTheDocument()
+    const callsWhileActive = buildAgentToolFlowProjectionMock.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    rerender(
+      <AgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[...messages]}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+
+    expect(buildAgentToolFlowProjectionMock).toHaveBeenCalledTimes(callsWhileActive)
+    expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
   it('renders artifact status filenames with neutral text', () => {
@@ -356,68 +477,117 @@ describe('AgentRightPane', () => {
     expect(artifactButton).toHaveClass('text-foreground-secondary')
   })
 
-  it('keeps the file-tree model closed while the shell is closed', () => {
+  it('does not mount the files capability while the shell is closed', () => {
     render(
       <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
-    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        treeOpen: false,
-        workspacePath: '/workspace'
-      })
-    )
+    expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the file-tree model closed when opening a non-files tab', () => {
+  it('does not mount the files capability when opening a status panel', () => {
     render(
       <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        treeOpen: false,
-        workspacePath: '/workspace'
-      })
-    )
+    expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the file-tree model closed when files are disabled', () => {
+  it('keeps a visited trace capability mounted while pausing it when inactive', () => {
     render(
+      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
+    const tracePane = screen.getByTestId('trace-pane')
+    expect(tracePane).toHaveAttribute('data-active', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    expect(screen.getByTestId('trace-pane')).toBe(tracePane)
+    expect(tracePane).toHaveAttribute('data-active', 'false')
+  })
+
+  it('keeps a visited files instance through pending and removes it when unavailable', () => {
+    const { rerender } = render(
+      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+
+    rerender(
       <AgentRightPane
+        conversationState="pending"
         defaultOpen
-        filesEnabled={false}
         sessionId="session-a"
         workspacePath="/workspace"
         messages={[]}
         partsByMessageId={{}}>
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
-    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        treeOpen: false,
-        workspacePath: '/workspace'
-      })
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+
+    rerender(
+      <AgentRightPane
+        conversationState="unavailable"
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
     )
+
+    expect(screen.queryByTestId('artifact-pane')).toBeNull()
+  })
+
+  it('does not re-render the active files capability when only runtime messages change', () => {
+    const { rerender } = render(
+      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+    const callsAfterMount = useArtifactFileTreeModelMock.mock.calls.length
+    const messages = [{ id: 'm1', role: 'user', parts: [], metadata: {} }] as CherryUIMessage[]
+
+    rerender(
+      <AgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [] }}>
+        <AgentRightPane.Viewport />
+      </AgentRightPane>
+    )
+
+    expect(useArtifactFileTreeModelMock).toHaveBeenCalledTimes(callsAfterMount)
   })
 
   it('clears the overlay preview when the selected file disappears from the tree model', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
 
-    const { rerender } = render(
+    render(
       <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 
@@ -426,11 +596,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
 
     fileTreeModelState.nodeById = new Map()
-    rerender(
-      <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Host />
-      </AgentRightPane>
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
@@ -442,7 +608,7 @@ describe('AgentRightPane', () => {
 
     render(
       <AgentRightPane defaultOpen sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Host />
+        <AgentRightPane.Viewport />
       </AgentRightPane>
     )
 

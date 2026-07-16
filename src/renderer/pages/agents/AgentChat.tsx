@@ -8,6 +8,7 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
@@ -47,6 +48,7 @@ function getNewSessionWorkspaceDefaults(
 }
 
 interface AgentChatProps {
+  centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
@@ -78,6 +80,7 @@ interface AgentChatProps {
 }
 
 const AgentChat = ({
+  centerSurface,
   pane,
   paneOpen,
   panePosition,
@@ -118,12 +121,6 @@ const AgentChat = ({
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
-  const resourcePaneTopRightTool = resourcePane ? (
-    <>
-      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
-      <AgentRightPane.Shortcuts />
-    </>
-  ) : undefined
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -138,176 +135,142 @@ const AgentChat = ({
 
   const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : activeSessionLoading)
   const citationsPanelOpen = citationPanelCitations !== null
+  const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
+  const sessionAgentId = sessionSnapshot?.agentId ?? null
+  const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
+  const shouldFetchSessionHistoryOnMount = Boolean(
+    sessionSnapshot &&
+      (activeSessionSource === 'query' ||
+        activeSessionSource === 'pending' ||
+        (!!activeSession && activeSessionSource === 'none'))
+  )
+  const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const rightPaneTools =
+    !centerSurface && (sessionSnapshot || resourcePane) ? (
+      <>
+        {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
+        <AgentRightPane.Shortcuts />
+      </>
+    ) : undefined
+  let topBar: ReactNode
+  let center: ReactNode
+  let sidePanel: ReactNode
+  let centerClassName = centerSurface?.className
 
-  if (isInitializing) {
-    return (
-      <AgentRightPane
-        filesEnabled={false}
-        statusEnabled={false}
-        workspaceId={visibleWorkspaceId ?? undefined}
-        workspacePath={visibleWorkspace?.path}
-        messages={EMPTY_MESSAGES}
-        partsByMessageId={EMPTY_PARTS}
-        defaultOpen={sessionPaneOpen}
-        onOpenChange={onSessionPaneOpenChange}
-        resourcePane={resourcePane}
-        revealRequest={resourcePaneRevealRequest}>
-        <ConversationShell
-          className={messageStyle}
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          onPaneCollapse={onPaneCollapse}
-          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-          topRightTool={resourcePaneTopRightTool}
-          showTopRightToolWhenPaneOpen
-          center={<ConversationCenterState state="loading" />}
-          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
-          rightPane={<AgentRightPane.Host />}
-        />
-      </AgentRightPane>
+  if (centerSurface) {
+    center = centerSurface.content
+  } else if (isInitializing) {
+    center = <ConversationCenterState state="loading" />
+  } else if (!sessionSnapshot && hasLockedSession) {
+    center = <EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />
+  } else if (!sessionSnapshot && missingAgentSelection) {
+    const composer = !isMultiSelectMode ? (
+      <MissingAgentHomeComposer
+        onAgentChange={onMissingAgentSelectionAgentChange}
+        agentChanging={selectingMissingAgent}
+      />
+    ) : undefined
+    topBar = (
+      <AgentChatNavbar
+        activeAgent={null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
     )
+    center = <ConversationStageCenter placement="docked" main={null} composer={composer} />
+  } else if (!sessionSnapshot) {
+    center = <ConversationCenterState state="empty" />
+  } else {
+    topBar = (
+      <AgentChatNavbar
+        className="min-w-0"
+        activeAgent={activeAgent ?? null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    )
+    center = (
+      <AgentChatSessionFrame
+        key={sessionSnapshot.id}
+        session={sessionSnapshot}
+        homeWelcomeText={t('agent.home.welcome_title')}
+        agentId={sendableAgentId}
+        activeAgent={activeAgent}
+        isMultiSelectMode={isMultiSelectMode}
+        sessionMessagesEnabled={sessionMessagesEnabled}
+        sessionHistoryFetchOnMount={shouldFetchSessionHistoryOnMount}
+        onOpenCitationsPanel={handleOpenCitationsPanel}
+        locateMessageId={locateMessageId}
+        onLocateMessageHandled={onLocateMessageHandled}
+        onWorkspaceChange={onSessionWorkspaceChange}
+        workspaceChanging={replacingSessionWorkspace}
+        onCreateEmptySession={
+          sessionAgentId && onCreateEmptySession
+            ? () =>
+                onCreateEmptySession({
+                  agentId: sessionAgentId,
+                  ...getNewSessionWorkspaceDefaults(sessionSnapshot)
+                })
+            : undefined
+        }
+      />
+    )
+    sidePanel = (
+      <CitationsPanel
+        open={citationsPanelOpen}
+        onClose={() => setCitationPanelCitations(null)}
+        citations={citationPanelCitations ?? []}
+      />
+    )
+    centerClassName = 'transform-[translateZ(0)] relative justify-between'
   }
 
-  if (!sessionSnapshot) {
-    if (hasLockedSession) {
-      return (
-        <ConversationShell
-          className={messageStyle}
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          onPaneCollapse={onPaneCollapse}
-          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-          center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
-        />
-      )
-    }
-    if (missingAgentSelection) {
-      const composer = !isMultiSelectMode ? (
-        <MissingAgentHomeComposer
-          onAgentChange={onMissingAgentSelectionAgentChange}
-          agentChanging={selectingMissingAgent}
-        />
-      ) : undefined
-
-      const shell = (
-        <ConversationShell
-          className={messageStyle}
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          onPaneCollapse={onPaneCollapse}
-          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-          topBar={
-            <AgentChatNavbar
-              activeAgent={null}
-              showSidebarControls={showResourceListControls}
-              sidebarOpen={sidebarOpen}
-              onSidebarToggle={onSidebarToggle}
-            />
-          }
-          topRightTool={resourcePaneTopRightTool}
-          showTopRightToolWhenPaneOpen
-          center={<ConversationStageCenter placement="docked" main={null} composer={composer} />}
-          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
-          rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
-        />
-      )
-      if (!resourcePane) return shell
-      return (
-        <AgentRightPane
-          filesEnabled={false}
-          statusEnabled={false}
-          messages={EMPTY_MESSAGES}
-          partsByMessageId={EMPTY_PARTS}
-          defaultOpen={sessionPaneOpen}
-          onOpenChange={onSessionPaneOpenChange}
-          resourcePane={resourcePane}
-          revealRequest={resourcePaneRevealRequest}>
-          {shell}
-        </AgentRightPane>
-      )
-    }
-    return (
+  return (
+    <AgentRightPane
+      conversationState={conversationState}
+      workspaceId={sessionSnapshot?.workspaceId}
+      workspacePath={sessionSnapshot?.workspace?.path}
+      messages={EMPTY_MESSAGES}
+      partsByMessageId={EMPTY_PARTS}
+      sessionId={sessionSnapshot?.id}
+      sessionName={sessionSnapshot?.name}
+      traceId={sessionSnapshot?.traceId ?? undefined}
+      agentId={sessionSnapshot?.agentId ?? undefined}
+      agentName={activeAgent?.name}
+      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      present={!centerSurface}
+      defaultOpen={sessionPaneOpen}
+      onOpenChange={onSessionPaneOpenChange}
+      resourcePane={resourcePane}
+      revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
-        className={messageStyle}
+        className={cn(messageStyle, {
+          'multi-select-mode': Boolean(!centerSurface && sessionSnapshot && isMultiSelectMode)
+        })}
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
         onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-        center={<ConversationCenterState state="empty" />}
+        topBar={topBar}
+        topRightTool={rightPaneTools}
+        showTopRightToolWhenPaneOpen
+        center={center}
+        sidePanel={sidePanel}
+        rightPane={<AgentRightPane.Viewport />}
+        centerId={centerSurface?.id}
+        centerRef={centerSurface?.ref}
+        centerClassName={centerClassName}
       />
-    )
-  }
-
-  const sessionAgentId = sessionSnapshot.agentId ?? null
-  const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
-  const shouldFetchSessionHistoryOnMount =
-    activeSessionSource === 'query' ||
-    activeSessionSource === 'pending' ||
-    (!!activeSession && activeSessionSource === 'none')
-  const sessionMessagesEnabled = !!activeSession && activeSession.id === sessionSnapshot.id
-  return (
-    <AgentChatSessionFrame
-      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
-      pane={pane}
-      paneOpen={paneOpen}
-      panePosition={panePosition}
-      showResourceListControls={showResourceListControls}
-      sidebarOpen={sidebarOpen}
-      onSidebarToggle={onSidebarToggle}
-      session={sessionSnapshot}
-      homeWelcomeText={t('agent.home.welcome_title')}
-      agentId={sendableAgentId}
-      activeAgent={activeAgent}
-      isMultiSelectMode={isMultiSelectMode}
-      sessionMessagesEnabled={sessionMessagesEnabled}
-      sessionHistoryFetchOnMount={shouldFetchSessionHistoryOnMount}
-      onOpenCitationsPanel={handleOpenCitationsPanel}
-      locateMessageId={locateMessageId}
-      onLocateMessageHandled={onLocateMessageHandled}
-      onPaneCollapse={onPaneCollapse}
-      onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-      resourcePane={resourcePane}
-      resourcePaneCount={resourcePaneCount}
-      resourcePaneRevealRequest={resourcePaneRevealRequest}
-      sessionPaneOpen={sessionPaneOpen}
-      onSessionPaneOpenChange={onSessionPaneOpenChange}
-      onWorkspaceChange={onSessionWorkspaceChange}
-      workspaceChanging={replacingSessionWorkspace}
-      onCreateEmptySession={
-        sessionAgentId && onCreateEmptySession
-          ? () =>
-              onCreateEmptySession({
-                agentId: sessionAgentId,
-                ...getNewSessionWorkspaceDefaults(sessionSnapshot)
-              })
-          : undefined
-      }
-      sidePanel={
-        <CitationsPanel
-          open={citationsPanelOpen}
-          onClose={() => setCitationPanelCitations(null)}
-          citations={citationPanelCitations ?? []}
-        />
-      }
-    />
+    </AgentRightPane>
   )
 }
 
 // ── Inner: mounted only when agentId + sessionId are resolved ──
 
 interface AgentChatSessionFrameProps {
-  className?: string
-  pane?: ReactNode
-  paneOpen?: boolean
-  panePosition?: ChatPanePosition
-  showResourceListControls?: boolean
-  sidebarOpen?: boolean
-  onSidebarToggle?: () => void
-  sidePanel?: ReactNode
   session: AgentSessionEntity
   homeWelcomeText?: string
   agentId?: string
@@ -318,27 +281,12 @@ interface AgentChatSessionFrameProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   locateMessageId?: string
   onLocateMessageHandled?: () => void
-  onPaneCollapse?: () => void
-  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onCreateEmptySession?: () => void | Promise<unknown>
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
-  resourcePane?: ResourcePaneConfig | null
-  resourcePaneCount?: ResourcePaneCountButtonProps
-  resourcePaneRevealRequest?: ResourceListRevealRequest
-  sessionPaneOpen?: boolean
-  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChatSessionFrame = ({
-  className,
-  pane,
-  paneOpen,
-  panePosition,
-  showResourceListControls = true,
-  sidebarOpen,
-  onSidebarToggle,
-  sidePanel,
   session,
   homeWelcomeText,
   agentId,
@@ -349,16 +297,9 @@ const AgentChatSessionFrame = ({
   onOpenCitationsPanel,
   locateMessageId,
   onLocateMessageHandled,
-  onPaneCollapse,
-  onPaneAutoCollapseChange,
   onCreateEmptySession,
   onWorkspaceChange,
-  workspaceChanging,
-  resourcePane,
-  resourcePaneCount,
-  resourcePaneRevealRequest,
-  sessionPaneOpen,
-  onSessionPaneOpenChange
+  workspaceChanging
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
@@ -448,58 +389,9 @@ const AgentChatSessionFrame = ({
   )
 
   return (
-    <AgentRightPane
-      workspaceId={session.workspaceId}
-      workspacePath={session.workspace?.path}
-      messages={runtime.uiMessages}
-      partsByMessageId={runtime.partsByMessageId}
-      sessionId={runtime.sessionId}
-      sessionName={session.name}
-      traceId={session.traceId ?? undefined}
-      agentId={agentId ?? session.agentId ?? undefined}
-      agentName={activeAgent?.name}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-      defaultOpen={sessionPaneOpen}
-      onOpenChange={onSessionPaneOpenChange}
-      resourcePane={resourcePane}
-      revealRequest={resourcePaneRevealRequest}>
-      <ConversationShell
-        className={className}
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        onPaneCollapse={onPaneCollapse}
-        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-        topBar={
-          <AgentChatNavbar
-            className="min-w-0"
-            activeAgent={activeAgent ?? null}
-            showSidebarControls={showResourceListControls}
-            sidebarOpen={sidebarOpen}
-            onSidebarToggle={onSidebarToggle}
-          />
-        }
-        topRightTool={
-          <>
-            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
-            <AgentRightPane.Shortcuts />
-          </>
-        }
-        showTopRightToolWhenPaneOpen
-        center={
-          <ConversationStageCenter
-            placement="docked"
-            main={main}
-            composer={composer}
-            homeWelcomeText={homeWelcomeText}
-          />
-        }
-        sidePanel={sidePanel}
-        centerOverlay={<AgentRightPane.MaximizedOverlay />}
-        rightPane={<AgentRightPane.Host />}
-        centerClassName="transform-[translateZ(0)] relative justify-between"
-      />
-    </AgentRightPane>
+    <AgentRightPane.Runtime messages={runtime.uiMessages} partsByMessageId={runtime.partsByMessageId}>
+      <ConversationStageCenter placement="docked" main={main} composer={composer} homeWelcomeText={homeWelcomeText} />
+    </AgentRightPane.Runtime>
   )
 }
 

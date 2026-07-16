@@ -55,13 +55,19 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
 vi.mock('../../../shell/RightPaneHost', () => ({
   RightPaneHost: ({
     children,
+    keepMounted,
     open,
+    maximized,
+    maximizedBottomInset,
     reservedCenterWidth,
     onReservedSpaceUnavailable,
     style
   }: {
     children?: ReactNode
+    keepMounted?: boolean
     open?: boolean
+    maximized?: boolean
+    maximizedBottomInset?: number
     reservedCenterWidth?: number
     onReservedSpaceUnavailable?: () => void
     style?: CSSProperties
@@ -81,7 +87,17 @@ vi.mock('../../../shell/RightPaneHost', () => ({
         <button type="button" onClick={onReservedSpaceUnavailable}>
           reserved space unavailable
         </button>
-        {open ? children : null}
+        {open || keepMounted ? (
+          <div
+            data-shell-maximized-overlay-content={maximized ? '' : undefined}
+            style={
+              maximized && maximizedBottomInset
+                ? { height: `max(0px, calc(100% - ${maximizedBottomInset}px))` }
+                : undefined
+            }>
+            {children}
+          </div>
+        ) : null}
       </section>
     )
   }
@@ -450,6 +466,43 @@ describe('Shell.Toggle', () => {
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
   })
 
+  it('flags a pending layout animation across maximize and minimize requests', () => {
+    function LayoutPendingProbe() {
+      const state = useShellState()
+      const actions = useShellActions()
+
+      return (
+        <div>
+          <output data-testid="layout-pending">{String(state.layoutAnimationPending)}</output>
+          <button type="button" onClick={actions.refreshPdfLayout}>
+            complete layout
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <Shell defaultOpen defaultTab="files">
+        <ToggleMaximizedButton />
+        <ShellMinimizeButton />
+        <LayoutPendingProbe />
+      </Shell>
+    )
+    expect(screen.getByTestId('layout-pending')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'toggle maximized' }))
+    expect(screen.getByTestId('layout-pending')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'complete layout' }))
+    expect(screen.getByTestId('layout-pending')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'minimize shell' }))
+    expect(screen.getByTestId('layout-pending')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'complete layout' }))
+    expect(screen.getByTestId('layout-pending')).toHaveTextContent('false')
+  })
+
   it('does not respond to the right sidebar shortcut when disabled', () => {
     render(
       <Shell defaultTab="files">
@@ -549,14 +602,14 @@ describe('Shell.TabShortcut', () => {
   })
 })
 
-describe('Shell.Host', () => {
+describe('Shell.Viewport', () => {
   it('caps the docked right pane width so the conversation center keeps its minimum usable width', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" />
-        <Shell.Host>
+        <Shell.Viewport>
           <div>files pane</div>
-        </Shell.Host>
+        </Shell.Viewport>
       </Shell>
     )
 
@@ -572,13 +625,13 @@ describe('Shell.Host', () => {
     )
   })
 
-  it('closes the docked pane when the reserved center space is unavailable', () => {
+  it('does not turn a layout constraint into a user close', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" />
-        <Shell.Host>
+        <Shell.Viewport>
           <div>files pane</div>
-        </Shell.Host>
+        </Shell.Viewport>
         <ShellStateSnapshot />
       </Shell>
     )
@@ -589,18 +642,18 @@ describe('Shell.Host', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'reserved space unavailable' }))
 
-    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
   })
 
-  it('closes the docked pane when reserved center space is unavailable during the host mount effect', async () => {
+  it('keeps open intent when reserved space is unavailable during mount', async () => {
     rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = true
 
     render(
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" />
-        <Shell.Host>
+        <Shell.Viewport>
           <div>files pane</div>
-        </Shell.Host>
+        </Shell.Viewport>
         <ShellStateSnapshot />
       </Shell>
     )
@@ -608,7 +661,7 @@ describe('Shell.Host', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+      expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
     })
   })
 })
@@ -743,7 +796,7 @@ describe('Shell.TabList', () => {
   })
 })
 
-describe('Shell.MaximizedOverlay', () => {
+describe('Shell.Viewport', () => {
   it('reserves the measured composer bottom inset while maximized', async () => {
     const { container } = render(
       <ChatMaximizedOverlayInsetProvider>
@@ -751,9 +804,9 @@ describe('Shell.MaximizedOverlay', () => {
           <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
           <ToggleMaximizedButton />
           <SetMaximizedOverlayBottomInset value={128} />
-          <Shell.MaximizedOverlay>
+          <Shell.Viewport>
             <div>maximized content</div>
-          </Shell.MaximizedOverlay>
+          </Shell.Viewport>
         </Shell>
       </ChatMaximizedOverlayInsetProvider>
     )

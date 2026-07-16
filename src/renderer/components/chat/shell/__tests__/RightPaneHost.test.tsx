@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useAnimationControls } from 'motion/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -66,7 +68,18 @@ vi.mock('motion/react', () => ({
         </div>
       )
     }
-  }
+  },
+  // Real motion returns one stable controls instance per component; a fresh object
+  // per render would re-run the host's cleanup effect and cancel in-flight phases.
+  useAnimationControls: (() => {
+    const controls = {
+      set: vi.fn(),
+      start: vi.fn(() => Promise.resolve()),
+      stop: vi.fn()
+    }
+    return () => controls
+  })(),
+  useReducedMotion: () => true
 }))
 
 describe('RightPaneHost', () => {
@@ -220,6 +233,160 @@ describe('RightPaneHost', () => {
     fireEvent.animationEnd(pane)
 
     expect(onOpenAnimationComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps one child instance across closed, docked, and maximized layouts', async () => {
+    const lifecycle: string[] = []
+
+    function StatefulPane() {
+      const [count, setCount] = useState(0)
+
+      useEffect(() => {
+        lifecycle.push('mount')
+        return () => {
+          lifecycle.push('unmount')
+        }
+      }, [])
+
+      return (
+        <button type="button" onClick={() => setCount((current) => current + 1)}>
+          pane state {count}
+        </button>
+      )
+    }
+
+    const { container, rerender } = render(
+      <div className="relative">
+        <RightPaneHost keepMounted open width={460}>
+          <StatefulPane />
+        </RightPaneHost>
+      </div>
+    )
+    const pane = screen.getByRole('button', { name: 'pane state 0' })
+    fireEvent.click(pane)
+
+    rerender(
+      <div className="relative">
+        <RightPaneHost keepMounted open={false} width={460}>
+          <StatefulPane />
+        </RightPaneHost>
+      </div>
+    )
+
+    await waitFor(() => expect(container.querySelector('[data-right-pane]')).toHaveAttribute('inert'))
+    // The fully closed pane is visibility:hidden, which strips accessible names —
+    // query by text (visibility-agnostic) to assert the same instance survived.
+    expect(screen.getByText('pane state 1', { selector: 'button' })).toBe(pane)
+
+    rerender(
+      <div className="relative">
+        <RightPaneHost keepMounted open maximized width={460}>
+          <StatefulPane />
+        </RightPaneHost>
+      </div>
+    )
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    expect(screen.getByRole('button', { name: 'pane state 1' })).toBe(pane)
+    expect(lifecycle).toEqual(['mount'])
+  })
+
+  it('wipes between the docked strip and full width without blanking the pane', async () => {
+    const controls = useAnimationControls() as unknown as {
+      set: ReturnType<typeof vi.fn>
+      start: ReturnType<typeof vi.fn>
+    }
+    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
+    const { container, rerender } = render(
+      <div className="relative">
+        <RightPaneHost keepMounted open width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      </div>
+    )
+    controls.set.mockClear()
+    controls.start.mockClear()
+
+    rerender(
+      <div className="relative">
+        <RightPaneHost keepMounted open maximized width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      </div>
+    )
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    // Maximize from docked starts the wipe at the strip the pane already occupies.
+    expect(controls.set).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+    expect(controls.set).not.toHaveBeenCalledWith(expect.objectContaining({ clipPath: 'inset(0% 0% 0% 100%)' }))
+
+    controls.set.mockClear()
+    controls.start.mockClear()
+
+    rerender(
+      <div className="relative">
+        <RightPaneHost keepMounted open width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      </div>
+    )
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
+    )
+    // Minimize wipes down to that same strip instead of collapsing to nothing.
+    expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+  })
+
+  it('wipes between the docked strip and full width without blanking the pane', async () => {
+    const controls = useAnimationControls() as unknown as {
+      set: ReturnType<typeof vi.fn>
+      start: ReturnType<typeof vi.fn>
+    }
+    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
+    const { container, rerender } = render(
+      <div className="relative">
+        <RightPaneHost keepMounted open width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      </div>
+    )
+    controls.set.mockClear()
+    controls.start.mockClear()
+
+    rerender(
+      <div className="relative">
+        <RightPaneHost keepMounted open maximized width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      </div>
+    )
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    // Maximize from docked starts the wipe at the strip the pane already occupies.
+    expect(controls.set).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+    expect(controls.set).not.toHaveBeenCalledWith(expect.objectContaining({ clipPath: 'inset(0% 0% 0% 100%)' }))
+
+    controls.set.mockClear()
+    controls.start.mockClear()
+
+    rerender(
+      <div className="relative">
+        <RightPaneHost keepMounted open width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      </div>
+    )
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
+    )
+    // Minimize shrinks down to the docked strip, never through a fully collapsed clip.
+    expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
   })
 
   it('commits the final drag width once on mouse up and cleans document resize styles', () => {

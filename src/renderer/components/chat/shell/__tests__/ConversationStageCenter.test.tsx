@@ -7,6 +7,9 @@ import ConversationStageCenter from '../ConversationStageCenter'
 const optionalShellState = vi.hoisted(() => ({
   value: undefined as { maximized: boolean } | undefined
 }))
+const optionalPresentationState = vi.hoisted(() => ({
+  value: undefined as { presentationMaximized: boolean } | undefined
+}))
 
 interface MockStageProps {
   placement: string
@@ -32,12 +35,14 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
+  useOptionalRightPanelState: () => optionalPresentationState.value,
   useOptionalShellState: () => optionalShellState.value
 }))
 
 describe('ConversationStageCenter', () => {
   beforeEach(() => {
     optionalShellState.value = undefined
+    optionalPresentationState.value = undefined
   })
 
   it('provides the shared full-height center frame around the composer stage', () => {
@@ -70,5 +75,15 @@ describe('ConversationStageCenter', () => {
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
     expect(screen.getByTestId('stage-main')).toHaveTextContent('messages')
+  })
+
+  it('uses effective presentation state while maximized intent is temporarily hidden', () => {
+    optionalShellState.value = { maximized: true }
+    optionalPresentationState.value = { presentationMaximized: false }
+
+    render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
+
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'false')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'true')
   })
 })

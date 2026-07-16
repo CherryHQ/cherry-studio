@@ -1,14 +1,17 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
+  defineRightPanelCapabilities,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
-  ResourcePanePanel,
   ResourcePaneProvider,
-  ResourcePaneTab,
+  RightPanel,
+  type RightPanelComponentProps,
+  RightPanelProvider,
+  RightPanelShortcut,
   Shell,
-  useResourcePane,
-  useShellActions,
+  useRightPanelActions,
+  useRightPanelState,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
@@ -18,19 +21,34 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TopicBranchPanel from './TopicBranchPanel'
 
-interface TopicRightPaneSurfaceProps {
+interface TopicRightPaneMeta {
   topicId?: string
   topicName?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
   traceId?: string
+}
+
+export interface TopicRightPaneViewportCallbacks {
   onLocateMessage?: (messageId: string) => void
   onStartBranchDraft?: (messageId: string) => Promise<void> | void
   onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
+}
+
+export interface TopicRightPaneViewportBridge {
+  viewportCallbacks: TopicRightPaneViewportCallbacks
+  setViewportCallbacks: (callbacks: TopicRightPaneViewportCallbacks | null) => void
+}
+
+interface TopicRightPanelScope extends TopicRightPaneMeta {
+  branchTitle: string
+  developerMode: boolean
+  resourcePane: ResourcePaneConfig | null
+  traceTitle: string
 }
 
 type TopicBranchLiveStateSetter = (topicId: string, state: TopicMessageFlowLiveState | null) => void
@@ -78,11 +96,35 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 }
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
+const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
 
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane>')
   return store
+}
+
+function useTopicRightPaneViewport(): TopicRightPaneViewportCallbacks {
+  const value = use(TopicRightPaneViewportContext)
+  if (!value) throw new Error('useTopicRightPaneViewport must be used within <TopicRightPane.Viewport>')
+  return value
+}
+
+export function useTopicRightPaneViewportBridge(): TopicRightPaneViewportBridge {
+  const callbacksRef = useRef<TopicRightPaneViewportCallbacks>({})
+  const setViewportCallbacks = useCallback((callbacks: TopicRightPaneViewportCallbacks | null) => {
+    callbacksRef.current = callbacks ?? {}
+  }, [])
+  const viewportCallbacks = useMemo<TopicRightPaneViewportCallbacks>(
+    () => ({
+      onLocateMessage: (messageId) => callbacksRef.current.onLocateMessage?.(messageId),
+      onStartBranchDraft: (messageId) => callbacksRef.current.onStartBranchDraft?.(messageId),
+      onCancelBranchDraft: (nextActiveNodeId) => callbacksRef.current.onCancelBranchDraft?.(nextActiveNodeId)
+    }),
+    []
+  )
+
+  return useMemo(() => ({ viewportCallbacks, setViewportCallbacks }), [setViewportCallbacks, viewportCallbacks])
 }
 
 export function useTopicBranchLiveStateSetter(): TopicBranchLiveStateSetter {
@@ -97,173 +139,185 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
+function TopicResourceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  return scope.resourcePane?.node ?? null
+}
+
+function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  const shellState = useShellState()
+  const branchLiveState = useTopicBranchLiveState(scope.topicId ?? '')
+  const callbacks = useTopicRightPaneViewport()
+  const canvasFocusKey = `${scope.topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
+  const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
+
+  if (!scope.topicId) return null
+
+  return (
+    <TopicBranchPanel
+      open={active}
+      topicId={scope.topicId}
+      topicName={scope.topicName}
+      liveState={branchLiveState}
+      focusKey={canvasFocusKey}
+      layoutReady={canvasLayoutReady}
+      onLocateMessage={callbacks.onLocateMessage}
+      onStartBranchDraft={callbacks.onStartBranchDraft}
+      onCancelBranchDraft={callbacks.onCancelBranchDraft}
+    />
+  )
+}
+
+function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  return <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} active={active} />
+}
+
+/** Stable capability declarations; catalog order is the fallback order. */
+const TOPIC_RIGHT_PANEL_CAPABILITIES = defineRightPanelCapabilities<TopicRightPanelScope>()([
+  {
+    component: TopicResourceRightPanel,
+    resolve: (scope) => [
+      {
+        id: RESOURCE_PANE_TAB,
+        instanceKey: RESOURCE_PANE_TAB,
+        title: scope.resourcePane?.label ?? '',
+        readiness: scope.resourcePane ? 'ready' : 'unavailable'
+      }
+    ]
+  },
+  {
+    component: TopicBranchRightPanel,
+    resolve: (scope) => [
+      {
+        id: 'branch',
+        instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
+        title: scope.branchTitle,
+        readiness: scope.topicId ? 'ready' : 'unavailable'
+      }
+    ]
+  },
+  {
+    component: TopicTraceRightPanel,
+    resolve: (scope) => [
+      {
+        id: 'trace',
+        instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
+        title: scope.traceTitle,
+        readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
+      }
+    ]
+  }
+])
+
 function TopicRightPaneProvider({
   children,
   resourcePane,
+  topicId,
+  topicName,
+  traceId,
+  present = true,
   defaultOpen = false,
   onOpenChange,
   revealRequest
-}: PropsWithChildren<{
-  resourcePane?: ResourcePaneConfig | null
-  defaultOpen?: boolean
-  onOpenChange?: (open: boolean) => void
-  revealRequest?: ResourceListRevealRequest
-}>) {
+}: PropsWithChildren<
+  TopicRightPaneMeta & {
+    resourcePane?: ResourcePaneConfig | null
+    present?: boolean
+    defaultOpen?: boolean
+    onOpenChange?: (open: boolean) => void
+    revealRequest?: ResourceListRevealRequest
+  }
+>) {
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
-  const shellModeKey = resourcePane ? 'resource-pane' : 'branch-pane'
+  const scope = useMemo<TopicRightPanelScope>(
+    () => ({
+      topicId,
+      topicName,
+      traceId,
+      resourcePane: resourcePane ?? null,
+      developerMode: enableDeveloperMode,
+      branchTitle: t('chat.message.flow.title'),
+      traceTitle: t('trace.label')
+    }),
+    [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
+  )
 
   return (
-    <Shell
-      key={shellModeKey}
-      defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'branch'}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}>
+    <Shell defaultTab={RESOURCE_PANE_TAB} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
-        <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+        <RightPanelProvider capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES} scope={scope} present={present}>
+          <ResourcePaneLocateOpener revealRequest={revealRequest} />
+          <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+        </RightPanelProvider>
       </ResourcePaneProvider>
     </Shell>
   )
 }
 
-function TopicRightPaneKeyboardShortcut({ hasBranchPanel }: { hasBranchPanel: boolean }) {
-  const resourcePane = useResourcePane()
-  const { open } = useShellState()
-  const actions = useShellActions()
+function TopicRightPaneKeyboardShortcut() {
+  const state = useRightPanelState()
+  const actions = useRightPanelActions()
   const isActiveTab = useIsActiveTab()
-  const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'branch'
-  const enabled = isActiveTab && Boolean(resourcePane || hasBranchPanel)
+  const targetPanelId = state.defaultPanelId
+  const enabled = state.presentationEnabled && isActiveTab && Boolean(targetPanelId && actions.canOpen(targetPanelId))
   const handleToggle = useCallback(() => {
-    if (open) {
+    if (state.presentationOpen) {
       actions.close()
       return
     }
-    actions.openTab(targetTab)
-  }, [actions, open, targetTab])
+    if (targetPanelId) actions.tryOpen(targetPanelId)
+  }, [actions, state.presentationOpen, targetPanelId])
 
   useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
 
   return null
 }
 
-function TopicRightPaneSurface({
-  topicId,
-  topicName,
-  traceId,
+function TopicRightPaneViewport({
   onLocateMessage,
   onStartBranchDraft,
   onCancelBranchDraft
-}: TopicRightPaneSurfaceProps) {
+}: TopicRightPaneViewportCallbacks) {
+  const { presentationOpen } = useRightPanelState()
+  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(
+    () => ({ onLocateMessage, onStartBranchDraft, onCancelBranchDraft }),
+    [onCancelBranchDraft, onLocateMessage, onStartBranchDraft]
+  )
+
+  return (
+    <TopicRightPaneViewportContext value={callbacks}>
+      <TopicRightPaneKeyboardShortcut />
+      <Shell.Viewport open={presentationOpen}>
+        <RightPanel />
+      </Shell.Viewport>
+    </TopicRightPaneViewportContext>
+  )
+}
+
+function TopicRightPaneShortcuts() {
   const { t } = useTranslation()
-  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const shellState = useShellState()
-  const resourcePane = useResourcePane()
-  const hasBranchPanel = !!topicId
-  const branchLiveState = useTopicBranchLiveState(topicId ?? '')
-  const canvasFocusKey = `${topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
-  const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
-  const handleLocateMessage = useCallback(
-    (messageId: string) => {
-      onLocateMessage?.(messageId)
-    },
-    [onLocateMessage]
-  )
-  const activeTitle =
-    shellState.activeTab === RESOURCE_PANE_TAB && resourcePane
-      ? resourcePane.label
-      : shellState.activeTab === 'trace'
-        ? t('trace.label')
-        : t('chat.message.flow.title')
-
-  return (
-    <Shell.Tabs>
-      <Shell.TabList title={activeTitle} showTabs={false}>
-        <ResourcePaneTab />
-        {hasBranchPanel && (
-          <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
-            {t('chat.message.flow.title')}
-          </Shell.Tab>
-        )}
-        {hasBranchPanel && enableDeveloperMode && (
-          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />}>
-            {t('trace.label')}
-          </Shell.Tab>
-        )}
-      </Shell.TabList>
-      <ResourcePanePanel />
-      {hasBranchPanel && (
-        <Shell.Panel value="branch">
-          <TopicBranchPanel
-            open
-            topicId={topicId}
-            topicName={topicName}
-            liveState={branchLiveState}
-            focusKey={canvasFocusKey}
-            layoutReady={canvasLayoutReady}
-            onLocateMessage={handleLocateMessage}
-            onStartBranchDraft={onStartBranchDraft}
-            onCancelBranchDraft={onCancelBranchDraft}
-          />
-        </Shell.Panel>
-      )}
-      {hasBranchPanel && enableDeveloperMode && (
-        <Shell.Panel value="trace">
-          <TracePane payload={{ topicId: topicId ?? '', traceId: traceId ?? '' }} />
-        </Shell.Panel>
-      )}
-    </Shell.Tabs>
-  )
-}
-
-function TopicRightPaneHost(props: TopicRightPaneSurfaceProps) {
-  return (
-    <>
-      <TopicRightPaneKeyboardShortcut hasBranchPanel={Boolean(props.topicId)} />
-      <Shell.Host>
-        <TopicRightPaneSurface {...props} />
-      </Shell.Host>
-    </>
-  )
-}
-
-function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
-  return (
-    <Shell.MaximizedOverlay>
-      <TopicRightPaneSurface {...props} />
-    </Shell.MaximizedOverlay>
-  )
-}
-
-function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
-  const { t } = useTranslation()
-  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const hasBranchPanel = !!topicId
 
   return (
     <>
-      {hasBranchPanel && (
-        <Shell.TabShortcut
-          tab="branch"
-          label={t('chat.message.flow.title')}
-          icon={<GitBranch className="size-3.5" />}
-          openBehavior="toggle-active"
-        />
-      )}
-      {hasBranchPanel && enableDeveloperMode && (
-        <Shell.TabShortcut
-          tab="trace"
-          label={t('trace.label')}
-          icon={<Activity className="size-3.5" />}
-          openBehavior="toggle-active"
-        />
-      )}
+      <RightPanelShortcut
+        tab="branch"
+        label={t('chat.message.flow.title')}
+        icon={<GitBranch className="size-3.5" />}
+        openBehavior="toggle-active"
+      />
+      <RightPanelShortcut
+        tab="trace"
+        label={t('trace.label')}
+        icon={<Activity className="size-3.5" />}
+        openBehavior="toggle-active"
+      />
     </>
   )
 }
 
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
-  Host: TopicRightPaneHost,
-  MaximizedOverlay: TopicRightPaneMaximizedOverlay,
+  Viewport: TopicRightPaneViewport,
   Shortcuts: TopicRightPaneShortcuts
 })

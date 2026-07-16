@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
+import { useOptionalShellState } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
@@ -24,6 +25,7 @@ interface ChatAppShellBaseProps {
   centerOverlay?: ReactNode
   /** Overlay scoped to the center area but rendered above the center's transform/stacking layer. */
   centerTopOverlay?: ReactNode
+  rightPane?: ReactNode
   overlay?: ReactNode
   rootId?: string
   rootClassName?: string
@@ -73,6 +75,7 @@ export function ChatAppShell({
   sidePanel,
   centerOverlay,
   centerTopOverlay,
+  rightPane,
   overlay,
   rootId,
   rootClassName,
@@ -85,6 +88,11 @@ export function ChatAppShell({
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
+  const shellState = useOptionalShellState()
+  // While the right pane maximizes/minimizes, its docked spacer snaps under the
+  // covering surface; a FLIP layout animation would smear that snap across the
+  // wipe as visible scale distortion, so the center reflows instantly instead.
+  const centerTransition = shellState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const rootRef = useRef<HTMLDivElement>(null)
   const centerInnerRef = useRef<HTMLDivElement | null>(null)
   const leftPaneOpenRef = useRef(leftPaneOpen)
@@ -194,32 +202,36 @@ export function ChatAppShell({
           {pane}
         </PageSidebar>
 
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          <motion.div
-            ref={assignCenterRef}
-            data-chat-app-shell-center
-            id={centerId}
-            layout
-            transition={CHAT_SHELL_TRANSITION}
-            className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
-            {topBar && (
-              <div className="relative z-10 shrink-0 bg-background">
-                <ErrorBoundary>{topBar}</ErrorBoundary>
-              </div>
-            )}
-            {hasCenterContent ? (
-              <ErrorBoundary>{centerContent}</ErrorBoundary>
-            ) : (
-              <>
-                <ErrorBoundary>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                </ErrorBoundary>
-                {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-              </>
-            )}
-            {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
-          </motion.div>
-          {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+        <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            <motion.div
+              ref={assignCenterRef}
+              data-chat-app-shell-center
+              id={centerId}
+              layout
+              transition={centerTransition}
+              className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
+              {topBar && (
+                <div className="relative z-10 shrink-0 bg-background">
+                  <ErrorBoundary>{topBar}</ErrorBoundary>
+                </div>
+              )}
+              {hasCenterContent ? (
+                <ErrorBoundary>{centerContent}</ErrorBoundary>
+              ) : (
+                <>
+                  <ErrorBoundary>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                  </ErrorBoundary>
+                  {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+                </>
+              )}
+              {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
+            </motion.div>
+            {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+          </div>
+
+          {rightPane}
         </div>
 
         <RightPaneHost open={paneOpen && panePosition === 'right'}>{pane}</RightPaneHost>

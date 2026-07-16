@@ -19,8 +19,7 @@ const activeAgentMock = vi.hoisted(() => ({
 const agentRightPanePropsMock = vi.hoisted(() => ({
   last: undefined as any,
   openAgentToolFlow: vi.fn(),
-  openArtifactFile: vi.fn(),
-  openTrace: vi.fn()
+  openArtifactFile: vi.fn()
 }))
 const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
@@ -78,9 +77,9 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+  RightPaneHost: ({ children, keepMounted, open }: PropsWithChildren<{ keepMounted?: boolean; open?: boolean }>) => (
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
-      {open ? children : null}
+      {open || keepMounted ? children : null}
     </div>
   )
 }))
@@ -95,7 +94,8 @@ vi.mock('@renderer/components/chat/panes/Shell/Shell', () => ({
     open: false,
     pdfLayoutPending: false,
     pdfLayoutRefreshKey: 0
-  })
+  }),
+  useOptionalRightPanelState: () => undefined
 }))
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
@@ -108,7 +108,8 @@ vi.mock('@renderer/components/chat/panes/Shell', () => ({
     open: false,
     pdfLayoutPending: false,
     pdfLayoutRefreshKey: 0
-  })
+  }),
+  useOptionalRightPanelState: () => undefined
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -220,27 +221,19 @@ vi.mock('../components/AgentRightPane', () => {
       return <div data-testid="agent-right-pane">{children}</div>
     },
     {
-      Host: () => <div data-testid="agent-right-pane-host" />,
-      MaximizedOverlay: () => <div data-testid="agent-right-pane-overlay" />,
-      FilesToggle: ({ disabled }: { disabled?: boolean }) => (
-        <button type="button" disabled={disabled}>
-          Files
-        </button>
-      ),
-      Shortcuts: ({ disabled }: { disabled?: boolean }) => (
-        <button type="button" disabled={disabled}>
-          Shortcuts
-        </button>
-      )
+      Runtime: ({ children }: PropsWithChildren) => <>{children}</>,
+      Viewport: () => <div data-testid="agent-right-pane-viewport" />,
+      Shortcuts: () => <button type="button">Shortcuts</button>
     }
   )
 
   return {
     AgentRightPane: MockAgentRightPane,
     useAgentRightPaneActions: () => ({
+      canOpenAgentToolFlow: true,
+      canOpenArtifactFile: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
-      openTrace: agentRightPanePropsMock.openTrace
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile
     })
   }
 })
@@ -305,7 +298,6 @@ describe('AgentChat settings panel', () => {
     conversationShellPropsMock.last = undefined
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
-    agentRightPanePropsMock.openTrace.mockReset()
     toolApprovalRespondMock.mockReset()
     toolApprovalRespondMock.mockResolvedValue({ ok: true })
     agentSessionRefreshMock.mockReset()

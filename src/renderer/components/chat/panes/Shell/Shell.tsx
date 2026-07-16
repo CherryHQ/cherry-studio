@@ -6,7 +6,6 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { Maximize2, Minimize2, X } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +28,8 @@ export interface ShellState {
   open: boolean
   maximized: boolean
   activeTab: string
+  /** True from a maximize/minimize request until the viewport's layout animation completes. */
+  layoutAnimationPending: boolean
   pdfLayoutPending: boolean
   pdfLayoutRefreshKey: number
 }
@@ -38,6 +39,7 @@ export interface ShellActions {
   finishClose: () => void
   minimize: () => void
   openTab: (tab: string) => void
+  reconcileTab: (tab: string) => void
   toggleMaximized: () => void
   refreshPdfLayout: () => void
 }
@@ -89,15 +91,15 @@ function ShellProvider({
   defaultTab: string
   defaultOpen?: boolean
   /**
-   * Notified whenever the pane opens/closes. Owners that remount this provider across UI branches
-   * (e.g. the agent chat's draft→persistent handoff) use it to persist the open state into
-   * `defaultOpen` so the pane survives the remount instead of snapping shut.
+   * Notified for explicit shell open/close changes. Capability reconciliation
+   * changes only the selected tab and never reports a synthetic close.
    */
   onOpenChange?: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
   const [activeTab, setActiveTab] = useState(defaultTab)
+  const [layoutAnimationPending, setLayoutAnimationPending] = useState(false)
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const openRef = useRef(open)
@@ -114,6 +116,8 @@ function ShellProvider({
   }, [open])
 
   const finishClose = useCallback(() => {
+    // A close can interrupt a maximize/minimize; its completion must not leave the flag stuck.
+    setLayoutAnimationPending(false)
     const callbacks = closeCallbacksRef.current
     closeCallbacksRef.current = []
     for (const callback of callbacks) callback()
@@ -157,26 +161,32 @@ function ShellProvider({
     })
     onOpenChangeRef.current?.(true)
   }, [])
+  const reconcileTab = useCallback((tab: string) => {
+    setActiveTab(tab)
+  }, [])
   const minimize = useCallback(() => {
+    setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
     setMaximized(false)
   }, [])
   const toggleMaximized = useCallback(() => {
+    setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
     setMaximized((currentMaximized) => !currentMaximized)
   }, [])
   const refreshPdfLayout = useCallback(() => {
+    setLayoutAnimationPending(false)
     setPdfLayoutPending(false)
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
 
   const state = useMemo<ShellState>(
-    () => ({ open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey }),
-    [activeTab, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
+    () => ({ open, maximized, activeTab, layoutAnimationPending, pdfLayoutPending, pdfLayoutRefreshKey }),
+    [activeTab, layoutAnimationPending, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
   )
   const actions = useMemo<ShellActions>(
-    () => ({ close, finishClose, minimize, openTab, toggleMaximized, refreshPdfLayout }),
-    [close, finishClose, minimize, openTab, refreshPdfLayout, toggleMaximized]
+    () => ({ close, finishClose, minimize, openTab, reconcileTab, toggleMaximized, refreshPdfLayout }),
+    [close, finishClose, minimize, openTab, reconcileTab, refreshPdfLayout, toggleMaximized]
   )
 
   return (
@@ -186,17 +196,30 @@ function ShellProvider({
   )
 }
 
-// Docked, resizable side container. Unmounted entirely while maximized: the
-// maximized surface lives in the overlay instead. Remounting on minimize lands
-// inside RightPaneHost's `AnimatePresence initial={false}`, so the dock snaps
-// back in a single reflow rather than animating width frame by frame.
-function ShellHost({ children }: { children: ReactNode }) {
+// A single persistent viewport owns the pane subtree across closed, docked,
+// and maximized layouts. RightPaneHost moves only its empty spacer and clips
+// this surface, so stateful descendants never cross React ownership boundaries.
+function ShellViewport({ children, open }: { children: ReactNode; open?: boolean }) {
   const { state, actions } = useShell()
-  if (state.maximized) return null
+  const bottomInset = useChatMaximizedOverlayBottomInset()
+  const presentationOpen = open ?? state.open
+  const handleLayoutAnimationComplete = useCallback(
+    (mode: 'closed' | 'docked' | 'maximized') => {
+      if (mode === 'closed') {
+        actions.finishClose()
+        return
+      }
+      actions.refreshPdfLayout()
+    },
+    [actions]
+  )
 
   return (
     <RightPaneHost
-      open={state.open}
+      open={presentationOpen}
+      keepMounted
+      maximized={state.maximized}
+      maximizedBottomInset={bottomInset}
       width={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
       resizable
       minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
@@ -204,48 +227,9 @@ function ShellHost({ children }: { children: ReactNode }) {
       maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
       cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
       reservedCenterWidth={CHAT_CENTER_MIN_USABLE_WIDTH}
-      onReservedSpaceUnavailable={actions.close}
-      onOpenAnimationComplete={actions.refreshPdfLayout}
-      onCloseAnimationComplete={actions.finishClose}>
+      onLayoutAnimationComplete={handleLayoutAnimationComplete}>
       {children}
     </RightPaneHost>
-  )
-}
-
-// Maximized surface. Reveals via a right-anchored clip-path wipe: the pane grows
-// leftward while its right edge (and the controls docked there) stay put. The
-// content is laid out once at full width; clip-path is paint-only, so there is
-// no per-frame layout/reflow. ease-out-expo; exit is quicker than enter.
-const MAXIMIZE_ENTER = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
-const MAXIMIZE_EXIT = { duration: 0.18, ease: [0.16, 1, 0.3, 1] } as const
-const CLIP_COLLAPSED = 'inset(0% 0% 0% 100%)'
-const CLIP_REVEALED = 'inset(0% 0% 0% 0%)'
-
-function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
-  const { state, actions } = useShell()
-  const reduceMotion = useReducedMotion()
-  const bottomInset = useChatMaximizedOverlayBottomInset()
-
-  return (
-    <AnimatePresence onExitComplete={actions.finishClose}>
-      {state.open && state.maximized && (
-        <motion.div
-          data-shell-maximized-overlay=""
-          key="shell-maximized"
-          initial={{ clipPath: CLIP_COLLAPSED }}
-          animate={{ clipPath: CLIP_REVEALED }}
-          exit={{ clipPath: CLIP_COLLAPSED, transition: reduceMotion ? { duration: 0 } : MAXIMIZE_EXIT }}
-          transition={reduceMotion ? { duration: 0 } : MAXIMIZE_ENTER}
-          className="absolute inset-0 z-40 overflow-hidden bg-background">
-          <div
-            data-shell-maximized-overlay-content=""
-            className="h-full min-h-0 overflow-hidden"
-            style={bottomInset > 0 ? { height: `max(0px, calc(100% - ${bottomInset}px))` } : undefined}>
-            {children}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   )
 }
 
@@ -382,11 +366,11 @@ function ShellTabShortcut({
   )
 }
 
-function ShellTabs({ children }: { children: ReactNode }) {
+function ShellTabs({ children, value }: { children: ReactNode; value?: string }) {
   const { state, actions } = useShell()
   return (
     <Tabs
-      value={state.activeTab}
+      value={value ?? state.activeTab}
       onValueChange={actions.openTab}
       variant="line"
       className="h-full gap-0 overflow-hidden text-card-foreground">
@@ -404,7 +388,7 @@ function ShellTabList({
   title,
   showTabs = true
 }: {
-  children: ReactNode
+  children?: ReactNode
   extraTrailing?: ReactNode
   title?: ReactNode
   showTabs?: boolean
@@ -557,10 +541,9 @@ function ShellPanel({
 }
 
 // `Shell` is the provider itself, with the other parts attached as statics —
-// so it is used as `<Shell>` / `<Shell.Host>` rather than `<Shell.Provider>`.
+// so it is used as `<Shell>` / `<Shell.Viewport>` rather than `<Shell.Provider>`.
 export const Shell = Object.assign(ShellProvider, {
-  Host: ShellHost,
-  MaximizedOverlay: ShellMaximizedOverlay,
+  Viewport: ShellViewport,
   Toggle: ShellToggle,
   TabShortcut: ShellTabShortcut,
   Tabs: ShellTabs,

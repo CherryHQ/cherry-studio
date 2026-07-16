@@ -4,7 +4,8 @@ import { List } from 'lucide-react'
 import { useCallback } from 'react'
 
 import { RESOURCE_PANE_TAB } from './resourcePane'
-import { type ShellTabShortcutOpenBehavior, useShellActions, useShellState } from './Shell'
+import { useRightPanelActions, useRightPanelState } from './RightPanel'
+import type { ShellTabShortcutOpenBehavior } from './Shell'
 
 export interface ResourcePaneCountButtonProps {
   label: string
@@ -19,20 +20,21 @@ export function ResourcePaneCountButton({
   className,
   openBehavior = 'hide'
 }: ResourcePaneCountButtonProps) {
-  const { activeTab, maximized, open } = useShellState()
-  const { close, openTab } = useShellActions()
+  const state = useRightPanelState()
+  const actions = useRightPanelActions()
   const title = `${label} ${count}`
   const togglesActive = openBehavior === 'toggle-active'
-  const active = open && activeTab === RESOURCE_PANE_TAB
+  const active = state.isActive(RESOURCE_PANE_TAB)
   const handleClick = useCallback(() => {
     if (togglesActive && active) {
-      close()
+      actions.close()
       return
     }
-    openTab(RESOURCE_PANE_TAB)
-  }, [active, close, openTab, togglesActive])
+    actions.tryOpen(RESOURCE_PANE_TAB)
+  }, [actions, active, togglesActive])
 
-  if (maximized || (open && openBehavior === 'hide')) return null
+  if (!actions.canOpen(RESOURCE_PANE_TAB)) return null
+  if (state.presentationMaximized || (state.presentationOpen && openBehavior === 'hide')) return null
 
   return (
     <Tooltip content={title} delay={800}>
