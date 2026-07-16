@@ -13,6 +13,14 @@ body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
   font-weight: var(--font-weight-regular);
 }
 
+.cherry-emoji-picker-react .epr-category-nav {
+  padding-top: 6px;
+}
+
+.cherry-emoji-picker-react .epr-emoji-list {
+  padding-bottom: var(--epr-horizontal-padding);
+}
+
 .cherry-emoji-picker-react .epr-cat-btn {
   display: flex;
   align-items: center;

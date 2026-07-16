@@ -178,11 +178,12 @@ describe('EmojiPicker', () => {
       '--epr-category-label-height': '32px',
       '--epr-search-input-bg-color': 'var(--color-background)',
       '--epr-search-input-bg-color-active': 'var(--color-background)',
+      '--epr-search-input-height': '32px',
       '--epr-search-input-text-color': 'var(--color-foreground)',
       '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
       '--epr-search-border-color': 'var(--color-input)',
       '--epr-search-border-color-active': 'var(--color-ring)',
-      '--epr-header-padding': '6px var(--epr-horizontal-padding) 4px',
+      '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
       '--epr-emoji-hover-color': 'var(--color-accent)',
       '--epr-emoji-variation-indicator-color': 'var(--color-border)',
       '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
@@ -237,6 +238,15 @@ describe('EmojiPicker', () => {
     expect(categoryButtonRule).toContain('display: flex')
     expect(categoryButtonRule).toContain('align-items: center')
     expect(categoryButtonRule).toContain('justify-content: center')
+  })
+
+  it('aligns the picker bottom spacing with its horizontal and search top spacing', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
+    const categoryNavigationRule = css.match(/\.cherry-emoji-picker-react \.epr-category-nav\s*\{([^}]*)\}/)?.[1]
+    const emojiListRule = css.match(/\.cherry-emoji-picker-react \.epr-emoji-list\s*\{([^}]*)\}/)?.[1]
+
+    expect(categoryNavigationRule).toContain('padding-top: 6px')
+    expect(emojiListRule).toContain('padding-bottom: var(--epr-horizontal-padding)')
   })
 
   it('centers the category selection ring on the custom icon', () => {
