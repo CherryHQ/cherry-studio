@@ -7,7 +7,7 @@ export default openaiCompatible({
   website: {
     apiKey: 'https://developer.amd.com.cn/radeon/modelapis',
     docs: 'https://developer.amd.com.cn/radeon/',
-    models: 'https://developer.amd.com.cn/radeon/',
+    models: 'https://developer.amd.com.cn/radeon/modelapis',
     official: 'https://developer.amd.com.cn/radeon/'
   }
 })
