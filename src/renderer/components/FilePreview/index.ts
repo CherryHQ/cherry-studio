@@ -1,2 +1,2 @@
-export { FilePreview } from './FilePreview'
-export type { FilePreviewPlugin, FilePreviewPluginProps } from './types'
+export { FilePreview, type FilePreviewProps } from './FilePreview'
+export { useOpenFilePreviewTab } from './hooks/useOpenFilePreviewTab'

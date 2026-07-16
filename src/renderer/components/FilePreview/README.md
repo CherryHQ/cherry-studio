@@ -46,7 +46,7 @@ Use `useOpenFilePreviewTab` below `TabsProvider`. The hook normalizes the path, 
 
 ```tsx
 import { Button } from '@cherrystudio/ui'
-import { useOpenFilePreviewTab } from '@renderer/components/FilePreview/hooks/useOpenFilePreviewTab'
+import { useOpenFilePreviewTab } from '@renderer/components/FilePreview'
 import type { FilePath } from '@shared/types/file'
 import { useTranslation } from 'react-i18next'
 

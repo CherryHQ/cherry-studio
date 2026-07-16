@@ -88,7 +88,7 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin }: FilePreviewPl
   )
 }
 
-interface FilePreviewProps {
+export interface FilePreviewProps {
   filePath: FilePath
 }
 
