@@ -42,6 +42,7 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
   canModelUseAssistantWebSearch,
   isGPT5SeriesReasoningModel,
@@ -132,6 +133,22 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 }
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
+
+const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
+
+const replaceComposerEditableMessageParts = (
+  originalParts: CherryMessagePart[],
+  editedParts: CherryMessagePart[]
+): CherryMessagePart[] => {
+  const firstEditablePartIndex = originalParts.findIndex(isComposerEditableMessagePart)
+  if (firstEditablePartIndex === -1) return editedParts
+
+  return originalParts.flatMap((part, index) => {
+    if (part.type === 'data-translation') return []
+    if (!isComposerEditableMessagePart(part)) return [part]
+    return index === firstEditablePartIndex ? editedParts : []
+  })
+}
 
 interface ChatComposerContextControlsProps {
   assistantId: string | null
@@ -1119,7 +1136,14 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        if (!chatWrite?.forkAndResend) {
+        const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
+        const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
+        if (!saveEditedMessage) {
+          toast.error(t('message.error.operation_unavailable'))
+          return
+        }
+
+        if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
@@ -1128,11 +1152,14 @@ const ChatComposerInner = ({
           const editedParts = await buildEditedMessageParts(draft)
           if (!editedParts) return
 
-          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, editedParts)
+          const savedParts = isAssistantReply
+            ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
+            : editedParts
+          await saveEditedMessage(editingMessageForCurrentTopic.message.id, savedParts)
           restoreSavedDraft()
           stopEditing()
         } catch (error) {
-          logger.warn('edited message fork and resend failed', { error })
+          logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
           toast.error(t('message.error.operation_unavailable'))
         }
         return
