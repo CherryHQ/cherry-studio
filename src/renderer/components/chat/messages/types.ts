@@ -243,10 +243,22 @@ export type MessageRenderConfigUpdate = Partial<
   Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
 >
 
+/**
+ * Layered streaming state. `historyPartsByMessageId` holds the persisted
+ * parts used by the sealed history render layer (it never sees per-frame
+ * stream snapshots); `liveMessageIds` marks the mutable streaming tail.
+ */
+export interface MessageStreamingLayers {
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  liveMessageIds: readonly string[]
+}
+
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /** When provided, streaming updates stay isolated from historical message subtrees. */
+  streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean

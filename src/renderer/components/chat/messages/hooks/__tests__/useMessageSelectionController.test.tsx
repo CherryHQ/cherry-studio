@@ -1,34 +1,40 @@
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageSelectionController } from '../useMessageSelectionController'
 
-const cacheValues = vi.hoisted(
-  () =>
-    ({
-      'chat.multi_select_mode': false,
-      'chat.selected_message_ids': []
-    }) as Record<string, unknown>
-)
-const setCacheValue = vi.hoisted(() =>
-  vi.fn((key: string, value: unknown) => {
-    cacheValues[key] = value
-  })
-)
+const cacheValues = {
+  'chat.multi_select_mode': false,
+  'chat.selected_message_ids': []
+} as Record<string, unknown>
+const cacheSetters = new Map<string, (value: unknown) => void>()
+const setCacheValue = vi.fn((key: string, value: unknown) => {
+  const previous = cacheValues[key]
+  const next = typeof value === 'function' ? (value as (current: unknown) => unknown)(previous) : value
+  const isEqualArray =
+    Array.isArray(previous) &&
+    Array.isArray(next) &&
+    previous.length === next.length &&
+    previous.every((item, index) => Object.is(item, next[index]))
 
-vi.mock('@data/hooks/useCache', () => ({
-  useCache: (key: string) => [cacheValues[key], (value: unknown) => setCacheValue(key, value)]
-}))
+  if (!Object.is(previous, next) && !isEqualArray) {
+    cacheValues[key] = next
+  }
+})
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    type: '3rdParty',
-    init: vi.fn()
-  },
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: string) => key
+  return {
+    initReactI18next: {
+      type: '3rdParty',
+      init: vi.fn()
+    },
+    useTranslation: () => ({ t })
+  }
+})
 
 const message = (id: string) => ({
   id,
@@ -46,6 +52,14 @@ describe('useMessageSelectionController', () => {
     vi.clearAllMocks()
     cacheValues['chat.multi_select_mode'] = false
     cacheValues['chat.selected_message_ids'] = []
+    MockUseCache.useCache.mockImplementation((key) => {
+      let setter = cacheSetters.get(key)
+      if (!setter) {
+        setter = (value: unknown) => setCacheValue(key, value)
+        cacheSetters.set(key, setter)
+      }
+      return [cacheValues[key], setter] as never
+    })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }
@@ -129,6 +143,42 @@ describe('useMessageSelectionController', () => {
 
     expect(copyRichContent).not.toHaveBeenCalled()
     expect(writeText).toHaveBeenCalledWith('plain')
+  })
+
+  it('keeps action identities stable while reading the latest streamed message data', async () => {
+    writeText.mockResolvedValue(undefined)
+    type HookProps = {
+      messages: ReturnType<typeof message>[]
+      partsByMessageId: Record<string, CherryMessagePart[]>
+    }
+    const { result, rerender } = renderHook(
+      ({ messages, partsByMessageId }: HookProps) =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages,
+          partsByMessageId
+        }),
+      {
+        initialProps: {
+          messages: [message('a')],
+          partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
+        } as HookProps
+      }
+    )
+    const initialActions = result.current.actions
+
+    rerender({
+      messages: [message('b')],
+      partsByMessageId: { b: [{ type: 'text', text: 'latest' }] as CherryMessagePart[] }
+    })
+
+    expect(result.current.actions).toBe(initialActions)
+
+    await act(async () => {
+      await result.current.actions.copySelectedMessages?.(['b'])
+    })
+
+    expect(writeText).toHaveBeenCalledWith('latest')
   })
 
   it('clears multi-select state when the message list unmounts', () => {

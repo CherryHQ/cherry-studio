@@ -112,9 +112,41 @@ function textOf(parts: CherryUIMessage['parts'] | undefined): string {
     .join('')
 }
 
+function installControlledAnimationFrames() {
+  let nextId = 1
+  const callbacks = new Map<number, FrameRequestCallback>()
+  const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    const id = nextId++
+    callbacks.set(id, callback)
+    return id
+  })
+  const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+    callbacks.delete(id)
+  })
+
+  return {
+    callbacks,
+    request,
+    cancel,
+    runNext() {
+      const entry = callbacks.entries().next().value
+      if (!entry) return
+      callbacks.delete(entry[0])
+      entry[1](performance.now())
+    }
+  }
+}
+
+async function drainStreamMicrotasks(): Promise<void> {
+  for (let index = 0; index < 24; index++) {
+    await Promise.resolve()
+  }
+}
+
 beforeEach(() => fake.reset())
 afterEach(() => {
   fake.reset()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -251,6 +283,76 @@ describe('useExecutionOverlay', () => {
     await waitFor(() => expect(result.current.overlay['anchor-a']).toHaveLength(3))
     expect(result.current.overlay['anchor-a'][0]).toBe(settledText)
     expect(result.current.overlay['anchor-a'][1]).toBe(settledTool)
+  })
+
+  it('coalesces burst snapshots from every execution into one render per animation frame', async () => {
+    const frames = installControlledAnimationFrames()
+    const ui = [asst('anchor-a'), asst('anchor-b')]
+    let renderCount = 0
+    const { result } = renderHook(() => {
+      renderCount += 1
+      return useExecutionOverlay(TOPIC, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], ui)
+    })
+
+    await act(async () => {
+      fake.emit(A, { type: 'text-start', id: 'ta' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'a' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 'ta', delta: 'b' } as CherryUIMessageChunk)
+      fake.emit(B, { type: 'text-start', id: 'tb' } as CherryUIMessageChunk)
+      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'x' } as CherryUIMessageChunk)
+      fake.emit(B, { type: 'text-delta', id: 'tb', delta: 'y' } as CherryUIMessageChunk)
+      await drainStreamMicrotasks()
+    })
+
+    expect(frames.request).toHaveBeenCalledTimes(1)
+    expect(result.current.overlay).toEqual({})
+    const beforeFrameRenderCount = renderCount
+
+    act(() => frames.runNext())
+
+    expect(textOf(result.current.overlay['anchor-a'])).toBe('ab')
+    expect(textOf(result.current.overlay['anchor-b'])).toBe('xy')
+    expect(renderCount).toBe(beforeFrameRenderCount + 1)
+  })
+
+  it('flushes a terminal snapshot immediately instead of waiting for the next frame', async () => {
+    const frames = installControlledAnimationFrames()
+    const onFinish = vi.fn()
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui, { onFinish }))
+
+    await act(async () => {
+      fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 't', delta: 'final' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-end', id: 't' } as CherryUIMessageChunk)
+      fake.terminal(A, { isAbort: false, isError: false })
+      await drainStreamMicrotasks()
+    })
+
+    expect(textOf(result.current.overlay['anchor-a'])).toBe('final')
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(frames.callbacks.size).toBe(0)
+    expect(frames.cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('prevents a cancelled frame from restoring snapshots after reset', async () => {
+    const frames = installControlledAnimationFrames()
+    const ui = [asst('anchor-a')]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
+
+    await act(async () => {
+      fake.emit(A, { type: 'text-start', id: 't' } as CherryUIMessageChunk)
+      fake.emit(A, { type: 'text-delta', id: 't', delta: 'stale' } as CherryUIMessageChunk)
+      await drainStreamMicrotasks()
+    })
+    const staleFrame = frames.callbacks.values().next().value as FrameRequestCallback
+
+    act(() => result.current.reset())
+    expect(frames.callbacks.size).toBe(0)
+
+    act(() => staleFrame(performance.now()))
+
+    expect(result.current.overlay).toEqual({})
   })
 
   it('keeps live message metadata from message-metadata chunks', async () => {
