@@ -14,6 +14,7 @@ import ZhCn from './locales/zh-cn.json'
 import deDE from './translate/de-de.json'
 import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
+import filPH from './translate/fil-ph.json'
 import frFR from './translate/fr-fr.json'
 import JaJP from './translate/ja-jp.json'
 import ptPT from './translate/pt-pt.json'
@@ -32,6 +33,7 @@ const locales = Object.fromEntries(
     ['de-DE', deDE],
     ['el-GR', elGR],
     ['es-ES', esES],
+    ['fil-PH', filPH],
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],

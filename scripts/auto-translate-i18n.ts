@@ -150,6 +150,7 @@ const languageMap = {
   'zh-tw': 'Traditional Chinese',
   'el-gr': 'Greek',
   'es-es': 'Spanish',
+  'fil-ph': 'Filipino',
   'fr-fr': 'French',
   'pt-pt': 'Portuguese',
   'de-de': 'German',

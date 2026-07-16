@@ -79,6 +79,7 @@ const languagesOptions: { value: LanguageVarious; label: string; flag: string }[
   { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
   { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
   { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
+  { value: 'fil-PH', label: 'Filipino', flag: '🇵🇭' },
   { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
   { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
   { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },

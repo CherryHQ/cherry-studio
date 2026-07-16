@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Hindi maa-access ang workspace path: {{path}}",
+        "missing": "Hindi umiiral ang workspace path: {{path}}",
+        "not_directory": "Hindi directory ang workspace path: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Tungkol sa App",
+    "close": "Isara ang Window",
+    "copy": "Kopyahin",
+    "cut": "I-cut",
+    "delete": "I-delete",
+    "documentation": "Dokumentasyon",
+    "edit": "I-edit",
+    "feedback": "Mga Puna",
+    "file": "Mga File",
+    "forceReload": "Sapilitang I-reload",
+    "front": "Dalhin ang Lahat sa Harap",
+    "help": "Tulong",
+    "hide": "Itago",
+    "hideOthers": "Itago ang Iba",
+    "minimize": "I-minimize",
+    "paste": "I-paste",
+    "quit": "I-quit",
+    "redo": "I-redo",
+    "releases": "Mga Release",
+    "reload": "I-reload",
+    "resetZoom": "Aktuwal na Laki",
+    "selectAll": "Piliin Lahat",
+    "services": "Mga Serbisyo",
+    "toggleDevTools": "I-toggle ang Developer Tools",
+    "toggleFullscreen": "I-toggle ang Fullscreen",
+    "undo": "I-undo",
+    "unhide": "Ipakita Lahat",
+    "view": "Tingnan",
+    "website": "Websayt",
+    "window": "Mga Window",
+    "zoom": "I-zoom",
+    "zoomIn": "Palakihin",
+    "zoomOut": "Paliitin"
+  },
+  "common": {
+    "copy": "Kopyahin",
+    "cut": "I-cut",
+    "inspect": "I-inspect",
+    "paste": "I-paste"
+  },
+  "dialog": {
+    "all_files": "Lahat ng File",
+    "html_files": "Mga HTML File",
+    "open_file": "Buksan ang File",
+    "pdf_files": "Mga PDF File",
+    "png_image": "PNG Image",
+    "save_as_html": "I-save bilang HTML",
+    "save_as_pdf": "I-save bilang PDF",
+    "save_file": "I-save ang File",
+    "select_folder": "Piliin ang Folder",
+    "word_document": "Word Document"
+  },
+  "paintings": {
+    "generate_failed": "Hindi nakagawa ng image",
+    "image_mix_failed": "Hindi napaghalo ang mga image"
+  },
+  "selection": {
+    "name": "Assistant sa Pagpili"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Maaari mo nang isara ang page na ito at bumalik sa Cherry Studio",
+          "title": "Matagumpay ang Authentication"
+        }
+      }
+    },
+    "title": "Mga Setting"
+  },
+  "tray": {
+    "quit": "I-quit",
+    "show_quick_assistant": "Mabilisang Assistant",
+    "show_window": "Ipakita ang Window"
+  }
+}
