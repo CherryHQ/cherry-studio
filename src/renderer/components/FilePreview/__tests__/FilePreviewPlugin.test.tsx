@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { FilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FilePreviewLayout } from '../FilePreviewLayout'
@@ -18,7 +19,8 @@ vi.mock('@cherrystudio/ui', () => ({
       <div>{title}</div>
       <div>{description}</div>
     </div>
-  )
+  ),
+  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('react-i18next', () => ({

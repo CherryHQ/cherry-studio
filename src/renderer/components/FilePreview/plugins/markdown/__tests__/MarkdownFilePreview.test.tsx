@@ -1,7 +1,7 @@
 import type { FilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MarkdownFilePreview from '../MarkdownFilePreview'
@@ -27,6 +27,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   Markdown: ({ children }: { children: ReactNode }) => <article data-testid="markdown-preview">{children}</article>,
+  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
   SegmentedControl: ({
     disabled,
     onValueChange,

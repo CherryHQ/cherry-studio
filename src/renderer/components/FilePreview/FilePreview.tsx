@@ -111,7 +111,7 @@ function FilePreviewShell({ children, header }: FilePreviewShellProps) {
           <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
           <FilePreviewToolbarPortalHost />
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+        <div className="min-h-0 flex-1 overflow-hidden px-3">{children}</div>
       </FilePreviewLayout.Frame>
     </FilePreviewToolbarPortalProvider>
   )

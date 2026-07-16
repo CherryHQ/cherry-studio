@@ -1,6 +1,7 @@
 import type { FilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import HtmlFilePreview from '../HtmlFilePreview'
@@ -72,7 +73,8 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       ))}
     </div>
-  )
+  ),
+  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('react-i18next', () => ({

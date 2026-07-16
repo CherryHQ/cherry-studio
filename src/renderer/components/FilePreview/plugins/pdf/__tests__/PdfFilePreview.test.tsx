@@ -150,7 +150,10 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>
+  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
+  Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+    <div {...props}>{children}</div>
+  )
 }))
 
 vi.mock('react-i18next', () => ({

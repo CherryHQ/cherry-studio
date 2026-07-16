@@ -98,7 +98,7 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
             value={loadState.content}
             language="html"
             wrapped
-            className="min-w-0 flex-1 overflow-hidden rounded-md border border-border-muted"
+            className="min-w-0 flex-1 overflow-hidden"
           />
         </Suspense>
       </div>

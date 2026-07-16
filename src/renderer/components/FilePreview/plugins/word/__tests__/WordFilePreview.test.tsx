@@ -56,6 +56,9 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{title}</span>
       <span>{description}</span>
     </div>
+  ),
+  Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+    <div {...props}>{children}</div>
   )
 }))
 

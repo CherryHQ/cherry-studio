@@ -5,7 +5,7 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { FilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentType } from 'react'
+import type { ComponentPropsWithoutRef, ComponentType } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -32,7 +32,8 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       ) : null}
     </div>
-  )
+  ),
+  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/utils/file/safeOpen', () => ({

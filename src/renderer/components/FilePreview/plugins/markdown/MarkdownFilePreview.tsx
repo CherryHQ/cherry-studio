@@ -100,7 +100,7 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
             value={loadState.content}
             language="markdown"
             wrapped
-            className="min-w-0 flex-1 overflow-hidden rounded-md border border-border-muted"
+            className="min-w-0 flex-1 overflow-hidden"
           />
         </Suspense>
       </div>
