@@ -29,6 +29,18 @@ describe('canEditAssistantMessageParts', () => {
     },
     {
       messageParts: parts({ type: 'text', text: 'first paragraph' }, { type: 'text', text: 'second paragraph' })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with safe composer metadata',
+        providerMetadata: {
+          cherry: {
+            references: [],
+            composer: { version: 1, tokens: [] }
+          }
+        }
+      })
     }
   ])('allows one unambiguous editable run', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(true)
@@ -74,6 +86,45 @@ describe('canEditAssistantMessageParts', () => {
           }
         }
       })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'signed answer',
+        providerMetadata: {
+          google: { thoughtSignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'provider-specific answer',
+        providerMetadata: {
+          futureProvider: { opaqueState: 'state-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with unknown Cherry metadata',
+        providerMetadata: {
+          cherry: { futureField: 'state-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts(
+        {
+          type: 'text',
+          text: 'first paragraph',
+          providerMetadata: {
+            cherry: { composer: { version: 1, tokens: [] } }
+          }
+        },
+        { type: 'text', text: 'second paragraph' }
+      )
     },
     { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) }
   ])('rejects parts that Composer cannot safely write back', ({ messageParts }) => {
