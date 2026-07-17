@@ -120,7 +120,11 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
         )}
 
         <BinaryInstallErrorDialog
-          error={showInstallError && installError ? { name: activeMeta.label, message: installError } : null}
+          error={
+            showInstallError && installError
+              ? { name: activeMeta.label, message: installError, action: 'install' }
+              : null
+          }
           onOpenChange={(open) => !open && setShowInstallError(false)}
         />
 

@@ -72,7 +72,12 @@ vi.mock('@renderer/ipc/useIpcOn', () => ({ useIpcOn: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: toastMock }))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { details?: string; dependents?: string }) => {
+      const interpolation = options?.details ?? options?.dependents
+      return interpolation ? `${key} ${interpolation}` : key
+    }
+  })
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@data/hooks/usePreference', () => ({
@@ -359,6 +364,11 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).getByLabelText('settings.dependencies.remove')).toBeEnabled()
     expect(within(card).queryByText('common.retry')).not.toBeInTheDocument()
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
+
+    fireEvent.click(within(card).getByText('settings.dependencies.viewErrorDetails'))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('settings.dependencies.removeError')
+    expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.removeErrorHint')
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('settings.dependencies.installErrorHint')
   })
 
   it('disables conflicting settings actions and shows a removal spinner', async () => {
@@ -818,12 +828,37 @@ describe('EnvironmentDependencies', () => {
     )
     const fallback = screen.getByRole('alertdialog')
     expect(fallback).toHaveTextContent('settings.dependencies.removeDefinitionOnlyConfirmMessage')
+    expect(fallback).toHaveTextContent('Tool is still installed after removal: mytool')
 
     fireEvent.click(within(fallback).getByTestId('confirm-dialog-confirm'))
     await waitFor(() => expect(ipcMocks.removeTool).toHaveBeenCalledWith({ name: 'mytool', definitionOnly: true }))
   })
 
-  it('shows an error with no definition fallback when a fixed tool cleanup is blocked', async () => {
+  it('lists blocking dependents before offering definition-only removal', async () => {
+    setSnapshots({ node: miseSnapshot('node', 'node', '22.0.0') })
+    ipcMocks.removeTool.mockResolvedValueOnce({
+      status: 'cleanup_blocked',
+      reason: 'dependency_blocked',
+      dependents: ['npm:alpha', 'npm:beta'],
+      message: 'Cannot remove node while installed tools depend on it'
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findAllByText('node'))[0].closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+
+    await waitFor(() =>
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(
+        'settings.dependencies.removeDefinitionOnlyConfirmTitle'
+      )
+    )
+    const fallback = screen.getByRole('alertdialog')
+    expect(fallback).toHaveTextContent('settings.dependencies.removeDefinitionOnlyDependents')
+    expect(fallback).toHaveTextContent('npm:alpha, npm:beta')
+  })
+
+  it('shows a removal error with no definition fallback when a fixed tool cleanup is blocked', async () => {
     setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0') })
     ipcMocks.removeTool.mockResolvedValueOnce({
       status: 'cleanup_blocked',
@@ -836,7 +871,10 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(within(card).getByLabelText('settings.dependencies.uninstall'))
     fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
 
-    await screen.findByText('gh resolves to a conflicting installation and cannot be safely removed')
+    const errorDialog = await screen.findByRole('dialog')
+    expect(errorDialog).toHaveTextContent('gh resolves to a conflicting installation and cannot be safely removed')
+    expect(errorDialog).toHaveTextContent('settings.dependencies.removeError')
+    expect(errorDialog).toHaveTextContent('settings.dependencies.removeErrorHint')
     // A fixed tool has no definition to drop — only the error, never a fallback.
     expect(ipcMocks.removeTool).toHaveBeenCalledTimes(1)
     expect(ipcMocks.removeTool).not.toHaveBeenCalledWith({ name: 'gh', definitionOnly: true })

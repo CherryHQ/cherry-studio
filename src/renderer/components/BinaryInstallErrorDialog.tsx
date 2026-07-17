@@ -42,20 +42,26 @@ export const BinaryInstallingHint: FC = () => {
   )
 }
 
+export interface BinaryOperationError {
+  name: string
+  message: string
+  action: 'install' | 'remove'
+}
+
 /**
- * Detail view for a failed binary install: full mise output, copyable for bug
+ * Detail view for a failed binary operation: full mise output, copyable for bug
  * reports. Opened on demand from a card's failed state (Dependencies settings
  * and the Code CLI page) — never auto-popped, the persistent card state is the
  * first-level notification.
  */
 export const BinaryInstallErrorDialog: FC<{
-  error: { name: string; message: string } | null
+  error: BinaryOperationError | null
   onOpenChange: (open: boolean) => void
 }> = ({ error, onOpenChange }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   // Retain the last error so the dialog keeps its content during the close animation.
-  const lastError = useRef({ name: '', message: '' })
+  const lastError = useRef<BinaryOperationError>({ name: '', message: '', action: 'install' })
   if (error) lastError.current = error
 
   const copyError = () => {
@@ -74,8 +80,18 @@ export const BinaryInstallErrorDialog: FC<{
     <Dialog open={!!error} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle>{`${t('settings.dependencies.installError')}: ${lastError.current.name}`}</DialogTitle>
-          <DialogDescription>{t('settings.dependencies.installErrorHint')}</DialogDescription>
+          <DialogTitle>{`${t(
+            lastError.current.action === 'remove'
+              ? 'settings.dependencies.removeError'
+              : 'settings.dependencies.installError'
+          )}: ${lastError.current.name}`}</DialogTitle>
+          <DialogDescription>
+            {t(
+              lastError.current.action === 'remove'
+                ? 'settings.dependencies.removeErrorHint'
+                : 'settings.dependencies.installErrorHint'
+            )}
+          </DialogDescription>
         </DialogHeader>
         <pre className="max-h-72 select-text overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 font-mono text-muted-foreground text-xs leading-5">
           {lastError.current.message}

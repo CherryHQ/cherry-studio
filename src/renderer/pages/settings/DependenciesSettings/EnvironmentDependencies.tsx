@@ -25,7 +25,8 @@ import { loggerService } from '@logger'
 import {
   BinaryInstallErrorDialog,
   BinaryInstallFailureRow,
-  BinaryInstallingHint
+  BinaryInstallingHint,
+  type BinaryOperationError
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -41,7 +42,13 @@ import {
   validateBinaryToolDefinition
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
-import type { BinaryApplication, BinaryAvailability, BinaryOperation, BinaryToolSnapshot } from '@shared/types/binary'
+import type {
+  BinaryApplication,
+  BinaryAvailability,
+  BinaryOperation,
+  BinaryRemoveResult,
+  BinaryToolSnapshot
+} from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -73,6 +80,8 @@ import LocalModelsSection from './LocalModelsSection'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
+type CleanupBlockedResult = Extract<BinaryRemoveResult, { status: 'cleanup_blocked' }>
+
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
   if (icon) {
     return <Icon icon={icon} className={cn('size-5', className)} />
@@ -98,10 +107,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean; custom: boolean } | null>(null)
-  const [installError, setInstallError] = useState<{ name: string; message: string } | null>(null)
-  // A custom tool whose backend cleanup was blocked: dropping just its definition
-  // is a separate, explicit choice the user confirms here before it is sent.
-  const [definitionFallback, setDefinitionFallback] = useState<{ name: string } | null>(null)
+  const [installError, setInstallError] = useState<BinaryOperationError | null>(null)
+  // A custom tool whose backend cleanup was blocked: preserve the typed result so
+  // the second confirmation can explain why cleanup stopped before offering the
+  // explicitly destructive definition-only escape hatch.
+  const [definitionFallback, setDefinitionFallback] = useState<{
+    name: string
+    result: CleanupBlockedResult
+  } | null>(null)
   // Retain the last target so the confirm dialog keeps its message during the close animation.
   const deleteTargetRef = useRef<{ name: string; runtime: boolean; custom: boolean }>({
     name: '',
@@ -225,7 +238,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.add_custom_tool', tool)
     } catch (error) {
       logger.error('Failed to add custom tool', error as Error)
-      setInstallError({ name: tool.name, message: formatErrorMessage(error) })
+      setInstallError({ name: tool.name, message: formatErrorMessage(error), action: 'install' })
       throw error
     } finally {
       await refreshState()
@@ -241,9 +254,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       const result = await ipcApi.request('binary.remove_tool', { name: target.name })
       if (result.status === 'cleanup_blocked') {
         if (target.custom) {
-          setDefinitionFallback({ name: target.name })
+          setDefinitionFallback({ name: target.name, result })
         } else {
-          setInstallError({ name: target.name, message: result.message ?? t('common.delete_failed') })
+          setInstallError({
+            name: target.name,
+            message: result.message ?? t('common.delete_failed'),
+            action: 'remove'
+          })
         }
         return
       }
@@ -355,7 +372,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot?.operation}
-              onShowError={(message) => setInstallError({ name: tool.name, message })}
+              onShowError={(message) =>
+                setInstallError({
+                  name: tool.name,
+                  message,
+                  action: snapshot?.operation?.status === 'failed' ? snapshot.operation.action : 'install'
+                })
+              }
               onInstall={() => installTool(tool.name)}
               onUpdate={() => installTool(tool.name, latestVersion ?? 'latest')}
               onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
@@ -381,7 +404,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot.operation}
-              onShowError={(message) => setInstallError({ name: snapshot.name, message })}
+              onShowError={(message) =>
+                setInstallError({
+                  name: snapshot.name,
+                  message,
+                  action: snapshot.operation?.status === 'failed' ? snapshot.operation.action : 'install'
+                })
+              }
               onInstall={() => installTool(snapshot.name)}
               onUpdate={() => installTool(snapshot.name, latestVersion ?? 'latest')}
               onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
@@ -426,7 +455,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         open={!!definitionFallback}
         onOpenChange={(open) => !open && setDefinitionFallback(null)}
         title={t('settings.dependencies.removeDefinitionOnlyConfirmTitle')}
-        description={t('settings.dependencies.removeDefinitionOnlyConfirmMessage', { name: definitionFallback?.name })}
+        description={t('settings.dependencies.removeDefinitionOnlyConfirmMessage', {
+          name: definitionFallback?.name,
+          details:
+            definitionFallback?.result.reason === 'dependency_blocked' && definitionFallback.result.dependents?.length
+              ? t('settings.dependencies.removeDefinitionOnlyDependents', {
+                  dependents: definitionFallback.result.dependents.join(', ')
+                })
+              : (definitionFallback?.result.message ?? definitionFallback?.result.reason)
+        })}
         confirmText={t('common.delete')}
         cancelText={t('common.cancel')}
         destructive

@@ -17,10 +17,18 @@ beforeEach(() => {
   Object.assign(navigator, { clipboard: { writeText: mockWriteText } })
 })
 
-const renderDialog = () =>
-  render(<BinaryInstallErrorDialog error={{ name: 'fd', message: 'mise failed' }} onOpenChange={vi.fn()} />)
+const renderDialog = (action: 'install' | 'remove' = 'install') =>
+  render(<BinaryInstallErrorDialog error={{ name: 'fd', message: 'mise failed', action }} onOpenChange={vi.fn()} />)
 
 describe('BinaryInstallErrorDialog copy', () => {
+  it('uses removal copy for a failed remove', () => {
+    renderDialog('remove')
+
+    expect(screen.getByText('settings.dependencies.removeError: fd')).toBeInTheDocument()
+    expect(screen.getByText('settings.dependencies.removeErrorHint')).toBeInTheDocument()
+    expect(screen.queryByText('settings.dependencies.installErrorHint')).not.toBeInTheDocument()
+  })
+
   it('copies the error message to the clipboard', async () => {
     mockWriteText.mockResolvedValue(undefined)
     renderDialog()
