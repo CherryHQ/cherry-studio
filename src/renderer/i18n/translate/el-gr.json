@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "Το τρέχον μοντέλο δεν υποστηρίζει ρυθμιζόμενη λογική"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Σύμπτυξη",
         "collapse_in": "Εισαγωγή σε σύμπτυξη",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} διακριτικά",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Καθαρισμός μηνυμάτων"
       },
@@ -5343,7 +5356,7 @@
         "icon": {
           "error": "Μη έγκυρο όνομα εικονιδίου, ελέγξτε την εισαγωγή",
           "label": "Εικονίδιο",
-          "placeholder": "Εισαγωγή ονόματος εικονιδίου Lucide",
+          "placeholder": "Όνομα εικονιδίου",
           "random": "Τυχαίο εικονίδιο",
           "tooltip": "Το όνομα εικονιδίου Lucide είναι με πεζά, π.χ. arrow-right",
           "view_all": "Προβολή όλων των εικονιδίων"
@@ -6088,7 +6101,8 @@
           "downloading": "Λήψη…",
           "ready": "Έτοιμος"
         },
-        "title": "Τοπικά Μοντέλα"
+        "title": "Τοπικά Μοντέλα",
+        "unsupported": "Τα τοπικά μοντέλα δεν υποστηρίζονται σε αυτήν την πλατφόρμα."
       },
       "notInstalled": "Δεν έχει εγκατασταθεί",
       "openBinariesDir": "Open binaries directory",
@@ -6562,10 +6576,10 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "automation": "Αυτοματοποίηση",
-      "capabilities": "Δυνατότητες & Εργαλεία",
+      "automation": "Αποδοτικότητα",
+      "capabilities": "Εργαλεία",
       "models": "Μοντέλα",
-      "personal": "Προσωπικό",
+      "personal": "Προτιμήσεις",
       "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },

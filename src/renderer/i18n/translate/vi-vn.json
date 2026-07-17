@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Thu gọn",
         "collapse_in": "Thu gọn",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} mã thông báo",
     "topics": {
       "auto_rename": "Umbenennen automatisieren",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Tin nhắn rõ ràng"
       },
@@ -5343,7 +5356,7 @@
         "icon": {
           "error": "Nombre de icono no válido, por favor verifique su entrada",
           "label": "Ícono",
-          "placeholder": "Inserisci il nome dell'icona Lucide",
+          "placeholder": "Tên biểu tượng",
           "random": "Biểu tượng Ngẫu nhiên",
           "tooltip": "Tên biểu tượng Lucide viết thường, ví dụ: arrow-right",
           "view_all": "undefined"
@@ -6088,7 +6101,8 @@
           "downloading": "Đang tải xuống…",
           "ready": "Sẵn sàng"
         },
-        "title": "Mô hình cục bộ"
+        "title": "Mô hình cục bộ",
+        "unsupported": "Nền tảng này không hỗ trợ mô hình cục bộ."
       },
       "notInstalled": "Chưa cài đặt",
       "openBinariesDir": "Open binaries directory",
@@ -6562,10 +6576,10 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "automation": "Tự động hóa",
-      "capabilities": "Khả năng & Công cụ",
+      "automation": "Hiệu suất",
+      "capabilities": "Công cụ",
       "models": "Mô hình",
-      "personal": "Cá nhân",
+      "personal": "Tùy chọn",
       "quickAccess": "Truy cập nhanh",
       "system": "Hệ thống"
     },

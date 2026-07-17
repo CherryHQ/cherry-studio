@@ -32,6 +32,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: vi.fn() }
+}))
+
 import { WebSearchService } from '../WebSearchService'
 
 const runtimeConfig: WebSearchExecutionConfig = {

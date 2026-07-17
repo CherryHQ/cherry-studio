@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   inputAdapterFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
+  pinnedToolIds: ['thinking', 'skills'] as string[],
   toolLaunchers: [] as ComposerToolLauncher[],
   toolLaunchersVersion: 0,
   reconcileTokens: vi.fn(),
@@ -139,13 +140,14 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+// useAgentSessionSlashCommands now observes the shared slash-command catalog via
+// useSharedCacheValue (globally mocked); with no catalog seeded the composer
+// falls back to the builtin list. This inline cacheService only serves the
+// remaining getCasual/setCasual/subscribe consumers.
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
     setCasual: vi.fn(),
-    // useAgentSessionSlashCommands subscribes to the shared slash-command catalog; no catalog here
-    // means the composer falls back to the builtin list.
-    getShared: vi.fn(() => undefined),
     subscribe: vi.fn(() => () => {})
   }
 }))
@@ -201,6 +203,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
     return (
       <div>
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
+        <div data-testid="composer-compact-controls">
+          {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
+        </div>
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
         </div>
@@ -268,6 +273,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],
@@ -462,6 +468,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'agent.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : (mocks.sessionLayout ?? 'workdir')
     }
     return [values[key]]
@@ -568,6 +575,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
+    mocks.pinnedToolIds = ['thinking', 'skills']
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
     mocks.setFiles.mockImplementation((value) => {
@@ -877,6 +885,61 @@ describe('AgentComposer', () => {
 
     fireEvent.click(skillButton)
     expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ searchText: 'plugins.skills' })
+  })
+
+  it('keeps only pinned shortcuts in compact controls', () => {
+    mocks.toolLaunchers = [createThinkingLauncher()]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        compactWhenSingleLine
+      />
+    )
+
+    const compactControls = screen.getByTestId('composer-compact-controls')
+    expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
+    expect(
+      within(compactControls).getByRole('button', { name: 'assistants.settings.reasoning_effort.label' })
+    ).toBeInTheDocument()
+    expect(within(compactControls).getByRole('button', { name: 'plugins.skills' })).toBeInTheDocument()
+    expect(within(compactControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+    expect(within(compactControls).queryByRole('button', { name: /Claude Sonnet 4.5/ })).not.toBeInTheDocument()
+    expect(within(compactControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+  })
+
+  it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
+    mocks.pinnedToolIds = ['slash-commands', 'mcp-status']
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const slashCommandsButton = within(leftControls).getByRole('button', {
+      name: 'chat.input.slash_commands.title'
+    })
+    const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
+
+    expect(slashCommandsButton.querySelector('.lucide-terminal')).toBeInTheDocument()
+    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
+    expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
+
+    fireEvent.click(slashCommandsButton)
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ searchText: 'chat.input.slash_commands.title' })
+
+    fireEvent.click(mcpButton)
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
   })
 
   it('disables the reasoning shortcut when the model cannot configure reasoning', () => {

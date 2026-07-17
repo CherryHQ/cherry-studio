@@ -1,6 +1,9 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import type * as HtmlToImage from 'html-to-image'
+import { Base64 } from 'js-base64'
+import mime from 'mime'
 
 const logger = loggerService.withContext('Utils:image')
 
@@ -690,4 +693,60 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
 
     img.src = url
   })
+}
+
+/**
+ * Decode the percent-encoded body of a non-base64 `data:` URL into raw bytes,
+ * expanding each `%XX` escape and UTF-8 encoding any literal characters.
+ */
+function decodeDataUrlBytes(data: string): Uint8Array {
+  const encoder = new TextEncoder()
+  const bytes: number[] = []
+
+  for (let index = 0; index < data.length; ) {
+    const hexByte = data[index] === '%' ? data.slice(index + 1, index + 3) : ''
+    if (/^[\da-fA-F]{2}$/.test(hexByte)) {
+      bytes.push(Number.parseInt(hexByte, 16))
+      index += 3
+      continue
+    }
+
+    const codePoint = data.codePointAt(index)
+    if (codePoint == null) {
+      break
+    }
+    const char = String.fromCodePoint(codePoint)
+    bytes.push(...encoder.encode(char))
+    index += char.length
+  }
+
+  return new Uint8Array(bytes)
+}
+
+/**
+ * Resolve an image source (`data:` URL, `file://` path, or remote URL) to a Blob.
+ * Kept here as a pure image util so both the `ImageViewer` component and the
+ * paintings skeleton reveal pipeline can consume it without importing across the
+ * renderer's downward-only layering.
+ */
+export async function getImageBlobFromSource(src: string): Promise<Blob> {
+  if (src.startsWith('data:')) {
+    const parseResult = parseDataUrl(src)
+    if (!parseResult || !parseResult.mediaType) {
+      throw new Error('Invalid image data URL')
+    }
+    const byteArray = parseResult.isBase64
+      ? Base64.toUint8Array(parseResult.data)
+      : decodeDataUrlBytes(parseResult.data)
+    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+  }
+
+  if (src.startsWith('file://')) {
+    const bytes = await window.api.fs.read(src)
+    const mimeType = mime.getType(src) || 'application/octet-stream'
+    return new Blob([bytes], { type: mimeType })
+  }
+
+  const response = await fetch(src)
+  return response.blob()
 }

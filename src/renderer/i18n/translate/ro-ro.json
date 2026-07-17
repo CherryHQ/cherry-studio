@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "Modelul actual nu acceptă raționament ajustabil"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Restrânge",
         "collapse_in": "Restrânge",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} jetoane",
     "topics": {
       "auto_rename": "Redenumire automată",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Șterge mesajele"
       },
@@ -5343,7 +5356,7 @@
         "icon": {
           "error": "Nume pictogramă invalid, te rugăm să verifici intrarea",
           "label": "Pictogramă",
-          "placeholder": "Introdu numele pictogramei Lucide",
+          "placeholder": "Numele pictogramei",
           "random": "Pictogramă aleatorie",
           "tooltip": "Numele pictogramelor Lucide sunt cu litere mici, de ex. arrow-right",
           "view_all": "Vezi toate pictogramele"
@@ -6088,7 +6101,8 @@
           "downloading": "Se descarcă…",
           "ready": "Gata"
         },
-        "title": "Modele Locale"
+        "title": "Modele Locale",
+        "unsupported": "Modelele locale nu sunt acceptate pe această platformă."
       },
       "notInstalled": "Neinstalat",
       "openBinariesDir": "Open binaries directory",
@@ -6562,10 +6576,10 @@
       "user": "Utilizator"
     },
     "menuGroups": {
-      "automation": "Automatizare",
-      "capabilities": "Capacități și instrumente",
+      "automation": "Eficiență",
+      "capabilities": "Instrumente",
       "models": "Modele",
-      "personal": "Personal",
+      "personal": "Preferințe",
       "quickAccess": "Acces Rapid",
       "system": "Sistem"
     },

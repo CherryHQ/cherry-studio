@@ -17,14 +17,14 @@ export function useTopicStreamSubscription(topicId: string): TopicStreamSubscrip
   const sub = ref.current.sub
 
   useEffect(() => {
-    sub.listen()
+    if (topicId) sub.listen()
     return () => {
       sub.dispose()
       if (ref.current?.sub === sub) {
         ref.current = null
       }
     }
-  }, [sub])
+  }, [sub, topicId])
 
   return sub
 }

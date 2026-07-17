@@ -6,6 +6,7 @@ import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
+import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { devRequestSchemas } from './dev'
 import { exportRequestSchemas } from './export'
@@ -48,6 +49,7 @@ export const ipcRequestSchemas = {
   ...binaryRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
+  ...citationRequestSchemas,
   ...codeCliRequestSchemas,
   ...devRequestSchemas,
   ...exportRequestSchemas,
