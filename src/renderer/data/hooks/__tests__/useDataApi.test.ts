@@ -1,5 +1,4 @@
 import { dataApiService } from '@data/DataApiService'
-import { getDataApiCursorRevision, publishDataApiCursorRevision } from '@data/hooks/useDataApiCursorRevision'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
@@ -40,23 +39,18 @@ const {
   createMultiKeyMatcher,
   resolveTemplate,
   buildSWRKey,
-  evictInfiniteRevisionFamily,
   extractInfinitePath,
   findMatchingInfiniteKeys,
-  invalidatePathPatterns,
-  reconcileInfiniteRevisionFamilies
+  invalidatePathPatterns
 } = __testing
 
 /**
- * Build a useSWRInfinite cache key for `[path, query?, revisionToken?]`. Uses `swr/infinite`'s
+ * Build a useSWRInfinite cache key for `[path, query?]`. Uses `swr/infinite`'s
  * own `unstable_serialize` (not the plain `swr` one — they differ: only the
  * infinite flavor prepends `$inf$`). Self-validates against SWR's real format.
  */
-const infKey = (path: string, query?: unknown, revisionToken?: string) =>
-  unstable_serialize_infinite(() => {
-    if (revisionToken !== undefined) return [path, query, revisionToken]
-    return query === undefined ? [path] : [path, query]
-  })
+const infKey = (path: string, query?: unknown) =>
+  unstable_serialize_infinite(() => (query === undefined ? [path] : [path, query]))
 
 describe('createKeyMatcher', () => {
   it('exact-matches a plain path against [path] cache keys', () => {
@@ -405,58 +399,6 @@ describe('extractInfinitePath', () => {
   })
 })
 
-describe('evictInfiniteRevisionFamily', () => {
-  it('removes every old revision meta/page key without touching the current or ordinary family', () => {
-    const oldToken = '/topics:7'
-    const currentToken = '/topics:8'
-    const oldKeys = [
-      infKey('/topics', { limit: 10 }, oldToken),
-      infKey('/topics', { limit: 10, q: 'old-filter' }, oldToken),
-      unstable_serialize(['/topics', { limit: 10 }, oldToken]),
-      unstable_serialize(['/topics', { cursor: 'old-cursor', limit: 10 }, oldToken])
-    ]
-    const retainedKeys = [
-      infKey('/topics', { limit: 10 }, currentToken),
-      unstable_serialize(['/topics', { limit: 10 }, currentToken]),
-      infKey('/topics', { limit: 10 }),
-      unstable_serialize(['/topics', { limit: 10 }]),
-      'plain-key-ending-with-"/topics:7",'
-    ]
-    const cache = new Map([...oldKeys, ...retainedKeys].map((key) => [key, { data: key }])) as unknown as Cache
-
-    evictInfiniteRevisionFamily(cache, oldToken)
-
-    expect(oldKeys.every((key) => cache.get(key) === undefined)).toBe(true)
-    expect(retainedKeys.every((key) => cache.get(key) !== undefined)).toBe(true)
-  })
-
-  it('reconciles only stale families for the requested resource', () => {
-    const oldTopicsToken = '/topics:4'
-    const currentTopicsToken = '/topics:5'
-    const sessionsToken = '/agent-sessions:4'
-    const oldTopicsKeys = [
-      infKey('/topics', { limit: 10 }, oldTopicsToken),
-      unstable_serialize(['/topics', { limit: 10 }, oldTopicsToken])
-    ]
-    const retainedKeys = [
-      infKey('/topics', { limit: 10 }, currentTopicsToken),
-      unstable_serialize(['/topics', { limit: 10 }, currentTopicsToken]),
-      infKey('/agent-sessions', { limit: 10 }, sessionsToken),
-      unstable_serialize(['/agent-sessions', { limit: 10 }, sessionsToken]),
-      infKey('/topics', { limit: 10 }),
-      unstable_serialize(['/topics', { limit: 10 }])
-    ]
-    const cache = new Map([...oldTopicsKeys, ...retainedKeys].map((key) => [key, { data: key }])) as unknown as Cache
-    reconcileInfiniteRevisionFamilies(cache, '/topics', oldTopicsToken)
-    reconcileInfiniteRevisionFamilies(cache, '/agent-sessions', sessionsToken)
-
-    reconcileInfiniteRevisionFamilies(cache, '/topics', currentTopicsToken)
-
-    expect(oldTopicsKeys.every((key) => cache.get(key) === undefined)).toBe(true)
-    expect(retainedKeys.every((key) => cache.get(key) !== undefined)).toBe(true)
-  })
-})
-
 describe('findMatchingInfiniteKeys', () => {
   // Seed the real SWR-backed cache via makeWrapper, bypassing any mock Cache
   // — the Map is what SWR itself uses, so key-shape drift can't hide here.
@@ -559,23 +501,6 @@ describe('invalidatePathPatterns with live useSWRInfinite', () => {
     })
 
     // Give any pending revalidation a chance to run — it should not.
-    await new Promise((r) => setTimeout(r, 30))
-    expect(fetcher).toHaveBeenCalledTimes(1)
-  })
-
-  it('can skip an infinite path already rebuilt by a cursor revision', async () => {
-    const { Wrapper, cache } = makeWrapper()
-    const fetcher = vi.fn(async () => ({ items: [], nextCursor: null }))
-
-    renderHook(() => useSWRInfinite(getKey, fetcher), { wrapper: Wrapper })
-    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
-
-    const { result: cfg } = renderHook(() => useSWRConfig(), { wrapper: Wrapper })
-
-    await act(async () => {
-      await invalidatePathPatterns(cache as unknown as Cache, cfg.current.mutate, ['/foo'], ['/foo'])
-    })
-
     await new Promise((r) => setTimeout(r, 30))
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
@@ -712,14 +637,6 @@ describe('useInfiniteQuery integration', () => {
   // etc.) — the original would throw in this test environment.
   const emptyPage = { items: [], nextCursor: undefined, activeNodeId: null }
 
-  function deferred<T>() {
-    let resolve!: (value: T) => void
-    const promise = new Promise<T>((resolvePromise) => {
-      resolve = resolvePromise
-    })
-    return { promise, resolve }
-  }
-
   function spyGet() {
     return vi.spyOn(dataApiService, 'get').mockResolvedValue(emptyPage as never)
   }
@@ -769,103 +686,6 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.hasNext).toBe(false)
   })
 
-  it('keeps visible pages but retires their cursor during an ordering-only transition', async () => {
-    const nextPage = deferred<{ items: never[]; nextCursor?: string }>()
-    spyGet().mockImplementation((async (_path: string, opts: { query?: { sortBy?: string } } = {}) => {
-      if (opts.query?.sortBy === 'updatedAt') return nextPage.promise
-      return { items: [], nextCursor: 'old-cursor' }
-    }) as never)
-
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(
-      ({ sortBy }: { sortBy: 'createdAt' | 'updatedAt' }) =>
-        useInfiniteQuery('/topics', {
-          continuityKey: 'topics:all',
-          query: { pinned: false, sortBy },
-          resetOnLocalWrite: '/topics'
-        }),
-      { initialProps: { sortBy: 'createdAt' as 'createdAt' | 'updatedAt' }, wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(result.current.pages[0]?.nextCursor).toBe('old-cursor'))
-    rerender({ sortBy: 'updatedAt' })
-
-    expect(result.current.pages[0]?.nextCursor).toBe('old-cursor')
-    expect(result.current.isLoading).toBe(true)
-    expect(result.current.hasNext).toBe(false)
-
-    await act(async () => {
-      nextPage.resolve({ items: [], nextCursor: 'new-cursor' })
-    })
-    await waitFor(() => expect(result.current.pages[0]?.nextCursor).toBe('new-cursor'))
-    expect(result.current.isLoading).toBe(false)
-    expect(result.current.hasNext).toBe(true)
-  })
-
-  it('keeps visible pages while a local-write revision rebuilds the active cursor family', async () => {
-    const refreshedPage = deferred<{ items: never[]; nextCursor?: string }>()
-    let phase: 'initial' | 'refresh' = 'initial'
-    spyGet().mockImplementation((async () => {
-      if (phase === 'refresh') return refreshedPage.promise
-      return { items: [], nextCursor: 'old-cursor' }
-    }) as never)
-
-    const { Wrapper } = makeWrapper()
-    const { result } = renderHook(
-      () =>
-        useInfiniteQuery('/topics', {
-          continuityKey: 'topics:all',
-          query: { pinned: false, sortBy: 'createdAt' },
-          resetOnLocalWrite: '/topics'
-        }),
-      { wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(result.current.pages[0]?.nextCursor).toBe('old-cursor'))
-    phase = 'refresh'
-    act(() => {
-      publishDataApiCursorRevision('/topics')
-    })
-
-    expect(result.current.pages[0]?.nextCursor).toBe('old-cursor')
-    expect(result.current.isLoading).toBe(true)
-    expect(result.current.hasNext).toBe(false)
-
-    await act(async () => {
-      refreshedPage.resolve({ items: [] })
-    })
-    await waitFor(() => expect(result.current.isLoading).toBe(false))
-    expect(result.current.pages).toEqual([{ items: [] }])
-  })
-
-  it('does not retain pages when the collection continuity key changes', async () => {
-    const filteredPage = deferred<{ items: never[] }>()
-    spyGet().mockImplementation((async (_path: string, opts: { query?: { q?: string } } = {}) => {
-      if (opts.query?.q === 'beta') return filteredPage.promise
-      return { items: [], nextCursor: undefined }
-    }) as never)
-
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(
-      ({ q }: { q: string }) =>
-        useInfiniteQuery('/topics', {
-          continuityKey: `topics:${q}`,
-          query: { pinned: false, q, sortBy: 'createdAt' },
-          resetOnLocalWrite: '/topics'
-        }),
-      { initialProps: { q: 'alpha' }, wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    rerender({ q: 'beta' })
-    expect(result.current.pages).toEqual([])
-
-    await act(async () => {
-      filteredPage.resolve({ items: [] })
-    })
-    await waitFor(() => expect(result.current.pages).toEqual([{ items: [] }]))
-  })
-
   it('reset() collapses back to the first page', async () => {
     const getSpy = spyGet()
     getSpy
@@ -887,93 +707,6 @@ describe('useInfiniteQuery integration', () => {
       result.current.reset()
     })
     await waitFor(() => expect(result.current.pages).toHaveLength(1))
-  })
-
-  it('rebuilds an invalidated cursor chain from page one without reusing an old cursor', async () => {
-    let phase: 'old' | 'new' = 'old'
-    const requestedCursors: Array<string | undefined> = []
-    const oldInvalidationToken = `/topics:${getDataApiCursorRevision('/topics')}`
-    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
-      const cursor = opts.query?.cursor
-      requestedCursors.push(cursor)
-
-      if (phase === 'old') {
-        return cursor
-          ? { items: [], nextCursor: undefined, activeNodeId: 'old-2' }
-          : { items: [], nextCursor: 'old-cursor', activeNodeId: 'old-1' }
-      }
-
-      return cursor
-        ? { items: [], nextCursor: undefined, activeNodeId: 'unexpected-cursor-page' }
-        : { items: [], nextCursor: 'new-cursor', activeNodeId: 'new-1' }
-    }) as never)
-
-    const { Wrapper, cache } = makeWrapper()
-    const { result } = renderHook(
-      () =>
-        useInfiniteQuery('/topics/:topicId/messages', {
-          params: { topicId: 't1' },
-          resetOnLocalWrite: '/topics'
-        }),
-      { wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    await act(async () => {
-      result.current.loadNext()
-    })
-    await waitFor(() => expect(result.current.pages).toHaveLength(2))
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(oldInvalidationToken)},`))).toBe(true)
-
-    phase = 'new'
-    const resetRequestStart = requestedCursors.length
-    act(() => {
-      publishDataApiCursorRevision('/topics')
-    })
-
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('new-1'))
-    expect(result.current.pages).toHaveLength(1)
-    expect(requestedCursors.slice(resetRequestStart)).toEqual([undefined])
-    const currentInvalidationToken = `/topics:${getDataApiCursorRevision('/topics')}`
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(oldInvalidationToken)},`))).toBe(false)
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(currentInvalidationToken)},`))).toBe(true)
-  })
-
-  it('cleans a retired revision family when mounting after an invalidation', async () => {
-    spyGet().mockResolvedValue({ items: [], nextCursor: undefined, activeNodeId: 'page' } as never)
-    const oldInvalidationToken = `/topics:${getDataApiCursorRevision('/topics')}`
-    const { Wrapper, cache } = makeWrapper()
-    const firstMount = renderHook(
-      () =>
-        useInfiniteQuery('/topics/:topicId/messages', {
-          params: { topicId: 't1' },
-          resetOnLocalWrite: '/topics'
-        }),
-      { wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(firstMount.result.current.pages).toHaveLength(1))
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(oldInvalidationToken)},`))).toBe(true)
-    firstMount.unmount()
-
-    act(() => {
-      publishDataApiCursorRevision('/topics')
-    })
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(oldInvalidationToken)},`))).toBe(true)
-
-    const currentInvalidationToken = `/topics:${getDataApiCursorRevision('/topics')}`
-    const secondMount = renderHook(
-      () =>
-        useInfiniteQuery('/topics/:topicId/messages', {
-          params: { topicId: 't1' },
-          resetOnLocalWrite: '/topics'
-        }),
-      { wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(secondMount.result.current.pages).toHaveLength(1))
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(oldInvalidationToken)},`))).toBe(false)
-    expect([...cache.keys()].some((key) => key.endsWith(`${JSON.stringify(currentInvalidationToken)},`))).toBe(true)
   })
 
   it('mutate replaces the pages array directly', async () => {
@@ -1185,40 +918,6 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(secondCb).toHaveBeenCalledWith({ id: 'created' })
     expect(firstCb).not.toHaveBeenCalled()
     expect(dataApiService.post).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the local topic cursor for a plain refresh target', async () => {
-    spyPost()
-    const { Wrapper } = makeWrapper()
-    const previousRevision = getDataApiCursorRevision('/topics')
-    const { result } = renderHook(() => useMutation('POST', '/topics', { refresh: ['/topics'] }), {
-      wrapper: Wrapper
-    })
-
-    await act(async () => {
-      await result.current.trigger({ body: { name: 't' } as never })
-    })
-
-    expect(getDataApiCursorRevision('/topics')).toBe(previousRevision)
-  })
-
-  it('restarts the local topic cursor only for an explicit reset target', async () => {
-    spyPost()
-    const { Wrapper } = makeWrapper()
-    const previousRevision = getDataApiCursorRevision('/topics')
-    const { result } = renderHook(
-      () =>
-        useMutation('POST', '/topics', {
-          refresh: [{ path: '/topics', strategy: 'reset-cursor' }]
-        }),
-      { wrapper: Wrapper }
-    )
-
-    await act(async () => {
-      await result.current.trigger({ body: { name: 't' } as never })
-    })
-
-    expect(getDataApiCursorRevision('/topics')).toBe(previousRevision + 1)
   })
 
   it('a trigger captured before a rerender still uses the latest refresh option', async () => {

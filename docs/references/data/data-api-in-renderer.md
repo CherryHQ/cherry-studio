@@ -56,10 +56,7 @@ await deleteTopic()
 
 // With auto-refresh of other queries
 const { trigger } = useMutation('POST', '/topics', {
-  refresh: [
-    { path: '/topics', strategy: 'reset-cursor' },
-    '/topics/stats'
-  ],
+  refresh: ['/topics'], // Refresh these keys on success
   onSuccess: (data) => logger.info('Created:', data)
 })
 ```
@@ -101,18 +98,6 @@ const items = useInfiniteFlatItems(pages, { reversePages: true })
 generic is constrained via `CursorPaginatedPath`. `pages` is reference-stable
 across rerenders when SWR's underlying data is unchanged, so
 `useInfiniteFlatItems(pages)` skips recomputation.
-
-For lists whose request ordering can change without changing row membership,
-pass a `continuityKey` that includes collection filters/scope but excludes the
-ordering fields. While the new request restarts from page one, `pages` may keep
-the previous rows visible while `isLoading` remains `true`. During that interval
-`hasNext` is always `false`, so a cursor issued by the retired ordering can never
-be reused. Change the continuity key for search, owner, or other membership
-changes that must remove incompatible rows immediately.
-
-Local-write revisions follow the same display rule only for callers that opt in
-with a continuity key: the active cursor family is still retired immediately,
-while its rows may remain as a visual snapshot until the new first page settles.
 
 ### usePaginatedQuery (Offset-based Pagination)
 
@@ -206,35 +191,10 @@ In dev mode, a concurrent trigger with changed params logs a warning.
 ### Static paths (exact match)
 
 ```typescript
-useMutation('POST', '/assistants', { refresh: ['/assistants'] })
+useMutation('POST', '/topics', { refresh: ['/topics'] })
 ```
 
-Invalidates only `['/assistants']`. Use when you know exactly which paths are affected and they don't depend on mutation input or output.
-
-### Cursor reset target
-
-A plain path only revalidates existing SWR keys. When a write changes list
-membership or ordering and therefore invalidates cursor boundaries, declare the
-reset explicitly and subscribe the infinite query with the same resource key:
-
-```typescript
-const topics = useInfiniteQuery('/topics', {
-  query: { pinned: false },
-  resetOnLocalWrite: '/topics'
-})
-
-useMutation('POST', '/topics', {
-  refresh: [
-    { path: '/topics', strategy: 'reset-cursor' },
-    '/topics/stats'
-  ]
-})
-```
-
-`reset-cursor` retires the old cursor family and fetches page one; it does not
-implicitly refresh sibling endpoints. List `/stats` or any other derived path
-separately only when that write can change its facts. For a metadata change that
-does not affect ordering or membership, keep the plain string form.
+Invalidates only `['/topics']`. Use when you know exactly which paths are affected and they don't depend on mutation input or output.
 
 ### `/*` suffix (prefix match)
 
@@ -270,7 +230,6 @@ Use when the set of keys is only known at call time (ids from args/result).
 | Need | Form |
 |---|---|
 | Static, known keys | Array |
-| Retire an invalid cursor chain | `{ path, strategy: 'reset-cursor' }` target |
 | Invalidate all sub-paths of a resource | `/*` prefix in array |
 | Invalidate keys computed from args / result | Function |
 | Both: fan-out + precision | Function returning a mix of exact and `/*` |
@@ -380,7 +339,7 @@ if (error instanceof DataApiError && error.isRetryable) {
 function CreateTopicForm() {
   // Use refresh option to auto-refresh /topics after creation
   const { trigger: createTopic, isLoading } = useMutation('POST', '/topics', {
-    refresh: [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+    refresh: ['/topics']
   })
 
   const handleSubmit = async (data: CreateTopicDto) => {

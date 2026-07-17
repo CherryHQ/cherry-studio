@@ -254,15 +254,6 @@ offset-paginated paths at compile time. See
 [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll)
 for the hook signatures and the hook-choosing table.
 
-Ordering transitions must reset the active cursor chain even when the UI keeps
-the previous rows mounted. Cursor consumers that opt into `continuityKey` get
-that split explicitly: `pages` is the visible snapshot, `isLoading` identifies
-the first-page handoff, and `hasNext` remains false until the current request
-identity has settled. Never derive a load-more action from a previous snapshot's
-`nextCursor`. Local writes request this handoff explicitly with
-`{ path, strategy: 'reset-cursor' }`; a plain refresh path only revalidates the
-current cache family.
-
 ### Reorder + pagination
 
 `useReorder` works on paginated lists transparently. Both
@@ -270,10 +261,7 @@ current cache family.
 `CursorPaginationResponse` (`{ items, nextCursor }`) fall under the same
 `{ items }` cache branch — metadata fields pass through unchanged on optimistic
 writes, and any visible row's id is a valid drag anchor even when the list never
-fits on screen. Cursor-paged consumers pass
-`refreshStrategy: 'reset-cursor'` to `useReorder`; offset or non-paginated
-collections keep its default plain refresh.
-See
+fits on screen. See
 [Ordering Guide § 4.3 Supported cache shapes](./data-ordering-guide.md#43-supported-cache-shapes).
 
 ## 6. Full-Text Search Pagination
