@@ -5,19 +5,6 @@ import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import type { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-function getKnowledgeFilePath(itemId: string) {
-  try {
-    return application.get('KnowledgeService').getFilePath(itemId)
-  } catch (error) {
-    if (isDataApiError(error) && (error.code === ErrorCode.NOT_FOUND || error.code === ErrorCode.INVALID_OPERATION)) {
-      throw new IpcError(knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE, 'Knowledge source path is unavailable', {
-        cause: error.code
-      })
-    }
-    throw error
-  }
-}
-
 /**
  * Thin adapters for the knowledge request routes: each one translates a parsed route
  * call into a `KnowledgeService` method (business logic + resource lifecycle stay in
@@ -44,7 +31,18 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.enable_embedding_model': async ({ baseId, patch }) =>
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
   'knowledge.search': async ({ baseId, query }) => application.get('KnowledgeService').search(baseId, query),
-  'knowledge.get_file_path': async ({ itemId }) => getKnowledgeFilePath(itemId),
+  'knowledge.get_file_path': async ({ itemId }) => {
+    try {
+      return application.get('KnowledgeService').getFilePath(itemId)
+    } catch (error) {
+      if (isDataApiError(error) && (error.code === ErrorCode.NOT_FOUND || error.code === ErrorCode.INVALID_OPERATION)) {
+        throw new IpcError(knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE, 'Knowledge source path is unavailable', {
+          cause: error.code
+        })
+      }
+      throw error
+    }
+  },
   'knowledge.list_item_chunks': async ({ baseId, itemId }) =>
     application.get('KnowledgeService').listItemChunks(baseId, itemId)
 }
