@@ -108,7 +108,7 @@ export interface SemanticIdInput {
   handler?: string
   htmlId?: string
   name?: string
-  slot?: string
+  part?: string
   sourceFile: string
   testId?: string
   type?: string
@@ -116,13 +116,13 @@ export interface SemanticIdInput {
 
 export function inferSemanticId(input: SemanticIdInput): string {
   const component = normalizedHint(input.component)
-  const slot = normalizedHint(input.slot)
+  const part = normalizedHint(input.part)
   const explicit = normalizedHint(input.testId ?? input.htmlId ?? input.name)
   const handler = normalizedHint(input.handler).filter((word) => !['handle', 'on'].includes(word))
   const type = normalizedHint(input.type)
   const element = identifierWords(input.element).at(-1) ?? 'element'
   const domain = sourceDomain(input.sourceFile)
-  const hints = unique([...slot, ...explicit, ...handler, ...component, ...type])
+  const hints = unique([...part, ...explicit, ...handler, ...component, ...type])
   const action = actionFromHints(hints)
 
   let role: string[]
@@ -133,15 +133,15 @@ export function inferSemanticId(input: SemanticIdInput): string {
   } else if (MEDIA_TAGS.has(element)) {
     role = ['media', element]
   } else if (element === 'li') {
-    role = ['item', ...slot.slice(-1)]
+    role = ['item', ...part.slice(-1)]
   } else if (element === 'ol' || element === 'ul') {
-    role = ['list', ...slot.slice(-1)]
+    role = ['list', ...part.slice(-1)]
   } else if (/^h[1-6]$/.test(element)) {
     role = ['heading', element]
   } else if (REGION_TAGS.has(element)) {
-    role = ['region', ...slot.slice(-1), element]
-  } else if (slot.length > 0) {
-    role = slot
+    role = ['region', ...part.slice(-1), element]
+  } else if (part.length > 0) {
+    role = part
   } else {
     role = ['element', element]
   }

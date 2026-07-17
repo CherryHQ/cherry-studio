@@ -7,6 +7,7 @@ describe('data-ui tokens', () => {
     const value = uiTokens('chat.message', {
       exactId: 'uabcdef0',
       modes: ['compact'],
+      parts: ['message-content'],
       scopes: ['message:m_817'],
       states: ['assistant', 'complete'],
       themes: ['custom'],
@@ -14,10 +15,11 @@ describe('data-ui tokens', () => {
     })
 
     expect(value).toBe(
-      'chat.message id:uabcdef0 scope:message:m_817 variant:bubble mode:compact state:assistant state:complete theme:custom'
+      'chat.message part:message-content id:uabcdef0 scope:message:m_817 variant:bubble mode:compact state:assistant state:complete theme:custom'
     )
     expect(parseUiTokens(value)).toMatchObject({
       exactId: 'uabcdef0',
+      parts: ['message-content'],
       scopes: ['message:m_817'],
       semanticId: 'chat.message',
       states: ['assistant', 'complete']
@@ -25,8 +27,15 @@ describe('data-ui tokens', () => {
   })
 
   it('builds exact token selectors without DOM structure coupling', () => {
-    expect(uiSelector({ semanticId: 'chat.message', scopes: ['message:m_817'], states: ['complete'] })).toBe(
-      '[data-ui~="chat.message"][data-ui~="scope:message:m_817"][data-ui~="state:complete"]'
+    expect(
+      uiSelector({
+        parts: ['message-content'],
+        scopes: ['message:m_817'],
+        semanticId: 'chat.message',
+        states: ['complete']
+      })
+    ).toBe(
+      '[data-ui~="chat.message"][data-ui~="part:message-content"][data-ui~="scope:message:m_817"][data-ui~="state:complete"]'
     )
   })
 })

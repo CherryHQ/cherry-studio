@@ -31,7 +31,7 @@ export function Disclosure({
     open === undefined ? { defaultValue: defaultOpen ? itemValue : undefined } : { value: open ? itemValue : '' }
 
   return (
-    <div data-slot="chat-disclosure" className={className} {...props}>
+    <div data-ui="part:chat-disclosure" className={className} {...props}>
       <Accordion
         type="single"
         collapsible

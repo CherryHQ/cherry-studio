@@ -772,8 +772,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
           </Button>
         )}
       </div>
-      <div data-slot="task-logs-table-scroll" className="max-w-full overflow-x-auto">
-        <div data-slot="task-logs-table-width" className="min-w-[720px]">
+      <div data-ui="part:task-logs-table-scroll" className="max-w-full overflow-x-auto">
+        <div data-ui="part:task-logs-table-width" className="min-w-[720px]">
           <DataTable data={filteredLogs} columns={columns} rowKey="id" emptyText={t('agent.tasks.logs.empty')} />
         </div>
       </div>

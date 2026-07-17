@@ -11,7 +11,7 @@ type PageHeaderProps = Omit<React.ComponentProps<'div'>, 'title'> & {
 function PageHeader({ title, titleClassName, action, bordered, className, ...props }: PageHeaderProps) {
   return (
     <div
-      data-slot="page-header"
+      data-ui="part:page-header"
       className={cn(
         'mt-2 mb-2 flex h-8 shrink-0 items-center justify-between gap-2 pr-3 pl-5',
         bordered && 'border-border border-b',

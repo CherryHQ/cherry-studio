@@ -7,8 +7,32 @@ import type { UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
 const SKIPPED_HTML_TAGS = new Set(['base', 'head', 'html', 'link', 'meta', 'script', 'style', 'title'])
-const SEMANTIC_ATTRIBUTES = new Set(['data-slot', 'data-testid', 'id', 'name', 'role', 'type'])
-const SVG_OPT_IN_ATTRIBUTES = ['data-slot', 'data-testid', 'role']
+const NON_DOM_COMPONENTS = new Set([
+  'ContextMenuPrimitive.Portal',
+  'ContextMenuPrimitive.Root',
+  'ContextMenuPrimitive.Sub',
+  'DialogPortal',
+  'DialogPrimitive.Portal',
+  'DialogPrimitive.Root',
+  'DrawerPortal',
+  'DrawerPrimitive.Portal',
+  'DrawerPrimitive.Root',
+  'DropdownMenuPrimitive.Portal',
+  'DropdownMenuPrimitive.Root',
+  'DropdownMenuPrimitive.Sub',
+  'HoverCardPrimitive.Root',
+  'PopoverPrimitive.Root',
+  'RadixProvider',
+  'RadixRoot',
+  'SelectPrimitive.Root'
+])
+// These virtual parents preserve descendant IDs after non-DOM wrappers were removed from the public registry.
+const TRANSPARENT_PARENT_PARTS = new Map([
+  ['DialogPortal', 'dialog-portal'],
+  ['DrawerPortal', 'drawer-portal']
+])
+const SEMANTIC_ATTRIBUTES = new Set(['data-testid', 'id', 'name', 'role', 'type'])
+const SVG_OPT_IN_ATTRIBUTES = ['data-testid', 'role']
 
 type AstRecord = Record<string, unknown> & { span?: Span; type?: string }
 
@@ -22,6 +46,7 @@ interface OpeningElementInfo {
   attributes: Map<string, AttributeInfo>
   element: string
   handler?: string
+  parts: string[]
   signature: string
 }
 
@@ -70,6 +95,19 @@ function staticJsxAttribute(attribute: JSXAttribute): AttributeInfo {
   return { attribute, dynamic: true }
 }
 
+function namespaceTokenValues(value: string | undefined, namespace: string): string[] {
+  const prefix = `${namespace}:`
+  return (value ?? '')
+    .split(/\s+/)
+    .filter((token) => token.startsWith(prefix) && token.length > prefix.length)
+    .map((token) => token.slice(prefix.length))
+}
+
+// This spelling is hash compatibility only. It is never written to source or emitted to the DOM.
+function stablePartSignature(part: string): string {
+  return `data-slot=${part}`
+}
+
 function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   const attributes = new Map<string, AttributeInfo>()
   let handler: string | undefined
@@ -85,6 +123,7 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   }
 
   const element = jsxName(opening.name)
+  const parts = namespaceTokenValues(attributes.get('data-ui')?.value, 'part')
   const semanticSignature = [...attributes.entries()]
     .filter(([name, info]) => SEMANTIC_ATTRIBUTES.has(name) && !info.dynamic)
     .map(([name, info]) => `${name}=${info.value}`)
@@ -95,7 +134,8 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
     attributes,
     element,
     handler,
-    signature: [...semanticSignature, ...handlerNames].join('|')
+    parts,
+    signature: [...semanticSignature, ...parts.map(stablePartSignature)].sort().concat(handlerNames).join('|')
   }
 }
 
@@ -167,10 +207,13 @@ function defaultComponentName(sourceFile: string): string {
 }
 
 function mergeDataUi(existing: string | undefined, semanticId: string, id: string): string {
-  const tokens = new Set((existing ?? '').split(/\s+/).filter(Boolean))
-  tokens.add(semanticId)
-  tokens.add(`id:${id}`)
-  return [...tokens].join(' ')
+  const existingTokens = (existing ?? '').split(/\s+/).filter(Boolean)
+  const semanticTokens = existingTokens.filter((token) => !token.includes(':'))
+  const partTokens = existingTokens.filter((token) => token.startsWith('part:'))
+  const remainingTokens = existingTokens.filter(
+    (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
+  )
+  return [...new Set([semanticId, ...semanticTokens, ...partTokens, `id:${id}`, ...remainingTokens])].join(' ')
 }
 
 interface TransformJsxOptions {
@@ -198,12 +241,22 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     insideSvg: boolean
   ): string | undefined {
     const info = openingElementInfo(opening)
+    if (info.attributes.has('data-slot')) {
+      throw new Error('data-slot is obsolete; use a part:* token inside data-ui')
+    }
     const elementLeaf = info.element.split('.').at(-1) ?? info.element
     if (SKIPPED_COMPONENTS.has(elementLeaf)) return parentSemanticId
+    if (NON_DOM_COMPONENTS.has(info.element)) {
+      const parentPart = TRANSPARENT_PARENT_PARTS.get(info.element)
+      return parentPart
+        ? inferSemanticId({ component, element: info.element, part: parentPart, sourceFile: options.sourceFile })
+        : parentSemanticId
+    }
+    if (SKIPPED_HTML_TAGS.has(info.element)) return parentSemanticId
 
     const existingDataUi = info.attributes.get('data-ui')
     const isIntrinsicElement = /^[a-z]/.test(info.element)
-    const forwardsDomAttributes = ['data-slot', 'data-testid', 'id', 'role'].some((name) => info.attributes.has(name))
+    const forwardsDomAttributes = ['data-testid', 'id', 'role'].some((name) => info.attributes.has(name))
     if (!isIntrinsicElement && !existingDataUi && !forwardsDomAttributes) return parentSemanticId
     if (insideSvg && info.element !== 'svg' && !hasSvgContractOptIn(info)) return parentSemanticId
     const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
@@ -218,7 +271,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         handler: info.handler,
         htmlId: info.attributes.get('id')?.value,
         name: info.attributes.get('name')?.value,
-        slot: info.attributes.get('data-slot')?.value,
+        part: info.parts[0],
         sourceFile: options.sourceFile,
         testId: info.attributes.get('data-testid')?.value,
         type: info.attributes.get('type')?.value
@@ -371,8 +424,12 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
   let parentSemanticId: string | undefined
 
   for (const tag of htmlTags(source)) {
+    if (htmlAttribute(tag, 'data-slot') !== undefined) {
+      throw new Error('data-slot is obsolete; use a part:* token inside data-ui')
+    }
     if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
     const existing = htmlAttribute(tag, 'data-ui')
+    const parts = namespaceTokenValues(existing, 'part')
     const explicitId = existing?.split(/\s+/).find((token) => token && !token.includes(':') && !token.startsWith('id:'))
     const semanticId =
       explicitId ??
@@ -383,15 +440,18 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
             element: tag.name,
             htmlId: htmlAttribute(tag, 'id'),
             name: htmlAttribute(tag, 'name'),
+            part: parts[0],
             sourceFile: options.sourceFile,
             testId: htmlAttribute(tag, 'data-testid'),
             type: htmlAttribute(tag, 'type')
           }))
-    const signature = ['id', 'name', 'role', 'type']
-      .map((name) => [name, htmlAttribute(tag, name)] as const)
-      .filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
-      .map(([name, value]) => `${name}=${value}`)
-      .join('|')
+    const signature = [
+      ...['id', 'name', 'role', 'type']
+        .map((name) => [name, htmlAttribute(tag, name)] as const)
+        .filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
+        .map(([name, value]) => `${name}=${value}`),
+      ...parts.map(stablePartSignature)
+    ].join('|')
     const occurrenceKey = `${semanticId}\0${tag.name}\0${signature}`
     const occurrence = occurrences.get(occurrenceKey) ?? 0
     occurrences.set(occurrenceKey, occurrence + 1)

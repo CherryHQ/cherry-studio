@@ -85,7 +85,7 @@ function MenuItem({
       ref={ref}
       type={asChild ? undefined : 'button'}
       data-active={active || undefined}
-      data-slot="menu-item"
+      data-ui="part:menu-item"
       disabled={disabled || undefined}
       className={cn(menuItemVariants({ variant, size }), className)}
       {...props}>
@@ -118,7 +118,7 @@ MenuItem.displayName = 'MenuItem'
 type MenuListProps = React.ComponentProps<'div'>
 
 function MenuList({ className, ref, ...props }: MenuListProps) {
-  return <div ref={ref} data-slot="menu-list" className={cn('flex flex-col gap-1', className)} {...props} />
+  return <div ref={ref} data-ui="part:menu-list" className={cn('flex flex-col gap-1', className)} {...props} />
 }
 
 MenuList.displayName = 'MenuList'
@@ -133,7 +133,7 @@ function MenuDivider({ className, ref, ...props }: MenuDividerProps) {
   return (
     <div
       ref={ref}
-      data-slot="menu-divider"
+      data-ui="part:menu-divider"
       role="separator"
       className={cn('my-1 h-px bg-border', className)}
       {...props}

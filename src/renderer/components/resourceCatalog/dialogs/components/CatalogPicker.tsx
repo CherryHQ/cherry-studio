@@ -243,11 +243,11 @@ export const AddCatalogPopover: FC<{
         align={align}
         portalContainer={portalContainer ?? undefined}
         className="w-72 max-w-[calc(100vw-2rem)] rounded-md p-0">
-        {/* Pill search row: style CommandInput's own wrapper via its data-slot so the
+        {/* Pill search row: style CommandInput's own wrapper via its data-ui part so the
             shared CommandInput stays untouched. */}
         <Command
           shouldFilter={false}
-          className="[&_[data-slot=command-input-wrapper]]:mx-2 [&_[data-slot=command-input-wrapper]]:mt-2 [&_[data-slot=command-input-wrapper]]:mb-1 [&_[data-slot=command-input-wrapper]]:h-7 [&_[data-slot=command-input-wrapper]]:rounded-full [&_[data-slot=command-input-wrapper]]:border-[0.5px] [&_[data-slot=command-input-wrapper]]:border-border-subtle [&_[data-slot=command-input-wrapper]]:px-2.5">
+          className="[&_[data-ui~='part:command-input-wrapper']]:mx-2 [&_[data-ui~='part:command-input-wrapper']]:mt-2 [&_[data-ui~='part:command-input-wrapper']]:mb-1 [&_[data-ui~='part:command-input-wrapper']]:h-7 [&_[data-ui~='part:command-input-wrapper']]:rounded-full [&_[data-ui~='part:command-input-wrapper']]:border-[0.5px] [&_[data-ui~='part:command-input-wrapper']]:border-border-subtle [&_[data-ui~='part:command-input-wrapper']]:px-2.5">
           <CommandInput
             value={search}
             onValueChange={setSearch}

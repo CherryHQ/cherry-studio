@@ -239,9 +239,9 @@ vi.mock('@cherrystudio/ui', () => {
       maxHeight?: number | string
       rowKey: string
     }) => (
-      <div data-slot="data-table">
+      <div data-ui="part:data-table">
         <div
-          data-slot="data-table-scroll"
+          data-ui="part:data-table-scroll"
           className={maxHeight ? 'overflow-y-auto' : undefined}
           style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}>
           <table>
@@ -455,9 +455,9 @@ describe('TasksSettings task logs', () => {
     render(<TasksSettings />)
 
     const table = await screen.findByRole('table')
-    const horizontalScroll = table.closest('[data-slot="task-logs-table-scroll"]')
-    const tableWidth = table.closest('[data-slot="task-logs-table-width"]')
-    const dataTableScroll = table.closest('[data-slot="data-table-scroll"]')
+    const horizontalScroll = table.closest('[data-ui~="part:task-logs-table-scroll"]')
+    const tableWidth = table.closest('[data-ui~="part:task-logs-table-width"]')
+    const dataTableScroll = table.closest('[data-ui~="part:data-table-scroll"]')
 
     expect(horizontalScroll).toHaveClass('overflow-x-auto')
     expect(tableWidth).toHaveClass('min-w-[720px]')

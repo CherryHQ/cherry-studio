@@ -48,7 +48,7 @@ describe('ImportAssistantDialog overlay close', () => {
   it('uses the shared dialog width instead of a narrower override', () => {
     render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
 
-    const content = document.querySelector('[data-slot="dialog-content"]')
+    const content = document.querySelector('[data-ui~="part:dialog-content"]')
     expect(content).toHaveClass('overflow-hidden')
     expect(content).not.toHaveClass('sm:max-w-md')
   })
@@ -58,7 +58,7 @@ describe('ImportAssistantDialog overlay close', () => {
 
     render(<ImportAssistantDialog open onOpenChange={onOpenChange} />)
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)

@@ -11,7 +11,7 @@ export default function AnimatedRevealText({ text, ariaLabel, className }: Anima
 
   return (
     <span
-      data-slot="animated-reveal-text"
+      data-ui="part:animated-reveal-text"
       aria-label={ariaLabel ?? text}
       className={cn(
         'animated-reveal-text inline-block max-w-full select-none overflow-hidden text-ellipsis whitespace-nowrap text-center font-normal text-[32px] text-foreground leading-[1.15] tracking-normal max-sm:text-[26px]',

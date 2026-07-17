@@ -215,7 +215,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   return (
     <ErrorBoundary fallbackComponent={Fallback}>
-      <CardContainer onClick={handleRowClick} data-slot="mcp-server-row">
+      <CardContainer onClick={handleRowClick} data-ui="part:mcp-server-row">
         <ServerNameCell>
           {runtimeStatus.state === 'error' && server.isActive ? (
             <Tooltip content={runtimeStatus.lastError || t('settings.mcp.runtimeStatus.error', 'Error')}>

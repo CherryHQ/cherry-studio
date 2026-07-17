@@ -96,7 +96,7 @@ describe('ImportSkillDialog', () => {
 
     render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)
@@ -115,7 +115,7 @@ describe('ImportSkillDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
     await waitFor(() => expect(installFromZip).toHaveBeenCalledWith('/tmp/broken.zip'))
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)
@@ -180,7 +180,7 @@ describe('ImportSkillDialog', () => {
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
     expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
     expect(screen.queryByText('settings.skills.batchInstallComplete:2')).not.toBeInTheDocument()
-    expect(document.querySelectorAll('[data-slot="dialog-overlay"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-ui~="part:dialog-overlay"]')).toHaveLength(1)
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 

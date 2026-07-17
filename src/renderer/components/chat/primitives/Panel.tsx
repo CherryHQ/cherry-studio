@@ -46,12 +46,12 @@ export function Panel({
 
   return (
     <section
-      data-slot="chat-panel"
+      data-ui="part:chat-panel"
       className={cn('min-w-0 rounded-lg', variantClassNames[variant], className)}
       {...props}>
       {hasHeader && (
         <div
-          data-slot="chat-panel-header"
+          data-ui="part:chat-panel-header"
           className={cn(
             'flex min-w-0 items-start justify-between gap-3 border-border/60 border-b p-3',
             headerClassName
@@ -63,11 +63,11 @@ export function Panel({
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
       )}
-      <div data-slot="chat-panel-body" className={cn('min-w-0', paddingClassNames[padding], bodyClassName)}>
+      <div data-ui="part:chat-panel-body" className={cn('min-w-0', paddingClassNames[padding], bodyClassName)}>
         {children}
       </div>
       {footer && (
-        <div data-slot="chat-panel-footer" className={cn('border-border/60 border-t p-3', footerClassName)}>
+        <div data-ui="part:chat-panel-footer" className={cn('border-border/60 border-t p-3', footerClassName)}>
           {footer}
         </div>
       )}

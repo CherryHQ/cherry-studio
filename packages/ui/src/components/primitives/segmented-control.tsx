@@ -44,7 +44,7 @@ function SegmentedControl<TValue extends string = string>({
   return (
     <div
       role="radiogroup"
-      data-slot="segmented-control"
+      data-ui="part:segmented-control"
       data-size={size}
       aria-disabled={disabled}
       className={cn(

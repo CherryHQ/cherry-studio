@@ -113,7 +113,7 @@ function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof Con
 
   return (
     <ContextMenuOpeningPointerUpGuardContext value={pointerUpGuard}>
-      <ContextMenuPrimitive.Root data-slot="context-menu" onOpenChange={handleOpenChange} {...props} />
+      <ContextMenuPrimitive.Root onOpenChange={handleOpenChange} {...props} />
     </ContextMenuOpeningPointerUpGuardContext>
   )
 }
@@ -127,7 +127,7 @@ function ContextMenuTrigger({
 
   return (
     <ContextMenuPrimitive.Trigger
-      data-slot="context-menu-trigger"
+      data-ui="part:context-menu-trigger"
       disabled={disabled}
       onContextMenu={(event) => {
         if (!disabled) {
@@ -141,26 +141,20 @@ function ContextMenuTrigger({
 }
 
 function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Group>) {
-  return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
+  return <ContextMenuPrimitive.Group data-ui="part:context-menu-group" {...props} />
 }
 
 function ContextMenuPortal({ container, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
   const defaultPortalContainer = usePortalContainer()
-  return (
-    <ContextMenuPrimitive.Portal
-      data-slot="context-menu-portal"
-      container={container ?? defaultPortalContainer ?? undefined}
-      {...props}
-    />
-  )
+  return <ContextMenuPrimitive.Portal container={container ?? defaultPortalContainer ?? undefined} {...props} />
 }
 
 function ContextMenuSub({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
-  return <ContextMenuPrimitive.Sub data-slot="context-menu-sub" {...props} />
+  return <ContextMenuPrimitive.Sub {...props} />
 }
 
 function ContextMenuRadioGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.RadioGroup>) {
-  return <ContextMenuPrimitive.RadioGroup data-slot="context-menu-radio-group" {...props} />
+  return <ContextMenuPrimitive.RadioGroup data-ui="part:context-menu-radio-group" {...props} />
 }
 
 function stopOpeningPointerUp(event: React.PointerEvent, pointerUpGuard: ContextMenuOpeningPointerUpGuard | null) {
@@ -182,7 +176,7 @@ function ContextMenuSubTrigger({
   Pick<VariantProps<typeof menuItemVariants>, 'inset'>) {
   return (
     <ContextMenuPrimitive.SubTrigger
-      data-slot="context-menu-sub-trigger"
+      data-ui="part:context-menu-sub-trigger"
       data-inset={inset}
       className={cn(
         menuItemVariants({ inset }),
@@ -205,7 +199,7 @@ function ContextMenuSubContent({
 
   return (
     <ContextMenuPrimitive.SubContent
-      data-slot="context-menu-sub-content"
+      data-ui="part:context-menu-sub-content"
       className={cn(
         menuSubContentStyles,
         'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
@@ -232,7 +226,7 @@ function ContextMenuContent({ className, onPointerUpCapture, portalContainer, ..
   return (
     <ContextMenuPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <ContextMenuPrimitive.Content
-        data-slot="context-menu-content"
+        data-ui="part:context-menu-content"
         className={cn(
           menuContentStyles,
           'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
@@ -257,7 +251,7 @@ function ContextMenuItem({
 }: React.ComponentProps<typeof ContextMenuPrimitive.Item> & VariantProps<typeof menuItemVariants>) {
   return (
     <ContextMenuPrimitive.Item
-      data-slot="context-menu-item"
+      data-ui="part:context-menu-item"
       data-inset={inset}
       data-variant={variant}
       className={cn(menuItemVariants({ variant, inset }), className)}
@@ -274,7 +268,7 @@ function ContextMenuCheckboxItem({
 }: React.ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>) {
   return (
     <ContextMenuPrimitive.CheckboxItem
-      data-slot="context-menu-checkbox-item"
+      data-ui="part:context-menu-checkbox-item"
       className={cn(menuItemVariants({ inset: true }), 'pr-2', className)}
       checked={checked}
       {...props}>
@@ -295,7 +289,7 @@ function ContextMenuRadioItem({
 }: React.ComponentProps<typeof ContextMenuPrimitive.RadioItem>) {
   return (
     <ContextMenuPrimitive.RadioItem
-      data-slot="context-menu-radio-item"
+      data-ui="part:context-menu-radio-item"
       className={cn(menuItemVariants({ inset: true }), 'pr-2', className)}
       {...props}>
       <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
@@ -319,7 +313,7 @@ function ContextMenuLabel({
 }) {
   return (
     <ContextMenuPrimitive.Label
-      data-slot="context-menu-label"
+      data-ui="part:context-menu-label"
       className={cn('px-2 py-1.5 font-medium text-sm', inset && 'pl-8', className)}
       {...props}
     />
@@ -329,7 +323,7 @@ function ContextMenuLabel({
 function ContextMenuSeparator({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Separator>) {
   return (
     <ContextMenuPrimitive.Separator
-      data-slot="context-menu-separator"
+      data-ui="part:context-menu-separator"
       className={cn('-mx-1 my-1 h-px bg-border', className)}
       {...props}
     />
@@ -339,7 +333,7 @@ function ContextMenuSeparator({ className, ...props }: React.ComponentProps<type
 function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
-      data-slot="context-menu-shortcut"
+      data-ui="part:context-menu-shortcut"
       className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
       {...props}
     />

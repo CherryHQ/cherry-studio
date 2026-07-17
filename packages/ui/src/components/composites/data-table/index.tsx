@@ -357,7 +357,7 @@ function DataTable<TData>({
   const visibleColumnCount = table.getVisibleFlatColumns().length
   const hasToolbar = Boolean(headerLeft || headerRight)
   const tableElement = (
-    <div data-slot="data-table-shell" className={cn(tableShellClassName, className)}>
+    <div data-ui="part:data-table-shell" className={cn(tableShellClassName, className)}>
       <div
         style={{ maxHeight: toCssSize(maxHeight) }}
         className={cn(tableScrollAreaClassName, maxHeight && 'overflow-y-auto')}>
@@ -452,7 +452,7 @@ function DataTable<TData>({
 
   return (
     <div
-      data-slot="data-table"
+      data-ui="part:data-table"
       className="flex w-full max-w-full flex-col gap-2"
       style={{ maxWidth: toCssSize(maxWidth) }}>
       {hasToolbar && (

@@ -23,7 +23,7 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
   )
   CompoundLogo.Avatar = ({ className, size = 32 }: { className?: string; size?: number }) => (
     <div className={className} data-testid="compound-logo-avatar" style={{ width: size, height: size }}>
-      <div data-testid="compound-logo-fallback" data-slot="avatar-fallback">
+      <div data-testid="compound-logo-fallback" data-ui="part:avatar-fallback">
         <CompoundLogo style={{ width: size * 0.7, height: size * 0.7 }} />
       </div>
     </div>
@@ -97,7 +97,7 @@ describe('MiniAppIcon', () => {
     const avatar = container.querySelector('[data-testid="compound-logo-avatar"]')
     expect(avatar).toBeInTheDocument()
     expect(avatar).toHaveClass('border', 'border-border')
-    expect(avatar).not.toHaveClass('[&_[data-slot=avatar-fallback]]:bg-transparent')
+    expect(avatar).not.toHaveClass('[&_[data-ui~="part:avatar-fallback"]]:bg-transparent')
   })
 
   it('renders plain compound icons without avatar chrome', () => {

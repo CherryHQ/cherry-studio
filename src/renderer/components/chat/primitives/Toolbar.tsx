@@ -33,7 +33,7 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <div
-      data-slot="chat-toolbar"
+      data-ui="part:chat-toolbar"
       role={role ?? 'toolbar'}
       className={cn(
         'flex min-w-0 shrink-0 items-center justify-between gap-2',
@@ -42,12 +42,12 @@ export function Toolbar({
         className
       )}
       {...props}>
-      <div data-slot="chat-toolbar-leading" className="flex min-w-0 flex-1 items-center gap-2">
+      <div data-ui="part:chat-toolbar-leading" className="flex min-w-0 flex-1 items-center gap-2">
         {leading}
         {children}
       </div>
       {trailing && (
-        <div data-slot="chat-toolbar-trailing" className="flex shrink-0 items-center gap-1">
+        <div data-ui="part:chat-toolbar-trailing" className="flex shrink-0 items-center gap-1">
           {trailing}
         </div>
       )}

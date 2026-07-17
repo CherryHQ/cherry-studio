@@ -7,6 +7,7 @@ export interface UiTokenOptions {
   boundaries?: readonly UiTokenValue[]
   exactId?: string
   modes?: readonly UiTokenValue[]
+  parts?: readonly UiTokenValue[]
   scopes?: readonly UiTokenValue[]
   states?: readonly UiTokenValue[]
   themes?: readonly UiTokenValue[]
@@ -17,6 +18,7 @@ export interface ParsedUiTokens {
   boundaries: string[]
   exactId?: string
   modes: string[]
+  parts: string[]
   scopes: string[]
   semanticId?: string
   states: string[]
@@ -52,6 +54,7 @@ export function uiTokens(semanticId: string, options: UiTokenOptions = {}): stri
 
   return [
     semanticId,
+    ...namespaced('part', options.parts),
     options.exactId ? `id:${options.exactId}` : undefined,
     ...namespaced('scope', options.scopes),
     ...namespaced('variant', options.variants),
@@ -69,6 +72,7 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
   const result: ParsedUiTokens = {
     boundaries: [],
     modes: [],
+    parts: [],
     scopes: [],
     states: [],
     themes: [],
@@ -83,6 +87,7 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     const namespace = token.slice(0, separator)
     const tokenValue = token.slice(separator + 1)
     if (namespace === 'id') result.exactId ??= tokenValue
+    else if (namespace === 'part') result.parts.push(tokenValue)
     else if (namespace === 'scope') result.scopes.push(tokenValue)
     else if (namespace === 'variant') result.variants.push(tokenValue)
     else if (namespace === 'mode') result.modes.push(tokenValue)
@@ -105,6 +110,7 @@ export interface UiSelectorOptions extends UiTokenOptions {
 export function uiSelector(options: UiSelectorOptions): string {
   const tokens = [
     options.semanticId,
+    ...namespaced('part', options.parts),
     options.exactId ? `id:${options.exactId}` : undefined,
     ...namespaced('scope', options.scopes),
     ...namespaced('variant', options.variants),

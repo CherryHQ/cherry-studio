@@ -182,7 +182,7 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: HTMLElement
     ) {
-      if (this.matches('[data-slot="popover-anchor"]'))
+      if (this.matches('[data-ui~="part:popover-anchor"]'))
         return DOMRect.fromRect({ x: 120, y: 40, width: 260, height: 36 })
       if (this.matches('[role="combobox"]')) return DOMRect.fromRect({ x: 120, y: 40, width: 100, height: 36 })
       return DOMRect.fromRect({ x: 0, y: 0, width: 100, height: 40 })
@@ -206,7 +206,7 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 
     const anchorWidth = (root: HTMLElement) =>
       root
-        .querySelector<HTMLElement>('[data-slot="popover-content"]')
+        .querySelector<HTMLElement>('[data-ui~="part:popover-content"]')
         ?.parentElement?.style.getPropertyValue('--radix-popper-anchor-width')
 
     try {
@@ -220,7 +220,7 @@ describe('TabRouter PageSidePanel portal isolation', () => {
       await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
 
       fireEvent.keyDown(trigger, { key: 'Escape' })
-      await waitFor(() => expect(bRoot.querySelector('[data-slot="popover-content"]')).not.toBeInTheDocument())
+      await waitFor(() => expect(bRoot.querySelector('[data-ui~="part:popover-content"]')).not.toBeInTheDocument())
 
       rerender(<Shell activeId="a" />)
       rerender(<Shell activeId="b" />)

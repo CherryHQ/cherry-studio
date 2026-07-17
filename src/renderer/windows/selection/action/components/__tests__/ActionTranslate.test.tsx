@@ -256,10 +256,10 @@ describe('ActionTranslate', () => {
     fireEvent.click(settingsButton!)
 
     const preferredTargetLabel = await screen.findByText('translate.preferred_target')
-    const settingsContent = preferredTargetLabel.closest<HTMLElement>('[data-slot="popover-content"]')
+    const settingsContent = preferredTargetLabel.closest<HTMLElement>('[data-ui~="part:popover-content"]')
     expect(settingsContent).toBeInTheDocument()
 
     await waitFor(() => expect(settingsContent).toHaveFocus())
-    expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-ui~="part:popover-content"]')).toHaveLength(1)
   })
 })

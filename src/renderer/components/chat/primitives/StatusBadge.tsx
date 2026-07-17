@@ -31,7 +31,7 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   return (
     <Badge
-      data-slot="chat-status-badge"
+      data-ui="part:chat-status-badge"
       variant={variant}
       className={cn('gap-1 border-transparent', statusClassNames[status], className)}
       {...props}>

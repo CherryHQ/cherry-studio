@@ -27,7 +27,7 @@ function Avatar({
   return (
     <AvatarPrimitive.Root
       key={imageKey ?? '__no-avatar-image__'}
-      data-slot="avatar"
+      data-ui="part:avatar"
       data-size={size}
       className={cn(
         'group/avatar relative flex size-8 shrink-0 overflow-hidden rounded-full select-none data-[size=lg]:size-10 data-[size=sm]:size-6',
@@ -41,14 +41,18 @@ function Avatar({
 
 function AvatarImage({ className, ...props }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
   return (
-    <AvatarPrimitive.Image data-slot="avatar-image" className={cn('aspect-square size-full', className)} {...props} />
+    <AvatarPrimitive.Image
+      data-ui="part:avatar-image"
+      className={cn('aspect-square size-full', className)}
+      {...props}
+    />
   )
 }
 
 function AvatarFallback({ className, ...props }: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
   return (
     <AvatarPrimitive.Fallback
-      data-slot="avatar-fallback"
+      data-ui="part:avatar-fallback"
       className={cn(
         'flex size-full items-center justify-center rounded-full text-sm group-data-[size=sm]/avatar:text-xs',
         className
@@ -61,7 +65,7 @@ function AvatarFallback({ className, ...props }: React.ComponentProps<typeof Ava
 function AvatarBadge({ className, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
-      data-slot="avatar-badge"
+      data-ui="part:avatar-badge"
       className={cn(
         'bg-primary text-primary-foreground ring-background absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full ring-2 select-none',
         'group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden',
@@ -77,9 +81,9 @@ function AvatarBadge({ className, ...props }: React.ComponentProps<'span'>) {
 function AvatarGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
-      data-slot="avatar-group"
+      data-ui="part:avatar-group"
       className={cn(
-        '*:data-[slot=avatar]:ring-background group/avatar-group flex -space-x-2 *:data-[slot=avatar]:ring-2',
+        '*:data-[ui~="part:avatar"]:ring-background group/avatar-group flex -space-x-2 *:data-[ui~="part:avatar"]:ring-2',
         className
       )}
       {...props}
@@ -90,7 +94,7 @@ function AvatarGroup({ className, ...props }: React.ComponentProps<'div'>) {
 function AvatarGroupCount({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
-      data-slot="avatar-group-count"
+      data-ui="part:avatar-group-count"
       className={cn(
         'bg-muted text-muted-foreground ring-background relative flex size-8 shrink-0 items-center justify-center rounded-full text-sm ring-2 group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3',
         className

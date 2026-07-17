@@ -91,7 +91,7 @@ vi.mock('@cherrystudio/ui', async () => {
       'div',
       {
         className: wrapperClassName,
-        'data-slot': 'tooltip-trigger',
+        'data-ui': 'part:tooltip-trigger',
         ...(content || title ? { 'data-title': content || title } : {})
       },
       children
@@ -152,7 +152,7 @@ describe('McpToolsSection', () => {
     const description = screen.getByText(toolDescription)
     expect(description).toHaveClass('line-clamp-1', 'block', 'w-full', 'min-w-0')
 
-    const trigger = description.closest('[data-slot="tooltip-trigger"]')
+    const trigger = description.closest('[data-ui~="part:tooltip-trigger"]')
     expect(trigger).not.toBeNull()
     expect(trigger).toHaveClass('block', 'w-full', 'min-w-0', 'max-w-full')
     expect(trigger).not.toHaveClass('inline-block')
