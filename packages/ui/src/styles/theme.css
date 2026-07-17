@@ -312,6 +312,11 @@
   --color-background-subtle: var(--cs-background-subtle);
   --color-border-subtle: var(--cs-border-subtle);
   --color-border-strong: var(--cs-border-strong);
+  --color-icon: var(--cs-icon);
+  --color-sidebar-active-bg: var(--cs-sidebar-active-bg);
+  --color-sidebar-active-border: var(--cs-sidebar-active-border);
+  --color-sidebar-glow-bg: var(--cs-sidebar-glow-bg);
+  --color-sidebar-glow-line: var(--cs-sidebar-glow-line);
   --color-success: var(--cs-success);
   --color-success-foreground: var(--cs-success-foreground);
   --color-success-subtle: var(--cs-success-subtle);

@@ -1,0 +1,118 @@
+/**
+ * Cherry Studio product semantics.
+ *
+ * These variables cover repeated product behavior that is outside the
+ * official Shadcn contract. During migration they intentionally preserve the
+ * renderer's current light and dark values. Legacy names may alias this file,
+ * but product variables must never depend on legacy or renderer-only names.
+ */
+
+:root {
+  /* Content hierarchy */
+  --cs-text-primary: var(--foreground);
+  --cs-text-secondary: var(--cs-foreground-secondary);
+  --cs-text-tertiary: var(--cs-foreground-muted);
+  --cs-text-light: var(--foreground);
+
+  /* Layered application surfaces */
+  --cs-background-soft: color-mix(in srgb, var(--background) 96%, var(--foreground) 4%);
+  --cs-background-muted: color-mix(in srgb, var(--background) 92%, var(--foreground) 8%);
+  --cs-background-translucent: color-mix(in srgb, var(--background) 88%, transparent);
+  --cs-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
+  --cs-border-faint: color-mix(in srgb, var(--border) 30%, transparent);
+  --cs-fill-secondary: var(--cs-background-soft);
+  --cs-frame-border: #ddd;
+  --cs-group-background: var(--cs-background-soft);
+  --cs-modal: var(--card);
+
+  /* Rich text and code */
+  --cs-link: #1677ff;
+  --cs-code-block: #e3e3e3;
+  --cs-inline-code: rgba(0, 0, 0, 0.06);
+  --cs-inline-code-foreground: rgb(218, 97, 92);
+
+  /* Interaction states whose contrast differs from generic Shadcn surfaces */
+  --cs-interactive-hover: var(--cs-background-muted);
+  --cs-interactive-active: var(--cs-background-soft);
+
+  /* References and search highlights */
+  --cs-reference: #cfe1ff;
+  --cs-reference-foreground: #000;
+  --cs-reference-subtle: #f1f7ff;
+  --cs-highlight-foreground: initial;
+  --cs-highlight: rgba(255, 255, 0, 0.5);
+  --cs-highlight-accent: rgba(255, 150, 50, 0.5);
+
+  /* Lists and navigation shell */
+  --cs-list-item: #fff;
+  --cs-list-item-hover: #fafafa;
+  --cs-list-item-radius: var(--cs-radius-lg);
+  --cs-navbar-translucent: rgba(255, 255, 255, 0.55);
+  --cs-navbar: rgb(244, 244, 244);
+
+  /* Conversation surfaces */
+  --cs-chat: transparent;
+  --cs-chat-user: rgba(0, 0, 0, 0.045);
+  --cs-chat-assistant: transparent;
+  --cs-chat-user-foreground: var(--cs-text-primary);
+
+  /* Platform compatibility colors */
+  --cs-system-gray-1: #8e8e93;
+  --cs-system-gray-2: #aeaeb2;
+  --cs-system-gray-3: #c7c7cc;
+  --cs-icon-contrast: var(--cs-black);
+  --cs-primary-subtle: var(--cs-brand-50);
+
+  /* Application shell */
+  --cs-icon: #00000099;
+  --cs-sidebar-active-bg: rgba(16, 185, 129, 0.08);
+  --cs-sidebar-active-border: rgba(16, 185, 129, 0.15);
+  --cs-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
+  --cs-sidebar-glow-line: rgba(16, 185, 129, 0.5);
+}
+
+.dark {
+  /* Layered application surfaces */
+  --cs-frame-border: #333;
+  --cs-modal: #111;
+
+  /* Rich text and code */
+  --cs-link: #338cff;
+  --cs-code-block: #323232;
+  --cs-inline-code: #323232;
+
+  /* Interaction states */
+  --cs-interactive-hover: color-mix(in srgb, var(--background) 82%, var(--foreground) 18%);
+  --cs-interactive-active: color-mix(in srgb, var(--background) 74%, var(--foreground) 26%);
+
+  /* References and search highlights */
+  --cs-reference: #404040;
+  --cs-reference-foreground: #fff;
+  --cs-reference-subtle: #0b0e12;
+  --cs-highlight-foreground: rgb(0, 0, 0);
+  --cs-highlight: rgba(255, 255, 0, 0.9);
+  --cs-highlight-accent: rgba(255, 150, 50, 0.9);
+
+  /* Lists and navigation shell */
+  --cs-list-item: rgba(255, 255, 255, 0.1);
+  --cs-list-item-hover: rgba(255, 255, 255, 0.05);
+  --cs-navbar-translucent: rgba(20, 20, 20, 0.55);
+  --cs-navbar: #1f1f1f;
+
+  /* Conversation surfaces */
+  --cs-chat-user: rgba(255, 255, 255, 0.08);
+  --cs-chat-user-foreground: var(--cs-black);
+
+  /* Platform compatibility colors */
+  --cs-system-gray-1: #515c67;
+  --cs-system-gray-2: #414853;
+  --cs-system-gray-3: #32363f;
+  --cs-icon-contrast: var(--cs-white);
+
+  /* Application shell */
+  --cs-icon: #ffffff99;
+  --cs-sidebar-active-bg: rgba(114, 255, 121, 0.05);
+  --cs-sidebar-active-border: rgba(114, 255, 121, 0.08);
+  --cs-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
+  --cs-sidebar-glow-line: rgba(114, 255, 121, 0.35);
+}
