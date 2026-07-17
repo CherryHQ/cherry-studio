@@ -1,9 +1,13 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { dispatchHandle, getMetadataByPath, safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
 import type { FileHandle } from '@shared/data/types/file'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { CreateInternalEntryIpcParams } from '@shared/types/file'
+import { dialog } from 'electron'
+
+const logger = loggerService.withContext('fileHandlers')
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
@@ -56,5 +60,22 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
+  },
+  'file.select_save': async (input) => {
+    try {
+      const result = await dialog.showSaveDialog({
+        title: input?.title,
+        defaultPath: input?.defaultPath,
+        filters: input?.filters
+      })
+      if (result.canceled || !result.filePath) {
+        return null
+      }
+      // Selection-only: return the path; never write/create/overwrite.
+      return result.filePath
+    } catch (error) {
+      logger.error('file.select_save dialog failed', error as Error)
+      throw error
+    }
   }
 }

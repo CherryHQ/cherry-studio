@@ -114,6 +114,15 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /**
+   * Settles when the active operation's finally completes. Dev reset acquires a
+   * fence then awaits this so an already-admitted export/restore finishes before
+   * destructive deletion — without aborting and guessing.
+   */
+  private activeOperationDone: Promise<void> | null = null
+  private activeOperationDoneResolve: (() => void) | null = null
+  /** When set, startBackup/startRestore refuse admission (dev reset fence). */
+  private closedForDevReset = false
   /** Finalized contributor registry, available only in the current dev-only backup surface. */
   private registry?: ReturnType<typeof contributorManager.getRegistry>
   /**
@@ -171,10 +180,10 @@ export class BackupService extends BaseService {
     // opens its own read-only snapshot handle on backup.sqlite so collect + stage
     // agree with the archived DB; the filesystem roots back the blob stager.
     this.orchestrator = new ExportOrchestrator({
-      copier: new SqliteBackupCopier(application.getPath('app.database.file')),
+      copier: new SqliteBackupCopier(application.get('DbService')),
       registry,
       tempDir: application.getPath('feature.backup.temp'),
-      filesRoot: application.getPath('feature.files.data'),
+      fileBlobs: application.get('FileManager'),
       knowledgeRoot: application.getPath('feature.knowledgebase.data'),
       skillsRoot: application.getPath('feature.agents.skills'),
       // Notes markdown bodies (PREFERENCES file resource) — full preset only.
@@ -213,6 +222,9 @@ export class BackupService extends BaseService {
       // fail-fast. Guard anyway.
       throw new Error('BackupService: not initialized (onInit did not complete)')
     }
+    if (this.closedForDevReset) {
+      throw new IpcError('DEV_RESET_BACKUP_BUSY', 'BackupService refused export: dev reset fence is closed')
+    }
     if (this.activeOperation) {
       throw new Error('BackupService: an operation is already running (cancel it first)')
     }
@@ -226,7 +238,7 @@ export class BackupService extends BaseService {
     const backupId = randomUUID()
     const abortController = new AbortController()
     const active: ActiveOperation = { kind: 'export', id: backupId, abortController }
-    this.activeOperation = active
+    this.beginActiveOperation(active)
     try {
       // Resolve the Notes root ONCE per export — preflight sizing and the orchestrator's
       // notesRoot callback both read pendingNotesRoot, so a mid-export change to
@@ -266,7 +278,7 @@ export class BackupService extends BaseService {
       // IpcError instances through unchanged (IpcError.from returns the instance).
       throw this.toIpcError(e)
     } finally {
-      if (this.activeOperation === active) this.activeOperation = null
+      this.endActiveOperation(active)
       // Drop the per-export resolved Notes root — the next export re-resolves fresh.
       this.pendingNotesRoot = undefined
     }
@@ -288,13 +300,16 @@ export class BackupService extends BaseService {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
     // the reservation are atomic — no await between them (mirrors startBackup; without this,
     // two concurrent startRestore calls could both pass the null check before either reserves).
+    if (this.closedForDevReset) {
+      throw new IpcError('DEV_RESET_BACKUP_BUSY', 'BackupService refused restore: dev reset fence is closed')
+    }
     if (this.activeOperation) {
       throw new Error('BackupService: an operation is already running (cancel it first)')
     }
     const restoreId = `rst-${randomUUID()}`
     const abortController = new AbortController()
     const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
-    this.activeOperation = active
+    this.beginActiveOperation(active)
     let restoreQuiesce: BackupRestoreJobQuiesce | undefined
     try {
       // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
@@ -363,14 +378,14 @@ export class BackupService extends BaseService {
       // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
       // so no in-flight state outlives the exit. The journal is already durable (committed
       // above), so skipping onStop is intentional: the preboot gate owns the next state.
-      this.activeOperation = null
+      this.endActiveOperation(active)
       this.triggerRelaunch()
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
       restoreQuiesce?.disposeOnAbort()
-      if (this.activeOperation === active) this.activeOperation = null
+      this.endActiveOperation(active)
     }
   }
 
@@ -771,6 +786,59 @@ export class BackupService extends BaseService {
       return new IpcError('BACKUP_DISK_FULL', e instanceof Error ? e.message : String(e))
     }
     return e // unknown throws pass through; IpcApiService folds them to INTERNAL
+  }
+
+  /**
+   * Acquire the process-wide reset fence BEFORE the first await in
+   * DevResetCoordinator. New startBackup/startRestore refuse admission while
+   * the fence is held.
+   */
+  acquireDevResetFence(): void {
+    this.closedForDevReset = true
+  }
+
+  /** Release the fence after a pre-destructive reset failure. */
+  releaseDevResetFence(): void {
+    this.closedForDevReset = false
+  }
+
+  /**
+   * Await any already-admitted export/restore until its finally settles.
+   * Call only after {@link acquireDevResetFence} so no new op can start.
+   */
+  async drainForDevReset(): Promise<void> {
+    if (this.activeOperationDone) {
+      await this.activeOperationDone
+    }
+  }
+
+  /**
+   * Fail-closed idle check for `dev.reset_app_data`. Prefer fence+drain first;
+   * this asserts the slot is empty before destructive deletion.
+   */
+  assertIdleForDevReset(): void {
+    if (this.activeOperation) {
+      throw new IpcError(
+        'DEV_RESET_BACKUP_BUSY',
+        `BackupService has an active ${this.activeOperation.kind} operation; refuse reset`
+      )
+    }
+  }
+
+  private beginActiveOperation(active: ActiveOperation): void {
+    this.activeOperation = active
+    this.activeOperationDone = new Promise<void>((resolve) => {
+      this.activeOperationDoneResolve = resolve
+    })
+  }
+
+  private endActiveOperation(active: ActiveOperation): void {
+    if (this.activeOperation !== active) return
+    this.activeOperation = null
+    const resolve = this.activeOperationDoneResolve
+    this.activeOperationDoneResolve = null
+    this.activeOperationDone = null
+    resolve?.()
   }
 
   protected onStop(): void {

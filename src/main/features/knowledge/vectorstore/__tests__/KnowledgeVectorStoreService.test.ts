@@ -406,6 +406,30 @@ describe('KnowledgeVectorStoreService', () => {
     expect(reopened).not.toBe(second)
   })
 
+  it('strictly closes every cached store, collects failures, and keeps the reset latch set', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const first = await service.getIndexStore(createBase('kb-1'))
+    const second = await service.getIndexStore(createBase('kb-2'))
+    const firstError = new Error('first close failed')
+    const secondError = new Error('second close failed')
+    ;(first.close as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(firstError)
+    ;(second.close as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(secondError)
+
+    const closeResult = await service.closeAllForDevReset().catch((error: unknown) => error)
+    expect(closeResult).toBeInstanceOf(Error)
+    expect((closeResult as Error).message).toContain('kb-1: first close failed')
+    expect((closeResult as Error).message).toContain('kb-2: second close failed')
+
+    expect(first.close).toHaveBeenCalledTimes(1)
+    expect(second.close).toHaveBeenCalledTimes(1)
+    expect((service as any).instanceCache.size).toBe(2)
+    await expect(service.getIndexStore(createBase('kb-3'))).rejects.toThrow('closed for dev reset')
+
+    // Failed close keeps the latch until process restart — release is a no-op.
+    service.releaseDevResetLatch()
+    await expect(service.getIndexStore(createBase('kb-3'))).rejects.toThrow('closed for dev reset')
+  })
+
   it('rejects bases that are not ready before touching disk', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = {

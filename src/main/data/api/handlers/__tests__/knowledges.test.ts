@@ -14,11 +14,21 @@ const {
   getKnowledgeItemByIdMock: vi.fn()
 }))
 
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'KnowledgeService') {
+        return { updateBase: updateKnowledgeBaseMock }
+      }
+      throw new Error(`unexpected get(${name})`)
+    }
+  }
+}))
+
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
     list: listKnowledgeBasesMock,
-    getById: getKnowledgeBaseByIdMock,
-    update: updateKnowledgeBaseMock
+    getById: getKnowledgeBaseByIdMock
   }
 }))
 

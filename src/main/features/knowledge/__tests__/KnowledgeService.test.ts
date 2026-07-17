@@ -806,6 +806,49 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('restore create/cleanup stay ungated after the reset gate closes mid-flight', async () => {
+    // Regression: restore used to call gated createBase/deleteBase after admission. If
+    // DevResetCoordinator acquired the gate between create and cleanup, cleanup hit
+    // DEV_RESET_MUTATION_IN_PROGRESS and left a partial restored base. Ungated helpers
+    // keep create/cleanup on the outer restore lease.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockReturnValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
+      .mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([createNoteItem('source-note', 'source-kb')])
+    enqueueMock.mockImplementationOnce(() => {
+      service.acquireDevResetMutationGate()
+      throw new Error('enqueue failed after gate closed')
+    })
+    deleteStoreMock.mockResolvedValueOnce(undefined)
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).rejects.toThrow(/enqueue failed after gate closed/)
+
+    // Public create refuses while the gate is closed…
+    await expect(
+      service.createBase({
+        name: 'Other',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).rejects.toMatchObject({ code: 'DEV_RESET_MUTATION_IN_PROGRESS' })
+
+    // …but restore cleanup already ran via the ungated path.
+    expect(deleteStoreMock).toHaveBeenCalledWith('restored-kb')
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('restored-kb')
+
+    service.releaseDevResetMutationGate()
+  })
+
   it('surfaces restored base id when restore item failure cleanup also fails', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })

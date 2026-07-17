@@ -40,9 +40,16 @@ export class KnowledgeVectorStoreService extends BaseService {
   // getIndexStore call for the same base can ever observe an in-flight open, and a
   // failed open never gets cached (the throw happens before .set() below runs).
   private instanceCache = new Map<string, KnowledgeIndexStore>()
+  /** When set, new opens / cache misses refuse — used by closeAllForDevReset. */
+  private closedForDevReset = false
+  /** True only after closeAllForDevReset completes with an empty cache. */
+  private closeAllSucceeded = false
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
   async getIndexStore(base: KnowledgeBase): Promise<KnowledgeIndexStore> {
+    if (this.closedForDevReset) {
+      throw new Error('KnowledgeVectorStoreService is closed for dev reset')
+    }
     assertVectorStoreReadyBase(base)
 
     const cached = this.instanceCache.get(base.id)
@@ -59,6 +66,9 @@ export class KnowledgeVectorStoreService extends BaseService {
 
   /** Reuse or open the store only if its file already exists on disk; used by cleanup paths that must not create one. */
   async getIndexStoreIfExists(base: KnowledgeBase): Promise<KnowledgeIndexStore | undefined> {
+    if (this.closedForDevReset) {
+      throw new Error('KnowledgeVectorStoreService is closed for dev reset')
+    }
     // No readiness assert here: cleanup must keep working on failed bases (see
     // operation-guards.md — deleteItems intentionally skips the guard, so its
     // delete-subtree job lands here for any base). A failed base never has a
@@ -75,6 +85,57 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
 
     return this.getIndexStore(base)
+  }
+
+  /**
+   * Strict close for `dev.reset_app_data`. Sets a reset latch first so cache
+   * misses refuse reopen. Successfully closed stores are removed from the cache
+   * immediately; on any failure the latch stays closed until process exit
+   * (releaseDevResetLatch is a no-op) so callers never observe a closed handle.
+   * Does NOT call onStop() (which swallows per-store errors).
+   */
+  async closeAllForDevReset(): Promise<void> {
+    this.closedForDevReset = true
+    this.closeAllSucceeded = false
+    const entries = [...this.instanceCache.entries()]
+    const failures: Array<{ baseId: string; error: unknown }> = []
+    await Promise.all(
+      entries.map(async ([baseId, store]) => {
+        try {
+          await this.closeStoreInstance(store)
+          this.instanceCache.delete(baseId)
+        } catch (error) {
+          failures.push({ baseId, error })
+        }
+      })
+    )
+    if (failures.length > 0) {
+      // Latch stays set — releaseDevResetLatch will refuse to clear it.
+      throw new Error(
+        `KnowledgeVectorStoreService.closeAllForDevReset failed for ${failures.length} store(s): ${failures
+          .map((f) => `${f.baseId}: ${f.error instanceof Error ? f.error.message : String(f.error)}`)
+          .join('; ')}`
+      )
+    }
+    this.instanceCache.clear()
+    if (this.instanceCache.size !== 0) {
+      throw new Error('KnowledgeVectorStoreService.closeAllForDevReset: cache not empty after clear')
+    }
+    this.closeAllSucceeded = true
+    logger.info('Closed all knowledge index stores for dev reset', { storeCount: entries.length })
+  }
+
+  /**
+   * Release the reset latch after a pre-destructive failure. No-op if
+   * closeAllForDevReset failed partway — stay latched until process restart so
+   * closed handles cannot be reused from the cache.
+   */
+  releaseDevResetLatch(): void {
+    if (this.closedForDevReset && !this.closeAllSucceeded) {
+      logger.warn('Refusing to release KnowledgeVectorStoreService reset latch after failed close')
+      return
+    }
+    this.closedForDevReset = false
   }
 
   /**

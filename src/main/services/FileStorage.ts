@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { DevResetMutationGate } from '@main/services/devResetMutationGate'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -40,6 +41,20 @@ function normalizeTrashPath(filePath: string): string {
 }
 
 class FileStorage {
+  private readonly devResetGate = new DevResetMutationGate()
+
+  acquireDevResetMutationGate(): void {
+    this.devResetGate.acquire()
+  }
+
+  releaseDevResetMutationGate(): void {
+    this.devResetGate.release()
+  }
+
+  async drainDevResetMutations(): Promise<void> {
+    await this.devResetGate.drain()
+  }
+
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
   // The real problem is that `FileStorage` is exported as a top-level
@@ -193,7 +208,10 @@ class FileStorage {
     }
   }
 
-  public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
+  public uploadFile = (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> =>
+    this.devResetGate.run('FileStorage.uploadFile', () => this.uploadFileUngated(_, file))
+
+  private uploadFileUngated = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
     const filePath = file.path
     const duplicateFile = await this.findDuplicateFile(filePath)
 
@@ -257,21 +275,30 @@ class FileStorage {
   }
 
   // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
-  public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+  public deleteFile = (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.deleteFile', () => this.deleteFileUngated(_, id))
+
+  private deleteFileUngated = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     if (!fs.existsSync(path.join(this.storageDir, id))) {
       return
     }
     await fs.promises.unlink(path.join(this.storageDir, id))
   }
 
-  public deleteDir = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+  public deleteDir = (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.deleteDir', () => this.deleteDirUngated(_, id))
+
+  private deleteDirUngated = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     if (!fs.existsSync(path.join(this.storageDir, id))) {
       return
     }
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
-  public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
+  public deleteExternalFile = (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.deleteExternalFile', () => this.deleteExternalFileUngated(_, filePath))
+
+  private deleteExternalFileUngated = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
       if (!filePath) return
 
@@ -288,7 +315,10 @@ class FileStorage {
     }
   }
 
-  public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
+  public deleteExternalDir = (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.deleteExternalDir', () => this.deleteExternalDirUngated(_, dirPath))
+
+  private deleteExternalDirUngated = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     try {
       if (!dirPath) return
 
@@ -305,7 +335,14 @@ class FileStorage {
     }
   }
 
-  public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
+  public moveFile = (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.moveFile', () => this.moveFileUngated(_, filePath, newPath))
+
+  private moveFileUngated = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    newPath: string
+  ): Promise<void> => {
     try {
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
@@ -326,7 +363,14 @@ class FileStorage {
     }
   }
 
-  public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
+  public moveDir = (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.moveDir', () => this.moveDirUngated(_, dirPath, newDirPath))
+
+  private moveDirUngated = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    newDirPath: string
+  ): Promise<void> => {
     try {
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
@@ -347,7 +391,14 @@ class FileStorage {
     }
   }
 
-  public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
+  public renameFile = (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.renameFile', () => this.renameFileUngated(_, filePath, newName))
+
+  private renameFileUngated = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    newName: string
+  ): Promise<void> => {
     try {
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
@@ -370,7 +421,14 @@ class FileStorage {
     }
   }
 
-  public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
+  public renameDir = (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.renameDir', () => this.renameDirUngated(_, dirPath, newName))
+
+  private renameDirUngated = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    newName: string
+  ): Promise<void> => {
     try {
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
@@ -518,7 +576,7 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
-    await fs.promises.writeFile(filePath, data)
+    return this.devResetGate.run('FileStorage.writeFile', () => fs.promises.writeFile(filePath, data))
   }
 
   public fileNameGuard = async (
@@ -536,7 +594,10 @@ class FileStorage {
     return { safeName: finalName, exists }
   }
 
-  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
+  public mkdir = (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> =>
+    this.devResetGate.run('FileStorage.mkdir', () => this.mkdirUngated(_, dirPath))
+
+  private mkdirUngated = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
       logger.debug(`Attempting to create directory: ${dirPath}`)
       await fs.promises.mkdir(dirPath, { recursive: true })
@@ -564,7 +625,13 @@ class FileStorage {
     }
   }
 
-  public saveBase64Image = async (_: Electron.IpcMainInvokeEvent, base64Data: string): Promise<FileMetadata> => {
+  public saveBase64Image = (_: Electron.IpcMainInvokeEvent, base64Data: string): Promise<FileMetadata> =>
+    this.devResetGate.run('FileStorage.saveBase64Image', () => this.saveBase64ImageUngated(_, base64Data))
+
+  private saveBase64ImageUngated = async (
+    _: Electron.IpcMainInvokeEvent,
+    base64Data: string
+  ): Promise<FileMetadata> => {
     try {
       if (!base64Data) {
         throw new Error('Base64 data is required')
@@ -609,6 +676,16 @@ class FileStorage {
   }
 
   public savePastedImage = async (
+    _: Electron.IpcMainInvokeEvent,
+    imageData: Uint8Array | Buffer,
+    extension?: string
+  ): Promise<FileMetadata> => {
+    return this.devResetGate.run('FileStorage.savePastedImage', () =>
+      this.savePastedImageUngated(_, imageData, extension)
+    )
+  }
+
+  private savePastedImageUngated = async (
     _: Electron.IpcMainInvokeEvent,
     imageData: Uint8Array | Buffer,
     extension?: string
@@ -703,15 +780,17 @@ class FileStorage {
     return { data, mime }
   }
 
-  public clear = async (): Promise<void> => {
-    await fs.promises.rm(this.storageDir, { recursive: true })
-    await fs.promises.mkdir(this.storageDir, { recursive: true })
-  }
+  public clear = (): Promise<void> =>
+    this.devResetGate.run('FileStorage.clear', async () => {
+      await fs.promises.rm(this.storageDir, { recursive: true })
+      await fs.promises.mkdir(this.storageDir, { recursive: true })
+    })
 
-  public clearTemp = async (): Promise<void> => {
-    await fs.promises.rm(this.tempDir, { recursive: true })
-    await fs.promises.mkdir(this.tempDir, { recursive: true })
-  }
+  public clearTemp = (): Promise<void> =>
+    this.devResetGate.run('FileStorage.clearTemp', async () => {
+      await fs.promises.rm(this.tempDir, { recursive: true })
+      await fs.promises.mkdir(this.tempDir, { recursive: true })
+    })
 
   public open = async (
     _: Electron.IpcMainInvokeEvent,
@@ -831,7 +910,15 @@ class FileStorage {
     }
   }
 
-  public save = async (
+  public save = (
+    _: Electron.IpcMainInvokeEvent,
+    fileName: string,
+    content: string,
+    options?: SaveDialogOptions
+  ): Promise<string | null> =>
+    this.devResetGate.run('FileStorage.save', () => this.saveUngated(_, fileName, content, options))
+
+  private saveUngated = async (
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
     content: string,
@@ -857,7 +944,10 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
+  public saveImage = (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> =>
+    this.devResetGate.run('FileStorage.saveImage', () => this.saveImageUngated(_, name, data))
+
+  private saveImageUngated = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
@@ -894,7 +984,14 @@ class FileStorage {
     }
   }
 
-  public downloadFile = async (
+  public downloadFile = (
+    _: Electron.IpcMainInvokeEvent,
+    url: string,
+    isUseContentType?: boolean
+  ): Promise<FileMetadata> =>
+    this.devResetGate.run('FileStorage.downloadFile', () => this.downloadFileUngated(_, url, isUseContentType))
+
+  private downloadFileUngated = async (
     _: Electron.IpcMainInvokeEvent,
     url: string,
     isUseContentType?: boolean
@@ -979,7 +1076,10 @@ class FileStorage {
   }
 
   // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
-  public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
+  public copyFile = (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> =>
+    this.devResetGate.run('FileStorage.copyFile', () => this.copyFileUngated(_, id, destPath))
+
+  private copyFileUngated = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
       const sourcePath = path.join(this.storageDir, id)
 
@@ -999,22 +1099,24 @@ class FileStorage {
   }
 
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
-    try {
-      const filePath = path.join(this.storageDir, id)
-      logger.debug(`Writing file: ${filePath}`)
+    return this.devResetGate.run('FileStorage.writeFileWithId', async () => {
+      try {
+        const filePath = path.join(this.storageDir, id)
+        logger.debug(`Writing file: ${filePath}`)
 
-      // 确保目录存在
-      if (!fs.existsSync(this.storageDir)) {
-        logger.debug(`Creating storage directory: ${this.storageDir}`)
-        fs.mkdirSync(this.storageDir, { recursive: true })
+        // 确保目录存在
+        if (!fs.existsSync(this.storageDir)) {
+          logger.debug(`Creating storage directory: ${this.storageDir}`)
+          fs.mkdirSync(this.storageDir, { recursive: true })
+        }
+
+        await fs.promises.writeFile(filePath, content, 'utf8')
+        logger.debug(`File written successfully: ${filePath}`)
+      } catch (error) {
+        logger.error('Failed to write file:', error as Error)
+        throw error
       }
-
-      await fs.promises.writeFile(filePath, content, 'utf8')
-      logger.debug(`File written successfully: ${filePath}`)
-    } catch (error) {
-      logger.error('Failed to write file:', error as Error)
-      throw error
-    }
+    })
   }
 
   public getFilePathById(file: FileMetadata): string {
@@ -1080,7 +1182,21 @@ class FileStorage {
    * Batch upload markdown files from native File objects
    * This handles all I/O operations in the Main process to avoid blocking Renderer
    */
-  public batchUploadMarkdownFiles = async (
+  public batchUploadMarkdownFiles = (
+    _: Electron.IpcMainInvokeEvent,
+    filePaths: string[],
+    targetPath: string
+  ): Promise<{
+    fileCount: number
+    folderCount: number
+    skippedFiles: number
+    failedFiles: number
+  }> =>
+    this.devResetGate.run('FileStorage.batchUploadMarkdownFiles', () =>
+      this.batchUploadMarkdownFilesUngated(_, filePaths, targetPath)
+    )
+
+  private batchUploadMarkdownFilesUngated = async (
     _: Electron.IpcMainInvokeEvent,
     filePaths: string[],
     targetPath: string

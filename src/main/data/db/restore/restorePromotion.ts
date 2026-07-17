@@ -9,6 +9,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import { hashDbFile } from './hashDbFile'
+import { resolveUserDataRelativePath } from './resolveUserDataRelativePath'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, writeRestoreJournal } from './restoreJournal'
 
@@ -147,7 +148,7 @@ export function isLiveDbStranded(): boolean {
     return false
   }
   const livePath = application.getPath('app.database.file')
-  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+  const asidePath = resolveUserDataRelativePath(read.journal.db.aside)
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
@@ -157,8 +158,8 @@ function buildContext(journal: StagedJournal | PromotingJournal): PromotionConte
     journal,
     userData,
     livePath: application.getPath('app.database.file'),
-    workPath: path.resolve(userData, journal.db.promote),
-    asidePath: path.resolve(userData, journal.db.aside)
+    workPath: resolveUserDataRelativePath(journal.db.promote),
+    asidePath: resolveUserDataRelativePath(journal.db.aside)
   }
 }
 
@@ -614,8 +615,8 @@ function quarantineCorruptJournal(error: string): void {
 
 // ─── filesystem primitives ───
 
-function resolveEntry(ctx: PromotionContext, relativePath: string): string {
-  return path.resolve(ctx.userData, relativePath)
+function resolveEntry(_ctx: PromotionContext, relativePath: string): string {
+  return resolveUserDataRelativePath(relativePath)
 }
 
 function markStep(journal: PromotingJournal, step: PromotionStep): PromotingJournal {
