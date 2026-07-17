@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-07-17T13:50:03.635Z
- * Total icons: 159
+ * Generated at: 2026-07-17T16:04:42.981Z
+ * Total icons: 161
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -35,6 +35,7 @@ export { BytedanceIcon as Bytedance } from './bytedance'
 export { CephalonIcon as Cephalon } from './cephalon'
 export { CerebrasIcon as Cerebras } from './cerebras'
 export { CherryinIcon as Cherryin } from './cherryin'
+export { ClaudeCodeIcon as ClaudeCode } from './claude-code'
 export { CloudflareIcon as Cloudflare } from './cloudflare'
 export { CohereIcon as Cohere } from './cohere'
 export { ComposioIcon as Composio } from './composio'
@@ -117,6 +118,7 @@ export { OcoolaiIcon as Ocoolai } from './ocoolai'
 export { OllamaIcon as Ollama } from './ollama'
 export { OpenaiIcon as Openai } from './openai'
 export { OpenclawIcon as Openclaw } from './openclaw'
+export { OpenCodeGoIcon as OpenCodeGo } from './opencode'
 export { OpenrouterIcon as Openrouter } from './openrouter'
 export { PaddleocrIcon as Paddleocr } from './paddleocr'
 export { PerplexityIcon as Perplexity } from './perplexity'

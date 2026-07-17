@@ -16,7 +16,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { generateMeta } from './codegen'
-import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair } from './svg-utils'
+import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, type LogoType } from './svg-utils'
 
 export type IconType = 'icons' | 'providers' | 'models'
 
@@ -32,6 +32,11 @@ const OUTPUT_DIR_MAP: Record<IconType, string> = {
   icons: path.join(__dirname, '../src/components/icons/general'),
   providers: path.join(__dirname, '../src/components/icons/providers'),
   models: path.join(__dirname, '../src/components/icons/models')
+}
+
+const MANUAL_LOGO_DIRS: Record<LogoType, readonly string[]> = {
+  providers: ['opencode'],
+  models: []
 }
 
 type HashCache = Record<string, string>
@@ -65,6 +70,10 @@ function parseTypeArg(): IconType | null {
 
 export function resolveIconTypes(requestedType: IconType | null): IconType[] {
   return requestedType ? [requestedType] : [...ICON_TYPES]
+}
+
+export function resolveActiveLogoDirs(type: LogoType, generatedDirNames: Iterable<string>): Set<string> {
+  return new Set([...generatedDirNames, ...MANUAL_LOGO_DIRS[type]])
 }
 
 function parseOnlyArg(): Set<string> | null {
@@ -391,7 +400,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
     const svgMap = buildLightDarkSvgMap(type)
     console.log(`Found ${svgMap.size} light/dark SVG pairs in ${SOURCE_DIR_MAP[type]}\n`)
     if (!only) {
-      const removedStale = await removeStaleLogoDirs(outputDir, new Set(svgMap.keys()))
+      const removedStale = await removeStaleLogoDirs(outputDir, resolveActiveLogoDirs(type, svgMap.keys()))
       if (removedStale > 0)
         console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
     }
