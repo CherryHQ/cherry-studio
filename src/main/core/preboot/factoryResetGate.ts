@@ -109,9 +109,10 @@ const USER_DATA_MANIFEST = [
  * userData).
  *
  * Failure semantics — bounded retry, no journal:
- * - `attempts` is incremented (best-effort) before each destructive pass;
- *   a marker at MAX_WIPE_ATTEMPTS is abandoned with an error log instead
- *   of wiping again.
+ * - `attempts` is durably incremented (hard persist) before each destructive
+ *   pass — a pass never runs on unrecorded accounting, or the cap would be
+ *   void whenever boot-config is unwritable. A marker at MAX_WIPE_ATTEMPTS
+ *   is abandoned with an error log instead of wiping again.
  * - Deletion failures on entries outside USER_DATA_KEEP are critical: the
  *   marker is left pending (with its incremented count) so the next boot
  *   retries.
@@ -130,7 +131,11 @@ export function runFactoryResetGate(): void {
     const marker = bootConfigService.get('temp.factory_reset')
     if (marker?.status !== 'pending') return
 
-    const userData = app.getPath('userData')
+    // Same source as the write side (app.factory_reset.request) — the marker
+    // path check below is a strict string comparison, so both sides must read
+    // the registry, not raw Electron (pathRegistry is the single source of
+    // truth and could normalize paths someday).
+    const userData = application.getPath('app.userdata')
     if (marker.userDataPath !== userData) {
       logger.warn('Factory reset marker belongs to a different userData directory — leaving it for that instance', {
         markerPath: marker.userDataPath,
@@ -139,7 +144,11 @@ export function runFactoryResetGate(): void {
       return
     }
 
-    const attempts = marker.attempts ?? 0
+    // boot-config.json is hand-editable and BootConfig has no runtime schema
+    // validation. `attempts` feeds arithmetic, so a corrupted value (say "x")
+    // would disable the cap entirely ('"x" >= 2' is false, '"x" + 1'
+    // concatenates) — coerce instead of trusting the shape.
+    const attempts = Number(marker.attempts) || 0
     if (attempts >= MAX_WIPE_ATTEMPTS) {
       logger.error('Factory reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
@@ -156,10 +165,21 @@ export function runFactoryResetGate(): void {
     })
 
     // Arm the retry accounting BEFORE the destructive pass, so a crash
-    // mid-wipe still counts against the cap. Best-effort: if this write
-    // fails, the worst case is one extra retry.
-    bootConfigService.set('temp.factory_reset', { ...marker, attempts: attempts + 1 })
-    bootConfigService.flush()
+    // mid-wipe still counts against the cap. Must be a durable persist(), not
+    // flush(): flush() swallows write failures, and an increment that never
+    // reaches disk voids the cap — every boot would read attempts 0 and wipe
+    // again, destroying whatever the user created in between. If the count
+    // cannot be recorded, skip the destructive pass entirely; boot continues
+    // and a later start (with a writable boot-config) picks the marker up.
+    try {
+      bootConfigService.set('temp.factory_reset', { ...marker, attempts: attempts + 1 })
+      bootConfigService.persist()
+    } catch (error) {
+      logger.error('Factory reset skipped: the attempt count could not be durably recorded', {
+        error: String(error)
+      })
+      return
+    }
 
     const failures: string[] = []
     if (isSafeForWholeTreeWipe(userData)) {
@@ -204,6 +224,8 @@ export function runFactoryResetGate(): void {
           'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
+      // Deliberately app.exit(), not application.quit(): non-zero exit code,
+      // and no before-quit handlers — nothing may write files after the wipe.
       app.exit(1)
       return
     }

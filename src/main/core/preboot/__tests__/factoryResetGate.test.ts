@@ -58,10 +58,11 @@ function stubConstants() {
   }))
 }
 
-function stubApplication() {
+function stubApplication(userData: string = USER_DATA) {
   vi.doMock('@application', () => ({
     application: {
       getPath: vi.fn((key: string) => {
+        if (key === 'app.userdata') return userData
         if (key === 'app.temp') return APP_TEMP
         if (key === 'feature.ovms.ovms') return OVMS_DIR
         return '/mock/unknown'
@@ -247,9 +248,40 @@ describe('runFactoryResetGate', () => {
     run()
 
     expect(store['temp.factory_reset']).toEqual(pendingMarker({ attempts: 1 }))
-    // Settings untouched — the reset is not "done".
+    // Settings untouched — the reset is not "done". persist() ran exactly once
+    // (the durable attempt increment), never for a completion the pass didn't earn.
     expect(store['app.disable_hardware_acceleration']).toBe(true)
-    expect(bootConfigPersistMock).not.toHaveBeenCalled()
+    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the destructive pass entirely when the attempt count cannot be durably recorded', async () => {
+    stubBootConfig(pendingMarker())
+    stubFs(FULL_LISTINGS)
+    bootConfigPersistMock.mockImplementation(() => {
+      throw new Error('EACCES: permission denied')
+    })
+
+    const run = await importGate()
+    run()
+
+    // No accounting on disk → no wipe: an unrecorded pass would void the
+    // attempt cap and re-wipe user-created data on every boot.
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(appExitMock).not.toHaveBeenCalled()
+  })
+
+  it('coerces a corrupted non-numeric attempts value instead of disabling the cap', async () => {
+    const store = stubBootConfig(pendingMarker({ attempts: 'x' as unknown as number }))
+    stubFs(FULL_LISTINGS)
+
+    const run = await importGate()
+    run()
+
+    // '"x" >= 2' is false and '"x" + 1' concatenates — without coercion the
+    // cap arithmetic never terminates. Coerced to 0, the pass runs and the
+    // increment writes a real number.
+    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.factory_reset', expect.objectContaining({ attempts: 1 }))
+    expect(store['temp.factory_reset']).toBeNull()
   })
 
   it('abandons a marker at the attempt cap without wiping again', async () => {
@@ -267,9 +299,12 @@ describe('runFactoryResetGate', () => {
   it('quits instead of booting when the marker cannot be durably cleared after a clean wipe', async () => {
     stubBootConfig(pendingMarker())
     stubFs(FULL_LISTINGS)
-    bootConfigPersistMock.mockImplementation(() => {
-      throw new Error('ENOSPC: no space left on device')
-    })
+    // First persist (the attempt increment) succeeds; the completion persist fails.
+    bootConfigPersistMock
+      .mockImplementationOnce(() => undefined)
+      .mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
 
     const run = await importGate()
     run()
@@ -298,6 +333,7 @@ describe('runFactoryResetGate', () => {
 
   it('never tree-wipes the home directory, sentinel or not', async () => {
     stubElectron(HOME)
+    stubApplication(HOME)
     const store = stubBootConfig(pendingMarker({ userDataPath: HOME }))
     stubFs({ [HOME]: ['Documents', 'cherrystudio.sqlite', 'Data'], [CHERRY_HOME]: ['config'] }, { sentinel: true })
 
