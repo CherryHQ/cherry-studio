@@ -3,8 +3,10 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentType } from 'react'
 
 /**
- * Kept for call-site semantics only — every preset renders the same unified
- * empty illustration below, so all modules read as one product.
+ * @deprecated Presets no longer affect rendering — every preset renders the
+ * same unified empty illustration, so all modules read as one product. Kept
+ * for call-site compatibility only; existing `preset` usages are slated for
+ * removal in a follow-up.
  */
 export type EmptyStatePreset =
   | 'no-model'
@@ -81,6 +83,7 @@ function EmptyIllustration({
 }
 
 export interface EmptyStateProps {
+  /** @deprecated No-op — the unified illustration renders regardless. Slated for removal. */
   preset?: EmptyStatePreset
   /** Which unified illustration to render (ignored when `icon` is set). */
   illustration?: EmptyStateIllustration
