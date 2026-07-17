@@ -281,6 +281,18 @@ describe('MessageList', () => {
     messageGroupRenderCounts.clear()
   })
 
+  it('renders the bottomOverlay slot supplied through the provider', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user')], {
+          bottomOverlay: <div data-testid="retry-overlay">Retrying (attempt 7/10)</div>
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    expect(screen.getByTestId('retry-overlay')).toBeInTheDocument()
+  })
+
   it('keeps historical groups sealed while only the live tail changes', () => {
     const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
     const historyUser = createMessage('user-history', 'user')

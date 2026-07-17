@@ -89,6 +89,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      bottomOverlay: state.bottomOverlay,
       isInitialLoading: state.isInitialLoading,
       isMessagesStale: state.isMessagesStale,
       hasOlder: state.hasOlder,
@@ -103,6 +104,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     [
       state.topic,
       state.beforeList,
+      state.bottomOverlay,
       state.isInitialLoading,
       state.isMessagesStale,
       state.hasOlder,
