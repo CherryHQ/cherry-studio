@@ -23,6 +23,7 @@ export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+export const AgentKnowledgeBaseIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 export const AgentSkillUpdateSchema = z.strictObject({
   skillId: z.string().min(1),
   isEnabled: z.boolean()
@@ -109,8 +110,8 @@ export const AgentBaseSchema = z.strictObject({
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
-  /** Ordered knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
-  knowledgeBaseIds: z.array(z.string()).optional(),
+  /** Knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
+  knowledgeBaseIds: AgentKnowledgeBaseIdSetSchema.optional(),
   /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -48,6 +49,7 @@ export interface AgentDeletedEvent {
 }
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
+type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 
 function getAgentDescription(description: string, configuration: unknown): string {
   if (description) return description
@@ -143,7 +145,7 @@ function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[
 
 /**
  * Fetch knowledgeBaseIds for a set of agent IDs from the junction table.
- * Returns a Map<agentId, string[]>, ordered by createdAt so the binding list is stable.
+ * Returns a Map<agentId, string[]> with deterministic reads; callers treat the IDs as a set.
  * Accepts both a database instance and a transaction (DbOrTx).
  */
 function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
@@ -152,7 +154,11 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
     .select({ agentId: agentKnowledgeBaseTable.agentId, knowledgeBaseId: agentKnowledgeBaseTable.knowledgeBaseId })
     .from(agentKnowledgeBaseTable)
     .where(inArray(agentKnowledgeBaseTable.agentId, agentIds))
-    .orderBy(asc(agentKnowledgeBaseTable.agentId), asc(agentKnowledgeBaseTable.createdAt))
+    .orderBy(
+      asc(agentKnowledgeBaseTable.agentId),
+      asc(agentKnowledgeBaseTable.createdAt),
+      asc(agentKnowledgeBaseTable.knowledgeBaseId)
+    )
     .all()
   const map = new Map<string, string[]>()
   for (const row of rows) {
@@ -218,11 +224,13 @@ export class AgentService {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
+    this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), knowledgeBaseIds)
 
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
+          this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
           const result = this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -448,6 +456,9 @@ export class AgentService {
         }
       }
     }
+    if (newKnowledgeBaseIds !== undefined) {
+      this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
+    }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
     // (description, instructions, disabledTools, configuration). Writing
@@ -464,6 +475,9 @@ export class AgentService {
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          if (newKnowledgeBaseIds !== undefined) {
+            this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
+          }
           this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
@@ -591,10 +605,10 @@ export class AgentService {
   }
 
   /**
-   * Fire onAgentUpdated for each agent ID, re-fetching the agent from DB
-   * so subscribers get the current entity state (including mcps from junction table).
+   * Fire onAgentUpdated for each agent ID, re-fetching the agent from DB so subscribers get the
+   * current entity state and an update payload naming the relation that changed.
    */
-  emitAgentUpdatedForIds(agentIds: string[]): void {
+  emitAgentUpdatedForIds(agentIds: string[], relation: AgentRelationField): void {
     if (agentIds.length === 0) return
     const database = application.get('DbService').getDb()
     const rows = database
@@ -612,8 +626,24 @@ export class AgentService {
         mcpsMap.get(row.agent.id) ?? [],
         knowledgeBasesMap.get(row.agent.id) ?? []
       )
-      this._onAgentUpdated.fire({ agentId: agent.id, updates: { mcps: agent.mcps }, agent })
+      const updates: UpdateAgentDto =
+        relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }
+      this._onAgentUpdated.fire({ agentId: agent.id, updates, agent })
     }
+  }
+
+  private assertKnowledgeBasesExistTx(tx: DbOrTx, knowledgeBaseIds: readonly string[]): void {
+    const uniqueIds = [...new Set(knowledgeBaseIds)]
+    if (uniqueIds.length === 0) return
+
+    const existing = tx
+      .select({ id: knowledgeBaseTable.id })
+      .from(knowledgeBaseTable)
+      .where(inArray(knowledgeBaseTable.id, uniqueIds))
+      .all()
+    const existingIds = new Set(existing.map((row) => row.id))
+    const missingId = uniqueIds.find((id) => !existingIds.has(id))
+    if (missingId) throw DataApiErrorFactory.notFound('KnowledgeBase', missingId)
   }
 
   /**
@@ -635,6 +665,20 @@ export class AgentService {
     // Delete junction rows explicitly so we can identify affected agent IDs
     // before the cascade from MCP server DELETE removes them.
     tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId)).run()
+
+    return affectedIds
+  }
+
+  /** Remove one knowledge base binding from every agent and return the affected agent IDs. */
+  removeKnowledgeBaseFromAllAgentsTx(tx: DbOrTx, knowledgeBaseId: string): string[] {
+    const referenced = tx
+      .select({ agentId: agentKnowledgeBaseTable.agentId })
+      .from(agentKnowledgeBaseTable)
+      .where(eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId))
+      .all()
+    const affectedIds = [...new Set(referenced.map((row) => row.agentId))]
+
+    tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId)).run()
 
     return affectedIds
   }

@@ -1,8 +1,8 @@
 ---
 title: Agent knowledge tools now scoped to bound knowledge bases
 category: changed
-severity: notice
-introduced_in_pr: TBD
+severity: breaking
+introduced_in_pr: '#17147'
 date: 2026-07-17
 ---
 

@@ -280,6 +280,7 @@ export async function callCherryBuiltinTool(
   // Defense in depth: kb_* tools are hidden from list when the binding is empty,
   // but reject a direct call too so an unscoped kb lookup can never run.
   if (KB_TOOL_NAMES.has(name) && allowedIds.length === 0) {
+    logger.warn('Rejected direct knowledge tool call without a bound knowledge base', { tool: name })
     return { content: [{ type: 'text', text: `Tool unavailable: ${name} (no knowledge base bound)` }], isError: true }
   }
   try {

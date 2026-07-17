@@ -10,11 +10,12 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath } = vi.hoisted(() => ({
+const { mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath, mockPreferenceGet } = vi.hoisted(() => ({
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
-  mockGetPath: vi.fn(() => '/tmp/managed-workspaces')
+  mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
+  mockPreferenceGet: vi.fn(() => undefined)
 }))
 
 vi.mock('@logger', () => ({
@@ -36,12 +37,19 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn(),
-    getPath: mockGetPath
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const module = mockApplicationFactory({
+    PreferenceService: { get: mockPreferenceGet }
+  })
+  return {
+    ...module,
+    application: {
+      ...module.application,
+      getPath: mockGetPath
+    }
   }
-}))
+})
 
 vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
