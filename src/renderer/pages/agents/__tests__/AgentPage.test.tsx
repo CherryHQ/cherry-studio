@@ -55,7 +55,7 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
-  classicLayoutRightPaneOpenOverride: null as boolean | null,
+  classicLayoutRightPaneOpen: null as boolean | null,
   agentResourceListSessionsSource: undefined as unknown,
   agentSessionsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
   agentSidePanelSessionsSource: undefined as unknown,
@@ -68,7 +68,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
   setSessionExpansionAgent: vi.fn(),
-  setClassicLayoutRightPaneOpenOverride: vi.fn(),
+  setClassicLayoutRightPaneOpen: vi.fn(),
   setShowSidebar: vi.fn(),
   closeConversationTabs: vi.fn(),
   sessionDisplayMode: 'time' as 'time' | 'workdir' | 'agent',
@@ -192,7 +192,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
           case 'ui.agent.last_used_workspace_id':
             return agentPageMocks.lastUsedWorkspaceId
           case 'ui.agent.right_pane_open':
-            return agentPageMocks.classicLayoutRightPaneOpenOverride
+            return agentPageMocks.classicLayoutRightPaneOpen
           case 'ui.agent.session.expansion.agent':
             return agentPageMocks.sessionExpansionAgent
           default:
@@ -218,8 +218,8 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
           agentPageMocks.lastUsedSessionId = nextValue as string | null
           agentPageMocks.setLastUsedSessionId(nextValue)
         } else if (key === 'ui.agent.right_pane_open') {
-          agentPageMocks.classicLayoutRightPaneOpenOverride = nextValue as boolean | null
-          agentPageMocks.setClassicLayoutRightPaneOpenOverride(nextValue)
+          agentPageMocks.classicLayoutRightPaneOpen = nextValue as boolean | null
+          agentPageMocks.setClassicLayoutRightPaneOpen(nextValue)
         } else if (key === 'ui.agent.session.expansion.agent') {
           agentPageMocks.sessionExpansionAgent = nextValue as string[]
           agentPageMocks.setSessionExpansionAgent(nextValue)
@@ -719,7 +719,7 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.sessionExpansionAgent = []
-    agentPageMocks.classicLayoutRightPaneOpenOverride = null
+    agentPageMocks.classicLayoutRightPaneOpen = null
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.pendingSession = null
     agentPageMocks.sessionDisplayMode = 'time'
@@ -752,7 +752,7 @@ describe('AgentPage', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = true
-    agentPageMocks.classicLayoutRightPaneOpenOverride = null
+    agentPageMocks.classicLayoutRightPaneOpen = null
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -807,7 +807,7 @@ describe('AgentPage', () => {
   it('does not render the session resource pane when the classic session position is left', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'left'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = true
+    agentPageMocks.classicLayoutRightPaneOpen = true
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -822,19 +822,19 @@ describe('AgentPage', () => {
   it('does not auto-open the session right pane when switching to agent display mode with left session position', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'left'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = null
+    agentPageMocks.classicLayoutRightPaneOpen = null
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
 
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).not.toHaveBeenCalledWith(true)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).not.toHaveBeenCalledWith(true)
   })
 
   it('toggles the classic session pane when the selected agent is clicked again', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = true
+    agentPageMocks.classicLayoutRightPaneOpen = true
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -842,7 +842,7 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
 
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
   it('closes classic-layout history records when the active agent is clicked', () => {
@@ -908,7 +908,7 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.sessionDisplayMode).toBe('agent'))
     expect(agentPageMocks.sessionPanePosition).toBe('right')
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(true)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(true)
   })
 
   it('expands only the active session agent when changing session position to the left sidebar', async () => {
@@ -1131,18 +1131,18 @@ describe('AgentPage', () => {
 
   it('preserves a manually closed classic-layout agent right pane across remounts', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = false
+    agentPageMocks.classicLayoutRightPaneOpen = false
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
 
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).not.toHaveBeenCalledWith(true)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).not.toHaveBeenCalledWith(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
 
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
   it('passes the current agent task count to the classic-layout top button', () => {
@@ -2054,12 +2054,12 @@ describe('AgentPage', () => {
 
   it('opens the session pane when a global-search locate targets a session in the current tab', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = false
+    agentPageMocks.classicLayoutRightPaneOpen = false
 
     render(<AgentPage />)
 
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).not.toHaveBeenCalledWith(true)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).not.toHaveBeenCalledWith(true)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
