@@ -45,7 +45,7 @@ const MAX_WIPE_ATTEMPTS = 2
  * re-registers the user_provider/user_model rows before ever reporting
  * `ready`, and the OCR model has no DB registration at all.
  */
-const USER_DATA_KEEP = new Set(['logs', 'Crashpad', 'Runtime', 'Toolchain'])
+export const USER_DATA_KEEP = new Set(['logs', 'Crashpad', 'Runtime', 'Toolchain'])
 
 /**
  * CHERRY_HOME (~/.cherrystudio) entries that ARE wiped. Everything else in
@@ -54,9 +54,10 @@ const USER_DATA_KEEP = new Set(['logs', 'Crashpad', 'Runtime', 'Toolchain'])
  * the way an OS survives a phone reset (#17131), and `boot-config.json` is
  * rewritten by the BootConfig reset below rather than deleted here.
  * The one user-authored file inside the kept `ovms/` tree (the model
- * registry, see OVMS_USER_CONFIG) is removed separately.
+ * registry, 'feature.ovms.model_registry_file') is removed separately in
+ * {@link wipeNonCriticalExtras}.
  */
-const CHERRY_HOME_WIPE = ['config', 'mcp', 'trace']
+export const CHERRY_HOME_WIPE = ['config', 'mcp', 'trace']
 
 /**
  * Proof that Cherry Studio actually owns the userData directory: DbService
@@ -64,7 +65,7 @@ const CHERRY_HOME_WIPE = ['config', 'mcp', 'trace']
  * app ever ran from contains it. Directories without it (a mis-pointed
  * custom data path that never hosted the app) must not be tree-wiped.
  */
-const OWNERSHIP_SENTINEL = 'cherrystudio.sqlite'
+export const OWNERSHIP_SENTINEL = 'cherrystudio.sqlite'
 
 /**
  * On Windows, Node retries EBUSY/EPERM/ENOTEMPTY deletions when maxRetries is
@@ -96,7 +97,7 @@ const WIPE_MODES: readonly string[] = ['tree', 'owned-manifest', 'manifest'] sat
  * migration-status row to lose: the v1-remigration hazard the owned
  * manifest exists for cannot arise here.
  */
-const USER_DATA_MANIFEST = [
+export const USER_DATA_MANIFEST = [
   'cherrystudio.sqlite',
   'cherrystudio.sqlite-wal',
   'cherrystudio.sqlite-shm',
@@ -125,7 +126,14 @@ const USER_DATA_MANIFEST = [
  * still survives in this mode — enumerating Chromium's directory zoo is a
  * losing game, and the common case is handled by 'tree' mode.
  */
-const OWNED_MANIFEST_EXTRAS = ['version.log', 'IndexedDB', 'Local Storage', 'config.json', '.claude', 'tesseract']
+export const OWNED_MANIFEST_EXTRAS = [
+  'version.log',
+  'IndexedDB',
+  'Local Storage',
+  'config.json',
+  '.claude',
+  'tesseract'
+]
 
 /**
  * Preboot factory-reset gate (#17131). Consumes the BootConfig
@@ -370,7 +378,7 @@ function wipeDirectoryEntries(dir: string, shouldWipe: (entry: string) => boolea
  */
 function wipeNonCriticalExtras(): void {
   const tempDir = application.getPath('app.temp')
-  const targets = [tempDir, path.join(application.getPath('feature.ovms.ovms'), 'models', 'config.json')]
+  const targets = [tempDir, application.getPath('feature.ovms.model_registry_file')]
   for (const target of targets) {
     try {
       fs.rmSync(target, RM_OPTIONS)

@@ -70,7 +70,7 @@ function stubApplication(userData: string = USER_DATA) {
       getPath: vi.fn((key: string) => {
         if (key === 'app.userdata') return userData
         if (key === 'app.temp') return APP_TEMP
-        if (key === 'feature.ovms.ovms') return OVMS_DIR
+        if (key === 'feature.ovms.model_registry_file') return `${OVMS_DIR}/models/config.json`
         return '/mock/unknown'
       })
     }

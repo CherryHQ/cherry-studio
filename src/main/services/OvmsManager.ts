@@ -139,7 +139,7 @@ export class OvmsManager extends BaseService {
    */
   public async runOvms(): Promise<{ success: boolean; message?: string }> {
     const ovmsDir = application.getPath('feature.ovms.ovms')
-    const configPath = path.join(ovmsDir, 'models', 'config.json')
+    const configPath = application.getPath('feature.ovms.model_registry_file')
     const runBatPath = path.join(ovmsDir, 'run.bat')
 
     try {
@@ -262,7 +262,7 @@ export class OvmsManager extends BaseService {
       return false
     }
 
-    const configPath = path.join(application.getPath('feature.ovms.ovms'), 'models', 'config.json')
+    const configPath = application.getPath('feature.ovms.model_registry_file')
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
@@ -454,8 +454,7 @@ export class OvmsManager extends BaseService {
    * @param modelId ID of the model to check
    */
   public async checkModelExists(modelId: string): Promise<boolean> {
-    const ovmsDir = application.getPath('feature.ovms.ovms')
-    const configPath = path.join(ovmsDir, 'models', 'config.json')
+    const configPath = application.getPath('feature.ovms.model_registry_file')
 
     try {
       if (!(await fs.pathExists(configPath))) {
@@ -480,8 +479,7 @@ export class OvmsManager extends BaseService {
    * Update the model configuration file
    */
   public async updateModelConfig(modelName: string, modelId: string): Promise<boolean> {
-    const ovmsDir = application.getPath('feature.ovms.ovms')
-    const configPath = path.join(ovmsDir, 'models', 'config.json')
+    const configPath = application.getPath('feature.ovms.model_registry_file')
 
     try {
       // Ensure the models directory exists
@@ -532,8 +530,7 @@ export class OvmsManager extends BaseService {
    * @returns Array of model configurations
    */
   public async getModels(): Promise<ModelConfig[]> {
-    const ovmsDir = application.getPath('feature.ovms.ovms')
-    const configPath = path.join(ovmsDir, 'models', 'config.json')
+    const configPath = application.getPath('feature.ovms.model_registry_file')
 
     try {
       if (!(await fs.pathExists(configPath))) {
