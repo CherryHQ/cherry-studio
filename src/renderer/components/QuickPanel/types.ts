@@ -124,6 +124,12 @@ export type QuickPanelListItem = {
    * when there are no matches.
    */
   alwaysVisible?: boolean
+  /**
+   * Keeps an action outside the virtualized result list and anchored at the
+   * bottom of the panel, immediately above the footer. Fixed items stay visible
+   * while filtering and remain part of keyboard navigation after regular rows.
+   */
+  fixedToBottom?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
 }
 

@@ -1,5 +1,5 @@
 import { cacheService } from '@renderer/data/CacheService'
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { useEffect, useMemo, useState } from 'react'
@@ -14,8 +14,12 @@ export function getDefaultMcpRuntimeStatus(isActive: boolean): McpRuntimeStatus 
 
 export function useMcpRuntimeStatus(serverId: string | undefined, isActive: boolean): McpRuntimeStatus {
   const key = serverId ? mcpStatusCacheKey(serverId) : mcpStatusCacheKey('__draft__')
-  const [status] = useSharedCache(key, getDefaultMcpRuntimeStatus(isActive))
-  return status
+  const cached = useSharedCacheValue(key)
+  // Evaluated unconditionally BEFORE `??` — a hook on its right side would be
+  // skipped on cache hit (Rules of Hooks violation). useMemo keeps the fallback
+  // reference stable across renders for downstream dependency comparisons.
+  const defaultStatus = useMemo(() => getDefaultMcpRuntimeStatus(isActive), [isActive])
+  return cached ?? defaultStatus
 }
 
 export function useMcpRuntimeStatusMap(
@@ -28,7 +32,7 @@ export function useMcpRuntimeStatusMap(
     Object.fromEntries(
       sortedServers.map((server) => [
         server.id,
-        cacheService.getShared(mcpStatusCacheKey(server.id) as SharedCacheKey) ??
+        cacheService.getSharedSnapshot(mcpStatusCacheKey(server.id) as SharedCacheKey) ??
           getDefaultMcpRuntimeStatus(server.isActive)
       ])
     ) as Record<string, McpRuntimeStatus>

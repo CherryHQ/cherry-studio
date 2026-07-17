@@ -66,15 +66,14 @@ function clearMockTimers() {
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
-    size: _size,
+    size,
     variant: _variant,
     ...props
   }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
-    void _size
     void _variant
 
     return (
-      <button type="button" {...props}>
+      <button type="button" data-size={size} {...props}>
         {children}
       </button>
     )
@@ -717,11 +716,11 @@ describe('ComposerSurface', () => {
     expect(editorContainer).toHaveStyle({ height: '46px' })
   })
 
-  it('renders a compact editing mode badge attached to the inputbar edge', () => {
+  it('renders editing controls in a full-width header inside the inputbar', () => {
     const onCancel = vi.fn()
     const onLocate = vi.fn()
 
-    render(
+    const view = render(
       <ComposerSurface
         {...baseProps}
         editingState={{
@@ -732,34 +731,52 @@ describe('ComposerSurface', () => {
       />
     )
 
-    const editingBadge = screen.getByText('chat.input.editing').closest('[data-composer-editing-badge]')
+    const editingHeader = screen.getByText('chat.input.editing').closest('[data-composer-editing-header]')
+    const inputbar = editingHeader?.closest('[data-composer-inputbar]')
 
-    expect(editingBadge?.closest('[data-composer-inputbar]')).not.toBeNull()
-    expect(editingBadge?.closest('[data-composer-toolbar]')).toBeNull()
-    expect(editingBadge).toHaveClass(
-      'absolute',
-      'top-0',
-      'left-3',
-      '-translate-y-1/2',
-      'rounded-full',
-      'border',
+    expect(inputbar).not.toBeNull()
+    expect(editingHeader?.closest('[data-composer-toolbar]')).toBeNull()
+    expect(editingHeader).toHaveClass(
+      'flex',
+      'h-9',
+      'shrink-0',
+      'justify-between',
+      'border-b',
       'border-border-subtle',
-      'bg-card'
+      'bg-transparent',
+      'px-3'
     )
-    expect(editingBadge).not.toHaveClass('w-full', 'border-b-0', 'bg-muted', 'bg-secondary', 'shadow-xs')
+    expect(editingHeader).not.toHaveClass('bg-card')
+    expect(editingHeader).not.toHaveClass('absolute', 'top-0', '-translate-y-1/2', 'rounded-full', 'border')
+    expect(editingHeader?.children).toHaveLength(2)
+    expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveClass('size-3.5', 'shrink-0')
+    expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveAttribute('aria-hidden', 'true')
+    expect(inputbar).toHaveClass('pt-0')
+    expect(inputbar).not.toHaveClass('pt-2')
+    expect(document.querySelector('[data-composer-editor-frame]')).toHaveClass('mt-2')
+    expect(document.querySelector('[data-composer-expand-corner]')).toBeNull()
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
-    expect(locateButton).toHaveClass('size-5', 'text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
+    expect(locateButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
-    expect(cancelButton).toHaveClass('size-5', 'text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
+    expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
     expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
 
     fireEvent.click(cancelButton)
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+
+    view.rerender(<ComposerSurface {...baseProps} editingState={undefined} />)
+
+    expect(document.querySelector('[data-composer-editing-header]')).toBeNull()
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
+    expect(document.querySelector('[data-composer-inputbar]')).toHaveClass('pt-2')
+    expect(document.querySelector('[data-composer-editor-frame]')).not.toHaveClass('mt-2')
   })
 
   it('focuses the editor when an editing session starts', async () => {
@@ -1336,6 +1353,45 @@ describe('ComposerSurface', () => {
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
+  })
+
+  it('toggles a launcher panel closed by its declared panelSymbol, not its id', async () => {
+    // Knowledge Base opens the '#' panel; the toggle must compare against panelSymbol.
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '#'
+    mocks.quickPanelTriggerInfo = { type: 'button', position: 0 }
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'knowledge-base',
+            kind: 'panel',
+            label: 'Knowledge Base',
+            icon: 'kb',
+            sources: ['popover'],
+            panelSymbol: '#'
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button
+            type="button"
+            aria-label="open kb panel"
+            onClick={() => unifiedPanelControl?.open({ launcherId: 'knowledge-base' })}>
+            kb
+          </button>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open kb panel' }))
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('toggle')
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
   })
 
   it('closes a button-opened unified panel when the same control is clicked again', async () => {
@@ -3919,6 +3975,26 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('preserves Shift+Enter newline while editing even when it is configured as the send shortcut', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Shift+Enter'
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onSendDraft={onSendDraft}
+        editingState={{ messageId: 'message-1', onCancel: vi.fn() }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
     expect(event.defaultPrevented).toBe(false)
     expect(onSendDraft).not.toHaveBeenCalled()
   })

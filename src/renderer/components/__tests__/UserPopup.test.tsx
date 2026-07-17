@@ -86,8 +86,20 @@ vi.mock('@cherrystudio/ui', () => {
       open?: boolean
       onOpenChange?: (open: boolean) => void
     }) => <PopoverContext value={{ open, onOpenChange }}>{children}</PopoverContext>,
-    PopoverContent: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => {
+    PopoverContent: ({
+      children,
+      align,
+      sideOffset,
+      ...props
+    }: {
+      children?: ReactNode
+      align?: string
+      sideOffset?: number
+      [key: string]: unknown
+    }) => {
       const context = React.use(PopoverContext)
+      void align
+      void sideOffset
 
       return context.open ? (
         <div data-testid="popover-content" {...props}>
@@ -182,6 +194,23 @@ describe('UserPopup', () => {
     const image = await screen.findByTestId('avatar-image')
     expect(image).toHaveClass('object-cover')
     expect(image).toHaveAttribute('src', avatar)
+  })
+
+  it('only customizes avatar picker popover width and padding', async () => {
+    showUserPopup()
+
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+
+    const popoverContent = screen.getByTestId('popover-content')
+
+    expect(popoverContent).toHaveClass('w-auto', 'p-2')
+    expect(popoverContent).not.toHaveClass(
+      'border',
+      'border-border',
+      'bg-popover',
+      'text-popover-foreground',
+      'shadow-lg'
+    )
   })
 
   it('uploads an avatar as raw bytes via profile.set_avatar', async () => {
