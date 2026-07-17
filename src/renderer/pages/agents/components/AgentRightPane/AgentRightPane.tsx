@@ -3,6 +3,7 @@ import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/compon
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
+import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -35,9 +36,11 @@ import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessi
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { joinPath } from '@renderer/utils/path'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import {
@@ -419,18 +422,43 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
 
 function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
+  const { t } = useTranslation()
   const model = useAgentFileTreeModel()
   const shellState = useShellState()
-  // Make inline file paths inside a previewed markdown file clickable, routed to
-  // open in this same right pane. The preview is not inside a MessageListProvider,
-  // so ClickableFilePath gets its open handler via `onOpen` instead of context.
+  const workspacePath = state.workspacePath
+  // Make file paths inside a previewed markdown file (inline paths and `[..](./x)` links)
+  // clickable and open in this same right pane. The preview is not inside a MessageListProvider,
+  // so the host supplies a routed opener directly: directories open in the system file manager,
+  // files in the artifact preview — mirroring ClickableFilePath's routing (openFileTarget).
+  const openFilePath = useCallback(
+    (path: string) => {
+      const toAbsolute = (p: string): string | null => {
+        if (!workspacePath) return null
+        const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(p))
+        return selection ? joinPath(selection.workspacePath, selection.filePath) : null
+      }
+      return openFileTarget(path, {
+        openArtifactFile: actions.openArtifactFile,
+        openPath: (p) => {
+          const absolute = toAbsolute(p)
+          return absolute ? window.api.file.openPath(absolute) : undefined
+        },
+        isDirectory: async (p) => {
+          const absolute = toAbsolute(p)
+          return absolute ? window.api.file.isDirectory(absolute) : false
+        },
+        onError: () => toast.error(t('chat.input.tools.open_file_error', { path }))
+      })
+    },
+    [actions.openArtifactFile, workspacePath, t]
+  )
   const markdownHost = useMemo<MarkdownHost>(
     () => ({
       codeFancyBlock: true,
-      openFilePath: actions.openArtifactFile,
-      renderInlineFilePath: (path) => <ClickableFilePath path={path} onOpen={actions.openArtifactFile} />
+      openFilePath,
+      renderInlineFilePath: (path) => <ClickableFilePath path={path} onOpen={openFilePath} />
     }),
-    [actions.openArtifactFile]
+    [openFilePath]
   )
   return (
     <MarkdownHostContext value={markdownHost}>

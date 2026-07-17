@@ -26,9 +26,11 @@ export interface MarkdownHost {
   exportTableAsExcel?: (markdown: string) => boolean | Promise<boolean>
   notifySuccess?: (message: string) => void
   notifyError?: (message: string) => void
-  /** Open a workspace file path (e.g. show it in the artifact right pane). Used by
-   *  file-path markdown links, which keep their own text but route clicks here. */
-  openFilePath?: (path: string) => void
+  /** Open a workspace file path — routing directories to the system file manager and
+   *  files to the artifact right pane, with the host's error feedback. Used by file-path
+   *  markdown links, which keep their own text but route clicks here. Returns a Promise
+   *  so callers can await/guard it. */
+  openFilePath?: (path: string) => void | Promise<void>
   /** Render an inline file path as an interactive element (host-specific). */
   renderInlineFilePath?: (path: string) => ReactNode
 }

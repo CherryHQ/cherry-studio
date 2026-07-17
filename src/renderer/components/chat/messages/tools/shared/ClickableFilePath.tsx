@@ -11,6 +11,7 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
+import { openFileTarget } from './openFileTarget'
 
 interface ClickableFilePathProps {
   path: string
@@ -77,28 +78,12 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         onOpen(targetPath)
         return
       }
-      // Resolve directory-ness authoritatively (single stat on the clicked
-      // path) and route accordingly: directories open in the system file
-      // manager, files open in the in-app preview pane. The preview pane is
-      // file-only — handing it a directory just renders a "can't display"
-      // dead end. `isDirectory` is fs.stat-backed and resolves false on a
-      // missing path, so a vanished file still falls through to the preview
-      // pane, which reports its own missing / unreadable state (no TOCTOU
-      // preflight, no error interpretation in the renderer).
-      //
-      // Some surfaces (e.g. Home chat) wire only `openPath` and no preview
-      // pane — there, route everything through the system file manager so the
-      // link is never a silent dead end.
-      try {
-        const directory = isDirectory ? await isDirectory(targetPath) : false
-        if (directory || !openArtifactFile) {
-          await openPath?.(targetPath)
-        } else {
-          await openArtifactFile(targetPath)
-        }
-      } catch {
-        notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
-      }
+      await openFileTarget(targetPath, {
+        openArtifactFile,
+        openPath,
+        isDirectory,
+        onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
+      })
     },
     [canOpen, onOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
   )

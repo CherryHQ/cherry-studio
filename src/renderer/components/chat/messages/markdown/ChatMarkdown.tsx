@@ -7,6 +7,7 @@ import {
   useOptionalMessageListUi
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
+import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
 import { useMarkdownComponents } from '@renderer/components/markdown'
 import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
@@ -67,10 +68,16 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
       exportTableAsExcel: actions?.exportTableAsExcel,
       notifySuccess: actions?.notifySuccess,
       notifyError: actions?.notifyError,
-      openFilePath: actions?.openArtifactFile ?? actions?.openPath,
+      openFilePath: (path: string) =>
+        openFileTarget(path, {
+          openArtifactFile: actions?.openArtifactFile,
+          openPath: actions?.openPath,
+          isDirectory: actions?.isDirectory,
+          onError: () => actions?.notifyError?.(t('chat.input.tools.open_file_error', { path }))
+        }),
       renderInlineFilePath: (path: string) => <ClickableFilePath path={path} />
     }),
-    [actions, ui?.readonly, codeFancyBlock]
+    [actions, ui?.readonly, codeFancyBlock, t]
   )
 
   // Keep the renderer type stable when an active text tail is sealed by a

@@ -1,6 +1,5 @@
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { useMarkdownHost } from '@renderer/hooks/useMarkdownHost'
-import { isInlineFilePath } from '@renderer/utils/filePath'
 import { parseJSON } from '@renderer/utils/json'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { cn } from '@renderer/utils/style'
@@ -30,6 +29,38 @@ function hasFaviconChild(children: React.ReactNode): boolean {
   return React.Children.toArray(children).some((child) => React.isValidElement(child) && child.type === Favicon)
 }
 
+/**
+ * Parse a markdown link href that targets a workspace file (not a web page) and
+ * return the decoded filesystem path to open, or `null` for external links.
+ *
+ * This is the link-boundary counterpart to `isInlineFilePath` (which classifies
+ * inline *text*): any target that is not an external URL is treated as a file,
+ * so single-segment links like `README.md` resolve too. Query string and hash
+ * are stripped (they are URL semantics, not path) and percent-encoding decoded,
+ * so `./Docs%20Notes.md#section` opens `./Docs Notes.md`.
+ */
+function parseFileLinkHref(href: string | undefined): string | null {
+  if (!href) return null
+  if (href.startsWith('//')) return null // protocol-relative → external
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase()
+  if (scheme && scheme !== 'file') return null // http(s), mailto, tel, … → external
+  let path = href.replace(/[?#].*$/, '') // drop query + hash
+  if (scheme === 'file') {
+    try {
+      path = new URL(path).pathname
+    } catch {
+      return null
+    }
+  }
+  if (!path) return null
+  try {
+    path = decodeURIComponent(path)
+  } catch {
+    // keep raw path on malformed percent-encoding
+  }
+  return path || null
+}
+
 const Link: React.FC<LinkProps> = (props) => {
   const citationData = useMemo(() => {
     const raw = parseJSON(findCitationInChildren(props.children))
@@ -45,21 +76,21 @@ const Link: React.FC<LinkProps> = (props) => {
     return <span className="link">{props.children}</span>
   }
 
-  // File-path links (e.g. `[SKILL.md](.agents/skills/gh-create-pr/SKILL.md)` or `[Design](./DESIGN.md)`):
-  // the href is a workspace file, not a web page. Keep the link's own text but route the click to the
-  // host's file opener, which joins the (relative) path with the caller-supplied workspace and shows it
-  // in the artifact right pane, instead of a browser navigation.
-  const href = props.href
-  if (href && openFilePath && !getWebHostname(href) && isInlineFilePath(href)) {
+  // File-path links (e.g. `[SKILL.md](.agents/skills/gh-create-pr/SKILL.md)`, `[Design](./DESIGN.md)`,
+  // `[README](README.md)`): the href is a workspace file, not a web page. Keep the link's own text but
+  // route the click to the host's file opener, which resolves the path against the caller-supplied
+  // workspace and routes directories vs files, instead of a browser navigation.
+  const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+  if (fileLinkPath && openFilePath) {
     return (
       <a
         {...omit(props, ['node'])}
-        href={href}
+        href={props.href}
         className={cn('text-primary', !props.className && 'hover:underline', props.className)}
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          openFilePath(href)
+          void Promise.resolve(openFilePath(fileLinkPath)).catch(() => {})
         }}>
         {props.children}
       </a>
