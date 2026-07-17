@@ -33,7 +33,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import {
@@ -271,13 +271,20 @@ export function useAgentMessageListProviderValue({
     [topic.id]
   )
 
+  // Replaces the live turn's placeholder with the api-retry line while retrying, otherwise the
+  // placeholder itself (the component decides from session-scoped cache).
+  const renderActiveTurnStatus = useCallback(
+    (placeholder: ReactNode) => <AgentSessionApiRetryStatus sessionId={sessionId} fallback={placeholder} />,
+    [sessionId]
+  )
+
   const state = useMemo<MessageListState>(
     () => ({
       topic,
       messages: messageItems,
       partsByMessageId,
       streamingLayers,
-      bottomOverlay: normalInteractionsEnabled ? <AgentSessionApiRetryStatus sessionId={sessionId} /> : undefined,
+      activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -305,9 +312,9 @@ export function useAgentMessageListProviderValue({
       messageItems,
       normalInteractionsEnabled,
       partsByMessageId,
+      renderActiveTurnStatus,
       renderConfig,
       selectionController.selection,
-      sessionId,
       streamingLayers,
       topic
     ]

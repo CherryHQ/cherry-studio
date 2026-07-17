@@ -1,6 +1,6 @@
 import { useAgentSessionApiRetry } from '@renderer/hooks/agent/useAgentSessionApiRetry'
 import type { AgentSessionApiRetryState } from '@shared/ai/agentSessionApiRetry'
-import { memo, useEffect, useState } from 'react'
+import { memo, type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
@@ -20,12 +20,13 @@ function useRetryRemainingSeconds(retry: AgentSessionApiRetryState): number {
   return Math.max(0, Math.ceil((endsAt - now) / 1000))
 }
 
-const AgentSessionApiRetryStatus = ({ sessionId }: { sessionId: string }) => {
+const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId: string; fallback?: ReactNode }) => {
   const { t } = useTranslation()
   const retry = useAgentSessionApiRetry(sessionId)
   const remainingSeconds = useRetryRemainingSeconds(retry)
 
-  if (retry.status !== 'retrying') return null
+  // Not retrying → yield to the default processing placeholder passed by the renderer.
+  if (retry.status !== 'retrying') return <>{fallback}</>
 
   const label =
     remainingSeconds > 0
@@ -45,9 +46,9 @@ const AgentSessionApiRetryStatus = ({ sessionId }: { sessionId: string }) => {
     <div
       title={tooltip}
       data-testid="agent-session-api-retry"
-      className="pointer-events-auto flex select-none items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-[13px] text-foreground-muted leading-5 shadow-sm">
-      <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
+      className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-muted leading-5">
       <span>{label}</span>
+      <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
     </div>
   )
 }

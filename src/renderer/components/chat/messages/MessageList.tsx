@@ -142,7 +142,7 @@ const MessageList = () => {
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
   const { setForceWideLayout } = useChatLayoutMode()
-  const { topic, messages, beforeList, bottomOverlay, hasOlder = false, messageNavigation } = data
+  const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -625,13 +625,6 @@ const MessageList = () => {
           )}
         </div>
       </SelectionContextMenu>
-      {bottomOverlay && (
-        <div
-          className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-4"
-          style={{ bottom: bottomPadding + 8 }}>
-          {bottomOverlay}
-        </div>
-      )}
       {topicImageCaptureActions.length > 0 && (
         <div
           ref={topicImageCaptureRef}
