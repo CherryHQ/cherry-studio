@@ -3,6 +3,7 @@ export { parseConfiguredModelId, resolveCliConfigApplyContext } from './applyCon
 export {
   CLAUDE_DETAILED_MODEL_ENV_KEYS,
   CLAUDE_DETAILED_MODEL_ROLES,
+  CLAUDE_MODEL_ROLES,
   getClaudeContextModelId,
   hasClaudeDetailedModels,
   stripClaudeDetailedModels,
@@ -19,6 +20,7 @@ export {
 } from './draft'
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
+export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export {
   CLAUDE_PERMISSION_MODES,
@@ -34,6 +36,7 @@ export { cliConfigConnectionMatchesProvider } from './providerMatching'
 export type {
   CliConfigConnection,
   CliConfigFileDraft,
+  CliConfigGatewayContext,
   CliConfigLanguage,
   CliConfigTarget,
   CliConfigWriteArgs

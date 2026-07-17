@@ -461,6 +461,55 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
+// ── generate_image ───────────────────────────────────────────────
+
+export const GENERATE_IMAGE_TOOL_NAME = 'generate_image'
+
+const GENERATE_IMAGE_PROMPT_FIELD = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4000)
+  .describe(
+    'Vivid, self-contained description of the image to generate. Include subject, style, ' +
+      'composition, and mood; MUST NOT use pronouns or references to earlier messages — ' +
+      'expand the request into a standalone prompt.'
+  )
+// Deliberately no `size` param: pixel dimensions aren't portable across painting providers (OpenAI
+// accepts a fixed enum, Doubao wants 1K/2K/4K, Imagen wants an aspect ratio), and the tool has no way
+// to know the configured model's valid sizes, so a model-supplied "WxH" would often be rejected. The
+// tool generates at the model's default size; per-model size/aspect controls are tracked as a
+// follow-up (dynamic per-model tool schema). Precise sizing stays in the Paintings page for now.
+
+// MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
+// omit `n`, so it is `.optional()`. `z.toJSONSchema` legitimately drops it from `required`, which the
+// non-strict MCP schema accepts.
+export const generateImageInputSchema = z.object({
+  prompt: GENERATE_IMAGE_PROMPT_FIELD,
+  n: z.number().int().min(1).max(4).optional().describe('How many images to generate (1-4, default 1).')
+})
+
+// AI-SDK path (PaintingTool) runs with `strict: true`. A strict OpenAI-compatible provider rejects an
+// object whose optional fields serialize away from `required` (same failure as kb_list / kb_manage),
+// killing the tool call before generation. Express the same optionality with `.nullable()` so `n`
+// stays in `required` with a null option; the core (`generateImageFromPrompt`) treats null like
+// absent (`!= null`).
+export const generateImageStrictInputSchema = z.object({
+  prompt: GENERATE_IMAGE_PROMPT_FIELD,
+  n: z.number().int().min(1).max(4).nullable().describe('How many images to generate (1-4). Pass null for 1.')
+})
+
+export const generateImageOutputItemSchema = z.object({
+  id: z.string().describe('File entry id of the generated image.'),
+  name: z.string().describe('File name of the generated image.')
+})
+
+export const generateImageOutputSchema = z.array(generateImageOutputItemSchema)
+
+export type GenerateImageInput = z.infer<typeof generateImageInputSchema>
+export type GenerateImageOutputItem = z.infer<typeof generateImageOutputItemSchema>
+export type GenerateImageOutput = z.infer<typeof generateImageOutputSchema>
+
 // ── agent autonomy tools (cron / notify / config) ────────────────
 // Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
 // are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;
@@ -488,19 +537,25 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
+  // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
+  // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`
+  // drops `.optional()` fields from `required`), failing every call with "Missing 'offset'".
+  // `readFile` coerces null back to the paging defaults.
   offset: z
     .number()
     .int()
     .nonnegative()
-    .optional()
-    .describe('0-based character offset to start from. Page through long documents with offset + limit.'),
+    .nullable()
+    .describe(
+      '0-based character offset to start from. Page through long documents with offset + limit. Pass null to start at the beginning.'
+    ),
   limit: z
     .number()
     .int()
     .positive()
     .max(200_000)
-    .optional()
-    .describe(`Max characters to return. Defaults to ${READ_FILE_PAGE_SIZE} when omitted.`)
+    .nullable()
+    .describe(`Max characters to return. Pass null to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({

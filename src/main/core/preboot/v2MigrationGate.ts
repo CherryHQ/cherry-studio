@@ -35,6 +35,25 @@ const logger = loggerService.withContext('V2MigrationGate')
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
 /**
+ * Surface a fatal "cannot persist userData location" error and quit.
+ *
+ * Reached when the strict `pinUserDataPath()` persist fails: the next launch
+ * depends on that write, so continuing would relaunch into the old directory
+ * and loop (or make migrated data appear lost). Stop loudly instead.
+ */
+async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
+  logger.error('Failed to persist userData location; cannot continue', cause as Error)
+  await app.whenReady()
+  dialog.showErrorBox(
+    'Data Location Error - Application Cannot Start',
+    `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
+      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
+  )
+  application.quit()
+  return 'handled'
+}
+
+/**
  * Decide whether the v1→v2 data migration must run before
  * `application.bootstrap()` is allowed to start.
  *
@@ -59,7 +78,17 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // userData detection. This MUST run before migrationEngine.initialize()
   // so that all subsequent path-dependent operations use the correct
   // directory. See MigrationPaths.ts for the full resolution logic.
-  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolveMigrationPaths()
+  let resolved: ReturnType<typeof resolveMigrationPaths>
+  try {
+    resolved = resolveMigrationPaths()
+  } catch (error) {
+    // resolveMigrationPaths()'s only throwing operation is the strict
+    // pinUserDataPath() persist on the redirect branch. Failing there means we
+    // cannot durably record which userData directory to use next launch — a
+    // silent continue would relaunch into the OLD location and loop.
+    return quitWithDataLocationError(error)
+  }
+  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
 
   // Legacy custom path found but inaccessible (e.g. external drive not
   // mounted, or a stale abandoned entry). Silently falling back to the default
@@ -94,7 +123,11 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     // so this prompt never fires again, then FALL THROUGH to the normal flow —
     // userData already IS the default and the path registry is frozen there, so
     // no relaunch is needed.
-    pinUserDataPath(paths.userData)
+    try {
+      pinUserDataPath(paths.userData)
+    } catch (error) {
+      return quitWithDataLocationError(error)
+    }
     logger.info('User chose to continue with the default data directory', { defaultPath: paths.userData })
   }
 

@@ -1,13 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ResourcePaneConfig, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
-import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -40,6 +37,7 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -54,7 +52,7 @@ import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
-import type { FC, HTMLAttributes, ReactNode } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -147,6 +145,7 @@ const HomePage: FC = () => {
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [detachedSidebarOpen, setDetachedSidebarOpen] = useState(false)
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
   const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
@@ -173,9 +172,9 @@ const HomePage: FC = () => {
   // ≥200 pinned topics fill the first page).
   const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
   const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
-  // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
+  const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -356,14 +355,16 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const topicListPosition: ChatPanePosition =
+    !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
-    if (!isClassicTopicLayout || panePosition !== 'right' || !visibleAssistantId) return undefined
+    if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
-  }, [allTopics, isClassicTopicLayout, panePosition, t, visibleAssistantId])
+  }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
@@ -389,15 +390,19 @@ const HomePage: FC = () => {
   const setResourceListOpen = useCallback(
     (open: boolean) => {
       setAutoCollapsedResourceList(false)
+      if (isWindowFrame) {
+        setDetachedSidebarOpen(open)
+        return
+      }
       void setShowSidebar(open)
     },
-    [setShowSidebar]
+    [isWindowFrame, setShowSidebar]
   )
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
   const toggleResourceListOpen = useCallback(() => {
-    if (isMessageOnlyView || isWindowFrame) return
+    if (isMessageOnlyView) return
 
     if (effectiveShowSidebar) {
       setResourceListOpen(false)
@@ -408,7 +413,7 @@ const HomePage: FC = () => {
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  }, [effectiveShowSidebar, isMessageOnlyView, isWindowFrame, setResourceListOpen])
+  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
   useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {
@@ -646,10 +651,10 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
 
     return () => {
-      void window.api.window.resetMinimumSize()
+      void ipcApi.request('window.main.reset_minimum_size')
     }
   }, [])
 
@@ -795,7 +800,6 @@ const HomePage: FC = () => {
       visibleTopic
     ]
   )
-  const topicListPosition: ChatPanePosition = isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const shellPanePosition: ChatPanePosition = 'left'
 
   // Message-only (detached) view has no rail: resolve its single target topic and show its own
@@ -825,7 +829,7 @@ const HomePage: FC = () => {
           setAssistantPickerOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
-        onOpenHistoryRecords={openHistoryRecords}
+        onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onSelectTopic={setActiveTopicAndCloseResourceView}
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => {
@@ -848,14 +852,14 @@ const HomePage: FC = () => {
         onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
         onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
-        onOpenHistoryRecords={openHistoryRecords}
+        onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         revealRequest={topicRevealRequest}
         resourceMenuItems={resourceMenuItems}
-        onSetPanePosition={setTopicListPosition}
+        onSetPanePosition={isWindowFrame ? undefined : setTopicListPosition}
         panePosition="left"
       />
     )
-  // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
+  // In classic layout the topic list moves into the chat's right pane as a capability; the single page-level
   // provider owns the Shell for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
   const resourcePane: ResourcePaneConfig | null =
@@ -878,15 +882,6 @@ const HomePage: FC = () => {
           )
         }
       : null
-  const renderWithRightPane = (content: ReactNode) => (
-    <TopicRightPane
-      resourcePane={resourcePane}
-      defaultOpen={topicPaneOpen}
-      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
-      revealRequest={topicRevealRequest}>
-      {content}
-    </TopicRightPane>
-  )
   const assistantPickerDialog = isClassicTopicLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
@@ -899,69 +894,42 @@ const HomePage: FC = () => {
 
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
-  if (centerSurface) {
-    return (
+  // The provider, conversation shell, and viewport stay at one React ownership path while the center
+  // switches between loading, chat, history, and resource surfaces. Capability identity alone now
+  // decides whether a visited right-panel subtree survives.
+  return (
+    <TopicRightPane
+      resourcePane={resourcePane}
+      topicId={visibleTopic?.id}
+      topicName={visibleTopic?.name}
+      traceId={visibleTopic?.traceId}
+      present={!centerSurface}
+      defaultOpen={topicPaneOpen}
+      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      revealRequest={topicRevealRequest}>
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
-          <ConversationPageShell
-            id="chat"
-            center={centerSurface}
+          <Chat
+            activeTopic={visibleTopic}
+            centerSurface={centerSurface}
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            showResourceListControls={!isMessageOnlyView}
+            sidebarOpen={effectiveShowSidebar}
+            onSidebarToggle={toggleResourceListOpen}
+            locateMessageId={pendingLocateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            resourcePaneCount={topicResourcePaneCount}
           />
         </ContentContainer>
         {assistantPickerDialog}
       </Container>
-    )
-  }
-
-  const chatTopic = visibleTopic
-  if (!chatTopic) {
-    // First-entry has not resolved a topic yet (waiting on `/latest`). Mirror AgentChat's
-    // `isInitializing` branch: keep the rail + shell and show a loading center rather than a blank frame.
-    return renderWithRightPane(
-      <Container id="home-page">
-        <ContentContainer $detached={isWindowFrame}>
-          <ConversationShell
-            id="chat"
-            pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-            center={<ConversationCenterState state="loading" />}
-          />
-        </ContentContainer>
-        {assistantPickerDialog}
-      </Container>
-    )
-  }
-
-  return renderWithRightPane(
-    <Container id="home-page">
-      <ContentContainer $detached={isWindowFrame}>
-        <Chat
-          activeTopic={chatTopic}
-          pane={pane}
-          paneOpen={effectiveShowSidebar}
-          panePosition={shellPanePosition}
-          onPaneCollapse={() => setResourceListOpen(false)}
-          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
-          sidebarOpen={effectiveShowSidebar}
-          onSidebarToggle={toggleResourceListOpen}
-          locateMessageId={pendingLocateMessageId}
-          onLocateMessageHandled={handleLocateMessageHandled}
-          resourcePaneCount={topicResourcePaneCount}
-        />
-      </ContentContainer>
-      {assistantPickerDialog}
-    </Container>
+    </TopicRightPane>
   )
 }
 

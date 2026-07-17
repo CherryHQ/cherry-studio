@@ -1,5 +1,4 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -35,6 +34,10 @@ const persistCacheMock = vi.hoisted(() => {
   }
 })
 
+const rightPanelStateMock = vi.hoisted(() => ({
+  current: undefined as { layoutAnimationPending: boolean; presentationMaximized: boolean } | undefined
+}))
+
 vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
@@ -45,6 +48,10 @@ vi.mock('@data/hooks/useCache', () => ({
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('../../panes/Shell', () => ({
+  useOptionalRightPanelState: () => rightPanelStateMock.current
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -82,6 +89,7 @@ vi.mock('motion/react', () => {
 
 describe('ChatAppShell', () => {
   beforeEach(() => {
+    rightPanelStateMock.current = undefined
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1200,
@@ -124,8 +132,12 @@ describe('ChatAppShell', () => {
     )
 
     const chatMain = container.querySelector('#chat-main')
+    const navbarWrapper = screen.getByTestId('navbar').parentElement
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
+    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-background')
+    expect(navbarWrapper).not.toHaveClass('absolute')
+    expect(navbarWrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
@@ -163,6 +175,20 @@ describe('ChatAppShell', () => {
 
     // Sibling of the center (same wrapper) so it overlays exactly the center box.
     expect(overlayHost?.parentElement).toBe(chatMain?.parentElement)
+  })
+
+  it('releases the center stacking context while the right panel is maximized', () => {
+    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized: true }
+
+    const { container } = render(
+      <ChatAppShell centerClassName="transform-[translateZ(0)]" main={<div data-testid="main" />} />
+    )
+
+    expect(container.querySelector('[data-chat-app-shell-center]')).toHaveClass(
+      'transform-[translateZ(0)]',
+      '!transform-none',
+      '!will-change-auto'
+    )
   })
 
   it('keeps the pane mounted when keyed center content changes', () => {
@@ -220,16 +246,34 @@ describe('ChatAppShell', () => {
     )
   })
 
-  it('insets the left resource pane below the title bar in window mode', () => {
+  it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
-        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+        <ChatAppShell
+          contentId="conversation-content"
+          centerId="conversation-center"
+          topBar={<header data-testid="conversation-navbar" />}
+          pane={<aside>topics</aside>}
+          paneOpen
+          main={<div />}
+        />
       </WindowFrameProvider>
     )
 
-    expect(container.querySelector('[data-resource-list-pane]')).toHaveStyle({
-      paddingTop: TITLE_BAR_HEIGHT_PX
-    })
+    const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')
+    const navbar = screen.getByTestId('conversation-navbar')
+    const center = document.getElementById('conversation-center')
+    const content = document.getElementById('conversation-content')
+
+    if (!pane || !center || !content) {
+      throw new Error('Expected resource pane, conversation center, and conversation content')
+    }
+
+    expect(pane.style.paddingTop).toBe('')
+    expect(content).toContainElement(pane)
+    expect(content).toContainElement(center)
+    expect(center).toContainElement(navbar)
+    expect(pane.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {

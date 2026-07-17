@@ -1,6 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
-import type { GenerateImageParams } from '@shared/types/image'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 import { runPainting } from './runPainting'
@@ -8,16 +8,12 @@ import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
 
 /**
  * Shared painting generate skeleton. Image generation runs in the MAIN process
- * via the `ai.generate_image` IpcApi route (`ipcApi.request`): main resolves
- * the provider from `uniqueModelId`, builds the AI SDK image request (including
- * per-vendor `providerOptions` via `buildImageProviderOptions`), runs any async
- * submit/poll loop, and returns base64 data URLs. The renderer only maps the
- * canonical painting params onto the IPC payload and persists the results.
- *
- * Per-vendor variation (request fields, the `providerOptions` bag) is fed in by
- * the caller — there is no per-provider branching here. Validation (model /
- * prompt required, edit-image checks, custom-size rules, etc.) stays in the
- * caller (`canonicalGenerate`).
+ * via the `ai.generate_image` IpcApi route (`ipcApi.request`): the renderer
+ * sends one canonical `paramValues` bag (+ encoded input images); main derives
+ * the AI SDK request + per-vendor `providerOptions` from it (`splitParamValues`
+ * + the WireProfile engine), runs any async submit/poll loop, and returns
+ * base64 data URLs. Validation (model / prompt required, custom-size rules,
+ * param coercion) stays in the caller (`canonicalGenerate`).
  */
 export interface GeneratePaintingOptions {
   /** Painting provider runtime (id, name, apiHost, isEnabled). */
@@ -28,31 +24,21 @@ export interface GeneratePaintingOptions {
   readonly modelId: string
   /** User-entered prompt; pass `''` when the model allows empty prompts. */
   readonly prompt: string
+  /** Resolved image-generation mode — lets main derive per-model transport
+   *  routing from the registry instead of the renderer injecting it. */
+  readonly mode?: ImageGenerationMode
   /**
-   * Canonical AI SDK image params (all fields except `model` / `prompt` /
-   * `signal` / `providerOptions`). `imageSize` / `batchSize` / `negativePrompt`
-   * / `seed` / `aspectRatio` / `inputImages` (already encoded as data URLs) /
-   * etc. live here.
+   * Canonical param bag (registry param keys → coerced values; blanks dropped,
+   * customSize composed into `size`). main partitions it (`splitParamValues`)
+   * and maps it onto each vendor's wire shape — no per-vendor logic here.
    */
-  readonly aiSdkParams: Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
-  /**
-   * Vendor-exclusive params keyed by canonical name — forwarded to main as
-   * `providerOptions[<provider.id>]`, where `buildImageProviderOptions` maps
-   * them onto the vendor's real image-API field names. Omit when the vendor
-   * has no extras (silicon today).
-   */
-  readonly providerBag?: Record<string, unknown>
+  readonly paramValues: Record<string, unknown>
+  /** Attached input images, already encoded as `data:` URL strings. */
+  readonly inputImages?: string[]
 }
 
 export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMetadata[]> {
   return runPainting(async () => {
-    const { aiSdkParams, providerBag } = opts
-
-    const seedRaw = typeof aiSdkParams.seed === 'string' ? aiSdkParams.seed.trim() : ''
-    const seed = /^-?\d+$/.test(seedRaw) ? Number(seedRaw) : undefined
-    // canonicalGenerate encodes attached files as `data:` URL strings.
-    const inputImages = (aiSdkParams.inputImages ?? []).filter((img): img is string => typeof img === 'string')
-
     const requestId = crypto.randomUUID()
     const onAbort = () => void ipcApi.request('ai.abort_image', { requestId })
     opts.signal.addEventListener('abort', onAbort, { once: true })
@@ -62,21 +48,9 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
         payload: {
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
           prompt: opts.prompt,
-          ...(inputImages.length > 0 && { inputImages }),
-          ...(aiSdkParams.batchSize !== undefined && { n: aiSdkParams.batchSize }),
-          ...(aiSdkParams.imageSize && { size: aiSdkParams.imageSize }),
-          ...(aiSdkParams.negativePrompt && { negativePrompt: aiSdkParams.negativePrompt }),
-          ...(seed !== undefined && { seed }),
-          ...(aiSdkParams.quality && { quality: aiSdkParams.quality }),
-          ...(aiSdkParams.numInferenceSteps !== undefined && { numInferenceSteps: aiSdkParams.numInferenceSteps }),
-          ...(aiSdkParams.guidanceScale !== undefined && { guidanceScale: aiSdkParams.guidanceScale }),
-          ...(aiSdkParams.promptEnhancement !== undefined && { promptEnhancement: aiSdkParams.promptEnhancement }),
-          ...(aiSdkParams.personGeneration && { personGeneration: aiSdkParams.personGeneration }),
-          ...(aiSdkParams.aspectRatio && { aspectRatio: aiSdkParams.aspectRatio }),
-          ...(aiSdkParams.background && { background: aiSdkParams.background }),
-          ...(aiSdkParams.moderation && { moderation: aiSdkParams.moderation }),
-          ...(aiSdkParams.style && { style: aiSdkParams.style }),
-          ...(providerBag && { providerOptions: { [opts.provider.id]: providerBag } })
+          ...(opts.mode && { mode: opts.mode }),
+          paramValues: opts.paramValues,
+          ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
         }
       })
       // A failure now crosses IpcApi as an IpcError (name 'IpcError'), so an abort would

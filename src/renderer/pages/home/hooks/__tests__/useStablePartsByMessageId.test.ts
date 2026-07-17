@@ -3,7 +3,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { useStablePartsByMessageId } from '../useStablePartsByMessageId'
+import { useStableMessagePartsLayers, useStablePartsByMessageId } from '../useStablePartsByMessageId'
 
 function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
   return { id, role: 'assistant', parts } as unknown as CherryUIMessage
@@ -115,6 +115,36 @@ describe('useStablePartsByMessageId', () => {
     rerender({ ov: {} })
     expect(result.current).not.toBe(first)
     expect(result.current['m1']).toBe(partsBase)
+  })
+
+  it('keeps translated history sealed while execution overlay frames change', () => {
+    const baseParts = [textPart('base')]
+    const firstFrame = [textPart('stream-1')]
+    const secondFrame = [textPart('stream-2')]
+    const messages = [makeMessage('m1', baseParts)]
+    const translation: TranslationOverlayEntry = {
+      content: 'bonjour',
+      targetLanguage: 'fr-FR' as TranslationOverlayEntry['targetLanguage']
+    }
+
+    const { result, rerender } = renderHook(
+      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) =>
+        useStableMessagePartsLayers(messages, ov, { m1: translation }),
+      { initialProps: { ov: { m1: firstFrame } } }
+    )
+
+    const firstHistoryMap = result.current.historyPartsByMessageId
+    const firstCurrentMap = result.current.partsByMessageId
+    expect(firstHistoryMap['m1'][0]).toBe(baseParts[0])
+    expect(firstHistoryMap['m1'][1].type).toBe('data-translation')
+    expect(firstCurrentMap['m1'][0]).toBe(firstFrame[0])
+
+    rerender({ ov: { m1: secondFrame } })
+
+    expect(result.current.historyPartsByMessageId).toBe(firstHistoryMap)
+    expect(result.current.historyPartsByMessageId['m1']).toBe(firstHistoryMap['m1'])
+    expect(result.current.partsByMessageId).not.toBe(firstCurrentMap)
+    expect(result.current.partsByMessageId['m1'][0]).toBe(secondFrame[0])
   })
 
   it('appends and clears a translation overlay part correctly', () => {

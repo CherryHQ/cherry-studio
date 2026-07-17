@@ -19,13 +19,16 @@ const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   )
 )
 
-type FileProcessorApiKeyState = {
+type FileProcessorSelectionState = {
+  id: (typeof PRESETS_FILE_PROCESSORS)[number]['id']
   type: (typeof PRESETS_FILE_PROCESSORS)[number]['type']
   apiKeys?: readonly string[]
 }
 
-const hasConfiguredApiKey = (processor: FileProcessorApiKeyState) =>
-  processor.type !== 'api' || processor.apiKeys?.some((key) => key.trim().length > 0) === true
+const canSelectFileProcessor = (processor: FileProcessorSelectionState) =>
+  processor.id === 'open-mineru' ||
+  processor.type !== 'api' ||
+  processor.apiKeys?.some((key) => key.trim().length > 0) === true
 
 export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
@@ -45,7 +48,7 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
         apiKeys: override?.apiKeys
       }
     })
-      .filter(hasConfiguredApiKey)
+      .filter(canSelectFileProcessor)
       .map((processor) => ({
         value: processor.id,
         label: t(getFileProcessorLabelKey(processor.id))

@@ -20,7 +20,7 @@ src/renderer/data/
     ├── useDataApi.ts       # useQuery, useMutation, useInfiniteQuery, useInfiniteFlatItems, usePaginatedQuery, useReadCache, useWriteCache, useInvalidateCache, prefetch
     ├── useReorder.ts       # optimistic drag-and-drop reordering
     ├── usePreference.ts    # usePreference, usePreferences
-    └── useCache.ts         # useCache, useSharedCache, usePersistCache
+    └── useCache.ts         # useCache, useSharedCache, useSharedCacheValue, usePersistCache
 ```
 
 ## Quick Start

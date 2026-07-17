@@ -1,7 +1,9 @@
+import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
@@ -15,15 +17,15 @@ interface AgentComposerSlotProps {
   isStreaming: boolean
   sendDisabled: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
+  canChangeAgent?: boolean
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
-  showWorkspaceSelector?: boolean
   canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
 
-export default function AgentComposerSlot({
+function AgentComposerSlot({
   agentId,
   isMultiSelectMode,
   session,
@@ -33,13 +35,17 @@ export default function AgentComposerSlot({
   isStreaming,
   sendDisabled,
   onCreateEmptySession,
+  canChangeAgent,
   workspaceId,
   onWorkspaceChange,
   workspaceChanging,
-  showWorkspaceSelector,
   canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
+  const rightPanelState = useOptionalRightPanelState()
+  const compactWhenSingleLine = Boolean(
+    rightPanelState?.presentationMaximized && rightPanelState.activePanelId === 'files'
+  )
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
@@ -51,13 +57,16 @@ export default function AgentComposerSlot({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
+        canChangeAgent={canChangeAgent}
         workspaceId={workspaceId}
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}
-        showWorkspaceSelector={showWorkspaceSelector}
         canChangeModel={canChangeModel}
+        compactWhenSingleLine={compactWhenSingleLine}
       />
     ) : undefined
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(AgentComposerSlot)

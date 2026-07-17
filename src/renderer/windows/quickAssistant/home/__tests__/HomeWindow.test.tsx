@@ -25,6 +25,11 @@ const state = vi.hoisted(() => ({
 
 import HomeWindow from '../HomeWindow'
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  useIpcOn: vi.fn()
+}))
+
 vi.mock('@ai-sdk/react', () => ({
   useChat: () => ({
     messages: state.messages,
@@ -130,14 +135,6 @@ describe('HomeWindow', () => {
     state.setMessages.mockClear()
     state.resetExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
-    ;(window.electron.ipcRenderer as any).removeAllListeners = vi.fn()
-    ;(window as any).api = {
-      ...window.api,
-      quickAssistant: {
-        setPin: vi.fn(),
-        hide: vi.fn()
-      }
-    }
   })
 
   it('renders the input surface in model-only quick assistant mode', () => {

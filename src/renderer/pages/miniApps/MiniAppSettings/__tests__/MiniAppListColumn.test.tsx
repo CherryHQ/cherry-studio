@@ -36,6 +36,7 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({
     t: (key: string, options?: { name?: string }) => (options?.name ? `${key} ${options.name}` : key)
   })

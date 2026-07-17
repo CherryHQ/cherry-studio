@@ -67,6 +67,11 @@ const channelDataMock = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>
 }))
 
+const translationMock = vi.hoisted(() => ({
+  i18n: { language: 'en-US' },
+  t: (key: string) => key
+}))
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
@@ -129,10 +134,7 @@ vi.mock('@renderer/components/ListItem', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    i18n: { language: 'en-US' },
-    t: (key: string) => key
-  })
+  useTranslation: () => translationMock
 }))
 
 vi.mock('@cherrystudio/ui', () => {
@@ -518,6 +520,7 @@ describe('TasksSettings task logs', () => {
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
     )
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledTimes(4))
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {
@@ -544,6 +547,11 @@ describe('TasksSettings task logs', () => {
     render(<TasksSettings />)
 
     await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
+
+    // Drain any still-pending task-load/auto-select updates: `findBy` resolves as
+    // soon as the interval input mounts, but a late one could re-render (and briefly
+    // unmount) the detail panel right after the click, dropping the schedule input.
+    await act(async () => {})
 
     // Interval is the task's initial type.
     expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()

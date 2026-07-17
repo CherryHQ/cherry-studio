@@ -1,4 +1,4 @@
-import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -20,7 +20,7 @@ export const agentSessionMessageTable = sqliteTable(
     searchableText: text().notNull().default(''),
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
-    modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
+    messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
     // Stable integer surrogate for the FTS5 content_rowid (see message.ts for full rationale):

@@ -1,6 +1,6 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
-import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +12,7 @@ export interface OwnLoginCardProps {
   selected: boolean
   configurable?: boolean
   dragging?: boolean
+  onMoveToTop?: () => void
   onToggle: () => void
   onConfigure?: () => void
 }
@@ -26,6 +27,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
   selected,
   configurable,
   dragging,
+  onMoveToTop,
   onToggle,
   onConfigure
 }) => {
@@ -58,6 +60,19 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+          {onMoveToTop && (
+            <NormalTooltip content={t('code.move_provider_to_top')} side="top" sideOffset={4} delayDuration={300}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={t('code.move_provider_to_top')}
+                onClick={onMoveToTop}
+                className="size-6 border-border/50">
+                <ArrowUpToLine size={13} />
+              </Button>
+            </NormalTooltip>
+          )}
           {configurable && onConfigure && (
             <Button
               type="button"

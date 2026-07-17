@@ -583,6 +583,49 @@ export const paintingRefFields = {
 
 export const paintingFileRefSchema = createRefSchema(paintingRefFields)
 
+// ─── Single-file entity-image variants (provider logo / mini-app logo) ───
+//
+// Unlike the collection refs above (`chat_message`, `painting`), these model a
+// single-file **slot**: one owner holds at most ONE file, set-replaces the
+// previous one, and owns it exclusively. They are **roleless** (an owner has one
+// implicit purpose, so a `role` column would be a constant nothing reads) and
+// use a free-string `sourceId` (opaque provider / app ids). The user avatar has
+// NO ref variant — it is persisted only as a tagged `file:<id>` value in the
+// `app.user.avatar` preference (see `profile.set_avatar`).
+
+/**
+ * Define a roleless single-file `file_ref` variant for `sourceType`. Builds the
+ * member schema from `refCommonFields` directly (not `createRefSchema`, which
+ * requires a `role`). Returns the source-type literal, ref fields, and schema.
+ */
+function defineSingleFileRef<const T extends string>(sourceType: T) {
+  const refFields = {
+    sourceType: z.literal(sourceType),
+    sourceId: z.string().min(1)
+  }
+  return { sourceType, refFields, schema: z.object({ ...refCommonFields, ...refFields }) } as const
+}
+
+export const providerLogoRef = defineSingleFileRef('provider_logo')
+export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
+
+/**
+ * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
+ * `file:0190f3c4-…`. The preference is the avatar's only persisted copy (no
+ * DTO), so `useAvatar` resolves the tagged id to a `file://` URL through the
+ * file IPC; every other form (emoji / default `''`) passes through. Distinct
+ * from an already-resolved `file://…` URL.
+ *
+ * Provider / mini-app uploaded logos do NOT use this tag — their file id lives
+ * in the logo `file_ref` table and resolves main-side onto the DTO's `logoSrc`.
+ */
+export const STORED_FILE_REF_PREFIX = 'file:'
+
+/** Tag a file-entry id as a stored-image reference for an owner's display value. */
+export function tagStoredFileRef(id: string): string {
+  return `${STORED_FILE_REF_PREFIX}${id}`
+}
+
 // ─── SourceType type (load-bearing — keys DataApi/query validation) ───
 
 /**
@@ -601,7 +644,9 @@ export const paintingFileRefSchema = createRefSchema(paintingRefFields)
 export const allSourceTypes = [
   tempSessionSourceType,
   chatMessageSourceType,
-  paintingSourceType
+  paintingSourceType,
+  providerLogoRef.sourceType,
+  miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -624,6 +669,8 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   chatMessageFileRefSchema,
-  paintingFileRefSchema
+  paintingFileRefSchema,
+  providerLogoRef.schema,
+  miniAppLogoRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>

@@ -139,15 +139,3 @@ describe('popupService / createPopup', () => {
     await expect(pending).resolves.toBe(true)
   })
 })
-
-describe('POPUP_EXIT_MS ↔ @cherrystudio/ui contract', () => {
-  // POPUP_EXIT_MS and the ui Dialog's DIALOG_CLOSE_DURATION_MS live in separate packages
-  // (renderer vs @cherrystudio/ui) and are two independent literals. Bind them here so they
-  // can never drift: if the Dialog close animation duration changes, this fails until the
-  // host's exit delay follows. Uses importActual because the global setup mocks the ui barrel.
-  it('matches the real Dialog close-animation duration so popups unmount in sync', async () => {
-    const { DIALOG_CLOSE_DURATION_MS } = await vi.importActual<{ DIALOG_CLOSE_DURATION_MS: number }>('@cherrystudio/ui')
-
-    expect(POPUP_EXIT_MS).toBe(DIALOG_CLOSE_DURATION_MS)
-  })
-})

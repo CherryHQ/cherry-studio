@@ -154,8 +154,10 @@ export class BootConfigMigrator extends BaseMigrator {
         })
       }
 
-      // Flush to ensure all values are persisted to boot-config.json
-      bootConfigService.flush()
+      // Persist (strict) to ensure all values reach boot-config.json. Unlike
+      // flush(), persist() throws on write failure, so a failed disk write is
+      // surfaced as a migration failure below instead of a silent false-success.
+      bootConfigService.persist()
 
       logger.info('Execute completed', { processedCount })
 

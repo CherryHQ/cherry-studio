@@ -58,6 +58,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import {
   ComposerActiveToolControls,
+  ComposerPinnedToolsProvider,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -405,6 +406,68 @@ describe('ComposerActiveToolControls', () => {
     )
 
     await waitFor(() => expect(screen.queryByLabelText('UnpinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('drops active launchers already rendered by the pinned toolbar (dedup)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'pinned-active-tool',
+                  kind: 'command',
+                  label: 'PinnedActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['pinned-active-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('PinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('shows an active launcher as a chip when it is not pinned (backfill)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'unpinned-active-tool',
+                  kind: 'command',
+                  label: 'BackfilledActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['some-other-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('BackfilledActive')).toBeInTheDocument())
   })
 })
 

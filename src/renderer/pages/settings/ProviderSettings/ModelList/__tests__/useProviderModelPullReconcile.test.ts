@@ -24,7 +24,7 @@ const toCreateModelDtoMock = vi.fn((providerId, model, endpointTypes) => ({
   group: model.group,
   endpointTypes
 }))
-const updateProviderMock = vi.fn()
+const enableProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
 
@@ -104,14 +104,14 @@ describe('useProviderModelPullReconcile', () => {
     createModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
     reconcileTriggerMock.mockResolvedValue([])
-    enableProviderWhenModelsAvailableMock.mockResolvedValue(false)
+    enableProviderWhenModelsAvailableMock.mockResolvedValue(undefined)
     fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
     fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
     resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
     useModelsMock.mockReturnValue({ models: [localModel] })
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: false },
-      updateProvider: updateProviderMock
+      enableProvider: enableProviderMock
     })
   })
 
@@ -265,8 +265,38 @@ describe('useProviderModelPullReconcile', () => {
     expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedModel)
     expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
       { id: 'openai', isEnabled: false },
-      updateProviderMock,
+      enableProviderMock,
       2,
+      'model_manage_add'
+    )
+  })
+
+  it('adds more than 500 models in sequential batches before enabling the provider', async () => {
+    const remoteModels = Array.from({ length: 804 }, (_, index) => ({
+      id: `openai::remote-model-${index}`,
+      providerId: 'openai',
+      apiModelId: `remote-model-${index}`,
+      name: `Remote Model ${index}`,
+      group: 'OpenAI'
+    }))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels(remoteModels as any)
+    })
+
+    expect(createModelsMock).toHaveBeenCalledTimes(2)
+    expect(createModelsMock.mock.calls[0]?.[0]).toHaveLength(500)
+    expect(createModelsMock.mock.calls[0]?.[0][0]?.modelId).toBe('remote-model-0')
+    expect(createModelsMock.mock.calls[0]?.[0][499]?.modelId).toBe('remote-model-499')
+    expect(createModelsMock.mock.calls[1]?.[0]).toHaveLength(304)
+    expect(createModelsMock.mock.calls[1]?.[0][0]?.modelId).toBe('remote-model-500')
+    expect(createModelsMock.mock.calls[1]?.[0][303]?.modelId).toBe('remote-model-803')
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledTimes(1)
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
+      { id: 'openai', isEnabled: false },
+      enableProviderMock,
+      805,
       'model_manage_add'
     )
   })
@@ -280,6 +310,39 @@ describe('useProviderModelPullReconcile', () => {
     })
 
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('stops after a later create batch fails and does not enable the provider', async () => {
+    const remoteModels = Array.from({ length: 804 }, (_, index) => ({
+      id: `openai::remote-model-${index}`,
+      providerId: 'openai',
+      apiModelId: `remote-model-${index}`,
+      name: `Remote Model ${index}`,
+      group: 'OpenAI'
+    }))
+    createModelsMock.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('second batch failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels(remoteModels as any)
+    })
+
+    expect(createModelsMock).toHaveBeenCalledTimes(2)
+    expect(enableProviderWhenModelsAvailableMock).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('warns that models were added when provider enablement fails', async () => {
+    enableProviderWhenModelsAvailableMock.mockRejectedValueOnce(new Error('enable failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels([fetchedModel as any])
+    })
+
+    expect(createModelsMock).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.add_success_enable_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('removes unique local model ids', async () => {

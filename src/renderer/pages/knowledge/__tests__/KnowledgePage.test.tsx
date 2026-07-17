@@ -21,6 +21,7 @@ const mockUseDeleteKnowledgeBase = vi.fn()
 const mockUseDeleteKnowledgeItem = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
+const mockDetailHeaderRender = vi.fn()
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
@@ -201,17 +202,21 @@ vi.mock('../components/DetailHeader', () => ({
     base: KnowledgeBase
     onOpenRagConfig: () => void
     onOpenRecallTest: () => void
-  }) => (
-    <div>
-      <div data-testid="detail-header">{base.name}</div>
-      <button type="button" onClick={onOpenRagConfig}>
-        OpenRagConfig
-      </button>
-      <button type="button" onClick={onOpenRecallTest}>
-        OpenRecallTest
-      </button>
-    </div>
-  )
+  }) => {
+    mockDetailHeaderRender()
+
+    return (
+      <div>
+        <div data-testid="detail-header">{base.name}</div>
+        <button type="button" onClick={onOpenRagConfig}>
+          OpenRagConfig
+        </button>
+        <button type="button" onClick={onOpenRecallTest}>
+          OpenRecallTest
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
@@ -1484,6 +1489,44 @@ describe('KnowledgePage', () => {
     fireEvent.mouseMove(document, { clientX: 360 })
 
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+  })
+
+  it('isolates navigator resize updates from the detail section', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage />)
+
+    await screen.findByTestId('detail-header')
+    mockDetailHeaderRender.mockClear()
+
+    const resizeButton = screen.getByTestId('navigator-resize-start')
+    const content = resizeButton.parentElement?.parentElement
+
+    if (!content) {
+      throw new Error('Expected knowledge page content container')
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 0, 800, 500))
+
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('240')
+
+    fireEvent.mouseDown(resizeButton)
+    fireEvent.mouseMove(document, { clientX: 360 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+
+    fireEvent.mouseMove(document, { clientX: 100 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('220')
+
+    fireEvent.mouseMove(document, { clientX: 500 })
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('360')
+    expect(mockDetailHeaderRender).not.toHaveBeenCalled()
+
+    fireEvent.mouseUp(document)
   })
 
   it('shows a toast when moving a knowledge base fails', async () => {

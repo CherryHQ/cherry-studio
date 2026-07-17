@@ -139,6 +139,34 @@ describe('extractConnectionFromCliConfigDraft', () => {
   it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {
     expect(extractConnectionFromCliConfigDraft(cliTool, files)).toBeNull()
   })
+
+  // The opencode models map key is the addressing id; `name` is only the display label
+  // (gateway mode writes a human-readable one there). Extraction must return the key, or
+  // gateway connection-matching would compare the display name against the addressing id.
+  it('opencode: extracts the model addressing key, not the display name', () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'opencode-config' as CliConfigTarget,
+        label: '',
+        path: '',
+        language: 'json',
+        content: JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              npm: '@ai-sdk/anthropic',
+              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
+            }
+          }
+        })
+      }
+    ]
+    expect(extractConnectionFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual({
+      baseUrl: 'http://127.0.0.1:23333/v1',
+      apiKey: 'cs-sk',
+      model: 'deepseek:deepseek-chat'
+    })
+  })
 })
 
 describe('extractConfigFromCliConfigDraft', () => {

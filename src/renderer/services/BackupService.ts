@@ -10,9 +10,10 @@
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import db from '@renderer/databases/db'
-import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
+// import db from '@renderer/databases/db'
+// import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
@@ -112,21 +113,6 @@ export async function backup(skipBackupFile: boolean) {
   }
 }
 
-export async function backupToLanTransfer() {
-  // Let user select save location first
-  const savePath = await window.api.file.selectFolder()
-
-  if (!savePath) {
-    return
-  }
-
-  // Create backup directly in the selected location
-  const backupData = await getBackupData()
-  await window.api.backup.createLanTransferBackup(backupData, savePath)
-
-  toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
-}
-
 export async function restore() {
   // notificationService is imported as a module-level singleton
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
@@ -205,7 +191,8 @@ export async function reset() {
   if (!doubleConfirmed) return
 
   localStorage.clear()
-  await clearDatabase()
+  // Legacy Dexie cleanup is intentionally disabled in v2.
+  // await clearDatabase()
   await window.api.resetData()
   toast.success(i18n.t('message.reset.success'))
   setTimeout(() => window.api.application.relaunch(), 1000)
@@ -262,7 +249,7 @@ export async function backupToWebdav({
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
     hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
     logger.error('Failed to get device type or hostname:', error as Error)
@@ -453,7 +440,7 @@ export async function backupToS3({
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
     hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
     logger.error('Failed to get device type or hostname:', error as Error)
@@ -945,17 +932,23 @@ export function stopAutoSync(type?: BackupType) {
   }
 }
 
+// Data producer for the export-to-phone file flow, consumed by main's
+// LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
+// the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
 export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
     version: 5,
-    localStorage,
-    indexedDB: await backupDatabase()
+    localStorage
+    // indexedDB: await backupDatabase()
   })
 }
 
 /************************************* Backup Utils ************************************** */
 export async function handleData(data: Record<string, any>) {
+  void data
+
+  /* Legacy Dexie restore is intentionally disabled in v2. Kept for reference.
   if (data.version === 1) {
     await clearDatabase()
 
@@ -1003,8 +996,12 @@ export async function handleData(data: Record<string, any>) {
   }
 
   toast.error(i18n.t('error.backup.file_format'))
+  */
+
+  toast.error(i18n.t('error.backup.file_format'))
 }
 
+/* Legacy Dexie backup helpers are intentionally disabled in v2. Kept for reference.
 async function backupDatabase() {
   const tables = db.tables
   const backup = {}
@@ -1034,6 +1031,7 @@ async function clearDatabase() {
     }
   })
 }
+*/
 
 /**
  * Backup to local directory
@@ -1071,7 +1069,7 @@ export async function backupToLocal({
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
     hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
     logger.error('Failed to get device type or hostname:', error as Error)
