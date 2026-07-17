@@ -16,11 +16,11 @@ import { getDataService, registerDataService } from '@data/services/dataServiceR
 import { pinService } from '@data/services/PinService'
 import {
   clearSingleFileRefTx,
-  getLogoFileId,
+  getSingleFileRefId,
   type LogoBindInput,
   reconcileLogoSlotTx
-} from '@data/services/utils/logoRef'
-import { resolveLogoSrc } from '@data/services/utils/logoSrc'
+} from '@data/services/utils/entityImageRef'
+import { resolveEntityImageSrc } from '@data/services/utils/entityImageSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
@@ -139,7 +139,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
     // renderer never reconstructs a disk path.
     logo: row.logoKey ?? undefined,
-    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
+    logoSrc: resolveEntityImageSrc(getSingleFileRefId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,

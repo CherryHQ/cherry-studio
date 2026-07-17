@@ -40,7 +40,7 @@ export const userProviderTable = sqliteTable(
      * preset providers that render a bundled icon by id. Holds an icon key /
      * ref only — never a remote URL or data URL. A user-uploaded custom logo
      * has no key here: it lives solely in the `provider_logo_file_ref` table
-     * (the single source of truth), resolved back via `getLogoFileId`.
+     * (the single source of truth), resolved back via `getSingleFileRefId`.
      */
     logoKey: text('logo_key'),
 

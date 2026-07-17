@@ -51,6 +51,7 @@ describe('SkillService', () => {
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
       model: null,
+      avatarEmoji: '🤖',
       orderKey: 'a0'
     })
   }

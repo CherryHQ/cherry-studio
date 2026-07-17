@@ -1,7 +1,9 @@
 import type { RouteDef } from '../define'
+import { agentRequestSchemas } from './agent'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
+import { assistantRequestSchemas } from './assistant'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
@@ -40,8 +42,10 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
+  ...agentRequestSchemas,
   ...aiRequestSchemas,
   ...apiGatewayRequestSchemas,
+  ...assistantRequestSchemas,
   ...appRequestSchemas,
   ...binaryRequestSchemas,
   ...channelRequestSchemas,

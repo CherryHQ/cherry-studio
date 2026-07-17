@@ -37,12 +37,14 @@ vi.mock('../steps/BasicInfoStep', async () => {
 
   return {
     BasicInfoStep: ({
-      form
+      form,
+      onAvatarImageDataChange
     }: {
       form: {
         control: ReactHookForm.Control<{ modelId: string | null }>
         setValue: (name: string, value: unknown) => void
       }
+      onAvatarImageDataChange?: (data: Uint8Array) => void
     }) => {
       const modelId = useWatch({ control: form.control, name: 'modelId' })
 
@@ -59,6 +61,9 @@ vi.mock('../steps/BasicInfoStep', async () => {
               form.setValue('modelId', 'provider::model')
             }}>
             fill basic
+          </button>
+          <button type="button" onClick={() => onAvatarImageDataChange?.(new Uint8Array([1, 2, 3]))}>
+            upload avatar
           </button>
         </>
       )
@@ -188,6 +193,20 @@ describe('ResourceCreateWizard', () => {
       knowledgeBaseIds: [],
       skillIds: []
     })
+  })
+
+  it('includes normalized avatar bytes in the create payload', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ avatarImageData: new Uint8Array([1, 2, 3]) }))
   })
 
   it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {

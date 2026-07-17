@@ -401,7 +401,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           messageSnapshot: {
             id: 'asst-1',
             name: 'Anchor Assistant',
-            emoji: '🤖',
+            avatar: { kind: 'emoji', emoji: '🤖' },
             model: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' }
           },
           createdAt: 200,

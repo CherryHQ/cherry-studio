@@ -21,6 +21,7 @@ import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
@@ -34,7 +35,7 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Loader2, Sparkles, Trash2, Undo2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -177,10 +178,13 @@ function AssistantEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
+  const { setAssistantAvatar } = useEntityAvatar()
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const [avatarImageData, setAvatarImageData] = useState<Uint8Array | null>(null)
+  const [avatarImageHidden, setAvatarImageHidden] = useState(false)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -219,8 +223,43 @@ function AssistantEditDialogContent({
     form.clearErrors()
     setActiveTab('basic')
     setEmojiPickerOpen(false)
+    setAvatarImageData(null)
+    setAvatarImageHidden(false)
     setModelLabels(modelLabelsForAssistant(resource))
   }, [defaultValues, form, open, resource])
+
+  const handleAvatarImageDataChange = useCallback(
+    async (data: Uint8Array | null) => {
+      if (!data) {
+        setAvatarImageData(null)
+        setAvatarImageHidden(true)
+        return
+      }
+      const updated = await setAssistantAvatar(resource.id, { kind: 'image', data })
+      setAvatarImageData(data)
+      setAvatarImageHidden(false)
+      try {
+        await onSaved(updated)
+      } catch (error) {
+        logger.warn('Failed to run assistant avatar post-save callback', { error, assistantId: resource.id })
+      }
+    },
+    [onSaved, resource.id, setAssistantAvatar]
+  )
+
+  const handleAvatarEmojiChange = useCallback(
+    async (emoji: string) => {
+      const updated = await setAssistantAvatar(resource.id, { kind: 'emoji', emoji })
+      setAvatarImageData(null)
+      setAvatarImageHidden(true)
+      try {
+        await onSaved(updated)
+      } catch (error) {
+        logger.warn('Failed to run assistant avatar post-save callback', { error, assistantId: resource.id })
+      }
+    },
+    [onSaved, resource.id, setAssistantAvatar]
+  )
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
@@ -306,6 +345,10 @@ function AssistantEditDialogContent({
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
             onSettingsNavigate={closeBeforeAction}
+            avatarImageData={avatarImageData}
+            avatarImageSrc={avatarImageHidden || resource.avatar.kind !== 'image' ? undefined : resource.avatar.src}
+            onAvatarImageDataChange={handleAvatarImageDataChange}
+            onAvatarEmojiChange={handleAvatarEmojiChange}
           />
         </TabsContent>
         <TabsContent
@@ -348,7 +391,11 @@ function AssistantBasicFields({
   allTagNames,
   emojiPickerOpen,
   setEmojiPickerOpen,
-  onSettingsNavigate
+  onSettingsNavigate,
+  avatarImageData,
+  avatarImageSrc,
+  onAvatarImageDataChange,
+  onAvatarEmojiChange
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter?: (model: Model) => boolean
@@ -359,6 +406,10 @@ function AssistantBasicFields({
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
+  avatarImageData: Uint8Array | null
+  avatarImageSrc?: string
+  onAvatarImageDataChange: (data: Uint8Array | null) => void | Promise<void>
+  onAvatarEmojiChange: (emoji: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
@@ -379,9 +430,12 @@ function AssistantBasicFields({
           form={form}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="💬"
           portalContainer={portalContainer}
           size="sm"
+          imageSrc={avatarImageSrc}
+          imageData={avatarImageData}
+          onImageDataChange={onAvatarImageDataChange}
+          onEmojiChange={onAvatarEmojiChange}
         />
         <TextInputField
           form={form}

@@ -139,7 +139,7 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
   if (description) dto.description = description
 
   const emoji = preset.emoji?.trim()
-  if (emoji) dto.emoji = emoji
+  if (emoji) dto.avatar = { kind: 'emoji', emoji }
 
   if (preset.defaultModel?.provider && preset.defaultModel.id) {
     dto.modelId = createUniqueModelId(preset.defaultModel.provider, preset.defaultModel.id)

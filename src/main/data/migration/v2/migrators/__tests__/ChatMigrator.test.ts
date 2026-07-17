@@ -149,7 +149,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.messageSnapshot).toEqual({
       id: 'ast-1',
       name: 'My Assistant',
-      emoji: '🎯',
+      avatar: { kind: 'emoji', emoji: '🎯' },
       model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
     })
     // User row: never snapshotted, even though the source message carried a model.

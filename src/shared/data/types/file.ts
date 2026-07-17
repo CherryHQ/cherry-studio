@@ -112,7 +112,10 @@ import { type FilePath, SafeExtSchema } from '@shared/types/file'
 import { canonicalizeAbsolutePath } from '@shared/utils/file'
 import * as z from 'zod'
 
+import { type FileEntryId, FileEntryIdSchema } from './fileEntryId'
 import { MessageIdSchema } from './message'
+
+export { type FileEntryId, FileEntryIdSchema } from './fileEntryId'
 
 // ─── Shared building blocks (timestamp + safe name) ───
 
@@ -154,9 +157,6 @@ export const SafeNameSchema = z
  * carry runtime validation. API handlers MUST validate incoming IDs with
  * `FileEntryIdSchema.parse()` to reject random / non-UUID strings.
  */
-export const FileEntryIdSchema = z.uuid()
-export type FileEntryId = z.infer<typeof FileEntryIdSchema>
-
 // ─── Origin Enum ───
 
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
@@ -583,13 +583,13 @@ export const paintingRefFields = {
 
 export const paintingFileRefSchema = createRefSchema(paintingRefFields)
 
-// ─── Single-file entity-image variants (provider logo / mini-app logo) ───
+// ─── Single-file entity-image variants ───
 //
 // Unlike the collection refs above (`chat_message`, `painting`), these model a
 // single-file **slot**: one owner holds at most ONE file, set-replaces the
 // previous one, and owns it exclusively. They are **roleless** (an owner has one
 // implicit purpose, so a `role` column would be a constant nothing reads) and
-// use a free-string `sourceId` (opaque provider / app ids). The user avatar has
+// use a free-string `sourceId` (opaque owner ids). The user profile avatar has
 // NO ref variant — it is persisted only as a tagged `file:<id>` value in the
 // `app.user.avatar` preference (see `profile.set_avatar`).
 
@@ -608,6 +608,8 @@ function defineSingleFileRef<const T extends string>(sourceType: T) {
 
 export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
+export const assistantAvatarRef = defineSingleFileRef('assistant_avatar')
+export const agentAvatarRef = defineSingleFileRef('agent_avatar')
 
 /**
  * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
@@ -616,8 +618,9 @@ export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
  * file IPC; every other form (emoji / default `''`) passes through. Distinct
  * from an already-resolved `file://…` URL.
  *
- * Provider / mini-app uploaded logos do NOT use this tag — their file id lives
- * in the logo `file_ref` table and resolves main-side onto the DTO's `logoSrc`.
+ * Provider / mini-app uploaded logos and assistant / agent avatars do NOT use
+ * this tag — their file id lives in an entity-image `file_ref` table and
+ * resolves main-side onto the DTO.
  */
 export const STORED_FILE_REF_PREFIX = 'file:'
 
@@ -646,7 +649,9 @@ export const allSourceTypes = [
   chatMessageSourceType,
   paintingSourceType,
   providerLogoRef.sourceType,
-  miniAppLogoRef.sourceType
+  miniAppLogoRef.sourceType,
+  assistantAvatarRef.sourceType,
+  agentAvatarRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -671,6 +676,8 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   chatMessageFileRefSchema,
   paintingFileRefSchema,
   providerLogoRef.schema,
-  miniAppLogoRef.schema
+  miniAppLogoRef.schema,
+  assistantAvatarRef.schema,
+  agentAvatarRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>

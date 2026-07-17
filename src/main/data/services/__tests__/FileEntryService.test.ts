@@ -1,5 +1,9 @@
+import { agentTable } from '@data/db/schemas/agent'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
+  agentAvatarFileRefTable,
+  assistantAvatarFileRefTable,
   chatMessageFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
@@ -11,6 +15,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -1522,6 +1527,43 @@ describe('FileEntryService', () => {
       await seedMiniAppLogoRef(referenced)
 
       expect(fileEntryService.findUnreferenced().map((e) => e.id)).toEqual([orphan])
+    })
+
+    it('excludes entries referenced only by assistant or agent avatar slots', async () => {
+      const assistantAvatar = '019606a0-0000-7000-8000-000000000d35' as FileEntryId
+      const agentAvatar = '019606a0-0000-7000-8000-000000000d36' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-000000000d37' as FileEntryId
+      for (const id of [assistantAvatar, agentAvatar, orphan]) {
+        fileEntryService.create({ id, origin: 'internal', name: 'avatar', ext: 'webp', size: 1 })
+      }
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-avatar-owner',
+        name: 'Assistant',
+        avatarEmoji: null,
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-avatar-owner',
+        type: 'claude-code',
+        name: 'Agent',
+        instructions: '',
+        model: null,
+        avatarEmoji: null,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(assistantAvatarFileRefTable).values({
+        id: '66666666-6666-4666-8666-000000000001',
+        fileEntryId: assistantAvatar,
+        sourceId: 'assistant-avatar-owner'
+      })
+      await dbh.db.insert(agentAvatarFileRefTable).values({
+        id: '66666666-6666-4666-8666-000000000002',
+        fileEntryId: agentAvatar,
+        sourceId: 'agent-avatar-owner'
+      })
+
+      expect(fileEntryService.findUnreferenced().map((entry) => entry.id)).toEqual([orphan])
     })
 
     it('honours the optional origin filter', async () => {

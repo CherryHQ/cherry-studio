@@ -5,7 +5,6 @@ import { getAgentSessionExportTitle, getAgentSessionMessagesForExport } from '@r
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
 import { TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { ModelSnapshot } from '@shared/data/types/message'
@@ -63,7 +62,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
     assistantProfile: activeAgent
       ? {
           name: activeAgent.name,
-          avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+          entityAvatar: activeAgent.avatar
         }
       : undefined,
     assistantId: session.agentId ?? undefined,

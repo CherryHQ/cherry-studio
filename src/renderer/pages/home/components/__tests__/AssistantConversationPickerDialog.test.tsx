@@ -69,6 +69,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAssistant, isLoading: false })
 }))
 
+vi.mock('@renderer/hooks/useEntityAvatar', () => ({
+  useEntityAvatar: () => ({ setAssistantAvatar: vi.fn() })
+}))
+
 vi.mock('@renderer/hooks/useAssistantCatalogPresets', () => ({
   useAssistantCatalogPresets: () => ({ presets: [{ id: 'preset-1', name: 'Preset One' }], isLoading: false })
 }))
@@ -127,7 +131,7 @@ describe('AssistantConversationPickerDialog', () => {
       expect(mocks.createAssistant).toHaveBeenCalledWith({
         body: {
           name: 'New',
-          emoji: '🤖',
+          avatar: { kind: 'emoji', emoji: '🤖' },
           modelId: 'p::m',
           description: 'desc',
           prompt: 'Use the knowledge base',

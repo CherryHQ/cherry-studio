@@ -45,13 +45,24 @@ describe('AgentSessionMessages', () => {
     useAgentMessageListProviderValueMock.mockClear()
   })
 
-  it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
+  it('passes the strict agent avatar to the message list', () => {
     render(
       <AgentSessionMessages
         agentId="agent-1"
         sessionId="session-1"
         messages={[]}
-        activeAgent={{ id: 'agent-1', name: 'Blank avatar agent', configuration: { avatar: '   ' } } as any}
+        activeAgent={
+          {
+            id: 'agent-1',
+            name: 'Image avatar agent',
+            avatar: {
+              kind: 'image',
+              fileId: '019606a0-0000-7000-8000-000000000001',
+              src: 'file:///tmp/avatar.png'
+            },
+            configuration: {}
+          } as any
+        }
         partsByMessageId={{}}
         isLoading={false}
       />
@@ -60,8 +71,12 @@ describe('AgentSessionMessages', () => {
     expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
       expect.objectContaining({
         assistantProfile: {
-          name: 'Blank avatar agent',
-          avatar: '🤖'
+          name: 'Image avatar agent',
+          entityAvatar: {
+            kind: 'image',
+            fileId: '019606a0-0000-7000-8000-000000000001',
+            src: 'file:///tmp/avatar.png'
+          }
         }
       })
     )

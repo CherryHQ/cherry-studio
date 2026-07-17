@@ -1,4 +1,4 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import HighlightText from '@renderer/components/HighlightText'
 import { cn } from '@renderer/utils/style'
 import { formatRelativeTime } from '@renderer/utils/time'
@@ -173,8 +173,7 @@ export function GlobalSearchRow({
   const title = isRecent ? item.recent.title : item.result.title
   const subtitle = isRecent ? undefined : getResultSubtitle(item.result, t)
   const Icon = isRecent ? RECENT_ICONS[item.recent.kind] : RESULT_ICONS[item.result.type]
-  const emoji =
-    !isRecent && ['assistant', 'agent', 'knowledge-base'].includes(item.result.type) ? item.result.emoji : undefined
+  const avatar = !isRecent ? item.result.avatar : undefined
   const updatedAt = isRecent ? undefined : item.result.updatedAt
   const updatedAtLabel = updatedAt ? formatRelativeTime(updatedAt, language) : undefined
 
@@ -190,8 +189,8 @@ export function GlobalSearchRow({
         'mx-5 flex h-[48px] w-[calc(100%-2.5rem)] items-center gap-2.5 rounded-[12px] px-3 text-left transition-colors',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
-      {emoji ? (
-        <EmojiIcon emoji={emoji} size={32} fontSize={15} className="mr-0 bg-muted/50" />
+      {avatar ? (
+        <EntityAvatarIcon avatar={avatar} size={32} fontSize={15} className="mr-0 bg-muted/50" />
       ) : (
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
           <Icon className="size-4" />

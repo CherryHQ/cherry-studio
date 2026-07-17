@@ -1317,7 +1317,7 @@ describe('HomePage', () => {
         name: 'Catalog Preset',
         prompt: 'Preset prompt',
         description: 'Preset description',
-        emoji: '📦'
+        avatar: { kind: 'emoji', emoji: '📦' }
       })
     )
     expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-created' })

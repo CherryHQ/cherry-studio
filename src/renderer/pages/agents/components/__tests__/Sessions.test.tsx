@@ -800,7 +800,15 @@ describe('Sessions', () => {
     })
     sessionDataMocks.useUpdateSession.mockReturnValue({ updateSession: sessionDataMocks.updateSession })
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'provider-a::model-a', modelName: 'Model A', name: 'Alpha agent' }],
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'provider-a::model-a',
+          modelName: 'Model A',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' }
+        }
+      ],
       isLoading: false,
       error: undefined,
       refetch: dataApiMocks.refetchAgents
@@ -1097,8 +1105,20 @@ describe('Sessions', () => {
     })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        },
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -1152,8 +1172,20 @@ describe('Sessions', () => {
     })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        },
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -1188,7 +1220,8 @@ describe('Sessions', () => {
           model: 'provider-a::model-a',
           modelName: 'Model A',
           name: 'Alpha agent',
-          configuration: { avatar: 'A' }
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
         }
       ],
       isLoading: false,
@@ -1214,8 +1247,20 @@ describe('Sessions', () => {
     })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        },
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -1236,10 +1281,22 @@ describe('Sessions', () => {
     expect(cacheMocks.state.activeSessionId).toBe('session-a')
   })
 
-  it('uses the default agent avatar for blank agent group avatars', () => {
+  it('uses the uploaded agent avatar for agent group icons', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '   ' } }],
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: {
+            kind: 'image',
+            fileId: '019606a0-0000-7000-8000-000000000001',
+            src: 'file:///tmp/avatar.png'
+          },
+          configuration: {}
+        }
+      ],
       isLoading: false,
       error: undefined
     })
@@ -1249,7 +1306,10 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByRole('button', { name: /Alpha agent/ })).toHaveTextContent('🤖')
+    expect(screen.getByRole('button', { name: /Alpha agent/ }).querySelector('img')).toHaveAttribute(
+      'src',
+      'file:///tmp/avatar.png'
+    )
     expect(
       screen.getByRole('button', { name: /Alpha agent/ }).querySelector('[data-resource-list-leading-slot="true"]')
         ?.firstElementChild
@@ -1264,7 +1324,15 @@ describe('Sessions', () => {
       type: 'system'
     })
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        }
+      ],
       isLoading: false,
       error: undefined
     })
@@ -1294,8 +1362,20 @@ describe('Sessions', () => {
     cacheMocks.state.activeSessionId = 'session-a'
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        },
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -1400,9 +1480,9 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' },
-        { id: 'agent-c', model: 'model-c', name: 'Gamma agent' }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } },
+        { id: 'agent-c', model: 'model-c', name: 'Gamma agent', avatar: { kind: 'emoji', emoji: 'G' } }
       ],
       isLoading: false,
       error: undefined
@@ -1479,8 +1559,8 @@ describe('Sessions', () => {
     })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } }
       ],
       isLoading: false,
       error: undefined
@@ -1564,8 +1644,8 @@ describe('Sessions', () => {
     ]
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } }
       ],
       isLoading: false,
       error: undefined
@@ -1925,8 +2005,20 @@ describe('Sessions', () => {
   it('selects the same agent neighbouring session after deleting the active session in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        },
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -1971,7 +2063,15 @@ describe('Sessions', () => {
   it('selects the display-order neighbour (not the raw API head) after deleting the active sidebar session', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        }
+      ],
       isLoading: false,
       error: undefined
     })
@@ -2008,8 +2108,20 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        },
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -2049,8 +2161,20 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        },
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -2107,8 +2231,20 @@ describe('Sessions', () => {
   it('creates an agent-scoped session after deleting the active agent last session in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        },
+        {
+          id: 'agent-b',
+          model: 'model-b',
+          name: 'Beta agent',
+          avatar: { kind: 'emoji', emoji: 'B' },
+          configuration: {}
+        }
       ],
       isLoading: false,
       error: undefined
@@ -2167,7 +2303,15 @@ describe('Sessions', () => {
 
   it('clears the active session and toasts when the post-delete session create fails in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Alpha agent',
+          avatar: { kind: 'emoji', emoji: 'A' },
+          configuration: {}
+        }
+      ],
       isLoading: false,
       error: undefined
     })
@@ -2322,8 +2466,8 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } }
       ],
       isLoading: false,
       error: undefined
@@ -2413,8 +2557,8 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', orderKey: 'a' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', orderKey: 'b' }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' }, orderKey: 'a' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' }, orderKey: 'b' }
       ],
       isLoading: false,
       error: undefined,
@@ -2694,7 +2838,7 @@ describe('Sessions', () => {
       togglePin: toggleAgentPin
     })
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } }],
       isLoading: false,
       error: undefined,
       refetch: dataApiMocks.refetchAgents
@@ -2757,8 +2901,8 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } }
       ],
       isLoading: false,
       error: undefined,
@@ -2870,7 +3014,7 @@ describe('Sessions', () => {
       togglePin: toggleAgentPin
     })
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } }],
       isLoading: false,
       error: undefined,
       refetch: dataApiMocks.refetchAgents
@@ -2913,7 +3057,7 @@ describe('Sessions', () => {
       togglePin: vi.fn()
     })
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } }],
       isLoading: false,
       error: undefined,
       refetch: dataApiMocks.refetchAgents

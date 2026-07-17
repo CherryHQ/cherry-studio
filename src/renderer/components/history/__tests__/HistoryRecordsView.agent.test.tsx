@@ -326,7 +326,8 @@ function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
     model: 'provider-alpha::model-alpha',
     modelName: 'Claude',
     name: 'Alpha agent',
-    configuration: { avatar: 'A' },
+    avatar: { kind: 'emoji', emoji: '🅰️' },
+    configuration: {},
     orderKey: 'k',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
@@ -338,8 +339,8 @@ function setupAgentHistory({
   activeRecordId = null,
   agents = [
     createAgent(),
-    createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
-    createAgent({ id: 'agent-gamma', name: 'Gamma agent', configuration: { avatar: 'G' } })
+    createAgent({ id: 'agent-beta', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } }),
+    createAgent({ id: 'agent-gamma', name: 'Gamma agent', avatar: { kind: 'emoji', emoji: 'G' } })
   ],
   sessions = [
     createSession(),
@@ -457,9 +458,9 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
+    expect(within(alphaCells[1]).getAllByText('🅰️').length).toBeGreaterThan(0)
     expect(within(alphaCells[1]).getByText('Alpha agent')).toBeInTheDocument()
-    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
+    expect(within(alphaCells[2]).queryByText('🅰️')).not.toBeInTheDocument()
     const headerCells = screen.getAllByRole('columnheader')
     expect(headerCells[1]).toHaveTextContent('Agent')
     expect(headerCells[2]).toHaveTextContent('Task')
@@ -506,9 +507,9 @@ describe('HistoryRecordsView agent mode', () => {
   it('orders agent sources and selected agent rows by agent order', () => {
     setupAgentHistory({
       agents: [
-        createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
-        createAgent({ id: 'agent-alpha', name: 'Alpha agent', configuration: { avatar: 'A' } }),
-        createAgent({ id: 'agent-gamma', name: 'Gamma agent', configuration: { avatar: 'G' } })
+        createAgent({ id: 'agent-beta', name: 'Beta agent', avatar: { kind: 'emoji', emoji: 'B' } }),
+        createAgent({ id: 'agent-alpha', name: 'Alpha agent', avatar: { kind: 'emoji', emoji: 'A' } }),
+        createAgent({ id: 'agent-gamma', name: 'Gamma agent', avatar: { kind: 'emoji', emoji: 'G' } })
       ],
       sessions: [
         createSession({

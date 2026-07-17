@@ -6,19 +6,28 @@ import { type ComponentPropsWithoutRef, createElement, type ReactNode } from 're
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
+  Avatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    <span data-testid="avatar" {...props}>
+      {children}
+    </span>
+  ),
+  AvatarImage: ({ src }: { src: string }) => <img src={src} alt="" />,
   Button: ({
     children,
+    loading,
     variant,
     size,
     ...props
   }: {
     children?: ReactNode
+    loading?: boolean
     variant?: string
     size?: string
     [key: string]: unknown
   }) => {
     void variant
     void size
+    void loading
     return (
       <button type="button" {...props}>
         {children}
@@ -82,11 +91,10 @@ describe('DialogModelTrigger', () => {
 })
 
 describe('EmojiAvatarPicker', () => {
-  it('only customizes emoji avatar picker width and padding', () => {
+  it('uses the shared popover surface without overriding its visual tokens', () => {
     render(
       <EmojiAvatarPicker
         value="🙂"
-        fallback="🙂"
         open
         onOpenChange={vi.fn()}
         onChange={vi.fn()}
@@ -97,7 +105,7 @@ describe('EmojiAvatarPicker', () => {
 
     const popoverContent = screen.getByTestId('popover-content')
 
-    expect(popoverContent).toHaveClass('w-auto', 'p-0')
+    expect(popoverContent).toHaveClass('w-auto', 'p-2')
     expect(popoverContent).not.toHaveClass(
       'border',
       'border-border',
@@ -105,5 +113,34 @@ describe('EmojiAvatarPicker', () => {
       'text-popover-foreground',
       'shadow-lg'
     )
+  })
+
+  it('offers image upload and renders the selected image source', () => {
+    const onImageSelect = vi.fn()
+    const { container } = render(
+      <EmojiAvatarPicker
+        value="🙂"
+        open
+        onOpenChange={vi.fn()}
+        onChange={vi.fn()}
+        onImageSelect={onImageSelect}
+        imageSrc="file:///avatar.webp"
+        uploadLabel="Upload image"
+        emojiLabel="Choose emoji"
+        ariaLabel="Avatar"
+        portalContainer={document.body}
+      />
+    )
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'file:///avatar.webp')
+    expect(screen.getByRole('button', { name: 'Upload image' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choose emoji' })).toBeInTheDocument()
+
+    const file = new File(['image'], 'avatar.png', { type: 'image/png' })
+    const input = container.querySelector('input[type="file"]')
+    expect(input).not.toBeNull()
+    fireEvent.change(input!, { target: { files: [file] } })
+
+    expect(onImageSelect).toHaveBeenCalledWith(file)
   })
 })

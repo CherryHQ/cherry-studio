@@ -4,6 +4,7 @@ import i18n from '@renderer/i18n/resolver'
 import type { Message } from '@renderer/types/newMessage'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { Assistant } from '@shared/data/types/assistant'
 
 import { ChatgptImporter } from './importers/ChatgptImporter'
 import type { ConversationImporter, ImportResponse, ImportResult } from './types'
@@ -109,7 +110,7 @@ class ImportService {
         name: i18n.t(importerKey, {
           defaultValue: `${importer.name} Import`
         }),
-        emoji: importer.emoji
+        avatar: { kind: 'emoji', emoji: importer.emoji }
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
 
@@ -156,7 +157,7 @@ class ImportService {
     message: Message,
     blockContent: Map<string, string>,
     parentId: string | null,
-    assistant: { id: string; name: string; emoji: string }
+    assistant: Pick<Assistant, 'id' | 'name' | 'avatar'>
   ): CreateMessageDto {
     const text = message.blocks.map((id) => blockContent.get(id) ?? '').join('\n\n')
 
@@ -171,7 +172,7 @@ class ImportService {
       dto.messageSnapshot = {
         id: assistant.id,
         name: assistant.name,
-        emoji: assistant.emoji,
+        avatar: assistant.avatar,
         model: {
           id: message.model.id,
           name: message.model.name,
@@ -190,7 +191,7 @@ class ImportService {
    */
   private async persistImport(
     result: ImportResult,
-    assistant: { id: string; name: string; emoji: string }
+    assistant: Pick<Assistant, 'id' | 'name' | 'avatar'>
   ): Promise<void> {
     const { topics, blocks, messages } = result
     const blockContent = new Map(blocks.map((block) => [block.id, block.content]))

@@ -123,7 +123,7 @@ describe('MessageHeader', () => {
           messageSnapshot: {
             id: 'a1',
             name: 'My Assistant',
-            emoji: '🤖',
+            avatar: { kind: 'emoji', emoji: '🤖' },
             model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
           }
         })}
@@ -141,6 +141,7 @@ describe('MessageHeader', () => {
           messageSnapshot: {
             id: 'ag1',
             name: 'My Agent',
+            avatar: { kind: 'emoji', emoji: '🤖' },
             model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
           }
         })}

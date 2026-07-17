@@ -1,5 +1,5 @@
 import { application } from '@application'
-import type { LogoBindInput } from '@data/services/utils/logoRef'
+import type { LogoBindInput } from '@data/services/utils/entityImageRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { FileEntryId } from '@shared/data/types/file'

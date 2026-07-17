@@ -8,7 +8,6 @@ import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
@@ -67,7 +66,7 @@ const AgentSessionMessages = ({
       activeAgent
         ? {
             name: activeAgent.name,
-            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+            entityAvatar: activeAgent.avatar
           }
         : undefined,
     [activeAgent]

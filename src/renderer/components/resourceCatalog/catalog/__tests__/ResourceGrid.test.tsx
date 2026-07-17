@@ -369,7 +369,7 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
     type: 'assistant',
     name: 'Assistant',
     description: '',
-    avatar: 'A',
+    avatar: { kind: 'emoji', emoji: '🅰️' },
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw'],
@@ -383,7 +383,7 @@ function createAgentResource(): ResourceItem {
     type: 'agent',
     name: 'Agent',
     description: '',
-    avatar: 'A',
+    avatar: { kind: 'emoji', emoji: '🅰️' },
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
@@ -454,6 +454,24 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
+  it('renders an uploaded assistant avatar without an emoji fallback', () => {
+    render(
+      <ResourceCard
+        resource={createAssistantResource({
+          avatar: {
+            kind: 'image',
+            fileId: '019606a0-0000-7000-8000-000000000001',
+            src: 'file:///tmp/avatar.png'
+          }
+        })}
+        {...getResourceCardProps()}
+      />
+    )
+
+    expect(document.querySelector('img')).toHaveAttribute('src', 'file:///tmp/avatar.png')
+    expect(screen.queryByText('🅰️')).not.toBeInTheDocument()
+  })
+
   it('renders the optional toolbar leading slot before the search box', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>

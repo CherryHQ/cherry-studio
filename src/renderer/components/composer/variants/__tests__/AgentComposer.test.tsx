@@ -313,6 +313,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
       model: 'anthropic::claude-sonnet-4-5',
       modelName: 'Claude Sonnet 4.5',
       instructions: 'Follow instructions',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       configuration: {}
     }
   }),

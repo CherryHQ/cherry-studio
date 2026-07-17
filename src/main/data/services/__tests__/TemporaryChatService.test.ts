@@ -117,7 +117,7 @@ describe('TemporaryChatService', () => {
       const snapshot = {
         id: 'a1',
         name: 'GPT Assistant',
-        emoji: '🤖',
+        avatar: { kind: 'emoji' as const, emoji: '🤖' },
         model: { id: 'mdl-1', name: 'GPT', provider: 'openai' }
       }
       const msg = service.appendMessage(topic.id, {

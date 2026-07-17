@@ -6,6 +6,20 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `entityImageRef.ts` / `entityImageSrc.ts` — single-file entity images
+
+`entityImageRef.ts` reconciles the FK-backed, roleless file-reference slots used
+by provider/mini-app logos and assistant/agent avatars. `entityImageSrc.ts`
+resolves the referenced file entry to a renderer-ready URL at the row-mapping
+boundary. The DB helper never touches the filesystem; the resolver never writes.
+
+### `entityAvatar.ts` — strict entity-avatar row mapping
+
+`resolveEntityAvatar` converts the mutually exclusive owner-column emoji and
+resolved image reference into the shared `EntityAvatar` discriminated union.
+It throws when both sources or neither source exist, so persistence drift is
+never hidden behind a renderer fallback.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.

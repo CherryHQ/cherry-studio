@@ -28,7 +28,7 @@ describe('AssistantSchema', () => {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'Test Assistant',
     prompt: '',
-    emoji: '🌟',
+    avatar: { kind: 'emoji' as const, emoji: '🌟' },
     description: '',
     settings: DEFAULT_ASSISTANT_SETTINGS,
     modelId: null,

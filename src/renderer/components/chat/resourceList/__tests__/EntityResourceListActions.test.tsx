@@ -204,7 +204,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         id: 'assistant-1',
         name: 'Assistant 1',
         orderKey: 'a',
-        emoji: 'A',
+        avatar: { kind: 'emoji', emoji: 'A' },
         modelId: 'openai::gpt-4o',
         modelName: 'GPT-4o'
       },
@@ -212,7 +212,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         id: 'assistant-2',
         name: 'Assistant 2',
         orderKey: 'b',
-        emoji: 'B',
+        avatar: { kind: 'emoji', emoji: 'B' },
         modelId: 'openai::gpt-4o',
         modelName: 'GPT-4o'
       }
@@ -230,6 +230,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
         id: 'agent-1',
         name: 'Agent 1',
         orderKey: 'a',
+        avatar: { kind: 'emoji', emoji: 'A' },
         configuration: {},
         model: 'anthropic::claude-sonnet-4',
         modelName: 'Claude Sonnet 4'
@@ -321,10 +322,6 @@ vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
 
 vi.mock('@renderer/utils/chat/sessionListHelpers', () => ({
   sortSessionsForDisplayGroups: (sessions: unknown[]) => sessions
-}))
-
-vi.mock('@renderer/utils/agent', () => ({
-  getAgentAvatarFromConfiguration: () => 'A'
 }))
 
 vi.mock('@renderer/utils/error', () => ({

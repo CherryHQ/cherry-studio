@@ -288,11 +288,11 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a1')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdown(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('hi assistant')
 
       // The format is: [titleSection, '', contentSection, citation].join('\n')
-      // When citation is empty, we get: "## 🤖 Assistant\n\nhi assistant\n"
+      // Snapshot-less exports use the generic role label without inventing an avatar.
       const sections = markdown.split('\n\n')
       expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
     })
@@ -312,7 +312,7 @@ describe('ExportService', () => {
         { type: MessageBlockType.CITATION }
       ])
       const markdown = await messageToMarkdown(msgWithCitation)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Main content')
       expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
     })
@@ -322,7 +322,7 @@ describe('ExportService', () => {
 
       const markdown = await messageToMarkdown(message)
 
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Parts-only content')
     })
 
@@ -331,14 +331,14 @@ describe('ExportService', () => {
       message.messageSnapshot = {
         id: 'a1',
         name: 'My Assistant',
-        emoji: '🎯',
+        avatar: { kind: 'emoji', emoji: '🎯' },
         model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
       }
 
       const markdown = await messageToMarkdown(message)
 
       expect(markdown).toContain('## 🎯 My Assistant')
-      expect(markdown).not.toContain('## 🤖 Assistant')
+      expect(markdown).not.toContain('## Assistant')
     })
 
     it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
@@ -421,7 +421,7 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a2')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Main Answer')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('<summary>common.reasoning_content</summary>')
@@ -446,7 +446,7 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
     })
@@ -455,7 +455,7 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('## Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
@@ -772,7 +772,7 @@ describe('Citation formatting in Markdown export', () => {
     const markdown = await messageToMarkdown(msgWithCitations)
 
     // Should contain the title and content
-    expect(markdown).toContain('## 🤖 Assistant')
+    expect(markdown).toContain('## Assistant')
     expect(markdown).toContain('Content with citations')
 
     // Should include citation content (mocked by getCitationContent)

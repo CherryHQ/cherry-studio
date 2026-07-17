@@ -17,8 +17,8 @@ export const assistantTable = sqliteTable(
     name: text().notNull(),
     // Type-level empty: DB DEFAULT is the single source of truth
     prompt: text().notNull().default(''),
-    // Product-chosen value: AssistantService.create() supplies '🌟' (see spec § DB defaults are near-permanent)
-    emoji: text().notNull(),
+    // Exactly one avatar source is active: this column or assistant_avatar_file_ref.
+    avatarEmoji: text('emoji'),
     // Type-level empty: DB DEFAULT is the single source of truth
     description: text().notNull().default(''),
     // Default/primary model: FK to user_model(id) — UniqueModelId "providerId::modelId"

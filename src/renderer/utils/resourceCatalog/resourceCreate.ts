@@ -6,7 +6,7 @@ import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAssistantDto {
   return {
     name: values.name,
-    emoji: values.avatar,
+    avatar: { kind: 'emoji', emoji: values.avatar },
     modelId: values.modelId,
     description: values.description,
     prompt: values.prompt,
@@ -26,8 +26,8 @@ export function buildCreateAgentDto(values: ResourceCreateValues): CreateAgentDt
     instructions: values.prompt,
     skillIds: values.skillIds,
     configuration: {
-      avatar: values.avatar,
       permission_mode: 'bypassPermissions'
-    }
+    },
+    avatar: { kind: 'emoji', emoji: values.avatar }
   }
 }

@@ -37,6 +37,7 @@ import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@rendere
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
+import type { EntityAvatar } from '@shared/data/types/entityAvatar'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import {
   Activity,
@@ -98,7 +99,7 @@ interface AgentRightPaneMeta {
   traceId?: string
   agentId?: string
   agentName?: string
-  agentAvatar?: string
+  agentAvatar?: EntityAvatar
   filesEnabled?: boolean
   statusEnabled?: boolean
 }
@@ -464,7 +465,7 @@ function AgentToolFlowMessageList({
     assistantProfile: meta.agentName
       ? {
           name: meta.agentName,
-          avatar: meta.agentAvatar
+          entityAvatar: meta.agentAvatar
         }
       : undefined,
     assistantId: meta.agentId,

@@ -4,16 +4,6 @@ import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 
-export const DEFAULT_AGENT_AVATAR = '🤖'
-
-export function getAgentAvatar(avatar?: unknown) {
-  return typeof avatar === 'string' ? avatar.trim() || DEFAULT_AGENT_AVATAR : DEFAULT_AGENT_AVATAR
-}
-
-export function getAgentAvatarFromConfiguration(configuration?: Pick<AgentConfiguration, 'avatar'> | null) {
-  return getAgentAvatar(configuration?.avatar)
-}
-
 export function getAgentDescriptionForDisplay(
   agent: { description?: string | null; configuration?: AgentConfiguration | null },
   t: TFunction

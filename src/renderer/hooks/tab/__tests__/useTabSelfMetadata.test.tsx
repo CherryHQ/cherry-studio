@@ -21,7 +21,8 @@ vi.mock('@renderer/hooks/tab/useTabsContext', () => ({
 }))
 
 vi.mock('@renderer/utils/tabIcons', () => ({
-  emojiTabIcon: (emoji?: string | null) => (emoji ? `icon:${emoji}` : undefined)
+  entityAvatarTabIcon: (avatar?: { kind: string; emoji?: string; src?: string }) =>
+    avatar?.kind === 'emoji' ? `icon:${avatar.emoji}` : avatar?.src
 }))
 
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
@@ -40,6 +41,33 @@ afterEach(() => {
 })
 
 describe('useTabSelfMetadata', () => {
+  it('syncs an uploaded image into the tab icon without an emoji fallback', async () => {
+    mocks.tabs = [{ id: 'tab-1', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Old title' }]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabMetadataWriter
+          title="Image assistant"
+          avatar={{
+            kind: 'image',
+            fileId: '019606a0-0000-7000-8000-000000000001',
+            src: 'file:///tmp/avatar.png'
+          }}
+          instanceAppId="assistants"
+          instanceKey="topic-1"
+        />
+      </TabIdProvider>
+    )
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'Image assistant',
+        icon: 'file:///tmp/avatar.png',
+        metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
+      })
+    )
+  })
+
   it('syncs tab self metadata while the tab still belongs to the instance app route', async () => {
     mocks.tabs = [
       {
@@ -53,7 +81,12 @@ describe('useTabSelfMetadata', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
+        <TabMetadataWriter
+          title="Topic title"
+          avatar={{ kind: 'emoji', emoji: 'spark' }}
+          instanceAppId="assistants"
+          instanceKey="topic-1"
+        />
       </TabIdProvider>
     )
 
@@ -78,7 +111,12 @@ describe('useTabSelfMetadata', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
+        <TabMetadataWriter
+          title="Topic title"
+          avatar={{ kind: 'emoji', emoji: 'spark' }}
+          instanceAppId="assistants"
+          instanceKey="topic-1"
+        />
       </TabIdProvider>
     )
 
@@ -100,7 +138,12 @@ describe('useTabSelfMetadata', () => {
 
     render(
       <TabIdProvider tabId="home">
-        <TabMetadataWriter title="Session title" emoji="spark" instanceAppId="agents" instanceKey="session-1" />
+        <TabMetadataWriter
+          title="Session title"
+          avatar={{ kind: 'emoji', emoji: 'spark' }}
+          instanceAppId="agents"
+          instanceKey="session-1"
+        />
       </TabIdProvider>
     )
 

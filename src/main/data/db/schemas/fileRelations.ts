@@ -1,5 +1,7 @@
 import type { tempSessionSourceType } from '@shared/data/types/file'
 import {
+  agentAvatarRef,
+  assistantAvatarRef,
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
@@ -12,6 +14,8 @@ import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { agentTable } from './agent'
+import { assistantTable } from './assistant'
 import { fileEntryTable } from './file'
 import { messageTable } from './message'
 import { miniAppTable } from './miniApp'
@@ -84,13 +88,14 @@ export const paintingFileRefTable = sqliteTable(
 )
 
 /**
- * Single-file entity-image refs (provider logo, mini-app logo).
+ * Single-file entity-image refs (provider/mini-app logos and assistant/agent avatars).
  *
  * These model a single-file slot and are the **single source of truth** for an
- * owner's uploaded logo — the owner row keeps only `logo_key` (preset / URL
- * refs), never a duplicate `logo_file_id`. Writes go through the `logoRef`
- * helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`); reads look the file
- * id back up via `getLogoFileId` (one indexed lookup on the unique `(sourceId)`
+ * owner's uploaded entity image. Logo owner rows keep their non-file choice;
+ * assistant/agent rows set `avatarEmoji` to null while an image ref exists.
+ * Writes go through the
+ * `entityImageRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`);
+ * reads look the file id back up via `getSingleFileRefId` (one indexed lookup on the unique `(sourceId)`
  * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
  * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
  * collection ref tables (`chat_message`, `painting`): dropping a provider /
@@ -101,7 +106,9 @@ export const paintingFileRefTable = sqliteTable(
  * existing owner, and the migrators sequence the inserts explicitly. There is
  * **no `role` column**: the slot's role is a constant ('logo') read by nothing,
  * so the unique `(sourceId)` index alone enforces at most one file per slot.
- * (The user avatar deliberately has no slot table — it is persisted only in the
+ * Avatar row mappers require exactly one of `avatarEmoji` or a file ref; they do
+ * not choose a fallback when storage is inconsistent. The user avatar deliberately
+ * has no slot table — it is persisted only in the
  * `app.user.avatar` preference.)
  */
 export const providerLogoFileRefTable = sqliteTable(
@@ -133,17 +140,51 @@ export const miniAppLogoFileRefTable = sqliteTable(
   },
   (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
 )
+
+export const assistantAvatarFileRefTable = sqliteTable(
+  'assistant_avatar_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => assistantTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('aafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('aafr_source_id_idx').on(t.sourceId)]
+)
+
+export const agentAvatarFileRefTable = sqliteTable(
+  'agent_avatar_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('aavfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('aavfr_source_id_idx').on(t.sourceId)]
+)
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
   [paintingSourceType]: paintingFileRefTable,
   [providerLogoRef.sourceType]: providerLogoFileRefTable,
-  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
+  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable,
+  [assistantAvatarRef.sourceType]: assistantAvatarFileRefTable,
+  [agentAvatarRef.sourceType]: agentAvatarFileRefTable
 } as const satisfies Record<
   PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
   | typeof paintingFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
+  | typeof assistantAvatarFileRefTable
+  | typeof agentAvatarFileRefTable
 >
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
@@ -154,3 +195,7 @@ export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelec
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
 export type InsertMiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferInsert
+export type AssistantAvatarFileRefRow = typeof assistantAvatarFileRefTable.$inferSelect
+export type InsertAssistantAvatarFileRefRow = typeof assistantAvatarFileRefTable.$inferInsert
+export type AgentAvatarFileRefRow = typeof agentAvatarFileRefTable.$inferSelect
+export type InsertAgentAvatarFileRefRow = typeof agentAvatarFileRefTable.$inferInsert

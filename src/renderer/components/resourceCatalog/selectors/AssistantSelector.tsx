@@ -5,6 +5,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
@@ -94,6 +95,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
+  const { setAssistantAvatar } = useEntityAvatar()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -130,7 +132,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       ...(data?.items ?? []).map((a) => ({
         id: a.id,
         name: a.name,
-        emoji: a.emoji,
+        avatar: a.avatar,
         description: a.description,
         tag: a.tags?.[0]?.name
       })),
@@ -205,6 +207,9 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
+        if (values.avatarImageData) {
+          created = await setAssistantAvatar(created.id, { kind: 'image', data: values.avatarImageData })
+        }
       } catch (error) {
         logger.error('Failed to create assistant from selector', error as Error)
         throw error
@@ -223,7 +228,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
           props.onChange({
             id: created.id,
             name: created.name,
-            emoji: created.emoji,
+            avatar: created.avatar,
             description: created.description,
             tag: created.tags?.[0]?.name
           })
@@ -235,7 +240,16 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       }
       handleSelectorOpenChange(true)
     },
-    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [
+      autoSelectOnCreate,
+      createAssistant,
+      handleSelectorOpenChange,
+      onDialogCloseAutoFocus,
+      props,
+      refetch,
+      setAssistantAvatar,
+      t
+    ]
   )
 
   const handleEditSaved = useCallback(async () => {

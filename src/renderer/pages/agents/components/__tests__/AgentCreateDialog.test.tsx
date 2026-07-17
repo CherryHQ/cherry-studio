@@ -37,6 +37,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
 }))
 
+vi.mock('@renderer/hooks/useEntityAvatar', () => ({
+  useEntityAvatar: () => ({ setAgentAvatar: vi.fn() })
+}))
+
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
 
 import { AgentCreateDialog } from '../AgentCreateDialog'
@@ -70,7 +74,8 @@ describe('AgentCreateDialog', () => {
           description: 'desc',
           instructions: 'Agent instructions',
           skillIds: ['skill-a', 'skill-b'],
-          configuration: { avatar: '🤖', permission_mode: 'bypassPermissions' }
+          configuration: { permission_mode: 'bypassPermissions' },
+          avatar: { kind: 'emoji', emoji: '🤖' }
         }
       })
     )

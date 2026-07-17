@@ -5,6 +5,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { useCallback } from 'react'
 
@@ -18,6 +19,7 @@ type AgentCreateDialogProps = {
 
 export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreateDialogProps) {
   const modelFilter = useAgentModelFilter('claude-code')
+  const { setAgentAvatar } = useEntityAvatar()
   const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
     refresh: ['/agents']
   })
@@ -28,6 +30,9 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
         const created = await createAgent({
           body: buildCreateAgentDto(values)
         })
+        if (values.avatarImageData) {
+          await setAgentAvatar(created.id, { kind: 'image', data: values.avatarImageData })
+        }
         onOpenChange(false)
         await onCreated(created.id)
       } catch (error) {
@@ -35,7 +40,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
         throw error
       }
     },
-    [createAgent, onCreated, onOpenChange]
+    [createAgent, onCreated, onOpenChange, setAgentAvatar]
   )
 
   return (

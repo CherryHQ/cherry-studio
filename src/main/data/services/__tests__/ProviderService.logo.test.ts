@@ -5,7 +5,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
-import { getLogoFileId } from '@data/services/utils/logoRef'
+import { getSingleFileRefId } from '@data/services/utils/entityImageRef'
 import { providerLogoRef } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -72,7 +72,7 @@ describe('ProviderService logo (key/file columns)', () => {
 
   // An uploaded logo lives ONLY in the single-file `provider_logo_file_ref` slot
   // (the source of truth); the owner row keeps no `logo_file_id`. These lock in
-  // the read side: `getLogoFileId` looks the id back up, and the DTO surfaces it
+  // the read side: `getSingleFileRefId` looks the id back up, and the DTO surfaces it
   // as a resolved `logoSrc` (mutually exclusive with the preset `logo` key). The
   // set-logo command orchestrator binds an already-minted file_entry via update().
   describe('uploaded logo (file_ref slot is the source of truth)', () => {
@@ -97,7 +97,7 @@ describe('ProviderService logo (key/file columns)', () => {
       // The file id lives only in the ref row; the owner row keeps no key.
       const [row] = await rowFor(dbh, 'p-file')
       expect(row.logoKey).toBeNull()
-      expect(getLogoFileId(logoSlot('p-file'))).toBe(FILE_ID)
+      expect(getSingleFileRefId(logoSlot('p-file'))).toBe(FILE_ID)
       const refs = await logoRefs('p-file')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID)
@@ -122,7 +122,7 @@ describe('ProviderService logo (key/file columns)', () => {
       expect(row.logoKey).toBe('icon:openai')
       expect(updated.logo).toBe('icon:openai')
       expect(updated.logoSrc).toBeUndefined()
-      expect(getLogoFileId(logoSlot('p-file2key'))).toBeNull()
+      expect(getSingleFileRefId(logoSlot('p-file2key'))).toBeNull()
       expect(await logoRefs('p-file2key')).toHaveLength(0)
       // DB-only: the file_entry is preserved (no permanentDelete), per file policy.
       const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, FILE_ID))
@@ -137,7 +137,7 @@ describe('ProviderService logo (key/file columns)', () => {
 
       providerService.update('p-refile', { logo: { kind: 'file', fileId: FILE_ID_2 } })
 
-      expect(getLogoFileId(logoSlot('p-refile'))).toBe(FILE_ID_2)
+      expect(getSingleFileRefId(logoSlot('p-refile'))).toBe(FILE_ID_2)
       const refs = await logoRefs('p-refile')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID_2)

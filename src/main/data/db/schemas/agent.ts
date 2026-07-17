@@ -16,6 +16,8 @@ export const agentTable = sqliteTable(
     planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     smallModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     disabledTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    // Exactly one avatar source is active: this column or agent_avatar_file_ref.
+    avatarEmoji: text('avatar_emoji'),
     configuration: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
     ...orderKeyColumns,
     ...createUpdateDeleteTimestamps

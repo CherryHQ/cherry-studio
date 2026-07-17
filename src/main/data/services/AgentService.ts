@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -8,6 +9,9 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import { type ResolvedAvatarImage, resolveEntityAvatar } from '@data/services/utils/entityAvatar'
+import { clearSingleFileRefTx, setSingleFileRefTx } from '@data/services/utils/entityImageRef'
+import { resolveEntityImageSrc } from '@data/services/utils/entityImageSrc'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -26,6 +30,7 @@ import {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import { agentAvatarRef, type FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -88,16 +93,17 @@ function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   return data
 }
 
-function getAgentAvatar(configuration: unknown): string | undefined {
-  if (!configuration || typeof configuration !== 'object') return undefined
-  const avatar = (configuration as { avatar?: unknown }).avatar
-  return typeof avatar === 'string' ? avatar : undefined
-}
-
-function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string[]): AgentEntity {
+function rowToAgent(
+  row: AgentRow,
+  modelName: string | null = null,
+  mcps: string[],
+  avatarImage?: ResolvedAvatarImage
+): AgentEntity {
   const clean = nullsToUndefined(row)
+  const publicRow = { ...clean }
+  delete publicRow.avatarEmoji
   return {
-    ...clean,
+    ...publicRow,
     mcps,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
@@ -106,8 +112,13 @@ function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
-    modelName
+    modelName,
+    avatar: resolveEntityAvatar({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImage)
   }
+}
+
+function avatarSlot(agentId: string) {
+  return { sourceType: agentAvatarRef.sourceType, sourceId: agentId }
 }
 
 /**
@@ -145,6 +156,19 @@ export class AgentService {
   private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
+  private getAvatarImagesByAgentIds(agentIds: string[]): Map<string, ResolvedAvatarImage> {
+    if (agentIds.length === 0) return new Map()
+    const database = application.get('DbService').getDb()
+    const rows = database
+      .select({ agentId: agentAvatarFileRefTable.sourceId, fileEntryId: agentAvatarFileRefTable.fileEntryId })
+      .from(agentAvatarFileRefTable)
+      .where(inArray(agentAvatarFileRefTable.sourceId, agentIds))
+      .all()
+    return new Map(
+      rows.map((row) => [row.agentId, { fileId: row.fileEntryId, src: resolveEntityImageSrc(row.fileEntryId)! }])
+    )
+  }
+
   createAgent(req: CreateAgentDto): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
@@ -154,6 +178,7 @@ export class AgentService {
       )
     }
     const id = uuidv4()
+    const avatar = req.avatar ?? { kind: 'emoji' as const, emoji: '🤖' }
     const mcps = req.mcps ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
@@ -171,6 +196,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       disabledTools: req.disabledTools,
+      avatarEmoji: avatar.kind === 'emoji' ? avatar.emoji : null,
       configuration: req.configuration
     }
 
@@ -192,6 +218,7 @@ export class AgentService {
         application.get('DbService').withWriteTx((tx) => {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           const result = this.createAgentTx(tx, id, insertData)
+          if (avatar.kind === 'image') setSingleFileRefTx(tx, avatarSlot(id), avatar.fileId)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             tx.insert(agentMcpServerTable)
@@ -212,7 +239,9 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps)
+    const avatarImage =
+      avatar.kind === 'image' ? { fileId: avatar.fileId, src: resolveEntityImageSrc(avatar.fileId)! } : undefined
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, avatarImage)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -255,7 +284,8 @@ export class AgentService {
       .all()
     if (!row) return null
     const mcpsMap = fetchMcpsForAgents(database, [id])
-    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [])
+    const avatarImage = this.getAvatarImagesByAgentIds([id]).get(id)
+    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [], avatarImage)
   }
 
   listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
@@ -321,8 +351,11 @@ export class AgentService {
     // Batch-fetch mcps for all returned agents
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
+    const avatarImages = this.getAvatarImagesByAgentIds(agentIds)
 
-    const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? []))
+    const agents = result.map((row) =>
+      rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? [], avatarImages.get(row.agent.id))
+    )
 
     return { agents, total: totalResult[0].count }
   }
@@ -340,6 +373,7 @@ export class AgentService {
         name: agentsTable.name,
         description: agentsTable.description,
         configuration: agentsTable.configuration,
+        avatarEmoji: agentsTable.avatarEmoji,
         updatedAt: agentsTable.updatedAt
       })
       .from(agentsTable)
@@ -348,12 +382,13 @@ export class AgentService {
       .limit(options.limit)
       .all()
 
+    const avatarImages = this.getAvatarImagesByAgentIds(rows.map((row) => row.id))
     return rows.map((row) => ({
       type: 'agent',
       id: row.id,
       title: row.name,
       subtitle: getAgentDescription(row.description, row.configuration) || undefined,
-      emoji: getAgentAvatar(row.configuration),
+      avatar: resolveEntityAvatar({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
       updatedAt: timestampToISO(row.updatedAt),
       target: { agentId: row.id }
     }))
@@ -387,7 +422,6 @@ export class AgentService {
     // Handle mcps separately — it lives in the junction table, not the agent row.
     const newMcps = updates.mcps
     const newSkillUpdates = updates.skillUpdates
-
     // Same two-step validation as createAgent: pre-check each id outside the write
     // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
     // fallback). The in-tx recheck that closes the delete-after-prevalidation race
@@ -438,6 +472,27 @@ export class AgentService {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated
+  }
+
+  setAvatarImage(id: string, fileId: FileEntryId): AgentEntity {
+    const existing = this.getAgent(id)
+    if (!existing) throw DataApiErrorFactory.notFound('Agent', id)
+
+    application.get('DbService').withWriteTx((tx) => {
+      this.updateAgentTx(tx, id, { avatarEmoji: null, updatedAt: Date.now() })
+      setSingleFileRefTx(tx, avatarSlot(id), fileId)
+    })
+    return this.getAgent(id)!
+  }
+
+  setAvatarEmoji(id: string, emoji: string): AgentEntity {
+    if (!this.getAgent(id)) throw DataApiErrorFactory.notFound('Agent', id)
+
+    application.get('DbService').withWriteTx((tx) => {
+      this.updateAgentTx(tx, id, { avatarEmoji: emoji, updatedAt: Date.now() })
+      clearSingleFileRefTx(tx, avatarSlot(id))
+    })
+    return this.getAgent(id)!
   }
 
   updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): void {
@@ -547,8 +602,14 @@ export class AgentService {
       .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
       .all()
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
+    const avatarImages = this.getAvatarImagesByAgentIds(agentIds)
     for (const row of rows) {
-      const agent = rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? [])
+      const agent = rowToAgent(
+        row.agent,
+        row.modelName || null,
+        mcpsMap.get(row.agent.id) ?? [],
+        avatarImages.get(row.agent.id)
+      )
       this._onAgentUpdated.fire({ agentId: agent.id, updates: { mcps: agent.mcps }, agent })
     }
   }

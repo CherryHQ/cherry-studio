@@ -22,7 +22,8 @@ import type {
   MessageListRuntime,
   MessageListState,
   MessageRuntime,
-  MessageStreamingLayers
+  MessageStreamingLayers,
+  MessageUserProfile
 } from '@renderer/components/chat/messages/types'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -62,10 +63,7 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean

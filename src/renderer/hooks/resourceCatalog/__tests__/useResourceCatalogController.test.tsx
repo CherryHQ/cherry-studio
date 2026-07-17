@@ -21,7 +21,9 @@ const controllerMocks = vi.hoisted(() => ({
     isLoading: false,
     resources: [] as ResourceItem[]
   },
-  saveFile: vi.fn()
+  saveFile: vi.fn(),
+  setAgentAvatar: vi.fn(),
+  setAssistantAvatar: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -60,6 +62,13 @@ vi.mock('@renderer/hooks/useTags', () => ({
   useTagList: () => ({ tags: [] })
 }))
 
+vi.mock('@renderer/hooks/useEntityAvatar', () => ({
+  useEntityAvatar: () => ({
+    setAgentAvatar: controllerMocks.setAgentAvatar,
+    setAssistantAvatar: controllerMocks.setAssistantAvatar
+  })
+}))
+
 const createValues = {
   avatar: 'A',
   description: 'A focused helper',
@@ -75,10 +84,15 @@ const assistantResource = {
   type: 'assistant',
   name: 'Assistant to duplicate',
   description: '',
-  avatar: 'A',
+  avatar: { kind: 'emoji', emoji: 'A' },
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
-  raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', tags: [] }
+  raw: {
+    id: 'assistant-to-duplicate',
+    name: 'Assistant to duplicate',
+    avatar: { kind: 'emoji', emoji: 'A' },
+    tags: []
+  }
 } as unknown as ResourceItem
 
 describe('useResourceCatalogController', () => {
@@ -87,6 +101,8 @@ describe('useResourceCatalogController', () => {
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.refetch.mockResolvedValue(undefined)
+    controllerMocks.setAgentAvatar.mockResolvedValue({ id: 'agent-created' })
+    controllerMocks.setAssistantAvatar.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.resourceLibraryOptions.length = 0
     controllerMocks.resourceLibraryState.allResources = []
     controllerMocks.resourceLibraryState.error = undefined
@@ -117,7 +133,7 @@ describe('useResourceCatalogController', () => {
 
     expect(controllerMocks.createAssistant).toHaveBeenCalledWith({
       description: createValues.description,
-      emoji: createValues.avatar,
+      avatar: { kind: 'emoji', emoji: createValues.avatar },
       knowledgeBaseIds: createValues.knowledgeBaseIds,
       modelId: createValues.modelId,
       name: createValues.name,
@@ -140,9 +156,9 @@ describe('useResourceCatalogController', () => {
 
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
-        avatar: createValues.avatar,
         permission_mode: 'bypassPermissions'
       },
+      avatar: { kind: 'emoji', emoji: createValues.avatar },
       description: createValues.description,
       instructions: createValues.prompt,
       model: createValues.modelId,
@@ -154,6 +170,42 @@ describe('useResourceCatalogController', () => {
     })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
+  })
+
+  it('uploads an assistant avatar after creating its owner row', async () => {
+    const avatarImageData = new Uint8Array([1, 2, 3])
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+    act(() => result.current.gridProps.onCreate('assistant'))
+
+    await act(async () => {
+      await result.current.dialogs.handleSubmitCreateResource({ ...createValues, avatarImageData })
+    })
+
+    expect(controllerMocks.setAssistantAvatar).toHaveBeenCalledWith('assistant-created', {
+      kind: 'image',
+      data: avatarImageData
+    })
+    expect(controllerMocks.createAssistant.mock.invocationCallOrder[0]).toBeLessThan(
+      controllerMocks.setAssistantAvatar.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('uploads an agent avatar after creating its owner row', async () => {
+    const avatarImageData = new Uint8Array([4, 5, 6])
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+    act(() => result.current.gridProps.onCreate('agent'))
+
+    await act(async () => {
+      await result.current.dialogs.handleSubmitCreateResource({ ...createValues, avatarImageData })
+    })
+
+    expect(controllerMocks.setAgentAvatar).toHaveBeenCalledWith('agent-created', {
+      kind: 'image',
+      data: avatarImageData
+    })
+    expect(controllerMocks.createAgent.mock.invocationCallOrder[0]).toBeLessThan(
+      controllerMocks.setAgentAvatar.mock.invocationCallOrder[0]
+    )
   })
 
   it('reports assistant duplicate failures without refetching', async () => {

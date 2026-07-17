@@ -66,10 +66,10 @@ describe('CherryAssistantSeeder', () => {
       name: 'Cherry Assistant',
       description: '',
       instructions: '',
-      model: null
+      model: null,
+      avatarEmoji: '🍒'
     })
     expect(agent.configuration).toMatchObject({
-      avatar: '🍒',
       permission_mode: 'default',
       max_turns: 100,
       env_vars: {},

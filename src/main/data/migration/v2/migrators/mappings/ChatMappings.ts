@@ -588,7 +588,9 @@ function buildMessageSnapshot(
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
   return {
-    ...assistant,
+    id: assistant.id,
+    name: assistant.name,
+    avatar: { kind: 'emoji', emoji: assistant.emoji },
     model: {
       id: model.id,
       name: (typeof model.name === 'string' ? model.name : model.id) || model.id,

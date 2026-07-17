@@ -47,7 +47,7 @@ describe('StreamDispatchService', () => {
             messageSnapshot: {
               id: 'a1',
               name: 'A',
-              emoji: '',
+              avatar: { kind: 'emoji', emoji: '💬' },
               model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
             }
           }
@@ -63,7 +63,7 @@ describe('StreamDispatchService', () => {
             messageSnapshot: {
               id: 'a1',
               name: 'A',
-              emoji: '',
+              avatar: { kind: 'emoji', emoji: '💬' },
               model: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' }
             }
           }

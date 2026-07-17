@@ -19,6 +19,8 @@ import {
 } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
+  agentAvatarFileRefTable,
+  assistantAvatarFileRefTable,
   chatMessageFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
@@ -367,6 +369,8 @@ export class MigrationEngine {
       { table: paintingFileRefTable, name: 'painting_file_ref' },
       { table: providerLogoFileRefTable, name: 'provider_logo_file_ref' },
       { table: miniAppLogoFileRefTable, name: 'mini_app_logo_file_ref' },
+      { table: assistantAvatarFileRefTable, name: 'assistant_avatar_file_ref' },
+      { table: agentAvatarFileRefTable, name: 'agent_avatar_file_ref' },
       { table: fileEntryTable, name: 'file_entry' }
     ]
 

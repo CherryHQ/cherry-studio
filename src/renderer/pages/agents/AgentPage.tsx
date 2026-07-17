@@ -331,7 +331,7 @@ const AgentPage = () => {
     : undefined
   useTabSelfMetadata({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
-    emoji: visibleAgent?.configuration?.avatar,
+    avatar: visibleAgent?.avatar,
     instanceAppId: 'agents',
     instanceKey: tabInstanceSessionId ?? null
   })

@@ -3,6 +3,8 @@ import '@data/services/MessageService'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
@@ -102,7 +104,7 @@ describe('AssistantDataService', () => {
   }
 
   // Raw-insert helper that fills the NOT-NULL columns the DB has no DEFAULT for
-  // (emoji / settings / orderKey). Tests that exercise read-path semantics on
+  // (avatarEmoji / settings / orderKey). Tests that exercise read-path semantics on
   // hand-crafted rows go through this helper so they don't need to repeat
   // boilerplate every call site. `orderKey` defaults to 'a0' since most tests
   // don't care about ordering; tests that assert ordering should pass explicit keys.
@@ -112,7 +114,7 @@ describe('AssistantDataService', () => {
     const orderKeys = generateOrderKeySequence(rows.length)
     await dbh.db.insert(assistantTable).values(
       rows.map((v, index) => ({
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         name: 'test',
         orderKey: orderKeys[index],
@@ -632,13 +634,13 @@ describe('AssistantDataService', () => {
       expect(row.settings).toEqual(DEFAULT_ASSISTANT_SETTINGS)
     })
 
-    it("should apply '🌟' as the default emoji when omitted", async () => {
+    it("should apply '🌟' as the default avatar when omitted", async () => {
       const created = assistantDataService.create({ name: 'test-assistant' })
 
-      expect(created.emoji).toBe('🌟')
+      expect(created.avatar).toEqual({ kind: 'emoji', emoji: '🌟' })
 
       const [row] = await dbh.db.select().from(assistantTable)
-      expect(row.emoji).toBe('🌟')
+      expect(row.avatarEmoji).toBe('🌟')
     })
 
     it('should apply DB DEFAULT empty strings to prompt and description when omitted', async () => {
@@ -653,12 +655,15 @@ describe('AssistantDataService', () => {
     })
 
     it('should preserve client-supplied emoji over the service default', async () => {
-      const created = assistantDataService.create({ name: 'test-assistant', emoji: '🤖' })
+      const created = assistantDataService.create({
+        name: 'test-assistant',
+        avatar: { kind: 'emoji', emoji: '🤖' }
+      })
 
-      expect(created.emoji).toBe('🤖')
+      expect(created.avatar).toEqual({ kind: 'emoji', emoji: '🤖' })
 
       const [row] = await dbh.db.select().from(assistantTable)
-      expect(row.emoji).toBe('🤖')
+      expect(row.avatarEmoji).toBe('🤖')
     })
 
     it('should sync junction rows when relation ids are provided', async () => {
@@ -886,6 +891,33 @@ describe('AssistantDataService', () => {
   })
 
   describe('update', () => {
+    it('binds an uploaded avatar and clears its file ref when switching back to emoji', async () => {
+      const fileId = '019606a0-0000-7000-8000-0000000000a1'
+      await seedAssistantRow({ id: 'ast-avatar', name: 'Avatar assistant' })
+      await dbh.db
+        .insert(fileEntryTable)
+        .values({ id: fileId, origin: 'internal', name: 'avatar', ext: 'webp', size: 3 })
+
+      const withAvatar = assistantDataService.setAvatarImage('ast-avatar', fileId)
+
+      expect(withAvatar.avatar).toEqual({
+        kind: 'image',
+        fileId,
+        src: `file:///mock/files/${fileId}.webp`
+      })
+      expect(assistantDataService.getById('ast-avatar').avatar).toEqual(withAvatar.avatar)
+      expect(
+        (await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-avatar')))[0]?.avatarEmoji
+      ).toBeNull()
+      expect(await dbh.db.select().from(assistantAvatarFileRefTable)).toHaveLength(1)
+
+      const withEmoji = assistantDataService.setAvatarEmoji('ast-avatar', '🧠')
+
+      expect(withEmoji.avatar).toEqual({ kind: 'emoji', emoji: '🧠' })
+      expect(await dbh.db.select().from(assistantAvatarFileRefTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, fileId))).toHaveLength(1)
+    })
+
     it('should update and return assistant', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
@@ -1396,21 +1428,21 @@ describe('AssistantDataService', () => {
           id: 'ast-search-old',
           name: 'Needle Old',
           description: 'old assistant',
-          emoji: 'A',
+          avatarEmoji: '🅰️',
           updatedAt: 100
         },
         {
           id: 'ast-search-new',
           name: 'Needle New',
           description: 'new assistant',
-          emoji: 'B',
+          avatarEmoji: '🅱️',
           updatedAt: 200
         },
         {
           id: 'ast-search-miss',
           name: 'Other',
           description: 'not included',
-          emoji: 'C',
+          avatarEmoji: '©️',
           updatedAt: 300
         }
       ])
@@ -1423,7 +1455,7 @@ describe('AssistantDataService', () => {
           id: 'ast-search-new',
           title: 'Needle New',
           subtitle: 'new assistant',
-          emoji: 'B',
+          avatar: { kind: 'emoji', emoji: '🅱️' },
           updatedAt: '1970-01-01T00:00:00.200Z',
           target: { assistantId: 'ast-search-new' }
         },
@@ -1432,7 +1464,7 @@ describe('AssistantDataService', () => {
           id: 'ast-search-old',
           title: 'Needle Old',
           subtitle: 'old assistant',
-          emoji: 'A',
+          avatar: { kind: 'emoji', emoji: '🅰️' },
           updatedAt: '1970-01-01T00:00:00.100Z',
           target: { assistantId: 'ast-search-old' }
         }

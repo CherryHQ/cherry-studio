@@ -336,17 +336,26 @@ describe('AgentChat settings panel', () => {
     expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
   })
 
-  it('normalizes blank agent avatars before passing them to the right pane', () => {
+  it('passes the strict agent avatar to the right pane', () => {
     activeAgentMock.value = {
       id: 'agent-1',
-      name: 'Blank avatar agent',
+      name: 'Image avatar agent',
       model: 'provider:model-1',
-      configuration: { avatar: '   ' }
+      avatar: {
+        kind: 'image',
+        fileId: '019606a0-0000-7000-8000-000000000001',
+        src: 'file:///tmp/avatar.png'
+      },
+      configuration: {}
     }
 
     renderAgentChat()
 
-    expect(agentRightPanePropsMock.last?.agentAvatar).toBe('🤖')
+    expect(agentRightPanePropsMock.last?.agentAvatar).toEqual({
+      kind: 'image',
+      fileId: '019606a0-0000-7000-8000-000000000001',
+      src: 'file:///tmp/avatar.png'
+    })
   })
 
   it('allows changing the workspace while the persisted session has no messages', () => {

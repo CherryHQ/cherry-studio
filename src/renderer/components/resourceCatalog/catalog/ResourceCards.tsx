@@ -1,4 +1,6 @@
 import { Badge, Button } from '@cherrystudio/ui'
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { Trash2 } from 'lucide-react'
@@ -55,7 +57,13 @@ export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, 
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base ${
               useTypedAvatarBg ? cfg.color : 'bg-secondary'
             }`}>
-            {r.avatar}
+            {r.type === 'skill' ? (
+              r.avatar
+            ) : r.type === 'assistant' || r.type === 'agent' ? (
+              <EntityAvatarIcon avatar={r.avatar} size={40} fontSize={16} className="mr-0 rounded-lg" />
+            ) : (
+              <EmojiIcon emoji={r.avatar} size={40} fontSize={16} className="mr-0 rounded-lg" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>

@@ -371,7 +371,7 @@ const HomePage: FC = () => {
   const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
-    emoji: visibleAssistant?.emoji,
+    avatar: visibleAssistant?.avatar,
     instanceAppId: 'assistants',
     instanceKey: tabInstanceTopicId ?? null
   })

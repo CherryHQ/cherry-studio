@@ -57,7 +57,7 @@ function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" />
+      <BasicInfoStep form={form} portalContainer={null} />
     </Form>
   )
 }

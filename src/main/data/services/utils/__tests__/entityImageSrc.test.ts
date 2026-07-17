@@ -6,18 +6,18 @@ vi.mock('@application', () => ({
   application: { get: applicationGet }
 }))
 
-import { resolveLogoSrc } from '../logoSrc'
+import { resolveEntityImageSrc } from '../entityImageSrc'
 
-describe('resolveLogoSrc', () => {
+describe('resolveEntityImageSrc', () => {
   it('returns undefined without touching FileManager when there is no id', () => {
-    expect(resolveLogoSrc(null)).toBeUndefined()
-    expect(resolveLogoSrc(undefined)).toBeUndefined()
-    expect(resolveLogoSrc('')).toBeUndefined()
+    expect(resolveEntityImageSrc(null)).toBeUndefined()
+    expect(resolveEntityImageSrc(undefined)).toBeUndefined()
+    expect(resolveEntityImageSrc('')).toBeUndefined()
     expect(applicationGet).not.toHaveBeenCalled()
   })
 
   it('resolves a file id to a file:// URL via FileManager', () => {
     applicationGet.mockReturnValue({ getUrl: vi.fn(() => 'file:///files/abc.webp') })
-    expect(resolveLogoSrc('abc')).toBe('file:///files/abc.webp')
+    expect(resolveEntityImageSrc('abc')).toBe('file:///files/abc.webp')
   })
 })

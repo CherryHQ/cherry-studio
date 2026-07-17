@@ -17,7 +17,6 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -459,7 +458,7 @@ const AgentChatSessionFrame = ({
       traceId={session.traceId ?? undefined}
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      agentAvatar={activeAgent?.avatar}
       defaultOpen={sessionPaneOpen}
       onOpenChange={onSessionPaneOpenChange}
       resourcePane={resourcePane}

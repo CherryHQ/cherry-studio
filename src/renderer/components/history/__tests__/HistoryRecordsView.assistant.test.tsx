@@ -336,7 +336,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     id: 'assistant-alpha',
     name: 'Alpha assistant',
     prompt: '',
-    emoji: 'A',
+    avatar: { kind: 'emoji', emoji: '🅰️' },
     description: '',
     settings: {
       temperature: 1,
@@ -441,9 +441,9 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
+    expect(within(alphaCells[1]).getAllByText('🅰️').length).toBeGreaterThan(0)
     expect(within(alphaCells[1]).getByText('Alpha assistant')).toBeInTheDocument()
-    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
+    expect(within(alphaCells[2]).queryByText('🅰️')).not.toBeInTheDocument()
     const headerCells = screen.getAllByRole('columnheader')
     expect(headerCells[1]).toHaveTextContent('Assistant')
     expect(headerCells[2]).toHaveTextContent('Conversation')
@@ -722,7 +722,10 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({
-      assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
+      assistants: [
+        createAssistant(),
+        createAssistant({ id: 'assistant-beta', name: 'Beta assistant', avatar: { kind: 'emoji', emoji: '🅱️' } })
+      ]
     })
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
@@ -771,7 +774,10 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({
-      assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
+      assistants: [
+        createAssistant(),
+        createAssistant({ id: 'assistant-beta', name: 'Beta assistant', avatar: { kind: 'emoji', emoji: '🅱️' } })
+      ]
     })
     hookMocks.batchUpdateTopics.mockResolvedValueOnce([
       { status: 'fulfilled', value: createTopic({ id: 'topic-alpha', assistantId: 'assistant-beta' }) },
@@ -855,8 +861,8 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.useAssistants.mockReturnValue({
       assistants: [
         createAssistant(),
-        createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' }),
-        createAssistant({ id: 'assistant-gamma', name: 'Gamma assistant', emoji: 'G' })
+        createAssistant({ id: 'assistant-beta', name: 'Beta assistant', avatar: { kind: 'emoji', emoji: '🅱️' } }),
+        createAssistant({ id: 'assistant-gamma', name: 'Gamma assistant', avatar: { kind: 'emoji', emoji: '🇬' } })
       ]
     })
 

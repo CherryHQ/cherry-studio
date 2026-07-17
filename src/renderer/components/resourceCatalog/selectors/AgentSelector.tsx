@@ -6,10 +6,11 @@ import {
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -66,6 +67,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
+  const { setAgentAvatar } = useEntityAvatar()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -102,7 +104,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         id: agent.id,
         name: agent.name,
         description: getAgentDescriptionForDisplay(agent, t),
-        emoji: getAgentAvatarFromConfiguration(agent.configuration)
+        avatar: agent.avatar
       })),
       ...(additionalItems ?? [])
     ],
@@ -161,6 +163,9 @@ export function AgentSelector(props: AgentSelectorProps) {
         created = await createAgent({
           body: buildCreateAgentDto(values)
         })
+        if (values.avatarImageData) {
+          created = await setAgentAvatar(created.id, { kind: 'image', data: values.avatarImageData })
+        }
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error
@@ -180,7 +185,7 @@ export function AgentSelector(props: AgentSelectorProps) {
             id: created.id,
             name: created.name,
             description: getAgentDescriptionForDisplay(created, t),
-            emoji: getAgentAvatarFromConfiguration(created.configuration)
+            avatar: created.avatar
           })
         } else {
           props.onChange(created.id)
@@ -190,7 +195,16 @@ export function AgentSelector(props: AgentSelectorProps) {
       }
       handleSelectorOpenChange(true)
     },
-    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [
+      autoSelectOnCreate,
+      createAgent,
+      handleSelectorOpenChange,
+      onDialogCloseAutoFocus,
+      props,
+      refetch,
+      setAgentAvatar,
+      t
+    ]
   )
 
   const handleEditSaved = useCallback(async () => {

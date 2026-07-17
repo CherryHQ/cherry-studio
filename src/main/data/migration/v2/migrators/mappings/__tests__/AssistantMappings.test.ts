@@ -28,7 +28,7 @@ describe('AssistantMappings', () => {
         id: 'ast-1',
         name: 'My Assistant',
         prompt: 'You are helpful',
-        emoji: '🤖',
+        avatarEmoji: '🤖',
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
         // Migrator merges legacy fields onto DEFAULT_ASSISTANT_SETTINGS so the new
@@ -52,7 +52,7 @@ describe('AssistantMappings', () => {
         id: 'ast-2',
         name: 'Minimal',
         prompt: '',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         description: '',
         modelId: null,
         settings: DEFAULT_ASSISTANT_SETTINGS
@@ -155,7 +155,7 @@ describe('AssistantMappings', () => {
       })
 
       expect(result.assistant.prompt).toBe('')
-      expect(result.assistant.emoji).toBe('🌟')
+      expect(result.assistant.avatarEmoji).toBe('🌟')
       expect(result.assistant.description).toBe('')
       // mcpMode/enableWebSearch were null/undefined upstream, so settings stays at the default.
       expect(result.assistant.settings).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)

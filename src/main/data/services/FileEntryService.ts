@@ -21,6 +21,8 @@
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
+  agentAvatarFileRefTable,
+  assistantAvatarFileRefTable,
   chatMessageFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
@@ -39,7 +41,14 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { chatMessageSourceType, miniAppLogoRef, paintingSourceType, providerLogoRef } from '@shared/data/types/file'
+import {
+  agentAvatarRef,
+  assistantAvatarRef,
+  chatMessageSourceType,
+  miniAppLogoRef,
+  paintingSourceType,
+  providerLogoRef
+} from '@shared/data/types/file'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -536,7 +545,11 @@ class FileEntryServiceImpl implements FileEntryService {
       [providerLogoRef.sourceType]: () =>
         sql`NOT EXISTS (SELECT 1 FROM ${providerLogoFileRefTable} WHERE ${providerLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
       [miniAppLogoRef.sourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${miniAppLogoFileRefTable} WHERE ${miniAppLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`
+        sql`NOT EXISTS (SELECT 1 FROM ${miniAppLogoFileRefTable} WHERE ${miniAppLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [assistantAvatarRef.sourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${assistantAvatarFileRefTable} WHERE ${assistantAvatarFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [agentAvatarRef.sourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${agentAvatarFileRefTable} WHERE ${agentAvatarFileRefTable.fileEntryId} = ${fileEntryTable.id})`
     } satisfies Record<PersistentFileRefSourceType, () => SQL>
 
     const conditions: SQL[] = [

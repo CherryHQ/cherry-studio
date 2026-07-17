@@ -80,6 +80,10 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
+vi.mock('@renderer/hooks/useEntityAvatar', () => ({
+  useEntityAvatar: () => ({ setAgentAvatar: vi.fn() })
+}))
+
 vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
   ...(await importOriginal<typeof UseModelModule>()),
   useDefaultModel: () => ({ defaultModel: undefined })
@@ -197,8 +201,8 @@ const AGENTS_RESPONSE = {
       smallModel: null,
       mcps: [],
       allowedTools: [],
+      avatar: { kind: 'emoji', emoji: '🤖' },
       configuration: {
-        avatar: '🤖',
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -218,8 +222,8 @@ const AGENTS_RESPONSE = {
       smallModel: null,
       mcps: [],
       allowedTools: [],
+      avatar: { kind: 'emoji', emoji: '🤖' },
       configuration: {
-        avatar: '🤖',
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -280,7 +284,8 @@ beforeEach(() => {
     name: 'Created Agent',
     description: 'Created from selector',
     accessiblePaths: [],
-    model: MODEL.id
+    model: MODEL.id,
+    avatar: { kind: 'emoji', emoji: '🤖' }
   })
   updateAgentMock.mockResolvedValue({
     ...AGENTS_RESPONSE.items[0],
@@ -360,16 +365,13 @@ describe('AgentSelector', () => {
     expect(screen.getByRole('button', { name: 'Create agent' })).toBeInTheDocument()
   })
 
-  it('falls back to the default agent avatar for blank stored avatars', () => {
+  it('renders the strict agent avatar from DataApi', () => {
     useQueryMock.mockReturnValue({
       data: {
         items: [
           {
             ...AGENTS_RESPONSE.items[0],
-            configuration: {
-              ...AGENTS_RESPONSE.items[0].configuration,
-              avatar: '   '
-            }
+            avatar: { kind: 'emoji', emoji: '🦞' }
           }
         ],
         total: 1,
@@ -385,7 +387,7 @@ describe('AgentSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toHaveTextContent('🤖')
+    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toHaveTextContent('🦞')
   })
 
   it('fires onChange with the selected agent id', () => {
@@ -415,7 +417,7 @@ describe('AgentSelector', () => {
       id: ALPHA_AGENT_ID,
       name: 'Alpha Agent',
       description: 'First test agent',
-      emoji: '🤖'
+      avatar: { kind: 'emoji', emoji: '🤖' }
     })
   })
 
@@ -492,9 +494,9 @@ describe('AgentSelector', () => {
           instructions: '',
           skillIds: [],
           configuration: {
-            avatar: '🤖',
             permission_mode: 'bypassPermissions'
-          }
+          },
+          avatar: { kind: 'emoji', emoji: '🤖' }
         }
       })
     )

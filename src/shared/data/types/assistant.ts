@@ -7,6 +7,7 @@
 
 import * as z from 'zod'
 
+import { EntityAvatarSchema } from './entityAvatar'
 import { UniqueModelIdSchema } from './model'
 import { TagSchema } from './tag'
 
@@ -110,8 +111,8 @@ export const AssistantSchema = z.strictObject({
   name: z.string().min(1),
   /** System prompt text or prompt template ID reference */
   prompt: z.string(),
-  /** Emoji icon for UI display */
-  emoji: z.emoji(),
+  /** Exactly one active avatar representation. */
+  avatar: EntityAvatarSchema,
   /** Long-form description */
   description: z.string(),
   /** Inference settings — model params + context toggles */

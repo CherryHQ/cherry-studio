@@ -29,6 +29,7 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -562,19 +563,44 @@ export function AvatarField({
   form,
   emojiPickerOpen,
   setEmojiPickerOpen,
-  fallback,
   portalContainer,
-  size
+  size,
+  imageSrc,
+  imageData,
+  onImageDataChange,
+  onEmojiChange
 }: {
   form: UseFormReturn<any>
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
-  fallback: string
   portalContainer: HTMLElement | null
   size?: 'sm' | 'md'
+  imageSrc?: string
+  imageData?: Uint8Array | null
+  onImageDataChange?: (data: Uint8Array | null) => void | Promise<void>
+  onEmojiChange?: (emoji: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const avatar = form.watch('avatar')
+  const [uploading, setUploading] = useState(false)
+
+  const handleImageSelect = async (file: File) => {
+    const sizeError = checkEntityImageSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
+    setUploading(true)
+    try {
+      const data = await prepareEntityImageBytes(file)
+      await onImageDataChange?.(data)
+      setEmojiPickerOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('message.error.image_process_failed'))
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <FormField
@@ -585,13 +611,26 @@ export function AvatarField({
           <FormLabel className="font-normal">{t('common.avatar')}</FormLabel>
           <EmojiAvatarPicker
             value={avatar}
-            fallback={fallback}
             open={emojiPickerOpen}
             onOpenChange={setEmojiPickerOpen}
-            onChange={field.onChange}
+            onChange={async (emoji) => {
+              try {
+                await onEmojiChange?.(emoji)
+                field.onChange(emoji)
+                await onImageDataChange?.(null)
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : t('common.error'))
+              }
+            }}
             ariaLabel={t('library.config.dialogs.create.avatar_aria')}
             portalContainer={portalContainer}
             size={size}
+            imageSrc={imageSrc}
+            imageData={imageData}
+            onImageSelect={onImageDataChange ? (file) => void handleImageSelect(file) : undefined}
+            uploading={uploading}
+            uploadLabel={t('settings.general.image_upload')}
+            emojiLabel={t('settings.general.emoji_picker')}
           />
           <FormMessage />
         </FormItem>

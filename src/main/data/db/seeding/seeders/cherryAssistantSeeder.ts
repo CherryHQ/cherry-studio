@@ -13,8 +13,8 @@ import type { DbOrTx, DbType, ISeeder } from '../../types'
 
 const CHERRY_ASSISTANT_SEED = {
   name: 'Cherry Assistant',
+  avatarEmoji: '🍒',
   configuration: {
-    avatar: '🍒',
     permission_mode: 'default',
     max_turns: 100,
     env_vars: {},
@@ -46,6 +46,7 @@ export class CherryAssistantSeeder implements ISeeder {
         id: agentId,
         type: 'claude-code',
         name: CHERRY_ASSISTANT_SEED.name,
+        avatarEmoji: CHERRY_ASSISTANT_SEED.avatarEmoji,
         description: '',
         instructions: '',
         model: this.getCherryAiDefaultModelId(tx),

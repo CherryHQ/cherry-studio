@@ -102,7 +102,7 @@ async function seedAssistantKnowledgeBaseRefs(dbh: ReturnType<typeof setupTestDa
   await dbh.db.insert(assistantTable).values({
     id: ASSISTANT_ID,
     name: 'Assistant',
-    emoji: '*',
+    avatarEmoji: '🌟',
     settings: DEFAULT_ASSISTANT_SETTINGS,
     orderKey: 'a0'
   })
