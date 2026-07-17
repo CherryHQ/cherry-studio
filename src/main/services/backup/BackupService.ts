@@ -44,7 +44,10 @@ import { app } from 'electron'
 
 import { admitArchive } from './admitArchive'
 import { BackupRestoreJobQuiesce } from './BackupRestoreJobQuiesce'
-import { buildFileResourcesFromAdmit } from './buildFileResourcesFromAdmit'
+import {
+  buildFileResourcesFromAdmit,
+  RestoreStagingPathEscapeError
+} from './buildFileResourcesFromAdmit'
 import { contributorManager } from './contributors'
 import {
   collectRestoredKnowledgeBaseIds,
@@ -815,6 +818,12 @@ export class BackupService extends BaseService {
     }
     if (e instanceof RestoreStagingNotImplementedError) {
       return new IpcError('BACKUP_RESTORE_STAGING_UNAVAILABLE', e.message)
+    }
+    // Path escape during pre-merge staging must not fold to INTERNAL — renderer/UI
+    // branches on a stable code. ImportOrchestrator already fail-closes (no journal)
+    // when stageFileResources throws; this mapping is the IPC-facing half.
+    if (e instanceof RestoreStagingPathEscapeError) {
+      return new IpcError('BACKUP_RESTORE_STAGING_PATH_ESCAPE', e.message)
     }
     // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
     // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize

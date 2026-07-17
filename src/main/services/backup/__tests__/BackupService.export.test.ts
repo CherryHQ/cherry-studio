@@ -51,6 +51,8 @@ import { app } from 'electron'
 
 import { BaseService } from '@main/core/lifecycle'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+
+import { RestoreStagingPathEscapeError } from '../buildFileResourcesFromAdmit'
 import { BackupService } from '../BackupService'
 import { ExportOrchestrator } from '../ExportOrchestrator'
 
@@ -97,5 +99,14 @@ describe('BackupService packaged export path', () => {
     await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy((err: unknown) => {
       return err instanceof IpcError && err.code === 'BACKUP_RESTORE_QUIESCE_UNAVAILABLE'
     })
+  })
+
+  it('maps RestoreStagingPathEscapeError to BACKUP_RESTORE_STAGING_PATH_ESCAPE (not INTERNAL)', () => {
+    const service = new BackupService()
+    const mapped = (
+      service as unknown as { toIpcError: (e: unknown) => unknown }
+    ).toIpcError(new RestoreStagingPathEscapeError('note live path escapes notes root: ../x'))
+    expect(mapped).toBeInstanceOf(IpcError)
+    expect((mapped as IpcError).code).toBe('BACKUP_RESTORE_STAGING_PATH_ESCAPE')
   })
 })
