@@ -209,6 +209,12 @@ describe('runFactoryResetGate', () => {
     expect(targets).toContain(APP_TEMP)
     expect(targets).toContain(`${OVMS_DIR}/models/config.json`)
 
+    // Every deletion carries the Windows lock-retry options — a transient
+    // antivirus/indexer lock must not consume a MAX_WIPE_ATTEMPTS slot.
+    for (const [, options] of rmSyncMock.mock.calls) {
+      expect(options).toMatchObject({ recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    }
+
     // Retry accounting armed before the destructive pass…
     expect(bootConfigSetMock).toHaveBeenCalledWith('temp.factory_reset', expect.objectContaining({ attempts: 1 }))
     // …and the marker cleared plus settings reset (keeping the data-dir location) at the end.

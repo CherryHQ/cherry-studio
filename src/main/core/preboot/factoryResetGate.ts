@@ -67,6 +67,15 @@ const CHERRY_HOME_WIPE = ['config', 'mcp', 'trace']
 const OWNERSHIP_SENTINEL = 'cherrystudio.sqlite'
 
 /**
+ * On Windows, Node retries EBUSY/EPERM/ENOTEMPTY deletions when maxRetries is
+ * set — absorbing the transient locks an antivirus or the search indexer puts
+ * on files it is scanning (opened without FILE_SHARE_DELETE), so a scan
+ * doesn't consume one of the marker's MAX_WIPE_ATTEMPTS. Worst case this
+ * blocks preboot for a few hundred extra milliseconds per stuck entry.
+ */
+const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const
+
+/**
  * Fallback manifest for directories that fail the whole-tree safety check:
  * only Cherry-named artifacts are removed, so a shared or mis-pointed
  * directory loses Cherry's data and nothing else. Chromium state (whose
@@ -257,7 +266,7 @@ function wipeDirectoryEntries(dir: string, shouldWipe: (entry: string) => boolea
     if (!shouldWipe(entry)) continue
     const target = path.join(dir, entry)
     try {
-      fs.rmSync(target, { recursive: true, force: true })
+      fs.rmSync(target, RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove entry during factory reset', { target, error: String(error) })
       failures.push(target)
@@ -284,7 +293,7 @@ function wipeNonCriticalExtras(): void {
   ]
   for (const target of targets) {
     try {
-      fs.rmSync(target, { recursive: true, force: true })
+      fs.rmSync(target, RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove non-critical entry during factory reset', { target, error: String(error) })
     }
