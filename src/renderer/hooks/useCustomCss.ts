@@ -1,20 +1,13 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
-import { loggerService } from '@logger'
-import { compileUiThemeCss } from '@renderer/utils/uiContract'
 import { useEffect } from 'react'
 
 const CUSTOM_CSS_ELEMENT_ID = 'user-defined-custom-css'
-const logger = loggerService.withContext('useCustomCss')
 
 /**
  * Sync a `<style id="user-defined-custom-css">` element in `<head>` with the given
- * CSS text. Custom CSS is isolated to the active app boundary with CSS `@scope` by
- * default; `/* @cherry-ui raw *\/` is the explicit global-style escape hatch.
- * The preference read lives
- * in the caller (`useCustomCss` for the standard windows, a background-stripped variant
- * for the selection toolbar), so this hook stays value-driven and free of any
- * window-specific policy.
+ * CSS text verbatim. Each renderer window is its own document, so every participating
+ * window injects the same preference without an additional CSS scope.
  *
  * Empty/undefined or v1-marked `cssText` removes the element. The marker is
  * migration metadata rather than a CSS safeguard, so marked payloads are never
@@ -28,14 +21,10 @@ export function useCustomCssInjection(cssText: string | undefined): void {
     document.getElementById(CUSTOM_CSS_ELEMENT_ID)?.remove()
 
     if (!cssText || hasV1CustomCssMarker(cssText)) return
-    const compiled = compileUiThemeCss(cssText)
-    for (const warning of compiled.warnings) logger.warn(warning)
-    if (!compiled.css) return
 
     const element = document.createElement('style')
     element.id = CUSTOM_CSS_ELEMENT_ID
-    element.dataset.uiThemeMode = compiled.mode
-    element.textContent = compiled.css
+    element.textContent = cssText
     document.head.appendChild(element)
 
     return () => {
@@ -45,12 +34,10 @@ export function useCustomCssInjection(cssText: string | undefined): void {
 }
 
 /**
- * Inject the user's active `ui.custom_css` preference through the UI theme scope compiler.
- * The standard custom-CSS owner
- * for the windows that render the full app chrome (main / subWindow / quickAssistant /
- * selection-action). V1-marked content is rejected by the shared injection primitive.
- * The selection toolbar does not use this: it strips background declarations first, so
- * it calls `useCustomCssInjection` directly with the filtered CSS.
+ * Inject the user's active `ui.custom_css` preference in every regular UI window.
+ * V1-marked content is rejected by the shared injection primitive. The preboot
+ * windows (`migrationV2`, `userDataRelocation`) are the exceptions — they do not
+ * initialize preferences.
  */
 export function useCustomCss(): void {
   const [customCss] = usePreference('ui.custom_css')

@@ -1,6 +1,8 @@
+import { parseSync } from '@swc/core'
 import { describe, expect, it } from 'vitest'
 
 import { emptyRegistry, reconcileRegistry } from '../registry'
+import { mergeDataUi, mergeUiProps } from '../runtime'
 import { transformHtml, transformJsx } from '../transform'
 
 const options = { sourceFile: 'src/renderer/components/chat/Message.tsx' }
@@ -37,9 +39,41 @@ describe('UI contract compiler', () => {
       ...options,
       sourceFile: 'src/renderer/components/actions/CopyButton.tsx'
     })
+    moved.descriptors[0].previousAnchorHash = original.descriptors[0].anchorHash
     const second = reconcileRegistry(first, moved.descriptors)
 
     expect(second.nodes[0][2]).toBe(first.nodes[0][2])
+  })
+
+  it('retires an ID instead of reusing it for an unrelated structural match', () => {
+    const original = transformJsx('const Panel = () => <section data-ui="account.panel" />', {
+      ...options,
+      sourceFile: 'src/renderer/pages/account/Panel.tsx'
+    })
+    const first = reconcileRegistry(emptyRegistry(), original.descriptors)
+    const replacement = transformJsx('const Panel = () => <section data-ui="billing.panel" />', {
+      ...options,
+      sourceFile: 'src/renderer/pages/billing/Panel.tsx'
+    })
+    const second = reconcileRegistry(first, replacement.descriptors)
+
+    expect(replacement.descriptors[0].fingerprintHash).toBe(original.descriptors[0].fingerprintHash)
+    expect(second.nodes[0][2]).not.toBe(first.nodes[0][2])
+    expect(second.retiredIds).toContain(first.nodes[0][2])
+  })
+
+  it('emits parseable JSX for self-closing intrinsic elements', () => {
+    const result = transformJsx('const Message = () => <div><span /></div>', {
+      ...options,
+      contractForDescriptor: (descriptor) => ({
+        id: `u${descriptor.anchorHash.slice(0, 7)}`,
+        semanticId: descriptor.semanticId
+      })
+    })
+
+    expect(result.code).toContain('<span data-ui=')
+    expect(result.code).toContain(' />')
+    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
   it('adds the exact ID to runtime uiTokens without losing dynamic state', () => {
@@ -53,6 +87,61 @@ describe('UI contract compiler', () => {
 
     expect(result.code).toContain("uiTokens('chat.message', { scopes: [`message:${id}`] })")
     expect(result.code).toContain('id:uabcdef0')
+  })
+
+  it('assigns exact IDs only to intrinsic DOM and composes forwarded component tokens', () => {
+    const callSite = transformJsx(
+      "const App = () => <MessageWrapper data-ui={uiTokens('chat.message', { states: ['selected'] })} />",
+      {
+        ...options,
+        contractForDescriptor: () => ({ id: 'ucallsite', semanticId: 'chat.message' })
+      }
+    )
+    const implementation = transformJsx('const MessageWrapper = (props) => <div data-ui="part:wrapper" {...props} />', {
+      ...options,
+      contractForDescriptor: () => ({ id: 'udomnode', semanticId: 'chat.wrapper' })
+    })
+
+    expect(callSite.descriptors).toHaveLength(0)
+    expect(callSite.code).not.toContain('id:ucallsite')
+    expect(implementation.descriptors).toHaveLength(1)
+    expect(implementation.code).toContain('__cherryUiContractMergeUiProps(props')
+    expect(implementation.code).toContain('part:wrapper id:udomnode')
+    expect(mergeDataUi('chat.wrapper part:wrapper id:udomnode', 'chat.message state:selected id:ignored')).toBe(
+      'chat.message part:wrapper id:udomnode state:selected'
+    )
+    expect(mergeUiProps({ 'data-ui': 'chat.message state:selected' }, 'chat.wrapper part:wrapper id:udomnode')).toEqual(
+      {
+        'data-ui': 'chat.message part:wrapper id:udomnode state:selected'
+      }
+    )
+  })
+
+  it('composes data-ui regardless of whether a props spread appears before or after the authored part', () => {
+    for (const source of [
+      'const Wrapper = (props) => <div data-ui="part:wrapper" {...props} />',
+      'const Wrapper = (props) => <div {...props} data-ui="part:wrapper" />'
+    ]) {
+      const result = transformJsx(source, {
+        ...options,
+        contractForDescriptor: () => ({ id: 'udomnode', semanticId: 'chat.wrapper' })
+      })
+
+      expect(result.code.indexOf('data-ui=')).toBeLessThan(result.code.indexOf('{...__cherryUiContractMergeUiProps'))
+      expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    }
+  })
+
+  it('adds a transparent data-ui merge layer around asChild content', () => {
+    const result = transformJsx('const App = () => <Button asChild><a href="/settings" /></Button>', {
+      ...options,
+      contractForDescriptor: () => ({ id: 'ulink', semanticId: 'settings.action.open' })
+    })
+
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a'])
+    expect(result.code).toContain('<__CherryUiContractSlot><a data-ui=')
+    expect(result.code).toContain('</__CherryUiContractSlot></Button>')
+    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
   it('annotates intrinsic DOM but skips unmarked component call sites', () => {
@@ -149,8 +238,26 @@ describe('UI contract compiler', () => {
     })
 
     expect(result.descriptors).toHaveLength(2)
-    expect(result.code).toContain('scope:window:main boundary:app theme:custom')
+    expect(result.code).toContain('scope:window:main')
+    expect(result.code).not.toContain('boundary:app')
     expect(result.code).toContain('const sample = "<span>"')
+  })
+
+  it('anchors HTML siblings to their actual parent instead of the previous opening tag', () => {
+    const base = transformHtml('<body><div></div><p></p></body>', {
+      ...options,
+      sourceFile: 'src/renderer/windows/main/index.html',
+      windowName: 'main'
+    })
+    const nested = transformHtml('<body><div><span></span></div><p></p></body>', {
+      ...options,
+      sourceFile: 'src/renderer/windows/main/index.html',
+      windowName: 'main'
+    })
+
+    expect(base.descriptors.find((descriptor) => descriptor.element === 'p')?.anchorHash).toBe(
+      nested.descriptors.find((descriptor) => descriptor.element === 'p')?.anchorHash
+    )
   })
 
   it('applies the same SVG coverage policy to window HTML', () => {

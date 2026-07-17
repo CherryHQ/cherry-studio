@@ -5,13 +5,15 @@ import type { Plugin } from 'vite'
 import { readRegistry, reconcileRegistry, registryNodeMap, serializeRegistry } from './registry'
 import { isUiSourceFile, scanUiSources, windowNameFromHtml } from './scan'
 import { normalizeSourceFile } from './semanticId'
-import { transformHtml, transformJsx } from './transform'
+import { transformHtml, transformJsx, UI_CONTRACT_RUNTIME_MODULE_ID } from './transform'
 import { UI_CONTRACT_VERSION, type UiContractManifest, type UiContractManifestNode } from './types'
 
 export interface UiContractPluginOptions {
   manifestFileName?: string
   root?: string
 }
+
+const RESOLVED_RUNTIME_MODULE_ID = `\0${UI_CONTRACT_RUNTIME_MODULE_ID}`
 
 export function uiContractPlugin(options: UiContractPluginOptions = {}): Plugin {
   const root = resolve(options.root ?? process.cwd())
@@ -24,6 +26,30 @@ export function uiContractPlugin(options: UiContractPluginOptions = {}): Plugin 
   return {
     name: 'cherry-ui-contract',
     enforce: 'pre',
+    resolveId(id) {
+      return id === UI_CONTRACT_RUNTIME_MODULE_ID ? RESOLVED_RUNTIME_MODULE_ID : null
+    },
+    load(id) {
+      if (id !== RESOLVED_RUNTIME_MODULE_ID) return null
+      const runtimePath = resolve(root, 'scripts/uiContract/runtime.ts')
+      return `
+import { Slot } from '@radix-ui/react-slot'
+import { Children, cloneElement, createElement, forwardRef, isValidElement } from 'react'
+import { mergeDataUi } from ${JSON.stringify(runtimePath)}
+export { mergeDataUi, mergeUiProps } from ${JSON.stringify(runtimePath)}
+
+export const UiDataSlot = forwardRef(function UiDataSlot(props, ref) {
+  const { children, ...slotProps } = props
+  if (Children.count(children) !== 1 || !isValidElement(children)) return null
+  const child = children
+
+  const childDataUi = typeof child.props['data-ui'] === 'string' ? child.props['data-ui'] : ''
+  const dataUi = mergeDataUi(childDataUi, slotProps['data-ui'])
+  const mergedChild = cloneElement(child, { 'data-ui': dataUi })
+  return createElement(Slot, { ...slotProps, ref }, mergedChild)
+})
+`
+    },
     configResolved(config) {
       command = config.command
     },

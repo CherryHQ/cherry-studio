@@ -34,20 +34,6 @@ function allocateId(descriptor: UiNodeDescriptor, usedIds: Set<string>): string 
 
 export function reconcileRegistry(previous: UiContractRegistry, descriptors: UiNodeDescriptor[]): UiContractRegistry {
   const oldByAnchor = new Map(previous.nodes.map((node) => [node[0], node]))
-  const oldByFingerprint = new Map<string, UiRegistryNode[]>()
-  const newFingerprintCounts = new Map<string, number>()
-
-  for (const node of previous.nodes) {
-    const matches = oldByFingerprint.get(node[1]) ?? []
-    matches.push(node)
-    oldByFingerprint.set(node[1], matches)
-  }
-  for (const descriptor of descriptors) {
-    newFingerprintCounts.set(
-      descriptor.fingerprintHash,
-      (newFingerprintCounts.get(descriptor.fingerprintHash) ?? 0) + 1
-    )
-  }
 
   const usedOldIds = new Set<string>()
   const usedIds = new Set([...previous.retiredIds, ...previous.nodes.map((node) => node[2])])
@@ -65,11 +51,7 @@ export function reconcileRegistry(previous: UiContractRegistry, descriptors: UiN
         ]
       }
 
-      const fingerprintMatches = oldByFingerprint.get(descriptor.fingerprintHash) ?? []
-      const movable =
-        fingerprintMatches.length === 1 && newFingerprintCounts.get(descriptor.fingerprintHash) === 1
-          ? fingerprintMatches[0]
-          : undefined
+      const movable = descriptor.previousAnchorHash ? oldByAnchor.get(descriptor.previousAnchorHash) : undefined
       if (movable && !usedOldIds.has(movable[2])) {
         usedOldIds.add(movable[2])
         return [

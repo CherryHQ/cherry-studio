@@ -23,8 +23,7 @@ Internal classes, DOM ancestry, and unmarked SVG drawing primitives are not part
 | `variant:bubble` | Visual/product variant | Changes when the variant changes |
 | `mode:fold` | Active layout or behavior mode | Changes with the active mode |
 | `state:complete` | Current state | Changes with runtime state |
-| `boundary:app` | Style-isolation boundary | Stable infrastructure token |
-| `theme:custom` | Active theme owner | Stable infrastructure token |
+| `scope:window:main` | Renderer window identity | Stable for that window type |
 
 Use token matching (`~=`), never substring matching:
 
@@ -54,9 +53,9 @@ Use token matching (`~=`), never substring matching:
 
 The pre-transform Vite plugin parses TSX/JSX with SWC and annotates every intrinsic HTML element plus each `svg` root
 before the React compiler runs. Reusable component structure, including Cherry Studio's Radix/Shadcn primitives, is
-represented by `part:*` tokens in the same attribute. Window HTML is annotated by the same plugin. An
-explicit `uiTokens(...)` call on any component boundary receives that source node's exact `id:` token without losing
-runtime tokens.
+represented by `part:*` tokens in the same attribute. Window HTML is annotated by the same plugin. Exact `id:*` tokens
+belong only to intrinsic DOM source nodes. A semantic `data-ui` value passed through a component is merged with the
+intrinsic node's part and exact ID, including across JSX prop spreads and Radix `asChild` slots.
 
 SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
 default. They enter the public contract only when they carry `data-ui`, `data-testid`, `role`, or an event
@@ -74,9 +73,9 @@ Visible text is never an identity input, so localization and copy changes cannot
 timestamps, random values, class names, and build traversal order are also excluded.
 
 The committed `ui-contract.registry.json` reconciles source nodes with their exact IDs. IDs survive formatting, display
-text changes, and normal rebuilds. A uniquely identifiable node also keeps its ID after a file move. Ambiguous structural
-moves require an explicit `data-ui={uiTokens('domain.role', ...)}` marker to preserve intent. Removed exact IDs move to a
-tombstone list and are never allocated again.
+text changes, and normal rebuilds. A file move keeps its IDs only when Git identifies the old and new paths as a rename
+during registry sync. Structural similarity alone is never treated as proof of identity: an unrelated replacement gets a
+new ID, while the removed exact ID moves to a tombstone list and is never allocated again.
 
 After changing renderer markup, update and commit the registry:
 
@@ -122,32 +121,32 @@ from `tests/e2e/utils`.
 Runtime scopes may contain durable business IDs already present in the renderer. Do not place secrets, prompt content,
 credentials, or user-visible text in a token.
 
-## Style isolation and cascade
+## Custom CSS across windows
 
-Each window body is compiled as the root boundary:
+Each window body exposes its window identity:
 
 ```html
-<body data-ui="app.window id:app.window~… scope:window:main boundary:app theme:custom">
+<body data-ui="app.window id:u3976699 scope:window:main">
 ```
 
-Custom CSS is unlayered and inserted after application styles, so it can override normal component rules without blanket
-`!important`. By default it is wrapped in:
+Custom CSS is inserted verbatim and unlayered after application styles, so it can use the full CSS surface—including
+`:root`, `body`, top-level at-rules, and semantic `data-ui` selectors—without blanket `!important`. Every regular
+renderer window subscribes to the same `ui.custom_css` preference and injects that stylesheet into its own document.
+`migrationV2` is the preboot exception because it does not initialize preferences.
 
 ```css
-@scope ([data-ui~='boundary:app'][data-ui~='theme:custom']) {
-  /* user CSS */
+:root {
+  --color-primary: hotpink;
+}
+
+[data-ui~='scope:window:selection-toolbar'] {
+  --color-primary: lime;
 }
 ```
 
-This prevents one window's theme sheet from escaping its declared app boundary. To style the boundary element itself,
-use `:scope`. CSS beginning with `@import`, `@charset`, or `@namespace` is rejected in isolated mode because those rules cannot safely live
-inside `@scope`. An advanced theme can intentionally opt out at the top of the stylesheet:
-
-```css
-/* @cherry-ui raw */
-```
-
-Raw mode preserves the previous global behavior and may affect every matching node in that document.
+Electron renderer windows are separate documents, so a stylesheet injected into one cannot leak into another; uniform
+theming comes from preference synchronization rather than a CSS `@scope` wrapper. Use `scope:window:*` only when a theme
+intentionally needs a per-window override.
 
 CSS cannot cross a Shadow DOM or iframe boundary. App-owned shadow roots remain intentionally isolated and need their own
 adopted theme sheet if they are later made public. DOM created from third-party runtime HTML is not automatically part of

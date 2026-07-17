@@ -1,4 +1,11 @@
-import { type JSXAttribute, type JSXElementName, type JSXOpeningElement, parseSync, type Span } from '@swc/core'
+import {
+  type JSXAttribute,
+  type JSXElementName,
+  type JSXOpeningElement,
+  parseSync,
+  type Span,
+  type SpreadElement
+} from '@swc/core'
 import { Parser } from 'htmlparser2'
 import MagicString from 'magic-string'
 
@@ -33,6 +40,11 @@ const TRANSPARENT_PARENT_PARTS = new Map([
 ])
 const SEMANTIC_ATTRIBUTES = new Set(['data-testid', 'id', 'name', 'role', 'type'])
 const SVG_OPT_IN_ATTRIBUTES = ['data-testid', 'role']
+export const UI_CONTRACT_RUNTIME_MODULE_ID = 'virtual:cherry-ui-contract-runtime'
+
+const RUNTIME_MERGE_DATA_UI = '__cherryUiContractMergeDataUi'
+const RUNTIME_MERGE_UI_PROPS = '__cherryUiContractMergeUiProps'
+const RUNTIME_SLOT = '__CherryUiContractSlot'
 
 type AstRecord = Record<string, unknown> & { span?: Span; type?: string }
 
@@ -48,6 +60,7 @@ interface OpeningElementInfo {
   handler?: string
   parts: string[]
   signature: string
+  spreads: SpreadElement[]
 }
 
 function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
@@ -110,9 +123,14 @@ function stablePartSignature(part: string): string {
 
 function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   const attributes = new Map<string, AttributeInfo>()
+  const spreads: SpreadElement[] = []
   let handler: string | undefined
 
   for (const attribute of opening.attributes) {
+    if (attribute.type === 'SpreadElement') {
+      spreads.push(attribute)
+      continue
+    }
     if (attribute.type !== 'JSXAttribute' || attribute.name.type !== 'Identifier') continue
     const name = attribute.name.value
     const info = staticJsxAttribute(attribute)
@@ -135,7 +153,8 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
     element,
     handler,
     parts,
-    signature: [...semanticSignature, ...parts.map(stablePartSignature)].sort().concat(handlerNames).join('|')
+    signature: [...semanticSignature, ...parts.map(stablePartSignature)].sort().concat(handlerNames).join('|'),
+    spreads
   }
 }
 
@@ -170,19 +189,6 @@ function byteOffsetMap(source: string): (byteOffset: number) => number {
     if (exact !== undefined) return exact
     throw new Error(`Invalid UTF-8 byte offset ${byteOffset}`)
   }
-}
-
-function attributeReplacement(
-  source: string,
-  attribute: JSXAttribute,
-  value: string,
-  spanToCharacter: (value: number) => number
-) {
-  const start = spanToCharacter(attribute.span.start)
-  const end = spanToCharacter(attribute.span.end)
-  const original = source.slice(start, end)
-  const leading = original.match(/^\s*/)?.[0] ?? ''
-  return { end, start, value: `${leading}data-ui=${JSON.stringify(value)}` }
 }
 
 function componentNameFromNode(node: AstRecord): string | undefined {
@@ -233,6 +239,54 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   const spanToCharacter = (value: number) => byteToCharacter(value - module.span.start)
   const descriptors: UiNodeDescriptor[] = []
   const occurrenceByAnchor = new Map<string, number>()
+  const runtimeImports = new Set<'mergeDataUi' | 'mergeUiProps' | 'UiDataSlot'>()
+
+  function expressionSource(span: Span): string {
+    return source.slice(spanToCharacter(span.start), spanToCharacter(span.end))
+  }
+
+  function requiredSpan(value: unknown, description: string): Span {
+    const span = isRecord(value) ? value.span : undefined
+    if (!span) throw new Error(`Missing ${description} span`)
+    return span
+  }
+
+  function injectDataUi(opening: JSXOpeningElement, existing: AttributeInfo | undefined, contract: string): void {
+    const dynamicExpressions: string[] = []
+    const attribute = existing?.attribute
+    if (
+      existing?.dynamic &&
+      attribute?.value?.type === 'JSXExpressionContainer' &&
+      attribute.value.expression.type !== 'JSXEmptyExpression'
+    ) {
+      dynamicExpressions.push(expressionSource(requiredSpan(attribute.value.expression, 'data-ui expression')))
+    }
+
+    if (attribute) {
+      magicString.remove(spanToCharacter(attribute.span.start), spanToCharacter(attribute.span.end))
+    }
+
+    const nameSpan = (opening.name as unknown as AstRecord).span
+    if (!nameSpan) throw new Error(`Missing JSX element-name span for ${jsxName(opening.name)}`)
+    const dataUiValue =
+      dynamicExpressions.length > 0
+        ? `{${RUNTIME_MERGE_DATA_UI}(${JSON.stringify(contract)}, ${dynamicExpressions.join(', ')})}`
+        : JSON.stringify(contract)
+    magicString.appendLeft(spanToCharacter(nameSpan.end), ` data-ui=${dataUiValue}`)
+    if (dynamicExpressions.length > 0) runtimeImports.add('mergeDataUi')
+
+    for (const spread of opening.attributes) {
+      if (spread.type !== 'SpreadElement') continue
+      const spreadSpan = requiredSpan(spread.arguments, 'JSX spread expression')
+      const spreadSource = expressionSource(spreadSpan)
+      magicString.overwrite(
+        spanToCharacter(spreadSpan.start),
+        spanToCharacter(spreadSpan.end),
+        `${RUNTIME_MERGE_UI_PROPS}(${spreadSource}, ${JSON.stringify(contract)})`
+      )
+      runtimeImports.add('mergeUiProps')
+    }
+  }
 
   function processOpening(
     opening: JSXOpeningElement,
@@ -256,11 +310,19 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     const existingDataUi = info.attributes.get('data-ui')
     const isIntrinsicElement = /^[a-z]/.test(info.element)
-    const forwardsDomAttributes = ['data-testid', 'id', 'role'].some((name) => info.attributes.has(name))
-    if (!isIntrinsicElement && !existingDataUi && !forwardsDomAttributes) return parentSemanticId
+    if (!isIntrinsicElement) {
+      if (
+        existingDataUi?.value &&
+        !existingDataUi.dynamic &&
+        info.spreads.length > 0 &&
+        options.contractForDescriptor
+      ) {
+        injectDataUi(opening, existingDataUi, existingDataUi.value)
+      }
+      return parentSemanticId
+    }
     if (insideSvg && info.element !== 'svg' && !hasSvgContractOptIn(info)) return parentSemanticId
     const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
-    if (existingDataUi?.dynamic && !dynamicSemanticId) return parentSemanticId
 
     const explicitId = explicitSemanticId(existingDataUi) ?? dynamicSemanticId
     const semanticId =
@@ -302,27 +364,16 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     const contract = options.contractForDescriptor?.(descriptor)
     if (!contract) return semanticId
-    const value = mergeDataUi(existingDataUi?.value, contract.semanticId, contract.id)
-    if (
-      existingDataUi?.dynamic &&
-      existingDataUi.attribute?.value?.type === 'JSXExpressionContainer' &&
-      existingDataUi.attribute.value.expression.type === 'CallExpression'
-    ) {
-      const expression = existingDataUi.attribute.value.expression
-      const expressionSource = source.slice(
-        spanToCharacter(expression.span.start),
-        spanToCharacter(expression.span.end)
-      )
-      const replacement = attributeReplacement(source, existingDataUi.attribute, value, spanToCharacter)
-      replacement.value = `data-ui={[${expressionSource}, ${JSON.stringify(`id:${contract.id}`)}].filter(Boolean).join(' ')}`
-      magicString.overwrite(replacement.start, replacement.end, replacement.value)
-    } else if (existingDataUi?.attribute) {
-      const replacement = attributeReplacement(source, existingDataUi.attribute, value, spanToCharacter)
-      magicString.overwrite(replacement.start, replacement.end, replacement.value)
-    } else {
-      magicString.appendLeft(spanToCharacter(opening.span.end) - 1, ` data-ui=${JSON.stringify(value)}`)
-    }
+    const staticDataUi = existingDataUi?.dynamic ? undefined : existingDataUi?.value
+    injectDataUi(opening, existingDataUi, mergeDataUi(staticDataUi, contract.semanticId, contract.id))
     return semanticId
+  }
+
+  function hasAsChildAttribute(opening: JSXOpeningElement): boolean {
+    return opening.attributes.some(
+      (attribute) =>
+        attribute.type === 'JSXAttribute' && attribute.name.type === 'Identifier' && attribute.name.value === 'asChild'
+    )
   }
 
   function walk(value: unknown, component: string, parentSemanticId?: string, insideSvg = false): void {
@@ -338,6 +389,19 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       const element = jsxName(opening.name)
       const semanticId = processOpening(opening, nestedComponent, parentSemanticId, insideSvg)
       const childrenInsideSvg = element === 'foreignObject' ? false : insideSvg || element === 'svg'
+      if (
+        options.contractForDescriptor &&
+        !/^[a-z]/.test(element) &&
+        hasAsChildAttribute(opening) &&
+        Array.isArray(value.children) &&
+        value.children.length > 0 &&
+        isRecord(value.closing) &&
+        value.closing.span
+      ) {
+        magicString.appendLeft(spanToCharacter(opening.span.end), `<${RUNTIME_SLOT}>`)
+        magicString.appendLeft(spanToCharacter(value.closing.span.start), `</${RUNTIME_SLOT}>`)
+        runtimeImports.add('UiDataSlot')
+      }
       if (Array.isArray(value.children)) walk(value.children, nestedComponent, semanticId, childrenInsideSvg)
       for (const attribute of opening.attributes) {
         if (attribute.type === 'JSXAttribute' && attribute.value?.type === 'JSXExpressionContainer') {
@@ -354,6 +418,31 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   }
 
   walk(module, defaultComponentName(options.sourceFile))
+
+  if (options.contractForDescriptor && runtimeImports.size > 0) {
+    const imports = [...runtimeImports]
+      .sort()
+      .map((name) => {
+        if (name === 'mergeDataUi') return `mergeDataUi as ${RUNTIME_MERGE_DATA_UI}`
+        if (name === 'mergeUiProps') return `mergeUiProps as ${RUNTIME_MERGE_UI_PROPS}`
+        return `UiDataSlot as ${RUNTIME_SLOT}`
+      })
+      .join(', ')
+    const statement = `import { ${imports} } from ${JSON.stringify(UI_CONTRACT_RUNTIME_MODULE_ID)}\n`
+    let insertAt = 0
+    for (const item of module.body) {
+      if (
+        item.type !== 'ExpressionStatement' ||
+        !isRecord(item.expression) ||
+        item.expression.type !== 'StringLiteral'
+      ) {
+        break
+      }
+      insertAt = spanToCharacter(item.span.end)
+    }
+    if (insertAt === 0) magicString.prepend(statement)
+    else magicString.appendLeft(insertAt, `\n${statement}`)
+  }
 
   return {
     code: options.contractForDescriptor ? magicString.toString() : source,
@@ -372,8 +461,10 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 interface HtmlTagMatch {
   attributes: Record<string, string>
   end: number
+  index: number
   insideSvg: boolean
   name: string
+  parentIndex?: number
   source: string
   start: number
 }
@@ -381,18 +472,30 @@ interface HtmlTagMatch {
 function htmlTags(source: string): HtmlTagMatch[] {
   const tags: HtmlTagMatch[] = []
   const svgContext: boolean[] = []
+  const parentStack: number[] = []
   const parser = new Parser(
     {
       onopentag(name, attributes) {
         const insideSvg = svgContext.at(-1) ?? false
         svgContext.push(name === 'foreignobject' ? false : insideSvg || name === 'svg')
-        if (SKIPPED_HTML_TAGS.has(name)) return
         const start = parser.startIndex
         const end = parser.endIndex + 1
-        tags.push({ attributes, end, insideSvg, name, source: source.slice(start, end), start })
+        const index = tags.length
+        tags.push({
+          attributes,
+          end,
+          index,
+          insideSvg,
+          name,
+          parentIndex: parentStack.at(-1),
+          source: source.slice(start, end),
+          start
+        })
+        parentStack.push(index)
       },
       onclosetag() {
         svgContext.pop()
+        parentStack.pop()
       }
     },
     { decodeEntities: false, recognizeSelfClosing: true }
@@ -421,13 +524,21 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
   const magicString = new MagicString(source)
   const descriptors: UiNodeDescriptor[] = []
   const occurrences = new Map<string, number>()
-  let parentSemanticId: string | undefined
+  const tags = htmlTags(source)
+  const semanticByTagIndex = new Map<number, string>()
 
-  for (const tag of htmlTags(source)) {
+  for (const tag of tags) {
+    if (SKIPPED_HTML_TAGS.has(tag.name)) continue
     if (htmlAttribute(tag, 'data-slot') !== undefined) {
       throw new Error('data-slot is obsolete; use a part:* token inside data-ui')
     }
     if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
+    let parentIndex = tag.parentIndex
+    let parentSemanticId: string | undefined
+    while (parentIndex !== undefined && parentSemanticId === undefined) {
+      parentSemanticId = semanticByTagIndex.get(parentIndex)
+      parentIndex = tags[parentIndex]?.parentIndex
+    }
     const existing = htmlAttribute(tag, 'data-ui')
     const parts = namespaceTokenValues(existing, 'part')
     const explicitId = existing?.split(/\s+/).find((token) => token && !token.includes(':') && !token.startsWith('id:'))
@@ -452,7 +563,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
         .map(([name, value]) => `${name}=${value}`),
       ...parts.map(stablePartSignature)
     ].join('|')
-    const occurrenceKey = `${semanticId}\0${tag.name}\0${signature}`
+    const occurrenceKey = `${semanticId}\0${tag.name}\0${signature}\0${parentSemanticId ?? ''}`
     const occurrence = occurrences.get(occurrenceKey) ?? 0
     occurrences.set(occurrenceKey, occurrence + 1)
     const hashes = createDescriptorHashes({
@@ -475,14 +586,11 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
       sourceOffset: tag.start
     }
     descriptors.push(descriptor)
-    parentSemanticId = semanticId
+    semanticByTagIndex.set(tag.index, semanticId)
 
     const contract = options.contractForDescriptor?.(descriptor)
     if (!contract) continue
-    const rootTokens =
-      tag.name === 'body'
-        ? ` scope:window:${identifierWords(options.windowName).join('-')} boundary:app theme:custom`
-        : ''
+    const rootTokens = tag.name === 'body' ? ` scope:window:${identifierWords(options.windowName).join('-')}` : ''
     const value = `${mergeDataUi(existing, contract.semanticId, contract.id)}${rootTokens}`
     if (existing !== undefined) {
       const attribute = tag.source.match(/\sdata-ui\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i)
