@@ -475,16 +475,14 @@ export class BinaryManager extends BaseService {
             ? { source: 'system', path: system[name] }
             : { source: 'none' }
       const operation = operations[name]
-      // A failed install for a tool that is now usable out-of-band was already
-      // satisfied: a `system` tool the user installed with their own package
-      // manager, or a `bundled` binary that ships with the app. Its failed op is
-      // stale — dropping it avoids a spurious retry over a working tool. Only
-      // `mise` keeps its failed op: that is the "installed but the follow-up step
-      // failed" case whose retry reconciles it. `none` keeps it too — a genuine
-      // install failure the user must still see.
+      // A failed install is stale only when the exact recipe is proven absent
+      // and an out-of-band executable now satisfies the tool. Unknown/broken
+      // application still needs the failure row to explain why Retry made no
+      // change, even if system/bundled availability keeps execution possible.
       const staleFailedInstall =
         operation?.status === 'failed' &&
         operation.action === 'install' &&
+        (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
       snapshots[name] = {
         name,

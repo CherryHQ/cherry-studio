@@ -1632,18 +1632,23 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([])
     })
 
-    it('rejects a name-only install when the backend state cannot be read', async () => {
+    it('keeps a failed operation when backend state is unknown but a system executable is available', async () => {
       const service = makeService()
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') throw new Error('mise ls exploded')
         return { stdout: '', stderr: '' }
       })
 
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('Cannot determine')
-      expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual({
-        status: 'failed',
-        action: 'install',
-        error: 'Cannot determine fd state: query_failed'
+      expect((await service.getToolSnapshots(['fd'])).fd).toMatchObject({
+        availability: { source: 'system', path: '/usr/local/bin/fd' },
+        application: { status: 'unknown', reason: 'query_failed' },
+        operation: {
+          status: 'failed',
+          action: 'install',
+          error: 'Cannot determine fd state: query_failed'
+        }
       })
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
       expect(manifestRef.value).toEqual([])
