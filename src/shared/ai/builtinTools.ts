@@ -123,11 +123,15 @@ export const kbSearchInputSchema = z.object({
     .string()
     .trim()
     .min(2, 'Query must be at least 2 characters')
-    .max(200, 'Query should be concise — break long questions into multiple searches')
+    .max(500, 'Query is too long — keep it under 500 characters')
     .describe(
-      'Self-contained keyword search. MUST NOT use pronouns ("it", "their") or context-dependent ' +
-        'references; expand the topic from earlier messages when the user asks a follow-up. ' +
-        'Examples: ✓ "Cherry Studio MCP cache invalidation", ✗ "its cache".'
+      "Search query. On the FIRST search for a question, use the user's full question verbatim — " +
+        'hybrid retrieval (semantic + keyword) works best on complete natural-language questions. ' +
+        'Only if the first results are insufficient, follow up with keyword rewrites, synonyms, or ' +
+        'sub-questions. MUST be self-contained: no pronouns ("it", "their") or context-dependent ' +
+        'references — expand the topic from earlier messages when the user asks a follow-up. ' +
+        'Examples: ✓ "How does Cherry Studio invalidate its MCP cache?" (verbatim first), ' +
+        '✓ "Cherry Studio MCP cache invalidation" (keyword follow-up), ✗ "its cache".'
     ),
   baseIds: z
     .array(z.string().trim().min(1))

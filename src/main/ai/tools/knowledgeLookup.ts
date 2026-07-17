@@ -76,7 +76,11 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
+Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. On your first search, pass the user's full question verbatim — hybrid retrieval works best on complete natural-language questions; only if the first results are insufficient, refine with keyword rewrites, synonyms, or sub-questions. You may call this multiple times with refined queries or different baseIds.
+
+Coverage: when a question spans multiple entities, or asks for a project-level roundup or an exhaustive answer ("all", "which projects", "each …"), first list the entities or sub-questions it requires, then search for each one separately until every one has evidence or you have confirmed the knowledge base does not cover it — do not stop at the first batch of relevant results.
+
+Cite sources by [id] in your final answer.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
