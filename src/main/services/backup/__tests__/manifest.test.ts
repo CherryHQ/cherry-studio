@@ -99,4 +99,17 @@ describe('manifest round-trip', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('readManifest rejects an unsafe skill folderName', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-manifest-'))
+    try {
+      const p = join(dir, 'manifest.json')
+      const bad = { ...SAMPLE, skills: { folders: [{ folderName: '../escape', contentHash: 'hash' }] } }
+      await writeFile(p, `${JSON.stringify(bad, null, 2)}\n`, 'utf8')
+
+      await expect(readManifest(p)).rejects.toThrow()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })

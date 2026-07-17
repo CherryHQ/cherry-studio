@@ -11,6 +11,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import type { ExportResourceDegradation } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { SafeNameSchema } from '@shared/data/types/file'
 import * as z from 'zod'
 
 import type { BackupPreset } from './presets'
@@ -111,7 +112,12 @@ const manifestSchema = z.object({
   // produced before this change still parses (BACKUP_FORMAT_VERSION stays 1).
   skills: z
     .object({
-      folders: z.array(z.object({ folderName: z.string(), contentHash: z.string() }))
+      folders: z.array(
+        z.object({
+          folderName: SafeNameSchema,
+          contentHash: z.string()
+        })
+      )
     })
     .default({ folders: [] }),
   notes: z.object({ paths: z.array(z.string()) }),

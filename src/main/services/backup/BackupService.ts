@@ -61,6 +61,7 @@ import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine } from './merge'
+import { stageRestoreResources } from './stageRestoreResources'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -289,11 +290,10 @@ export class BackupService extends BaseService {
    * fingerprint → staged journal, then retains the JobManager hold for relaunch so the
    * preboot promotion gate (#16884) can swap work.sqlite in before any writer resumes.
    *
-   * Fail-closed in packaged builds: the quiesce + staging deps throw
-   * RestoreQuiesceNotImplementedError / RestoreStagingNotImplementedError so no journal is
-   * written and no relaunch occurs until AI/channel quiesce and resource staging land. In
-   * dev builds the JobManager barrier is real and AI/channel quiesce + resource staging are
-   * explicit no-ops. Mutually exclusive with export (activeOperation).
+   * Fail-closed in packaged builds: incomplete writer quiesce throws before snapshot.
+   * Resource staging currently supports additive SKILLS directories and rejects archives
+   * containing file blobs, knowledge directories, or Notes bodies. Mutually exclusive
+   * with export (activeOperation).
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
@@ -350,15 +350,7 @@ export class BackupService extends BaseService {
           }
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, context)
         },
-        stageFileResources: async () => {
-          if (app.isPackaged) {
-            throw new RestoreStagingNotImplementedError(
-              'restore resource staging is not complete in packaged builds — journal refused'
-            )
-          }
-          // Dev-only placeholder: no file resources are promoted until restore staging lands.
-          return []
-        }
+        stageFileResources: async (resourceMetadata, workDir) => stageRestoreResources(resourceMetadata, workDir)
       })
       await importOrch.importBackup({
         archivePath,

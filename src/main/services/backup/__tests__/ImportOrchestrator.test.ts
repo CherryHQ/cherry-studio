@@ -1,10 +1,9 @@
 // Unit tests for ImportOrchestrator — the restore staging spine.
 //
 // The spine (snapshot → fingerprint → merge → migrate → seal → 2nd fingerprint →
-// journal) is exercised end-to-end with no-op stubs for the not-yet-landed tracks
-// (quiesce / merge / file-resource staging). Production wires those deps to throw,
-// keeping restore fail-closed; here they are no-ops so the crash-safety orchestration
-// is testable in isolation.
+// journal) is exercised end-to-end with injected collaborators. Production now
+// supports SKILLS directory staging while incomplete writer quiesce and the other
+// resource kinds remain fail-closed.
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -96,7 +95,7 @@ describe('ImportOrchestrator spine', () => {
     resourceMetadata: { fileIds: [], knowledgeBases: [], skillFolders: [], notePaths: [] }
   })
 
-  /** Build deps with no-op stubs; tests override the unimplemented steps as needed. */
+  /** Build deps with no-op collaborators; tests override individual steps as needed. */
   const makeDeps = (overrides: Partial<ImportOrchestratorDeps> = {}): ImportOrchestratorDeps => ({
     dbService: {
       // Mirror DbService on the live test connection.
@@ -135,11 +134,13 @@ describe('ImportOrchestrator spine', () => {
   })
 
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {
-    const orch = new ImportOrchestrator(makeDeps())
+    const stageFileResources = vi.fn(async () => [])
+    const orch = new ImportOrchestrator(makeDeps({ stageFileResources }))
 
     const result = await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-001' })
 
     expect(result.restoreId).toBe('rst-001')
+    expect(stageFileResources).toHaveBeenCalledWith(makeArchiveContext().resourceMetadata, join(stagingRoot, 'rst-001'))
     const read = readRestoreJournal()
     expect(read.kind).toBe('ok')
     if (read.kind !== 'ok') return

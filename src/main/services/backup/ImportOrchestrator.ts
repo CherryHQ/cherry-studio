@@ -13,9 +13,9 @@
 //  3. db.chain from readAppliedChain(work), never from the bundled migration list.
 //  4. add-target livePaths must not pre-exist (enforced at promotion admission).
 //
-// The merge engine, write-quiesce, and file-resource staging are NOT yet implemented
-// — they are injected as deps so the spine is testable in isolation, with production
-// deps throwing fail-closed (NO journal is written without a real merge + quiesce).
+// The merge engine is implemented; write-quiesce is still incomplete. Resource
+// staging currently supports additive SKILLS directories only and rejects every
+// other resource kind fail-closed.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -74,10 +74,9 @@ export interface ImportBackupResult {
 }
 
 /**
- * Collaborators + unimplemented steps. The three function deps (quiesceWriters /
- * mergeBackupIntoWork / stageFileResources) are the not-yet-landed tracks; production
- * wires them to throwing impls so restore stays unavailable, tests wire no-ops to
- * exercise the spine end-to-end.
+ * Collaborators for the restore pipeline. Function deps keep the crash-safety spine
+ * independently testable while production wires the landed merge and partial resource
+ * staging implementations; incomplete writer quiesce remains fail-closed.
  */
 export interface ImportOrchestratorDeps {
   readonly dbService: DbService
@@ -98,15 +97,13 @@ export interface ImportOrchestratorDeps {
     workDb: DbType,
     context: MergeContext
   ) => Promise<MergeResult>
-  /** Stage file resources; return journal entries. Return [] until staging lands (safe — nothing to promote). */
-  readonly stageFileResources: () => Promise<RestoreJournal['fileResources']>
+  /** Stage admitted resources and return preboot-promotion journal entries. */
+  readonly stageFileResources: (
+    resourceMetadata: ArchiveContext['resourceMetadata'],
+    workDir: string
+  ) => Promise<RestoreJournal['fileResources']>
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
   readonly journalPath: string
-}
-
-/** RestoreId must be a safe basename — it becomes a directory under the staging root. */
-function isSafeBasename(id: string): boolean {
-  return /^[a-zA-Z0-9_-]{1,128}$/.test(id) && !id.includes('..') && id !== '.' && id !== '..'
 }
 
 export class ImportOrchestrator {
@@ -119,7 +116,7 @@ export class ImportOrchestrator {
    * (the startup GC is the backstop if cleanup itself crashes — see plan (h)).
    */
   async importBackup(options: ImportBackupOptions): Promise<ImportBackupResult> {
-    if (!isSafeBasename(options.restoreId)) {
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(options.restoreId)) {
       throw new Error(`importBackup: invalid restoreId (must be a safe basename): ${options.restoreId}`)
     }
     this.assertNotCancelled(options)
@@ -179,8 +176,9 @@ export class ImportOrchestrator {
       workSqlite.pragma('journal_mode = DELETE')
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
-      // Merge only from the admitted backup database. File resources are deliberately
-      // unavailable in the dev-only path, so no file_entry roots are skipped here yet.
+      // Merge only from the admitted backup database. Blob staging is still unavailable,
+      // so no file_entry roots are skipped here yet; archives containing blobs fail in
+      // the resource stage below and never produce a journal.
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
       const mergeResult = await this.deps.mergeBackupIntoWork(workSqlite, workDb, {
         backupDbPath: archiveContext.backupDbPath,
@@ -211,12 +209,13 @@ export class ImportOrchestrator {
       this.assertSealed(workPath)
       this.assertNotCancelled(options)
 
-      // (e) Stage file resources → journal entries. Empty until the staging track lands.
+      // (e) Stage admitted resources → journal entries. SKILLS directory adds are
+      // supported; other resource kinds remain fail-closed.
       // Staging+sealing runs BEFORE the 2nd fingerprint so the fingerprint is the last async
       // check before the synchronous journal write (plan (c) 时序: work seal → resource seal →
       // 2nd fingerprint → journal).
       this.emit(options, 'stage', 0, 1, 'staging file resources')
-      const fileResources = await this.deps.stageFileResources()
+      const fileResources = await this.deps.stageFileResources(archiveContext.resourceMetadata, workDir)
       this.assertNotCancelled(options)
 
       // (c) Second fingerprint — the LAST async check before the journal write. Re-capture live

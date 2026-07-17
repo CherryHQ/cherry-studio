@@ -91,9 +91,9 @@ export class RestoreQuiesceNotImplementedError extends Error {
 }
 
 /**
- * Thrown by the restore file-resource staging step when no staging implementation is wired
- * (packaged build — staging lands with the prod restore path). Dev restores return [] from the
- * stageFileResources dep so the spine can complete end-to-end without file-resource promotion.
+ * Thrown by restore resource staging when an archive contains a resource kind whose
+ * consistency/promotion policy has not landed. SKILLS directory adds are supported;
+ * file blobs, knowledge directories, and Notes remain fail-closed.
  */
 export class RestoreStagingNotImplementedError extends Error {
   constructor(message = 'restore file-resource staging not implemented (plan (e)) — journal refused') {
