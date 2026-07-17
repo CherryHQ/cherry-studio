@@ -6181,7 +6181,8 @@
           "downloading": "下载中…",
           "ready": "已就绪"
         },
-        "title": "本地模型"
+        "title": "本地模型",
+        "unsupported": "当前平台不支持本地模型。"
       },
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
@@ -6655,10 +6656,10 @@
       "user": "用户"
     },
     "menuGroups": {
-      "automation": "自动化",
-      "capabilities": "能力与工具",
+      "automation": "效率",
+      "capabilities": "工具",
       "models": "模型",
-      "personal": "个人",
+      "personal": "偏好",
       "quickAccess": "快捷入口",
       "system": "系统"
     },

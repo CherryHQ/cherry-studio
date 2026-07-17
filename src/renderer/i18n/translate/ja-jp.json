@@ -6100,7 +6100,8 @@
           "downloading": "ダウンロード中…",
           "ready": "準備完了"
         },
-        "title": "ローカルモデル"
+        "title": "ローカルモデル",
+        "unsupported": "このプラットフォームではローカルモデルはサポートされていません。"
       },
       "notInstalled": "インストールされていません",
       "openBinariesDir": "Open binaries directory",
@@ -6574,10 +6575,10 @@
       "user": "ユーザー"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "機能とツール",
+      "automation": "効率",
+      "capabilities": "ツール",
       "models": "モデル",
-      "personal": "個人",
+      "personal": "環境設定",
       "quickAccess": "クイックアクセス",
       "system": "システム"
     },

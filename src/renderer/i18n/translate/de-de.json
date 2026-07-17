@@ -6100,7 +6100,8 @@
           "downloading": "Herunterladen…",
           "ready": "Bereit"
         },
-        "title": "Lokale Modelle"
+        "title": "Lokale Modelle",
+        "unsupported": "Lokale Modelle werden auf dieser Plattform nicht unterstützt."
       },
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "Open binaries directory",
@@ -6574,10 +6575,10 @@
       "user": "Benutzer"
     },
     "menuGroups": {
-      "automation": "Automatisierung",
-      "capabilities": "Fähigkeiten & Tools",
+      "automation": "Effizienz",
+      "capabilities": "Tools",
       "models": "Modelle",
-      "personal": "Persönlich",
+      "personal": "Präferenzen",
       "quickAccess": "Schneller Zugriff",
       "system": "System"
     },
