@@ -133,7 +133,7 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
-export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
+export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
 // Sortable
 export {
   CompositeInput,
