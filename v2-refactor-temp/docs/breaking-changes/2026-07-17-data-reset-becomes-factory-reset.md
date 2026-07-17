@@ -25,8 +25,11 @@ consequences, and the wipe happens during the restart that follows confirmation.
 
 ## What the user should do
 
-Back up (Settings → Data → Backup) before using Factory Reset. There is no way
-to undo it afterwards.
+There is no way to undo a factory reset, and v2's built-in backup is not
+available yet — the Settings → Data → Backup controls are currently disabled
+(`BACKUP_V2_READY = false`). To keep a copy of your data, open the data
+directory (Settings → Data → App Data → "Open Directory"), quit the app, and
+copy that directory somewhere safe before running Factory Reset.
 
 ## Notes for release manager
 
