@@ -22,8 +22,9 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
     ? {
         width: `${displayConfig.scale * 100}%`,
         height: `${displayConfig.scale * 100}%`,
-        borderRadius: `${displayConfig.borderRadius}px`,
-        overflow: 'hidden'
+        flexShrink: 0,
+        borderRadius: displayConfig.borderRadius === undefined ? undefined : `${displayConfig.borderRadius}px`,
+        overflow: displayConfig.borderRadius === undefined ? undefined : 'hidden'
       }
     : undefined
   // Preset providers render the bundled icon; custom providers carry either a
