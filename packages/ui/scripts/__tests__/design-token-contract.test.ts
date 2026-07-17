@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { CANONICAL_COLOR_TOKENS } from '../build-theme-css'
+import { CHERRY_PRODUCT_COLOR_TOKENS, SHADCN_COLOR_TOKENS } from '../build-theme-css'
 
 const STYLES_DIR = path.resolve(import.meta.dirname, '../../src/styles')
 const MIGRATION_STRATEGIES = new Set(['exact', 'contextual', 'review', 'preserve'])
@@ -22,21 +22,34 @@ interface MigrationRegistry {
 }
 
 describe('design token contract', () => {
-  it('defines every canonical color without depending on adapter or app variables', async () => {
-    const source = await fs.readFile(path.join(STYLES_DIR, 'shadcn.css'), 'utf8')
+  it('separates official Shadcn colors from Cherry Studio product colors', async () => {
+    const [shadcnSource, semanticSource, statusSource] = await Promise.all([
+      fs.readFile(path.join(STYLES_DIR, 'shadcn.css'), 'utf8'),
+      fs.readFile(path.join(STYLES_DIR, 'tokens/colors/semantic.css'), 'utf8'),
+      fs.readFile(path.join(STYLES_DIR, 'tokens/colors/status.css'), 'utf8')
+    ])
+    const productSource = `${semanticSource}\n${statusSource}`
 
-    for (const token of CANONICAL_COLOR_TOKENS) {
-      expect(source).toMatch(new RegExp(`^\\s*--${token}:`, 'm'))
+    for (const token of SHADCN_COLOR_TOKENS) {
+      expect(shadcnSource).toMatch(new RegExp(`^\\s*--${token}:`, 'm'))
     }
 
-    expect(source).not.toContain('var(--color-')
-    expect(source).not.toContain('var(--app-')
+    for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
+      expect(productSource).toMatch(new RegExp(`^\\s*--cs-${token}:`, 'm'))
+      expect(shadcnSource).not.toMatch(new RegExp(`^\\s*--${token}:`, 'm'))
+    }
+
+    expect(shadcnSource).not.toContain('var(--color-')
+    expect(shadcnSource).not.toContain('var(--app-')
   })
 
   it('keeps the migration registry deterministic and machine-readable', async () => {
     const source = await fs.readFile(path.join(STYLES_DIR, 'migrations/shadcn-v2.json'), 'utf8')
     const registry = JSON.parse(source) as MigrationRegistry
-    const canonicalTokenNames = new Set<string>(CANONICAL_COLOR_TOKENS)
+    const canonicalVariableNames = new Set<string>([
+      ...SHADCN_COLOR_TOKENS.map((token) => `--${token}`),
+      ...CHERRY_PRODUCT_COLOR_TOKENS.map((token) => `--cs-${token}`)
+    ])
     const sourceNames = registry.rules.map((rule) => rule.source)
 
     expect(registry.version).toBe(1)
@@ -54,7 +67,7 @@ describe('design token contract', () => {
 
       if (rule.target) {
         expect(rule.target).toMatch(/^--[a-z0-9-]+$/)
-        expect(canonicalTokenNames.has(rule.target.slice(2))).toBe(true)
+        expect(canonicalVariableNames.has(rule.target)).toBe(true)
       }
     }
   })

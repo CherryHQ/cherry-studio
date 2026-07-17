@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename)
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
-export const CANONICAL_COLOR_TOKENS = [
+export const SHADCN_COLOR_TOKENS = [
   'background',
   'foreground',
   'card',
@@ -40,7 +40,10 @@ export const CANONICAL_COLOR_TOKENS = [
   'sidebar-accent',
   'sidebar-accent-foreground',
   'sidebar-border',
-  'sidebar-ring',
+  'sidebar-ring'
+] as const
+
+export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'background-subtle',
   'border-subtle',
   'border-strong',
@@ -153,8 +156,8 @@ function toPrefixedMappings(tokenNames: string[], targetPrefix: string, sourcePr
   return tokenNames.map((tokenName) => `--${targetPrefix}${tokenName}: var(${sourcePrefix}${tokenName});`)
 }
 
-function toCanonicalColorMappings(tokenNames: readonly string[]): string[] {
-  return tokenNames.map((tokenName) => `--color-${tokenName}: var(--${tokenName});`)
+function toColorMappings(tokenNames: readonly string[], sourcePrefix = '--'): string[] {
+  return tokenNames.map((tokenName) => `--color-${tokenName}: var(${sourcePrefix}${tokenName});`)
 }
 
 function toDirectMappings(tokenNames: string[], sourcePrefix = '--cs-'): string[] {
@@ -168,13 +171,14 @@ function buildSection(title: string, lines: string[]): string {
 }
 
 export function buildThemeContractCss(inputs: ThemeContractInputs): string {
-  const canonicalTokenNames = new Set<string>(CANONICAL_COLOR_TOKENS)
+  const canonicalTokenNames = new Set<string>([...SHADCN_COLOR_TOKENS, ...CHERRY_PRODUCT_COLOR_TOKENS])
   const compatibilitySemanticTokens = inputs.semanticColors.filter((token) => !canonicalTokenNames.has(token))
   const compatibilityStatusTokens = inputs.statusColors.filter((token) => !canonicalTokenNames.has(token))
 
   const sections = [
     buildSection('Compatibility: Primitive Colors', toPrefixedMappings(inputs.primitiveColors, 'color-')),
-    buildSection('Canonical Semantic Colors', toCanonicalColorMappings(CANONICAL_COLOR_TOKENS)),
+    buildSection('Canonical Shadcn Colors', toColorMappings(SHADCN_COLOR_TOKENS)),
+    buildSection('Cherry Studio Product Colors', toColorMappings(CHERRY_PRODUCT_COLOR_TOKENS, '--cs-')),
     buildSection('Compatibility: Existing Semantic Colors', [
       ...COMPATIBILITY_SEMANTIC_LINES,
       ...toPrefixedMappings(compatibilitySemanticTokens, 'color-')

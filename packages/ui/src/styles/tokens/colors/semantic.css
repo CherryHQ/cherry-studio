@@ -36,6 +36,7 @@
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
   --cs-frame-border: oklch(0 0 0 / 0.12);
+  --cs-border-strong: var(--cs-border-hover);
 
   /* Ring (Focus) */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);

@@ -2,7 +2,12 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildThemeContractCss, CANONICAL_COLOR_TOKENS, loadThemeContractInputs } from '../build-theme-css'
+import {
+  buildThemeContractCss,
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  loadThemeContractInputs,
+  SHADCN_COLOR_TOKENS
+} from '../build-theme-css'
 
 describe('buildThemeContractCss', () => {
   it('maps token sources into the public theme contract', async () => {
@@ -21,14 +26,15 @@ describe('buildThemeContractCss', () => {
     expect(css).not.toContain('--ring: var(--color-ring);')
     expect(css).toContain('--color-neutral-50: var(--cs-neutral-50);')
     expect(css).toContain('--color-brand-500: var(--cs-brand-500);')
-    expect(css).toContain('/* Canonical Semantic Colors */')
+    expect(css).toContain('/* Canonical Shadcn Colors */')
+    expect(css).toContain('/* Cherry Studio Product Colors */')
     expect(css).toContain('--color-background: var(--background);')
     expect(css).toContain('--color-primary: var(--primary);')
     expect(css).toContain('--color-muted-foreground: var(--muted-foreground);')
     expect(css).toContain('--color-chart-5: var(--chart-5);')
     expect(css).toContain('--color-sidebar-ring: var(--sidebar-ring);')
-    expect(css).toContain('--color-success-subtle: var(--success-subtle);')
-    expect(css).toContain('--color-error-border: var(--error-border);')
+    expect(css).toContain('--color-success-subtle: var(--cs-success-subtle);')
+    expect(css).toContain('--color-error-border: var(--cs-error-border);')
     expect(css).toContain('--color-ring: var(--ring);')
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')
@@ -46,8 +52,12 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('@keyframes checkbox-icon-in {')
     expect(css).not.toContain('.dark {')
 
-    for (const token of CANONICAL_COLOR_TOKENS) {
+    for (const token of SHADCN_COLOR_TOKENS) {
       expect(css).toContain(`--color-${token}: var(--${token});`)
+    }
+
+    for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
+      expect(css).toContain(`--color-${token}: var(--cs-${token});`)
     }
   })
 })

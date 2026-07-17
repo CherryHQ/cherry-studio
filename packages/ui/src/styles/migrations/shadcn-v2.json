@@ -61,11 +61,9 @@
     },
     { "source": "--cs-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
     { "source": "--cs-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
-    { "source": "--cs-background-subtle", "target": "--background-subtle", "strategy": "exact" },
-    { "source": "--cs-border-subtle", "target": "--border-subtle", "strategy": "exact" },
     {
       "source": "--cs-border-hover",
-      "target": "--border-strong",
+      "target": "--cs-border-strong",
       "strategy": "contextual",
       "contexts": ["border-color"],
       "reason": "Hover-state usage must remain a component state instead of becoming a static strong border."
@@ -77,16 +75,20 @@
       "contexts": ["color", "fill", "stroke"],
       "reason": "The old token mixes tertiary content with disabled component state."
     },
-    { "source": "--cs-error-base", "target": "--error", "strategy": "exact" },
-    { "source": "--cs-error-text", "target": "--error-subtle-foreground", "strategy": "exact" },
-    { "source": "--cs-error-bg", "target": "--error-subtle", "strategy": "exact" },
-    { "source": "--cs-error-border", "target": "--error-border", "strategy": "exact" },
-    { "source": "--cs-success-base", "target": "--success", "strategy": "exact" },
-    { "source": "--cs-success-bg", "target": "--success-subtle", "strategy": "exact" },
-    { "source": "--cs-warning-base", "target": "--warning", "strategy": "exact" },
-    { "source": "--cs-warning-bg", "target": "--warning-subtle", "strategy": "exact" },
-    { "source": "--cs-info-base", "target": "--info", "strategy": "exact" },
-    { "source": "--cs-info-bg", "target": "--info-subtle", "strategy": "exact" },
+    { "source": "--cs-error-base", "target": "--cs-error", "strategy": "exact" },
+    { "source": "--cs-error-text", "target": "--cs-error-subtle-foreground", "strategy": "exact" },
+    { "source": "--cs-error-bg", "target": "--cs-error-subtle", "strategy": "exact" },
+    { "source": "--cs-success-base", "target": "--cs-success", "strategy": "exact" },
+    { "source": "--cs-success-bg", "target": "--cs-success-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-warning-base",
+      "target": "--cs-warning",
+      "strategy": "contextual",
+      "reason": "The legacy light-mode base uses amber-400 while the product warning token uses amber-500."
+    },
+    { "source": "--cs-warning-bg", "target": "--cs-warning-subtle", "strategy": "exact" },
+    { "source": "--cs-info-base", "target": "--cs-info", "strategy": "exact" },
+    { "source": "--cs-info-bg", "target": "--cs-info-subtle", "strategy": "exact" },
     { "source": "--color-text-1", "target": "--foreground", "strategy": "exact" },
     { "source": "--color-text", "target": "--foreground", "strategy": "exact" },
     {
@@ -112,31 +114,31 @@
     },
     {
       "source": "--color-background-soft",
-      "target": "--background-subtle",
+      "target": "--cs-background-subtle",
       "strategy": "contextual",
       "contexts": ["background", "background-color"],
       "reason": "The legacy color-mix value is not identical to the canonical subtle surface."
     },
     {
       "source": "--color-border-soft",
-      "target": "--border-subtle",
+      "target": "--cs-border-subtle",
       "strategy": "contextual",
       "contexts": ["border", "border-color"],
       "reason": "Confirm the resolved alpha and underlying surface."
     },
     {
       "source": "--color-border-mute",
-      "target": "--border-subtle",
+      "target": "--cs-border-subtle",
       "strategy": "contextual",
       "contexts": ["border", "border-color"],
       "reason": "Confirm the resolved alpha and underlying surface."
     },
-    { "source": "--color-error", "target": "--error", "strategy": "exact" },
+    { "source": "--color-error", "target": "--cs-error", "strategy": "exact" },
     { "source": "--color-bg-base", "target": "--background", "strategy": "exact" },
     { "source": "--modal-background", "target": "--card", "strategy": "exact" },
-    { "source": "--color-status-success", "target": "--success", "strategy": "exact" },
-    { "source": "--color-status-error", "target": "--error", "strategy": "exact" },
-    { "source": "--color-status-warning", "target": "--warning", "strategy": "exact" },
+    { "source": "--color-status-success", "target": "--cs-success", "strategy": "exact" },
+    { "source": "--color-status-error", "target": "--cs-error", "strategy": "exact" },
+    { "source": "--color-status-warning", "target": "--cs-warning", "strategy": "exact" },
     {
       "source": "--app-muted-foreground",
       "target": "--muted-foreground",
