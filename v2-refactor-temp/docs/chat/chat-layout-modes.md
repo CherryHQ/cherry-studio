@@ -58,8 +58,8 @@ the first resource tab through `ResourcePaneProvider` / `useResourcePane`.
   right opens both the left owner rail and the right resource list by default.
 - Manually closing the right pane stores an explicit override, matching the left
   rail's re-entry behavior.
-- The right panel shares the existing Shell right-pane chrome with branch, trace,
-  files, status, and flow tabs.
+- The right panel shares the existing RightPanel chrome with branch, trace,
+  files, status, and flow panels.
 - Right-panel topic/session lists stay time-grouped and do not write the left
   list's display-mode collapse state.
 

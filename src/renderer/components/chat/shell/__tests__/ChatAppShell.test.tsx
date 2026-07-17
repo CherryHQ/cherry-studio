@@ -35,6 +35,10 @@ const persistCacheMock = vi.hoisted(() => {
   }
 })
 
+const rightPanelStateMock = vi.hoisted(() => ({
+  current: undefined as { layoutAnimationPending: boolean; presentationMaximized: boolean } | undefined
+}))
+
 vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
@@ -45,6 +49,10 @@ vi.mock('@data/hooks/useCache', () => ({
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('../../panes/Shell', () => ({
+  useOptionalRightPanelState: () => rightPanelStateMock.current
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -82,6 +90,7 @@ vi.mock('motion/react', () => {
 
 describe('ChatAppShell', () => {
   beforeEach(() => {
+    rightPanelStateMock.current = undefined
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1200,
@@ -167,6 +176,20 @@ describe('ChatAppShell', () => {
 
     // Sibling of the center (same wrapper) so it overlays exactly the center box.
     expect(overlayHost?.parentElement).toBe(chatMain?.parentElement)
+  })
+
+  it('releases the center stacking context while the right panel is maximized', () => {
+    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized: true }
+
+    const { container } = render(
+      <ChatAppShell centerClassName="transform-[translateZ(0)]" main={<div data-testid="main" />} />
+    )
+
+    expect(container.querySelector('[data-chat-app-shell-center]')).toHaveClass(
+      'transform-[translateZ(0)]',
+      '!transform-none',
+      '!will-change-auto'
+    )
   })
 
   it('keeps the pane mounted when keyed center content changes', () => {

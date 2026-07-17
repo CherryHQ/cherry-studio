@@ -168,8 +168,7 @@ const SelectionToolbarView = ({
       ref={ref}
       className={cn(
         'box-border inline-flex select-none flex-row items-stretch overflow-hidden font-[var(--font-family-body)]',
-        '[background:var(--selection-toolbar-background,rgb(245_245_245_/_0.95))]',
-        'dark:[background:var(--selection-toolbar-background,rgb(20_20_20_/_0.95))]',
+        '[background:var(--selection-toolbar-background,var(--color-card))]',
         '[border-radius:var(--selection-toolbar-border-radius,10px)]',
         '[border:var(--selection-toolbar-border,0)]',
         '[box-shadow:var(--selection-toolbar-box-shadow,0_2px_3px_rgb(50_50_50_/_0.1))]',

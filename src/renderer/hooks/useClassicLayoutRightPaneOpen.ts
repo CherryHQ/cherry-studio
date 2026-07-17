@@ -16,7 +16,8 @@ type ClassicLayoutPaneOpenSetter = (open: boolean, options?: { force?: boolean }
 /**
  * Classic-layout right-pane state, cached independently for Chat and Agent. A null override delegates
  * to the page's position-derived default; an explicit boolean preserves the user's choice across page
- * re-entry. Outside classic layout the pane is derived closed and normal writes are ignored.
+ * re-entry and seeds the stable AgentChat shell. Outside classic layout the pane is derived closed and
+ * normal writes are ignored.
  */
 export function useClassicLayoutRightPaneOpen(
   surface: 'chat' | 'agent',
