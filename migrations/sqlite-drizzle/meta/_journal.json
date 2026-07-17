@@ -165,15 +165,8 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1784269926969,
-      "tag": "0023_goofy_kat_farrell",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "6",
-      "when": 1784269935242,
-      "tag": "0024_fixed_fixer",
+      "when": 1784270529294,
+      "tag": "0023_last_mac_gargan",
       "breakpoints": true
     }
   ],

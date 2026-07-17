@@ -1,0 +1,1 @@
+ALTER TABLE `assistant` ADD `group_id` text REFERENCES group(id);
