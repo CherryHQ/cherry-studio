@@ -480,7 +480,7 @@ const AppearanceSettings: FC = () => {
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
                 triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] overflow-y-auto"
+                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
             </div>
           </SelectRow>
@@ -504,7 +504,7 @@ const AppearanceSettings: FC = () => {
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
                 triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] overflow-y-auto"
+                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
             </div>
           </SelectRow>

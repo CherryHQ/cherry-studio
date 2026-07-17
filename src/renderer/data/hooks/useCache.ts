@@ -11,7 +11,9 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
 import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { isPlainObject } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
 
 const logger = loggerService.withContext('useCache')
 
@@ -311,13 +313,17 @@ export function useSharedCache<K extends SharedCacheKey>(
   initValue?: InferSharedCacheValue<K>
 ): [InferSharedCacheValue<K>, (value: CacheSetStateAction<InferSharedCacheValue<K>>) => void] {
   /**
-   * Subscribe to shared cache changes using React's useSyncExternalStore
-   * This ensures the component re-renders when the shared cache value changes
+   * Subscribe to shared cache changes using React's useSyncExternalStore.
+   * This ensures the component re-renders when the shared cache value changes.
+   * The snapshot is the pure physical reader (getSharedSnapshot): an
+   * external-store getSnapshot must not mutate the store or flip with time —
+   * the TTL-aware, lazily-evicting getShared stays reserved for imperative
+   * reads and the setter's functional updater.
    */
   const value = useSyncExternalStore(
     useCallback((callback) => cacheService.subscribe(key, callback), [key]),
-    useCallback(() => cacheService.getShared(key), [key]),
-    useCallback(() => cacheService.getShared(key), [key]) // SSR snapshot
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]),
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]) // SSR snapshot
   )
 
   /**
@@ -387,6 +393,238 @@ export function useSharedCache<K extends SharedCacheKey>(
   )
 
   return [value ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>), setValue]
+}
+
+/**
+ * React hook for READ-ONLY observation of a cross-window shared cache key.
+ *
+ * Use this whenever the window only displays a value that another process owns
+ * (typically a main service publishing via `setShared`). Unlike `useSharedCache`,
+ * mounting it has zero side effects on the cache:
+ * - never writes the schema default back (a writable hook mounting during the
+ *   "owner hasn't published yet" race materializes the default, broadcasts it
+ *   to every window, and can clobber the owner's real value)
+ * - never pins the key against deletion (no `registerHook`)
+ * - returns no setter and accepts no `initValue`/TTL
+ *
+ * Snapshot semantics: reads the local physical mirror via `getSharedSnapshot`
+ * (event-driven, no TTL evaluation, no store mutation). Returns `undefined`
+ * when the key is physically absent or after the owner's deletion tombstone
+ * arrives; an expired entry may briefly retain its old value until Main's
+ * lazy cleanup / GC broadcasts the tombstone (eventual consistency — see
+ * cache-overview.md).
+ *
+ * Fallbacks are the consumer's job: apply `?? fallback` with a REFERENCE-STABLE
+ * default — a module-level const for objects/arrays, or an unconditionally
+ * evaluated `useMemo` when the default depends on props. Never place a hook
+ * call on the right side of `??` (conditional hook call).
+ *
+ * @param key - Cache key from the predefined schema (fixed or matching template)
+ * @returns The observed value, or undefined when physically absent
+ *
+ * @example
+ * ```typescript
+ * const EMPTY_PROGRESS: JobProgress = { progress: 0 }
+ *
+ * function useJobProgress(jobId: string): JobProgress {
+ *   return useSharedCacheValue(`jobs.progress.${jobId}` as const) ?? EMPTY_PROGRESS
+ * }
+ * ```
+ */
+export function useSharedCacheValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+  return useSyncExternalStore(
+    useCallback((callback) => cacheService.subscribe(key, callback), [key]),
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]),
+    useCallback(() => cacheService.getSharedSnapshot(key), [key]) // SSR snapshot
+  )
+}
+
+// ============================================================================
+// Multi-key Selector (Shared)
+// ============================================================================
+
+/**
+ * Values tuple delivered to a `useSharedCacheSelector` selector: same order as
+ * `keys`, each entry typed precisely from the schema, `undefined` when the key
+ * is physically absent. Not exported: inline selectors get it inferred, and
+ * the migrated out-of-line selectors type their parameters directly.
+ */
+type SharedCacheValues<Keys extends readonly SharedCacheKey[]> = {
+  readonly [Index in keyof Keys]: Keys[Index] extends SharedCacheKey
+    ? InferSharedCacheValue<Keys[Index]> | undefined
+    : never
+}
+
+/**
+ * Default selection comparator for `useSharedCacheSelector`. File-private:
+ * the hook applies it by default, so no consumer needs to import it — its
+ * contract is locked through the hook's behavior tests.
+ *
+ * Promise: `Object.is` on the selections themselves, plus one level of
+ * item-wise `Object.is` for arrays and plain objects (own enumerable string
+ * keys). Anything else — `Map`, `Set`, class instances, nested structural
+ * equality — is deliberately NOT handled and compares unequal: pass an
+ * explicit domain comparator instead.
+ */
+function shallowEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((item, index) => Object.is(item, b[index]))
+  }
+
+  if (!isPlainObject(a) || !isPlainObject(b)) return false
+
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  return keysA.every(
+    (key) =>
+      Object.hasOwn(b, key) && Object.is((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  )
+}
+
+/**
+ * Joins a keys array into a content-identity dependency string. `\u0000`
+ * cannot appear in the id-derived segments of schema keys (same assumption as
+ * the existing SESSION_ID_SEPARATOR usage), so the join is unambiguous.
+ */
+const CACHE_KEYS_DEP_SEPARATOR = '\u0000'
+
+/**
+ * Tier-agnostic core of the multi-key selector hooks: subscribes the given
+ * keys and projects their physical values into a per-entry reference-stable
+ * values tuple (the base snapshot), then delegates selector memoization and
+ * bail-out to the official `use-sync-external-store/with-selector` — its memo
+ * is private to the current concurrent render, which is the part a hand-rolled
+ * ref-based cache cannot guarantee.
+ *
+ * File-private by design: `useSharedCacheSelector` is its only instantiation
+ * today. If a memory/persist-tier aggregation need appears, add another thin
+ * shell here — do not export this core ahead of that consumer.
+ */
+function useCacheKeysSelector<Values, Selection>(
+  keys: readonly string[],
+  subscribeKey: (key: string, onStoreChange: () => void) => () => void,
+  readKey: (key: string) => unknown,
+  selector: (values: Values) => Selection,
+  isEqual: (a: Selection, b: Selection) => boolean
+): Selection {
+  // Consumers may pass a fresh keys array every render — stabilize on content,
+  // not reference. A content/order change is a snapshot-shape change: it
+  // rebuilds the subscription set and the snapshot closure together, keeping
+  // the subscription set and the snapshot read set the same by construction.
+  const keysDep = keys.join(CACHE_KEYS_DEP_SEPARATOR)
+  const stableKeys = useMemo<readonly string[]>(
+    () => [...keys],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the content identity of `keys`
+    [keysDep]
+  )
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      const disposers = stableKeys.map((key) => subscribeKey(key, onStoreChange))
+      return () => disposers.forEach((dispose) => dispose())
+    },
+    [stableKeys, subscribeKey]
+  )
+
+  // Idempotent base snapshot: reuse the same tuple while every entry is
+  // Object.is-unchanged, create a new tuple as soon as any entry changed.
+  // This satisfies getSnapshot's caching contract (no "getSnapshot should be
+  // cached" warnings) without a store-level version counter.
+  const getSnapshot = useMemo(() => {
+    let cachedValues: readonly unknown[] | undefined
+
+    return () => {
+      const nextValues = stableKeys.map((key) => readKey(key))
+      const prevValues = cachedValues
+      if (
+        prevValues !== undefined &&
+        nextValues.length === prevValues.length &&
+        nextValues.every((value, index) => Object.is(value, prevValues[index]))
+      ) {
+        return prevValues
+      }
+
+      cachedValues = nextValues
+      return nextValues
+    }
+  }, [stableKeys, readKey]) as () => Values
+
+  return useSyncExternalStoreWithSelector(subscribe, getSnapshot, getSnapshot, selector, isEqual)
+}
+
+const subscribeSharedKey = (key: string, onStoreChange: () => void): (() => void) =>
+  cacheService.subscribe(key, onStoreChange)
+
+const readSharedKey = (key: string): unknown => cacheService.getSharedSnapshot(key as SharedCacheKey)
+
+/**
+ * React hook for READ-ONLY aggregate observation of MULTIPLE cross-window
+ * shared cache keys through a selector.
+ *
+ * This is the multi-key sibling of `useSharedCacheValue` — same zero-side-effect
+ * contract (no default write-back, no pin, snapshot via the pure physical read)
+ * — for the cases the Rules of Hooks make impossible with per-key hooks: a
+ * dynamic number of keys whose values must be aggregated into one derived
+ * result (a Record/Map/pair of booleans), not rendered as per-key subtrees.
+ *
+ * Contract:
+ * - `keys` is both the subscription set and the ONLY snapshot read set. The
+ *   selector receives the corresponding values tuple (same order as `keys`,
+ *   `undefined` on physical miss) and must not read `cacheService` itself —
+ *   a key read outside the subscription set would go silently stale.
+ * - No `useMemo` needed around `keys`: the hook stabilizes on content, and a
+ *   content/order change re-subscribes and rebuilds the tuple.
+ * - The values tuple is reference-stable per entry: unchanged entries keep
+ *   their identity, and a fully unchanged tuple keeps ITS identity — while
+ *   the selector/isEqual identities are also stable, the committed selection
+ *   is reused without re-running the selector.
+ * - `selector` and `isEqual` may be inline closures: a changed identity
+ *   re-runs the selector once against the current tuple, then `isEqual`
+ *   decides whether the committed selection (and its reference) is kept.
+ *   Inline selectors are correct but not free — hoist or memoize an
+ *   expensive one. When `isEqual` accepts the fresh selection as equal to
+ *   the committed one, the component does NOT re-render.
+ *
+ * Consumer discipline (violations produce silently wrong or unstable output):
+ * - **Zip-source coherence**: when zipping `values[index]` back with ids or
+ *   entities, derive `keys` and the zip source from the SAME memoized array
+ *   (e.g. one `uniqueIds`) — computing them independently can misalign on
+ *   sort/dedup differences.
+ * - **Reference-stable fallbacks**: a cache-miss fallback object/array inside
+ *   the selector must be a module-level constant (or a stable memo) — never a
+ *   fresh `?? []` / `?? {}` per run, which defeats the shallow comparison.
+ * - `isEqual` defaults to {@link shallowEqual}; `Map`/`Set` or domain-value
+ *   selections need an explicit comparator.
+ *
+ * @param keys - Schema-defined shared cache keys (fixed or template instances)
+ * @param selector - Pure projection from the values tuple to the selection
+ * @param isEqual - Selection comparator gating commit/bail-out (default {@link shallowEqual})
+ * @returns The selected value; its reference is stable while `isEqual` holds
+ *
+ * @example
+ * ```typescript
+ * const EMPTY_TOOLS: McpTool[] = [] // module-level: reference-stable fallback
+ *
+ * function useMcpToolsByServer(serverIds: readonly string[]): Record<string, McpTool[]> {
+ *   const uniqueIds = useMemo(() => Array.from(new Set(serverIds)).sort(), [serverIds])
+ *   return useSharedCacheSelector(
+ *     uniqueIds.map((id) => `mcp.tools.${id}` as const),
+ *     (values) => Object.fromEntries(uniqueIds.map((id, i): [string, McpTool[]] => [id, values[i] ?? EMPTY_TOOLS]))
+ *   )
+ * }
+ * ```
+ */
+export function useSharedCacheSelector<const Keys extends readonly SharedCacheKey[], Selection>(
+  keys: Keys,
+  selector: (values: SharedCacheValues<Keys>) => Selection,
+  isEqual: (a: Selection, b: Selection) => boolean = shallowEqual
+): Selection {
+  return useCacheKeysSelector(keys, subscribeSharedKey, readSharedKey, selector, isEqual)
 }
 
 /**

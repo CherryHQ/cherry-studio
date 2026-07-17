@@ -79,6 +79,7 @@ Three-tier cache system with type-safe methods (and casual/dynamic key methods o
 | Memory (casual) | `deleteCasual` | `(key: string) => boolean` |
 | Memory (casual) | `hasTTLCasual` | `(key: string) => boolean` |
 | Shared (typed) | `getShared` | `<K>(key: K) => InferSharedCacheValue<K>` |
+| Shared (typed) | `getSharedSnapshot` | `<K>(key: K) => InferSharedCacheValue<K> \| undefined` (pure physical read, no TTL/eviction/default; **internal** — production callers live in `useCache.ts` only, tests may probe it freely) |
 | Shared (typed) | `setShared` | `<K>(key: K, value, ttl?) => void` |
 | Shared (typed) | `hasShared` | `<K>(key: K) => boolean` |
 | Shared (typed) | `deleteShared` | `<K>(key: K) => boolean` |
@@ -238,6 +239,8 @@ React hooks for cache operations.
 |------|-----------|---------|
 | `useCache` | `(key, initValue?)` | `[value, setValue]` |
 | `useSharedCache` | `(key, initValue?)` | `[value, setValue]` |
+| `useSharedCacheValue` | `(key)` | `value \| undefined` (read-only, never materializes a default) |
+| `useSharedCacheSelector` | `(keys, selector, isEqual?)` | `selector(values)` over the current mock shared values (read-only; like the other hook mocks it is per-render, not reactive) |
 | `usePersistCache` | `(key)` | `[value, setValue]` |
 
 `setValue` accepts a concrete value or a functional updater `(prev) => next` (mirrors production). The mock resolves the updater against the latest mocked value with the same default fallback, so functional-update call sites run unchanged under the mock.

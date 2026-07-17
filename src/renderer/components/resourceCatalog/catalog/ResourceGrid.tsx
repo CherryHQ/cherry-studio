@@ -11,6 +11,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
   Input,
   Skeleton
@@ -22,7 +26,19 @@ import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resour
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FolderSearch,
+  Library,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  Upload
+} from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,6 +66,7 @@ interface Props {
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
   onOpenSkillMarketplace: () => void
+  onOpenSystemSkills?: () => void
   tags: TagItem[]
   activeTag: string | null
   onTagFilter: (tagName: string | null) => void
@@ -130,23 +147,39 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
 
 interface SkillAddActionsProps {
   onSearchMarketplace: () => void
+  onSearchSystem?: () => void
   onImportLocal: () => void
 }
 
-function SkillAddActions({ onSearchMarketplace, onImportLocal }: SkillAddActionsProps) {
+function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }: SkillAddActionsProps) {
   const { t } = useTranslation()
 
   return (
-    <>
-      <Button variant="default" size="sm" onClick={onSearchMarketplace} className="shrink-0">
-        <Search size={12} className="lucide-custom" />
-        <span>{t('library.skill_add.online_search')}</span>
-      </Button>
-      <Button variant="outline" size="sm" onClick={onImportLocal} className="shrink-0">
-        <Upload size={12} />
-        <span>{t('library.skill_add.local_import')}</span>
-      </Button>
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="default" size="sm" className="shrink-0">
+          <Plus size={12} className="lucide-custom" />
+          <span>{t('library.skill_add.add')}</span>
+          <ChevronDown size={12} className="text-primary-foreground/70" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40">
+        <DropdownMenuItem onSelect={onSearchMarketplace} className="gap-2">
+          <Search size={13} />
+          <span>{t('library.skill_add.online_search')}</span>
+        </DropdownMenuItem>
+        {onSearchSystem ? (
+          <DropdownMenuItem onSelect={onSearchSystem} className="gap-2">
+            <FolderSearch size={13} />
+            <span>{t('library.skill_add.system_search')}</span>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onSelect={onImportLocal} className="gap-2">
+          <Upload size={13} />
+          <span>{t('library.skill_add.local_import')}</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -164,6 +197,7 @@ export const ResourceGrid: FC<Props> = ({
   onImportAssistant,
   onOpenAssistantLibrary,
   onOpenSkillMarketplace,
+  onOpenSystemSkills,
   tags,
   activeTag,
   onTagFilter,
@@ -300,7 +334,11 @@ export const ResourceGrid: FC<Props> = ({
                 onOpenLibrary={onOpenAssistantLibrary}
               />
             ) : activeResourceType === 'skill' ? (
-              <SkillAddActions onSearchMarketplace={onOpenSkillMarketplace} onImportLocal={() => onCreate('skill')} />
+              <SkillAddActions
+                onSearchMarketplace={onOpenSkillMarketplace}
+                onSearchSystem={onOpenSystemSkills}
+                onImportLocal={() => onCreate('skill')}
+              />
             ) : (
               <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
                 <Plus size={12} className="lucide-custom" />

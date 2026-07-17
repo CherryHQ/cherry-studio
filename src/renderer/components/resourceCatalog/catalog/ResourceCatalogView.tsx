@@ -4,7 +4,11 @@ import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalo
 import { SkillDetailDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
 import { AgentEditDialog, AssistantEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { ImportAssistantDialog } from '@renderer/components/resourceCatalog/dialogs/import'
-import { ImportSkillDialog, SkillMarketplaceDialog } from '@renderer/components/resourceCatalog/dialogs/skill'
+import {
+  ImportSkillDialog,
+  SkillMarketplaceDialog,
+  SystemSkillDialog
+} from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
@@ -22,6 +26,7 @@ export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
   resourceType: ResourceCatalogViewType
+  skillAgentId?: string
   toolbarLeading?: ReactNode
 }
 
@@ -29,6 +34,7 @@ export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
   resourceType,
+  skillAgentId,
   toolbarLeading
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
@@ -61,7 +67,11 @@ export function ResourceCatalogView({
             </div>
           </>
         ) : (
-          <ResourceGrid {...gridProps} toolbarLeading={toolbarLeading} />
+          <ResourceGrid
+            {...gridProps}
+            onOpenSystemSkills={skillAgentId ? gridProps.onOpenSystemSkills : undefined}
+            toolbarLeading={toolbarLeading}
+          />
         )}
       </div>
 
@@ -88,6 +98,9 @@ export function ResourceCatalogView({
       ) : null}
       <ImportSkillDialog open={dialogs.skillImportOpen} onOpenChange={dialogs.setSkillImportOpen} />
       <SkillMarketplaceDialog open={dialogs.skillMarketplaceOpen} onOpenChange={dialogs.setSkillMarketplaceOpen} />
+      {skillAgentId ? (
+        <SystemSkillDialog mode="manage" open={dialogs.systemSkillOpen} onOpenChange={dialogs.setSystemSkillOpen} />
+      ) : null}
       <ResourceCreateWizard
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}
