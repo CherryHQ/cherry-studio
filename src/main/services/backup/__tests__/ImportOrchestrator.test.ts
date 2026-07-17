@@ -110,7 +110,7 @@ describe('ImportOrchestrator spine', () => {
     admitArchive: async () => makeArchiveContext(),
     quiesceWriters: async () => {},
     mergeBackupIntoWork: async () => ({ degradedToSkips: [] }),
-    stageFileResources: async () => [],
+    stageFileResources: async () => ({ candidates: new Map(), skippedFileEntryIds: new Set() }),
     ...overrides
   })
 
@@ -131,6 +131,29 @@ describe('ImportOrchestrator spine', () => {
     expect(mergeContext?.backupDbPath).toBe(join(tmpDir, 'backup.sqlite'))
     expect(mergeContext?.domains).toEqual(['TOPICS'])
     expect([...(mergeContext?.skippedFileEntryIds ?? new Set<string>())]).toEqual([])
+  })
+
+  it('runs pre-merge staging before merge and forwards skippedFileEntryIds', async () => {
+    const callOrder: string[] = []
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        stageFileResources: async () => {
+          callOrder.push('stage')
+          return {
+            candidates: new Map(),
+            skippedFileEntryIds: new Set(['fe-missing'])
+          }
+        },
+        mergeBackupIntoWork: async (_workSqlite, _workDb, context) => {
+          callOrder.push('merge')
+          expect([...context.skippedFileEntryIds]).toEqual(['fe-missing'])
+          return { degradedToSkips: [] }
+        }
+      })
+    )
+
+    await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-premerge' })
+    expect(callOrder).toEqual(['stage', 'merge'])
   })
 
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {

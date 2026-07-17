@@ -44,6 +44,7 @@ import { app } from 'electron'
 
 import { admitArchive } from './admitArchive'
 import { BackupRestoreJobQuiesce } from './BackupRestoreJobQuiesce'
+import { buildFileResourcesFromAdmit } from './buildFileResourcesFromAdmit'
 import { contributorManager } from './contributors'
 import {
   collectRestoredKnowledgeBaseIds,
@@ -382,9 +383,6 @@ export class BackupService extends BaseService {
           }
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, context)
         },
-<<<<<<< HEAD
-        stageFileResources: async (resourceMetadata, workDir) => stageRestoreResources(resourceMetadata, workDir)
-=======
         stageFileResources: async (workDir, archiveContext) => {
           if (app.isPackaged) {
             throw new RestoreStagingNotImplementedError(
@@ -400,7 +398,6 @@ export class BackupService extends BaseService {
             notesLiveRoot
           })
         }
->>>>>>> b4dc1dddc5 (feat(backup): open packaged export gate with dual readiness flags)
       })
       await importOrch.importBackup({
         archivePath,

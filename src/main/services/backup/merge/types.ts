@@ -112,6 +112,15 @@ export interface MergeContext {
   readonly userStrategy?: ConflictStrategy
   /** file_entry IDs whose blobs were not staged — skip these rows during import. */
   readonly skippedFileEntryIds: ReadonlySet<string>
+  /**
+   * Optional keyed rewrite metadata from pre-merge staging (internal origin +
+   * staged byte size). FILE_STORAGE transformRow may consume this; MVP external
+   * rows are skipped instead of rewritten.
+   */
+  readonly fileEntryRewrites?: ReadonlyMap<
+    string,
+    { readonly origin: 'internal'; readonly externalPath: null; readonly size: number }
+  >
 }
 
 /** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */

@@ -199,10 +199,10 @@ export class MergeEngine {
           // targetMap was primed only when scan found a local survivor; source remains ineligible.
           continue
         case 'insert':
-          this.insertAggregate(workSqlite, decision, backupDb, identityMap)
+          this.insertAggregate(workSqlite, decision, backupDb, identityMap, ctx.skippedFileEntryIds)
           continue
         case 'field-merge':
-          this.fieldMergeAggregate(workSqlite, decision, backupDb, identityMap)
+          this.fieldMergeAggregate(workSqlite, decision, backupDb, identityMap, ctx.skippedFileEntryIds)
           continue
         case 'overwrite':
         case 'rename':
@@ -211,7 +211,6 @@ export class MergeEngine {
     }
 
     // Kept as a sidecar extension point for later RENAME degradation without widening this slice.
-    void ctx
     void degradedToSkips
   }
 
@@ -220,7 +219,8 @@ export class MergeEngine {
     workSqlite: Database.Database,
     decision: AggregateDecision,
     backupDb: Database.Database,
-    identityMap: IdentityMap
+    identityMap: IdentityMap,
+    skippedFileEntryIds: ReadonlySet<string>
   ): void {
     const { aggregate, backupPrimaryKey } = decision
     const rootRow = this.getBackupRootRow(backupDb, aggregate, backupPrimaryKey)
@@ -229,7 +229,7 @@ export class MergeEngine {
     const propagatedRoot = propagateIdentityReferences(this.registry, aggregate.root, rootRow, identityMap)
     this.insertRow(workSqlite, aggregate.root, propagatedRoot)
     this.recordImportedRow(identityMap, aggregate.root, backupPrimaryKey, backupPrimaryKey)
-    this.importIncludeMembers(workSqlite, aggregate, backupPrimaryKey, backupDb, identityMap)
+    this.importIncludeMembers(workSqlite, aggregate, backupPrimaryKey, backupDb, identityMap, skippedFileEntryIds)
   }
 
   /** Merge remote policy-owned fields into a local canonical root without replacing its PK. */
@@ -237,7 +237,8 @@ export class MergeEngine {
     workSqlite: Database.Database,
     decision: AggregateDecision,
     backupDb: Database.Database,
-    identityMap: IdentityMap
+    identityMap: IdentityMap,
+    skippedFileEntryIds: ReadonlySet<string>
   ): void {
     const localCanonicalPrimaryKey = decision.localCanonicalPrimaryKey
     if (!localCanonicalPrimaryKey) {
@@ -279,7 +280,15 @@ export class MergeEngine {
     this.recordImportedRow(identityMap, decision.aggregate.root, decision.backupPrimaryKey, localCanonicalPrimaryKey)
     // Existing member PKs are local survivors on a FIELD_MERGE rerun; skip only those
     // exact PK collisions while preserving fail-closed handling for other constraints.
-    this.importIncludeMembers(workSqlite, decision.aggregate, decision.backupPrimaryKey, backupDb, identityMap, true)
+    this.importIncludeMembers(
+      workSqlite,
+      decision.aggregate,
+      decision.backupPrimaryKey,
+      backupDb,
+      identityMap,
+      skippedFileEntryIds,
+      true
+    )
   }
 
   /** Import include members in declaration order, optionally preserving local PK survivors. */
@@ -289,6 +298,7 @@ export class MergeEngine {
     backupPrimaryKey: readonly (string | number)[],
     backupDb: Database.Database,
     identityMap: IdentityMap,
+    skippedFileEntryIds: ReadonlySet<string>,
     skipExistingPrimaryKeys = false
   ): void {
     const memberPksByTable = new Map<DbTableName, Set<string>>()
@@ -317,6 +327,16 @@ export class MergeEngine {
 
         // Apply identity propagation immediately before the member reaches SQLite.
         const propagatedMember = propagateIdentityReferences(this.registry, member.table, memberRow, identityMap)
+
+        // Staging contract: prune file-ref members whose owning file_entry was skipped
+        // before insert — post-merge cleanup is too late for deferred FK validation.
+        if (
+          (member.table === 'chat_message_file_ref' || member.table === 'painting_file_ref') &&
+          skippedFileEntryIds.has(String(propagatedMember.file_entry_id))
+        ) {
+          continue
+        }
+
         this.insertRow(workSqlite, member.table, propagatedMember)
         this.recordImportedRow(identityMap, member.table, memberPrimaryKey, memberPrimaryKey)
       }

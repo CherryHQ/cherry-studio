@@ -235,6 +235,55 @@ describe('MergeEngine detached merge pipeline', () => {
     expect(ids).not.toContain('fe-skip')
   })
 
+  it('cascade-prunes chat_message_file_ref when owning file_entry is in skippedFileEntryIds', async () => {
+    seedBackup(
+      (db) => {
+        insertTopic(db, 'tpc-prune')
+        insertMessage(db, 'msg-prune', 'tpc-prune', 'root', null)
+        insertChatMessageFileRef(db, 'fr-prune', 'msg-prune', 'fe-skip')
+      },
+      { foreignKeys: false }
+    )
+
+    const before = countRows('chat_message_file_ref')
+    await runMerge({
+      domains: ['TOPICS'],
+      skippedFileEntryIds: new Set(['fe-skip'])
+    })
+
+    expect(countRows('chat_message_file_ref')).toBe(before)
+    expect(dbh.sqlite.prepare(`SELECT 1 FROM chat_message_file_ref WHERE id = 'fr-prune'`).get()).toBeUndefined()
+    // Topic+message still land — only the file-ref member is pruned.
+    expect(dbh.sqlite.prepare(`SELECT 1 FROM topic WHERE id = 'tpc-prune'`).get()).toBeTruthy()
+    expect(dbh.sqlite.prepare(`SELECT 1 FROM message WHERE id = 'msg-prune'`).get()).toBeTruthy()
+  })
+
+  it('cascade-prunes painting_file_ref when owning file_entry is in skippedFileEntryIds', async () => {
+    const now = Date.now()
+    seedBackup(
+      (db) => {
+        db.prepare(
+          `INSERT INTO painting (id, provider_id, model_id, prompt, order_key, created_at, updated_at)
+           VALUES (?, 'prov', 'model', 'p', 'ok-1', ?, ?)`
+        ).run('ptg-1', now, now)
+        db.prepare(
+          `INSERT INTO painting_file_ref (id, source_id, file_entry_id, role, created_at, updated_at)
+           VALUES (?, ?, ?, 'output', ?, ?)`
+        ).run('pfr-1', 'ptg-1', 'fe-skip', now, now)
+      },
+      { foreignKeys: false }
+    )
+
+    const before = countRows('painting_file_ref')
+    await runMerge({
+      domains: ['PAINTINGS'],
+      skippedFileEntryIds: new Set(['fe-skip'])
+    })
+
+    expect(countRows('painting_file_ref')).toBe(before)
+    expect(dbh.sqlite.prepare(`SELECT 1 FROM painting_file_ref WHERE id = 'pfr-1'`).get()).toBeUndefined()
+  })
+
   it('fails closed on a non-PK UNIQUE conflict instead of silently dropping the row', async () => {
     // Work has file_entry 'fe-local' with externalPath '/tmp/dup'; backup has a DIFFERENT
     // file_entry (different id, same case-insensitive externalPath). Plain INSERT must

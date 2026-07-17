@@ -2,10 +2,10 @@
 //
 // Mirrors ExportOrchestrator's shape but runs the inverse pipeline on a detached
 // `work.sqlite` (a VACUUM INTO copy of live): quiesce → capture live fingerprint →
-// createSnapshot → merge backup rows → applyMigrations → seal → second fingerprint
-// → write staged journal. The live DB is never written during a restore; the preboot
-// promotion gate (#16884, already wired) swaps `work.sqlite` in by atomic rename on
-// the next launch.
+// createSnapshot → pre-merge file staging → merge backup rows → applyMigrations →
+// seal → second fingerprint → write staged journal. The live DB is never written
+// during a restore; the preboot promotion gate (#16884, already wired) swaps
+// `work.sqlite` in by atomic rename on the next launch.
 //
 // Crash-safety contract (#16884 README "Writer requirements (staging side)"):
 //  1. db.fingerprint captured on the live connection AFTER quiesce, BEFORE snapshot.
@@ -13,9 +13,9 @@
 //  3. db.chain from readAppliedChain(work), never from the bundled migration list.
 //  4. add-target livePaths must not pre-exist (enforced at promotion admission).
 //
-// The merge engine is implemented; write-quiesce is still incomplete. Resource
-// staging currently supports additive SKILLS directories only and rejects every
-// other resource kind fail-closed.
+// The merge engine, write-quiesce, and file-resource staging are NOT yet implemented
+// — they are injected as deps so the spine is testable in isolation, with production
+// deps throwing fail-closed (NO journal is written without a real merge + quiesce).
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -32,6 +32,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import type { ArchiveContext } from './admitArchive'
+import {
+  type PreMergeFileStaging,
+  candidatesToFileResources,
+  fileEntryRewritesFromStaging
+} from './buildFileResourcesFromAdmit'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
 import type { MergeContext, MergeResult } from './merge'
@@ -74,9 +79,10 @@ export interface ImportBackupResult {
 }
 
 /**
- * Collaborators for the restore pipeline. Function deps keep the crash-safety spine
- * independently testable while production wires the landed merge and partial resource
- * staging implementations; incomplete writer quiesce remains fail-closed.
+ * Collaborators + unimplemented steps. The three function deps (quiesceWriters /
+ * mergeBackupIntoWork / stageFileResources) are the not-yet-landed tracks; production
+ * wires them to throwing impls so restore stays unavailable, tests wire no-ops to
+ * exercise the spine end-to-end.
  */
 export interface ImportOrchestratorDeps {
   readonly dbService: DbService
@@ -97,13 +103,18 @@ export interface ImportOrchestratorDeps {
     workDb: DbType,
     context: MergeContext
   ) => Promise<MergeResult>
-  /** Stage admitted resources and return preboot-promotion journal entries. */
-  readonly stageFileResources: (
-    resourceMetadata: ArchiveContext['resourceMetadata'],
-    workDir: string
-  ) => Promise<RestoreJournal['fileResources']>
+  /**
+   * Pre-merge file-resource staging: scan the admit tree, seal candidates, return
+   * skippedFileEntryIds for merge. Empty candidates until staging lands (safe).
+   */
+  readonly stageFileResources: (workDir: string, archiveContext: ArchiveContext) => Promise<PreMergeFileStaging>
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
   readonly journalPath: string
+}
+
+/** RestoreId must be a safe basename — it becomes a directory under the staging root. */
+function isSafeBasename(id: string): boolean {
+  return /^[a-zA-Z0-9_-]{1,128}$/.test(id) && !id.includes('..') && id !== '.' && id !== '..'
 }
 
 export class ImportOrchestrator {
@@ -116,7 +127,7 @@ export class ImportOrchestrator {
    * (the startup GC is the backstop if cleanup itself crashes — see plan (h)).
    */
   async importBackup(options: ImportBackupOptions): Promise<ImportBackupResult> {
-    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(options.restoreId)) {
+    if (!isSafeBasename(options.restoreId)) {
       throw new Error(`importBackup: invalid restoreId (must be a safe basename): ${options.restoreId}`)
     }
     this.assertNotCancelled(options)
@@ -176,14 +187,18 @@ export class ImportOrchestrator {
       workSqlite.pragma('journal_mode = DELETE')
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
-      // Merge only from the admitted backup database. Blob staging is still unavailable,
-      // so no file_entry roots are skipped here yet; archives containing blobs fail in
-      // the resource stage below and never produce a journal.
+      // Pre-merge staging MUST run before merge so missing/invalid blobs suppress
+      // owning file_entry rows + dependent file-refs in the same merge transaction.
+      this.emit(options, 'stage', 0, 1, 'pre-merge file resource staging')
+      const staged = await this.deps.stageFileResources(workDir, archiveContext)
+      this.assertNotCancelled(options)
+
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
       const mergeResult = await this.deps.mergeBackupIntoWork(workSqlite, workDb, {
         backupDbPath: archiveContext.backupDbPath,
         domains: archiveContext.domains,
-        skippedFileEntryIds: new Set<string>()
+        skippedFileEntryIds: staged.skippedFileEntryIds,
+        fileEntryRewrites: fileEntryRewritesFromStaging(staged)
       })
       if (mergeResult.degradedToSkips.length > 0) {
         logger.info('merge degraded to SKIP', { count: mergeResult.degradedToSkips.length })
@@ -209,14 +224,9 @@ export class ImportOrchestrator {
       this.assertSealed(workPath)
       this.assertNotCancelled(options)
 
-      // (e) Stage admitted resources → journal entries. SKILLS directory adds are
-      // supported; other resource kinds remain fail-closed.
-      // Staging+sealing runs BEFORE the 2nd fingerprint so the fingerprint is the last async
-      // check before the synchronous journal write (plan (c) 时序: work seal → resource seal →
-      // 2nd fingerprint → journal).
-      this.emit(options, 'stage', 0, 1, 'staging file resources')
-      const fileResources = await this.deps.stageFileResources(archiveContext.resourceMetadata, workDir)
-      this.assertNotCancelled(options)
+      // Candidates were sealed during pre-merge staging (rule10). Finalize journal entries
+      // from accepted candidates (MVP: all candidates — skipped IDs never produce one).
+      const fileResources = candidatesToFileResources(staged)
 
       // (c) Second fingerprint — the LAST async check before the journal write. Re-capture live
       // (checkpointTruncate + hash) and compare. A checkpoint fold is required so a writer whose
