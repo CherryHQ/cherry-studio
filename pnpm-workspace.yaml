@@ -114,5 +114,3 @@ minimumReleaseAgeExclude:
   - '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec-windows-x64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
-  - '@ai-sdk/cerebras@2.0.67'
-  - '@ai-sdk/openai-compatible@2.0.61'
