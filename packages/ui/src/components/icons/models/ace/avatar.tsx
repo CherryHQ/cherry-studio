@@ -11,8 +11,8 @@ export function AceAvatar({ size = 32, shape = 'circle', className }: Omit<IconA
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <AceLight className="dark:hidden" style={{ width: size * 0.6, height: size * 0.6 }} />
-        <AceDark className="hidden dark:block" style={{ width: size * 0.6, height: size * 0.6 }} />
+        <AceLight className="dark:hidden" style={{ width: size, height: size }} />
+        <AceDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

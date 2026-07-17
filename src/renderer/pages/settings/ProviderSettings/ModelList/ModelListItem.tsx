@@ -50,7 +50,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
         {(() => {
           return Icon ? (
             <span className={modelListClasses.rowAvatar}>
-              <Icon.Avatar size={24} shape="rounded" />
+              <Icon.Avatar size={28} shape="circle" />
             </span>
           ) : (
             <Avatar className={modelListClasses.rowAvatar}>

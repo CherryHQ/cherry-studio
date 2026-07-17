@@ -11,8 +11,8 @@ export function GlmAvatar({ size = 32, shape = 'circle', className }: Omit<IconA
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <GlmLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
-        <GlmDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <GlmLight className="dark:hidden" style={{ width: size, height: size }} />
+        <GlmDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

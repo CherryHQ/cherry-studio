@@ -10,7 +10,7 @@ export function GlmvAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <GlmvLight style={{ width: size * 0.6, height: size * 0.6 }} />
+        <GlmvLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

@@ -11,8 +11,8 @@ export function JinaAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <JinaLight className="dark:hidden" style={{ width: size * 0.6, height: size * 0.6 }} />
-        <JinaDark className="hidden dark:block" style={{ width: size * 0.6, height: size * 0.6 }} />
+        <JinaLight className="dark:hidden" style={{ width: size, height: size }} />
+        <JinaDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

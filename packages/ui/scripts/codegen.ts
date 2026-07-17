@@ -124,47 +124,19 @@ export function generateAvatar(opts: {
     namedImports: [`${colorName}Light`]
   })
 
-  const shouldPad =
-    !colorName.startsWith('Gpt') &&
-    (variant === 'neutral-background' || ['Hunyuan', 'Kwaipilot', 'Spark'].includes(colorName))
-  const shouldScaleDown = [
-    'Ace',
-    'Adobe',
-    'Aihubmix',
-    'Arcee',
-    'Assemblyai',
-    'Aya',
-    'Bytedance',
-    'Glmv',
-    'Grok',
-    'Kimi',
-    'Jina',
-    'Microsoft',
-    'Nvidia',
-    'Relace',
-    'Sensenova',
-    'Stepfun',
-    'Udio',
-    'Upstage',
-    'Vertexai',
-    'Voyage',
-    'Xiaomimimo',
-    'Yi'
-  ].includes(colorName)
-  const iconSize = shouldScaleDown ? 'size * 0.6' : shouldPad ? 'size * 0.7' : 'size'
   const fallbackClasses = ['text-foreground', variant === 'neutral-background' ? 'bg-background' : '']
     .filter(Boolean)
     .join(' ')
   const iconRender = hasDark
     ? `<${colorName}Light
           className="dark:hidden"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />
         <${colorName}Dark
           className="hidden dark:block"
-          style={{ width: ${iconSize}, height: ${iconSize} }}
+          style={{ width: size, height: size }}
         />`
-    : `<${colorName}Light style={{ width: ${iconSize}, height: ${iconSize} }} />`
+    : `<${colorName}Light style={{ width: size, height: size }} />`
 
   sf.addFunction({
     isExported: true,

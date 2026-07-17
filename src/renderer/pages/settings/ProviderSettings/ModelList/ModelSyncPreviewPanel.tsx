@@ -51,7 +51,7 @@ const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
   if (Icon) {
     return (
       <span className={modelListClasses.rowAvatar}>
-        <Icon.Avatar size={24} shape="rounded" />
+        <Icon.Avatar size={28} shape="circle" />
       </span>
     )
   }

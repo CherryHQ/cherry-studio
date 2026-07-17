@@ -11,8 +11,8 @@ export function SunoAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <SunoLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
-        <SunoDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <SunoLight className="dark:hidden" style={{ width: size, height: size }} />
+        <SunoDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )
