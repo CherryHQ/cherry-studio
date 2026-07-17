@@ -1,0 +1,107 @@
+/**
+ * Canonical Shadcn theme contract.
+ *
+ * Existing `--cs-*` variables provide values during migration. New shared UI
+ * consumes these variables directly or through the Tailwind adapter in
+ * `theme.css`.
+ */
+
+:root {
+  /* Runtime customization inputs */
+  --cs-theme-primary: var(--cs-primary);
+  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
+
+  /* Core surfaces and content */
+  --background: var(--cs-background);
+  --foreground: var(--cs-foreground);
+  --card: var(--cs-card);
+  --card-foreground: var(--cs-card-foreground);
+  --popover: var(--cs-popover);
+  --popover-foreground: var(--cs-popover-foreground);
+  --primary: var(--cs-theme-primary);
+  --primary-foreground: var(--cs-primary-foreground);
+  --secondary: var(--cs-secondary);
+  --secondary-foreground: var(--cs-secondary-foreground);
+  --muted: var(--cs-muted);
+  --muted-foreground: var(--cs-foreground-secondary);
+  --accent: var(--cs-accent);
+  --accent-foreground: var(--cs-accent-foreground);
+  --destructive: var(--cs-destructive);
+  --destructive-foreground: var(--cs-destructive-foreground);
+
+  /* Controls */
+  --border: var(--cs-border);
+  --input: var(--cs-input);
+  --ring: var(--cs-theme-ring);
+
+  /* Charts */
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  /* Sidebar */
+  --sidebar: var(--cs-sidebar);
+  --sidebar-foreground: var(--cs-sidebar-foreground);
+  --sidebar-primary: var(--cs-sidebar-primary);
+  --sidebar-primary-foreground: var(--cs-sidebar-primary-foreground);
+  --sidebar-accent: var(--cs-sidebar-accent);
+  --sidebar-accent-foreground: var(--cs-sidebar-accent-foreground);
+  --sidebar-border: var(--cs-sidebar-border);
+  --sidebar-ring: var(--cs-sidebar-ring);
+
+  /* Cherry Studio surface extensions */
+  --background-subtle: var(--cs-background-subtle);
+  --border-subtle: var(--cs-border-subtle);
+  --border-strong: var(--cs-border-hover);
+
+  /* Feedback: solid, on-solid, subtle, on-subtle, border */
+  --error: var(--cs-error-base);
+  --error-foreground: var(--cs-white);
+  --error-subtle: var(--cs-error-bg);
+  --error-subtle-foreground: var(--cs-error-text);
+  --error-border: var(--cs-error-border);
+
+  --success: var(--cs-success-base);
+  --success-foreground: var(--cs-neutral-950);
+  --success-subtle: var(--cs-success-bg);
+  --success-subtle-foreground: var(--cs-green-800);
+  --success-border: var(--cs-green-200);
+
+  --warning: var(--cs-warning-base);
+  --warning-foreground: var(--cs-neutral-950);
+  --warning-subtle: var(--cs-warning-bg);
+  --warning-subtle-foreground: var(--cs-amber-800);
+  --warning-border: var(--cs-amber-200);
+
+  --info: var(--cs-info-base);
+  --info-foreground: var(--cs-white);
+  --info-subtle: var(--cs-info-bg);
+  --info-subtle-foreground: var(--cs-blue-800);
+  --info-border: var(--cs-blue-200);
+
+  /* Shadcn radius input */
+  --radius: var(--cs-radius-lg);
+}
+
+.dark {
+  /* Existing `--cs-*` semantic providers switch mode independently. */
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+
+  --error-foreground: var(--cs-neutral-950);
+
+  --success-subtle-foreground: var(--cs-green-100);
+  --success-border: var(--cs-green-700);
+
+  --warning-subtle-foreground: var(--cs-amber-100);
+  --warning-border: var(--cs-amber-700);
+
+  --info-foreground: var(--cs-neutral-950);
+  --info-subtle-foreground: var(--cs-blue-100);
+  --info-border: var(--cs-blue-700);
+}

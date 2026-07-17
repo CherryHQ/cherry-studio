@@ -106,6 +106,7 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
  */
 
 @import './tokens.css';
+@import './shadcn.css';
 
 @theme {
 ${sections.join('\n\n')}
