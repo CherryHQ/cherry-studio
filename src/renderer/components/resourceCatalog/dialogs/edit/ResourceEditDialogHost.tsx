@@ -4,6 +4,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,7 +51,9 @@ function AssistantEditDialogHost({
 
     logger.error('Failed to load assistant for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
-    onOpenChange(false)
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      onOpenChange(false)
+    }
   }, [error, onOpenChange, open, t, target.id])
 
   const handleSaved = useCallback(async () => {
@@ -92,7 +95,9 @@ function AgentEditDialogHost({
 
     logger.error('Failed to load agent for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
-    onOpenChange(false)
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      onOpenChange(false)
+    }
   }, [error, onOpenChange, open, t, target.id])
 
   const handleSaved = useCallback(async () => {

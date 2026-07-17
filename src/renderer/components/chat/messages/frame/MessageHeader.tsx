@@ -59,7 +59,7 @@ const MessageHeader: FC<Props> = memo(
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
-    const authorId = authorSnapshot?.id ?? message.assistantId
+    const authorId = authorSnapshot?.id
     const modelName = getMessageListItemModelName(message)
 
     const getUserName = useCallback(() => {

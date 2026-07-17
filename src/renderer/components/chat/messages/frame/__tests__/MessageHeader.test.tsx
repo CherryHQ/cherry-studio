@@ -195,18 +195,16 @@ describe('MessageHeader', () => {
     expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(3, 'snapshot-assistant')
   })
 
-  it('falls back to the message assistant id when a legacy message has no snapshot', async () => {
-    const user = userEvent.setup()
+  it('keeps a legacy message without an author snapshot static', () => {
     const openMessageAuthorEditor = vi.fn()
     providerState.actions = { openMessageAuthorEditor }
 
-    const { getByRole } = render(
+    const { queryByRole } = render(
       <MessageHeader message={createMessage('assistant', { assistantId: 'legacy-assistant' })} />
     )
 
-    await user.click(getByRole('button', { name: 'common.edit' }))
-
-    expect(openMessageAuthorEditor).toHaveBeenCalledWith('legacy-assistant')
+    expect(queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
+    expect(openMessageAuthorEditor).not.toHaveBeenCalled()
   })
 
   it('makes a model-icon avatar clickable but leaves an authorless avatar static', async () => {
@@ -218,8 +216,12 @@ describe('MessageHeader', () => {
     const { getByRole, rerender } = render(
       <MessageHeader
         message={createMessage('assistant', {
-          assistantId: 'model-author',
-          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          assistantId: 'current-assistant',
+          messageSnapshot: {
+            id: 'model-author',
+            name: 'Model Author',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
         })}
       />
     )
@@ -227,7 +229,7 @@ describe('MessageHeader', () => {
     await user.click(getByRole('button', { name: 'common.edit' }))
     expect(openMessageAuthorEditor).toHaveBeenCalledWith('model-author')
 
-    rerender(<MessageHeader message={createMessage('assistant')} />)
+    rerender(<MessageHeader message={createMessage('assistant', { assistantId: 'current-assistant' })} />)
     expect(() => getByRole('button', { name: 'common.edit' })).toThrow()
   })
 
