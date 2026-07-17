@@ -12,11 +12,13 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
     data-testid="tooltip-content"
   >
     <div
+      data-ui="markdown.citation.tooltip.element.div id:u9c37edb"
       style="user-select: text;"
     >
       <a
         aria-label="Open Example Article in new tab"
         class="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
+        data-ui="markdown.citation.tooltip.element.a id:ub17d106"
         href="https://example.com/article"
         rel="noopener noreferrer"
         target="_blank"
@@ -29,14 +31,17 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
         <div
           aria-level="3"
           class="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
+          data-ui="markdown.citation.tooltip.element.div id:uc61cd45"
           role="heading"
           title="Example Article"
         >
           <div
             class="overflow-hidden whitespace-nowrap"
+            data-ui="marquee.text.element.div id:u1a04793"
           >
             <div
               class="inline-block whitespace-nowrap"
+              data-ui="marquee.text.element.div id:ua35b7b9"
             >
               Example Article
             </div>
@@ -46,6 +51,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       <div
         aria-label="Citation content"
         class="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+        data-ui="markdown.citation.tooltip.element.div id:u1739b09"
         role="article"
         style="display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3;"
       >
@@ -54,6 +60,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       <a
         aria-label="Visit example.com"
         class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
+        data-ui="markdown.citation.tooltip.element.a id:u5ced273"
         href="https://example.com/article"
         rel="noopener noreferrer"
         target="_blank"
