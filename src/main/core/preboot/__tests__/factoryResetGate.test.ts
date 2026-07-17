@@ -21,6 +21,7 @@ const OVMS_DIR = `${CHERRY_HOME}/ovms/ovms`
 const appExitMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const rmSyncMock = vi.fn()
+const mkdirSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
 const existsSyncMock = vi.fn()
 const bootConfigGetMock = vi.fn()
@@ -106,12 +107,18 @@ function stubFs(listings: Record<string, string[] | Error>, opts: { sentinel?: b
     return [...listing]
   })
   rmSyncMock.mockImplementation(() => undefined)
+  mkdirSyncMock.mockImplementation(() => undefined)
   existsSyncMock.mockImplementation((p: string) => {
     if (p.endsWith('cherrystudio.sqlite')) return opts.sentinel ?? true
     return false
   })
   vi.doMock('node:fs', () => {
-    const fsMock = { readdirSync: readdirSyncMock, rmSync: rmSyncMock, existsSync: existsSyncMock }
+    const fsMock = {
+      readdirSync: readdirSyncMock,
+      rmSync: rmSyncMock,
+      mkdirSync: mkdirSyncMock,
+      existsSync: existsSyncMock
+    }
     return { __esModule: true, default: fsMock, ...fsMock }
   })
 }
@@ -208,6 +215,10 @@ describe('runFactoryResetGate', () => {
 
     expect(targets).toContain(APP_TEMP)
     expect(targets).toContain(`${OVMS_DIR}/models/config.json`)
+    // app.temp must come back after the rm: getPath('app.temp') already cached
+    // the auto-ensure for this key, so nothing else in this session recreates
+    // it — office attachment parsing and Clear cache would hit ENOENT.
+    expect(mkdirSyncMock).toHaveBeenCalledWith(APP_TEMP, { recursive: true })
 
     // Every deletion carries the Windows lock-retry options — a transient
     // antivirus/indexer lock must not consume a MAX_WIPE_ATTEMPTS slot.

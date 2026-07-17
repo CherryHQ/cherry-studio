@@ -287,15 +287,25 @@ function wipeDirectoryEntries(dir: string, shouldWipe: (entry: string) => boolea
  *   their registration.
  */
 function wipeNonCriticalExtras(): void {
-  const targets = [
-    application.getPath('app.temp'),
-    path.join(application.getPath('feature.ovms.ovms'), 'models', 'config.json')
-  ]
+  const tempDir = application.getPath('app.temp')
+  const targets = [tempDir, path.join(application.getPath('feature.ovms.ovms'), 'models', 'config.json')]
   for (const target of targets) {
     try {
       fs.rmSync(target, RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove non-critical entry during factory reset', { target, error: String(error) })
     }
+  }
+  // getPath('app.temp') above auto-ensured the directory and cached the key
+  // (Application#ensuredKeys caches even on failure), so nothing else in this
+  // process will ever re-create it — and the process that runs the gate is the
+  // very session the user keeps using after the reset. Without this mkdir,
+  // every app.temp consumer (office attachment parsing, Clear cache, image
+  // compression) hits ENOENT until the next restart. Same post-rm recreate as
+  // FileStorage.clearTemp.
+  try {
+    fs.mkdirSync(tempDir, { recursive: true })
+  } catch (error) {
+    logger.warn('Failed to recreate the app temp dir after factory reset', { tempDir, error: String(error) })
   }
 }
