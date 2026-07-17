@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 /**
  * Keeps Local Backup's v1 directory / auto-sync / manager / modal chain inert
- * while the migrated Backup/Restore actions use {@link V2BackupActionGate}.
+ * while the migrated Backup/Restore actions use
+ * {@link isV2BackupExportReady} / {@link isV2BackupRestoreReady}.
  *
  * Must NOT share readiness with `BACKUP_V2_READY` — that constant is still the
  * legacy-provider gate for WebDAV / S3 / Nutstore.

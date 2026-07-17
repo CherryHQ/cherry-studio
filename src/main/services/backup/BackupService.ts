@@ -17,11 +17,12 @@
 //
 // SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
 // spine. The renderer triggers export via backup.start_backup; restore runs the
-// ImportOrchestrator spine (admit → quiesce → fingerprint → snapshot → merge → migrate →
-// seal → stage → 2nd fingerprint → journal → relaunch). In dev builds the writer-quiesce
-// runs only against JobManager (BackupRestoreJobQuiesce) — AI/channel barriers remain no-ops
-// pending #17014; in packaged builds restore throws RestoreQuiesceNotImplementedError so a
-// packaged restore can never reach the preboot promotion gate without a complete quiesce.
+// ImportOrchestrator spine (admit → quiesce → fingerprint → snapshot → pre-merge
+// staging → merge → migrate → seal → 2nd fingerprint → journal → relaunch). In
+// dev builds the writer-quiesce runs only against JobManager (BackupRestoreJobQuiesce)
+// — AI/channel barriers remain no-ops pending #17014; in packaged builds restore
+// throws RestoreQuiesceNotImplementedError so a packaged restore can never reach
+// the preboot promotion gate without a complete quiesce.
 // preflightDisk guards export; performRestoreRecovery at startup GCs staging residue from a
 // crashed prior restore (prod-usable, not dev-gated).
 
@@ -157,22 +158,14 @@ export class BackupService extends BaseService {
         application.get('IpcApiService').broadcast('backup.progress', update)
       })
     )
-    // Restore recovery — runs in BOTH dev and packaged. The dev gate below only gates
-    // the export orchestrator + contributor finalize (export UI surface); restore
-    // recovery ownership (cleanup of a crashed prior restore's staging residue) MUST be
-    // production-usable so a crashed restore can't brick the install with stale staging.
+    // Restore recovery — runs in BOTH dev and packaged. Export finalize below is also
+    // packaged (online `db.backup()` — no quiesce); restore *start* stays fail-closed
+    // via RestoreQuiesce/Staging NotImplemented until restore-quiesce lands.
     this.performRestoreRecovery()
 
-    // DEV-only gate: contributor finalize is startup validation (a bad registry throws
-    // ContributorFinalizeError → @ErrorHandling('fail-fast') aborts bootstrap). The only
-    // consumer today is the DEV Settings route — the prod V2 settings UI has not landed.
-    // Skip finalize + orchestrator construction in packaged builds so a contributor-
-    // registry regression cannot crash every prod boot. Drop this gate when the prod UI
-    // ships in this stack (startBackup then runs in packaged builds too).
-    if (app.isPackaged) return
-    // Lazily run the 26-invariant contributor finalize at startup. A violation
-    // throws ContributorFinalizeError → onInit fails → fail-fast aborts bootstrap
-    // (the startup-validation contract; see ContributorManager docstring).
+    // Lazily run the 26-invariant contributor finalize at startup (dev + packaged).
+    // A violation throws ContributorFinalizeError → onInit fails → fail-fast aborts
+    // bootstrap (the startup-validation contract; see ContributorManager docstring).
     this.registry = contributorManager.getRegistry()
     const registry = this.registry
 
@@ -257,9 +250,8 @@ export class BackupService extends BaseService {
    */
   async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<BackupV2StartResult> {
     if (!this.orchestrator || !this.schemaMigrationId) {
-      // Unreachable in normal boot (onInit sets both, unless dev-gated off in packaged
-      // builds); reached only if onInit threw + error handling were changed away from
-      // fail-fast. Guard anyway.
+      // Unreachable in normal boot (onInit sets both); reached only if onInit threw +
+      // error handling were changed away from fail-fast. Guard anyway.
       throw new Error('BackupService: not initialized (onInit did not complete)')
     }
     if (this.closedForDevReset) {
@@ -390,7 +382,25 @@ export class BackupService extends BaseService {
           }
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, context)
         },
+<<<<<<< HEAD
         stageFileResources: async (resourceMetadata, workDir) => stageRestoreResources(resourceMetadata, workDir)
+=======
+        stageFileResources: async (workDir, archiveContext) => {
+          if (app.isPackaged) {
+            throw new RestoreStagingNotImplementedError(
+              'restore resource staging is not complete in packaged builds — journal refused'
+            )
+          }
+          const notesLiveRoot = this.resolveNotesRoot() ?? application.getPath('feature.notes.data')
+          return buildFileResourcesFromAdmit(workDir, archiveContext.resourceMetadata, {
+            userData: application.getPath('app.userdata'),
+            filesLiveRoot: application.getPath('feature.files.data'),
+            knowledgeLiveRoot: application.getPath('feature.knowledgebase.data'),
+            skillsLiveRoot: application.getPath('feature.agents.skills'),
+            notesLiveRoot
+          })
+        }
+>>>>>>> b4dc1dddc5 (feat(backup): open packaged export gate with dual readiness flags)
       })
       await importOrch.importBackup({
         archivePath,

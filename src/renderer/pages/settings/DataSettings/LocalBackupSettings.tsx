@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import BackupExportV2Popup from './BackupExportV2Popup'
 import { LegacyLocalBackupGate } from './LegacyLocalBackupGate'
 import RestoreV2Popup from './RestoreV2Popup'
-import { V2BackupActionGate } from './V2BackupActionGate'
+import { isV2BackupExportReady, isV2BackupRestoreReady } from './V2BackupActionGate'
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
@@ -171,21 +171,29 @@ const LocalBackupSettings: React.FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <V2BackupActionGate>
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupExportV2Popup.show()} variant="outline">
-              <Save size={14} />
-              {t('settings.data.local.backup.button')}
-            </Button>
-            <Button onClick={() => RestoreV2Popup.show()} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.data.local.restore.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-      </V2BackupActionGate>
+      <SettingRow>
+        <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+        <RowFlex className="justify-between gap-1.25">
+          <Button
+            onClick={() => BackupExportV2Popup.show()}
+            variant="outline"
+            disabled={!isV2BackupExportReady()}
+            aria-disabled={!isV2BackupExportReady()}
+            data-testid="v2-local-backup-export-button">
+            <Save size={14} />
+            {t('settings.data.local.backup.button')}
+          </Button>
+          <Button
+            onClick={() => RestoreV2Popup.show()}
+            variant="outline"
+            disabled={!isV2BackupRestoreReady()}
+            aria-disabled={!isV2BackupRestoreReady()}
+            data-testid="v2-local-backup-restore-button">
+            <FolderOpen size={14} />
+            {t('settings.data.local.restore.button')}
+          </Button>
+        </RowFlex>
+      </SettingRow>
       <SettingDivider />
       <LegacyLocalBackupGate>
         <SettingRow>

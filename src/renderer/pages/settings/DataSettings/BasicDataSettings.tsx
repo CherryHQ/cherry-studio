@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 import BackupExportV2Popup from './BackupExportV2Popup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestoreV2Popup from './RestoreV2Popup'
-import { V2BackupActionGate } from './V2BackupActionGate'
+import { isV2BackupExportReady, isV2BackupRestoreReady } from './V2BackupActionGate'
 
 /**
  * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
@@ -424,21 +424,29 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <V2BackupActionGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupExportV2Popup.show()} variant="outline">
-                <SaveIcon size={14} />
-                {t('settings.general.backup.button')}
-              </Button>
-              <Button onClick={() => RestoreV2Popup.show()} variant="outline">
-                <FolderOpen size={14} />
-                {t('settings.general.restore.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-        </V2BackupActionGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button
+              onClick={() => BackupExportV2Popup.show()}
+              variant="outline"
+              disabled={!isV2BackupExportReady()}
+              aria-disabled={!isV2BackupExportReady()}
+              data-testid="v2-backup-export-button">
+              <SaveIcon size={14} />
+              {t('settings.general.backup.button')}
+            </Button>
+            <Button
+              onClick={() => RestoreV2Popup.show()}
+              variant="outline"
+              disabled={!isV2BackupRestoreReady()}
+              aria-disabled={!isV2BackupRestoreReady()}
+              data-testid="v2-backup-restore-button">
+              <FolderOpen size={14} />
+              {t('settings.general.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
         <SettingDivider />
         <BackupUnavailableGate>
           <SettingRow>
