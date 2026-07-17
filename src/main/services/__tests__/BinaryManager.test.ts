@@ -1623,6 +1623,11 @@ describe('BinaryManager', () => {
       })
 
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('conflicting installation')
+      expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual({
+        status: 'failed',
+        action: 'install',
+        error: 'Tool fd resolves to a conflicting installation'
+      })
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
       expect(manifestRef.value).toEqual([])
     })
@@ -1635,6 +1640,11 @@ describe('BinaryManager', () => {
       })
 
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('Cannot determine')
+      expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual({
+        status: 'failed',
+        action: 'install',
+        error: 'Cannot determine fd state: query_failed'
+      })
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
       expect(manifestRef.value).toEqual([])
     })

@@ -1039,10 +1039,10 @@ export class BinaryManager extends BaseService {
         // over a foreign shim or an unreadable backend could shadow an existing
         // tool — reject without mutating.
         if (status === 'conflict')
-          return { kind: 'reject', error: `Tool ${name} resolves to a conflicting installation` }
+          return { kind: 'failed', error: `Tool ${name} resolves to a conflicting installation` }
         if (status === 'unknown') {
           const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
-          return { kind: 'reject', error: `Cannot determine ${name} state: ${reason}` }
+          return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
         }
         // applied: nothing to do unless a one-shot target update is requested.
         if (status === 'applied' && !targetVersion) return { kind: 'done' }
@@ -1077,8 +1077,9 @@ export class BinaryManager extends BaseService {
       this.setOperation(name, { status: 'failed', action: 'install', error: outcome.error })
       throw new Error(outcome.error)
     }
-    // reject: conflict/unknown/unknown-name — no failed operation, just clear the
-    // transient installing state and surface the error to the caller.
+    // Unknown name: validation found no fixed/custom recipe, so there is no card
+    // to carry a failed operation. Conflict/unknown application failures are
+    // recorded above so an existing card can explain why Retry made no change.
     this.setOperation(name, null)
     throw new Error(outcome.error)
   }

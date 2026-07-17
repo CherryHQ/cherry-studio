@@ -253,6 +253,31 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'fd' }))
   })
 
+  it('keeps an unknown Retry failure visible on the card', async () => {
+    const unknown: BinaryToolSnapshot = {
+      name: 'fd',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'system', path: '/usr/local/bin/fd' }
+    }
+    setSnapshots({ fd: unknown })
+    ipcMocks.installTool.mockImplementationOnce(async () => {
+      setSnapshots({
+        fd: {
+          ...unknown,
+          operation: { status: 'failed', action: 'install', error: 'Cannot determine fd state: query_failed' }
+        }
+      })
+      throw new Error('Cannot determine fd state: query_failed')
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByText('common.retry'))
+
+    expect(await within(card).findByText('settings.dependencies.viewErrorDetails')).toBeInTheDocument()
+    expect(within(card).getByText('Cannot determine fd state: query_failed')).toBeInTheDocument()
+  })
+
   it('keeps a mise preset with no application fact display-only without an install retry', async () => {
     setSnapshots({
       gh: { name: 'gh', availability: { source: 'mise', path: '/mise/gh', version: '2.0.0' } }
