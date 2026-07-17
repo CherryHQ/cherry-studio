@@ -215,7 +215,6 @@ export class McpCatalogService extends BaseService {
       this.runtimeService().setServerStatus(server.id, 'connected')
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
-      this.writeToolsCache(server.id, [])
       this.runtimeService().setServerStatus(server.id, 'error', error)
       throw error
     }
@@ -318,7 +317,8 @@ export class McpCatalogService extends BaseService {
             serverName: server.name,
             error: result.reason
           })
-          this.clearSharedToolsCache(server.id)
+          // Do NOT clear cache on prewarm failure — preserves last-known-good tools.
+          // Cache is only cleared on explicit refresh or server deactivation.
         })
       }
     } catch (error) {
