@@ -27,7 +27,7 @@ export const DEFAULT_SPEECH_PREFERENCES: SpeechPreferences = {
 }
 
 export const SPEECH_RATE_MIN = 0.5
-export const SPEECH_RATE_MAX = 2
+export const SPEECH_RATE_MAX = 3
 export const SPEECH_PITCH_MIN = 0
 export const SPEECH_PITCH_MAX = 2
 export const SPEECH_VOLUME_MIN = 0
@@ -46,7 +46,11 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 
 export const clampSpeechPreferences = (input: Partial<SpeechPreferences> | null | undefined): SpeechPreferences => ({
-  rate: clamp(isFiniteNumber(input?.rate) ? input.rate : DEFAULT_SPEECH_PREFERENCES.rate, SPEECH_RATE_MIN, SPEECH_RATE_MAX),
+  rate: clamp(
+    isFiniteNumber(input?.rate) ? input.rate : DEFAULT_SPEECH_PREFERENCES.rate,
+    SPEECH_RATE_MIN,
+    SPEECH_RATE_MAX
+  ),
   pitch: clamp(
     isFiniteNumber(input?.pitch) ? input.pitch : DEFAULT_SPEECH_PREFERENCES.pitch,
     SPEECH_PITCH_MIN,
@@ -157,7 +161,10 @@ const pickVoice = (voices: readonly SpeechSynthesisVoice[], voiceURI: string, la
   )
 }
 
-export const createSpeechSynthesisController = ({ onStateChange, getPreferences }: SpeechSynthesisControllerOptions) => {
+export const createSpeechSynthesisController = ({
+  onStateChange,
+  getPreferences
+}: SpeechSynthesisControllerOptions) => {
   const synth = typeof window === 'undefined' ? undefined : window.speechSynthesis
   let isSupported = detectSpeechSynthesisSupport()
   let currentMessageId: string | undefined

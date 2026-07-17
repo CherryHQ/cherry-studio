@@ -1,31 +1,42 @@
-import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type VNode } from 'vue'
 import { createPinia, storeToRefs } from 'pinia'
+import {
+  computed,
+  createApp,
+  defineComponent,
+  h,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  type VNode,
+  watch
+} from 'vue'
 
 import { createWebUiHttpClient, WebUiHttpError } from './service/httpClient'
 import { createWebUiSseClient } from './service/sseClient'
 import { useWebUiChatStore } from './stores/chatStore'
 import type {
+  WebUiAgentEntity,
+  WebUiAgentSessionEntity,
+  WebUiAgentSessionMessageEntity,
+  WebUiAgentStatusEvent,
   WebUiAuthStatusResponse,
+  WebUiChunkPayload,
   WebUiContextUsage,
   WebUiContextUsageResponse,
-  WebUiSlashCommand,
-  WebUiSlashCommandsResponse,
-  WebUiAgentSessionMessageEntity,
-  WebUiAgentSessionEntity,
-  WebUiAgentEntity,
+  WebUiConversationSummary,
+  WebUiCursorResponse,
+  WebUiHealthResponse,
+  WebUiMessagePart,
+  WebUiMessageSnapshot,
   WebUiModel,
   WebUiModelGroup,
   WebUiModelsResponse,
-  WebUiConversationSummary,
-  WebUiChunkPayload,
-  WebUiCursorResponse,
-  WebUiHealthResponse,
-  WebUiMessageSnapshot,
-  WebUiAgentStatusEvent,
-  WebUiSendAttachment,
   WebUiOffsetResponse,
-  WebUiMessagePart,
   WebUiRole,
+  WebUiSendAttachment,
+  WebUiSlashCommand,
+  WebUiSlashCommandsResponse,
   WebUiToolCallSnapshot,
   WebUiToolCallState,
   WebUiWorkspaceFileEntry,
@@ -44,11 +55,12 @@ import { renderDocxPreviewHtml } from './utils/docxPreview'
 import { mountPptxPreview } from './utils/pptxPreview'
 import { renderCode, renderMarkdown } from './utils/renderMarkdown'
 import {
-  DEFAULT_SPEECH_PREFERENCES,
   createSpeechSynthesisController,
+  DEFAULT_SPEECH_PREFERENCES,
   listSpeechVoices,
   loadSpeechPreferences,
   saveSpeechPreferences,
+  SPEECH_RATE_MAX,
   type SpeechPreferences,
   type SpeechSynthesisControllerState,
   type SpeechVoiceOption
@@ -112,21 +124,23 @@ const normalizeLanguage = (language?: string | null) => {
   const lower = language.toLowerCase()
 
   return (
-    {
-      'de-de': 'de-DE',
-      'el-gr': 'el-GR',
-      'en-us': 'en-US',
-      'es-es': 'es-ES',
-      'fr-fr': 'fr-FR',
-      'ja-jp': 'ja-JP',
-      'pt-pt': 'pt-PT',
-      'ro-ro': 'ro-RO',
-      'ru-ru': 'ru-RU',
-      'vi-vn': 'vi-VN',
-      'zh-cn': 'zh-CN',
-      'zh-tw': 'zh-TW'
-    } as Record<string, string>
-  )[lower] ?? fallbackLanguage
+    (
+      {
+        'de-de': 'de-DE',
+        'el-gr': 'el-GR',
+        'en-us': 'en-US',
+        'es-es': 'es-ES',
+        'fr-fr': 'fr-FR',
+        'ja-jp': 'ja-JP',
+        'pt-pt': 'pt-PT',
+        'ro-ro': 'ro-RO',
+        'ru-ru': 'ru-RU',
+        'vi-vn': 'vi-VN',
+        'zh-cn': 'zh-CN',
+        'zh-tw': 'zh-TW'
+      } as Record<string, string>
+    )[lower] ?? fallbackLanguage
+  )
 }
 
 const textPacks = {
@@ -158,7 +172,23 @@ const textPacks = {
     speechReset: 'Reset defaults',
     speechEmptyContent: 'This message has no readable text.',
     speechGeneratingBlocked: 'Speech is unavailable while the message is generating.',
+    deleteConversation: 'Delete conversation',
+    deleteConversationDescription:
+      'This conversation and its messages will be removed from the desktop app and cannot be restored.',
     delete: 'Delete',
+    editTitle: 'Edit title',
+    generateTopicName: 'Generate topic name',
+    generatingTopicName: 'Generating title...',
+    help: 'Help',
+    helpGuide: 'Usage guide',
+    helpGuideIntro: 'Use the WebUI to continue desktop Agent sessions from this browser.',
+    helpGuideSessions: 'Sessions: create, rename, generate topic names, or delete records from the left sidebar.',
+    helpGuideFiles: 'Files: preview workspace files from the Files tab when an access key is configured.',
+    helpGuideSpeech: 'Speech: adjust browser speech settings from the Speech tab.',
+    renameTitle: 'Rename conversation',
+    save: 'Save',
+    saving: 'Saving...',
+    titleRequired: 'Title cannot be empty.',
     deleteMessage: 'Delete this message?',
     deleteMessageDescription: 'This message will be removed from the desktop conversation and cannot be restored.',
     deleting: 'Deleting...',
@@ -280,7 +310,22 @@ const textPacks = {
     speechReset: '恢复默认',
     speechEmptyContent: '这条消息没有可朗读的正文。',
     speechGeneratingBlocked: '消息生成中，暂不可朗读。',
+    deleteConversation: '删除会话',
+    deleteConversationDescription: '此会话及其消息将从桌面端删除，且无法恢复。',
     delete: '删除',
+    editTitle: '编辑标题',
+    generateTopicName: '生成话题名',
+    generatingTopicName: '正在生成题名...',
+    help: '帮助',
+    helpGuide: '使用说明',
+    helpGuideIntro: '通过 WebUI 在浏览器中继续使用桌面端 Agent 会话。',
+    helpGuideSessions: '会话：可在左侧栏新建、重命名、生成话题名或删除会话记录。',
+    helpGuideFiles: '文件：配置访问密钥后，可在“文件”分组预览工作区文件。',
+    helpGuideSpeech: '朗读：可在“朗读”分组调整浏览器朗读偏好。',
+    renameTitle: '重命名会话',
+    save: '保存',
+    saving: '保存中...',
+    titleRequired: '标题不能为空。',
     deleteMessage: '删除这条消息？',
     deleteMessageDescription: '此消息将从桌面会话中删除，且无法恢复。',
     deleting: '删除中...',
@@ -402,7 +447,22 @@ const textPacks = {
     speechReset: '恢復預設',
     speechEmptyContent: '這則訊息沒有可朗讀的正文。',
     speechGeneratingBlocked: '訊息生成中，暫不可朗讀。',
+    deleteConversation: '刪除會話',
+    deleteConversationDescription: '此會話及其訊息將從桌面端刪除，且無法復原。',
     delete: '刪除',
+    editTitle: '編輯標題',
+    generateTopicName: '生成話題名',
+    generatingTopicName: '正在生成題名...',
+    help: '說明',
+    helpGuide: '使用說明',
+    helpGuideIntro: '透過 WebUI 在瀏覽器中繼續使用桌面端 Agent 會話。',
+    helpGuideSessions: '會話：可在左側欄新增、重新命名、生成話題名或刪除會話記錄。',
+    helpGuideFiles: '檔案：設定存取金鑰後，可在「檔案」分組預覽工作區檔案。',
+    helpGuideSpeech: '朗讀：可在「朗讀」分組調整瀏覽器朗讀偏好。',
+    renameTitle: '重新命名會話',
+    save: '儲存',
+    saving: '儲存中...',
+    titleRequired: '標題不能為空。',
     deleteMessage: '刪除這則訊息？',
     deleteMessageDescription: '此訊息將從桌面會話中刪除，且無法復原。',
     deleting: '刪除中...',
@@ -535,7 +595,11 @@ const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversat
   ...(session.workspace?.path ? { workspacePath: session.workspace.path } : {})
 })
 
-const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set(['output-available', 'output-error', 'output-denied'])
+const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set([
+  'output-available',
+  'output-error',
+  'output-denied'
+])
 
 type ComposerToolIconName = 'attachment' | 'newConversation' | 'thinking'
 
@@ -562,7 +626,13 @@ const renderComposerToolIcon = (name: ComposerToolIconName) => {
   }
 
   if (name === 'attachment') {
-    return h('svg', baseProps, h('path', { d: 'm21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5' }))
+    return h(
+      'svg',
+      baseProps,
+      h('path', {
+        d: 'm21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5'
+      })
+    )
   }
 
   if (name === 'thinking') {
@@ -654,6 +724,11 @@ type ActionIconName =
   | 'activity'
   | 'close'
   | 'folder'
+  | 'edit'
+  | 'sparkles'
+  | 'trash'
+  | 'more'
+  | 'help'
   | 'refresh'
   | 'back'
   | 'search'
@@ -673,8 +748,14 @@ const renderActionIcon = (name: ActionIconName, restore = false) => {
   }
 
   if (name === 'send') return h('svg', props, [h('path', { d: 'm5 12 7-7 7 7' }), h('path', { d: 'M12 19V5' })])
-  if (name === 'stop') return h('svg', { ...props, fill: 'currentColor', stroke: 'none' }, h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 1.5 }))
-  if (name === 'menu') return h('svg', props, [h('path', { d: 'M4 7h16' }), h('path', { d: 'M4 12h16' }), h('path', { d: 'M4 17h16' })])
+  if (name === 'stop')
+    return h(
+      'svg',
+      { ...props, fill: 'currentColor', stroke: 'none' },
+      h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 1.5 })
+    )
+  if (name === 'menu')
+    return h('svg', props, [h('path', { d: 'M4 7h16' }), h('path', { d: 'M4 12h16' }), h('path', { d: 'M4 17h16' })])
   if (name === 'down') return h('svg', props, [h('path', { d: 'm6 9 6 6 6-6' })])
   if (name === 'resize') {
     return restore
@@ -693,11 +774,58 @@ const renderActionIcon = (name: ActionIconName, restore = false) => {
   }
   if (name === 'activity') return h('svg', props, h('path', { d: 'M3 12h4l2.5-7 5 14 2.5-7h4' }))
   if (name === 'close') return h('svg', props, [h('path', { d: 'm6 6 12 12' }), h('path', { d: 'm18 6-12 12' })])
-  if (name === 'folder') return h('svg', props, h('path', { d: 'M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' }))
-  if (name === 'refresh') return h('svg', props, [h('path', { d: 'M20 6v5h-5' }), h('path', { d: 'M4 18v-5h5' }), h('path', { d: 'M6.1 9A7 7 0 0 1 18 6l2 5' }), h('path', { d: 'm4 13 2 5a7 7 0 0 0 11.9-3' })])
+  if (name === 'folder')
+    return h(
+      'svg',
+      props,
+      h('path', { d: 'M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' })
+    )
+  if (name === 'edit')
+    return h('svg', props, [
+      h('path', { d: 'M12 20h9' }),
+      h('path', { d: 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z' })
+    ])
+  if (name === 'sparkles')
+    return h('svg', props, [
+      h('path', { d: 'm12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8Z' }),
+      h('path', { d: 'm5 14 .9 2.1L8 17l-2.1.9L5 20l-.9-2.1L2 17l2.1-.9Z' }),
+      h('path', { d: 'm19 14 .7 1.6 1.6.7-1.6.7L19 19l-.7-1.6-1.6-.7 1.6-.7Z' })
+    ])
+  if (name === 'trash')
+    return h('svg', props, [
+      h('path', { d: 'M3 6h18' }),
+      h('path', { d: 'M8 6V4h8v2' }),
+      h('path', { d: 'm19 6-1 14H6L5 6' }),
+      h('path', { d: 'M10 11v5' }),
+      h('path', { d: 'M14 11v5' })
+    ])
+  if (name === 'more')
+    return h('svg', props, [
+      h('circle', { cx: 5, cy: 12, r: 1 }),
+      h('circle', { cx: 12, cy: 12, r: 1 }),
+      h('circle', { cx: 19, cy: 12, r: 1 })
+    ])
+  if (name === 'help')
+    return h('svg', props, [
+      h('circle', { cx: 12, cy: 12, r: 9 }),
+      h('path', { d: 'M9.1 9a3 3 0 1 1 5.8 1c-.5 1.1-1.7 1.5-2.2 2.4-.2.3-.2.7-.2 1.1' }),
+      h('path', { d: 'M12 17h.01' })
+    ])
+  if (name === 'refresh')
+    return h('svg', props, [
+      h('path', { d: 'M20 6v5h-5' }),
+      h('path', { d: 'M4 18v-5h5' }),
+      h('path', { d: 'M6.1 9A7 7 0 0 1 18 6l2 5' }),
+      h('path', { d: 'm4 13 2 5a7 7 0 0 0 11.9-3' })
+    ])
   if (name === 'back') return h('svg', props, [h('path', { d: 'm15 18-6-6 6-6' }), h('path', { d: 'M9 12h10' })])
   if (name === 'search') return h('svg', props, [h('circle', { cx: 11, cy: 11, r: 7 }), h('path', { d: 'm20 20-4-4' })])
-  if (name === 'volume') return h('svg', props, [h('path', { d: 'M11 5 6 9H3v6h3l5 4V5Z' }), h('path', { d: 'M15.5 8.5a5 5 0 0 1 0 7' }), h('path', { d: 'M18.5 5.5a9 9 0 0 1 0 13' })])
+  if (name === 'volume')
+    return h('svg', props, [
+      h('path', { d: 'M11 5 6 9H3v6h3l5 4V5Z' }),
+      h('path', { d: 'M15.5 8.5a5 5 0 0 1 0 7' }),
+      h('path', { d: 'M18.5 5.5a9 9 0 0 1 0 13' })
+    ])
   return h('svg', props)
 }
 
@@ -716,11 +844,29 @@ const renderAgentStatusIcon = (name: AgentStatusIconName) => {
     'aria-hidden': 'true'
   }
 
-  if (name === 'completed') return h('svg', props, [h('circle', { cx: 12, cy: 12, r: 9 }), h('path', { d: 'm8 12 2.5 2.5L16 9' })])
-  if (name === 'in_progress') return h('svg', props, [h('path', { d: 'M21 12a9 9 0 1 1-3-6.7' }), h('path', { d: 'M21 3v6h-6' })])
-  if (name === 'error') return h('svg', props, [h('circle', { cx: 12, cy: 12, r: 9 }), h('path', { d: 'M12 8v5' }), h('path', { d: 'M12 16h.01' })])
-  if (name === 'subagent') return h('svg', props, [h('rect', { x: 4, y: 7, width: 16, height: 12, rx: 2 }), h('path', { d: 'M12 3v4' }), h('path', { d: 'M8 12h.01' }), h('path', { d: 'M16 12h.01' }), h('path', { d: 'M9 16h6' })])
-  if (name === 'artifact') return h('svg', props, [h('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }), h('path', { d: 'M14 2v6h6' })])
+  if (name === 'completed')
+    return h('svg', props, [h('circle', { cx: 12, cy: 12, r: 9 }), h('path', { d: 'm8 12 2.5 2.5L16 9' })])
+  if (name === 'in_progress')
+    return h('svg', props, [h('path', { d: 'M21 12a9 9 0 1 1-3-6.7' }), h('path', { d: 'M21 3v6h-6' })])
+  if (name === 'error')
+    return h('svg', props, [
+      h('circle', { cx: 12, cy: 12, r: 9 }),
+      h('path', { d: 'M12 8v5' }),
+      h('path', { d: 'M12 16h.01' })
+    ])
+  if (name === 'subagent')
+    return h('svg', props, [
+      h('rect', { x: 4, y: 7, width: 16, height: 12, rx: 2 }),
+      h('path', { d: 'M12 3v4' }),
+      h('path', { d: 'M8 12h.01' }),
+      h('path', { d: 'M16 12h.01' }),
+      h('path', { d: 'M9 16h6' })
+    ])
+  if (name === 'artifact')
+    return h('svg', props, [
+      h('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
+      h('path', { d: 'M14 2v6h6' })
+    ])
   return h('svg', props, h('circle', { cx: 12, cy: 12, r: 8 }))
 }
 
@@ -854,7 +1000,9 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
 const readFileAsDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
-    reader.addEventListener('load', () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid file data'))))
+    reader.addEventListener('load', () =>
+      typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid file data'))
+    )
     reader.addEventListener('error', () => reject(reader.error ?? new Error('Unable to read file')))
     reader.readAsDataURL(file)
   })
@@ -869,6 +1017,8 @@ const App = defineComponent({
   setup() {
     const httpClient = createWebUiHttpClient()
     const sseClient = createWebUiSseClient()
+    // Pinia store inside Vue setup; not a React Hook.
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- Vue Pinia store used in defineComponent setup
     const chatStore = useWebUiChatStore()
     const { activeRunConversationId, conversations, messages, selectedConversationId } = storeToRefs(chatStore)
     const bridgeState = ref<'checking' | 'connected' | 'offline'>('checking')
@@ -899,10 +1049,19 @@ const App = defineComponent({
     const contextUsage = ref<WebUiContextUsage | null>(null)
     const statusPreviewOpen = ref(false)
     const statusPanelOpen = ref(false)
-    const rightPanelTab = ref<'status' | 'files' | 'speech'>('status')
+    const rightPanelTab = ref<'status' | 'files' | 'speech' | 'help'>('status')
+    const statusPanelWidth = ref(Number(window.localStorage.getItem('cherry-webui.right-panel-width')) || 380)
+    const statusPanelResizing = ref(false)
+    const openConversationMenuId = ref<string>()
+    const editingConversationId = ref<string>()
+    const editingConversationTitle = ref('')
+    const conversationActionId = ref<string>()
+    const conversationActionState = ref<'idle' | 'saving' | 'generating' | 'deleting' | 'error'>('idle')
+    const conversationActionError = ref('')
+    const deleteConversationId = ref<string>()
     const speechPreferences = ref<SpeechPreferences>(loadSpeechPreferences())
     const speechVoices = ref<readonly SpeechVoiceOption[]>([])
-    const speechNotice = ref('')
+    const speechNotice = ref<{ readonly message: string; readonly messageId: string } | null>(null)
     const workspaceDirectoryEntries = ref<Readonly<Record<string, readonly WebUiWorkspaceFileEntry[]>>>({})
     const workspaceExpandedDirectories = ref<ReadonlySet<string>>(new Set())
     const workspaceFileSearch = ref('')
@@ -963,7 +1122,9 @@ const App = defineComponent({
     const selectedAgent = computed(() => agents.value.find((agent) => agent.id === selectedConversation.value?.agentId))
     const models = computed(() => modelGroups.value.flatMap((group) => group.models))
     const selectedModel = computed(() => models.value.find((model) => model.id === selectedAgent.value?.model))
-    const modelPickerLabel = computed(() => selectedModel.value?.name ?? selectedAgent.value?.modelName ?? selectedAgent.value?.model ?? text('agent'))
+    const modelPickerLabel = computed(
+      () => selectedModel.value?.name ?? selectedAgent.value?.modelName ?? selectedAgent.value?.model ?? text('agent')
+    )
     const contextUsagePercentage = computed(() => {
       if (!contextUsage.value?.maxTokens) return undefined
       return Math.min(100, Math.round((contextUsage.value.totalTokens / contextUsage.value.maxTokens) * 100))
@@ -999,7 +1160,9 @@ const App = defineComponent({
           ],
           style: {
             '--context-usage':
-              contextUsagePercentage.value === undefined ? '0deg' : `${Math.round((contextUsagePercentage.value / 100) * 360)}deg`
+              contextUsagePercentage.value === undefined
+                ? '0deg'
+                : `${Math.round((contextUsagePercentage.value / 100) * 360)}deg`
           },
           'aria-hidden': 'true'
         },
@@ -1043,14 +1206,19 @@ const App = defineComponent({
     }
     const conversationAgentName = (agentId: string | null) =>
       agents.value.find((agent) => agent.id === agentId)?.name ?? text('agent')
+    const deletingConversation = computed(() =>
+      conversations.value.find((conversation) => conversation.id === deleteConversationId.value)
+    )
 
     const text = (key: TextKey) => {
       const pack = textPacks[language.value as keyof typeof textPacks] ?? textPacks[fallbackLanguage]
       return pack[key] ?? textPacks[fallbackLanguage][key]
     }
 
-    const localizedErrorMessage = (error: unknown) => (isAbortError(error) ? text('requestAborted') : toErrorMessage(error))
-    const isReadingMessage = (messageId: string) => speechState.value.isSpeaking && speechState.value.messageId === messageId
+    const localizedErrorMessage = (error: unknown) =>
+      isAbortError(error) ? text('requestAborted') : toErrorMessage(error)
+    const isReadingMessage = (messageId: string) =>
+      speechState.value.isSpeaking && speechState.value.messageId === messageId
     const refreshSpeechVoices = () => {
       speechVoices.value = listSpeechVoices()
       speechController.refreshSupport()
@@ -1066,10 +1234,12 @@ const App = defineComponent({
     const resetSpeechPreferences = () => {
       persistSpeechPreferences({ ...DEFAULT_SPEECH_PREFERENCES })
     }
-    const showSpeechNotice = (message: string) => {
-      speechNotice.value = message
+    const showSpeechNotice = (message: string, messageId?: string) => {
+      const targetMessageId = messageId ?? ''
+      speechNotice.value = { message, messageId: targetMessageId }
       window.setTimeout(() => {
-        if (speechNotice.value === message) speechNotice.value = ''
+        const current = speechNotice.value
+        if (current?.message === message && current.messageId === targetMessageId) speechNotice.value = null
       }, 2600)
     }
     const openSpeechPanel = () => {
@@ -1097,7 +1267,7 @@ const App = defineComponent({
             h('input', {
               type: 'range',
               min: '0.5',
-              max: '2',
+              max: String(SPEECH_RATE_MAX),
               step: '0.1',
               value: String(speechPreferences.value.rate),
               disabled: !speechController.isSupported,
@@ -1193,28 +1363,35 @@ const App = defineComponent({
       message && isAbortError(message) ? text('requestAborted') : message || text('disconnected')
     const isAbortSseMessage = (message?: string) => Boolean(message && isAbortError(message))
 
-    const hasProcessDetails = (message: WebUiMessageSnapshot) =>
-      Boolean(message.reasoning || message.toolCalls?.length)
+    const hasProcessDetails = (message: WebUiMessageSnapshot) => Boolean(message.reasoning || message.toolCalls?.length)
     const getProcessSummary = (message: WebUiMessageSnapshot) => {
       if (message.status !== 'pending' && message.processingTimeMs) {
         return `${text('processingTime')} ${formatDuration(message.processingTimeMs)}`
       }
-      if (message.toolCalls?.length) return `${text('processDetails')} · ${message.toolCalls.length} ${text('toolCalls')}`
+      if (message.toolCalls?.length)
+        return `${text('processDetails')} · ${message.toolCalls.length} ${text('toolCalls')}`
       return text('reasoning')
     }
     const renderToolCall = (tool: WebUiToolCallSnapshot, message: WebUiMessageSnapshot) =>
-      h('details', { class: ['tool-call', `tool-call-${tool.state}`], open: message.status === 'pending' && !terminalToolStates.has(tool.state) }, [
-        h('summary', [
-          h('span', { class: 'tool-state-indicator', 'aria-hidden': 'true' }),
-          h('span', { class: 'tool-call-name' }, tool.name),
-          h('span', { class: 'tool-call-state' }, tool.state.replaceAll('-', ' '))
-        ]),
-        h('div', { class: 'tool-call-body' }, [
-          tool.input ? h('pre', { class: 'tool-call-data' }, tool.input) : undefined,
-          tool.output ? h('pre', { class: 'tool-call-data' }, tool.output) : undefined,
-          tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined
-        ])
-      ])
+      h(
+        'details',
+        {
+          class: ['tool-call', `tool-call-${tool.state}`],
+          open: message.status === 'pending' && !terminalToolStates.has(tool.state)
+        },
+        [
+          h('summary', [
+            h('span', { class: 'tool-state-indicator', 'aria-hidden': 'true' }),
+            h('span', { class: 'tool-call-name' }, tool.name),
+            h('span', { class: 'tool-call-state' }, tool.state.replaceAll('-', ' '))
+          ]),
+          h('div', { class: 'tool-call-body' }, [
+            tool.input ? h('pre', { class: 'tool-call-data' }, tool.input) : undefined,
+            tool.output ? h('pre', { class: 'tool-call-data' }, tool.output) : undefined,
+            tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined
+          ])
+        ]
+      )
     const renderProcessDetails = (message: WebUiMessageSnapshot) =>
       hasProcessDetails(message)
         ? h('details', { class: ['process-block', { 'process-block-pending': message.status === 'pending' }] }, [
@@ -1413,10 +1590,18 @@ const App = defineComponent({
       try {
         if (isBinaryPreview) {
           const blob = await httpClient.getBlob(apiPath)
-          if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+          if (
+            requestGeneration !== workspacePreviewRequestGeneration ||
+            conversationId !== selectedConversationId.value
+          )
+            return
           if (previewKind === 'docx') {
             const rendered = await renderDocxPreviewHtml(blob)
-            if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+            if (
+              requestGeneration !== workspacePreviewRequestGeneration ||
+              conversationId !== selectedConversationId.value
+            )
+              return
             workspaceFilePreview.value = {
               status: 'docx',
               path: filePath,
@@ -1427,7 +1612,11 @@ const App = defineComponent({
           }
           if (previewKind === 'pptx') {
             const data = await blob.arrayBuffer()
-            if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+            if (
+              requestGeneration !== workspacePreviewRequestGeneration ||
+              conversationId !== selectedConversationId.value
+            )
+              return
             workspaceFilePreview.value = {
               status: 'pptx',
               path: filePath,
@@ -1446,13 +1635,15 @@ const App = defineComponent({
         }
 
         const response = await httpClient.getJson<WebUiWorkspaceTextPreview>(apiPath)
-        if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+        if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value)
+          return
         workspaceFilePreview.value =
           response.kind === 'text'
             ? { status: 'text', path: filePath, name: response.name, content: response.content ?? '' }
             : { status: 'binary', path: filePath, name: response.name }
       } catch (error) {
-        if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+        if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value)
+          return
         workspaceFilePreview.value = {
           status: 'error',
           path: filePath,
@@ -1470,7 +1661,10 @@ const App = defineComponent({
     }
 
     const openWorkspaceArtifact = (artifact: WebUiAgentArtifact) => {
-      const relativePath = resolveWorkspaceRelativeArtifactPath(selectedConversation.value?.workspacePath, artifact.path)
+      const relativePath = resolveWorkspaceRelativeArtifactPath(
+        selectedConversation.value?.workspacePath,
+        artifact.path
+      )
       if (!relativePath) return
       openFilesPanel()
       void openWorkspaceFile(relativePath)
@@ -1491,37 +1685,42 @@ const App = defineComponent({
     const renderContextUsageSummary = (compact = false) => {
       const percentage = contextUsagePercentage.value
       const usage = contextUsage.value
-      return h('section', { class: ['agent-status-section', 'context-usage-summary', { 'agent-status-section-compact': compact }] }, [
-        h('h3', text('contextUsage')),
-        usage && percentage !== undefined
-          ? h('div', { class: 'context-usage-content' }, [
-              h('div', { class: 'context-progress-track' },
-                h('span', {
-                  class: ['context-progress-value', `context-progress-value-${contextUsageTone.value}`],
-                  style: { width: `${percentage}%`, background: contextUsageColor.value }
-                })
-              ),
-              h('div', { class: 'context-usage-meta' }, [
-                h('span', `${usage.totalTokens.toLocaleString()} / ${usage.maxTokens.toLocaleString()} (${percentage}%)`),
-                h('span', { title: usage.model }, usage.model)
-              ]),
-              contextUsageCategories.value.length
-                ? h(
-                    'dl',
-                    { class: 'context-category-list' },
-                    contextUsageCategories.value.flatMap((category) => [
-                      h(
-                        'dt',
-                        { key: `${category.name}-name` },
-                        getContextCategoryLabel(category.name)
-                      ),
-                      h('dd', { key: `${category.name}-tokens` }, category.tokens.toLocaleString())
-                    ])
-                  )
-                : undefined
-            ])
-          : h('p', { class: 'agent-status-empty' }, text('noContext'))
-      ])
+      return h(
+        'section',
+        { class: ['agent-status-section', 'context-usage-summary', { 'agent-status-section-compact': compact }] },
+        [
+          h('h3', text('contextUsage')),
+          usage && percentage !== undefined
+            ? h('div', { class: 'context-usage-content' }, [
+                h(
+                  'div',
+                  { class: 'context-progress-track' },
+                  h('span', {
+                    class: ['context-progress-value', `context-progress-value-${contextUsageTone.value}`],
+                    style: { width: `${percentage}%`, background: contextUsageColor.value }
+                  })
+                ),
+                h('div', { class: 'context-usage-meta' }, [
+                  h(
+                    'span',
+                    `${usage.totalTokens.toLocaleString()} / ${usage.maxTokens.toLocaleString()} (${percentage}%)`
+                  ),
+                  h('span', { title: usage.model }, usage.model)
+                ]),
+                contextUsageCategories.value.length
+                  ? h(
+                      'dl',
+                      { class: 'context-category-list' },
+                      contextUsageCategories.value.flatMap((category) => [
+                        h('dt', { key: `${category.name}-name` }, getContextCategoryLabel(category.name)),
+                        h('dd', { key: `${category.name}-tokens` }, category.tokens.toLocaleString())
+                      ])
+                    )
+                  : undefined
+              ])
+            : h('p', { class: 'agent-status-empty' }, text('noContext'))
+        ]
+      )
     }
 
     const renderTaskList = (tasks: readonly WebUiAgentTask[], compact = false) =>
@@ -1540,14 +1739,25 @@ const App = defineComponent({
               { class: 'agent-status-list' },
               tasks.map((task) =>
                 h('li', { class: ['agent-status-item', `agent-status-item-${task.status}`], key: task.id }, [
-                  h('span', { class: ['agent-status-item-icon', `agent-status-item-icon-${task.status}`] }, renderAgentStatusIcon(task.status)),
+                  h(
+                    'span',
+                    { class: ['agent-status-item-icon', `agent-status-item-icon-${task.status}`] },
+                    renderAgentStatusIcon(task.status)
+                  ),
                   h('span', { class: 'agent-status-item-copy' }, [
                     h(
                       'span',
-                      { class: ['agent-status-item-title', { 'agent-status-item-title-completed': task.status === 'completed' }] },
+                      {
+                        class: [
+                          'agent-status-item-title',
+                          { 'agent-status-item-title-completed': task.status === 'completed' }
+                        ]
+                      },
                       task.status === 'in_progress' && task.activeText ? task.activeText : task.title
                     ),
-                    compact ? undefined : h('span', { class: 'agent-status-item-state' }, getAgentStatusLabel(task.status))
+                    compact
+                      ? undefined
+                      : h('span', { class: 'agent-status-item-state' }, getAgentStatusLabel(task.status))
                   ])
                 ])
               )
@@ -1566,12 +1776,19 @@ const App = defineComponent({
               'ul',
               { class: 'agent-status-list' },
               subagents.map((subagent) => {
-                const iconName = subagent.status === 'running' ? 'in_progress' : subagent.status === 'done' ? 'completed' : 'error'
+                const iconName =
+                  subagent.status === 'running' ? 'in_progress' : subagent.status === 'done' ? 'completed' : 'error'
                 return h('li', { class: 'agent-status-item', key: subagent.id }, [
-                  h('span', { class: ['agent-status-item-icon', `agent-status-item-icon-${iconName}`] }, renderAgentStatusIcon(iconName)),
+                  h(
+                    'span',
+                    { class: ['agent-status-item-icon', `agent-status-item-icon-${iconName}`] },
+                    renderAgentStatusIcon(iconName)
+                  ),
                   h('span', { class: 'agent-status-item-copy' }, [
                     h('span', { class: 'agent-status-item-title' }, subagent.name),
-                    compact ? undefined : h('span', { class: 'agent-status-item-state' }, getAgentStatusLabel(subagent.status))
+                    compact
+                      ? undefined
+                      : h('span', { class: 'agent-status-item-state' }, getAgentStatusLabel(subagent.status))
                   ])
                 ])
               })
@@ -1593,7 +1810,9 @@ const App = defineComponent({
                 const canPreview = Boolean(
                   resolveWorkspaceRelativeArtifactPath(selectedConversation.value?.workspacePath, artifact.path)
                 )
-                return h('li', { key: artifact.id },
+                return h(
+                  'li',
+                  { key: artifact.id },
                   h(
                     'button',
                     {
@@ -1604,12 +1823,20 @@ const App = defineComponent({
                       onClick: () => openWorkspaceArtifact(artifact)
                     },
                     [
-                      h('span', { class: 'agent-status-item-icon agent-status-item-icon-artifact' }, renderAgentStatusIcon('artifact')),
+                      h(
+                        'span',
+                        { class: 'agent-status-item-icon agent-status-item-icon-artifact' },
+                        renderAgentStatusIcon('artifact')
+                      ),
                       h('span', { class: 'agent-status-item-copy' }, [
                         h('span', { class: 'agent-status-item-title' }, artifact.name),
                         compact
                           ? undefined
-                          : h('span', { class: 'agent-status-item-state', title: artifact.path }, artifact.description ?? artifact.path)
+                          : h(
+                              'span',
+                              { class: 'agent-status-item-state', title: artifact.path },
+                              artifact.description ?? artifact.path
+                            )
                       ])
                     ]
                   )
@@ -1627,7 +1854,7 @@ const App = defineComponent({
       return nodes.flatMap((node) => {
         const expanded = searchMode || workspaceExpandedDirectories.value.has(node.path)
         const children = searchMode
-          ? node.children ?? []
+          ? (node.children ?? [])
           : (workspaceDirectoryEntries.value[node.path] ?? []).map((entry) => ({ ...entry }))
         const row = h(
           'button',
@@ -1648,7 +1875,12 @@ const App = defineComponent({
               : h('span', { class: 'workspace-file-chevron workspace-file-chevron-spacer' }),
             h(
               'span',
-              { class: ['workspace-file-kind-icon', node.isDirectory ? 'workspace-file-kind-folder' : 'workspace-file-kind-file'] },
+              {
+                class: [
+                  'workspace-file-kind-icon',
+                  node.isDirectory ? 'workspace-file-kind-folder' : 'workspace-file-kind-file'
+                ]
+              },
               node.isDirectory ? renderActionIcon('folder') : renderAgentStatusIcon('artifact')
             ),
             h('span', { class: 'workspace-file-name' }, node.name)
@@ -1705,38 +1937,43 @@ const App = defineComponent({
                         text('loadingFiles')
                       )
                     )
-                : preview.status === 'docx'
-                  ? h('div', { class: 'workspace-docx-preview-scroll' }, [
-                      h('div', { class: 'workspace-docx-preview-style', innerHTML: preview.styleHtml }),
-                      h('div', { class: 'workspace-docx-preview', innerHTML: preview.bodyHtml })
-                    ])
-                : preview.status === 'pdf'
-                  ? h('iframe', {
-                      class: 'workspace-pdf-preview',
-                      src: preview.url,
-                      title: preview.name
-                    })
-                  : preview.status === 'image'
-                    ? h('img', {
-                        class: 'workspace-image-preview',
-                        src: preview.url,
-                        alt: preview.name,
-                        onError: () => {
-                          URL.revokeObjectURL(preview.url)
-                          workspaceFilePreview.value = {
-                            status: 'error',
-                            path: preview.path,
-                            message: text('fileUnavailable')
-                          }
-                        }
-                      })
-                    : previewKind === 'markdown'
-                      ? h('div', { class: 'workspace-markdown-preview markdown-content', innerHTML: renderMarkdown(preview.content) })
-                      : h('pre', { class: 'workspace-code-preview hljs' },
-                          h('code', {
-                            innerHTML: renderCode(preview.content, getWorkspaceCodeLanguage(preview.path))
+                  : preview.status === 'docx'
+                    ? h('div', { class: 'workspace-docx-preview-scroll' }, [
+                        h('div', { class: 'workspace-docx-preview-style', innerHTML: preview.styleHtml }),
+                        h('div', { class: 'workspace-docx-preview', innerHTML: preview.bodyHtml })
+                      ])
+                    : preview.status === 'pdf'
+                      ? h('iframe', {
+                          class: 'workspace-pdf-preview',
+                          src: preview.url,
+                          title: preview.name
+                        })
+                      : preview.status === 'image'
+                        ? h('img', {
+                            class: 'workspace-image-preview',
+                            src: preview.url,
+                            alt: preview.name,
+                            onError: () => {
+                              URL.revokeObjectURL(preview.url)
+                              workspaceFilePreview.value = {
+                                status: 'error',
+                                path: preview.path,
+                                message: text('fileUnavailable')
+                              }
+                            }
                           })
-                        )
+                        : previewKind === 'markdown'
+                          ? h('div', {
+                              class: 'workspace-markdown-preview markdown-content',
+                              innerHTML: renderMarkdown(preview.content)
+                            })
+                          : h(
+                              'pre',
+                              { class: 'workspace-code-preview hljs' },
+                              h('code', {
+                                innerHTML: renderCode(preview.content, getWorkspaceCodeLanguage(preview.path))
+                              })
+                            )
         ])
       ])
     }
@@ -2011,7 +2248,9 @@ const App = defineComponent({
       modelUpdateState.value = 'updating'
       submitError.value = ''
       try {
-        await httpClient.patchJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/model`, { model: model.id })
+        await httpClient.patchJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/model`, {
+          model: model.id
+        })
         await loadAgents()
         refreshComposerInfo(conversationId)
         modelPickerOpen.value = false
@@ -2048,6 +2287,7 @@ const App = defineComponent({
 
     const selectConversation = (conversationId: string) => {
       clearStatusPreviewTimers()
+      closeConversationMenu()
       statusPreviewOpen.value = false
       if (conversationId === selectedConversationId.value) {
         mobileSidebarOpen.value = false
@@ -2072,6 +2312,155 @@ const App = defineComponent({
       void loadConversationMessages(conversationId)
       refreshComposerInfo(conversationId)
       refreshSlashCommands(conversationId)
+    }
+
+    const toggleConversationMenu = (conversationId: string) => {
+      openConversationMenuId.value = openConversationMenuId.value === conversationId ? undefined : conversationId
+    }
+
+    const closeConversationMenu = () => {
+      openConversationMenuId.value = undefined
+    }
+
+    const openEditConversation = (conversation: WebUiConversationSummary) => {
+      closeConversationMenu()
+      editingConversationId.value = conversation.id
+      editingConversationTitle.value = conversation.title
+      conversationActionId.value = conversation.id
+      conversationActionState.value = 'idle'
+      conversationActionError.value = ''
+    }
+
+    const closeEditConversation = () => {
+      if (conversationActionState.value === 'saving' || conversationActionState.value === 'generating') return
+      editingConversationId.value = undefined
+      editingConversationTitle.value = ''
+      conversationActionId.value = undefined
+      conversationActionState.value = 'idle'
+      conversationActionError.value = ''
+    }
+
+    const saveConversationTitle = async () => {
+      const conversationId = editingConversationId.value
+      if (
+        !conversationId ||
+        conversationActionState.value === 'saving' ||
+        conversationActionState.value === 'generating'
+      )
+        return
+      const nextTitle = editingConversationTitle.value.trim()
+      if (!nextTitle) {
+        conversationActionError.value = text('titleRequired')
+        return
+      }
+      conversationActionState.value = 'saving'
+      conversationActionError.value = ''
+      try {
+        await httpClient.patchJson(`/api/data/agent-sessions/${encodeURIComponent(conversationId)}`, {
+          name: nextTitle,
+          isNameManuallyEdited: true
+        })
+        editingConversationId.value = undefined
+        editingConversationTitle.value = ''
+        conversationActionState.value = 'idle'
+        await loadConversations()
+      } catch (error) {
+        conversationActionState.value = 'error'
+        conversationActionError.value = localizedErrorMessage(error)
+      }
+    }
+
+    const generateConversationTitle = async (conversationId: string) => {
+      if (
+        !conversationId ||
+        conversationActionState.value === 'saving' ||
+        conversationActionState.value === 'generating'
+      )
+        return
+      closeConversationMenu()
+      conversationActionId.value = conversationId
+      conversationActionState.value = 'generating'
+      conversationActionError.value = ''
+      try {
+        await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/generate-title`, {})
+        await loadConversations()
+        if (selectedConversationId.value === conversationId) {
+          await loadConversationMessages(conversationId, 'refresh')
+        }
+        conversationActionState.value = 'idle'
+      } catch (error) {
+        conversationActionState.value = 'error'
+        conversationActionError.value = localizedErrorMessage(error)
+      }
+    }
+
+    const openDeleteConversation = (conversationId: string) => {
+      if (conversationActionState.value === 'saving' || conversationActionState.value === 'generating') return
+      closeConversationMenu()
+      deleteConversationId.value = conversationId
+      conversationActionId.value = conversationId
+      conversationActionState.value = 'idle'
+      conversationActionError.value = ''
+    }
+
+    const closeDeleteConversation = () => {
+      if (conversationActionState.value === 'deleting') return
+      deleteConversationId.value = undefined
+      conversationActionId.value = undefined
+      conversationActionState.value = 'idle'
+      conversationActionError.value = ''
+    }
+
+    const confirmDeleteConversation = async () => {
+      const conversationId = deleteConversationId.value
+      if (!conversationId || conversationActionState.value === 'deleting') return
+      conversationActionState.value = 'deleting'
+      conversationActionError.value = ''
+      try {
+        await httpClient.deleteJson(`/api/data/agent-sessions/${encodeURIComponent(conversationId)}`)
+        deleteConversationId.value = undefined
+        conversationActionId.value = undefined
+        conversationActionState.value = 'idle'
+        if (selectedConversationId.value === conversationId) {
+          selectedConversationId.value = undefined
+          messages.value = []
+          contextUsage.value = null
+          slashCommands.value = []
+          olderMessagesCursor.value = undefined
+          messageLoadState.value = 'idle'
+          messageLoadMessage.value = text('sessionsChanged')
+        }
+        await loadConversations()
+      } catch (error) {
+        conversationActionState.value = 'error'
+        conversationActionError.value = localizedErrorMessage(error)
+      }
+    }
+
+    const beginPanelResize = (event: PointerEvent) => {
+      if (!statusPanelOpen.value) return
+      const host = event.currentTarget as HTMLElement | null
+      const pointerId = event.pointerId
+      const startX = event.clientX
+      const startWidth = statusPanelWidth.value
+      const minWidth = 300
+      const maxWidth = 520
+      statusPanelResizing.value = true
+      host?.setPointerCapture(pointerId)
+      const onMove = (moveEvent: PointerEvent) => {
+        const delta = startX - moveEvent.clientX
+        statusPanelWidth.value = Math.min(maxWidth, Math.max(minWidth, Math.round(startWidth + delta)))
+      }
+      const onUp = () => {
+        statusPanelResizing.value = false
+        window.localStorage.setItem('cherry-webui.right-panel-width', String(statusPanelWidth.value))
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        window.removeEventListener('pointercancel', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      window.addEventListener('pointercancel', onUp)
     }
 
     const openNewConversation = async () => {
@@ -2177,7 +2566,7 @@ const App = defineComponent({
                       ? 'input-streaming'
                       : chunk.type === 'tool-input-available'
                         ? 'input-available'
-                        : previousTool?.state ?? 'input-streaming',
+                        : (previousTool?.state ?? 'input-streaming'),
           ...(chunk.type === 'tool-input-delta'
             ? { input: `${previousTool?.input ?? ''}${chunk.inputTextDelta ?? ''}` }
             : input
@@ -2186,7 +2575,11 @@ const App = defineComponent({
                 ? { input: previousTool.input }
                 : {}),
           ...(output ? { output } : previousTool?.output ? { output: previousTool.output } : {}),
-          ...(chunk.errorText ? { errorText: chunk.errorText } : previousTool?.errorText ? { errorText: previousTool.errorText } : {})
+          ...(chunk.errorText
+            ? { errorText: chunk.errorText }
+            : previousTool?.errorText
+              ? { errorText: previousTool.errorText }
+              : {})
         }
         nextMessages[messageIndex] = {
           ...message,
@@ -2197,7 +2590,9 @@ const App = defineComponent({
             name: chunk.toolName ?? previousStatusEvent?.name ?? previousTool?.name ?? 'Tool',
             state: nextTool.state,
             ...(chunk.type === 'tool-input-delta'
-              ? { input: `${typeof previousStatusEvent?.input === 'string' ? previousStatusEvent.input : ''}${chunk.inputTextDelta ?? ''}` }
+              ? {
+                  input: `${typeof previousStatusEvent?.input === 'string' ? previousStatusEvent.input : ''}${chunk.inputTextDelta ?? ''}`
+                }
               : chunk.input !== undefined
                 ? { input: chunk.input }
                 : previousStatusEvent?.input !== undefined
@@ -2296,8 +2691,7 @@ const App = defineComponent({
     }
 
     const toggleComposerHeight = () => {
-      composerHeight.value =
-        composerHeight.value === composerDefaultHeight ? composerMaxHeight : composerDefaultHeight
+      composerHeight.value = composerHeight.value === composerDefaultHeight ? composerMaxHeight : composerDefaultHeight
     }
 
     const addAttachments = (selectedFiles: FileList | null) => {
@@ -2305,7 +2699,11 @@ const App = defineComponent({
       const next = [...attachments.value]
       let totalBytes = next.reduce((sum, attachment) => sum + attachment.file.size, 0)
       for (const file of Array.from(selectedFiles)) {
-        if (next.length >= maxAttachmentCount || file.size > maxAttachmentBytes || totalBytes + file.size > maxAttachmentsBytes) {
+        if (
+          next.length >= maxAttachmentCount ||
+          file.size > maxAttachmentBytes ||
+          totalBytes + file.size > maxAttachmentsBytes
+        ) {
           submitError.value = text('attachmentLimit')
           break
         }
@@ -2371,15 +2769,15 @@ const App = defineComponent({
 
     const toggleReadMessageAloud = (message: WebUiMessageSnapshot) => {
       if (!speechController.refreshSupport()) {
-        showSpeechNotice(text('speechUnavailable'))
+        showSpeechNotice(text('speechUnavailable'), message.id)
         return
       }
       if (message.status === 'pending') {
-        showSpeechNotice(text('speechGeneratingBlocked'))
+        showSpeechNotice(text('speechGeneratingBlocked'), message.id)
         return
       }
       if (!message.content.trim()) {
-        showSpeechNotice(text('speechEmptyContent'))
+        showSpeechNotice(text('speechEmptyContent'), message.id)
         return
       }
       speechController.speak(message.id, message.content, language.value)
@@ -2404,29 +2802,34 @@ const App = defineComponent({
             )
           : undefined,
         message.content
-          ? h(
-              'button',
-              {
-                class: [
-                  'message-action-button',
-                  {
-                    'message-action-button-active': isReadingMessage(message.id),
-                    'message-action-button-unsupported': !speechController.isSupported
-                  }
-                ],
-                type: 'button',
-                disabled: message.status === 'pending' || !message.content.trim(),
-                title: speechController.isSupported
-                  ? isReadingMessage(message.id)
-                    ? text('stopReading')
-                    : text('readAloud')
-                  : text('speechUnavailable'),
-                'aria-label': isReadingMessage(message.id) ? text('stopReading') : text('readAloud'),
-                'aria-pressed': isReadingMessage(message.id) ? 'true' : 'false',
-                onClick: () => toggleReadMessageAloud(message)
-              },
-              renderActionIcon(isReadingMessage(message.id) ? 'stop' : 'volume')
-            )
+          ? h('span', { class: 'message-action-wrap' }, [
+              speechNotice.value?.messageId === message.id
+                ? h('span', { class: 'speech-notice', role: 'status' }, speechNotice.value.message)
+                : undefined,
+              h(
+                'button',
+                {
+                  class: [
+                    'message-action-button',
+                    {
+                      'message-action-button-active': isReadingMessage(message.id),
+                      'message-action-button-unsupported': !speechController.isSupported
+                    }
+                  ],
+                  type: 'button',
+                  disabled: message.status === 'pending' || !message.content.trim(),
+                  title: speechController.isSupported
+                    ? isReadingMessage(message.id)
+                      ? text('stopReading')
+                      : text('readAloud')
+                    : text('speechUnavailable'),
+                  'aria-label': isReadingMessage(message.id) ? text('stopReading') : text('readAloud'),
+                  'aria-pressed': isReadingMessage(message.id) ? 'true' : 'false',
+                  onClick: () => toggleReadMessageAloud(message)
+                },
+                renderActionIcon(isReadingMessage(message.id) ? 'stop' : 'volume')
+              )
+            ])
           : undefined,
         h(
           'button',
@@ -2493,10 +2896,12 @@ const App = defineComponent({
           `/api/data/agent-sessions/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`
         )
         messages.value = messages.value.filter((message) => message.id !== messageId)
+        contextUsage.value = null
         deleteMessageId.value = undefined
         messageDeleteState.value = 'idle'
         messageLoadMessage.value = messages.value.length ? '' : text('emptyConversation')
         await Promise.all([loadConversationMessages(conversationId, 'refresh'), loadConversations()])
+        refreshComposerInfo(conversationId)
       } catch (error) {
         messageDeleteState.value = 'error'
         messageDeleteError.value = localizedErrorMessage(error)
@@ -2700,790 +3105,1080 @@ const App = defineComponent({
                   '↑'
                 )
               ]),
-              authError.value ? h('p', { class: 'composer-error', role: 'alert' }, authError.value) : undefined,
+              authError.value ? h('p', { class: 'composer-error', role: 'alert' }, authError.value) : undefined
             ])
           ])
-        :
-      h(
-        'main',
-        {
-          class: [
-            'webui-shell',
+        : h(
+            'main',
             {
-              'webui-shell-status-open': statusPanelOpen.value,
-              'webui-shell-files-open': statusPanelOpen.value && rightPanelTab.value === 'files'
-            }
-          ]
-        },
-        [
-        mobileSidebarOpen.value
-          ? h('button', {
-              class: 'mobile-sidebar-backdrop',
-              type: 'button',
-              'aria-label': text('close'),
-              onClick: () => {
-                mobileSidebarOpen.value = false
-              }
-            })
-          : undefined,
-        h('section', { class: ['conversation-list', { 'conversation-list-open': mobileSidebarOpen.value }], 'aria-label': text('newConversation') }, [
-          h('header', { class: 'panel-header' }, [
-            h('img', { class: 'brand-logo', src: webUiLogoPath, alt: 'Cherry Studio' }),
-            h('div', [
-              h('p', { class: 'eyebrow' }, 'Cherry Studio'),
-              h('h1', text('webui'))
-            ]),
-            h('div', { class: 'panel-actions' }, [
-              h('div', { class: 'language-menu-wrap' }, [
-                h(
-                  'button',
-                  {
-                    class: 'panel-icon-button language-toggle-button',
-                    type: 'button',
-                    title: text('changeLanguage'),
-                    'aria-label': text('changeLanguage'),
-                    'aria-expanded': languagePickerOpen.value,
-                    onClick: () => {
-                      languagePickerOpen.value = !languagePickerOpen.value
-                    }
-                  },
-                  renderLanguageIcon()
-                ),
-                languagePickerOpen.value
-                  ? h(
-                      'div',
-                      { class: 'language-picker-menu', role: 'menu' },
-                      webUiLanguages.map((item) =>
-                        h(
-                          'button',
-                          {
-                            class: ['language-picker-option', { 'language-picker-option-selected': language.value === item.id }],
-                            type: 'button',
-                            role: 'menuitemradio',
-                            'aria-checked': language.value === item.id,
-                            onClick: () => selectLanguage(item.id)
-                          },
-                          item.label
-                        )
-                      )
-                    )
-                  : undefined
-              ]),
-              h(
-                'button',
+              class: [
+                'webui-shell',
                 {
-                  class: ['panel-icon-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
-                  type: 'button',
-                  title: themeToggleLabel.value,
-                  'aria-label': themeToggleLabel.value,
-                  onClick: toggleThemeMode
-                },
-                renderThemeIcon(themeMode.value)
-              )
-            ]),
-            h(
-              'button',
-              {
-                class: 'mobile-close-button',
-                type: 'button',
-                title: text('close'),
-                'aria-label': text('close'),
-                onClick: () => {
-                  mobileSidebarOpen.value = false
+                  'webui-shell-status-open': statusPanelOpen.value,
+                  'webui-shell-files-open': statusPanelOpen.value && rightPanelTab.value === 'files',
+                  'webui-shell-resizing': statusPanelResizing.value
                 }
-              },
-              '×'
-            )
-          ]),
-          h(
-            'button',
-            {
-              class: 'new-chat-button',
-              type: 'button',
-              onClick: () => void openNewConversation()
+              ],
+              style: statusPanelOpen.value ? { '--webui-right-panel-width': `${statusPanelWidth.value}px` } : undefined
             },
-            text('newConversation')
-          ),
-          h('div', { class: 'conversation-list-heading' }, [
-            h('p', { class: 'conversation-section-label' }, text('conversationHistory')),
-            conversationLoadMessage.value
-              ? h('p', { class: ['empty-copy', `empty-copy-${conversationLoadState.value}`] }, conversationLoadMessage.value)
-              : undefined
-          ]),
-          h(
-            'nav',
-            { class: 'conversation-nav', 'aria-label': text('desktopSession') },
-            conversations.value.map((conversation) =>
-              h(
-                'button',
-                {
-                  key: conversation.id,
-                  type: 'button',
-                  class: [
-                    'conversation-item',
-                    { 'conversation-item-selected': conversation.id === selectedConversationId.value }
-                  ],
-                  'aria-current': conversation.id === selectedConversationId.value ? 'page' : undefined,
-                  onClick: () => selectConversation(conversation.id)
-                },
-                [
-                  h('span', { class: 'conversation-title' }, conversation.title),
-                  h('span', { class: 'conversation-meta' }, [
-                    `${conversationAgentName(conversation.agentId)} · `,
-                    new Date(conversation.updatedAt).toLocaleString()
-                  ])
-                ]
-              )
-            )
-          )
-        ]),
-        h('section', { class: 'chat-stage', 'aria-label': text('desktopSession') }, [
-          h('header', { class: 'chat-header' }, [
-            h(
-              'button',
-              {
-                class: 'mobile-sidebar-button',
-                type: 'button',
-                title: text('desktopSession'),
-                'aria-label': text('desktopSession'),
-                'aria-expanded': mobileSidebarOpen.value,
-                onClick: () => {
-                  mobileSidebarOpen.value = !mobileSidebarOpen.value
-                }
-              },
-              renderActionIcon('menu')
-            ),
-            h('div', [
-              h('p', { class: 'eyebrow' }, [
-                selectedConversation.value?.workspaceLabel ?? selectedAgentName.value ?? text('desktopSession'),
-                conversationLoadState.value === 'loading' || messageLoadState.value === 'loading'
-                  ? h('span', { class: 'header-loading-state' }, ` · ${text('loadingConversations')}`)
-                  : undefined
-              ]),
-              h('h2', selectedConversation.value?.title ?? text('selectConversation'))
-            ]),
-            h('div', { class: 'mobile-chat-actions' }, [
-              h(
-                'button',
-                {
-                  class: [
-                    'agent-status-shortcut',
-                    'workspace-files-shortcut',
-                    { 'agent-status-shortcut-active': statusPanelOpen.value && rightPanelTab.value === 'files' }
-                  ],
-                  type: 'button',
-                  disabled: !selectedConversation.value,
-                  title: text('files'),
-                  'aria-label': text('files'),
-                  'aria-expanded': statusPanelOpen.value && rightPanelTab.value === 'files',
-                  onClick: () => {
-                    if (statusPanelOpen.value && rightPanelTab.value === 'files') {
-                      statusPanelOpen.value = false
-                      return
-                    }
-                    openFilesPanel()
-                  }
-                },
-                renderActionIcon('folder')
-              ),
-              h(
-                'div',
-                {
-                  class: 'agent-status-shortcut-wrap',
-                  onMouseenter: scheduleStatusPreviewOpen,
-                  onMouseleave: scheduleStatusPreviewClose,
-                  onFocusin: scheduleStatusPreviewOpen,
-                  onFocusout: (event: FocusEvent) => {
-                    if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) {
-                      scheduleStatusPreviewClose()
-                    }
-                  }
-                },
-                [
-                  h(
-                    'button',
-                    {
-                      class: [
-                        'agent-status-shortcut',
-                        'agent-status-context-shortcut',
-                        { 'agent-status-shortcut-active': statusPanelOpen.value }
-                      ],
-                      type: 'button',
-                      disabled: !selectedConversation.value,
-                      title: `${text('status')} · ${contextUsageLabel.value}`,
-                      'aria-label': text('status'),
-                      'aria-expanded': statusPanelOpen.value,
-                      onClick: toggleStatusPanel
-                    },
-                    [
-                      renderContextOrb(),
-                      incompleteTaskCount.value > 0
-                        ? h('span', { class: 'agent-status-shortcut-badge' }, String(incompleteTaskCount.value))
-                        : undefined
-                    ]
-                  ),
-                  statusPreviewOpen.value && !statusPanelOpen.value
-                    ? h(
-                        'section',
-                        { class: 'agent-status-hover-card', role: 'dialog', 'aria-label': text('status') },
-                        renderAgentStatusBody(agentStatus.value, true)
-                      )
-                    : undefined
-                ]
-              )
-            ])
-          ]),
-          h('div', { class: 'message-stack', 'aria-live': 'polite', ref: messageStack, onScroll: updateMessageScrollState }, [
-            olderMessagesCursor.value
-              ? h(
-                  'button',
-                  {
-                    class: 'load-older-button',
+            [
+              mobileSidebarOpen.value
+                ? h('button', {
+                    class: 'mobile-sidebar-backdrop',
                     type: 'button',
-                    disabled: olderMessagesLoading.value,
-                    onClick: () => void loadOlderMessages()
-                  },
-                  olderMessagesLoading.value ? text('loadingOlder') : text('loadOlder')
-                )
-              : undefined,
-            messageLoadMessage.value ? h('p', { class: 'empty-copy' }, messageLoadMessage.value) : undefined,
-            ...messages.value.map((message) =>
+                    'aria-label': text('close'),
+                    onClick: () => {
+                      mobileSidebarOpen.value = false
+                    }
+                  })
+                : undefined,
               h(
-                'article',
+                'section',
                 {
-                  class: ['message', message.role === 'user' ? 'user-message' : 'assistant-message'],
-                  key: message.id
+                  class: ['conversation-list', { 'conversation-list-open': mobileSidebarOpen.value }],
+                  'aria-label': text('newConversation')
                 },
                 [
-                  h('header', { class: 'message-header' }, [
-                    h('p', { class: 'message-role' }, messageAuthorName(message.role))
-                  ]),
-                  renderProcessDetails(message),
-                  message.attachments?.length
-                    ? h(
-                        'div',
-                        { class: 'message-attachments' },
-                        message.attachments.map((attachment) =>
-                          h('span', { class: 'message-attachment', title: attachment.mediaType }, attachment.name)
-                        )
-                      )
-                    : undefined,
-                  message.content
-                    ? h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.content) })
-                    : message.toolCalls?.length
-                      ? undefined
-                      : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
-                  h('footer', { class: 'message-footer' }, [
-                    h('time', { class: 'message-time', datetime: message.createdAt }, new Date(message.createdAt).toLocaleString()),
-                    renderMessageActions(message)
-                  ])
-                ]
-              )
-            )
-          ]),
-          showScrollToBottom.value
-            ? h(
-                'button',
-                {
-                  class: 'scroll-bottom-button',
-                  type: 'button',
-                  style: { bottom: `${composerHeight.value + (attachments.value.length ? 116 : 84)}px` },
-                  title: text('backToBottom'),
-                  'aria-label': text('backToBottom'),
-                  onClick: () => scrollMessagesToEnd('smooth')
-                },
-                renderActionIcon('down')
-              )
-            : undefined,
-          h('footer', { class: 'composer' }, [
-            h('div', { class: 'composer-surface' }, [
-              h('input', {
-                class: 'attachment-input',
-                ref: attachmentInput,
-                type: 'file',
-                multiple: true,
-                onChange: (event: Event) => {
-                  const input = event.target as HTMLInputElement
-                  addAttachments(input.files)
-                  input.value = ''
-                }
-              }),
-              attachments.value.length
-                ? h(
-                    'div',
-                    { class: 'attachment-strip' },
-                    attachments.value.map((attachment) =>
-                      h('span', { class: 'attachment-chip', key: attachment.id }, [
-                        h('span', { class: 'attachment-chip-name', title: attachment.file.name }, attachment.file.name),
+                  h('header', { class: 'panel-header' }, [
+                    h('img', { class: 'brand-logo', src: webUiLogoPath, alt: 'Cherry Studio' }),
+                    h('div', [h('p', { class: 'eyebrow' }, 'Cherry Studio'), h('h1', text('webui'))]),
+                    h('div', { class: 'panel-actions' }, [
+                      h('div', { class: 'language-menu-wrap' }, [
                         h(
                           'button',
                           {
+                            class: 'panel-icon-button language-toggle-button',
                             type: 'button',
-                            title: text('removeAttachment'),
-                            'aria-label': `${text('removeAttachment')}: ${attachment.file.name}`,
+                            title: text('changeLanguage'),
+                            'aria-label': text('changeLanguage'),
+                            'aria-expanded': languagePickerOpen.value,
                             onClick: () => {
-                              attachments.value = attachments.value.filter((item) => item.id !== attachment.id)
+                              languagePickerOpen.value = !languagePickerOpen.value
                             }
                           },
-                          '×'
-                        )
-                      ])
-                    )
-                  )
-                : undefined,
-              h('textarea', {
-                ref: composerTextarea,
-                disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
-                value: composerText.value,
-                placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
-                rows: 3,
-                style: { height: `${composerHeight.value}px` },
-                onInput: (event: Event) => {
-                  composerText.value = (event.target as HTMLTextAreaElement).value
-                },
-                onKeydown: (event: KeyboardEvent) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-                    event.preventDefault()
-                    void submitMessage()
-                  }
-                }
-              }),
-              h('div', {
-                class: 'composer-resize-handle',
-                role: 'separator',
-                tabindex: 0,
-                title: text('resizeComposer'),
-                'aria-label': text('resizeComposer'),
-                'aria-orientation': 'horizontal',
-                'aria-valuemin': composerMinHeight,
-                'aria-valuemax': composerMaxHeight,
-                'aria-valuenow': composerHeight.value,
-                onPointerdown: beginComposerResize,
-                onKeydown: handleComposerResizeKeydown,
-                onDblclick: () => {
-                  composerHeight.value = composerDefaultHeight
-                }
-              }),
-              h(
-                'button',
-                {
-                  class: 'composer-expand-control',
-                  type: 'button',
-                  title: text('resizeComposer'),
-                  'aria-label': text('resizeComposer'),
-                  'aria-pressed': composerHeight.value !== composerDefaultHeight,
-                  onClick: toggleComposerHeight
-                },
-                renderActionIcon('resize', composerHeight.value !== composerDefaultHeight)
-              ),
-              h('div', { class: 'composer-toolbar' }, [
-                h('div', { class: 'composer-tools' }, [
-                  h(
-                    'button',
-                    {
-                      class: 'composer-tool-button',
-                      type: 'button',
-                      title: text('newConversationTool'),
-                      'aria-label': text('newConversationTool'),
-                      onClick: () => void openNewConversation()
-                    },
-                    renderComposerToolIcon('newConversation')
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: 'composer-tool-button',
-                      type: 'button',
-                      title: text('attachmentPending'),
-                      'aria-label': text('attachmentPending'),
-                      disabled: attachments.value.length >= maxAttachmentCount,
-                      onClick: () => attachmentInput.value?.click()
-                    },
-                    renderComposerToolIcon('attachment')
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: ['composer-tool-button', { 'composer-tool-button-active': reasoningEffort.value !== 'default' }],
-                      type: 'button',
-                      disabled: !reasoningConfigurable.value,
-                      title: reasoningConfigurable.value
-                        ? `${text('thinkingPending')}: ${reasoningLabel.value}`
-                        : text('thinkingUnavailable'),
-                      'aria-label': text('thinkingPending'),
-                      'aria-expanded': reasoningPickerOpen.value,
-                      onClick: () => {
-                        reasoningPickerOpen.value = !reasoningPickerOpen.value
-                        modelPickerOpen.value = false
-                      }
-                    },
-                    renderComposerToolIcon('thinking')
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: 'model-selector-button',
-                      type: 'button',
-                      disabled: !selectedConversation.value || !models.value.length || modelUpdateState.value === 'updating',
-                      title: selectedAgentName.value ? `${selectedAgentName.value}: ${modelPickerLabel.value}` : modelPickerLabel.value,
-                      'aria-expanded': modelPickerOpen.value,
-                      onClick: () => {
-                        modelPickerOpen.value = !modelPickerOpen.value
-                        reasoningPickerOpen.value = false
-                      }
-                    },
-                    modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
-                  )
-                ]),
-                h(
-                  'button',
-                  {
-                    class: ['send-button', { 'send-button-is-stop': activeRunConversationId.value === selectedConversationId.value }],
-                    type: 'button',
-                    disabled:
-                      !selectedConversation.value ||
-                      (!composerText.value.trim() &&
-                        attachments.value.length === 0 &&
-                        activeRunConversationId.value !== selectedConversationId.value),
-                    'aria-label': activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send'),
-                    title: activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send'),
-                    onClick: () => {
-                      if (activeRunConversationId.value === selectedConversationId.value) {
-                        void abortMessage()
-                        return
-                      }
-                      void submitMessage()
-                    }
-                  },
-                  renderActionIcon(activeRunConversationId.value === selectedConversationId.value ? 'stop' : 'send')
-                )
-              ]),
-            reasoningPickerOpen.value
-              ? h(
-                  'div',
-                  { class: 'reasoning-picker-menu', role: 'listbox' },
-                  reasoningOptions.value.map((option) =>
-                    h(
-                      'button',
-                      {
-                        class: ['reasoning-picker-option', { 'reasoning-picker-option-selected': option === reasoningEffort.value }],
-                        key: option,
-                        type: 'button',
-                        role: 'option',
-                        'aria-selected': option === reasoningEffort.value,
-                        onClick: () => {
-                          reasoningEffort.value = option
-                          reasoningPickerOpen.value = false
-                        }
-                      },
-                      text(
-                        ({
-                          default: 'reasoningDefault',
-                          none: 'reasoningNone',
-                          minimal: 'reasoningMinimal',
-                          low: 'reasoningLow',
-                          medium: 'reasoningMedium',
-                          high: 'reasoningHigh',
-                          xhigh: 'reasoningXhigh',
-                          auto: 'reasoningAuto'
-                        } as Record<string, TextKey>)[option] ?? 'reasoningDefault'
-                      )
-                    )
-                  )
-                )
-              : undefined,
-            modelPickerOpen.value
-              ? h(
-                  'div',
-                  { class: 'model-picker-menu', role: 'listbox' },
-                  modelGroups.value.flatMap((group) => [
-                    h('p', { class: 'model-picker-group', key: `group-${group.id}` }, group.name),
-                    ...group.models.map((model) =>
+                          renderLanguageIcon()
+                        ),
+                        languagePickerOpen.value
+                          ? h(
+                              'div',
+                              { class: 'language-picker-menu', role: 'menu' },
+                              webUiLanguages.map((item) =>
+                                h(
+                                  'button',
+                                  {
+                                    class: [
+                                      'language-picker-option',
+                                      { 'language-picker-option-selected': language.value === item.id }
+                                    ],
+                                    type: 'button',
+                                    role: 'menuitemradio',
+                                    'aria-checked': language.value === item.id,
+                                    onClick: () => selectLanguage(item.id)
+                                  },
+                                  item.label
+                                )
+                              )
+                            )
+                          : undefined
+                      ]),
                       h(
                         'button',
                         {
-                          class: ['model-picker-option', { 'model-picker-option-selected': model.id === selectedAgent.value?.model }],
-                          key: model.id,
+                          class: ['panel-icon-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
                           type: 'button',
-                          role: 'option',
-                          'aria-selected': model.id === selectedAgent.value?.model,
-                          onClick: () => void updateSessionModel(model)
+                          title: themeToggleLabel.value,
+                          'aria-label': themeToggleLabel.value,
+                          onClick: toggleThemeMode
                         },
-                        [
-                          h('span', { class: 'model-picker-name' }, model.name),
-                          h('span', { class: 'model-picker-provider' }, model.group ?? model.providerId)
-                        ]
+                        renderThemeIcon(themeMode.value)
                       )
-                    )
-                  ])
-                )
-              : undefined,
-            slashCommandSuggestions.value.length
-              ? h(
-                  'div',
-                  { class: 'slash-command-menu', role: 'listbox' },
-                  slashCommandSuggestions.value.map((command) =>
+                    ]),
                     h(
                       'button',
                       {
-                        class: 'slash-command-option',
-                        key: command.name,
+                        class: 'mobile-close-button',
                         type: 'button',
-                        role: 'option',
+                        title: text('close'),
+                        'aria-label': text('close'),
                         onClick: () => {
-                          composerText.value = `/${command.name} `
+                          mobileSidebarOpen.value = false
+                        }
+                      },
+                      '×'
+                    )
+                  ]),
+                  h(
+                    'button',
+                    {
+                      class: 'new-chat-button',
+                      type: 'button',
+                      onClick: () => void openNewConversation()
+                    },
+                    text('newConversation')
+                  ),
+                  h('div', { class: 'conversation-list-heading' }, [
+                    h('p', { class: 'conversation-section-label' }, text('conversationHistory')),
+                    conversationLoadMessage.value
+                      ? h(
+                          'p',
+                          { class: ['empty-copy', `empty-copy-${conversationLoadState.value}`] },
+                          conversationLoadMessage.value
+                        )
+                      : undefined
+                  ]),
+                  h(
+                    'nav',
+                    { class: 'conversation-nav', 'aria-label': text('desktopSession') },
+                    conversations.value.map((conversation) =>
+                      h(
+                        'div',
+                        {
+                          key: conversation.id,
+                          class: [
+                            'conversation-item-wrap',
+                            { 'conversation-item-wrap-selected': conversation.id === selectedConversationId.value }
+                          ]
+                        },
+                        [
+                          editingConversationId.value === conversation.id
+                            ? h('div', { class: ['conversation-item', 'conversation-item-editing'] }, [
+                                h('input', {
+                                  class: 'conversation-title-input',
+                                  value: editingConversationTitle.value,
+                                  autofocus: true,
+                                  onInput: (event: Event) => {
+                                    editingConversationTitle.value = (event.target as HTMLInputElement).value
+                                  },
+                                  onKeydown: (event: KeyboardEvent) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      void saveConversationTitle()
+                                    }
+                                    if (event.key === 'Escape') {
+                                      event.preventDefault()
+                                      closeEditConversation()
+                                    }
+                                  }
+                                }),
+                                h('span', { class: 'conversation-meta' }, [
+                                  `${conversationAgentName(conversation.agentId)} · `,
+                                  new Date(conversation.updatedAt).toLocaleString()
+                                ])
+                              ])
+                            : h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  class: [
+                                    'conversation-item',
+                                    { 'conversation-item-selected': conversation.id === selectedConversationId.value }
+                                  ],
+                                  'aria-current': conversation.id === selectedConversationId.value ? 'page' : undefined,
+                                  onClick: () => selectConversation(conversation.id)
+                                },
+                                [
+                                  h('span', { class: 'conversation-title' }, conversation.title),
+                                  h('span', { class: 'conversation-meta' }, [
+                                    `${conversationAgentName(conversation.agentId)} · `,
+                                    new Date(conversation.updatedAt).toLocaleString()
+                                  ])
+                                ]
+                              ),
+                          h('div', { class: 'conversation-actions' }, [
+                            h(
+                              'button',
+                              {
+                                class: 'conversation-action-button',
+                                type: 'button',
+                                title: text('editTitle'),
+                                'aria-label': text('editTitle'),
+                                'aria-expanded': openConversationMenuId.value === conversation.id,
+                                disabled: conversationActionState.value === 'deleting',
+                                onClick: () => toggleConversationMenu(conversation.id)
+                              },
+                              conversationActionState.value === 'generating' &&
+                                conversationActionId.value === conversation.id
+                                ? h('span', { class: 'mini-spinner', 'aria-hidden': 'true' })
+                                : renderActionIcon('more')
+                            ),
+                            openConversationMenuId.value === conversation.id
+                              ? h('div', { class: 'conversation-action-menu', role: 'menu' }, [
+                                  h(
+                                    'button',
+                                    {
+                                      class: 'conversation-action-menu-item',
+                                      type: 'button',
+                                      role: 'menuitem',
+                                      disabled: conversationActionState.value === 'deleting',
+                                      onClick: () => openEditConversation(conversation)
+                                    },
+                                    [renderActionIcon('edit'), h('span', text('editTitle'))]
+                                  ),
+                                  h(
+                                    'button',
+                                    {
+                                      class: 'conversation-action-menu-item',
+                                      type: 'button',
+                                      role: 'menuitem',
+                                      disabled:
+                                        conversationActionState.value === 'generating' &&
+                                        conversationActionId.value === conversation.id,
+                                      onClick: () => void generateConversationTitle(conversation.id)
+                                    },
+                                    [renderActionIcon('sparkles'), h('span', text('generateTopicName'))]
+                                  ),
+                                  h(
+                                    'button',
+                                    {
+                                      class: ['conversation-action-menu-item', 'conversation-action-menu-danger'],
+                                      type: 'button',
+                                      role: 'menuitem',
+                                      disabled: activeRunConversationId.value === conversation.id,
+                                      onClick: () => openDeleteConversation(conversation.id)
+                                    },
+                                    [renderActionIcon('trash'), h('span', text('deleteConversation'))]
+                                  )
+                                ])
+                              : undefined
+                          ])
+                        ]
+                      )
+                    )
+                  ),
+                  conversationActionError.value
+                    ? h(
+                        'p',
+                        { class: 'composer-error conversation-action-error', role: 'alert' },
+                        conversationActionError.value
+                      )
+                    : undefined
+                ]
+              ),
+              h('section', { class: 'chat-stage', 'aria-label': text('desktopSession') }, [
+                h('header', { class: 'chat-header' }, [
+                  h(
+                    'button',
+                    {
+                      class: 'mobile-sidebar-button',
+                      type: 'button',
+                      title: text('desktopSession'),
+                      'aria-label': text('desktopSession'),
+                      'aria-expanded': mobileSidebarOpen.value,
+                      onClick: () => {
+                        mobileSidebarOpen.value = !mobileSidebarOpen.value
+                      }
+                    },
+                    renderActionIcon('menu')
+                  ),
+                  h('div', [
+                    h('p', { class: 'eyebrow' }, [
+                      selectedConversation.value?.workspaceLabel ?? selectedAgentName.value ?? text('desktopSession'),
+                      conversationLoadState.value === 'loading' || messageLoadState.value === 'loading'
+                        ? h('span', { class: 'header-loading-state' }, ` · ${text('loadingConversations')}`)
+                        : undefined
+                    ]),
+                    h('h2', selectedConversation.value?.title ?? text('selectConversation'))
+                  ]),
+                  h('div', { class: 'mobile-chat-actions' }, [
+                    h(
+                      'button',
+                      {
+                        class: [
+                          'agent-status-shortcut',
+                          'workspace-files-shortcut',
+                          { 'agent-status-shortcut-active': statusPanelOpen.value && rightPanelTab.value === 'files' }
+                        ],
+                        type: 'button',
+                        disabled: !selectedConversation.value,
+                        title: text('files'),
+                        'aria-label': text('files'),
+                        'aria-expanded': statusPanelOpen.value && rightPanelTab.value === 'files',
+                        onClick: () => {
+                          if (statusPanelOpen.value && rightPanelTab.value === 'files') {
+                            statusPanelOpen.value = false
+                            return
+                          }
+                          openFilesPanel()
+                        }
+                      },
+                      renderActionIcon('folder')
+                    ),
+                    h(
+                      'div',
+                      {
+                        class: 'agent-status-shortcut-wrap',
+                        onMouseenter: scheduleStatusPreviewOpen,
+                        onMouseleave: scheduleStatusPreviewClose,
+                        onFocusin: scheduleStatusPreviewOpen,
+                        onFocusout: (event: FocusEvent) => {
+                          if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) {
+                            scheduleStatusPreviewClose()
+                          }
                         }
                       },
                       [
-                        h('span', { class: 'slash-command-name' }, `/${command.name}`),
-                        command.description ? h('span', { class: 'slash-command-description' }, command.description) : undefined
+                        h(
+                          'button',
+                          {
+                            class: [
+                              'agent-status-shortcut',
+                              'agent-status-context-shortcut',
+                              { 'agent-status-shortcut-active': statusPanelOpen.value }
+                            ],
+                            type: 'button',
+                            disabled: !selectedConversation.value,
+                            title: `${text('status')} · ${contextUsageLabel.value}`,
+                            'aria-label': text('status'),
+                            'aria-expanded': statusPanelOpen.value,
+                            onClick: toggleStatusPanel
+                          },
+                          [
+                            renderContextOrb(),
+                            incompleteTaskCount.value > 0
+                              ? h('span', { class: 'agent-status-shortcut-badge' }, String(incompleteTaskCount.value))
+                              : undefined
+                          ]
+                        ),
+                        statusPreviewOpen.value && !statusPanelOpen.value
+                          ? h(
+                              'section',
+                              { class: 'agent-status-hover-card', role: 'dialog', 'aria-label': text('status') },
+                              renderAgentStatusBody(agentStatus.value, true)
+                            )
+                          : undefined
                       ]
                     )
-                  )
-                )
-              : undefined,
-            ])
-          ]),
-          submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined,
-          speechNotice.value ? h('p', { class: 'speech-notice', role: 'status' }, speechNotice.value) : undefined
-        ]),
-        statusPanelOpen.value
-          ? h('button', {
-              class: 'agent-status-panel-backdrop',
-              type: 'button',
-              'aria-label': text('close'),
-              onClick: () => {
-                statusPanelOpen.value = false
-              }
-            })
-          : undefined,
-        statusPanelOpen.value
-          ? h('aside', { class: 'status-panel agent-status-panel', 'aria-label': text('status') }, [
-              h('header', { class: 'agent-status-panel-header' }, [
-                h('div', { class: 'agent-status-panel-tabs' }, [
-                  h(
-                    'button',
-                    {
-                      class: ['agent-status-panel-tab', { 'agent-status-panel-tab-active': rightPanelTab.value === 'status' }],
-                      type: 'button',
-                      onClick: () => {
-                        rightPanelTab.value = 'status'
-                        refreshComposerInfo()
-                      }
-                    },
-                    [
-                      renderActionIcon('activity'),
-                      h('span', text('status')),
-                      incompleteTaskCount.value > 0
-                        ? h('span', { class: 'agent-status-panel-tab-badge' }, String(incompleteTaskCount.value))
-                        : undefined
-                    ]
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: ['agent-status-panel-tab', { 'agent-status-panel-tab-active': rightPanelTab.value === 'files' }],
-                      type: 'button',
-                      onClick: openFilesPanel
-                    },
-                    [renderActionIcon('folder'), h('span', text('files'))]
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: ['agent-status-panel-tab', { 'agent-status-panel-tab-active': rightPanelTab.value === 'speech' }],
-                      type: 'button',
-                      onClick: openSpeechPanel
-                    },
-                    [renderActionIcon('volume'), h('span', text('speechPanel'))]
-                  )
+                  ])
                 ]),
                 h(
-                  'button',
+                  'div',
                   {
-                    class: 'agent-status-panel-close',
+                    class: 'message-stack',
+                    'aria-live': 'polite',
+                    ref: messageStack,
+                    onScroll: updateMessageScrollState
+                  },
+                  [
+                    olderMessagesCursor.value
+                      ? h(
+                          'button',
+                          {
+                            class: 'load-older-button',
+                            type: 'button',
+                            disabled: olderMessagesLoading.value,
+                            onClick: () => void loadOlderMessages()
+                          },
+                          olderMessagesLoading.value ? text('loadingOlder') : text('loadOlder')
+                        )
+                      : undefined,
+                    messageLoadMessage.value ? h('p', { class: 'empty-copy' }, messageLoadMessage.value) : undefined,
+                    ...messages.value.map((message) =>
+                      h(
+                        'article',
+                        {
+                          class: ['message', message.role === 'user' ? 'user-message' : 'assistant-message'],
+                          key: message.id
+                        },
+                        [
+                          h('header', { class: 'message-header' }, [
+                            h('p', { class: 'message-role' }, messageAuthorName(message.role))
+                          ]),
+                          renderProcessDetails(message),
+                          message.attachments?.length
+                            ? h(
+                                'div',
+                                { class: 'message-attachments' },
+                                message.attachments.map((attachment) =>
+                                  h(
+                                    'span',
+                                    { class: 'message-attachment', title: attachment.mediaType },
+                                    attachment.name
+                                  )
+                                )
+                              )
+                            : undefined,
+                          message.content
+                            ? h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.content) })
+                            : message.toolCalls?.length
+                              ? undefined
+                              : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
+                          h('footer', { class: 'message-footer' }, [
+                            h(
+                              'time',
+                              { class: 'message-time', datetime: message.createdAt },
+                              new Date(message.createdAt).toLocaleString()
+                            ),
+                            renderMessageActions(message)
+                          ])
+                        ]
+                      )
+                    )
+                  ]
+                ),
+                showScrollToBottom.value
+                  ? h(
+                      'button',
+                      {
+                        class: 'scroll-bottom-button',
+                        type: 'button',
+                        style: { bottom: `${composerHeight.value + (attachments.value.length ? 116 : 84)}px` },
+                        title: text('backToBottom'),
+                        'aria-label': text('backToBottom'),
+                        onClick: () => scrollMessagesToEnd('smooth')
+                      },
+                      renderActionIcon('down')
+                    )
+                  : undefined,
+                h('footer', { class: 'composer' }, [
+                  h('div', { class: 'composer-surface' }, [
+                    h('input', {
+                      class: 'attachment-input',
+                      ref: attachmentInput,
+                      type: 'file',
+                      multiple: true,
+                      onChange: (event: Event) => {
+                        const input = event.target as HTMLInputElement
+                        addAttachments(input.files)
+                        input.value = ''
+                      }
+                    }),
+                    attachments.value.length
+                      ? h(
+                          'div',
+                          { class: 'attachment-strip' },
+                          attachments.value.map((attachment) =>
+                            h('span', { class: 'attachment-chip', key: attachment.id }, [
+                              h(
+                                'span',
+                                { class: 'attachment-chip-name', title: attachment.file.name },
+                                attachment.file.name
+                              ),
+                              h(
+                                'button',
+                                {
+                                  type: 'button',
+                                  title: text('removeAttachment'),
+                                  'aria-label': `${text('removeAttachment')}: ${attachment.file.name}`,
+                                  onClick: () => {
+                                    attachments.value = attachments.value.filter((item) => item.id !== attachment.id)
+                                  }
+                                },
+                                '×'
+                              )
+                            ])
+                          )
+                        )
+                      : undefined,
+                    h('textarea', {
+                      ref: composerTextarea,
+                      disabled:
+                        !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
+                      value: composerText.value,
+                      placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
+                      rows: 3,
+                      style: { height: `${composerHeight.value}px` },
+                      onInput: (event: Event) => {
+                        composerText.value = (event.target as HTMLTextAreaElement).value
+                      },
+                      onKeydown: (event: KeyboardEvent) => {
+                        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+                          event.preventDefault()
+                          void submitMessage()
+                        }
+                      }
+                    }),
+                    h('div', {
+                      class: 'composer-resize-handle',
+                      role: 'separator',
+                      tabindex: 0,
+                      title: text('resizeComposer'),
+                      'aria-label': text('resizeComposer'),
+                      'aria-orientation': 'horizontal',
+                      'aria-valuemin': composerMinHeight,
+                      'aria-valuemax': composerMaxHeight,
+                      'aria-valuenow': composerHeight.value,
+                      onPointerdown: beginComposerResize,
+                      onKeydown: handleComposerResizeKeydown,
+                      onDblclick: () => {
+                        composerHeight.value = composerDefaultHeight
+                      }
+                    }),
+                    h(
+                      'button',
+                      {
+                        class: 'composer-expand-control',
+                        type: 'button',
+                        title: text('resizeComposer'),
+                        'aria-label': text('resizeComposer'),
+                        'aria-pressed': composerHeight.value !== composerDefaultHeight,
+                        onClick: toggleComposerHeight
+                      },
+                      renderActionIcon('resize', composerHeight.value !== composerDefaultHeight)
+                    ),
+                    h('div', { class: 'composer-toolbar' }, [
+                      h('div', { class: 'composer-tools' }, [
+                        h(
+                          'button',
+                          {
+                            class: 'composer-tool-button',
+                            type: 'button',
+                            title: text('newConversationTool'),
+                            'aria-label': text('newConversationTool'),
+                            onClick: () => void openNewConversation()
+                          },
+                          renderComposerToolIcon('newConversation')
+                        ),
+                        h(
+                          'button',
+                          {
+                            class: 'composer-tool-button',
+                            type: 'button',
+                            title: text('attachmentPending'),
+                            'aria-label': text('attachmentPending'),
+                            disabled: attachments.value.length >= maxAttachmentCount,
+                            onClick: () => attachmentInput.value?.click()
+                          },
+                          renderComposerToolIcon('attachment')
+                        ),
+                        h(
+                          'button',
+                          {
+                            class: [
+                              'composer-tool-button',
+                              { 'composer-tool-button-active': reasoningEffort.value !== 'default' }
+                            ],
+                            type: 'button',
+                            disabled: !reasoningConfigurable.value,
+                            title: reasoningConfigurable.value
+                              ? `${text('thinkingPending')}: ${reasoningLabel.value}`
+                              : text('thinkingUnavailable'),
+                            'aria-label': text('thinkingPending'),
+                            'aria-expanded': reasoningPickerOpen.value,
+                            onClick: () => {
+                              reasoningPickerOpen.value = !reasoningPickerOpen.value
+                              modelPickerOpen.value = false
+                            }
+                          },
+                          renderComposerToolIcon('thinking')
+                        ),
+                        h(
+                          'button',
+                          {
+                            class: 'model-selector-button',
+                            type: 'button',
+                            disabled:
+                              !selectedConversation.value ||
+                              !models.value.length ||
+                              modelUpdateState.value === 'updating',
+                            title: selectedAgentName.value
+                              ? `${selectedAgentName.value}: ${modelPickerLabel.value}`
+                              : modelPickerLabel.value,
+                            'aria-expanded': modelPickerOpen.value,
+                            onClick: () => {
+                              modelPickerOpen.value = !modelPickerOpen.value
+                              reasoningPickerOpen.value = false
+                            }
+                          },
+                          modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
+                        )
+                      ]),
+                      h(
+                        'button',
+                        {
+                          class: [
+                            'send-button',
+                            { 'send-button-is-stop': activeRunConversationId.value === selectedConversationId.value }
+                          ],
+                          type: 'button',
+                          disabled:
+                            !selectedConversation.value ||
+                            (!composerText.value.trim() &&
+                              attachments.value.length === 0 &&
+                              activeRunConversationId.value !== selectedConversationId.value),
+                          'aria-label':
+                            activeRunConversationId.value === selectedConversationId.value
+                              ? text('stop')
+                              : text('send'),
+                          title:
+                            activeRunConversationId.value === selectedConversationId.value
+                              ? text('stop')
+                              : text('send'),
+                          onClick: () => {
+                            if (activeRunConversationId.value === selectedConversationId.value) {
+                              void abortMessage()
+                              return
+                            }
+                            void submitMessage()
+                          }
+                        },
+                        renderActionIcon(
+                          activeRunConversationId.value === selectedConversationId.value ? 'stop' : 'send'
+                        )
+                      )
+                    ]),
+                    reasoningPickerOpen.value
+                      ? h(
+                          'div',
+                          { class: 'reasoning-picker-menu', role: 'listbox' },
+                          reasoningOptions.value.map((option) =>
+                            h(
+                              'button',
+                              {
+                                class: [
+                                  'reasoning-picker-option',
+                                  { 'reasoning-picker-option-selected': option === reasoningEffort.value }
+                                ],
+                                key: option,
+                                type: 'button',
+                                role: 'option',
+                                'aria-selected': option === reasoningEffort.value,
+                                onClick: () => {
+                                  reasoningEffort.value = option
+                                  reasoningPickerOpen.value = false
+                                }
+                              },
+                              text(
+                                (
+                                  {
+                                    default: 'reasoningDefault',
+                                    none: 'reasoningNone',
+                                    minimal: 'reasoningMinimal',
+                                    low: 'reasoningLow',
+                                    medium: 'reasoningMedium',
+                                    high: 'reasoningHigh',
+                                    xhigh: 'reasoningXhigh',
+                                    auto: 'reasoningAuto'
+                                  } as Record<string, TextKey>
+                                )[option] ?? 'reasoningDefault'
+                              )
+                            )
+                          )
+                        )
+                      : undefined,
+                    modelPickerOpen.value
+                      ? h(
+                          'div',
+                          { class: 'model-picker-menu', role: 'listbox' },
+                          modelGroups.value.flatMap((group) => [
+                            h('p', { class: 'model-picker-group', key: `group-${group.id}` }, group.name),
+                            ...group.models.map((model) =>
+                              h(
+                                'button',
+                                {
+                                  class: [
+                                    'model-picker-option',
+                                    { 'model-picker-option-selected': model.id === selectedAgent.value?.model }
+                                  ],
+                                  key: model.id,
+                                  type: 'button',
+                                  role: 'option',
+                                  'aria-selected': model.id === selectedAgent.value?.model,
+                                  onClick: () => void updateSessionModel(model)
+                                },
+                                [
+                                  h('span', { class: 'model-picker-name' }, model.name),
+                                  h('span', { class: 'model-picker-provider' }, model.group ?? model.providerId)
+                                ]
+                              )
+                            )
+                          ])
+                        )
+                      : undefined,
+                    slashCommandSuggestions.value.length
+                      ? h(
+                          'div',
+                          { class: 'slash-command-menu', role: 'listbox' },
+                          slashCommandSuggestions.value.map((command) =>
+                            h(
+                              'button',
+                              {
+                                class: 'slash-command-option',
+                                key: command.name,
+                                type: 'button',
+                                role: 'option',
+                                onClick: () => {
+                                  composerText.value = `/${command.name} `
+                                }
+                              },
+                              [
+                                h('span', { class: 'slash-command-name' }, `/${command.name}`),
+                                command.description
+                                  ? h('span', { class: 'slash-command-description' }, command.description)
+                                  : undefined
+                              ]
+                            )
+                          )
+                        )
+                      : undefined
+                  ])
+                ]),
+                submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
+              ]),
+              statusPanelOpen.value
+                ? h('button', {
+                    class: 'agent-status-panel-backdrop',
                     type: 'button',
-                    title: text('close'),
                     'aria-label': text('close'),
                     onClick: () => {
                       statusPanelOpen.value = false
                     }
-                  },
-                  renderActionIcon('close')
-                )
-              ]),
-              rightPanelTab.value === 'files'
-                ? renderWorkspaceFilesPanel()
-                : rightPanelTab.value === 'speech'
-                  ? h('div', { class: 'agent-status-panel-scroll' }, [renderSpeechPanel()])
-                : h('div', { class: 'agent-status-panel-scroll' }, [
-                    ...renderAgentStatusBody(agentStatus.value, false),
-                    h('details', { class: 'status-runtime-details' }, [
-                  h('summary', [
-                    h('span', text('runtimeDetails')),
-                    h('span', {
-                      class: ['status-runtime-dot', `status-runtime-dot-${bridgeState.value}`],
-                      title: bridgeDetail.value
-                    })
-                  ]),
-                  h('div', { class: 'status-runtime-body' }, [
-                    ...statusItems.value.map((item) =>
-                      h('dl', { class: 'status-row', key: item.label }, [h('dt', item.label), h('dd', item.value)])
-                    ),
-                    h('div', { class: 'version-block' }, [
-                      ...versionItems.value.map((item) =>
-                        h('dl', { class: 'status-row version-row', key: item.label }, [
-                          h('dt', item.label),
-                          h('dd', item.value)
-                        ])
-                      ),
+                  })
+                : undefined,
+              statusPanelOpen.value
+                ? h(
+                    'aside',
+                    {
+                      class: 'status-panel agent-status-panel',
+                      'aria-label': text(rightPanelTab.value === 'help' ? 'help' : 'status')
+                    },
+                    [
+                      h('div', {
+                        class: 'status-panel-resize-handle',
+                        role: 'separator',
+                        'aria-orientation': 'vertical',
+                        'aria-label': text('resizeComposer'),
+                        onPointerdown: beginPanelResize
+                      }),
+                      h('header', { class: 'agent-status-panel-header' }, [
+                        h('div', { class: 'agent-status-panel-tabs' }, [
+                          h(
+                            'button',
+                            {
+                              class: [
+                                'agent-status-panel-tab',
+                                { 'agent-status-panel-tab-active': rightPanelTab.value === 'status' }
+                              ],
+                              type: 'button',
+                              onClick: () => {
+                                rightPanelTab.value = 'status'
+                                refreshComposerInfo()
+                              }
+                            },
+                            [
+                              renderActionIcon('activity'),
+                              h('span', text('status')),
+                              incompleteTaskCount.value > 0
+                                ? h(
+                                    'span',
+                                    { class: 'agent-status-panel-tab-badge' },
+                                    String(incompleteTaskCount.value)
+                                  )
+                                : undefined
+                            ]
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: [
+                                'agent-status-panel-tab',
+                                { 'agent-status-panel-tab-active': rightPanelTab.value === 'files' }
+                              ],
+                              type: 'button',
+                              onClick: openFilesPanel
+                            },
+                            [renderActionIcon('folder'), h('span', text('files'))]
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: [
+                                'agent-status-panel-tab',
+                                { 'agent-status-panel-tab-active': rightPanelTab.value === 'speech' }
+                              ],
+                              type: 'button',
+                              onClick: openSpeechPanel
+                            },
+                            [renderActionIcon('volume'), h('span', text('speechPanel'))]
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: [
+                                'agent-status-panel-tab',
+                                { 'agent-status-panel-tab-active': rightPanelTab.value === 'help' }
+                              ],
+                              type: 'button',
+                              onClick: () => {
+                                clearStatusPreviewTimers()
+                                statusPreviewOpen.value = false
+                                statusPanelOpen.value = true
+                                rightPanelTab.value = 'help'
+                              }
+                            },
+                            [renderActionIcon('help'), h('span', text('help'))]
+                          )
+                        ]),
+                        h(
+                          'button',
+                          {
+                            class: 'agent-status-panel-close',
+                            type: 'button',
+                            title: text('close'),
+                            'aria-label': text('close'),
+                            onClick: () => {
+                              statusPanelOpen.value = false
+                            }
+                          },
+                          renderActionIcon('close')
+                        )
+                      ]),
+                      rightPanelTab.value === 'files'
+                        ? renderWorkspaceFilesPanel()
+                        : rightPanelTab.value === 'speech'
+                          ? h('div', { class: 'agent-status-panel-scroll' }, [renderSpeechPanel()])
+                          : rightPanelTab.value === 'help'
+                            ? h('div', { class: 'agent-status-panel-scroll help-panel' }, [
+                                h('details', { class: 'help-guide-tree' }, [
+                                  h('summary', [renderActionIcon('help'), h('span', text('helpGuide'))]),
+                                  h('ul', [
+                                    h('li', text('helpGuideIntro')),
+                                    h('li', text('helpGuideSessions')),
+                                    h('li', text('helpGuideFiles')),
+                                    h('li', text('helpGuideSpeech'))
+                                  ])
+                                ]),
+                                h('section', { class: 'help-runtime-section' }, [
+                                  h('h3', text('runtimeDetails')),
+                                  h('div', { class: 'status-runtime-body' }, [
+                                    ...statusItems.value.map((item) =>
+                                      h('dl', { class: 'status-row', key: item.label }, [
+                                        h('dt', item.label),
+                                        h('dd', item.value)
+                                      ])
+                                    ),
+                                    h('div', { class: 'version-block' }, [
+                                      ...versionItems.value.map((item) =>
+                                        h('dl', { class: 'status-row version-row', key: item.label }, [
+                                          h('dt', item.label),
+                                          h('dd', item.value)
+                                        ])
+                                      ),
+                                      h(
+                                        'a',
+                                        {
+                                          class: 'status-github-link',
+                                          href: projectRepositoryUrl,
+                                          target: '_blank',
+                                          rel: 'noreferrer',
+                                          title: text('githubProject'),
+                                          'aria-label': text('githubProject')
+                                        },
+                                        renderGithubIcon()
+                                      )
+                                    ])
+                                  ])
+                                ])
+                              ])
+                            : h(
+                                'div',
+                                { class: 'agent-status-panel-scroll' },
+                                renderAgentStatusBody(agentStatus.value, false)
+                              )
+                    ]
+                  )
+                : undefined,
+              newConversationOpen.value
+                ? h('div', { class: 'modal-backdrop' }, [
+                    h('section', { class: 'new-conversation-dialog', role: 'dialog', 'aria-modal': 'true' }, [
+                      h('header', { class: 'dialog-header' }, [
+                        h('h2', text('newConversation')),
+                        h(
+                          'button',
+                          {
+                            class: 'icon-button',
+                            type: 'button',
+                            title: text('close'),
+                            'aria-label': text('close'),
+                            onClick: () => {
+                              newConversationOpen.value = false
+                            }
+                          },
+                          '×'
+                        )
+                      ]),
+                      h('label', { class: 'field-label', for: 'agent-select' }, text('agent')),
                       h(
-                        'a',
+                        'select',
                         {
-                          class: 'status-github-link',
-                          href: projectRepositoryUrl,
-                          target: '_blank',
-                          rel: 'noreferrer',
-                          title: text('githubProject'),
-                          'aria-label': text('githubProject')
+                          id: 'agent-select',
+                          disabled: newConversationState.value === 'loading' || !agents.value.length,
+                          value: selectedAgentId.value,
+                          onChange: (event: Event) => {
+                            selectedAgentId.value = (event.target as HTMLSelectElement).value
+                          }
                         },
-                        renderGithubIcon()
-                      )
+                        agents.value.map((agent) =>
+                          h(
+                            'option',
+                            { key: agent.id, value: agent.id },
+                            `${agent.name} · ${agent.modelName ?? agent.model}`
+                          )
+                        )
+                      ),
+                      newConversationError.value
+                        ? h('p', { class: 'composer-error', role: 'alert' }, newConversationError.value)
+                        : undefined,
+                      h('footer', { class: 'dialog-actions' }, [
+                        h(
+                          'button',
+                          {
+                            class: 'secondary-button',
+                            type: 'button',
+                            onClick: () => {
+                              newConversationOpen.value = false
+                            }
+                          },
+                          text('cancel')
+                        ),
+                        h(
+                          'button',
+                          {
+                            class: 'primary-button',
+                            type: 'button',
+                            disabled: !selectedAgentId.value || newConversationState.value === 'creating',
+                            onClick: () => void createConversation()
+                          },
+                          newConversationState.value === 'creating' ? text('creating') : text('create')
+                        )
+                      ])
                     ])
                   ])
-                    ])
-                  ])
-            ])
-          : undefined,
-        newConversationOpen.value
-          ? h('div', { class: 'modal-backdrop' }, [
-              h('section', { class: 'new-conversation-dialog', role: 'dialog', 'aria-modal': 'true' }, [
-                h('header', { class: 'dialog-header' }, [
-                  h('h2', text('newConversation')),
-                  h(
-                    'button',
-                    {
-                      class: 'icon-button',
-                      type: 'button',
-                      title: text('close'),
-                      'aria-label': text('close'),
-                      onClick: () => {
-                        newConversationOpen.value = false
-                      }
-                    },
-                    '×'
-                  )
-                ]),
-                h('label', { class: 'field-label', for: 'agent-select' }, text('agent')),
-                h(
-                  'select',
-                  {
-                    id: 'agent-select',
-                    disabled: newConversationState.value === 'loading' || !agents.value.length,
-                    value: selectedAgentId.value,
-                    onChange: (event: Event) => {
-                      selectedAgentId.value = (event.target as HTMLSelectElement).value
-                    }
-                  },
-                  agents.value.map((agent) =>
-                    h('option', { key: agent.id, value: agent.id }, `${agent.name} · ${agent.modelName ?? agent.model}`)
-                  )
-                ),
-                newConversationError.value
-                  ? h('p', { class: 'composer-error', role: 'alert' }, newConversationError.value)
-                  : undefined,
-                h('footer', { class: 'dialog-actions' }, [
-                  h(
-                    'button',
-                    {
-                      class: 'secondary-button',
-                      type: 'button',
-                      onClick: () => {
-                        newConversationOpen.value = false
-                      }
-                    },
-                    text('cancel')
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: 'primary-button',
-                      type: 'button',
-                      disabled: !selectedAgentId.value || newConversationState.value === 'creating',
-                      onClick: () => void createConversation()
-                    },
-                    newConversationState.value === 'creating' ? text('creating') : text('create')
-                  )
-                ])
-              ])
-            ])
-          : undefined,
-        deleteMessageId.value
-          ? h('div', { class: 'modal-backdrop', onClick: closeDeleteMessage }, [
-              h(
-                'section',
-                {
-                  class: 'new-conversation-dialog delete-message-dialog',
-                  role: 'dialog',
-                  'aria-modal': 'true',
-                  'aria-labelledby': 'delete-message-title',
-                  'aria-describedby': 'delete-message-description',
-                  onClick: (event: MouseEvent) => event.stopPropagation(),
-                  onKeydown: (event: KeyboardEvent) => {
-                    if (event.key === 'Escape') closeDeleteMessage()
-                  }
-                },
-                [
-                  h('header', { class: 'dialog-header' }, [
-                    h('h2', { id: 'delete-message-title' }, text('deleteMessage')),
+                : undefined,
+              deleteMessageId.value
+                ? h('div', { class: 'modal-backdrop', onClick: closeDeleteMessage }, [
                     h(
-                      'button',
+                      'section',
                       {
-                        class: 'icon-button',
-                        type: 'button',
-                        disabled: messageDeleteState.value === 'deleting',
-                        title: text('close'),
-                        'aria-label': text('close'),
-                        onClick: closeDeleteMessage
+                        class: 'new-conversation-dialog delete-message-dialog',
+                        role: 'dialog',
+                        'aria-modal': 'true',
+                        'aria-labelledby': 'delete-message-title',
+                        'aria-describedby': 'delete-message-description',
+                        onClick: (event: MouseEvent) => event.stopPropagation(),
+                        onKeydown: (event: KeyboardEvent) => {
+                          if (event.key === 'Escape') closeDeleteMessage()
+                        }
                       },
-                      renderActionIcon('close')
-                    )
-                  ]),
-                  h('p', { id: 'delete-message-description', class: 'dialog-description' }, text('deleteMessageDescription')),
-                  messageDeleteError.value
-                    ? h('p', { class: 'composer-error', role: 'alert' }, messageDeleteError.value)
-                    : undefined,
-                  h('footer', { class: 'dialog-actions' }, [
-                    h(
-                      'button',
-                      {
-                        class: 'secondary-button',
-                        type: 'button',
-                        disabled: messageDeleteState.value === 'deleting',
-                        autofocus: true,
-                        onClick: closeDeleteMessage
-                      },
-                      text('cancel')
-                    ),
-                    h(
-                      'button',
-                      {
-                        class: 'primary-button danger-button',
-                        type: 'button',
-                        disabled:
-                          messageDeleteState.value === 'deleting' ||
-                          activeRunConversationId.value === selectedConversationId.value,
-                        onClick: () => void confirmDeleteMessage()
-                      },
-                      messageDeleteState.value === 'deleting' ? text('deleting') : text('delete')
+                      [
+                        h('header', { class: 'dialog-header' }, [
+                          h('h2', { id: 'delete-message-title' }, text('deleteMessage')),
+                          h(
+                            'button',
+                            {
+                              class: 'icon-button',
+                              type: 'button',
+                              disabled: messageDeleteState.value === 'deleting',
+                              title: text('close'),
+                              'aria-label': text('close'),
+                              onClick: closeDeleteMessage
+                            },
+                            renderActionIcon('close')
+                          )
+                        ]),
+                        h(
+                          'p',
+                          { id: 'delete-message-description', class: 'dialog-description' },
+                          text('deleteMessageDescription')
+                        ),
+                        messageDeleteError.value
+                          ? h('p', { class: 'composer-error', role: 'alert' }, messageDeleteError.value)
+                          : undefined,
+                        h('footer', { class: 'dialog-actions' }, [
+                          h(
+                            'button',
+                            {
+                              class: 'secondary-button',
+                              type: 'button',
+                              disabled: messageDeleteState.value === 'deleting',
+                              autofocus: true,
+                              onClick: closeDeleteMessage
+                            },
+                            text('cancel')
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: 'primary-button danger-button',
+                              type: 'button',
+                              disabled:
+                                messageDeleteState.value === 'deleting' ||
+                                activeRunConversationId.value === selectedConversationId.value,
+                              onClick: () => void confirmDeleteMessage()
+                            },
+                            messageDeleteState.value === 'deleting' ? text('deleting') : text('delete')
+                          )
+                        ])
+                      ]
                     )
                   ])
-                ]
-              )
-            ])
-          : undefined
-        ]
-      )
+                : undefined,
+              deleteConversationId.value
+                ? h('div', { class: 'modal-backdrop', onClick: closeDeleteConversation }, [
+                    h(
+                      'section',
+                      {
+                        class: 'new-conversation-dialog delete-message-dialog',
+                        role: 'dialog',
+                        'aria-modal': 'true',
+                        'aria-labelledby': 'delete-conversation-title',
+                        'aria-describedby': 'delete-conversation-description',
+                        onClick: (event: MouseEvent) => event.stopPropagation(),
+                        onKeydown: (event: KeyboardEvent) => {
+                          if (event.key === 'Escape') closeDeleteConversation()
+                        }
+                      },
+                      [
+                        h('header', { class: 'dialog-header' }, [
+                          h('h2', { id: 'delete-conversation-title' }, text('deleteConversation')),
+                          h(
+                            'button',
+                            {
+                              class: 'icon-button',
+                              type: 'button',
+                              disabled: conversationActionState.value === 'deleting',
+                              title: text('close'),
+                              'aria-label': text('close'),
+                              onClick: closeDeleteConversation
+                            },
+                            renderActionIcon('close')
+                          )
+                        ]),
+                        h('p', { id: 'delete-conversation-description', class: 'dialog-description' }, [
+                          text('deleteConversationDescription'),
+                          deletingConversation.value ? h('strong', `\n${deletingConversation.value.title}`) : undefined
+                        ]),
+                        conversationActionError.value
+                          ? h('p', { class: 'composer-error', role: 'alert' }, conversationActionError.value)
+                          : undefined,
+                        h('footer', { class: 'dialog-actions' }, [
+                          h(
+                            'button',
+                            {
+                              class: 'secondary-button',
+                              type: 'button',
+                              disabled: conversationActionState.value === 'deleting',
+                              autofocus: true,
+                              onClick: closeDeleteConversation
+                            },
+                            text('cancel')
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: 'primary-button danger-button',
+                              type: 'button',
+                              disabled: conversationActionState.value === 'deleting',
+                              onClick: () => void confirmDeleteConversation()
+                            },
+                            conversationActionState.value === 'deleting' ? text('deleting') : text('delete')
+                          )
+                        ])
+                      ]
+                    )
+                  ])
+                : undefined
+            ]
+          )
   }
 })
 
@@ -3568,11 +4263,16 @@ style.textContent = `
   }
 
   .webui-shell-status-open {
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 340px);
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, var(--webui-right-panel-width, 380px));
   }
 
   .webui-shell-files-open {
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(360px, 420px);
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(320px, var(--webui-right-panel-width, 420px));
+  }
+
+  .webui-shell-resizing {
+    user-select: none;
+    cursor: col-resize;
   }
 
   .auth-shell {
@@ -3668,7 +4368,7 @@ style.textContent = `
 
   .mobile-chat-actions {
     display: flex;
-    gap: 10px;
+    gap: 6px;
     align-items: center;
   }
 
@@ -3831,11 +4531,16 @@ style.textContent = `
     overflow-y: auto;
   }
 
+  .conversation-item-wrap {
+    position: relative;
+    display: grid;
+  }
+
   .conversation-item {
     display: grid;
     width: 100%;
     min-height: 58px;
-    padding: 10px 12px;
+    padding: 10px 44px 10px 12px;
     text-align: left;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
@@ -3844,9 +4549,130 @@ style.textContent = `
   }
 
   .conversation-item:hover,
-  .conversation-item-selected {
+  .conversation-item-selected,
+  .conversation-item-wrap:focus-within .conversation-item {
     background: #eef2ff;
     border-color: #a5b4fc;
+  }
+
+  .conversation-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+
+  .conversation-item-wrap:hover .conversation-actions,
+  .conversation-item-wrap:focus-within .conversation-actions,
+  .conversation-item-wrap-selected .conversation-actions {
+    opacity: 1;
+  }
+
+  .conversation-action-button {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    background: rgb(255 255 255 / 78%);
+    border: 1px solid #dbe1ea;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .conversation-action-button:hover,
+  .conversation-action-button:focus-visible {
+    color: #111827;
+    background: #ffffff;
+    outline: 0;
+  }
+
+  .conversation-action-danger:hover,
+  .conversation-action-danger:focus-visible {
+    color: #b42318;
+  }
+
+  .conversation-action-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .conversation-action-menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    display: grid;
+    min-width: 148px;
+    padding: 4px;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 8px;
+    box-shadow: 0 14px 32px rgb(15 23 42 / 16%);
+  }
+
+  .conversation-action-menu-item {
+    display: flex;
+    min-height: 32px;
+    gap: 8px;
+    align-items: center;
+    padding: 0 8px;
+    color: #334155;
+    font-size: 12px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .conversation-action-menu-item:hover,
+  .conversation-action-menu-item:focus-visible {
+    color: #111827;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .conversation-action-menu-danger:hover,
+  .conversation-action-menu-danger:focus-visible {
+    color: #b42318;
+  }
+
+  .conversation-action-menu-item svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .conversation-title-input {
+    min-width: 0;
+    width: 100%;
+    height: 24px;
+    padding: 0 6px;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    background: #ffffff;
+    border: 1px solid #a5b4fc;
+    border-radius: 5px;
+    outline: 0;
+  }
+
+  .conversation-action-error {
+    margin: 8px 2px 0;
+    font-size: 12px;
+  }
+
+  .mini-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 999px;
+    animation: spin 700ms linear infinite;
   }
 
   .conversation-title {
@@ -3858,12 +4684,10 @@ style.textContent = `
     white-space: nowrap;
   }
 
-  .conversation-meta {
-    overflow: hidden;
-    color: #6b7280;
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .chat-stage {
@@ -3997,9 +4821,9 @@ style.textContent = `
 
   .agent-status-context-shortcut {
     display: flex;
-    width: 52px;
+    width: 44px;
     height: 36px;
-    gap: 4px;
+    gap: 2px;
     justify-content: center;
     border-radius: 18px;
   }
@@ -4081,10 +4905,38 @@ style.textContent = `
   }
 
   .agent-status-panel {
+    position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     padding: 0;
     overflow: hidden;
+  }
+
+  .status-panel-resize-handle {
+    position: absolute;
+    top: 0;
+    left: -4px;
+    z-index: 5;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+  }
+
+  .status-panel-resize-handle::after {
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    width: 2px;
+    height: 42px;
+    background: transparent;
+    border-radius: 999px;
+    transform: translateY(-50%);
+    content: '';
+  }
+
+  .status-panel-resize-handle:hover::after,
+  .status-panel-resize-handle:focus-visible::after {
+    background: #cbd5e1;
   }
 
   .agent-status-panel-header {
@@ -4747,6 +5599,53 @@ style.textContent = `
     padding-top: 10px;
   }
 
+  .help-panel {
+    gap: 14px;
+  }
+
+  .help-guide-tree {
+    padding: 10px 12px;
+    background: #f8fafc;
+    border: 1px solid var(--webui-divider);
+    border-radius: 8px;
+  }
+
+  .help-guide-tree > summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .help-guide-tree > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .help-guide-tree ul {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding-left: 18px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .help-runtime-section {
+    padding-top: 12px;
+    border-top: 1px solid var(--webui-divider);
+  }
+
+  .help-runtime-section h3 {
+    margin: 0 0 2px;
+    color: #334155;
+    font-size: 13px;
+  }
+
   .status-runtime-dot {
     width: 8px;
     height: 8px;
@@ -4821,6 +5720,12 @@ style.textContent = `
   .message:hover .message-actions,
   .message:focus-within .message-actions {
     opacity: 1;
+  }
+
+  .message-action-wrap {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
   }
 
   .message-action-button {
@@ -5222,9 +6127,36 @@ style.textContent = `
   }
 
   .speech-notice {
-    margin: 8px 4px 0;
-    color: #b45309;
+    position: absolute;
+    right: 50%;
+    bottom: calc(100% + 8px);
+    z-index: 20;
+    width: max-content;
+    max-width: min(240px, 72vw);
+    padding: 7px 9px;
+    color: #92400e;
     font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgb(15 23 42 / 14%);
+    transform: translateX(50%);
+    pointer-events: none;
+  }
+
+  .speech-notice::after {
+    position: absolute;
+    right: 50%;
+    bottom: -5px;
+    width: 9px;
+    height: 9px;
+    background: #fffbeb;
+    border-right: 1px solid #fde68a;
+    border-bottom: 1px solid #fde68a;
+    transform: translateX(50%) rotate(45deg);
+    content: '';
   }
 
   .speech-settings-panel {
@@ -6170,6 +7102,10 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] .conversation-item,
+  :root[data-webui-theme='dark'] .conversation-action-button,
+  :root[data-webui-theme='dark'] .conversation-action-menu,
+  :root[data-webui-theme='dark'] .conversation-title-input,
+  :root[data-webui-theme='dark'] .help-guide-tree,
   :root[data-webui-theme='dark'] .process-block,
   :root[data-webui-theme='dark'] .tool-call,
   :root[data-webui-theme='dark'] .reasoning-block,
@@ -6191,6 +7127,11 @@ style.textContent = `
 
   :root[data-webui-theme='dark'] .conversation-item:hover,
   :root[data-webui-theme='dark'] .conversation-item-selected,
+  :root[data-webui-theme='dark'] .conversation-item-wrap:focus-within .conversation-item,
+  :root[data-webui-theme='dark'] .conversation-action-button:hover,
+  :root[data-webui-theme='dark'] .conversation-action-button:focus-visible,
+  :root[data-webui-theme='dark'] .conversation-action-menu-item:hover,
+  :root[data-webui-theme='dark'] .conversation-action-menu-item:focus-visible,
   :root[data-webui-theme='dark'] .model-picker-option:hover,
   :root[data-webui-theme='dark'] .model-picker-option-selected,
   :root[data-webui-theme='dark'] .reasoning-picker-option:hover,
@@ -6201,6 +7142,9 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] .conversation-title,
+  :root[data-webui-theme='dark'] .conversation-action-menu-item,
+  :root[data-webui-theme='dark'] .help-runtime-section h3,
+  :root[data-webui-theme='dark'] .help-guide-tree > summary,
   :root[data-webui-theme='dark'] .process-block,
   :root[data-webui-theme='dark'] .tool-call,
   :root[data-webui-theme='dark'] .tool-call-data,
@@ -6213,6 +7157,8 @@ style.textContent = `
 
   :root[data-webui-theme='dark'] .composer-tool-button-pending,
   :root[data-webui-theme='dark'] .slash-command-description,
+  :root[data-webui-theme='dark'] .help-guide-tree ul,
+  :root[data-webui-theme='dark'] .conversation-meta,
   :root[data-webui-theme='dark'] .model-picker-provider {
     color: #94a3b8;
   }
@@ -6299,7 +7245,14 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] .speech-notice {
-    color: #fbbf24;
+    color: #fde68a;
+    background: #422006;
+    border-color: #854d0e;
+  }
+
+  :root[data-webui-theme='dark'] .speech-notice::after {
+    background: #422006;
+    border-color: #854d0e;
   }
 
   :root[data-webui-theme='dark'] .workspace-file-search,
@@ -6508,9 +7461,18 @@ style.textContent = `
 
     .mobile-chat-actions {
       display: flex;
-      gap: 10px;
+      gap: 6px;
       align-items: center;
       padding-top: 2px;
+    }
+
+    .status-panel-resize-handle {
+      display: none;
+    }
+
+    .webui-shell-status-open,
+    .webui-shell-files-open {
+      grid-template-columns: 1fr;
     }
 
     .mobile-chat-actions .mobile-sidebar-button {
