@@ -74,6 +74,42 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Consumer: src/main/core/preboot/userDataLocation.ts'
     ]
+  },
+  {
+    source: 'preboot',
+    sourceCategory: 'transient',
+    originalKey: 'factoryReset',
+    targetKey: 'temp.factory_reset',
+    type: "\n    | { status: 'pending'; userDataPath: string; requestedAt: string }" + '\n    | null',
+    defaultValue: null,
+    jsdoc: [
+      'Pending factory reset of the app (issue #17131): on the next boot,',
+      'the preboot factory-reset gate wipes the userData directory tree and',
+      "the user-state subtrees of ~/.cherrystudio, then resets BootConfig's",
+      'other keys to defaults — the app restarts as a fresh install.',
+      '',
+      'Lives under the `temp.*` top-level namespace — reserved for ephemeral',
+      'runtime state: single in-flight operations meant to be cleared once',
+      'consumed. **Never** backed up or synced.',
+      '',
+      'Lifecycle:',
+      '  - null: no factory reset pending (default).',
+      "  - { status: 'pending', userDataPath, requestedAt }: the",
+      "    'app.factory_reset.request' IpcApi handler wrote this request and",
+      '    the next preboot should execute the wipe. `userDataPath` is the',
+      "    requesting instance's resolved userData directory; the gate refuses",
+      '    to act when it differs from the current resolution (boot-config.json',
+      '    is shared between dev and packaged instances, which use different',
+      '    userData directories).',
+      '',
+      'The wipe is idempotent and retried: the marker is cleared only after a',
+      "full wipe pass, so a crash mid-wipe re-runs it on the next boot. There's",
+      "no 'failed' state — unlike a relocation, a wipe cannot lose data it was",
+      'asked to destroy, and per-entry failures (e.g. a file locked by the OS)',
+      'are logged and skipped rather than blocking startup.',
+      '',
+      'Consumer: src/main/core/preboot/factoryResetGate.ts'
+    ]
   }
 ]
 
