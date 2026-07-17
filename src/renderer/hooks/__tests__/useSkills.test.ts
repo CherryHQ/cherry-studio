@@ -8,6 +8,8 @@ const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
+const discoverSystemSkillsMock = vi.hoisted(() => vi.fn())
+const importSystemSkillMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -30,6 +32,10 @@ function stubSkillRoutes() {
         return installSkillFromZipMock(input)
       case 'skill.install_from_directory':
         return installSkillFromDirectoryMock(input)
+      case 'skill.discover_system':
+        return discoverSystemSkillsMock(input)
+      case 'skill.import_system':
+        return importSystemSkillMock(input)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -37,10 +43,10 @@ function stubSkillRoutes() {
 }
 
 import { toast } from '@renderer/services/toast'
-import type { InstalledSkill } from '@shared/types/skill'
+import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
-import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch, useSystemSkills } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -304,6 +310,79 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toast.error).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('useSystemSkills', () => {
+  const candidate: SystemSkillCandidate = {
+    id: 'candidate-1',
+    name: 'System Skill',
+    description: 'Installed by Codex',
+    filename: 'system-skill',
+    directoryPath: '/home/test/.codex/skills/system-skill',
+    placements: [
+      {
+        sourceId: 'codex',
+        sourceName: 'Codex',
+        directoryPath: '/home/test/.codex/skills/system-skill'
+      }
+    ],
+    status: 'available'
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+    discoverSystemSkillsMock.mockResolvedValue([candidate])
+    importSystemSkillMock.mockResolvedValue(
+      createSkill({
+        id: 'system-skill-id',
+        name: candidate.name,
+        folderName: candidate.filename,
+        source: 'system',
+        sourceUrl: 'file:///home/test/.codex/skills/system-skill',
+        namespace: 'codex',
+        isEnabled: true
+      })
+    )
+    stubSkillRoutes()
+  })
+
+  it('discovers system skills without an agent scope', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills).toEqual([candidate])
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', {})
+  })
+
+  it('imports a system skill without enabling it for an agent', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
+
+    await act(async () => {
+      const installed = await result.current.importSkill(candidate)
+      expect(installed?.id).toBe('system-skill-id')
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.import_system', {
+      directoryPath: candidate.directoryPath
+    })
+    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+  })
+
+  it('does not re-import an already imported system skill', async () => {
+    const registered = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
+    discoverSystemSkillsMock.mockResolvedValue([registered])
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([registered]))
+
+    await act(async () => {
+      await expect(result.current.importSkill(registered)).resolves.toBeNull()
+    })
+
+    expect(importSystemSkillMock).not.toHaveBeenCalled()
   })
 })
 
