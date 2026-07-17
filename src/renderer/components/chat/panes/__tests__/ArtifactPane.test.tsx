@@ -247,6 +247,10 @@ function binaryReadResult(content: Uint8Array) {
   }
 }
 
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
 vi.mock('@cherrystudio/ui', async (importActual) => {
   const actual = await importActual<typeof CherryStudioUi>()
   const RealCodeEditor = actual.CodeEditor

@@ -9,21 +9,30 @@ import type {
   ReactElement,
   ReactNode
 } from 'react'
-import { cloneElement, isValidElement, useEffect } from 'react'
+import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
-const { buildAgentToolFlowProjectionMock, fileTreeModelState, useArtifactFileTreeModelMock, useCommandHandlerMock } =
-  vi.hoisted(() => ({
-    buildAgentToolFlowProjectionMock: vi.fn(),
-    fileTreeModelState: {
-      hasLoaded: false,
-      nodeById: new Map<string, { kind: string }>()
-    },
-    useArtifactFileTreeModelMock: vi.fn(),
-    useCommandHandlerMock: vi.fn()
-  }))
+const {
+  buildAgentToolFlowProjectionMock,
+  fileTreeModelState,
+  fileTreeModelStore,
+  useArtifactFileTreeModelMock,
+  useCommandHandlerMock
+} = vi.hoisted(() => ({
+  buildAgentToolFlowProjectionMock: vi.fn(),
+  fileTreeModelState: {
+    hasLoaded: false,
+    nodeById: new Map<string, { kind: string }>()
+  },
+  fileTreeModelStore: {
+    listeners: new Set<() => void>(),
+    revision: 0
+  },
+  useArtifactFileTreeModelMock: vi.fn(),
+  useCommandHandlerMock: vi.fn()
+}))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
   const actual = await importActual<typeof AgentRightPaneProjection>()
@@ -201,7 +210,16 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
-  useArtifactFileTreeModel: useArtifactFileTreeModelMock
+  useArtifactFileTreeModel: (options: unknown) => {
+    useSyncExternalStore(
+      (listener) => {
+        fileTreeModelStore.listeners.add(listener)
+        return () => fileTreeModelStore.listeners.delete(listener)
+      },
+      () => fileTreeModelStore.revision
+    )
+    return useArtifactFileTreeModelMock(options)
+  }
 }))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
@@ -326,6 +344,8 @@ describe('AgentRightPane', () => {
     vi.clearAllMocks()
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
+    fileTreeModelStore.listeners.clear()
+    fileTreeModelStore.revision = 0
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
@@ -699,8 +719,11 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
 
-    fileTreeModelState.nodeById = new Map()
-    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    act(() => {
+      fileTreeModelState.nodeById = new Map()
+      fileTreeModelStore.revision += 1
+      fileTreeModelStore.listeners.forEach((listener) => listener())
+    })
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
