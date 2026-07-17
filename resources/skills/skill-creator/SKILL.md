@@ -5,33 +5,30 @@ description: Create new skills, modify and improve existing skills, and measure 
 
 ## Cherry Studio workflow (READ FIRST — overrides packaging / install steps below)
 
-You are running inside Cherry Studio. Skills live in a managed global registry,
-so you do **not** write files to `.claude/skills/` or to
-`~/Library/Application Support/.../Skills/` directly, and you should **ignore**
-any `package_skill.py` / `.skill` packaging steps mentioned later in this file
-(they apply to Claude Code / Claude.ai, not here).
+You are running inside Cherry Studio. Skills live in a managed registry that Cherry
+keeps in sync with the filesystem automatically — there is **no** install or register
+tool to call, and you should **ignore** any `package_skill.py` / `.skill` packaging
+steps mentioned later in this file (they apply to Claude Code / Claude.ai, not here).
 
-**The flow for creating a new skill is exactly two tool calls:**
+**To create a new skill, write it straight into Cherry's skills directory:**
 
-1. Call the `skills` tool with `action="init"` and `name="<skill-folder-name>"`.
-   It returns an absolute directory path. Write `SKILL.md` and any supporting
-   files (`scripts/`, `references/`, `assets/`) **directly into that directory**.
-2. When the skill is ready, call `skills` with `action="register"` and the same
-   `name`. The skill is registered into the global skill list and enabled for
-   the current session automatically. You can re-edit files in place and call
-   `register` again at any time to refresh — the live symlink picks up file
-   content changes immediately, so mid-iteration edits work without ceremony.
+1. Resolve the directory once by running `echo "$CLAUDE_CONFIG_DIR/skills"` in Bash.
+   That folder is where Cherry looks for skills.
+2. Create `<that-path>/<skill-folder-name>/` and write `SKILL.md` plus any supporting
+   files (`scripts/`, `references/`, `assets/`) into it with your normal file tools.
+3. That's it. Cherry's skill sync detects the new directory, moves it into its managed
+   library, and lists it in the app — no register step. You can re-edit the files in
+   place at any time and the changes are picked up on the next sync.
 
-Use the same `<skill-folder-name>` for both `init` and `register` calls. The
-`name:` field inside your `SKILL.md` frontmatter becomes the display name and
-may differ from the folder name (e.g. `name: My Cool Skill` with folder
-`my-cool-skill`).
+Use a lowercase, hyphenated `<skill-folder-name>` (e.g. `my-cool-skill`). The `name:`
+field inside your `SKILL.md` frontmatter is the display name and may differ from the
+folder name (e.g. `name: My Cool Skill` with folder `my-cool-skill`).
 
-Eval / test workspaces (`<skill-name>-workspace/`, `iteration-*/`, etc.) from
-the evaluation loop described below should be created **outside** the skill
-directory — e.g. as a sibling under the user's workspace — so they don't end up
-bundled into the registered skill. The evaluation loop itself still applies;
-only the packaging and install mechanics change.
+Eval / test workspaces (`<skill-name>-workspace/`, `iteration-*/`, etc.) from the
+evaluation loop described below must be created **outside** that skills directory —
+e.g. as a sibling under the user's workspace — so they don't get bundled into the
+skill. The evaluation loop itself still applies; only the packaging and install
+mechanics change.
 
 ---
 

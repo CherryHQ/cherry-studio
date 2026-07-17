@@ -818,17 +818,21 @@ export class SkillService {
   }
 
   /**
-   * Reconcile the CLAUDE_CONFIG_DIR/skills mirror with the owned library.
+   * Reconcile the skill library, the DB catalog, and the CLAUDE_CONFIG_DIR/skills
+   * mirror. The filesystem is the source of truth; `agent_global_skill` is a cache
+   * reconciled from disk — so a skill an agent authored via native file tools (or one
+   * whose files were removed out-of-band) is picked up without any "register" call.
    *
-   * 1. DB → mirror: every library skill is mirrored (warns if its files are missing).
-   * 2. prune: managed mirror entries whose DB row is gone are removed.
+   * 1. absorb: real, untracked skill dirs dropped directly under the mirror
+   *    (CLAUDE_CONFIG_DIR/skills — the one skills path agents can write to) are
+   *    relocated into the managed library (Data/Skills).
+   * 2. library → DB: adopt newly-present library skills, refresh changed ones, and
+   *    prune non-builtin rows whose files have vanished. Pruning is gated on a
+   *    successful library scan so a transient read error can't wipe the catalog.
+   * 3. DB → mirror: heal every catalog skill's symlink and drop managed orphans.
    *
-   * User-dropped skills under the config dir are left untouched — they are never
-   * whitelisted into a session, so their files stay inert rather than being
-   * adopted into the managed library.
-   *
-   * Idempotent; runs once at startup. Mutations never happen at session build,
-   * so concurrent session builds only read this directory.
+   * Idempotent. Mutations never happen at session build, so concurrent session
+   * builds only read these directories.
    */
   async reconcileSkills(): Promise<void> {
     try {
@@ -837,6 +841,145 @@ export class SkillService {
       logger.warn('Failed to prepare external CLI skill plugin bridge', { error })
     }
 
+    await this.absorbDroppedSkills()
+    await this.reconcileLibraryToDb()
+    await this.reconcileMirror()
+  }
+
+  /**
+   * Relocate skill directories dropped directly under CLAUDE_CONFIG_DIR/skills (e.g.
+   * authored in place by an agent) into the managed library. Only real, untracked
+   * directories are absorbed: managed mirror entries are symlinks (a real copy on
+   * Windows) whose folder name is already tracked, so the DB check skips them on
+   * every platform. The original is removed so `reconcileMirror` can replace it with
+   * a symlink; the DB row is created by the library pass that follows.
+   */
+  private async absorbDroppedSkills(): Promise<void> {
+    const mirrorRoot = this.getMirrorRoot()
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(mirrorRoot, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    const tracked = new Set(agentGlobalSkillService.listAll().map((s) => s.folderName))
+    const storageRoot = application.getPath('feature.agents.skills')
+
+    for (const entry of entries) {
+      // Symlinks are managed mirror entries; only real dirs can be agent-dropped.
+      if (!entry.isDirectory()) continue
+      if (tracked.has(entry.name)) continue
+
+      const src = path.join(mirrorRoot, entry.name)
+      if ((await this.readSkillMd(src)) === null) continue
+
+      const dest = path.join(storageRoot, entry.name)
+      try {
+        await fs.promises.mkdir(storageRoot, { recursive: true })
+        await fs.promises.cp(src, dest, { recursive: true, force: true })
+        await fs.promises.rm(src, { recursive: true, force: true })
+        logger.info('Absorbed agent-dropped skill into library', { folderName: entry.name })
+      } catch (error) {
+        logger.warn('Failed to absorb dropped skill', {
+          folderName: entry.name,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+  }
+
+  /**
+   * Reconcile the managed library (Data/Skills) with the `agent_global_skill`
+   * catalog: adopt skills present on disk but missing a row, refresh rows whose
+   * SKILL.md changed, and prune non-builtin rows whose files are gone. Builtins are
+   * owned by `installBuiltinSkills` and never pruned here. Presence and change
+   * detection read SKILL.md directly, so the catalog converges to what is on disk.
+   */
+  private async reconcileLibraryToDb(): Promise<void> {
+    const storageRoot = application.getPath('feature.agents.skills')
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      // A whole-root read failure (or a not-yet-created root) is transient — never
+      // prune on it, or a hiccup would drop every skill and its enablement.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Failed to scan skill library; skipping DB reconcile', {
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+      return
+    }
+
+    const onDisk = new Map<string, string>()
+    for (const entry of entries) {
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+      const content = await this.readSkillMd(path.join(storageRoot, entry.name))
+      if (content === null) continue
+      onDisk.set(entry.name, createHash('sha256').update(content).digest('hex'))
+    }
+
+    const dbSkills = agentGlobalSkillService.listAll()
+    const dbByFolder = new Map(dbSkills.map((skill) => [skill.folderName, skill]))
+
+    for (const [folderName, contentHash] of onDisk) {
+      const existing = dbByFolder.get(folderName)
+      if (existing && existing.contentHash === contentHash) continue
+
+      let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
+      try {
+        metadata = await parseSkillMetadata(path.join(storageRoot, folderName), folderName, 'skills')
+      } catch (error) {
+        logger.warn('Failed to parse library skill during reconcile; skipping', {
+          folderName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        continue
+      }
+      if (!metadata) continue
+      const tags = metadata.tags ?? []
+
+      if (existing) {
+        agentGlobalSkillService.update(existing.id, {
+          name: metadata.name,
+          description: metadata.description ?? null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash
+        })
+      } else {
+        agentGlobalSkillService.insert({
+          name: metadata.name,
+          description: metadata.description ?? null,
+          folderName,
+          source: 'local',
+          sourceUrl: null,
+          namespace: null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash,
+          isEnabled: false
+        })
+        logger.info('Adopted library skill into catalog', { folderName })
+      }
+    }
+
+    for (const skill of dbSkills) {
+      if (skill.source === 'builtin') continue
+      if (onDisk.has(skill.folderName)) continue
+      agentGlobalSkillService.deleteById(skill.id)
+      await this.unlinkMirror(skill.folderName)
+      logger.info('Pruned skill whose library files were removed', { folderName: skill.folderName })
+    }
+  }
+
+  /**
+   * Heal the CLAUDE_CONFIG_DIR/skills mirror: symlink every catalog skill into it and
+   * drop managed mirror entries whose DB row is gone. Non-managed real dirs are
+   * absorbed earlier, so anything left here without a DB row is a managed orphan.
+   */
+  private async reconcileMirror(): Promise<void> {
     const all = agentGlobalSkillService.listAll()
     const known = new Set(all.map((s) => s.folderName))
 
@@ -863,6 +1006,18 @@ export class SkillService {
         await this.unlinkMirror(folderName)
       }
     }
+  }
+
+  /** Read a skill folder's SKILL.md (either casing) directly, bypassing metadata parsing. */
+  private async readSkillMd(dir: string): Promise<string | null> {
+    for (const variant of ['SKILL.md', 'skill.md']) {
+      try {
+        return await fs.promises.readFile(path.join(dir, variant), 'utf-8')
+      } catch {
+        // Try the next filename variant.
+      }
+    }
+    return null
   }
 
   private sanitizeFolderName(folderName: string): string {
