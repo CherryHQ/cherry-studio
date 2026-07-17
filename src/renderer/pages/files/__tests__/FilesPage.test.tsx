@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformState = vi.hoisted(() => ({
@@ -16,6 +16,21 @@ const platformState = vi.hoisted(() => ({
 
 const ipcMocks = vi.hoisted(() => ({
   request: vi.fn()
+}))
+
+const filePreviewMocks = vi.hoisted(() => ({
+  render: vi.fn()
+}))
+
+vi.mock('@renderer/components/FilePreview', () => ({
+  FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
+    filePreviewMocks.render(props)
+    return (
+      <div data-testid="file-preview" data-file-path={props.filePath}>
+        {header}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -409,6 +424,126 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('embeds the file preview across the Files page after resolving the physical path', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [entry.id]: '/tmp/report.md' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: [entry.id] })
+      expect(filePreviewMocks.render).toHaveBeenCalledWith({ filePath: '/tmp/report.md', refreshKey: 0 })
+    })
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/report.md')
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.open' })).toBeInTheDocument()
+  })
+
+  it('reports a file preview path resolution failure', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
+      expect(toast.error).toHaveBeenCalledWith('files.preview.error')
+    })
+    expect(filePreviewMocks.render).not.toHaveBeenCalled()
+  })
+
+  // Delays a settled value by several microtask hops so the earlier open request lands
+  // AFTER the later one. Both requests still settle within a few ticks — no long-pending
+  // promise (which would spin the mocked useDeferredValue render loop under act).
+  const afterMicrotasks = <T,>(produce: () => T): Promise<T> =>
+    Promise.resolve()
+      .then()
+      .then()
+      .then()
+      .then(() => produce())
+  // Drains pending microtasks so the stale request provably finishes before we assert,
+  // without waiting for React to go idle (the mock's unstable query refs never let it).
+  const drainMicrotasks = async () => {
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+  }
+
+  it('keeps the most recently opened file when an older open request resolves last', async () => {
+    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
+    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths') {
+        const id = (input as { ids: string[] }).ids[0]
+        // A (clicked first) settles several ticks later than B (clicked last).
+        if (id === 'file-a') return afterMicrotasks(() => ({ 'file-a': '/tmp/alpha.md' }))
+        return Promise.resolve({ [id]: '/tmp/bravo.md' })
+      }
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([fileA, fileB])
+
+    const openButtons = screen.getAllByRole('button', { name: 'files.open' })
+    fireEvent.click(openButtons[0]) // A — the stale, slower request
+    fireEvent.click(openButtons[1]) // B — the latest selection
+
+    // B (latest) resolves first and is shown.
+    await waitFor(() => {
+      expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+    })
+
+    // A (stale) resolves last and must NOT overwrite B.
+    await drainMicrotasks()
+    expect(filePreviewMocks.render).not.toHaveBeenCalledWith(expect.objectContaining({ filePath: '/tmp/alpha.md' }))
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+  })
+
+  it('suppresses a stale open error after a newer open has already succeeded', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
+    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths') {
+        const id = (input as { ids: string[] }).ids[0]
+        // A (clicked first) rejects several ticks later than B (clicked last) succeeds.
+        if (id === 'file-a')
+          return afterMicrotasks(() => {
+            throw new Error('resolution failed')
+          })
+        return Promise.resolve({ [id]: '/tmp/bravo.md' })
+      }
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([fileA, fileB])
+
+    const openButtons = screen.getAllByRole('button', { name: 'files.open' })
+    fireEvent.click(openButtons[0]) // A — the stale, slower request
+    fireEvent.click(openButtons[1]) // B — the latest selection
+
+    // B (latest) succeeds first.
+    await waitFor(() => {
+      expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+    })
+
+    // A (stale) rejects last — its error must not surface over the new preview.
+    await drainMicrotasks()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/bravo.md')
+  })
+
   it('routes mixed active delete to trash internal files and remove external entries', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
     mockFiles([entry, externalEntry])
@@ -775,23 +910,6 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('falls back to show in folder when default-open is blocked as unsafe', async () => {
-    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
-      if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.open') return Promise.reject(new IpcError(fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE))
-      if (route === 'file.show_in_folder') return Promise.resolve(undefined)
-      return Promise.resolve(input)
-    })
-    renderFilesPage()
-
-    fireEvent.doubleClick(screen.getByText('report.md'))
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'entry', entryId: entry.id })
-    })
-  })
-
   it('imports dropped files through file.batch_create_internal_entries', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
@@ -956,5 +1074,23 @@ describe('FilesPage file operations', () => {
     fireEvent.contextMenu(screen.getByAltText('photo.png'))
     fireEvent.click(screen.getByText('files.rename'))
     expect(screen.getByDisplayValue('photo.png')).toBeInTheDocument()
+  })
+
+  it('opens the embedded preview when clicking an image in the image grid', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+    fireEvent.click(await screen.findByAltText('photo.png'))
+
+    await waitFor(() => {
+      expect(filePreviewMocks.render).toHaveBeenCalledWith({ filePath: '/tmp/photo.png', refreshKey: 0 })
+    })
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/photo.png')
   })
 })

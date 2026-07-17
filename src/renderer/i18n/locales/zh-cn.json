@@ -2453,6 +2453,72 @@
     },
     "user": "用户"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "此 HTML 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "HTML 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 HTML 文件。",
+        "title": "文件过大"
+      }
+    },
+    "invalid_path": {
+      "description": "文件预览需要有效的本地绝对路径。",
+      "title": "无法预览此文件"
+    },
+    "load_error": {
+      "description": "无法加载此文件的预览内容。",
+      "title": "预览失败"
+    },
+    "loading": "正在加载预览...",
+    "markdown": {
+      "empty": {
+        "description": "此 Markdown 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "Markdown 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 Markdown 文件。",
+        "title": "文件过大"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "此文本文件没有内容。",
+        "title": "文件为空"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的文本文件。",
+        "title": "文件过大"
+      }
+    },
+    "unsupported": {
+      "action": "用默认应用打开",
+      "description": "此文件类型暂不支持预览。",
+      "open_error": "无法打开此文件",
+      "title": "暂不支持预览"
+    }
+  },
   "files": {
     "actions": "操作",
     "all": "所有文件",
