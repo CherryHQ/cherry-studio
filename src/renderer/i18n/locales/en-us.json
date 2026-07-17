@@ -2499,6 +2499,14 @@
         "title": "File is too large"
       }
     },
+    "pdf": {
+      "too_large": {
+        "action": "Open with default app",
+        "description": "PDF files larger than {{limit}} MiB cannot be previewed.",
+        "open_error": "Couldn't open this file",
+        "title": "File is too large"
+      }
+    },
     "text": {
       "empty": {
         "description": "This text file has no content.",
