@@ -135,6 +135,21 @@ describe('AgentSpeedControl model capabilities', () => {
     ).toBe('high')
   })
 
+  it('falls back when the model is missing or declares an unsupported default effort', () => {
+    expect(getDefaultAgentReasoningEffort()).toBe('medium')
+    expect(
+      getDefaultAgentReasoningEffort(
+        model({
+          reasoning: {
+            type: 'openai-responses',
+            supportedEfforts: ['low', 'medium', 'high'],
+            defaultEffort: 'max'
+          }
+        })
+      )
+    ).toBe('medium')
+  })
+
   it('reads Fast support from model registry metadata', () => {
     expect(supportsAgentFastMode(model({ providerId: 'claude-code', apiModelId: 'claude-fable-5' }))).toBe(false)
     expect(supportsAgentFastMode(model({ providerId: 'claude-code', apiModelId: 'claude-opus-4-8' }))).toBe(false)

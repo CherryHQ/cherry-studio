@@ -50,7 +50,7 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
-import type { AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
+import { type AgentReasoningEffort, normalizeAgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -1204,10 +1204,13 @@ const AgentComposerInner = ({
       buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({
-          agentRuntimeOptions:
-            model && supportsAgentSpeedControl(model) ? { reasoningEffort: agentReasoningEffort, fastMode } : undefined
-        })
+        extra: () =>
+          model && supportsAgentSpeedControl(model)
+            ? {
+                agentRuntimeModelId: model.id,
+                agentRuntimeOptions: { reasoningEffort: agentReasoningEffort, fastMode }
+              }
+            : {}
       }),
     [agentReasoningEffort, fastMode, files, model]
   )
@@ -1217,6 +1220,13 @@ const AgentComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
+        const agentRuntimeOptions =
+          payload.agentRuntimeOptions && model && supportsAgentSpeedControl(model)
+            ? normalizeAgentRuntimeOptions(
+                model,
+                payload.agentRuntimeModelId === model.id ? payload.agentRuntimeOptions : {}
+              )
+            : undefined
         await chatSendMessage(
           { text: payload.text },
           {
@@ -1224,7 +1234,7 @@ const AgentComposerInner = ({
               agentId,
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
-              ...(payload.agentRuntimeOptions ? { agentRuntimeOptions: payload.agentRuntimeOptions } : {})
+              ...(agentRuntimeOptions ? { agentRuntimeOptions } : {})
             }
           }
         )
@@ -1236,7 +1246,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, model, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {

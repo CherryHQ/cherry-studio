@@ -133,14 +133,19 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBeTypeOf('string')
   })
 
-  it('maps the Work Fast setting to Codex priority processing', async () => {
+  it.each([
+    [true, 'priority'],
+    [false, 'default']
+  ] as const)('maps the Work Fast=%s setting to Codex %s processing', async (fastMode, serviceTier) => {
     mockGetProvider.mockReturnValue({ id: 'openai-codex', name: 'OpenAI Codex', isEnabled: true, settings: {} })
     mockListModels.mockReturnValue([
       {
         id: createUniqueModelId('openai-codex', 'gpt-5.4'),
         providerId: 'openai-codex',
         apiModelId: 'gpt-5.4',
-        capabilities: []
+        capabilities: ['reasoning'],
+        reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+        supportsFastMode: true
       }
     ])
 
@@ -148,11 +153,40 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai-codex:gpt-5.4', stream: true, messages: [] } as any,
       inputFormat: 'anthropic',
       outputFormat: 'anthropic',
-      agentRuntimeOptions: { reasoningEffort: 'high', fastMode: true }
+      agentRuntimeOptions: { reasoningEffort: 'high', fastMode }
     })
 
     expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
-      openai: { reasoningEffort: 'high', serviceTier: 'priority' }
+      openai: { reasoningEffort: 'high', serviceTier }
+    })
+    expect(mockListModels).toHaveBeenCalledOnce()
+
+    await captured.listener!.onDone({} as any)
+    await readAll(res.body)
+  })
+
+  it('normalizes unsupported Codex runtime options against the resolved model', async () => {
+    mockGetProvider.mockReturnValue({ id: 'openai-codex', name: 'OpenAI Codex', isEnabled: true, settings: {} })
+    mockListModels.mockReturnValue([
+      {
+        id: createUniqueModelId('openai-codex', 'gpt-5.4'),
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-5.4',
+        capabilities: ['reasoning'],
+        reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+        supportsFastMode: false
+      }
+    ])
+
+    const res = await processMessage({
+      params: { model: 'openai-codex:gpt-5.4', stream: true, messages: [] } as any,
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      agentRuntimeOptions: { reasoningEffort: 'max', fastMode: true }
+    })
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'medium', serviceTier: 'default' }
     })
 
     await captured.listener!.onDone({} as any)

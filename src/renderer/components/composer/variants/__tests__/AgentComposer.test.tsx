@@ -1235,6 +1235,54 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('rebuilds queued runtime settings for the model selected when the follow-up drains', async () => {
+    mocks.resolvedModel = codexSolModel
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued on codex', tokens: [] })
+    })
+
+    let queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items[0].payload).toMatchObject({
+      agentRuntimeModelId: codexSolModel.id,
+      agentRuntimeOptions: { reasoningEffort: 'low', fastMode: false }
+    })
+
+    mocks.resolvedModel = autoThinkingModel
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    queueContent = mocks.surfaceProps?.queueContent as any
+    await act(async () => {
+      await queueContent.props.onSteer(queueContent.props.items[0].id)
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'queued on codex' },
+      expect.objectContaining({
+        body: expect.objectContaining({
+          agentRuntimeOptions: { reasoningEffort: 'auto', fastMode: false }
+        })
+      })
+    )
+  })
+
   it('round-trips in-progress skill tokens through agent input history navigation', async () => {
     seedInputHistory(['history entry'])
 

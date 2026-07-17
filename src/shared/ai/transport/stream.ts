@@ -70,6 +70,8 @@ export interface ComposerQueuedMessagePayload {
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   knowledgeBaseIds?: string[]
+  /** Model whose Work-agent runtime settings were captured with this queued draft. */
+  agentRuntimeModelId?: UniqueModelId
   /** Work-agent runtime settings captured with this queued draft. */
   agentRuntimeOptions?: AgentRuntimeOptions
 }

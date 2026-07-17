@@ -486,7 +486,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('maps Work reasoning and Fast settings into a Claude Code session', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::opus' })
     mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
-    mocks.getModelByKey.mockReturnValue({ id: 'opus', apiModelId: 'claude-opus-4-8' })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'opus',
+      apiModelId: 'claude-opus-4-8',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'high' },
+      supportsFastMode: true
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
@@ -505,7 +510,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('maps ultra Work reasoning to the highest Claude Agent SDK effort', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::opus' })
     mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
-    mocks.getModelByKey.mockReturnValue({ id: 'opus', apiModelId: 'claude-opus-4-8' })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'opus',
+      apiModelId: 'claude-opus-4-8',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'], defaultEffort: 'max' }
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
@@ -521,13 +530,42 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
   })
 
+  it('rejects Fast mode when the resolved Claude Code model does not support it', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::fable' })
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'fable',
+      apiModelId: 'claude-fable-5',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+      supportsFastMode: false
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: undefined, thinkingOptions: { effort: 'high' } }),
+      expect.anything()
+    )
+  })
+
   it('forwards Work settings through internal headers for Codex gateway calls', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'openai-codex',
       defaultChatEndpoint: 'openai-responses'
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'gpt-5-4', apiModelId: 'gpt-5.4' })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'gpt-5-4',
+      apiModelId: 'gpt-5.4',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+      supportsFastMode: true
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
@@ -551,7 +589,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: 'openai',
       defaultChatEndpoint: 'openai-responses'
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'reasoning-model', apiModelId: 'reasoning-model' })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'reasoning-model',
+      apiModelId: 'reasoning-model',
+      reasoning: { supportedEfforts: ['none', 'auto'], defaultEffort: 'auto' }
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {

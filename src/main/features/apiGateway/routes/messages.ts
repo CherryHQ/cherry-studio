@@ -86,11 +86,13 @@ const invalidRequest = (message: string) => ({
 
 const agentReasoningEfforts = new Set<AgentReasoningEffort>(AGENT_REASONING_EFFORTS)
 
-function parseAgentRuntimeOptions(headers: Headers): AgentRuntimeOptions | undefined {
+function parseAgentRuntimeOptions(headers: Headers): Partial<AgentRuntimeOptions> | undefined {
   const reasoningEffort = headers.get(AGENT_REASONING_EFFORT_HEADER) as AgentReasoningEffort | null
   const fastMode = headers.get(AGENT_FAST_MODE_HEADER)
-  if (!reasoningEffort || !agentReasoningEfforts.has(reasoningEffort) || fastMode === null) return undefined
-  return { reasoningEffort, fastMode: fastMode === 'true' }
+  const options: Partial<AgentRuntimeOptions> = {}
+  if (reasoningEffort && agentReasoningEfforts.has(reasoningEffort)) options.reasoningEffort = reasoningEffort
+  if (fastMode === 'true' || fastMode === 'false') options.fastMode = fastMode === 'true'
+  return Object.keys(options).length > 0 ? options : undefined
 }
 
 /**

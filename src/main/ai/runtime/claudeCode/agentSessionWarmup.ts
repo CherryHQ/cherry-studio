@@ -11,7 +11,8 @@ import { providerService } from '@data/services/ProviderService'
 import {
   AGENT_FAST_MODE_HEADER,
   AGENT_REASONING_EFFORT_HEADER,
-  type AgentRuntimeOptions
+  type AgentRuntimeOptions,
+  normalizeAgentRuntimeOptions
 } from '@shared/ai/agentRuntimeOptions'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -270,6 +271,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const normalizedRuntimeOptions = normalizeAgentRuntimeOptions(model, runtimeOptions)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
@@ -292,13 +294,18 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
-        fastMode: isClaudeCodeProviderId(providerId) ? runtimeOptions?.fastMode : undefined,
-        thinkingOptions: runtimeOptions ? toClaudeCodeThinkingOptions(runtimeOptions.reasoningEffort) : undefined
+        fastMode:
+          isClaudeCodeProviderId(providerId) && model.supportsFastMode === true
+            ? normalizedRuntimeOptions?.fastMode
+            : undefined,
+        thinkingOptions: normalizedRuntimeOptions
+          ? toClaudeCodeThinkingOptions(normalizedRuntimeOptions.reasoningEffort)
+          : undefined
       },
       agent
     ),
     route,
-    runtimeOptions
+    normalizedRuntimeOptions
   )
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is

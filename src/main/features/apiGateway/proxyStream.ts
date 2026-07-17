@@ -17,12 +17,11 @@
  */
 
 import { application } from '@application'
-import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { buildReasoningProviderOptions } from '@main/ai/utils/options'
-import type { AgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
+import { type AgentRuntimeOptions, normalizeAgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import type { Provider } from '@shared/data/types/provider'
 import { merge } from 'es-toolkit/compat'
@@ -89,7 +88,7 @@ export interface MessageConfig {
   onError?: (error: unknown) => void
   onComplete?: () => void
   /** Internal Work-agent overrides forwarded by the Claude SDK gateway request. */
-  agentRuntimeOptions?: AgentRuntimeOptions
+  agentRuntimeOptions?: Partial<AgentRuntimeOptions>
 }
 
 /**
@@ -124,7 +123,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   } catch (error) {
     throw asClientError(error)
   }
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
 
@@ -147,27 +146,23 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const provider: Provider = config.provider ?? resolvedProvider
+  const agentRuntimeOptions = normalizeAgentRuntimeOptions(model, config.agentRuntimeOptions)
   let providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
-  if (config.agentRuntimeOptions && provider) {
-    const model = modelService
-      .list({ providerId })
-      .find((candidate) => candidate.id === uniqueModelId || candidate.apiModelId === modelId)
-    if (model) {
-      providerOptions = merge(
-        {},
-        providerOptions,
-        buildReasoningProviderOptions(config.agentRuntimeOptions.reasoningEffort, model, provider)
-      )
-    }
+  if (agentRuntimeOptions && provider) {
+    providerOptions = merge(
+      {},
+      providerOptions,
+      buildReasoningProviderOptions(agentRuntimeOptions.reasoningEffort, model, provider)
+    )
   }
-  if (config.agentRuntimeOptions && isCodexProviderId(providerId)) {
+  if (agentRuntimeOptions && isCodexProviderId(providerId)) {
     providerOptions = {
       ...providerOptions,
       openai: {
         ...providerOptions?.openai,
-        reasoningEffort: config.agentRuntimeOptions.reasoningEffort,
+        reasoningEffort: agentRuntimeOptions.reasoningEffort,
         // Codex app-server calls this mode "fast"; the Responses wire value is Priority processing.
-        serviceTier: config.agentRuntimeOptions.fastMode ? 'priority' : 'default'
+        serviceTier: agentRuntimeOptions.fastMode ? 'priority' : 'default'
       }
     }
   }

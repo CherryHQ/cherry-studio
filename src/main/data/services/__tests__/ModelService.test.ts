@@ -838,6 +838,34 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
   })
+
+  it('returns the same current reasoning and Fast capabilities as getByKey', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai-codex', 'OpenAI Codex'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai-codex', 'gpt-5-6-sol', {
+        presetModelId: 'gpt-5-6-sol',
+        reasoning: { type: 'openai-responses', supportedEfforts: ['low', 'medium', 'high'] }
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-5-6-sol', capabilities: [MODEL_CAPABILITY.REASONING] },
+      registryOverride: {
+        supportsFastMode: true,
+        reasoning: {
+          supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+          defaultEffort: 'low'
+        }
+      },
+      reasoningFormatTypes: { 'openai-responses': 'openai-responses' },
+      defaultChatEndpoint: 'openai-responses'
+    } as never)
+
+    const [listedModel] = modelService.list({ providerId: 'openai-codex' })
+    const keyedModel = modelService.getByKey('openai-codex', 'gpt-5-6-sol')
+
+    expect(listedModel.reasoning).toEqual(keyedModel.reasoning)
+    expect(listedModel.supportsFastMode).toBe(keyedModel.supportsFastMode)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

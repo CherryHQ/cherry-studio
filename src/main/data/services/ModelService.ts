@@ -477,11 +477,12 @@ class ModelService {
       .all()
 
     let models = rows.map(rowToRuntimeModel)
+    const rowsById = new Map(rows.map((row) => [row.id, row]))
     const capabilityOverrideModelIds = new Set(
       rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
     )
 
-    // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
+    // Refresh preset-backed reasoning/Fast metadata and enrich image/capability metadata from the registry.
     // imageGeneration is preset-only metadata (not stored on user_model).
     // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
     // but the provider's /models endpoint didn't tag it (cherryin returning
@@ -497,13 +498,22 @@ class ModelService {
       const presetId = model.presetModelId ?? model.apiModelId
       if (!presetId) return model
       try {
-        const { presetModel, registryOverride } = providerRegistryService.lookupModel(
-          model.providerId,
-          presetId,
-          reasoningConfigCache
-        )
+        const registryData = providerRegistryService.lookupModel(model.providerId, presetId, reasoningConfigCache)
+        const { presetModel, registryOverride } = registryData
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const updates: Partial<Model> = {}
+        const row = rowsById.get(model.id)
+        if (row?.presetModelId && presetModel) {
+          const currentPreset = mergePresetModel(
+            presetModel,
+            registryOverride,
+            model.providerId,
+            registryData.reasoningFormatTypes,
+            registryData.defaultChatEndpoint
+          )
+          updates.reasoning = row.userOverrides?.includes('reasoning') ? model.reasoning : currentPreset.reasoning
+          updates.supportsFastMode = currentPreset.supportsFastMode
+        }
         if (imageGeneration) updates.imageGeneration = imageGeneration
         if (!capabilityOverrideModelIds.has(model.id)) {
           const capabilities = resolveCapabilities(

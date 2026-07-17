@@ -2075,6 +2075,72 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
       await reader2.cancel().catch(() => undefined)
     })
+
+    it('rebuilds the next queued turn connection when its runtime options changed', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const secondEvents = createAsyncQueue<any>()
+      const firstConnection = {
+        events: firstEvents.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const secondConnection = {
+        events: secondEvents.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const currentOptions = { reasoningEffort: 'high', fastMode: false } as const
+      const nextOptions = { reasoningEffort: 'low', fastMode: true } as const
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-1'),
+        runtimeOptions: currentOptions
+      })
+      const firstReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalledOnce())
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { runtimeOptions: nextOptions })
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn?.userMessage.id).toBe('user-2'))
+
+      const nextTurnId = getEntry(service).currentTurn.turnId
+      const secondReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: nextTurnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await secondReader.read()
+
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenLastCalledWith(expect.objectContaining({ options: nextOptions }))
+      await vi.waitFor(() => expect(secondConnection.send).toHaveBeenCalledOnce())
+
+      service.closeSession('session-1')
+      await firstReader.cancel().catch(() => undefined)
+      await secondReader.cancel().catch(() => undefined)
+    })
   })
 
   describe('steer redirect — real mid-turn injection (claude PreToolUse hook)', () => {

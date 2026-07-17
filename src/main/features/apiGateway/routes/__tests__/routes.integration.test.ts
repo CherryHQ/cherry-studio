@@ -186,14 +186,36 @@ describe('API gateway routes (integration)', () => {
     })
 
     it.each([
-      ['an unknown effort', { [AGENT_REASONING_EFFORT_HEADER]: 'extreme', [AGENT_FAST_MODE_HEADER]: 'true' }],
-      ['a missing Fast header', { [AGENT_REASONING_EFFORT_HEADER]: 'high' }]
-    ])('messages ignores agent runtime options with %s', async (_scenario, agentHeaders) => {
+      [
+        'an unknown effort',
+        { [AGENT_REASONING_EFFORT_HEADER]: 'extreme', [AGENT_FAST_MODE_HEADER]: 'true' },
+        { fastMode: true }
+      ],
+      ['a missing Fast header', { [AGENT_REASONING_EFFORT_HEADER]: 'high' }, { reasoningEffort: 'high' }]
+    ])(
+      'messages preserves the valid independent agent runtime header with %s',
+      async (_scenario, agentHeaders, expected) => {
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, ...agentHeaders }
+        )
+
+        expect(mockProcessMessage).toHaveBeenCalledWith(expect.objectContaining({ agentRuntimeOptions: expected }))
+      }
+    )
+
+    it('messages ignores agent runtime options when neither header is valid', async () => {
       await post(
         app,
         '/v1/messages',
         { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
-        { ...AUTH, ...agentHeaders }
+        {
+          ...AUTH,
+          [AGENT_REASONING_EFFORT_HEADER]: 'extreme',
+          [AGENT_FAST_MODE_HEADER]: 'sometimes'
+        }
       )
 
       expect(mockProcessMessage).toHaveBeenCalledWith(expect.objectContaining({ agentRuntimeOptions: undefined }))
