@@ -437,8 +437,8 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    // `mise which` is reserved for ambiguous paths (unknown/conflict); the
-    // common exact-applied path remains one batched listing plus a shim check.
+    // The batched listing proves backend application identity; `mise which`
+    // additionally proves every exposed shim still resolves a runnable target.
     const derive = async (name: string): Promise<DerivedTool> => {
       const tool = candidates.get(name)
       if (!tool) return {}
@@ -457,10 +457,23 @@ export class BinaryManager extends BaseService {
 
       const entries = installedFor(tool)
       if (entries?.length) {
-        const version = entries.find((entry) => entry.active)?.version ?? entries.at(-1)?.version
+        const activeEntry = entries.find((entry) => entry.active)
+        const version = activeEntry?.version ?? entries.at(-1)?.version
+        if (!activeEntry) {
+          // Installed artifacts are not an applied recipe. A leftover shim counts
+          // as runnable only when mise itself can still resolve its target.
+          const resolved = (await hasExecutableCandidateShim(shimPath)) && (await this.resolveManagedBinaryPath(name))
+          return {
+            application: { status: 'broken', ...(version ? { version } : {}) },
+            ...(resolved ? { mise: { path: shimPath, ...(version ? { version } : {}) } } : {})
+          }
+        }
         try {
           await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
         } catch {
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+        }
+        if (!(await this.resolveManagedBinaryPath(name))) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {

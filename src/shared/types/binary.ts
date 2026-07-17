@@ -60,8 +60,8 @@ export type BinaryAvailability =
  * (a foreign shim mise still resolves → `conflict`), and a backend that cannot
  * answer yields `unknown` rather than a misleading `absent`.
  *
- * - `applied`  — the exact recipe has installed entries and a runnable isolated shim.
- * - `broken`   — the exact recipe has installed entries but no executable shim.
+ * - `applied`  — the exact recipe has an active installed entry and a runnable isolated shim.
+ * - `broken`   — the exact recipe has only inactive entries or no executable shim.
  * - `absent`   — the exact recipe has no installed entries (and no live shim of its own).
  * - `conflict` — no exact entries, but a shim mise still resolves to a runnable target.
  * - `unknown`  — the mise backend was unavailable or its query failed/was malformed.

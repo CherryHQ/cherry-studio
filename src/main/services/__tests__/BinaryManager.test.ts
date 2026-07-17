@@ -486,7 +486,8 @@ describe('BinaryManager', () => {
         }
       })
       expect(mockPreferenceService.get).toHaveBeenCalledTimes(1)
-      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'ls')).toHaveLength(1)
+      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'which')).toHaveLength(2)
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['ls', '--json'], expect.any(Object))
     })
 
@@ -506,7 +507,8 @@ describe('BinaryManager', () => {
         availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
         application: { status: 'applied', version: '10.0.0' }
       })
-      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(2)
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['which', 'fd'], expect.any(Object))
       expect(mockFsp.access).toHaveBeenCalledWith('/mock/feature.binary.data/shims/fd', mockFs.constants.X_OK)
     })
 
@@ -663,6 +665,74 @@ describe('BinaryManager', () => {
     })
 
     describe('application fact', () => {
+      it('reports an active entry as broken when its shim target no longer resolves', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') {
+            return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+          }
+          if (args[0] === 'which') throw new Error('installed target is gone')
+          return { stdout: '', stderr: '' }
+        })
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+
+        await expect(service.getToolSnapshots(['fd'])).resolves.toMatchObject({
+          fd: {
+            availability: { source: 'system', path: '/usr/local/bin/fd' },
+            application: { status: 'broken', version: '10.0.0' }
+          }
+        })
+      })
+
+      it('reports inactive-only entries as broken and ignores an unresolvable residual shim', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') {
+            return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: false }] }), stderr: '' }
+          }
+          if (args[0] === 'which') throw new Error('tool fd not found')
+          return { stdout: '', stderr: '' }
+        })
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+
+        await expect(service.getToolSnapshots(['fd'])).resolves.toMatchObject({
+          fd: {
+            availability: { source: 'system', path: '/usr/local/bin/fd' },
+            application: { status: 'broken', version: '10.0.0' }
+          }
+        })
+      })
+
+      it('keeps verified mise availability for an inactive-only entry without calling it applied', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') {
+            return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: false }] }), stderr: '' }
+          }
+          if (args[0] === 'which') return { stdout: '/opt/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        await expect(service.getToolSnapshots(['fd'])).resolves.toMatchObject({
+          fd: {
+            availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
+            application: { status: 'broken', version: '10.0.0' }
+          }
+        })
+      })
+
       it('reports absent with no shim and an external fallback for an unbacked recipe', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
@@ -1432,6 +1502,7 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls' && args.length === 2)
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
         if (args[0] === 'latest') {
           await gate
           return { stdout: '10.1.0\n', stderr: '' }
@@ -1644,6 +1715,28 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
       expect(mockPreferenceService.set).not.toHaveBeenCalledWith('feature.binary.tools', expect.anything())
       expect(manifestRef.value).toEqual([])
+    })
+
+    it('repairs an inactive-only fixed recipe instead of treating it as already applied', async () => {
+      const service = makeService()
+      ;(mockFs.existsSync as any).mockImplementation((candidate: unknown) =>
+        String(candidate).includes('/feature.binary.data/shims/fd')
+      )
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) {
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: false }] }), stderr: '' }
+        }
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'fd' })
+
+      expect(miseArgs()).toContainEqual(['use', '-g', 'fd@latest'])
+      expect(mockPreferenceService.set).not.toHaveBeenCalledWith('feature.binary.tools', expect.anything())
     })
 
     it('applies a one-shot target update for an applied fixed tool without writing Preference', async () => {

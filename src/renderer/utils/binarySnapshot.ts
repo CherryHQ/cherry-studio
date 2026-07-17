@@ -32,12 +32,6 @@ export interface InterpretedBinarySnapshot {
 export interface InterpretBinarySnapshotOptions {
   /** Latest managed version for this tool, from the latest-versions cache. */
   latest?: string
-  /**
-   * Collapse a `system` availability to `none`. The Code CLI page uses this for
-   * OpenClaw: a system `openclaw` on PATH must not read as an installed managed
-   * tool. Left off, a system source is interpreted normally.
-   */
-  ignoreSystemSource?: boolean
 }
 
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
@@ -56,10 +50,7 @@ export function interpretBinarySnapshot(
   snapshot: BinaryToolSnapshot | undefined,
   options: InterpretBinarySnapshotOptions = {}
 ): InterpretedBinarySnapshot {
-  const raw = snapshot?.availability ?? { source: 'none' as const }
-  // ignoreSystemSource collapses only availability; the application fact below is
-  // an independent live truth and is never masked by it.
-  const availability = raw.source === 'system' && options.ignoreSystemSource ? { source: 'none' as const } : raw
+  const availability = snapshot?.availability ?? { source: 'none' as const }
   const application = snapshot?.application
   const applicationStatus = application?.status
   const exactApplied = applicationStatus === 'applied'

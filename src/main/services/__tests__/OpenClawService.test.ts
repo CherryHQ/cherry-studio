@@ -7,6 +7,8 @@ import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueMo
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
+
 // --- Mocks for OpenClawService dependencies ---
 
 vi.mock('@main/core/lifecycle', () => {
@@ -33,14 +35,11 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
+      if (name === 'BinaryManager') return binaryManagerMock
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn()
   }
-}))
-
-vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw'))
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -58,7 +57,8 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' }))
+  refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/mock/bin:/usr/bin', MISE_DATA_DIR: '/mock/mise' })),
+  getRawShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' }))
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -134,6 +134,9 @@ describe('OpenClawService gateway status state machine', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    binaryManagerMock.getToolSnapshots.mockResolvedValue({
+      openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
+    })
     service = await createService()
 
     // Reset internal state via reflection
@@ -233,6 +236,18 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── startGateway ────────────────────────────────────────────
 
   describe('startGateway', () => {
+    it('resolves a system OpenClaw through BinaryManager availability', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        openclaw: { name: 'openclaw', availability: { source: 'system', path: '/usr/local/bin/openclaw' } }
+      })
+
+      await expect((service as any).findOpenClawBinary()).resolves.toEqual({
+        source: 'system',
+        path: '/usr/local/bin/openclaw'
+      })
+      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['openclaw'])
+    })
+
     it('rejects concurrent startup calls', async () => {
       ;(service as any).gatewayStatus = 'starting'
 
@@ -241,13 +256,25 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
     })
 
+    it('starts a system OpenClaw with the raw user environment', async () => {
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      await expect(service.startGateway()).resolves.toEqual({ success: true })
+      expect(startAndWaitSpy).toHaveBeenCalledWith('/usr/local/bin/openclaw', {
+        PATH: '/usr/local/bin:/usr/bin',
+        MISE_DATA_DIR: '/user/mise'
+      })
+    })
+
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {
       // First call: port occupied; after stop: port free
       checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
       checkHealthSpy
         .mockResolvedValueOnce({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
         .mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 }) // waitForGatewayStop confirms stopped
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       const result = await service.startGateway()
@@ -280,7 +307,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('transitions to running on successful start', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       const result = await service.startGateway()
@@ -291,7 +318,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('transitions to error when start fails', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockRejectedValue(new Error('Gateway timeout'))
 
       const result = await service.startGateway()
@@ -302,7 +329,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('sets status to starting during startup', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
 
       let statusDuringStart: string | undefined
       startAndWaitSpy.mockImplementation(async () => {
@@ -316,7 +343,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('uses custom port when provided', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await service.startGateway(9999)
@@ -874,7 +901,7 @@ describe('OpenClawService gateway status state machine', () => {
 
       // Start
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
       await service.startGateway()
       expect((service as any).gatewayStatus).toBe('running')
@@ -888,7 +915,7 @@ describe('OpenClawService gateway status state machine', () => {
     it('stopped → starting → error → (external recovery) → running', async () => {
       // Start fails
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockRejectedValue(new Error('timeout'))
       await service.startGateway()
       expect((service as any).gatewayStatus).toBe('error')

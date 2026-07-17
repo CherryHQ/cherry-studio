@@ -3,15 +3,15 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
-import { CodeCli } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { VersionStatus } from '../types'
 
 const logger = loggerService.withContext('useCliVersionStatus')
 
-const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
-  const view = interpretBinarySnapshot(snapshot, { latest, ignoreSystemSource: toolId === CodeCli.OPENCLAW })
+const buildStatus = (snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
+  const view = interpretBinarySnapshot(snapshot, { latest })
   const operation = snapshot?.operation
   return {
     installed: view.installed,
@@ -83,7 +83,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
         const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
         const latest = latestVersions[binaryName] ?? latestRef.current[toolId]
         latestRef.current[toolId] = latest
-        next[toolId] = buildStatus(toolId, snapshots[binaryName], latest)
+        next[toolId] = buildStatus(snapshots[binaryName], latest)
       }
       setStatuses(next)
     }

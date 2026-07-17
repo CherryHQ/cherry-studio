@@ -124,17 +124,18 @@ describe('useCliVersionStatuses', () => {
     expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false)
   })
 
-  it('does not treat a system OpenClaw as installed because its service requires the mise binary', async () => {
+  it('treats a system OpenClaw as installed through the same availability path its service executes', async () => {
     setSnapshots({
       openclaw: { name: 'openclaw', availability: { source: 'system', path: '/usr/local/bin/openclaw' } }
     })
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.OPENCLAW]))
 
-    await waitFor(() => expect(result.current[CodeCli.OPENCLAW]).toBeDefined())
+    await waitFor(() => expect(result.current[CodeCli.OPENCLAW]?.installed).toBe(true))
     expect(result.current[CodeCli.OPENCLAW]).toEqual({
-      installed: false,
-      source: 'none',
+      installed: true,
+      source: 'system',
+      systemPath: '/usr/local/bin/openclaw',
       canUpgrade: false
     })
   })

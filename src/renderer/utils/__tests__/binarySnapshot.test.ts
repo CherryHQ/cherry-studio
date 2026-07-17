@@ -111,27 +111,4 @@ describe('interpretBinarySnapshot', () => {
     })
     expect(view.installedVersion).toBeUndefined()
   })
-
-  it('collapses a system source to none when ignoreSystemSource is set', () => {
-    const snapshot: BinaryToolSnapshot = {
-      name: 'openclaw',
-      availability: { source: 'system', path: '/usr/bin/openclaw' }
-    }
-    const view = interpretBinarySnapshot(snapshot, { ignoreSystemSource: true })
-    expect(view).toMatchObject({ source: 'none', installed: false })
-    expect(view.systemPath).toBeUndefined()
-    expect(view.resolvedPath).toBeUndefined()
-  })
-
-  it('collapses only availability, never the application fact, under ignoreSystemSource', () => {
-    // OpenClaw hides a system fallback, but its independent broken backend copy
-    // remains visible to application-driven management logic.
-    const snapshot: BinaryToolSnapshot = {
-      name: 'openclaw',
-      availability: { source: 'system', path: '/usr/bin/openclaw' },
-      application: { status: 'broken', version: '1.0.0' }
-    }
-    const view = interpretBinarySnapshot(snapshot, { ignoreSystemSource: true })
-    expect(view).toMatchObject({ source: 'none', installed: false, applicationStatus: 'broken', exactApplied: false })
-  })
 })

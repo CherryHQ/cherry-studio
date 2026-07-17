@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process'
-import fs from 'node:fs'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import { gte as semverGte } from 'semver'
 
 const execFileAsync = promisify(execFile)
@@ -17,28 +17,32 @@ const REWRITE_TIMEOUT_MS = 3000
 // is cheap (one execFile + version parse) and only runs at most once per minute.
 const RTK_PROBE_TTL_MS = 60_000
 
-let rtkPath: string | null = null
-let rtkAvailable: boolean | null = null
-let rtkProbedAt = 0
+interface RtkExecution {
+  path: string
+  env: NodeJS.ProcessEnv
+}
 
-async function checkRtkAvailable(): Promise<boolean> {
-  if (rtkAvailable !== null && Date.now() - rtkProbedAt < RTK_PROBE_TTL_MS) {
-    return rtkAvailable
-  }
-  rtkProbedAt = Date.now()
+let cachedProbe: { checkedAt: number; execution: RtkExecution | null } | null = null
+let probePromise: Promise<RtkExecution | null> | null = null
 
-  const resolved = await getBinaryPath('rtk')
-  if (!fs.existsSync(resolved)) {
-    rtkPath = null
-    rtkAvailable = false
+async function probeRtk(): Promise<RtkExecution | null> {
+  const snapshot = (await application.get('BinaryManager').getToolSnapshots(['rtk'])).rtk
+  if (snapshot.availability.source === 'none') {
     logger.warn('rtk binary not found; command rewrite disabled until RTK is installed from Settings → Plugins')
-    return false
+    return null
   }
-  rtkPath = resolved
+
+  const execution: RtkExecution = {
+    path: snapshot.availability.path,
+    env:
+      snapshot.availability.source === 'system'
+        ? await getRawShellEnv()
+        : { ...process.env, ...getBinaryExecutionEnv() }
+  }
 
   try {
-    const { stdout } = await execFileAsync(rtkPath, ['--version'], {
-      env: { ...process.env, ...getBinaryExecutionEnv() },
+    const { stdout } = await execFileAsync(execution.path, ['--version'], {
+      env: execution.env,
       timeout: REWRITE_TIMEOUT_MS
     })
     const match = stdout.match(/(\d+\.\d+\.\d+)/)
@@ -46,20 +50,32 @@ async function checkRtkAvailable(): Promise<boolean> {
       const version = match[1]
       if (!semverGte(version, RTK_MIN_VERSION)) {
         logger.warn(`rtk version too old (need >= ${RTK_MIN_VERSION})`, { version })
-        rtkAvailable = false
-        return false
+        return null
       }
-      logger.info('rtk available', { version, path: rtkPath })
+      logger.info('rtk available', { version, path: execution.path })
     }
-    rtkAvailable = true
+    return execution
   } catch (error) {
     logger.warn('Failed to check rtk version', {
       error: error instanceof Error ? error.message : String(error)
     })
-    rtkAvailable = false
+    return null
   }
+}
 
-  return rtkAvailable
+async function getRtkExecution(): Promise<RtkExecution | null> {
+  if (cachedProbe && Date.now() - cachedProbe.checkedAt < RTK_PROBE_TTL_MS) return cachedProbe.execution
+  if (!probePromise) {
+    probePromise = probeRtk()
+      .then((execution) => {
+        cachedProbe = { checkedAt: Date.now(), execution }
+        return execution
+      })
+      .finally(() => {
+        probePromise = null
+      })
+  }
+  return probePromise
 }
 
 /**
@@ -67,13 +83,12 @@ async function checkRtkAvailable(): Promise<boolean> {
  * Returns the rewritten command, or null if no rewrite is available.
  */
 export async function rtkRewrite(command: string): Promise<string | null> {
-  if (!(await checkRtkAvailable()) || !rtkPath) {
-    return null
-  }
+  const execution = await getRtkExecution()
+  if (!execution) return null
 
   try {
-    const { stdout } = await execFileAsync(rtkPath, ['rewrite', command], {
-      env: { ...process.env, ...getBinaryExecutionEnv() },
+    const { stdout } = await execFileAsync(execution.path, ['rewrite', command], {
+      env: execution.env,
       timeout: REWRITE_TIMEOUT_MS
     })
     const rewritten = stdout.trim()
