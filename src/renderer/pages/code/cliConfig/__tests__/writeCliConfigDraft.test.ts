@@ -1172,6 +1172,37 @@ describe('writeCliConfigDraft', () => {
       expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     })
 
+    it('writes Pi models/settings with the gateway endpoint, key, and gateway-addressed model', async () => {
+      mockGet({
+        '/models/': () => ({
+          id: 'deepseek::deepseek-chat',
+          apiModelId: 'deepseek-chat',
+          name: 'DeepSeek Chat',
+          endpointTypes: ['openai-chat-completions']
+        })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.PI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const models = JSON.parse(writes.find((w) => w.path.endsWith('models.json'))!.content)
+      expect(models.providers['cherry-gateway']).toMatchObject({
+        baseUrl: `${GATEWAY_BASE_URL}/v1`,
+        api: 'openai-completions',
+        apiKey: 'cs-sk-gateway',
+        models: [{ id: 'deepseek:deepseek-chat', name: 'DeepSeek Chat' }]
+      })
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      expect(settings).toMatchObject({
+        defaultProvider: 'cherry-gateway',
+        defaultModel: 'deepseek:deepseek-chat'
+      })
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+    })
+
     it('rejects the CherryAI managed default model and writes nothing', async () => {
       mockGet({ '/models/': () => ({ id: 'qwen' }) })
 

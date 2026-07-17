@@ -632,6 +632,20 @@ describe('CodeCliService', () => {
       expect(result).toEqual({ success: false, message: 'Model is required for claude-code' })
     })
 
+    it('requires a provider for a normal Pi launch', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.PI,
+        model: 'gpt-5',
+        providerId: '',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for pi' })
+    })
+
     it('exempts the Claude login flow from the provider/model requirement', async () => {
       const { codeCliService } = await loadModules()
 
