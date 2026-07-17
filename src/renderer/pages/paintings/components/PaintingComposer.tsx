@@ -36,12 +36,12 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { PaintingData } from '../model/types/paintingData'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
-import { PaintingImageGallery } from './PaintingImageGallery'
+import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
-// Edit-image models render their inputs via the leading image gallery, not file
+// Edit-image models render their inputs via the top reference-image tray, not file
 // pills, so the composer manages no tokens then (empty set = no doc token reconcile).
 const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = []
 const EMPTY_TOKENS: readonly ComposerDraftToken[] = []
@@ -214,7 +214,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     onInputFilesChange
   })
 
-  // Edit-image models: images live in the leading gallery (reads `files` from
+  // Edit-image models: images live in the top reference-image tray (reads `files` from
   // context), so emit no file pills and manage no tokens — `files` stays authoritative.
   const tokens = useMemo(
     () => (couldAddImageFile ? EMPTY_TOKENS : files.map(fileToComposerToken)),
@@ -246,7 +246,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         tokens={tokens}
         managedTokenKinds={couldAddImageFile ? PAINTING_NO_MANAGED_TOKEN_KINDS : PAINTING_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
-        leadingContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
+        topContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
+        leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
         placeholder={placeholder}
         sendDisabled={generating || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage}
         sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}

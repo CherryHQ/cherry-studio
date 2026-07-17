@@ -7,6 +7,10 @@ vi.mock('@renderer/components/ImageViewer', () => ({
   default: ({ src, alt }: { src: string; alt?: string }) => <img src={src} alt={alt} />
 }))
 
+vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+}))
+
 const state: { files: any[]; extensions: string[] } = { files: [], extensions: ['.png', '.jpg'] }
 const setFiles = vi.fn()
 
@@ -30,7 +34,7 @@ vi.mock('@renderer/utils/message/composerAttachment', () => ({
     }))
 }))
 
-const { PaintingImageGallery } = await import('../PaintingImageGallery')
+const { PaintingImageGallery, PaintingImageAddButton } = await import('../PaintingImageGallery')
 
 const makeFile = (id: string) => ({
   fileTokenSourceId: id,
@@ -52,18 +56,10 @@ beforeEach(() => {
   Object.defineProperty(window, 'api', { value: { file: { select: mockSelect } }, configurable: true })
 })
 
-describe('PaintingImageGallery', () => {
-  it('renders one preview tile per image plus the add tile', () => {
-    state.files = [makeFile('a'), makeFile('b')]
-    render(<PaintingImageGallery />)
-
-    expect(screen.getAllByRole('img')).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'paintings.add_image' })).toBeInTheDocument()
-  })
-
-  it('appends picked images to files when the add tile is clicked', async () => {
+describe('PaintingImageAddButton', () => {
+  it('appends picked images to files when clicked', async () => {
     mockSelect.mockResolvedValue([{ path: '/tmp/c.png', name: 'c.png' }])
-    render(<PaintingImageGallery />)
+    render(<PaintingImageAddButton />)
 
     fireEvent.click(screen.getByRole('button', { name: 'paintings.add_image' }))
 
@@ -77,6 +73,20 @@ describe('PaintingImageGallery', () => {
       makeFile('a'),
       expect.objectContaining({ fileTokenSourceId: '/tmp/c.png' })
     ])
+  })
+})
+
+describe('PaintingImageGallery', () => {
+  it('renders nothing when there are no images', () => {
+    const { container } = render(<PaintingImageGallery />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('renders one preview tile per image', () => {
+    state.files = [makeFile('a'), makeFile('b')]
+    render(<PaintingImageGallery />)
+
+    expect(screen.getAllByRole('img')).toHaveLength(2)
   })
 
   it('removes an image by fileTokenSourceId when its × is clicked', () => {

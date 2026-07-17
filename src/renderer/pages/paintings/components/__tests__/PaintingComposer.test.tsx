@@ -100,7 +100,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@shared/utils/model', () => ({ isEditImageModel: mockIsEditImageModel }))
 
-vi.mock('../PaintingImageGallery', () => ({ PaintingImageGallery: () => <div data-testid="painting-image-gallery" /> }))
+vi.mock('../PaintingImageGallery', () => ({
+  PaintingImageGallery: () => <div data-testid="painting-image-gallery" />,
+  PaintingImageAddButton: () => <button type="button" data-testid="painting-image-add" />
+}))
 
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
 
@@ -158,16 +161,18 @@ describe('PaintingComposer', () => {
     mockIsEditImageModel.mockReturnValue(false)
   })
 
-  it('renders the leading image gallery and drops file pills for edit-image models', () => {
+  it('renders the top image strip + add button and drops file pills for edit-image models', () => {
     mockIsEditImageModel.mockReturnValue(true)
     renderComposer()
+    expect(captured.surfaceProps?.topContent).toBeTruthy()
     expect(captured.surfaceProps?.leadingContent).toBeTruthy()
     expect(captured.surfaceProps?.tokens).toEqual([])
     expect(captured.surfaceProps?.managedTokenKinds).toEqual([])
   })
 
-  it('keeps file pills and no leading gallery for non-edit models', () => {
+  it('keeps file pills and no image tray for non-edit models', () => {
     renderComposer()
+    expect(captured.surfaceProps?.topContent).toBeUndefined()
     expect(captured.surfaceProps?.leadingContent).toBeUndefined()
     expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
   })

@@ -170,7 +170,9 @@ export interface ComposerSurfaceProps {
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
-  /** Custom content pinned to the left of the editor, inside the input frame (e.g. an image tray). */
+  /** Custom content pinned above the editor, inside the input frame (e.g. a reference-image strip). */
+  topContent?: React.ReactNode
+  /** Custom content pinned to the left of the editor, on the same row (e.g. an add-image button). */
   leadingContent?: React.ReactNode
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
 }
@@ -547,6 +549,7 @@ export default function ComposerSurface({
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls,
+  topContent,
   leadingContent,
   sendAccessory
 }: ComposerSurfaceProps) {
@@ -2011,6 +2014,7 @@ export default function ComposerSurface({
         </div>
       ) : null}
       {editingModeHeader}
+      {topContent}
       <div className="flex items-start">
         {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
