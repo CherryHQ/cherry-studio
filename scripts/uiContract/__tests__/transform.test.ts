@@ -76,6 +76,28 @@ describe('UI contract compiler', () => {
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
+  it('uses file-relative SWC spans across files with leading comments and multibyte text', () => {
+    transformJsx('const Previous = () => <aside />', options)
+    const source = `// 原始路径：组件 — editable
+const Message = () => {
+  const handleClick = (event: Event) => event.preventDefault()
+  return <div onClick={handleClick}><span /></div>
+}`
+    const result = transformJsx(source, {
+      ...options,
+      contractForDescriptor: (descriptor) => ({
+        id: `u${descriptor.anchorHash.slice(0, 7)}`,
+        semanticId: descriptor.semanticId
+      })
+    })
+
+    expect(result.descriptors[0].sourceOffset).toBe(source.indexOf('<div'))
+    expect(result.code).toContain('event.preventDefault()')
+    expect(result.code).toContain('<div data-ui=')
+    expect(result.code).toContain('<span data-ui=')
+    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+  })
+
   it('adds the exact ID to runtime uiTokens without losing dynamic state', () => {
     const result = transformJsx(
       "const Message = ({ id }) => <div data-ui={uiTokens('chat.message', { scopes: [`message:${id}`] })} />",
