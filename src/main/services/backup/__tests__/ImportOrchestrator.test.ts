@@ -157,13 +157,22 @@ describe('ImportOrchestrator spine', () => {
   })
 
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {
-    const stageFileResources = vi.fn(async () => [])
+    const stageFileResources = vi.fn(async () => ({
+      candidates: new Map(),
+      skippedFileEntryIds: new Set<string>()
+    }))
     const orch = new ImportOrchestrator(makeDeps({ stageFileResources }))
 
     const result = await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-001' })
 
     expect(result.restoreId).toBe('rst-001')
-    expect(stageFileResources).toHaveBeenCalledWith(makeArchiveContext().resourceMetadata, join(stagingRoot, 'rst-001'))
+    expect(stageFileResources).toHaveBeenCalledTimes(1)
+    const [calledWorkDir, calledCtx] = stageFileResources.mock.calls[0]
+    expect(calledWorkDir).toBe(join(stagingRoot, 'rst-001'))
+    expect(calledCtx).toMatchObject({
+      backupDbPath: join(tmpDir, 'backup.sqlite'),
+      domains: ['TOPICS']
+    })
     const read = readRestoreJournal()
     expect(read.kind).toBe('ok')
     if (read.kind !== 'ok') return

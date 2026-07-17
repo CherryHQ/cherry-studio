@@ -68,7 +68,6 @@ import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine } from './merge'
-import { stageRestoreResources } from './stageRestoreResources'
 
 const logger = loggerService.withContext('BackupService')
 
