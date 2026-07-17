@@ -28,7 +28,9 @@ export class SkillInstaller {
       return
     }
 
-    const backupPath = `${destPath}.bak`
+    // Hidden name (leading dot) so a crash-orphaned backup sitting next to the skill in the
+    // library root is skipped by the reconcile scanner instead of being adopted as a phantom skill.
+    const backupPath = path.join(path.dirname(destPath), `.${path.basename(destPath)}.bak`)
     let hasBackup = false
 
     try {

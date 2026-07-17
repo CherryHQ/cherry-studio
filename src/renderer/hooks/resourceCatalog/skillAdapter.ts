@@ -1,8 +1,9 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -28,25 +29,10 @@ function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSk
       ...(query?.search ? { search: query.search } : {})
     }
   })
-  const invalidate = useInvalidateCache()
 
-  // Reconcile the on-disk skill library into the catalog once each time the skill
-  // view opens, then refresh the list. This is how skills an agent authored via
-  // native file tools (which never hit an install route) surface without an app
-  // restart. Best-effort: a reconcile failure must not blank the list.
-  const reconciledForOpen = useRef(false)
-  useEffect(() => {
-    if (!enabled) {
-      reconciledForOpen.current = false
-      return
-    }
-    if (reconciledForOpen.current) return
-    reconciledForOpen.current = true
-    ipcApi
-      .request('skill.reconcile', {})
-      .then(() => invalidate('/skills'))
-      .catch((error) => logger.warn('Failed to reconcile skills on open', { error }))
-  }, [enabled, invalidate])
+  // Surface agent-authored skills without an app restart (see the hook's docs). Shared with the
+  // agent edit dialog's Skills tab so both entry points reconcile.
+  useReconcileSkillsOnOpen(enabled)
 
   const items = Array.isArray(data) ? data : []
   const stableRefetch = useCallback(() => refetch(), [refetch])

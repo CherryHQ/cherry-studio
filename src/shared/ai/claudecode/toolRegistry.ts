@@ -358,14 +358,6 @@ const CLAUDE_TOOL_REGISTRY = {
     exposure: 'user',
     description: 'Stores and recalls cross-session memory',
     mcpServer: 'agent-memory'
-  },
-  // skills (marketplace + authoring)
-  Skills: {
-    name: 'mcp__skills__skills',
-    category: 'context',
-    exposure: 'internal',
-    description: 'Searches, installs, and authors skills',
-    mcpServer: 'skills'
   }
 } as const satisfies Record<string, ClaudeToolDescriptorDef>
 
