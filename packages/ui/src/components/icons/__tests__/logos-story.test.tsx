@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { LogoMark } from '../../../../stories/components/icons/logos.stories'
+import logosMeta, { LogoMark } from '../../../../stories/components/icons/logos.stories'
 import type { CompoundIcon, CompoundIconProps } from '../types'
 
 const TestIcon = ((props: CompoundIconProps) => <svg {...props} />) as CompoundIcon
@@ -16,6 +16,10 @@ afterEach(() => {
 })
 
 describe('LogoMark', () => {
+  it('is excluded from Storybook stories', () => {
+    expect(logosMeta.excludeStories).toContain('LogoMark')
+  })
+
   it('keeps the frame size while leaving GPT tiles full-bleed', () => {
     const { container } = render(
       <>

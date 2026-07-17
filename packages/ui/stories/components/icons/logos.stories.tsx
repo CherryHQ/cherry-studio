@@ -159,6 +159,7 @@ const LightVsDarkShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
 const meta: Meta<typeof AllIconsShowcase> = {
   title: 'Components/Icons/Logos',
   component: AllIconsShowcase,
+  excludeStories: ['LogoMark'],
   parameters: {
     layout: 'fullscreen'
   },
