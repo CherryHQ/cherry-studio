@@ -12,6 +12,10 @@ import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import {
+  FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
+  type FileEditSession
+} from '@renderer/hooks/useFileEditSession'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
@@ -20,11 +24,9 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FilePath } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
-import { AlertCircle, Eye, FileText, FolderOpen, RotateCw, Save, Sparkles, SquarePen, Undo2, X } from 'lucide-react'
+import { AlertCircle, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -39,17 +41,16 @@ import { useTranslation } from 'react-i18next'
 
 import { type ArtifactPaneFileSelection, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import {
-  ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
-  type ArtifactFileEditor,
-  UnsupportedArtifactFileEditError
-} from './useArtifactFileEditor'
 import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
 // `ArtifactPane` keep working.
 export type { ArtifactPaneFileSelection } from './artifactPanePath'
-export { normalizeArtifactPaneFilePath, resolveArtifactPaneFileSelection } from './artifactPanePath'
+export {
+  getArtifactPaneSelectionPath,
+  normalizeArtifactPaneFilePath,
+  resolveArtifactPaneFileSelection
+} from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
 
@@ -82,7 +83,7 @@ interface ArtifactFilePreviewProps {
   contentOverride?: string
 }
 
-export { ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from './useArtifactFileEditor'
+export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
@@ -175,17 +176,20 @@ export function ArtifactFilePreview({
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
   const isImagePreview = filePath ? isImageFile(filePath) : false
-  const contentOverrideSizeBytes = useMemo(
-    () => (contentOverride === undefined ? null : new Blob([contentOverride]).size),
-    [contentOverride]
-  )
-  const previewContentSizeBytes = contentOverrideSizeBytes ?? (fileSize.status === 'ok' ? fileSize.size : null)
+  // The draft re-renders this per keystroke, so decide the cap from `length`
+  // alone where possible (UTF-8 is 1–3 bytes per UTF-16 code unit) and pay a
+  // full encode only in the gray zone — never a per-keystroke Blob of the file.
+  const contentOverrideOversized = useMemo(() => {
+    if (contentOverride === undefined) return null
+    if (contentOverride.length > ARTIFACT_PREVIEW_MAX_SIZE_BYTES) return true
+    if (contentOverride.length * 3 <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES) return false
+    return new TextEncoder().encode(contentOverride).byteLength > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+  }, [contentOverride])
   const oversizedForPreview =
     !isPdfPreview &&
     !isOfficeDocumentPreview &&
     !isImagePreview &&
-    previewContentSizeBytes !== null &&
-    previewContentSizeBytes > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+    (contentOverrideOversized ?? (fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
 
   useEffect(() => {
     if (contentOverride !== undefined) {
@@ -460,7 +464,10 @@ interface ArtifactPaneViewProps {
   onSelectedFileChange: (file: string | null) => void
   searchKeyword: string
   onSearchKeywordChange: (keyword: string) => void
-  fileEditor?: ArtifactFileEditor
+  /** The unified file-edit session for the file being edited (loaded only in edit mode). */
+  fileSession?: FileEditSession
+  editMode?: 'preview' | 'edit'
+  onEditModeChange?: (mode: 'preview' | 'edit') => void
 }
 
 /**
@@ -480,7 +487,9 @@ export function ArtifactPaneView({
   onSelectedFileChange,
   searchKeyword,
   onSearchKeywordChange,
-  fileEditor
+  fileSession,
+  editMode = 'preview',
+  onEditModeChange
 }: ArtifactPaneViewProps) {
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
@@ -537,13 +546,12 @@ export function ArtifactPaneView({
   const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
   const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath)
-  const editSession = overlaySelection ? fileEditor?.getSession(overlaySelection) : undefined
   const canEditSelection =
-    Boolean(fileEditor && overlaySelection) &&
+    Boolean(fileSession && overlaySelection) &&
     isText === 'text' &&
     fileSize.status === 'ok' &&
     fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES
-  const isEditDirty = editSession ? editSession.draft !== editSession.savedContent : false
+  const isEditDirty = fileSession?.isDirty ?? false
 
   useEffect(() => {
     if (previousPreviewKeyRef.current === previewKey) return
@@ -552,11 +560,32 @@ export function ArtifactPaneView({
     setStaleConflictOpen(false)
   }, [previewKey])
 
+  // Surface an external-change conflict (a stale autosave) as the reload dialog.
+  useEffect(() => {
+    if (fileSession?.conflict) setStaleConflictOpen(true)
+  }, [fileSession?.conflict])
+
+  // A file that cannot be edited in place (binary / oversize) can't enter edit
+  // mode — toast why and fall back to preview.
+  useEffect(() => {
+    if (editMode !== 'edit' || fileSession?.status !== 'unsupported') return
+    toast.error(
+      fileSession.unsupportedReason === 'size'
+        ? t('agent.preview_pane.too_large.description', { limit: ARTIFACT_PREVIEW_MAX_SIZE_LABEL })
+        : t('agent.preview_pane.edit.unsupported')
+    )
+    onEditModeChange?.('preview')
+  }, [editMode, fileSession?.status, fileSession?.unsupportedReason, onEditModeChange, t])
+
   useEffect(() => {
     if (!overlayWorkspacePath || !overlayFilePath) return
     overlayRef.current?.focus()
   }, [overlayFilePath, overlayWorkspacePath])
 
+  // Depend on the session's stable `reload` callback, not the session object —
+  // the object changes on every keystroke and would drag the whole toolbar /
+  // file-tree memo chain below with it.
+  const fileSessionReload = fileSession?.reload
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
@@ -567,21 +596,20 @@ export function ArtifactPaneView({
     ) {
       setContentRefreshToken((value) => value + 1)
     }
-    if (overlaySelection && editSession && !isEditDirty) {
-      void fileEditor?.reload(overlaySelection).catch((error: unknown) => {
+    if (editMode === 'edit' && fileSessionReload && !isEditDirty) {
+      void fileSessionReload().catch((error: unknown) => {
         logger.error('Failed to refresh editable file snapshot', error as Error)
         toast.error(t('agent.preview_pane.edit.refresh_failed'))
       })
     }
   }, [
-    editSession,
-    fileEditor,
+    editMode,
+    fileSessionReload,
     isImageSelection,
     isEditDirty,
     isOfficeDocumentSelection,
     isText,
     overlayFilePath,
-    overlaySelection,
     overlayWorkspacePath,
     refresh,
     reloadExpandedDirectories,
@@ -678,25 +706,33 @@ export function ArtifactPaneView({
     [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
   )
 
-  const refreshButton = (
-    <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label={t('agent.preview_pane.refresh')}
-        onClick={handleRefresh}>
-        <RotateCw size={16} />
-      </Button>
-    </Tooltip>
+  // Memoized so the file-tree element below keeps its identity across the
+  // per-keystroke re-renders the draft causes — React then skips the subtree.
+  const refreshButton = useMemo(
+    () => (
+      <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={t('agent.preview_pane.refresh')}
+          onClick={handleRefresh}>
+          <RotateCw size={16} />
+        </Button>
+      </Tooltip>
+    ),
+    [handleRefresh, t]
   )
 
-  const searchToolbar = (
-    <div className="flex shrink-0 items-center gap-1">
-      {refreshButton}
-      {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
-    </div>
+  const searchToolbar = useMemo(
+    () => (
+      <div className="flex shrink-0 items-center gap-1">
+        {refreshButton}
+        {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
+      </div>
+    ),
+    [refreshButton, workspacePath]
   )
 
   const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
@@ -706,53 +742,22 @@ export function ArtifactPaneView({
 
   const handleEditorModeChange = useCallback(
     (mode: 'preview' | 'edit') => {
-      if (!fileEditor || !overlaySelection) return
-      void fileEditor.setMode(overlaySelection, mode).catch((error: unknown) => {
-        if (error instanceof UnsupportedArtifactFileEditError) {
-          toast.error(
-            error.reason === 'size'
-              ? t('agent.preview_pane.too_large.description', { limit: ARTIFACT_PREVIEW_MAX_SIZE_LABEL })
-              : t('agent.preview_pane.edit.unsupported')
-          )
-          return
-        }
-        logger.error('Failed to open text file editor', error as Error)
-        toast.error(t('agent.preview_pane.edit.open_failed'))
-      })
+      // Loading + unsupported handling is reactive via `fileSession.status`.
+      onEditModeChange?.(mode)
     },
-    [fileEditor, overlaySelection, t]
+    [onEditModeChange]
   )
 
-  const handleSaveEdit = useCallback(async () => {
-    if (!fileEditor || !overlaySelection) return
-    try {
-      await fileEditor.save(overlaySelection)
-      setContentRefreshToken((value) => value + 1)
-    } catch (error) {
-      if (error instanceof IpcError && error.code === fileErrorCodes.STALE_VERSION) {
-        setStaleConflictOpen(true)
-        return
-      }
-      logger.error('Failed to save edited artifact file', error as Error)
-      toast.error(t('agent.preview_pane.edit.save_failed'))
-    }
-  }, [fileEditor, overlaySelection, t])
-
   const handleReloadAfterConflict = useCallback(async () => {
-    if (!fileEditor || !overlaySelection) return
+    if (!fileSession) return
     try {
-      await fileEditor.reload(overlaySelection)
+      await fileSession.reload()
       setContentRefreshToken((value) => value + 1)
     } catch (error) {
       logger.error('Failed to reload artifact file after a write conflict', error as Error)
       toast.error(t('agent.preview_pane.edit.refresh_failed'))
     }
-  }, [fileEditor, overlaySelection, t])
-
-  const handleDiscardEdit = useCallback(() => {
-    if (!fileEditor || !overlaySelection) return
-    fileEditor.discard(overlaySelection)
-  }, [fileEditor, overlaySelection])
+  }, [fileSession, t])
 
   const previewContent = overlaySelection ? (
     <ArtifactFilePreview
@@ -763,7 +768,7 @@ export function ArtifactPaneView({
       pdfLayoutPending={pdfLayoutPending}
       pdfLayoutRefreshKey={pdfLayoutRefreshKey}
       contentRefreshKey={contentRefreshToken}
-      contentOverride={editSession?.status === 'loading' ? undefined : editSession?.draft}
+      contentOverride={editMode === 'edit' && fileSession?.status === 'ready' ? fileSession.draft : undefined}
     />
   ) : null
 
@@ -792,9 +797,8 @@ export function ArtifactPaneView({
       isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
         ? 'overflow-hidden'
         : 'overflow-auto'
-    const editorMode = editSession?.mode ?? 'preview'
-    const editorLoading = editSession?.status === 'loading'
-    const editorSaving = editSession?.status === 'saving'
+    const editorMode = editMode
+    const editorLoading = fileSession?.status === 'loading'
     const nextEditorMode = editorMode === 'preview' ? 'edit' : 'preview'
     const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
     const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
@@ -818,7 +822,7 @@ export function ArtifactPaneView({
             )}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {canEditSelection && fileEditor && (
+            {canEditSelection && (
               <>
                 <Tooltip content={modeActionLabel} delay={800}>
                   <Button
@@ -827,39 +831,11 @@ export function ArtifactPaneView({
                     size="icon-sm"
                     className="text-muted-foreground hover:bg-accent hover:text-foreground"
                     aria-label={modeActionLabel}
-                    disabled={editorLoading || editorSaving}
+                    disabled={editorLoading}
                     onClick={() => handleEditorModeChange(nextEditorMode)}>
                     <ModeActionIcon size={14} />
                   </Button>
                 </Tooltip>
-                {isEditDirty && (
-                  <>
-                    <Tooltip content={t('agent.preview_pane.edit.discard')} delay={800}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:bg-accent hover:text-foreground"
-                        aria-label={t('agent.preview_pane.edit.discard')}
-                        disabled={editorSaving}
-                        onClick={handleDiscardEdit}>
-                        <Undo2 size={14} />
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content={t('common.save')} delay={800}>
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="icon-sm"
-                        aria-label={t('common.save')}
-                        loading={editorSaving}
-                        disabled={editorLoading}
-                        onClick={() => void handleSaveEdit()}>
-                        {editorSaving ? null : <Save size={14} />}
-                      </Button>
-                    </Tooltip>
-                  </>
-                )}
                 <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
               </>
             )}
@@ -867,28 +843,25 @@ export function ArtifactPaneView({
           </div>
         </div>
         <div className={cn('min-h-0 flex-1', contentClassName)}>
-          {canEditSelection && fileEditor && editorMode === 'edit' ? (
-            editSession?.status === 'ready' || editSession?.status === 'saving' ? (
-              <CodeEditor
-                key={previewKey}
-                value={editSession.draft}
-                language={getLanguageByFilePath(overlaySelection.filePath)}
-                theme={activeCmTheme}
-                editable={editSession.status !== 'saving'}
-                onChange={(content) => fileEditor.updateDraft(overlaySelection, content)}
-                onSave={() => void handleSaveEdit()}
-                height="100%"
-                expanded={false}
-                wrapped={false}
-                fontSize={14}
-                style={{ minHeight: 0 }}
-                options={{ keymap: true, lineNumbers: true }}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <LoadingState label={t('common.loading')} />
-              </div>
-            )
+          {canEditSelection && editorMode === 'edit' && fileSession?.status === 'ready' ? (
+            <CodeEditor
+              key={previewKey}
+              value={fileSession.draft}
+              language={getLanguageByFilePath(overlaySelection.filePath)}
+              theme={activeCmTheme}
+              editable={!fileSession.isSaving}
+              onChange={(content) => fileSession.setDraft(content)}
+              height="100%"
+              expanded={false}
+              wrapped={false}
+              fontSize={14}
+              style={{ minHeight: 0 }}
+              options={{ keymap: true, lineNumbers: true }}
+            />
+          ) : canEditSelection && editorMode === 'edit' && fileSession?.status === 'loading' ? (
+            <div className="flex h-full items-center justify-center">
+              <LoadingState label={t('common.loading')} />
+            </div>
           ) : (
             previewContent
           )}
@@ -897,36 +870,57 @@ export function ArtifactPaneView({
     )
   }
 
-  const renderFileTree = () =>
-    model.isLoading ? (
-      <LoadingState variant="skeleton" rows={4} />
-    ) : (
-      <FileTree
-        nodes={model.filteredTree}
-        expandedIds={model.effectiveExpandedIds}
-        onExpandedChange={model.setExpandedIds}
-        selectedId={selectedFile}
-        onSelectedChange={handleSelectedChange}
-        showSearch={enableFileSearch}
-        searchKeyword={searchKeyword}
-        onSearchKeywordChange={onSearchKeywordChange}
-        searchPlaceholder={t('agent.preview_pane.search_placeholder')}
-        searchToolbar={searchToolbar}
-        searchClearLabel={t('common.clear')}
-        getMenuItems={getFileTreeMenuItems}
-        emptyState={
-          <div className="px-2 py-3 text-muted-foreground text-xs">
-            {model.error
-              ? t('common.error')
-              : trimmedFileSearch
-                ? t('agent.preview_pane.no_search_results')
-                : workspacePath
-                  ? t('agent.preview_pane.empty.title')
-                  : t('agent.preview_pane.empty.description')}
-          </div>
-        }
-      />
-    )
+  // Element identity is keystroke-stable (all deps are memoized model fields or
+  // stable callbacks), so typing in the editor never re-renders the file tree.
+  const fileTreeContent = useMemo(
+    () =>
+      model.isLoading ? (
+        <LoadingState variant="skeleton" rows={4} />
+      ) : (
+        <FileTree
+          nodes={model.filteredTree}
+          expandedIds={model.effectiveExpandedIds}
+          onExpandedChange={model.setExpandedIds}
+          selectedId={selectedFile}
+          onSelectedChange={handleSelectedChange}
+          showSearch={enableFileSearch}
+          searchKeyword={searchKeyword}
+          onSearchKeywordChange={onSearchKeywordChange}
+          searchPlaceholder={t('agent.preview_pane.search_placeholder')}
+          searchToolbar={searchToolbar}
+          searchClearLabel={t('common.clear')}
+          getMenuItems={getFileTreeMenuItems}
+          emptyState={
+            <div className="px-2 py-3 text-muted-foreground text-xs">
+              {model.error
+                ? t('common.error')
+                : trimmedFileSearch
+                  ? t('agent.preview_pane.no_search_results')
+                  : workspacePath
+                    ? t('agent.preview_pane.empty.title')
+                    : t('agent.preview_pane.empty.description')}
+            </div>
+          }
+        />
+      ),
+    [
+      model.isLoading,
+      model.filteredTree,
+      model.effectiveExpandedIds,
+      model.setExpandedIds,
+      model.error,
+      selectedFile,
+      handleSelectedChange,
+      enableFileSearch,
+      searchKeyword,
+      onSearchKeywordChange,
+      searchToolbar,
+      getFileTreeMenuItems,
+      trimmedFileSearch,
+      workspacePath,
+      t
+    ]
+  )
 
   if (!workspacePath && !overlaySelection) {
     return (
@@ -968,7 +962,7 @@ export function ArtifactPaneView({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
           <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-            {renderFileTree()}
+            {fileTreeContent}
           </div>
         </aside>
         {renderOverlay()}

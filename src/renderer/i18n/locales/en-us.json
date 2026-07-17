@@ -224,15 +224,7 @@
           "reload": "Reload file",
           "title": "File changed on disk"
         },
-        "discard": "Discard",
-        "leave": {
-          "confirm": "Discard and continue",
-          "description": "Closing this file or opening another one will discard your unsaved changes.",
-          "title": "Discard unsaved changes?"
-        },
-        "open_failed": "Unable to open this file for editing.",
         "refresh_failed": "Unable to reload the latest file content.",
-        "save_failed": "Unable to save this file.",
         "unsaved": "Unsaved",
         "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
       },
@@ -4225,6 +4217,12 @@
     },
     "characters": "Characters",
     "collapse": "Collapse",
+    "conflict": {
+      "description": "This note was changed outside the editor. Reload to load the latest version (your unsaved edits will be discarded), or keep editing.",
+      "keep_draft": "Keep editing",
+      "reload": "Reload",
+      "title": "Note changed on disk"
+    },
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
     "create_folder_failed": "Failed to create folder",

@@ -1,4 +1,3 @@
-import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
 import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,7 +21,10 @@ const mocks = vi.hoisted(() => {
     mountedEditor: 'source',
     editorReady: vi.fn(),
     getNode: vi.fn(),
-    invalidateFileContent: vi.fn(),
+    setDraft: vi.fn(),
+    flushSession: vi.fn().mockResolvedValue(undefined),
+    reloadSession: vi.fn().mockResolvedValue(undefined),
+    notifyExternalChange: vi.fn(),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
     isActiveTab: true,
@@ -100,7 +102,16 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverContent: passthrough('div'),
     PopoverTrigger: ({ children }: any) => React.createElement('div', { 'data-testid': 'popover-trigger' }, children),
     RowFlex: passthrough('div'),
-    Tooltip: ({ children }: any) => children
+    Tooltip: ({ children }: any) => children,
+    ConfirmDialog: ({ open, title, confirmText, onConfirm }: any) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog' },
+            React.createElement('div', null, title),
+            React.createElement('button', { type: 'button', onClick: () => onConfirm?.() }, confirmText)
+          )
+        : null
   }
 })
 
@@ -179,15 +190,20 @@ vi.mock('@renderer/hooks/useNote', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useNotesQuery', async (importOriginal) => {
-  const actual = await importOriginal<typeof NotesQueryModule>()
-
-  return {
-    ...actual,
-    useFileContent: () => ({ data: mocks.currentContent, error: undefined }),
-    useFileContentSync: () => ({ invalidateFileContent: mocks.invalidateFileContent })
-  }
-})
+vi.mock('@renderer/hooks/useFileEditSession', () => ({
+  useFileEditSession: () => ({
+    status: 'ready',
+    savedContent: mocks.currentContent,
+    draft: mocks.currentContent,
+    isDirty: false,
+    isSaving: false,
+    conflict: false,
+    setDraft: mocks.setDraft,
+    reload: mocks.reloadSession,
+    flush: mocks.flushSession,
+    notifyExternalChange: mocks.notifyExternalChange
+  })
+}))
 
 vi.mock('@renderer/services/NotesService', () => ({
   projectNotesTree: vi.fn(() => [mocks.noteNode]),

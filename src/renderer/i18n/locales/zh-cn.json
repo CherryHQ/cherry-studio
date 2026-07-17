@@ -224,15 +224,7 @@
           "reload": "重新加载文件",
           "title": "磁盘上的文件已发生变化"
         },
-        "discard": "放弃更改",
-        "leave": {
-          "confirm": "放弃并继续",
-          "description": "关闭当前文件或打开其他文件会清除当前草稿，此操作无法撤销。",
-          "title": "放弃未保存的更改？"
-        },
-        "open_failed": "无法打开此文件进行编辑。",
         "refresh_failed": "无法重新加载最新文件内容。",
-        "save_failed": "无法保存此文件。",
         "unsaved": "未保存",
         "unsupported": "此文件可以预览，但暂时无法在这里安全编辑。目前仅支持换行符统一为 LF 或 CRLF 的 UTF-8 文本文件。"
       },
@@ -4225,6 +4217,12 @@
     },
     "characters": "字符",
     "collapse": "收起",
+    "conflict": {
+      "description": "该笔记已在编辑器之外被修改。可重新加载以获取最新版本（未保存的编辑将被丢弃），或继续编辑。",
+      "keep_draft": "继续编辑",
+      "reload": "重新加载",
+      "title": "笔记已在磁盘上更改"
+    },
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
     "create_folder_failed": "创建文件夹失败",

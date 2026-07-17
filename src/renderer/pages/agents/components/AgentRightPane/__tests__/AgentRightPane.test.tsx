@@ -5,20 +5,8 @@ import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactEleme
 import { cloneElement, isValidElement, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  clearFileEditorMock,
-  fileEditorState,
-  fileTreeModelState,
-  resetLazyChildrenMock,
-  useArtifactFileTreeModelMock,
-  useCommandHandlerMock
-} = vi.hoisted(() => {
-  const fileEditorState = { hasUnsavedChanges: false }
-  return {
-    clearFileEditorMock: vi.fn(() => {
-      fileEditorState.hasUnsavedChanges = false
-    }),
-    fileEditorState,
+const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock, useCommandHandlerMock } = vi.hoisted(
+  () => ({
     fileTreeModelState: {
       hasLoaded: false,
       nodeById: new Map<string, { kind: string }>()
@@ -26,8 +14,8 @@ const {
     resetLazyChildrenMock: vi.fn(),
     useArtifactFileTreeModelMock: vi.fn(),
     useCommandHandlerMock: vi.fn()
-  }
-})
+  })
+)
 
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -170,16 +158,18 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
   default: () => <button type="button">Open external</button>
 }))
 
-vi.mock('@renderer/components/chat/panes/useArtifactFileEditor', () => ({
-  useArtifactFileEditor: () => ({
-    hasUnsavedChanges: fileEditorState.hasUnsavedChanges,
-    getSession: vi.fn(),
-    setMode: vi.fn(),
-    updateDraft: vi.fn(),
-    save: vi.fn(),
-    discard: vi.fn(),
+vi.mock('@renderer/hooks/useFileEditSession', () => ({
+  useFileEditSession: () => ({
+    status: 'idle',
+    savedContent: '',
+    draft: '',
+    isDirty: false,
+    isSaving: false,
+    conflict: false,
+    setDraft: vi.fn(),
     reload: vi.fn(),
-    clear: clearFileEditorMock
+    flush: vi.fn(),
+    notifyExternalChange: vi.fn()
   })
 }))
 
@@ -263,7 +253,6 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    fileEditorState.hasUnsavedChanges = false
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
     useArtifactFileTreeModelMock.mockImplementation(() => ({
@@ -510,7 +499,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
   })
 
-  it('confirms before discarding a dirty draft when another file is selected', () => {
+  it('switches files directly without a leave prompt (autosave persists edits)', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
@@ -521,30 +510,18 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Host />
       </AgentRightPane>
     )
-    const { rerender } = render(renderPane())
+    render(renderPane())
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fileEditorState.hasUnsavedChanges = true
-    clearFileEditorMock.mockClear()
-    rerender(renderPane())
-
-    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
-
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
-    expect(clearFileEditorMock).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
 
     fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.confirm' }))
 
-    expect(clearFileEditorMock).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
 
-  it('confirms before discarding a dirty draft when the preview is closed', () => {
+  it('closes the preview directly without a leave prompt', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
     const renderPane = () => (
@@ -552,21 +529,12 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Host />
       </AgentRightPane>
     )
-    const { rerender } = render(renderPane())
+    render(renderPane())
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fileEditorState.hasUnsavedChanges = true
-    clearFileEditorMock.mockClear()
-    rerender(renderPane())
-
     fireEvent.click(screen.getByRole('button', { name: 'close' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.confirm' }))
-
-    expect(clearFileEditorMock).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 })

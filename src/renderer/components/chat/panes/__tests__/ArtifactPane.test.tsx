@@ -1,6 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { toast } from '@renderer/services/toast'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -9,14 +10,15 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, {
   ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   ArtifactPaneView,
+  getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
-import { useArtifactFileEditor } from '../useArtifactFileEditor'
 import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /**
@@ -61,8 +63,9 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
   )
 }
 
-function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState<'preview' | 'edit'>('preview')
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [searchKeyword, setSearchKeyword] = useState('')
   const model = useArtifactFileTreeModel({
@@ -74,7 +77,11 @@ function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
     selectedFile,
     onExpandedIdsChange: setExpandedIds
   })
-  const fileEditor = useArtifactFileEditor()
+  const editPath =
+    editMode === 'edit' && selectedFile
+      ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
+      : undefined
+  const fileSession = useFileEditSession(editPath)
 
   return (
     <ArtifactPaneView
@@ -82,11 +89,25 @@ function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
       enableFileSearch
       model={model}
       selectedFile={selectedFile}
-      onSelectedFileChange={setSelectedFile}
+      onSelectedFileChange={(file) => {
+        setEditMode('preview')
+        setSelectedFile(file)
+      }}
       searchKeyword={searchKeyword}
       onSearchKeywordChange={setSearchKeyword}
-      fileEditor={fileEditor}
+      fileSession={fileSession}
+      editMode={editMode}
+      onEditModeChange={setEditMode}
     />
+  )
+}
+
+// A fresh SWR cache per render so file content never bleeds across tests.
+function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+  return (
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <EditablePaneInner workspacePath={workspacePath} />
+    </SWRConfig>
   )
 }
 
@@ -1619,13 +1640,14 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
-  it('skips preview for oversized UTF-8 draft content when disk metadata is below the size cap', async () => {
+  it('autosaves an oversized in-memory draft — the size cap gates loading for edit, not writing', async () => {
     const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
-    expect(oversizedDraft.length).toBeLessThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     expect(new Blob([oversizedDraft]).size).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
-    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+      .mockResolvedValueOnce({ contentHash: 'fedcba9876543210', version: { mtime: 2, size: 1 } })
     mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
@@ -1638,12 +1660,15 @@ describe('ArtifactPane', () => {
     act(() => {
       expect(mocks.codeEditorRef?.insertText?.(oversizedDraft)).toBe(true)
     })
-    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.preview' }))
 
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
-    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
-    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.write_if_unchanged', expect.anything())
+    // The debounced autosave persists the large draft; the size cap only blocks
+    // loading an already-oversized file into the editor.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+      timeout: 3000
+    })
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
+    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
   })
 
   it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
@@ -1672,9 +1697,11 @@ describe('ArtifactPane', () => {
     act(() => {
       expect(mocks.codeEditorRef?.insertText?.('changed\ncontent\n')).toBe(true)
     })
-    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.save' }))
 
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()))
+    // Autosave (debounced) writes without a manual save button.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+      timeout: 3000
+    })
     const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
     if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
     const writeInput = writeCall[1] as {
@@ -1700,6 +1727,8 @@ describe('ArtifactPane', () => {
     mocks.ipcRequest
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
       .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      // First read verifies the stale write really diverged; second serves the reload.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
@@ -1709,9 +1738,9 @@ describe('ArtifactPane', () => {
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
     fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
-    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.save' }))
 
-    const conflictDialog = await screen.findByRole('dialog')
+    // Autosave hits the stale-version guard and opens the reload dialog.
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
     expect(conflictDialog).toHaveTextContent('agent.preview_pane.edit.conflict.title')
     fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
 

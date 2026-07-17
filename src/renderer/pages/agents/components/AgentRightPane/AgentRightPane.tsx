@@ -1,10 +1,11 @@
-import { Badge, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
+  getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
@@ -19,7 +20,6 @@ import {
   useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
-import { type ArtifactFileEditor, useArtifactFileEditor } from '@renderer/components/chat/panes/useArtifactFileEditor'
 import {
   type ArtifactFileTreeModel,
   isSelectableFileNode,
@@ -34,6 +34,7 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -52,7 +53,7 @@ import {
   Waypoints
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
@@ -202,12 +203,17 @@ function AgentRightPaneStatusProjectionProvider({ children }: { children: ReactN
 // updates (every lazy-load tick produces a fresh `filteredTree`) only re-render
 // the files panel, not the status/flow/info panels reading the main context.
 const AgentFileTreeModelContext = createContext<ArtifactFileTreeModel | null>(null)
-const AgentFileEditorContext = createContext<ArtifactFileEditor | null>(null)
-interface AgentFileEditorNavigation {
-  hasUnsavedChanges: () => boolean
-  clear: () => void
+type AgentFileEditorMode = 'preview' | 'edit'
+
+// The edit session lives in its own context (like the file-tree model) so its
+// per-keystroke updates re-render only the files panel, not the status / flow /
+// info panels reading the main context.
+interface AgentFileEditorValue {
+  session: FileEditSession
+  mode: AgentFileEditorMode
+  setMode: (mode: AgentFileEditorMode) => void
 }
-const AgentFileEditorNavigationContext = createContext<AgentFileEditorNavigation | null>(null)
+const AgentFileEditorContext = createContext<AgentFileEditorValue | null>(null)
 
 function useAgentFileTreeModel(): ArtifactFileTreeModel {
   const value = use(AgentFileTreeModelContext)
@@ -215,36 +221,10 @@ function useAgentFileTreeModel(): ArtifactFileTreeModel {
   return value
 }
 
-function useAgentFileEditor(): ArtifactFileEditor {
+function useAgentFileEditor(): AgentFileEditorValue {
   const value = use(AgentFileEditorContext)
   if (!value) throw new Error('useAgentFileEditor must be used within <AgentRightPane>')
   return value
-}
-
-function useAgentFileEditorNavigation(): AgentFileEditorNavigation {
-  const value = use(AgentFileEditorNavigationContext)
-  if (!value) throw new Error('useAgentFileEditorNavigation must be used within <AgentRightPane>')
-  return value
-}
-
-function AgentFileEditorProvider({ children }: { children: ReactNode }) {
-  const fileEditor = useArtifactFileEditor()
-  const fileEditorRef = useRef(fileEditor)
-  useLayoutEffect(() => {
-    fileEditorRef.current = fileEditor
-  }, [fileEditor])
-  const navigation = useMemo<AgentFileEditorNavigation>(
-    () => ({
-      hasUnsavedChanges: () => fileEditorRef.current.hasUnsavedChanges,
-      clear: fileEditor.clear
-    }),
-    [fileEditor.clear]
-  )
-  return (
-    <AgentFileEditorNavigationContext value={navigation}>
-      <AgentFileEditorContext value={fileEditor}>{children}</AgentFileEditorContext>
-    </AgentFileEditorNavigationContext>
-  )
 }
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
@@ -266,15 +246,13 @@ function AgentRightPaneStateProvider({
   filesEnabled = true,
   statusEnabled = true
 }: AgentRightPaneProviderProps) {
-  const { t } = useTranslation()
   const shellState = useShellState()
   const { activeTab } = shellState
   const { openTab } = useShellActions()
-  const { clear: clearFileEditor, hasUnsavedChanges } = useAgentFileEditorNavigation()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [pendingFileSelection, setPendingFileSelection] = useState<ArtifactPaneFileSelection | null | undefined>()
+  const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
@@ -296,33 +274,28 @@ function AgentRightPaneStateProvider({
   // Stable callback for effect deps (the model object itself is new each render).
   const { resetLazyChildren: resetFileTreeLazyChildren } = fileTreeModel
 
-  const applyFileSelection = useCallback(
-    (selection: ArtifactPaneFileSelection | null) => {
-      clearFileEditor()
-      setPreviewFileSelection(selection)
-      setSelectedFile(selection && selection.workspacePath === workspacePath ? selection.filePath : null)
-    },
-    [clearFileEditor, workspacePath]
+  // One unified file↔memory session, keyed by the file being edited. It loads
+  // only in edit mode; preview reads the file separately via ArtifactFilePreview.
+  const editPath =
+    editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
+  const fileSession = useFileEditSession(editPath)
+  const editorValue = useMemo<AgentFileEditorValue>(
+    () => ({ session: fileSession, mode: editMode, setMode: setEditMode }),
+    [fileSession, editMode]
   )
 
+  // Autosave means switching files never has "unsaved changes" to guard — the
+  // session flushes the previous file on path change. A new selection opens in
+  // preview mode.
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
-      if (hasUnsavedChanges()) {
-        setPendingFileSelection(selection)
-        return
-      }
-      applyFileSelection(selection)
+      setEditMode('preview')
+      setPreviewFileSelection(selection)
+      setSelectedFile(selection && selection.workspacePath === workspacePath ? selection.filePath : null)
     },
-    [applyFileSelection, hasUnsavedChanges, previewFileSelection]
+    [previewFileSelection, workspacePath]
   )
-
-  const confirmPendingFileSelection = useCallback(() => {
-    if (pendingFileSelection === undefined) return
-    const selection = pendingFileSelection
-    setPendingFileSelection(undefined)
-    applyFileSelection(selection)
-  }, [applyFileSelection, pendingFileSelection])
 
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
@@ -359,8 +332,7 @@ function AgentRightPaneStateProvider({
   useEffect(() => {
     if (previousWorkspaceKeyRef.current === workspaceKey) return
     previousWorkspaceKeyRef.current = workspaceKey
-    clearFileEditor()
-    setPendingFileSelection(undefined)
+    setEditMode('preview')
     setSelectedFile(null)
     setPreviewFileSelection(null)
     setFileTreeExpandedIds(new Set())
@@ -369,7 +341,7 @@ function AgentRightPaneStateProvider({
     // The lazy-children map now lives in the surviving provider, so its reset on
     // workspace change must be explicit (previously it rode the pane remount).
     resetFileTreeLazyChildren()
-  }, [clearFileEditor, resetFileTreeLazyChildren, workspaceKey])
+  }, [resetFileTreeLazyChildren, workspaceKey])
 
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
@@ -388,20 +360,12 @@ function AgentRightPaneStateProvider({
       previewFileSelection.workspacePath === workspacePath &&
       previewFileSelection.filePath === selectedFile
     ) {
-      clearFileEditor()
-      setPendingFileSelection(undefined)
+      setEditMode('preview')
       setPreviewFileSelection(null)
     }
     lastSelectableFileRef.current = null
     setSelectedFile(null)
-  }, [
-    clearFileEditor,
-    fileTreeModel.hasLoaded,
-    fileTreeModel.nodeById,
-    previewFileSelection,
-    selectedFile,
-    workspacePath
-  ])
+  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, previewFileSelection, selectedFile, workspacePath])
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
   const closeFlowTab = useCallback(
     (toolCallId: string) => {
@@ -472,19 +436,7 @@ function AgentRightPaneStateProvider({
     <AgentRightPaneProjectionSourceContext value={projectionSource}>
       <AgentRightPaneContext value={value}>
         <AgentFileTreeModelContext value={fileTreeModel}>
-          {children}
-          <ConfirmDialog
-            open={pendingFileSelection !== undefined}
-            onOpenChange={(open) => {
-              if (!open) setPendingFileSelection(undefined)
-            }}
-            title={t('agent.preview_pane.edit.leave.title')}
-            description={t('agent.preview_pane.edit.leave.description')}
-            confirmText={t('agent.preview_pane.edit.leave.confirm')}
-            cancelText={t('common.cancel')}
-            destructive
-            onConfirm={confirmPendingFileSelection}
-          />
+          <AgentFileEditorContext value={editorValue}>{children}</AgentFileEditorContext>
         </AgentFileTreeModelContext>
       </AgentRightPaneContext>
     </AgentRightPaneProjectionSourceContext>
@@ -503,9 +455,7 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
       onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <AgentFileEditorProvider>
-          <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
-        </AgentFileEditorProvider>
+        <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
       </ResourcePaneProvider>
     </Shell>
   )
@@ -514,7 +464,7 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
 function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
   const model = useAgentFileTreeModel()
-  const fileEditor = useAgentFileEditor()
+  const { session, mode, setMode } = useAgentFileEditor()
   const shellState = useShellState()
   return (
     <ArtifactPaneView
@@ -524,7 +474,9 @@ function AgentRightPaneFilesPanel() {
       pdfLayoutPending={shellState.pdfLayoutPending}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       enableFileSearch
-      fileEditor={fileEditor}
+      fileSession={session}
+      editMode={mode}
+      onEditModeChange={setMode}
       model={model}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
