@@ -2,7 +2,7 @@
 title: '"Data Reset" becomes "Factory Reset" and now actually erases everything'
 category: changed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: '#17138'
 date: 2026-07-17
 ---
 
