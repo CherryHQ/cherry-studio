@@ -1,8 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, createMock, getByIdMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
+const {
+  listMock,
+  createMock,
+  createFromImportMock,
+  getByIdMock,
+  updateMock,
+  deleteMock,
+  reorderMock,
+  reorderBatchMock
+} = vi.hoisted(() => ({
   listMock: vi.fn(),
   createMock: vi.fn(),
+  createFromImportMock: vi.fn(),
   getByIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -14,6 +24,7 @@ vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     list: listMock,
     create: createMock,
+    createFromImport: createFromImportMock,
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -109,6 +120,39 @@ describe('assistantHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/assistants:import', () => {
+    it('forwards a normalized legacy import payload, including long group names', async () => {
+      const longGroupName = `  ${'x'.repeat(65)}  `
+      createFromImportMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Imported Assistant' })
+
+      await expect(
+        assistantHandlers['/assistants:import'].POST({
+          body: {
+            name: 'Imported Assistant',
+            prompt: 'legacy prompt',
+            groupName: longGroupName
+          }
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
+
+      expect(createFromImportMock).toHaveBeenCalledWith({
+        name: 'Imported Assistant',
+        prompt: 'legacy prompt',
+        groupName: 'x'.repeat(65)
+      })
+    })
+
+    it('rejects fields outside the legacy import contract', async () => {
+      await expect(
+        assistantHandlers['/assistants:import'].POST({
+          body: { name: 'Imported Assistant', prompt: 'legacy prompt', groupId: GROUP_ID }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createFromImportMock).not.toHaveBeenCalled()
     })
   })
 

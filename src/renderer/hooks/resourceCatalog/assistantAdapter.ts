@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,
+  type ImportAssistantDto,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -85,6 +86,23 @@ export function useAssistantMutations() {
   )
 
   return { createAssistant, duplicateAssistant }
+}
+
+/**
+ * Legacy import is a dedicated mutation because the server resolves/creates
+ * the optional group and inserts the assistant in one transaction.
+ */
+export function useImportAssistantMutation() {
+  const { trigger } = useMutation('POST', '/assistants:import', {
+    refresh: ['/assistants', '/groups']
+  })
+
+  const importAssistant = useCallback(
+    (dto: ImportAssistantDto): Promise<Assistant> => trigger({ body: dto }),
+    [trigger]
+  )
+
+  return { importAssistant }
 }
 
 /**

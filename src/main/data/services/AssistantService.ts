@@ -15,7 +15,12 @@ import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type {
+  CreateAssistantDto,
+  ImportAssistantDto,
+  ListAssistantsQuery,
+  UpdateAssistantDto
+} from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -333,6 +338,38 @@ export class AssistantDataService {
   }
 
   /**
+   * Insert an assistant and its relations inside a caller-owned transaction.
+   */
+  private createTx(tx: DbOrTx, dto: CreateAssistantDto): AssistantRowWithModelName {
+    // Resolve modelId: explicit values strictly validated; omission falls
+    // back to `chat.default_model_id` preference (stale → null with a
+    // logger.warn).
+    const modelId = this.resolveCreateModelId(tx, dto.modelId)
+    this.validateAssistantGroupTx(tx, dto.groupId)
+
+    // Split relation fields from columns. Service owns emoji/settings
+    // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
+    // orderKey is omitted — `insertWithOrderKey` computes the next fractional
+    // key from the existing max and injects it before the DB write.
+    const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
+    const insertValues = {
+      ...columnDto,
+      modelId,
+      emoji: dto.emoji ?? '🌟',
+      settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
+    } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
+
+    const inserted = insertWithOrderKey(tx, assistantTable, insertValues, {
+      pkColumn: assistantTable.id,
+      scope: isNull(assistantTable.deletedAt)
+    }) as AssistantRow
+
+    this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
+
+    return this.getActiveRowWithModelNameById(inserted.id, tx)
+  }
+
+  /**
    * Create a new assistant.
    *
    * `mcpServerIds` and `knowledgeBaseIds` land inside the same
@@ -342,39 +379,7 @@ export class AssistantDataService {
   create(dto: CreateAssistantDto): Assistant {
     this.validateName(dto.name)
 
-    const { row, modelName } = application.get('DbService').withWriteTx((tx) => {
-      // Resolve modelId: explicit values strictly validated; omission falls
-      // back to `chat.default_model_id` preference (stale → null with a
-      // logger.warn).
-      const modelId = this.resolveCreateModelId(tx, dto.modelId)
-      this.validateAssistantGroupTx(tx, dto.groupId)
-
-      // Split relation fields from columns. Service owns emoji/settings
-      // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
-      // orderKey is omitted — `insertWithOrderKey` computes the next fractional
-      // key from the existing max and injects it before the DB write.
-      const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
-      const insertValues = {
-        ...columnDto,
-        modelId,
-        emoji: dto.emoji ?? '🌟',
-        settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
-      } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
-
-      const inserted = insertWithOrderKey(tx, assistantTable, insertValues, {
-        pkColumn: assistantTable.id,
-        scope: isNull(assistantTable.deletedAt)
-      }) as AssistantRow
-
-      // Insert junction table rows
-      this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
-
-      const readRow = this.getActiveRowWithModelNameById(inserted.id, tx)
-      return {
-        row: readRow.assistant,
-        modelName: readRow.modelName
-      }
-    })
+    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 
@@ -386,6 +391,28 @@ export class AssistantDataService {
       },
       modelName
     )
+  }
+
+  /**
+   * Import one legacy assistant. Exact-name group resolution/creation and the
+   * assistant insert share one immediate write transaction, preventing stale
+   * renderer snapshots or concurrent imports from creating duplicate groups.
+   */
+  createFromImport(dto: ImportAssistantDto): Assistant {
+    this.validateName(dto.name)
+    const { groupName, ...assistantDto } = dto
+
+    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => {
+      const group = groupName ? groupService.findOrCreateByNameTx(tx, 'assistant', groupName) : null
+      return this.createTx(tx, {
+        ...assistantDto,
+        ...(group ? { groupId: group.id } : {})
+      })
+    })
+
+    logger.info('Imported assistant', { id: row.id, name: row.name })
+
+    return rowToAssistant(row, createEmptyRelations(), modelName)
   }
 
   /**

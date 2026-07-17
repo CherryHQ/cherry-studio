@@ -2,7 +2,6 @@ import type { Group } from '@shared/data/types/group'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useEnsureAssistantGroupByName } from '../useEnsureAssistantGroup'
 import { useGroupMutations, useGroups } from '../useGroups'
 
 const mocks = vi.hoisted(() => ({
@@ -90,89 +89,5 @@ describe('group hooks', () => {
     expect(mocks.useMutation).toHaveBeenCalledWith('DELETE', '/groups/:id', {
       refresh: ['/groups', '/assistants', '/assistants/*']
     })
-  })
-})
-
-describe('useEnsureAssistantGroupByName', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.useQuery.mockReturnValue({
-      data: [],
-      isLoading: false,
-      error: undefined,
-      refetch: mocks.refetch
-    })
-    mocks.useMutation.mockImplementation((method: string, path: string) => ({
-      trigger:
-        method === 'POST' && path === '/groups'
-          ? mocks.createGroup
-          : method === 'PATCH'
-            ? mocks.updateGroup
-            : mocks.deleteGroup,
-      isLoading: false,
-      error: undefined
-    }))
-  })
-
-  it('resolves an imported group from the cached assistant groups', async () => {
-    const cached = group('11111111-1111-4111-8111-111111111111', 'work')
-    mocks.useQuery.mockReturnValue({
-      data: [cached],
-      isLoading: false,
-      error: undefined,
-      refetch: mocks.refetch
-    })
-
-    const { result } = renderHook(() => useEnsureAssistantGroupByName())
-
-    await expect(result.current.ensureGroup(' work ')).resolves.toEqual(cached)
-    expect(mocks.createGroup).not.toHaveBeenCalled()
-  })
-
-  it('creates a missing imported group', async () => {
-    const created = group('11111111-1111-4111-8111-111111111111', 'work')
-    mocks.createGroup.mockResolvedValue(created)
-
-    const { result } = renderHook(() => useEnsureAssistantGroupByName())
-    let resultGroup: Group | undefined
-    await act(async () => {
-      resultGroup = await result.current.ensureGroup(' work ')
-    })
-
-    expect(resultGroup).toEqual(created)
-    expect(mocks.createGroup).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses the latest group query result instead of retaining a deleted group', async () => {
-    const deleted = group('11111111-1111-4111-8111-111111111111', 'work')
-    const replacement = group('22222222-2222-4222-8222-222222222222', 'work')
-    mocks.useQuery.mockReturnValue({
-      data: [deleted],
-      isLoading: false,
-      error: undefined,
-      refetch: mocks.refetch
-    })
-    mocks.createGroup.mockResolvedValue(replacement)
-
-    const { result, rerender } = renderHook(() => useEnsureAssistantGroupByName())
-    await expect(result.current.ensureGroup('work')).resolves.toEqual(deleted)
-
-    mocks.useQuery.mockReturnValue({
-      data: [],
-      isLoading: false,
-      error: undefined,
-      refetch: mocks.refetch
-    })
-    rerender()
-
-    await expect(result.current.ensureGroup('work')).resolves.toEqual(replacement)
-    expect(mocks.createGroup).toHaveBeenCalledTimes(1)
-  })
-
-  it('ignores an empty imported group name', async () => {
-    const { result } = renderHook(() => useEnsureAssistantGroupByName())
-
-    await expect(result.current.ensureGroup('   ')).resolves.toBeUndefined()
-    expect(mocks.createGroup).not.toHaveBeenCalled()
   })
 })

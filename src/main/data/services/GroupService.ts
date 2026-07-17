@@ -8,6 +8,8 @@
  * - `listByEntityType` is the canonical read path; `entityType` is always required.
  * - `findByIdTx` is the cross-service lookup for relation validation inside a
  *   caller-owned write transaction; the caller owns its expected entityType.
+ * - `findOrCreateByNameTx` supports legacy imports that must resolve a named
+ *   group and create their entity in one caller-owned transaction.
  * - `create` auto-assigns `orderKey` via `insertWithOrderKey` (scope=entityType)
  *   so consumers never touch the column directly.
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
@@ -17,14 +19,14 @@
 import { application } from '@application'
 import { groupTable } from '@data/db/schemas/group'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateGroupDto, UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -83,6 +85,40 @@ export class GroupService {
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Group | null {
     const [row] = tx.select().from(groupTable).where(eq(groupTable.id, id)).limit(1).all()
     return row ? rowToGroup(row) : null
+  }
+
+  /**
+   * Resolve an exact group name inside a caller-owned write transaction,
+   * creating the group when no match exists.
+   *
+   * Names intentionally remain non-unique for normal group management. If
+   * historical data already contains duplicates, imports consistently reuse
+   * the first group in display order.
+   */
+  findOrCreateByNameTx(tx: DbOrTx, entityType: EntityType, name: string): Group {
+    const [existing] = tx
+      .select()
+      .from(groupTable)
+      .where(and(eq(groupTable.entityType, entityType), eq(groupTable.name, name)))
+      .orderBy(asc(groupTable.orderKey), asc(groupTable.id))
+      .limit(1)
+      .all()
+
+    if (existing) {
+      return rowToGroup(existing)
+    }
+
+    const inserted = insertWithOrderKey(
+      tx,
+      groupTable,
+      { entityType, name },
+      {
+        pkColumn: groupTable.id,
+        scope: eq(groupTable.entityType, entityType)
+      }
+    )
+
+    return rowToGroup(inserted as GroupRow)
   }
 
   /**

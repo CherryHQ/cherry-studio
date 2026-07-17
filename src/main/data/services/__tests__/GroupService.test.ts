@@ -102,6 +102,26 @@ describe('GroupService', () => {
     })
   })
 
+  describe('findOrCreateByNameTx', () => {
+    it('creates a missing group inside the caller transaction', () => {
+      const result = dbh.db.transaction((tx) => groupService.findOrCreateByNameTx(tx, 'assistant', 'work'))
+
+      expect(result).toMatchObject({ entityType: 'assistant', name: 'work' })
+      expect(groupService.listByEntityType('assistant')).toEqual([result])
+    })
+
+    it('reuses the first exact-name group in display order when duplicates already exist', () => {
+      const first = groupService.create({ entityType: 'assistant', name: 'work' })
+      groupService.create({ entityType: 'assistant', name: 'work' })
+      groupService.create({ entityType: 'topic', name: 'work' })
+
+      const result = dbh.db.transaction((tx) => groupService.findOrCreateByNameTx(tx, 'assistant', 'work'))
+
+      expect(result.id).toBe(first.id)
+      expect(groupService.listByEntityType('assistant')).toHaveLength(2)
+    })
+  })
+
   describe('update', () => {
     it('should update the name of an existing group', async () => {
       const created = groupService.create({ entityType: 'topic', name: 'Old' })

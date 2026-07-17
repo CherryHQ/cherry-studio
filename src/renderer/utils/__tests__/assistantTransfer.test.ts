@@ -74,7 +74,7 @@ describe('assistantTransfer', () => {
     })
     // modelId is intentionally not part of the DTO — the backend fills it from
     // the `chat.default_model_id` preference during create.
-    expect(draft.dto.modelId).toBeUndefined()
+    expect(draft.dto).not.toHaveProperty('modelId')
     expect(draft.groupName).toBe('写作')
   })
 
@@ -96,9 +96,9 @@ describe('assistantTransfer', () => {
       prompt: 'still required'
     })
     // Fields we don't carry across the import boundary.
-    expect(draft.dto.modelId).toBeUndefined()
-    expect(draft.dto.mcpServerIds).toBeUndefined()
-    expect(draft.dto.knowledgeBaseIds).toBeUndefined()
+    expect(draft.dto).not.toHaveProperty('modelId')
+    expect(draft.dto).not.toHaveProperty('mcpServerIds')
+    expect(draft.dto).not.toHaveProperty('knowledgeBaseIds')
     expect(draft.dto.settings).toMatchObject({
       temperature: 1,
       enableTemperature: false

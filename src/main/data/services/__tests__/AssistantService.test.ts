@@ -697,8 +697,8 @@ describe('AssistantDataService', () => {
       const realTransaction = dbh.db.transaction.bind(dbh.db)
       const transactionSpy = vi.spyOn(dbh.db, 'transaction').mockImplementation((callback, config) => {
         const result = realTransaction(callback, config)
-        const { row } = result as { row: { id: string } }
-        dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, row.id)).run()
+        const { assistant } = result as { assistant: { id: string } }
+        dbh.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, assistant.id)).run()
         return result
       })
 
@@ -729,6 +729,43 @@ describe('AssistantDataService', () => {
       const result = assistantDataService.create({ name: 'explicit-null', modelId: null })
 
       expect(result.modelId).toBeNull()
+    })
+  })
+
+  describe('createFromImport', () => {
+    it('creates a long-named legacy group and assigns it to the imported assistant', async () => {
+      const groupName = 'x'.repeat(65)
+
+      const result = assistantDataService.createFromImport({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt',
+        groupName
+      })
+
+      const [group] = await dbh.db.select().from(groupTable).where(eq(groupTable.name, groupName))
+      expect(group).toMatchObject({ entityType: 'assistant', name: groupName })
+      expect(result.groupId).toBe(group.id)
+    })
+
+    it('reuses one exact-name group across independent import requests', async () => {
+      const existingGroupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(existingGroupId, 'work')
+
+      const first = assistantDataService.createFromImport({
+        name: 'First import',
+        prompt: 'first prompt',
+        groupName: 'work'
+      })
+      const second = assistantDataService.createFromImport({
+        name: 'Second import',
+        prompt: 'second prompt',
+        groupName: 'work'
+      })
+
+      const matchingGroups = await dbh.db.select().from(groupTable).where(eq(groupTable.name, 'work'))
+      expect(matchingGroups).toHaveLength(1)
+      expect(first.groupId).toBe(existingGroupId)
+      expect(second.groupId).toBe(existingGroupId)
     })
   })
 

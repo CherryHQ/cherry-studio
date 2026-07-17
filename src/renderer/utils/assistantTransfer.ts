@@ -1,8 +1,8 @@
-import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { ImportAssistantDto } from '@shared/data/api/schemas/assistants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 export interface ImportedAssistantDraft {
-  dto: CreateAssistantDto
+  dto: Omit<ImportAssistantDto, 'groupName'>
   groupName?: string
 }
 

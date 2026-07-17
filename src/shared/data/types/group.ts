@@ -15,7 +15,17 @@ import { EntityTypeSchema } from './entityType'
 // ============================================================================
 
 export const GroupIdSchema = z.uuidv4()
-export const GroupNameSchema = z.string().trim().min(1).max(64)
+/**
+ * Persisted group names.
+ *
+ * v1 allowed arbitrary-length assistant tag names, so the entity contract must
+ * be able to represent those rows after migration. New user-authored names are
+ * still capped by {@link GroupNameInputSchema} at mutation boundaries.
+ */
+export const GroupNameSchema = z.string().trim().min(1)
+
+/** Name accepted by the regular create / rename group APIs. */
+export const GroupNameInputSchema = GroupNameSchema.max(64)
 
 /**
  * Complete Group entity as returned by the API.

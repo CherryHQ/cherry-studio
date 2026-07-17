@@ -56,7 +56,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 | Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above); silent at info-log level — v1's initialState seeds id='default' in both `assistants[0]` and `defaultAssistant`, so this fires on essentially every real-user migration |
 | Legacy id `'default'` | `rawId === 'default'` | Remap to a fresh UUID before merge / insert (see "Legacy default-assistant remap" below) |
 | Transform failure | `transformAssistant()` throws | Skip merged source, log warning |
-| Invalid legacy group name | `GroupNameSchema.safeParse()` fails | Keep the assistant ungrouped, log warning |
+| Legacy group name exceeds the current 64-character edit limit | First normalized legacy tag is non-empty | Preserve it exactly; the persisted Group entity accepts v1-compatible names |
 | All sources skipped | `totalRawSources > 0 && skippedCount > 0 && preparedResults.length === 0` | Fail prepare phase |
 | Dangling `model` ref | `userModelTable` lookup miss | Drop `modelId` (set to null), log warning |
 | Dangling MCP server ref | `mcpServerIdMapping` lookup miss | Drop the junction row, log warning |
@@ -65,7 +65,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 
 ## Legacy tag → group migration
 
-The v1 UI treated assistant tags as named, ordered groups. Each assistant had at most one group, stored as either `tags: [name]` or `tags: []`, while `tagsOrder` stored the group order. During preparation the migrator normalizes that optional name and orders the unique used names by `tagsOrder` followed by first appearance.
+The v1 UI treated assistant tags as named, ordered groups. Each assistant had at most one group, stored as either `tags: [name]` or `tags: []`, while `tagsOrder` stored the group order. During preparation the migrator normalizes that optional name and orders the unique used names by `tagsOrder` followed by first appearance. Because v1 did not impose the current 64-character edit limit, longer legacy names are preserved rather than dropping the assistant's grouping.
 
 During execution it inserts one `group` row per used name with `entityType='assistant'`, then writes the generated group ID to each matching `assistant.groupId`. Assistants without a tag remain ungrouped (`groupId = NULL`). The group and assistant rows are inserted in the same transaction.
 

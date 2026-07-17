@@ -2,9 +2,10 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistantMutations } from '../assistantAdapter'
+import { useAssistantMutations, useImportAssistantMutation } from '../assistantAdapter'
 
 const createTriggerMock = vi.hoisted(() => vi.fn())
+const importTriggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -94,6 +95,29 @@ describe('useAssistantMutations', () => {
         knowledgeBaseIds: ['kb-1'],
         groupId
       }
+    })
+  })
+
+  it('imports an assistant through the atomic import endpoint and refreshes groups', async () => {
+    const imported = createAssistant({ id: 'ast-imported', groupId: '11111111-1111-4111-8111-111111111111' })
+    importTriggerMock.mockResolvedValue(imported)
+    useMutationMock.mockReturnValue({
+      trigger: importTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+
+    const { result } = renderHook(() => useImportAssistantMutation())
+
+    await act(async () => {
+      await result.current.importAssistant({ name: 'Imported', prompt: 'prompt', groupName: 'work' })
+    })
+
+    expect(useMutationMock).toHaveBeenCalledWith('POST', '/assistants:import', {
+      refresh: ['/assistants', '/groups']
+    })
+    expect(importTriggerMock).toHaveBeenCalledWith({
+      body: { name: 'Imported', prompt: 'prompt', groupName: 'work' }
     })
   })
 })

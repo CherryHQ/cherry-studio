@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
-import { GroupIdSchema } from '../../types/group'
+import { GroupIdSchema, GroupNameSchema } from '../../types/group'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -45,6 +45,26 @@ const ASSISTANT_MUTABLE_FIELDS = {
  */
 export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
+
+/**
+ * Legacy assistant import payload.
+ *
+ * The legacy file format only carries these assistant fields plus one optional
+ * group name. Group resolution stays server-side so resolving/creating the
+ * group and inserting the assistant can share one write transaction.
+ * `GroupNameSchema` intentionally has no current-UI length cap: v1 exports may
+ * contain tag names longer than 64 characters and must remain importable.
+ */
+export const ImportAssistantSchema = CreateAssistantSchema.pick({
+  name: true,
+  prompt: true,
+  emoji: true,
+  description: true,
+  settings: true
+}).extend({
+  groupName: GroupNameSchema.optional()
+})
+export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 
 /**
  * DTO for updating an existing assistant. All fields optional.
@@ -148,6 +168,17 @@ export type AssistantSchemas = {
     /** Create a new assistant */
     POST: {
       body: CreateAssistantDto
+      response: Assistant
+    }
+  }
+
+  /**
+   * Import one assistant from the legacy preset shape. Group lookup/creation
+   * and assistant creation are committed atomically.
+   */
+  '/assistants:import': {
+    POST: {
+      body: ImportAssistantDto
       response: Assistant
     }
   }

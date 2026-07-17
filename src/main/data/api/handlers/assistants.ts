@@ -14,6 +14,7 @@ import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
   DeleteAssistantQuerySchema,
+  ImportAssistantSchema,
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
@@ -29,6 +30,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateAssistantSchema.parse(body)
       return assistantDataService.create(parsed)
+    }
+  },
+
+  '/assistants:import': {
+    POST: async ({ body }) => {
+      const parsed = ImportAssistantSchema.parse(body)
+      return assistantDataService.createFromImport(parsed)
     }
   },
 

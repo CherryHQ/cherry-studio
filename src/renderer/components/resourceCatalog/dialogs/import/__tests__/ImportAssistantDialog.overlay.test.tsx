@@ -6,8 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const importMocks = vi.hoisted(() => ({
-  createAssistant: vi.fn(),
-  ensureGroup: vi.fn(),
+  importAssistant: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn()
 }))
@@ -24,11 +23,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
-  useAssistantMutations: () => ({ createAssistant: importMocks.createAssistant })
-}))
-
-vi.mock('@renderer/hooks/useEnsureAssistantGroup', () => ({
-  useEnsureAssistantGroupByName: () => ({ ensureGroup: importMocks.ensureGroup })
+  useImportAssistantMutation: () => ({ importAssistant: importMocks.importAssistant })
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -61,15 +56,7 @@ afterEach(cleanup)
 
 beforeEach(() => {
   vi.clearAllMocks()
-  importMocks.createAssistant.mockResolvedValue({})
-  importMocks.ensureGroup.mockResolvedValue({
-    id: '11111111-1111-4111-8111-111111111111',
-    entityType: 'assistant',
-    name: 'work',
-    orderKey: 'a0',
-    createdAt: '2026-07-16T00:00:00.000Z',
-    updatedAt: '2026-07-16T00:00:00.000Z'
-  })
+  importMocks.importAssistant.mockResolvedValue({})
 })
 
 describe('ImportAssistantDialog', () => {
@@ -94,9 +81,9 @@ describe('ImportAssistantDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('reuses one resolved group for equivalent names within an import batch', async () => {
+  it('delegates normalized group resolution to each atomic import request', async () => {
     const user = userEvent.setup()
-    importMocks.createAssistant.mockRejectedValue(new Error('create failed'))
+    importMocks.importAssistant.mockRejectedValue(new Error('create failed'))
     render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
 
     await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.clipboard' }))
@@ -110,16 +97,14 @@ describe('ImportAssistantDialog', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'library.import_dialog.clipboard.button' }))
 
-    await waitFor(() => expect(importMocks.createAssistant).toHaveBeenCalledTimes(2))
-    expect(importMocks.ensureGroup).toHaveBeenCalledTimes(1)
-    expect(importMocks.ensureGroup).toHaveBeenCalledWith('work')
-    expect(importMocks.createAssistant).toHaveBeenNthCalledWith(
+    await waitFor(() => expect(importMocks.importAssistant).toHaveBeenCalledTimes(2))
+    expect(importMocks.importAssistant).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ name: 'First', groupId: '11111111-1111-4111-8111-111111111111' })
+      expect.objectContaining({ name: 'First', groupName: 'work' })
     )
-    expect(importMocks.createAssistant).toHaveBeenNthCalledWith(
+    expect(importMocks.importAssistant).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ name: 'Second', groupId: '11111111-1111-4111-8111-111111111111' })
+      expect.objectContaining({ name: 'Second', groupName: 'work' })
     )
   })
 })

@@ -10,7 +10,6 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { GroupNameSchema } from '@shared/data/types/group'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -194,19 +193,6 @@ export class AssistantMigrator extends BaseMigrator {
       for (const source of sourceById.values()) {
         try {
           const result = transformAssistant(source)
-          if (result.legacyTagName !== null) {
-            const parsedGroupName = GroupNameSchema.safeParse(result.legacyTagName)
-            if (parsedGroupName.success) {
-              result.legacyTagName = parsedGroupName.data
-            } else {
-              warnings.push(
-                `Dropped invalid legacy assistant group for '${result.assistant.id}': ${parsedGroupName.error.issues
-                  .map((issue) => issue.message)
-                  .join(', ')}`
-              )
-              result.legacyTagName = null
-            }
-          }
           this.preparedResults.push(result)
         } catch (err) {
           this.skippedCount++

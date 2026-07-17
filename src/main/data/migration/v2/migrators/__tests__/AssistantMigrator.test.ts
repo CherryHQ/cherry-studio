@@ -600,14 +600,14 @@ describe('AssistantMigrator', () => {
       expect(result.error).toContain('mcpServerIdMapping not found')
     })
 
-    it('should migrate legacy tags to ordered assistant groups and assign groupId', async () => {
-      const invalidGroupName = 'x'.repeat(65)
+    it('should migrate legacy tags, including names over 64 characters, to ordered assistant groups', async () => {
+      const longGroupName = 'x'.repeat(65)
       const assistantsWithTags = [
         { id: 'ast-1', name: 'Work One', tags: ['work'] },
         { id: 'ast-2', name: 'Personal', tags: ['personal'] },
         { id: 'ast-3', name: 'Work Two', tags: ['work'] },
         { id: 'ast-4', name: 'Ungrouped' },
-        { id: 'ast-5', name: 'Invalid Group', tags: [invalidGroupName] }
+        { id: 'ast-5', name: 'Long Group', tags: [longGroupName] }
       ]
       const ctx = createMockContext({
         assistants: {
@@ -637,14 +637,13 @@ describe('AssistantMigrator', () => {
       const prepareResult = await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
 
-      expect(prepareResult.warnings).toEqual([
-        expect.stringContaining("Dropped invalid legacy assistant group for 'ast-5'")
-      ])
+      expect(prepareResult.warnings).toEqual([])
       expect(result.success).toBe(true)
 
       const groupRows = insertedByTable.get(groupTable) ?? []
-      expect(groupRows.map((row) => row.name)).toEqual(['personal', 'work'])
+      expect(groupRows.map((row) => row.name)).toEqual(['personal', 'work', longGroupName])
       expect(String(groupRows[0].orderKey) < String(groupRows[1].orderKey)).toBe(true)
+      expect(String(groupRows[1].orderKey) < String(groupRows[2].orderKey)).toBe(true)
 
       const groupIdByName = new Map(groupRows.map((row) => [row.name, row.id]))
       const assistantRows = insertedByTable.get(assistantTable) ?? []
@@ -654,7 +653,7 @@ describe('AssistantMigrator', () => {
           expect.objectContaining({ id: 'ast-2', groupId: groupIdByName.get('personal') }),
           expect.objectContaining({ id: 'ast-3', groupId: groupIdByName.get('work') }),
           expect.objectContaining({ id: 'ast-4', groupId: null }),
-          expect.objectContaining({ id: 'ast-5', groupId: null })
+          expect.objectContaining({ id: 'ast-5', groupId: groupIdByName.get(longGroupName) })
         ])
       )
     })

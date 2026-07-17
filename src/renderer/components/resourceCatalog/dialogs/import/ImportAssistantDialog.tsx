@@ -11,11 +11,9 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
-import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
-import { useEnsureAssistantGroupByName } from '@renderer/hooks/useEnsureAssistantGroup'
+import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
-import type { Group } from '@shared/data/types/group'
 import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -123,16 +121,14 @@ export function summarizeAssistantImportOutcomes(
 
 /**
  * Import-config dialog for assistants — visual layout mirrors the ui-design
- * `ImportModal` (file / clipboard / URL tabs). Business flow per record:
- *   1. `ensureGroup(name)` resolves / creates the optional assistant group.
- *   2. `createAssistant(dto + groupId)` creates the assistant with that group.
- *      `dto.modelId` is left
- *      unset so the backend fills it from the user's default-model preference.
+ * `ImportModal` (file / clipboard / URL tabs). Each record is sent through the
+ * dedicated import endpoint so optional group resolution and assistant
+ * creation are atomic. `dto.modelId` stays unset so the backend fills it from
+ * the user's default-model preference.
  */
 export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props) {
   const { t } = useTranslation()
-  const { createAssistant } = useAssistantMutations()
-  const { ensureGroup } = useEnsureAssistantGroupByName()
+  const { importAssistant } = useImportAssistantMutation()
 
   const [tab, setTab] = useState<ImportTab>('file')
   const [clipboardText, setClipboardText] = useState('')
@@ -164,11 +160,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   }
 
   /**
-   * Shared pipeline: parse JSON → per draft, resolve group → single create.
+   * Shared pipeline: parse JSON → one atomic import request per draft.
    *
-   * Each draft wraps a single `createAssistant({ ...dto, groupId })` call. Final
-   * outcomes are "ok" or "failed"; a mid-batch failure leaves prior successes
-   * intact and continues with the next draft.
+   * Final outcomes are "ok" or "failed"; a mid-batch failure leaves prior
+   * successes intact and continues with the next draft.
    */
   const runImport = async (content: string, source: 'file' | 'clipboard' | 'url', fileName?: string) => {
     setLoading(true)
@@ -191,20 +186,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
 
     const outcomes: DraftOutcome[] = []
-    const importedGroupsByName = new Map<string, Group>()
-
     for (const draft of drafts) {
       try {
-        let group: Group | undefined
-        if (draft.groupName) {
-          const normalizedGroupName = draft.groupName.trim()
-          group = importedGroupsByName.get(normalizedGroupName)
-          if (!group) {
-            group = await ensureGroup(normalizedGroupName)
-            if (group) importedGroupsByName.set(normalizedGroupName, group)
-          }
-        }
-        await createAssistant({ ...draft.dto, ...(group ? { groupId: group.id } : {}) })
+        const groupName = draft.groupName?.trim()
+        await importAssistant({ ...draft.dto, ...(groupName ? { groupName } : {}) })
         outcomes.push({ kind: 'ok' })
       } catch (error) {
         outcomes.push({
