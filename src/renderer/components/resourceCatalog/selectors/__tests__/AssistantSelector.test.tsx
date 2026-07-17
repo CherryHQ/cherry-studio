@@ -510,6 +510,28 @@ describe('AssistantSelector', () => {
     expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
   })
 
+  it('re-saves after reverting an edited field to its original value', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+
+    const nameInput = screen.getByLabelText('Name')
+    const originalName = (nameInput as HTMLInputElement).value
+
+    // First auto-save. `onSaved` hands the selector the PATCH response ('Renamed Assistant', see
+    // `updateAssistantMock` in beforeEach), advancing the editing snapshot — the dialog's diff baseline.
+    fireEvent.change(nameInput, { target: { value: 'Renamed Assistant' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+
+    // Regression: revert to the original value. With a stale baseline this diffs as "no change" and
+    // the revert is silently dropped; advancing the baseline makes it a real change that re-saves.
+    fireEvent.change(nameInput, { target: { value: originalName } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: expect.objectContaining({ name: originalName }) })
+  })
+
   it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
     const onDialogCloseAutoFocus = vi.fn()
     render(
