@@ -17,7 +17,6 @@ Runtime styles and design tokens live under `src/styles`:
 - [tokens/radius.css](../src/styles/tokens/radius.css)
 - [tokens/spacing.css](../src/styles/tokens/spacing.css)
 - [tokens/typography.css](../src/styles/tokens/typography.css)
-- [Token migration matrix](token-migration-matrix.md)
 
 ## Usage Notes
 

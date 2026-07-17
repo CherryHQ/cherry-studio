@@ -134,9 +134,6 @@ Default consumption rules:
 4. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
 5. Design relationships and color recipes belong in token source CSS; the theme generator only projects those sources into public aliases
 
-For the six in-flight consumer PRs, keep renames and ownership moves aligned with the
-[theme token migration matrix](docs/token-migration-matrix.md).
-
 ## Usage
 
 ### Basic Components
