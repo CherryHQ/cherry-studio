@@ -191,6 +191,30 @@ function byteOffsetMap(source: string): (byteOffset: number) => number {
   }
 }
 
+function leadingTriviaByteLength(source: string): number {
+  let index = 0
+
+  while (index < source.length) {
+    if (/\s/u.test(source[index])) {
+      index += 1
+      continue
+    }
+    if (source.startsWith('//', index) || source.startsWith('#!', index)) {
+      const newline = source.indexOf('\n', index + 2)
+      index = newline === -1 ? source.length : newline + 1
+      continue
+    }
+    if (source.startsWith('/*', index)) {
+      const closing = source.indexOf('*/', index + 2)
+      index = closing === -1 ? source.length : closing + 2
+      continue
+    }
+    break
+  }
+
+  return Buffer.byteLength(source.slice(0, index))
+}
+
 function componentNameFromNode(node: AstRecord): string | undefined {
   if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && isRecord(node.identifier)) {
     return typeof node.identifier.value === 'string' ? node.identifier.value : undefined
@@ -236,7 +260,11 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   })
   const magicString = new MagicString(source)
   const byteToCharacter = byteOffsetMap(source)
-  const spanToCharacter = (value: number) => byteToCharacter(value - module.span.start)
+  // SWC uses process-wide byte positions across parse calls, while module.span.start
+  // points at the first syntax token after leading trivia. Recover this file's base
+  // before translating its byte positions into JavaScript character offsets.
+  const spanBase = module.span.start - leadingTriviaByteLength(source)
+  const spanToCharacter = (value: number) => byteToCharacter(value - spanBase)
   const descriptors: UiNodeDescriptor[] = []
   const occurrenceByAnchor = new Map<string, number>()
   const runtimeImports = new Set<'mergeDataUi' | 'mergeUiProps' | 'UiDataSlot'>()
