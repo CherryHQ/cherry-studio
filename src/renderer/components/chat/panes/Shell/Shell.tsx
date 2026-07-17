@@ -11,7 +11,6 @@ import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useChatMaximizedOverlayBottomInset } from '../../layout/ChatViewportInsetContext'
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
@@ -224,7 +223,6 @@ const CLIP_REVEALED = 'inset(0% 0% 0% 0%)'
 function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
   const reduceMotion = useReducedMotion()
-  const bottomInset = useChatMaximizedOverlayBottomInset()
 
   return (
     <AnimatePresence onExitComplete={actions.finishClose}>
@@ -237,10 +235,7 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
           exit={{ clipPath: CLIP_COLLAPSED, transition: reduceMotion ? { duration: 0 } : MAXIMIZE_EXIT }}
           transition={reduceMotion ? { duration: 0 } : MAXIMIZE_ENTER}
           className="absolute inset-0 z-40 overflow-hidden bg-background">
-          <div
-            data-shell-maximized-overlay-content=""
-            className="h-full min-h-0 overflow-hidden"
-            style={bottomInset > 0 ? { height: `max(0px, calc(100% - ${bottomInset}px))` } : undefined}>
+          <div data-shell-maximized-overlay-content="" className="h-full min-h-0 overflow-hidden">
             {children}
           </div>
         </motion.div>
@@ -400,11 +395,13 @@ function ShellTabs({ children }: { children: ReactNode }) {
 // pane can switch this header to title mode and leave the entry cluster in ConversationShell.
 function ShellTabList({
   children,
+  canMaximize = false,
   extraTrailing,
   title,
   showTabs = true
 }: {
   children: ReactNode
+  canMaximize?: boolean
   extraTrailing?: ReactNode
   title?: ReactNode
   showTabs?: boolean
@@ -414,18 +411,19 @@ function ShellTabList({
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
   const closeLabel = t('common.close_sidebar')
-  const maximizeButton = (
-    <Tooltip content={maximizeLabel} delay={800}>
-      <NavbarIcon
-        tone="conversation"
-        className="[&_svg]:!size-3.5 shrink-0"
-        aria-label={maximizeLabel}
-        aria-pressed={state.maximized}
-        onClick={actions.toggleMaximized}>
-        <MaximizeIcon />
-      </NavbarIcon>
-    </Tooltip>
-  )
+  const maximizeButton =
+    canMaximize || state.maximized ? (
+      <Tooltip content={maximizeLabel} delay={800}>
+        <NavbarIcon
+          tone="conversation"
+          className="[&_svg]:!size-3.5 shrink-0"
+          aria-label={maximizeLabel}
+          aria-pressed={state.maximized}
+          onClick={actions.toggleMaximized}>
+          <MaximizeIcon />
+        </NavbarIcon>
+      </Tooltip>
+    ) : null
   const closeButton = (
     <Tooltip content={closeLabel} delay={800}>
       <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={() => actions.close()}>
@@ -439,7 +437,8 @@ function ShellTabList({
       className={cn(
         // Match ConversationShell's edge inset so the closed-state expand button and
         // opened-state close button keep the same distance from the nearest edge.
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]'
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]',
+        state.maximized && 'bg-card'
       )}>
       {showTabs ? (
         <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
