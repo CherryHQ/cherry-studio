@@ -1,4 +1,5 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -10,9 +11,6 @@ import PdfFilePreview from '../PdfFilePreview'
 const mocks = vi.hoisted(() => ({
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
-  fsRead: vi.fn(),
-  safeOpen: vi.fn(),
-  toastError: vi.fn(),
   getDocument: vi.fn(),
   linkServiceSetDocument: vi.fn(),
   linkServiceSetViewer: vi.fn(),
@@ -29,6 +27,12 @@ const mocks = vi.hoisted(() => ({
   pdfViewerScaleValues: [] as string[],
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
+  rangeTransportInstances: [] as Array<{
+    abort: ReturnType<typeof vi.fn>
+    fail: (error: unknown) => void
+    handle: unknown
+    length: number
+  }>,
   viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
 }))
 
@@ -40,6 +44,25 @@ vi.mock('pdfjs-dist', () => ({
 
 vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({
   default: 'pdf.worker.test.mjs'
+}))
+
+vi.mock('../PdfFileRangeTransport', () => ({
+  PDF_RANGE_CHUNK_SIZE_BYTES: 1024 * 1024,
+  PdfFileRangeTransport: class {
+    abort = vi.fn()
+
+    constructor(
+      readonly handle: unknown,
+      readonly length: number,
+      private readonly onError: (error: unknown) => void
+    ) {
+      mocks.rangeTransportInstances.push(this)
+    }
+
+    fail(error: unknown) {
+      this.onError(error)
+    }
+  }
 }))
 
 vi.mock('pdfjs-dist/web/pdf_viewer.css', () => ({}))
@@ -177,14 +200,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/utils/file/safeOpen', () => ({
-  safeOpen: mocks.safeOpen
-}))
-
-vi.mock('@renderer/services/toast', () => ({
-  toast: { error: mocks.toastError }
-}))
-
 const filePath = '/tmp/workspace/paper.pdf' as AbsoluteFilePath
 let initialDataTheme: string | null
 let themeBackground: string
@@ -204,6 +219,7 @@ describe('PdfFilePreview', () => {
     vi.clearAllMocks()
     mocks.pdfViewerPageNumbers.length = 0
     mocks.pdfViewerScaleValues.length = 0
+    mocks.rangeTransportInstances.length = 0
     mocks.viewerInstances.length = 0
     mocks.pdfDocument.numPages = 3
     initialDataTheme = document.documentElement.getAttribute('data-theme')
@@ -215,16 +231,10 @@ describe('PdfFilePreview', () => {
     ) {
       return property === '--background' ? themeBackground : getPropertyValue.call(this, property)
     })
-    mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
-    mocks.safeOpen.mockResolvedValue(undefined)
     mocks.loadingTaskDestroy.mockResolvedValue(undefined)
     mocks.getDocument.mockReturnValue({
       destroy: mocks.loadingTaskDestroy,
       promise: Promise.resolve(mocks.pdfDocument)
-    })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: { fs: { read: mocks.fsRead } }
     })
   })
 
@@ -248,8 +258,14 @@ describe('PdfFilePreview', () => {
     await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(mocks.pdfDocument))
     await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
 
-    expect(mocks.fsRead).toHaveBeenCalledWith(filePath)
-    expect(mocks.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([0x25, 0x50, 0x44, 0x46]) })
+    const rangeTransport = mocks.rangeTransportInstances[0]
+    expect(rangeTransport).toMatchObject({ handle: createFilePathHandle(filePath), length: 1024 })
+    expect(mocks.getDocument).toHaveBeenCalledWith({
+      range: rangeTransport,
+      rangeChunkSize: 1024 * 1024,
+      disableAutoFetch: true,
+      disableStream: true
+    })
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         annotationMode: 1,
@@ -317,7 +333,10 @@ describe('PdfFilePreview', () => {
 
   it('shows a localized generic error without exposing parser details', async () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mocks.fsRead.mockRejectedValueOnce(new Error('sensitive parser details'))
+    mocks.getDocument.mockReturnValueOnce({
+      destroy: mocks.loadingTaskDestroy,
+      promise: Promise.reject(new Error('sensitive parser details'))
+    })
 
     renderPreview()
 
@@ -331,26 +350,39 @@ describe('PdfFilePreview', () => {
     )
   })
 
-  it('rejects oversized PDFs via metadata before reading bytes and offers an external open', async () => {
-    renderPreview(0, 50 * 1024 * 1024 + 1)
+  it('loads PDFs above the former size limit through the range transport', async () => {
+    const largePdfSize = 300 * 1024 * 1024
+    renderPreview(0, largePdfSize)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.pdf.too_large.title')
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.pdf.too_large.description')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.getDocument).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.getDocument).toHaveBeenCalledTimes(1))
+    expect(mocks.rangeTransportInstances[0]).toMatchObject({ length: largePdfSize })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'file_preview.pdf.too_large.action' }))
-    await waitFor(() => expect(mocks.safeOpen).toHaveBeenCalledTimes(1))
+  it('surfaces range transport failures after document loading starts', async () => {
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    renderPreview()
+    await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
+
+    act(() => mocks.rangeTransportInstances[0].fail(new Error('range read failed')))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
+    expect(loggerError).toHaveBeenCalledWith(
+      `Failed to load PDF preview: ${filePath}`,
+      expect.objectContaining({ message: 'range read failed' })
+    )
   })
 
   it('reloads the document when the refresh key changes', async () => {
     const view = renderPreview()
-    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
+    const firstTransport = mocks.rangeTransportInstances[0]
 
     view.rerender(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size: 1024 }} refreshKey={1} />)
 
-    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
-    expect(mocks.fsRead).toHaveBeenLastCalledWith(filePath)
+    await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(2))
+    expect(firstTransport.abort).toHaveBeenCalled()
   })
 
   it('destroys loading, document, viewer, event, timer, and animation resources on unmount', async () => {
@@ -368,6 +400,7 @@ describe('PdfFilePreview', () => {
     await act(flushPdfEffects)
 
     expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
+    expect(mocks.rangeTransportInstances[0].abort).toHaveBeenCalled()
     expect(abortSignal.aborted).toBe(true)
     expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(null)
     expect(mocks.pdfViewerCleanup).toHaveBeenCalled()

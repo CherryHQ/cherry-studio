@@ -2,12 +2,8 @@ import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
-import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import {
   AnnotationMode,
@@ -25,14 +21,13 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
+import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport } from './PdfFileRangeTransport'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 const logger = loggerService.withContext('PdfFilePreview')
 const DEFAULT_PDF_SCALE = 'page-width'
 const DEFAULT_ZOOM = 1
-const PDF_PREVIEW_MAX_SIZE_MIB = 50
-const PDF_PREVIEW_MAX_SIZE_BYTES = PDF_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const ZOOM_DRAWING_DELAY = 400
 const PINCH_WHEEL_MIN_DELTA = 0.08
 const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
@@ -50,12 +45,6 @@ interface PdfPageChangingEvent {
 
 interface PdfScaleChangingEvent {
   scale?: number
-}
-
-function toUint8Array(data: Uint8Array | ArrayBuffer | ArrayBufferView): Uint8Array {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
 }
 
 function isEffectiveBackground(value: string): boolean {
@@ -105,27 +94,6 @@ function destroyLoadingTask(loadingTask: PDFDocumentLoadingTask, filePath: strin
   })
 }
 
-function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
-  const { t } = useTranslation()
-
-  const handleOpenWithDefaultApp = () => {
-    void safeOpen(createFilePathHandle(filePath)).catch(() => toast.error(t('file_preview.pdf.too_large.open_error')))
-  }
-
-  return (
-    <div role="alert" className="h-full">
-      <EmptyState
-        icon={FileWarning}
-        title={t('file_preview.pdf.too_large.title')}
-        description={t('file_preview.pdf.too_large.description', { limit: PDF_PREVIEW_MAX_SIZE_MIB })}
-        actionLabel={t('file_preview.pdf.too_large.action')}
-        onAction={handleOpenWithDefaultApp}
-        className="h-full"
-      />
-    </div>
-  )
-}
-
 export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -136,7 +104,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   const backgroundRef = useRef(background)
   backgroundRef.current = background
   const [documentProxy, setDocumentProxy] = useState<PDFDocumentProxy | null>(null)
-  const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
+  const [status, setStatus] = useState<'error' | 'loading' | 'ready'>('loading')
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -240,7 +208,23 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
 
   useEffect(() => {
     let cancelled = false
+    let failed = false
     let loadingTask: PDFDocumentLoadingTask | null = null
+    let rangeTransport: PdfFileRangeTransport | null = null
+
+    const failLoad = (error: unknown) => {
+      if (cancelled || failed) return
+      failed = true
+      rangeTransport?.abort()
+      if (loadingTask) {
+        destroyLoadingTask(loadingTask, filePath)
+        loadingTask = null
+      }
+      const normalized = error instanceof Error ? error : new Error(String(error))
+      logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
+      setDocumentProxy(null)
+      setStatus('error')
+    }
 
     setDocumentProxy(null)
     setStatus('loading')
@@ -250,33 +234,29 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
 
     void (async () => {
       try {
-        if (metadata.size > PDF_PREVIEW_MAX_SIZE_BYTES) {
-          setStatus('too_large')
-          return
-        }
-
-        const pdfData = toUint8Array(await window.api.fs.read(filePath))
+        const handle = createFilePathHandle(filePath)
         if (cancelled) return
 
-        loadingTask = getDocument({ data: pdfData })
+        rangeTransport = new PdfFileRangeTransport(handle, metadata.size, failLoad)
+        loadingTask = getDocument({
+          range: rangeTransport,
+          rangeChunkSize: PDF_RANGE_CHUNK_SIZE_BYTES,
+          disableAutoFetch: true,
+          disableStream: true
+        })
         const nextDocument = await loadingTask.promise
-        if (cancelled) return
+        if (cancelled || failed) return
 
         setDocumentProxy(nextDocument)
       } catch (error) {
-        if (cancelled) return
-        if (loadingTask) {
-          destroyLoadingTask(loadingTask, filePath)
-          loadingTask = null
-        }
-        const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
-        setStatus('error')
+        failLoad(error)
       }
     })()
 
     return () => {
       cancelled = true
+      rangeTransport?.abort()
+      rangeTransport = null
       if (loadingTask) {
         destroyLoadingTask(loadingTask, filePath)
         loadingTask = null
@@ -495,8 +475,6 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
                 className="h-full"
               />
             </div>
-          ) : status === 'too_large' ? (
-            <PdfPreviewTooLarge filePath={filePath} />
           ) : (
             <>
               <div
