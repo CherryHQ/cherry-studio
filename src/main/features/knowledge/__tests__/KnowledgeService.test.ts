@@ -2335,7 +2335,10 @@ describe('KnowledgeService', () => {
       expect.arrayContaining([
         expect.objectContaining({ chunkId: 'chunk-1', score: 0.8 }),
         expect.objectContaining({ chunkId: 'chunk-2', score: 0.2 })
-      ])
+      ]),
+      // resolvedTopK (base.documentCount ?? 10) is forwarded so the reranker asks for the same
+      // number of candidates the search then trims to (see rerank topN fallback fix).
+      base.documentCount
     )
   })
 

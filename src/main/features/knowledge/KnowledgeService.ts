@@ -547,7 +547,7 @@ export class KnowledgeService extends BaseService {
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults, resolvedTopK)
       // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
       const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
       return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
