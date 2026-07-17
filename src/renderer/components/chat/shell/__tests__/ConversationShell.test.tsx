@@ -5,6 +5,7 @@ import {
   RightPanelShortcut
 } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import type * as RendererPlatformModule from '@renderer/utils/platform'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -24,6 +25,13 @@ const shellProps = vi.hoisted(() => ({
 
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: { children: ReactNode }) => <div data-testid="quick-panel">{children}</div>
+}))
+
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererPlatformModule>()),
+  isMac: false,
+  isWin: false,
+  isLinux: false
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -108,7 +116,7 @@ describe('ConversationShell', () => {
     expect(host).toContainElement(screen.getByRole('button', { name: 'assistant selector' }))
   })
 
-  it('keeps detached right-side tools in the regular conversation navbar', () => {
+  it('turns the detached conversation navbar into draggable window chrome', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <ConversationShell
@@ -123,21 +131,21 @@ describe('ConversationShell', () => {
     const topRightTool = container.querySelector<HTMLElement>('[data-conversation-shell-topbar-right]')
     const rightSpacer = container.querySelector<HTMLElement>('[data-conversation-shell-right-spacer]')
     expect(topBarWrapper).toContainElement(topRightTool)
-    expect(topBarWrapper).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
-    expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('')
-    expect(topRightTool).toHaveClass('h-(--navbar-height)')
-    expect(rightSpacer).toHaveClass('w-2')
+    expect(topBarWrapper).toHaveClass('[-webkit-app-region:drag]', 'pl-2', 'h-[37.5px]')
+    expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
+    expect(topRightTool).toHaveClass('h-[37.5px]', '[-webkit-app-region:no-drag]')
+    expect(rightSpacer).toHaveClass('w-[calc(0.5rem+var(--window-controls-width,0px))]')
   })
 
-  it('fits detached content below the standalone window title bar', () => {
+  it('uses a full-height sidebar shell when the page owns detached window chrome', () => {
     const { container } = render(
-      <WindowFrameProvider value={{ mode: 'window' }}>
+      <WindowFrameProvider value={{ mode: 'window', translucent: true }}>
         <ConversationShell center={<div />} />
       </WindowFrameProvider>
     )
 
-    expect(container.firstElementChild).toHaveClass('h-full')
-    expect(container.firstElementChild).not.toHaveClass('h-screen')
+    expect(container.firstElementChild).toHaveClass('h-screen', 'bg-sidebar/70')
+    expect(container.querySelector('[data-conversation-shell-drag-strip]')).toBeInTheDocument()
   })
 
   it('does not add an embedded topbar wrapper or reserve when no right tool exists', () => {
@@ -183,7 +191,7 @@ describe('ConversationShell', () => {
     expect(rightSpacer).toHaveClass('w-2')
   })
 
-  it('does not create a fake tool reserve in window mode when no trailing tool exists', () => {
+  it('reserves native window controls in window mode even without a page tool', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />
@@ -191,9 +199,30 @@ describe('ConversationShell', () => {
     )
 
     expect(screen.getByTestId('top-bar')).toBeInTheDocument()
-    expect(container.querySelector('[data-conversation-shell-topbar]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-conversation-shell-topbar]')).toBeInTheDocument()
     expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
-    expect(container.querySelector('[data-conversation-shell-right-spacer]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-conversation-shell-right-spacer]')).toHaveClass(
+      'w-[calc(0.5rem+var(--window-controls-width,0px))]'
+    )
+  })
+
+  it('composes host-provided title chrome into the detached navbar', () => {
+    const { container } = render(
+      <WindowFrameProvider
+        value={{
+          mode: 'window',
+          chrome: {
+            titleLeading: <div data-testid="title-leading" />,
+            titleTrailing: <button type="button">Pin</button>
+          }
+        }}>
+        <ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />
+      </WindowFrameProvider>
+    )
+
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
+    expect(topBarWrapper).toContainElement(screen.getByTestId('title-leading'))
+    expect(topBarWrapper).toContainElement(screen.getByRole('button', { name: 'Pin' }))
   })
 
   it('keeps the top-right tool visible while the docked right pane is open when requested', () => {
@@ -226,7 +255,25 @@ describe('ConversationShell', () => {
     expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
   })
 
-  it('does not reserve title-bar traffic-light space in a detached page navbar', () => {
+  it('floats host window controls at the outer edge while the right panel is open', () => {
+    const { container } = render(
+      <RightPanelProvider capabilities={rightPanelCapabilities} scope={null} defaultOpen defaultPanelId="files">
+        <WindowFrameProvider
+          value={{
+            mode: 'window',
+            chrome: { titleTrailing: <button type="button">Back to main</button> }
+          }}>
+          <ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} rightPane={<RightPanel />} />
+        </WindowFrameProvider>
+      </RightPanelProvider>
+    )
+
+    const floating = container.querySelector<HTMLElement>('[data-conversation-shell-floating-trailing]')
+    expect(floating).toContainElement(screen.getByRole('button', { name: 'Back to main' }))
+    expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
+  })
+
+  it('uses the page-sidebar edge instead of traffic-light padding when the left pane is open', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <ConversationShell
@@ -242,7 +289,10 @@ describe('ConversationShell', () => {
     )
 
     const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
-    expect(topBarWrapper).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
-    expect(container.querySelector('[data-conversation-shell-right-spacer]')).toHaveClass('w-2')
+    expect(topBarWrapper).toHaveClass('[-webkit-app-region:drag]', 'pl-2')
+    expect(topBarWrapper).not.toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(container.querySelector('[data-conversation-shell-right-spacer]')).toHaveClass(
+      'w-[calc(0.5rem+var(--window-controls-width,0px))]'
+    )
   })
 })

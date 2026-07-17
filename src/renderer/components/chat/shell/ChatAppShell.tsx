@@ -1,4 +1,6 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
@@ -89,6 +91,9 @@ export function ChatAppShell({
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
   const rightPanelState = useOptionalRightPanelState()
+  const { mode: windowFrameMode } = useWindowFrame()
+  const isWindow = windowFrameMode === 'window'
+  const rightPanelDocked = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
   // While the right pane maximizes/minimizes, its docked spacer snaps under the
   // covering surface; a FLIP layout animation would smear that snap across the
   // wipe as visible scale distortion, so the center reflows instantly instead.
@@ -191,6 +196,17 @@ export function ChatAppShell({
     return () => observer.disconnect()
   }, [updatePaneAutoCollapse])
 
+  const conversationBody = hasCenterContent ? (
+    <ErrorBoundary>{centerContent}</ErrorBoundary>
+  ) : (
+    <>
+      <ErrorBoundary>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+      </ErrorBoundary>
+      {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+    </>
+  )
+
   return (
     <div
       ref={rootRef}
@@ -198,7 +214,10 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
+        <PageSidebar
+          open={leftPaneOpen}
+          style={isWindow ? { paddingTop: TITLE_BAR_HEIGHT_PX } : undefined}
+          onPaneCollapse={onPaneCollapse}>
           {pane}
         </PageSidebar>
 
@@ -218,19 +237,21 @@ export function ChatAppShell({
                 rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
               )}>
               {topBar && (
-                <div className="relative z-10 shrink-0 bg-background">
+                <div className={cn('relative z-10 shrink-0', isWindow ? 'bg-transparent' : 'bg-background')}>
                   <ErrorBoundary>{topBar}</ErrorBoundary>
                 </div>
               )}
-              {hasCenterContent ? (
-                <ErrorBoundary>{centerContent}</ErrorBoundary>
+              {isWindow ? (
+                <div
+                  data-chat-app-shell-window-frame
+                  className={cn(
+                    'mx-1.5 mb-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border-[0.5px] border-frame-border bg-background',
+                    rightPanelDocked && 'mr-0 rounded-r-none border-r-0'
+                  )}>
+                  {conversationBody}
+                </div>
               ) : (
-                <>
-                  <ErrorBoundary>
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                  </ErrorBoundary>
-                  {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                </>
+                conversationBody
               )}
               {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
             </motion.div>

@@ -55,6 +55,7 @@ export interface RightPaneHostProps extends RightPaneFrameProps {
 export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
   open: boolean
   maximized?: boolean
+  contentClassName?: string
   onLayoutAnimationComplete?: (mode: RightPaneLayoutMode) => void
 }
 
@@ -243,6 +244,7 @@ export function PersistentRightPaneHost({
   maximized = false,
   width = CHAT_SHELL_PANE_WIDTH,
   className,
+  contentClassName,
   style,
   resizable = false,
   minWidth = ARTIFACT_RIGHT_PANE_MIN_WIDTH,
@@ -409,12 +411,14 @@ export function PersistentRightPaneHost({
           visibility: closed ? 'hidden' : undefined
         }}>
         <div
+          data-right-pane-content
           data-shell-maximized-overlay-content={fullWidthLayout ? '' : undefined}
           className={cn(
             'relative h-full min-h-0 overflow-hidden',
             !interactionHidden && 'pointer-events-auto',
             fullWidthLayout && 'bg-background',
-            resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--color-border)]'
+            resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--color-border)]',
+            contentClassName
           )}>
           <RightPaneContents
             paneWidth={paneWidth}

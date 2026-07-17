@@ -1,9 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { RightSidebarCollapseIcon } from '@renderer/components/icons/SidebarToggleIcons'
+import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
@@ -461,6 +463,8 @@ function RightPanelKeyboardShortcut() {
 export function RightPanelViewport({ children }: { children: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
+  const { mode } = useWindowFrame()
+  const isWindow = mode === 'window'
 
   return (
     <>
@@ -475,6 +479,18 @@ export function RightPanelViewport({ children }: { children: ReactNode }) {
         maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
         cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
         reservedCenterWidth={CHAT_CENTER_MIN_USABLE_WIDTH}
+        className={isWindow ? cn('pr-1.5 pb-1.5', state.presentationMaximized && 'pl-1.5') : undefined}
+        contentClassName={
+          isWindow
+            ? cn(
+                'border-frame-border bg-background',
+                state.presentationMaximized
+                  ? 'rounded-[16px] border-[0.5px]'
+                  : 'rounded-r-[16px] border-y-[0.5px] border-r-[0.5px]'
+              )
+            : undefined
+        }
+        style={isWindow ? { paddingTop: TITLE_BAR_HEIGHT_PX } : undefined}
         onLayoutAnimationComplete={actions.completeLayoutAnimation}>
         {children}
       </PersistentRightPaneHost>

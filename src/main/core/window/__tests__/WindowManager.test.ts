@@ -5,7 +5,7 @@ import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
 
 /**
- * Directed main→renderer window events (reused / maximized_changed / fullscreen_changed) now
+ * Directed main→renderer window events (reused / maximized_changed / fullscreen_changed / focus_changed) now
  * flow through `application.get('IpcApiService').send(windowId, event, payload)` instead of the
  * legacy `webContents.send(channel, payload)`. The unified @application mock routes that to a
  * stable spy — this returns it so tests assert the (windowId, event, payload) triple.
@@ -1336,6 +1336,21 @@ describe('WindowManager', () => {
     it('isFullScreen() returns false for unknown windowId', () => {
       expect(wm.isFullScreen('does-not-exist')).toBe(false)
     })
+
+    it('isFocused() reflects BrowserWindow.isFocused', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+
+      win.isFocused.mockReturnValue(true)
+      expect(wm.isFocused(id)).toBe(true)
+
+      win.isFocused.mockReturnValue(false)
+      expect(wm.isFocused(id)).toBe(false)
+    })
+
+    it('isFocused() returns false for unknown windowId', () => {
+      expect(wm.isFocused('does-not-exist')).toBe(false)
+    })
   })
 
   // ─── Window state forwarding (OS events → renderer) ────
@@ -1379,6 +1394,38 @@ describe('WindowManager', () => {
       win.emit('leave-full-screen')
 
       expect(ipcSend()).toHaveBeenCalledWith(id, 'window.fullscreen_changed', false)
+    })
+
+    it("forwards BrowserWindow 'focus' event to a directed window.focus_changed(true)", () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      ipcSend().mockClear()
+
+      win.emit('focus')
+
+      expect(ipcSend()).toHaveBeenCalledWith(id, 'window.focus_changed', true)
+    })
+
+    it("forwards BrowserWindow 'blur' event to a directed window.focus_changed(false)", () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      ipcSend().mockClear()
+
+      win.emit('blur')
+
+      expect(ipcSend()).toHaveBeenCalledWith(id, 'window.focus_changed', false)
+    })
+
+    it('only forwards focus to the originating window (no cross-window leakage)', () => {
+      const idA = wm.open('default' as never)
+      const idB = wm.open('default' as never)
+      const [winA] = createdWindows
+      ipcSend().mockClear()
+
+      winA.emit('focus')
+
+      expect(ipcSend()).toHaveBeenCalledWith(idA, 'window.focus_changed', true)
+      expect(ipcSend()).not.toHaveBeenCalledWith(idB, 'window.focus_changed', expect.anything())
     })
 
     it('only forwards events to the originating window (no cross-window leakage)', () => {

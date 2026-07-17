@@ -1,5 +1,7 @@
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,11 +61,27 @@ vi.mock('@renderer/utils/style', () => ({
 vi.mock('../../../shell/RightPaneHost', () => ({
   PersistentRightPaneHost: ({
     children,
+    className,
+    contentClassName,
     maximized,
-    open
-  }: PropsWithChildren<{ maximized?: boolean; open: boolean }>) => (
-    <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
-      {children}
+    open,
+    style
+  }: PropsWithChildren<{
+    className?: string
+    contentClassName?: string
+    maximized?: boolean
+    open: boolean
+    style?: CSSProperties
+  }>) => (
+    <div
+      data-testid="right-pane-host"
+      data-maximized={String(Boolean(maximized))}
+      data-open={String(open)}
+      className={className}
+      style={style}>
+      <div data-testid="right-pane-content" className={contentClassName}>
+        {children}
+      </div>
     </div>
   )
 }))
@@ -288,6 +306,38 @@ describe('RightPanel', () => {
     expect(commandMock.handler).toBeDefined()
     act(() => commandMock.handler?.())
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('frames docked and maximized panels inside detached window chrome', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window', translucent: true }}>
+        <Harness defaultOpen>
+          <RightPanelViewport>
+            <RightPanel />
+          </RightPanelViewport>
+        </Harness>
+      </WindowFrameProvider>
+    )
+
+    const host = screen.getByTestId('right-pane-host')
+    const content = screen.getByTestId('right-pane-content')
+
+    expect(host).toHaveClass('pr-1.5', 'pb-1.5')
+    expect(host).not.toHaveClass('pl-1.5')
+    expect(host).toHaveStyle({ paddingTop: TITLE_BAR_HEIGHT_PX })
+    expect(content).toHaveClass(
+      'rounded-r-[16px]',
+      'border-y-[0.5px]',
+      'border-r-[0.5px]',
+      'border-frame-border',
+      'bg-background'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(host).toHaveClass('pl-1.5')
+    expect(content).toHaveClass('rounded-[16px]', 'border-[0.5px]', 'border-frame-border')
+    expect(content).not.toHaveClass('rounded-r-[16px]', 'border-y-[0.5px]', 'border-r-[0.5px]')
   })
 
   it('offers maximize only for capable panels and keeps the minimize control while maximized', () => {

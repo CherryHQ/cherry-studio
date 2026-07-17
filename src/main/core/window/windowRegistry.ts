@@ -137,12 +137,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // Managed by SubWindowService: dynamic options (per-tab title, theme-driven
   // backgroundColor / darkTheme, Linux-only icon nativeImage,
   // optional initial x/y) are injected via wm.open({ options }). showMode
-  // 'manual' lets SubWindowService decide show timing based on whether an
-  // initial position was provided at Tab_Detach time (drop-at-cursor detach
-  // wants the window at that position before show; no-position detach uses a
-  // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
-  // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
-  // the renderer.
+  // 'manual' lets SubWindowService place an optional drop-at-cursor position
+  // before explicitly revealing both fresh and pre-warmed windows. Init payload
+  // (tabId, url, title, type, isPinned) flows via initData and
+  // useWindowInitData<SubWindowInitData>() in the renderer.
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
     lifecycle: 'pooled',
@@ -176,8 +174,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // is never silently flipped to false (which would re-introduce the empty-shell first-paint
       // flash on reuse and the never-fires ready-to-show stuck-hidden failure mode).
       paintWhenInitiallyHidden: true,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      // 'menu' is the brightest, most color-transmissive blur material; the
+      // 'sidebar' material desaturates the backdrop and reads muddy gray
+      // under any tint.
+      vibrancy: 'menu',
+      // followWindow: glass only while the window is key; inactive windows
+      // flatten to the system's opaque material (native sidebar behavior).
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',

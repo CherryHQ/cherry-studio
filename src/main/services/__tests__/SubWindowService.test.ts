@@ -86,6 +86,7 @@ interface MockBrowserWindow extends EventEmitter {
   isVisible: ReturnType<typeof vi.fn>
   show: ReturnType<typeof vi.fn>
   setContentBounds: ReturnType<typeof vi.fn>
+  setMinimumSize: ReturnType<typeof vi.fn>
   setPosition: ReturnType<typeof vi.fn>
   setOpacity: ReturnType<typeof vi.fn>
   getOpacity: ReturnType<typeof vi.fn>
@@ -103,6 +104,7 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.isVisible = vi.fn(() => true)
   win.show = vi.fn()
   win.setContentBounds = vi.fn()
+  win.setMinimumSize = vi.fn()
   win.setPosition = vi.fn()
   win.setOpacity = vi.fn()
   win.getOpacity = vi.fn(() => 1)
@@ -335,13 +337,27 @@ describe('SubWindowService', () => {
       expect(win.show).toHaveBeenCalledTimes(1)
     })
 
-    it('does not show here when an initial position was provided (Tab_MoveWindow shows it)', () => {
+    it('positions at the (rounded) coords and shows on create when an initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
-      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
+      // Fractional coords (HiDPI screenX/Y) must be rounded — raw floats crash setPosition.
+      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10.6, y: 10.2 })
 
-      expect(win.show).not.toHaveBeenCalled()
+      // A quick drag-release can send no follow-up Tab_MoveWindow, which used to leave the window
+      // created-but-hidden. createWindow now places it at the cursor and shows it immediately; the
+      // move stream (when present) keeps tracking the cursor afterwards.
+      expect(win.setPosition).toHaveBeenCalledWith(11, 10)
+      expect(win.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('enforces the settings layout minimum size after a pooled window is handed over', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-settings', url: '/settings/provider' })
+
+      expect(win.setMinimumSize).toHaveBeenCalledWith(760, 560)
     })
 
     it('shows a reused (already-loaded) standby immediately — no dependence on isLoadingMainFrame', () => {

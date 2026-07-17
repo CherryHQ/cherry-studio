@@ -133,6 +133,16 @@ describe('RightPaneHost', () => {
     expect(contentWrapper).toHaveClass('group-data-[resizing=true]/right-pane:pointer-events-none')
   })
 
+  it('applies caller presentation classes to persistent pane content', () => {
+    const { container } = render(
+      <PersistentRightPaneHost open contentClassName="rounded-r-[16px] border-frame-border">
+        <div>artifact pane</div>
+      </PersistentRightPaneHost>
+    )
+
+    expect(container.querySelector('[data-right-pane-content]')).toHaveClass('rounded-r-[16px]', 'border-frame-border')
+  })
+
   it('does not render a resize handle by default', () => {
     const { container } = render(
       <PersistentRightPaneHost open width={460}>

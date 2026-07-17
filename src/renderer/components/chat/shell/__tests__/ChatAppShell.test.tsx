@@ -36,7 +36,9 @@ const persistCacheMock = vi.hoisted(() => {
 })
 
 const rightPanelStateMock = vi.hoisted(() => ({
-  current: undefined as { layoutAnimationPending: boolean; presentationMaximized: boolean } | undefined
+  current: undefined as
+    | { layoutAnimationPending: boolean; presentationMaximized: boolean; presentationOpen?: boolean }
+    | undefined
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -264,9 +266,9 @@ describe('ChatAppShell', () => {
     expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
   })
 
-  it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
+  it('keeps detached title chrome above a framed conversation beside the resource pane', () => {
     const { container } = render(
-      <WindowFrameProvider value={{ mode: 'window' }}>
+      <WindowFrameProvider value={{ mode: 'window', translucent: true }}>
         <ChatAppShell
           contentId="conversation-content"
           centerId="conversation-center"
@@ -282,16 +284,39 @@ describe('ChatAppShell', () => {
     const navbar = screen.getByTestId('conversation-navbar')
     const center = document.getElementById('conversation-center')
     const content = document.getElementById('conversation-content')
+    const windowFrame = container.querySelector<HTMLElement>('[data-chat-app-shell-window-frame]')
 
-    if (!pane || !center || !content) {
-      throw new Error('Expected resource pane, conversation center, and conversation content')
+    if (!pane || !center || !content || !windowFrame) {
+      throw new Error('Expected resource pane, conversation center, content, and window frame')
     }
 
-    expect(pane.style.paddingTop).toBe('')
+    expect(pane.style.paddingTop).toBe('37.5px')
     expect(content).toContainElement(pane)
     expect(content).toContainElement(center)
     expect(center).toContainElement(navbar)
+    expect(center).toContainElement(windowFrame)
+    expect(windowFrame).toHaveClass('rounded-[16px]', 'border-frame-border', 'bg-background')
     expect(pane.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('fuses the detached conversation frame to an open docked right panel', () => {
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true
+    }
+
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ChatAppShell main={<div />} />
+      </WindowFrameProvider>
+    )
+
+    expect(container.querySelector('[data-chat-app-shell-window-frame]')).toHaveClass(
+      'mr-0',
+      'rounded-r-none',
+      'border-r-0'
+    )
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {
