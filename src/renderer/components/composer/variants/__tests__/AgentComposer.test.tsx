@@ -203,6 +203,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
     return (
       <div>
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
+        <div data-testid="composer-compact-controls">
+          {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
+        </div>
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
         </div>
@@ -882,6 +885,31 @@ describe('AgentComposer', () => {
 
     fireEvent.click(skillButton)
     expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ searchText: 'plugins.skills' })
+  })
+
+  it('keeps only pinned shortcuts in compact controls', () => {
+    mocks.toolLaunchers = [createThinkingLauncher()]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        compactWhenSingleLine
+      />
+    )
+
+    const compactControls = screen.getByTestId('composer-compact-controls')
+    expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
+    expect(
+      within(compactControls).getByRole('button', { name: 'assistants.settings.reasoning_effort.label' })
+    ).toBeInTheDocument()
+    expect(within(compactControls).getByRole('button', { name: 'plugins.skills' })).toBeInTheDocument()
+    expect(within(compactControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+    expect(within(compactControls).queryByRole('button', { name: /Claude Sonnet 4.5/ })).not.toBeInTheDocument()
+    expect(within(compactControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
   })
 
   it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
