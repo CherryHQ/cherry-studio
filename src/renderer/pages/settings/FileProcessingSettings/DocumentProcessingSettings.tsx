@@ -9,7 +9,6 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
-import type { FileProcessorFeature } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,21 +17,11 @@ import { ProcessorAvatar } from './components/ProcessorAvatar'
 import { ProcessorPanel } from './components/ProcessorPanel'
 import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'
-import {
-  type FileProcessingMenuEntry,
-  getFeatureSections,
-  getFileProcessingFeatureTitleKey,
-  getFileProcessingFeatureTooltipKey,
-  getProcessorNameKey
-} from './utils/fileProcessingMeta'
-
-type FileProcessingSettingsProps = {
-  feature: FileProcessorFeature
-}
+import { type FileProcessingMenuEntry, getFeatureSections, getProcessorNameKey } from './utils/fileProcessingMeta'
 
 const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
 
-const FileProcessingSettings: FC<FileProcessingSettingsProps> = ({ feature }) => {
+const DocumentProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
   const {
@@ -46,12 +35,13 @@ const FileProcessingSettings: FC<FileProcessingSettingsProps> = ({ feature }) =>
   } = useFileProcessingPreferences()
 
   const availableProcessors = useAvailableFileProcessors()
-  const featureSections = useMemo(
+  const menuEntries = useMemo(
     () =>
-      getFeatureSections(processors, availableProcessors.processorIds).filter((section) => section.feature === feature),
-    [availableProcessors.processorIds, feature, processors]
+      getFeatureSections(processors, availableProcessors.processorIds).find(
+        (section) => section.feature === 'document_to_markdown'
+      )?.entries ?? EMPTY_MENU_ENTRIES,
+    [availableProcessors.processorIds, processors]
   )
-  const menuEntries = featureSections[0]?.entries ?? EMPTY_MENU_ENTRIES
 
   const [activeKey, setActiveKey] = useState(() => menuEntries[0]?.key ?? '')
 
@@ -64,11 +54,6 @@ const FileProcessingSettings: FC<FileProcessingSettingsProps> = ({ feature }) =>
   const activeEntry = menuEntries.find((entry) => entry.key === activeKey) ?? menuEntries[0]
   const activeEntryKey = activeEntry?.key ?? ''
 
-  const isDefaultEntry = (entry: FileProcessingMenuEntry) =>
-    entry.feature === 'image_to_text'
-      ? defaultImageProcessor === entry.processor.id
-      : defaultDocumentProcessor === entry.processor.id
-
   return (
     <div className="flex flex-1" data-theme-mode={themeMode}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
@@ -76,9 +61,11 @@ const FileProcessingSettings: FC<FileProcessingSettingsProps> = ({ feature }) =>
           <PageHeader
             title={
               <span className="inline-flex max-w-full items-center gap-1.5 align-middle">
-                <span className="truncate">{t(getFileProcessingFeatureTitleKey(feature))}</span>
+                <span className="truncate">
+                  {t('settings.tool.file_processing.features.document_to_markdown.title')}
+                </span>
                 <InfoTooltip
-                  content={t(getFileProcessingFeatureTooltipKey(feature))}
+                  content={t('settings.tool.file_processing.features.document_to_markdown.tooltip')}
                   placement="right"
                   iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
                 />
@@ -103,7 +90,7 @@ const FileProcessingSettings: FC<FileProcessingSettingsProps> = ({ feature }) =>
                   className={settingsSubmenuItemClassName}
                   labelClassName={settingsSubmenuItemLabelClassName}
                   suffix={
-                    isDefaultEntry(entry) ? (
+                    defaultDocumentProcessor === entry.processor.id ? (
                       <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
                         {t('common.default')}
                       </Badge>
@@ -143,4 +130,4 @@ const FileProcessingSettings: FC<FileProcessingSettingsProps> = ({ feature }) =>
   )
 }
 
-export default FileProcessingSettings
+export default DocumentProcessingSettings
