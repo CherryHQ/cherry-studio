@@ -1006,21 +1006,43 @@ export class BinaryManager extends BaseService {
   }
 
   /**
-   * Owned tools that would lose their interpreter if `intent` (a node/python
-   * runtime) were removed. Uses the same backend→runtime map as install
-   * (RUNTIME_DEPS): npm tools need node, pipx tools need python. Returns [] when
-   * `intent` is not a runtime. Names only, for the rejection message.
+   * Finds every backend-local package that would be stranded by removing a
+   * runtime. Preference is only used to improve display names, never as proof
+   * that a dependent exists.
    */
-  private ownedRuntimeDependents(intent: BinaryManifestEntry, manifest: BinaryManifestEntry[]): string[] {
+  private async installedRuntimeDependents(
+    intent: BinaryManifestEntry,
+    manifest: BinaryManifestEntry[]
+  ): Promise<string[]> {
     if (!isRuntimeDependency(intent.tool)) return []
     const runtimeName = intent.tool.replace(/^core:/, '').split('@')[0]
-    const dependentBackends = Object.entries(RUNTIME_DEPS)
-      .filter(([, dep]) => dep.split('@')[0] === runtimeName)
-      .map(([backend]) => backend)
-    if (dependentBackends.length === 0) return []
-    return manifest
-      .filter((entry) => entry.name !== intent.name && dependentBackends.includes(entry.tool.split(':')[0]))
-      .map((entry) => entry.name)
+    const dependentBackends = new Set(
+      Object.entries(RUNTIME_DEPS)
+        .filter(([, dep]) => dep.split('@')[0] === runtimeName)
+        .map(([backend]) => backend)
+    )
+    if (dependentBackends.size === 0) return []
+
+    // This full scan is deliberately separate from the targeted absence probe:
+    // unreadable backend state must block a destructive runtime removal.
+    const { stdout } = await this.runMise(['ls', '--json'])
+    const installed: unknown = JSON.parse(stdout)
+    if (!installed || typeof installed !== 'object' || Array.isArray(installed)) {
+      throw new Error('mise returned invalid installed-tool state')
+    }
+
+    const nameForSpec = (spec: string): string =>
+      manifest.find((entry) => entry.tool === spec)?.name ??
+      PRESETS_BINARY_TOOLS.find((preset) => preset.tool === spec)?.name ??
+      CODE_CLI_TOOL_PRESETS.find((preset) => preset.miseTool === spec)?.executable ??
+      spec
+
+    const dependents = new Set<string>()
+    for (const [spec, entries] of Object.entries(installed)) {
+      if (!Array.isArray(entries)) throw new Error(`mise returned invalid installed-tool state for ${spec}`)
+      if (entries.length > 0 && dependentBackends.has(spec.split(':')[0])) dependents.add(nameForSpec(spec))
+    }
+    return [...dependents].sort()
   }
 
   private async removeToolImpl(toolName: string): Promise<void> {
@@ -1034,16 +1056,15 @@ export class BinaryManager extends BaseService {
       try {
         if (!this.miseBin) throw new Error('Binary backend not available')
 
-        // Runtime removal safety: an owned node/python runtime must not be removed
-        // while an owned package tool still depends on it (npm→node, pipx→python) —
-        // that would strand those tools. Reject before any mise mutation.
-        const dependents = this.ownedRuntimeDependents(intent, manifest)
-        if (dependents.length > 0) {
-          throw new Error(`Cannot remove ${toolName} while managed tools depend on it: ${dependents.join(', ')}`)
-        }
-
         const wasAbsent = await this.isMiseToolAbsent(intent.tool)
         if (!wasAbsent) {
+          // Runtime removal safety scans complete mise state, not just the
+          // manifest, and fails before any destructive command.
+          const dependents = await this.installedRuntimeDependents(intent, manifest)
+          if (dependents.length > 0) {
+            throw new Error(`Cannot remove ${toolName} while installed tools depend on it: ${dependents.join(', ')}`)
+          }
+
           await this.runMise(['unuse', '-g', intent.tool])
           await this.runMise(['uninstall', '--all', intent.tool])
         }

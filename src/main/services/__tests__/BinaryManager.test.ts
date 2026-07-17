@@ -617,15 +617,16 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       setManifest({ node: { tool: 'core:node', version: '22.23.1' } })
+      let uninstalled = false
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls')
-          return {
-            stdout:
-              args.length === 3 && mockExecFileAsync.mock.calls.filter((c) => c[1][0] === 'ls').length > 1
-                ? '{}'
-                : JSON.stringify({ node: [{ version: '22.23.1' }] }),
-            stderr: ''
-          }
+        if (args[0] === 'ls') {
+          // Full dependent scan (no tool arg): only the runtime is installed.
+          if (args.length === 2)
+            return { stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }] }), stderr: '' }
+          // Targeted absence probe reflects the uninstall.
+          return { stdout: uninstalled ? '{}' : JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
+        }
+        if (args[0] === 'uninstall') uninstalled = true
         return { stdout: '', stderr: '' }
       })
 
@@ -717,47 +718,151 @@ describe('BinaryManager', () => {
       })
     })
 
-    it('refuses to remove an owned node runtime while an owned npm tool depends on it', async () => {
+    it('refuses to remove an owned node runtime while an installed npm tool depends on it', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       setManifest({ node: { tool: 'core:node', version: '22.23.1' }, ntn: { tool: 'npm:ntn' } })
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }], 'npm:ntn': [{ version: '1.0.0' }] }),
+        stderr: ''
+      })
 
       await expect(service.removeTool('node')).rejects.toThrow(
-        'Cannot remove node while managed tools depend on it: ntn'
+        'Cannot remove node while installed tools depend on it: ntn'
       )
-      // Rejected before any mise mutation and without clearing the manifest.
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      // The full-state scan ran, but no mise mutation and no manifest clear.
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).toContainEqual(['ls', '--json'])
+      expect(miseArgs).not.toContainEqual(['unuse', '-g', 'core:node'])
+      expect(miseArgs).not.toContainEqual(['uninstall', '--all', 'core:node'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
-    it('refuses to remove an owned python runtime while an owned pipx tool depends on it', async () => {
+    it('refuses to remove an owned python runtime while an installed pipx tool depends on it', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       setManifest({ python: { tool: 'core:python', version: '3.12.0' }, poetry: { tool: 'pipx:poetry' } })
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          'core:python': [{ version: '3.12.0', active: true }],
+          'pipx:poetry': [{ version: '1.7.0' }]
+        }),
+        stderr: ''
+      })
 
       await expect(service.removeTool('python')).rejects.toThrow(
-        'Cannot remove python while managed tools depend on it: poetry'
+        'Cannot remove python while installed tools depend on it: poetry'
       )
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).not.toContainEqual(['unuse', '-g', 'core:python'])
+      expect(miseArgs).not.toContainEqual(['uninstall', '--all', 'core:python'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
-    it('removes an owned node runtime when no owned npm tool depends on it', async () => {
+    // A fixed npm Code CLI (e.g. gemini) lives outside feature.binary.tools, so a
+    // manifest-only scan would strand it. The full-state scan blocks node removal
+    // and maps the raw npm spec back to its Code CLI executable name.
+    it('refuses to remove node while an installed npm Code CLI with no manifest entry depends on it', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      setManifest({ node: { tool: 'core:node', version: '22.23.1' } })
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          node: [{ version: '22.23.1', active: true }],
+          'npm:@google/gemini-cli': [{ version: '0.1.0' }]
+        }),
+        stderr: ''
+      })
+
+      await expect(service.removeTool('node')).rejects.toThrow(
+        'Cannot remove node while installed tools depend on it: gemini'
+      )
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).not.toContainEqual(['uninstall', '--all', 'core:node'])
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    // A residual pipx package with no manifest entry and no known preset still
+    // blocks python removal; the rejection falls back to the raw spec.
+    it('refuses to remove python while a residual pipx package with no known name depends on it', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      setManifest({ python: { tool: 'core:python', version: '3.12.0' } })
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          'core:python': [{ version: '3.12.0', active: true }],
+          'pipx:leftover-tool': [{ version: '2.0.0' }]
+        }),
+        stderr: ''
+      })
+
+      await expect(service.removeTool('python')).rejects.toThrow(
+        'Cannot remove python while installed tools depend on it: pipx:leftover-tool'
+      )
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    // Fail-closed: an unreadable full-state scan must abort before any mise
+    // mutation and keep the manifest intent, so a later attempt can re-check.
+    it('aborts node removal and retains the manifest when the full-state scan fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      setManifest({ node: { tool: 'core:node', version: '22.23.1' } })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args.length === 3) return { stdout: JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
+        throw new Error('full mise ls failed')
+      })
+
+      await expect(service.removeTool('node')).rejects.toThrow('full mise ls failed')
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).not.toContainEqual(['unuse', '-g', 'core:node'])
+      expect(miseArgs).not.toContainEqual(['uninstall', '--all', 'core:node'])
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['malformed JSON', 'not json'],
+      ['an invalid entry shape', JSON.stringify({ 'npm:broken': {} })]
+    ])('aborts node removal when the full-state scan returns %s', async (_case, stdout) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      setManifest({ node: { tool: 'core:node', version: '22.23.1' } })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => ({
+        stdout: args.length === 3 ? JSON.stringify({ node: [{ version: '22.23.1' }] }) : stdout,
+        stderr: ''
+      }))
+
+      await expect(service.removeTool('node')).rejects.toThrow()
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).not.toContainEqual(['uninstall', '--all', 'core:node'])
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it('removes an owned node runtime when no installed npm tool depends on it', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       setManifest({ node: { tool: 'core:node', version: '22.23.1' }, fd: { tool: 'fd' } })
+      let uninstalled = false
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls')
-          return {
-            stdout:
-              args.length === 3 && mockExecFileAsync.mock.calls.filter((c) => c[1][0] === 'ls').length > 1
-                ? '{}'
-                : JSON.stringify({ node: [{ version: '22.23.1' }] }),
-            stderr: ''
-          }
+        if (args[0] === 'ls') {
+          // Full dependent scan (no tool arg): only the runtime and an unrelated
+          // non-package tool are installed → no dependents.
+          if (args.length === 2)
+            return {
+              stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }], fd: [{ version: '1.0.0' }] }),
+              stderr: ''
+            }
+          // Targeted absence probe reflects the uninstall.
+          return { stdout: uninstalled ? '{}' : JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
+        }
+        if (args[0] === 'uninstall') uninstalled = true
         return { stdout: '', stderr: '' }
       })
 
@@ -766,6 +871,49 @@ describe('BinaryManager', () => {
       const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
       expect(miseArgs).toContainEqual(['uninstall', '--all', 'core:node'])
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'fd', tool: 'fd' }])
+    })
+
+    // An npm backend key with an empty version array is a stale entry, not a live
+    // dependent, so it must not block runtime removal.
+    it('removes node when an npm backend key has no installed versions', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      setManifest({ node: { tool: 'core:node', version: '22.23.1' } })
+      let uninstalled = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          if (args.length === 2)
+            return {
+              stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }], 'npm:stale': [] }),
+              stderr: ''
+            }
+          return { stdout: uninstalled ? '{}' : JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
+        }
+        if (args[0] === 'uninstall') uninstalled = true
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.removeTool('node')
+
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).toContainEqual(['uninstall', '--all', 'core:node'])
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
+    })
+
+    it('clears an already-absent runtime without scanning unrelated backend dependents', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      setManifest({ node: { tool: 'core:node', version: '22.23.1' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      await service.removeTool('node')
+
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).not.toContainEqual(['ls', '--json'])
+      expect(miseArgs).not.toContainEqual(['uninstall', '--all', 'core:node'])
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
     })
   })
 
