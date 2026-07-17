@@ -714,3 +714,45 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
     }
   })
 })
+
+describe('ExportOrchestrator notes body ↔ collect 1:1 (fs-catch)', () => {
+  it('fails export when a collected notes path is missing at stage time (no false success)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-notes-missing-'))
+    try {
+      const fixture = join(dir, 'fixture.db')
+      await makeFixtureDb(fixture)
+      const notesRoot = join(dir, 'notes-root')
+      await mkdir(notesRoot, { recursive: true })
+      const registry = {
+        topoSort: (domains: readonly string[]) => [...domains],
+        getOperations: () => ({
+          collectFileResources: async () => [{ kind: 'notes-file' as const, relPath: 'ghost.md' }]
+        }),
+        getSchema: () => ({ tables: [], rowScopes: undefined })
+      } as unknown as ReadonlyBackupRegistry
+
+      const orch = new ExportOrchestrator({
+        dbService: { backupTo: (destPath) => copyFile(fixture, destPath) },
+        registry,
+        tempDir: dir,
+        fileBlobs: pathFileBlobs({}),
+        knowledgeRoot: join(dir, 'kb-root'),
+        skillsRoot: join(dir, 'skills-root'),
+        notesRoot: () => notesRoot,
+        stripper: { strip: async () => [] }
+      })
+
+      await expect(
+        orch.exportBackup({
+          preset: 'full',
+          outputPath: join(dir, 'out.cbu'),
+          restoreId: 'rn',
+          producerAppVersion: '1.0.0',
+          schemaMigrationId: '0001_x.sql'
+        })
+      ).rejects.toThrow(/notes body missing after collect/)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})

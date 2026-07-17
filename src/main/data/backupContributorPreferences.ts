@@ -160,7 +160,18 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
       let st: ReturnType<typeof lstatSync>
       try {
         st = lstatSync(full)
-      } catch {
+      } catch (e) {
+        // ENOENT = TOCTOU race (dirent vanished) → silent skip. Any other errno
+        // (EACCES/EPERM/EIO/ENOTDIR/ELOOP/…) must log — bare continue used to
+        // drop note bodies while `note` overlay rows still exported.
+        const code = (e as NodeJS.ErrnoException).code
+        if (code !== 'ENOENT') {
+          logger.warn('PREFERENCES collectFileResources: unreadable note entry skipped', {
+            full,
+            code,
+            notesRoot: root
+          })
+        }
         continue
       }
       if (st.isSymbolicLink()) {
@@ -190,7 +201,15 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
             })
             continue
           }
-        } catch {
+        } catch (e) {
+          const code = (e as NodeJS.ErrnoException).code
+          if (code !== 'ENOENT') {
+            logger.warn('PREFERENCES collectFileResources: subdirectory realpath unreadable skipped', {
+              full,
+              code,
+              notesRoot: root
+            })
+          }
           continue
         }
         subdirs.push(full)
@@ -215,7 +234,15 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
             })
             continue
           }
-        } catch {
+        } catch (e) {
+          const code = (e as NodeJS.ErrnoException).code
+          if (code !== 'ENOENT') {
+            logger.warn('PREFERENCES collectFileResources: note realpath unreadable skipped', {
+              rel,
+              code,
+              notesRoot: root
+            })
+          }
           continue
         }
         out.add(rel)

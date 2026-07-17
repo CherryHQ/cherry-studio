@@ -350,8 +350,14 @@ export class ExportOrchestrator {
         }
         notesDir = join(stagingRoot, 'notes')
         const r = await fileStager.stageNotes(notesRoot, notesRelPaths, notesDir)
-        // notes are NOT DB-gated (the note table holds overlays, not bodies) → missing
-        // notes never prune a DB row. manifest.notes lists only what was actually staged.
+        // notes are NOT DB-gated (overlays stay in backup.sqlite even when a body is
+        // absent) — so a missing collected body would yield a "successful" archive
+        // with orphan overlays. Fail closed: every collected relPath must stage.
+        if (r.missing.length > 0) {
+          throw new Error(
+            `ExportOrchestrator: notes body missing after collect (${r.missing.length}): ${r.missing.slice(0, 5).join(', ')}`
+          )
+        }
         notesPaths = r.paths
       }
 
