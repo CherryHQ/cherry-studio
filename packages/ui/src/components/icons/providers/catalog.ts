@@ -4,8 +4,8 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-17T16:41:58.984Z
- * Total icons: 160
+ * Generated at: 2026-07-17T16:53:41.285Z
+ * Total icons: 157
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -29,7 +29,6 @@ import { BaiduIcon } from './baidu'
 import { BaiduCloudIcon } from './baidu-cloud'
 import { BailianIcon } from './bailian'
 import { BflIcon } from './bfl'
-import { BingIcon } from './bing'
 import { BochaIcon } from './bocha'
 import { BoltNewIcon } from './bolt-new'
 import { BurncloudIcon } from './burncloud'
@@ -69,7 +68,6 @@ import { GithubCopilotIcon } from './github-copilot'
 import { GlamaIcon } from './glama'
 import { GoogleIcon } from './google'
 import { GpustackIcon } from './gpustack'
-import { GraphRagIcon } from './graph-rag'
 import { GrokIcon } from './grok'
 import { GroqIcon } from './groq'
 import { HigressIcon } from './higress'
@@ -95,7 +93,6 @@ import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
 import { McpIcon } from './mcp'
-import { McprouterIcon } from './mcprouter'
 import { McpsoIcon } from './mcpso'
 import { MetaIcon } from './meta'
 import { type ProviderIconKey } from './meta-catalog'
@@ -192,7 +189,6 @@ export const PROVIDER_ICON_CATALOG = {
   'baidu-cloud': BaiduCloudIcon,
   bailian: BailianIcon,
   bfl: BflIcon,
-  bing: BingIcon,
   bocha: BochaIcon,
   'bolt-new': BoltNewIcon,
   burncloud: BurncloudIcon,
@@ -232,7 +228,6 @@ export const PROVIDER_ICON_CATALOG = {
   glama: GlamaIcon,
   google: GoogleIcon,
   gpustack: GpustackIcon,
-  'graph-rag': GraphRagIcon,
   grok: GrokIcon,
   groq: GroqIcon,
   higress: HigressIcon,
@@ -258,7 +253,6 @@ export const PROVIDER_ICON_CATALOG = {
   longcat: LongcatIcon,
   macos: MacosIcon,
   mcp: McpIcon,
-  mcprouter: McprouterIcon,
   mcpso: McpsoIcon,
   meta: MetaIcon,
   metaso: MetasoIcon,
