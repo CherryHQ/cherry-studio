@@ -36,7 +36,7 @@ export interface ClaudeToolDescriptorDef {
   /** Other tools this one requires — if any is disabled, this tool is disabled too (transitively). */
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
-  mcpServer?: 'cherry-tools' | 'agent-memory'
+  mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
 }
 
 /**
@@ -352,6 +352,21 @@ const CLAUDE_TOOL_REGISTRY = {
     exposure: 'user',
     description: 'Stores and recalls cross-session memory',
     mcpServer: 'agent-memory'
+  },
+  // skills (marketplace discovery + install)
+  SearchSkills: {
+    name: 'mcp__skills__search_skills',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Searches the skill marketplace',
+    mcpServer: 'skills'
+  },
+  InstallSkill: {
+    name: 'mcp__skills__install_skill',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Installs a marketplace skill into the library',
+    mcpServer: 'skills'
   }
 } as const satisfies Record<string, ClaudeToolDescriptorDef>
 

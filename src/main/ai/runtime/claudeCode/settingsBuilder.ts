@@ -37,6 +37,7 @@ import {
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import SkillsServer from '@main/ai/mcp/servers/skills'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -1069,6 +1070,11 @@ export function buildMcpServers(
   const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
+  // skills — deterministic marketplace search + install (the find-skills skill drives these).
+  // install_skill clones and installs exactly one skill into the managed library via SkillService,
+  // so a model only needs one tool call instead of a correct multi-step shell sequence.
+  mcpList.skills = { type: 'sdk', name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+
   logger.debug('Injected cherry-tools + agent-memory MCP servers', {
     agentId: agent.id,
     totalMcpServers: Object.keys(mcpList).length
@@ -1203,6 +1209,9 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   result.push('mcp__agent-memory__*')
+  // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
+  // (clones + installs third-party code), so it deliberately stays on per-call approval.
+  result.push('mcp__skills__search_skills')
   if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
   return result
 }
