@@ -11,6 +11,7 @@ new shared UI targets the canonical Shadcn variables exposed by the full theme e
 Runtime styles and design tokens live under `src/styles`:
 
 - [theme.css](../src/styles/theme.css)
+- [shadcn.css](../src/styles/shadcn.css)
 - [tokens.css](../src/styles/tokens.css)
 - [tokens/colors/primitive.css](../src/styles/tokens/colors/primitive.css)
 - [tokens/colors/semantic.css](../src/styles/tokens/colors/semantic.css)

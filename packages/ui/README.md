@@ -120,16 +120,17 @@ The normative v2 architecture, Shadcn contract, and migration boundary are defin
 [Design Token System](./docs/design-token-system.md). Existing `--cs-*` variables remain supported as the value
 provider while consumers migrate to the canonical semantic contract.
 
-To avoid mixing tokens, theme mappings, and runtime overrides, use the following rules:
+To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
 
-1. `--cs-*` is the design token namespace, sourced from `tokens/*`
-2. `--color-*`, `--radius-*`, and `--font-*` are public theme contracts and should be the default choice for components and external consumers
-3. `--cs-theme-*` is a runtime override input and should only be used for controlled runtime overrides
+1. `--cs-*` is the existing value-provider namespace, sourced from `tokens/*`
+2. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the canonical semantic contract
+3. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
+4. `--cs-theme-*` is a controlled runtime input and must resolve into the canonical contract
 
 Default consumption rules:
 
 1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
-2. Regular application packages should prefer public contracts such as `--color-*` and should not bind directly to primitive tokens like `--cs-brand-500`
+2. Components should prefer semantic utilities such as `bg-background` and `text-muted-foreground`; custom CSS may use the matching canonical variable
 3. Only design-system-adjacent packages that explicitly need token-level access should depend on `@cherrystudio/ui/styles/tokens.css`
 4. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
 
