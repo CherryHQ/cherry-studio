@@ -258,6 +258,16 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
 }))
 
+// ArtifactPane renders markdown files through the shared StaticMarkdown renderer;
+// stub it so this unit test doesn't pull in the full Streamdown component graph.
+vi.mock('@renderer/components/markdown', () => ({
+  StaticMarkdown: ({ id, children }: { id: string; children: string }) => (
+    <div data-testid="markdown" data-md-id={id}>
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
   motion: {
@@ -450,6 +460,7 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  platform: 'darwin',
   isMac: true,
   isWin: false
 }))
