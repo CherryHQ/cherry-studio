@@ -985,7 +985,7 @@ const ChatComposerInner = ({
     setText('')
     setDraftTokens(undefined)
     setFiles([])
-    setSelectedKnowledgeBases([])
+    // Knowledge base selection belongs to the conversation scope, not the individual draft.
     // Clearing the composer must also drop the input-history nav state: a
     // recalled draft that gets sent/queued without further edits would otherwise
     // leave useInputHistory pointing at that history entry, so the next
@@ -993,7 +993,7 @@ const ChatComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText])
+  }, [resetHistoryIndex, setFiles, setText])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
