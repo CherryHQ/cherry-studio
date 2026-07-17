@@ -105,6 +105,7 @@ export function decodeListCursor<K extends string | number>(
  * sort profile.
  */
 const CURSOR_FAMILY_VERSION = 1
+export type FamilyCursorDirection = 'next' | 'previous'
 
 /**
  * Build a deterministic family descriptor string from `parts`. Keys are sorted
@@ -122,8 +123,13 @@ export function buildCursorFamily(
 }
 
 /** Encode a `(key, id)` boundary plus its query `family` into an opaque, versioned token. */
-export function encodeFamilyCursor(family: string, key: string | number, id: string): string {
-  const payload = JSON.stringify([CURSOR_FAMILY_VERSION, family, String(key), id])
+export function encodeFamilyCursor(
+  family: string,
+  key: string | number,
+  id: string,
+  direction: FamilyCursorDirection = 'next'
+): string {
+  const payload = JSON.stringify([CURSOR_FAMILY_VERSION, family, direction, String(key), id])
   return Buffer.from(payload, 'utf8').toString('base64url')
 }
 
@@ -137,7 +143,7 @@ export function decodeFamilyCursor<K extends string | number>(
   family: string,
   parseKey: (s: string) => K | null,
   context: string
-): { key: K; id: string } | null {
+): { key: K; id: string; direction: FamilyCursorDirection } | null {
   if (!raw) return null
 
   let decoded: unknown
@@ -147,18 +153,27 @@ export function decodeFamilyCursor<K extends string | number>(
     return warnFamilyFallback(raw, context, 'token is not valid base64/JSON')
   }
 
-  if (!Array.isArray(decoded) || decoded.length !== 4) {
+  if (!Array.isArray(decoded) || (decoded.length !== 4 && decoded.length !== 5)) {
     return warnFamilyFallback(raw, context, 'unexpected token shape')
   }
-  const [version, tokenFamily, keyStr, id] = decoded as [unknown, unknown, unknown, unknown]
+  const [version, tokenFamily, directionValue, keyValue, idValue] =
+    decoded.length === 5
+      ? (decoded as [unknown, unknown, unknown, unknown, unknown])
+      : [decoded[0], decoded[1], 'next', decoded[2], decoded[3]]
+  const direction = directionValue as FamilyCursorDirection
+  const keyStr = keyValue
+  const id = idValue
   if (version !== CURSOR_FAMILY_VERSION) return warnFamilyFallback(raw, context, 'version mismatch')
   if (tokenFamily !== family) return warnFamilyFallback(raw, context, 'family mismatch')
+  if (direction !== 'next' && direction !== 'previous') {
+    return warnFamilyFallback(raw, context, 'invalid direction')
+  }
   if (typeof keyStr !== 'string' || typeof id !== 'string' || id === '') {
     return warnFamilyFallback(raw, context, 'invalid boundary')
   }
   const key = parseKey(keyStr)
   if (key === null) return warnFamilyFallback(raw, context, 'unparseable sort key')
-  return { key, id }
+  return { key, id, direction }
 }
 
 function warnFamilyFallback(raw: string, context: string, reason: string): null {

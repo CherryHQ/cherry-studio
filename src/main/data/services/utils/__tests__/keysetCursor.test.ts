@@ -190,7 +190,7 @@ describe('keysetOrdering — direction coverage against real SQLite', () => {
 
     it('returns null (first page) when the family does not match', () => {
       const created = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'createdAt' })
-      const updated = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'updatedAt' })
+      const updated = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'lastActivityAt' })
       const token = encodeFamilyCursor(created, 5, 'topic-1')
       expect(decodeFamilyCursor(token, updated, asNumericKey, 'test')).toBeNull()
     })
