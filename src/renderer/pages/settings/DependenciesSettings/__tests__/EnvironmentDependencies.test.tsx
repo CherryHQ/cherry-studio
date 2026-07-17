@@ -15,6 +15,7 @@ const ipcMocks = vi.hoisted(() => ({
   snapshots: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
+  addCustomTool: vi.fn(),
   removeTool: vi.fn(),
   searchRegistry: vi.fn()
 }))
@@ -47,6 +48,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.snapshots(input)
         case 'binary.install_tool':
           return ipcMocks.installTool(input)
+        case 'binary.add_custom_tool':
+          return ipcMocks.addCustomTool(input)
         case 'binary.remove_tool':
           return ipcMocks.removeTool(input)
         case 'local_model.get_status':
@@ -169,7 +172,8 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.snapshots.mockImplementation(async () => snapshotRecords.value)
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
-    ipcMocks.removeTool.mockResolvedValue(undefined)
+    ipcMocks.addCustomTool.mockResolvedValue(undefined)
+    ipcMocks.removeTool.mockResolvedValue({ status: 'removed' })
     ipcMocks.searchRegistry.mockResolvedValue([])
     setInstallSettingsMock.mockResolvedValue(undefined)
   })
@@ -287,7 +291,12 @@ describe('EnvironmentDependencies', () => {
 
   it('keeps owned unavailable custom tools removable and installable for recovery', async () => {
     setSnapshots({
-      mytool: { name: 'mytool', intent: { name: 'mytool', tool: 'npm:mytool' }, availability: { source: 'none' } }
+      mytool: {
+        name: 'mytool',
+        intent: { name: 'mytool', tool: 'npm:mytool' },
+        application: { status: 'absent' },
+        availability: { source: 'none' }
+      }
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
@@ -317,6 +326,9 @@ describe('EnvironmentDependencies', () => {
         name: 'uv',
         intent: { name: 'uv', tool: 'uv' },
         availability: { source: 'none' },
+        // Still exactly applied until the in-flight uninstall completes — the fixed
+        // card's backend control authority is the application fact, not ownership.
+        application: { status: 'applied' },
         operation: { status: 'removing' }
       }
     })
@@ -354,7 +366,7 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
     fireEvent.click(within(card).getByText('common.retry'))
-    expect(ipcMocks.installTool).toHaveBeenCalledWith({ intent: { name: 'uv', tool: 'uv' } })
+    expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv' })
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
@@ -376,9 +388,7 @@ describe('EnvironmentDependencies', () => {
     expect(card).toHaveTextContent('npm:mytool')
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
     fireEvent.click(within(card).getByText('common.retry'))
-    expect(ipcMocks.installTool).toHaveBeenCalledWith({
-      intent: { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
-    })
+    expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'mytool' })
   })
 
   it('excludes Code CLI snapshots from the dependency grid', async () => {
@@ -425,7 +435,14 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('shows the install duration hint while an install is in progress', async () => {
-    setSnapshots({ uv: { name: 'uv', availability: { source: 'none' }, operation: { status: 'installing' } } })
+    setSnapshots({
+      uv: {
+        name: 'uv',
+        application: { status: 'absent' },
+        availability: { source: 'none' },
+        operation: { status: 'installing' }
+      }
+    })
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
@@ -447,9 +464,7 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.update'))
-    await waitFor(() =>
-      expect(ipcMocks.installTool).toHaveBeenCalledWith({ intent: { name: 'uv', tool: 'uv' }, targetVersion: '2.0.0' })
-    )
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', targetVersion: '2.0.0' }))
   })
 
   it('refreshes snapshots when availability changes', async () => {
@@ -502,7 +517,7 @@ describe('EnvironmentDependencies', () => {
     ).toHaveAttribute('type', 'password')
   })
 
-  it('claims an unowned runtime with its discovered version pinned in the request', async () => {
+  it('adds an unowned discovered runtime by its exact recipe without pinning its live version', async () => {
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1', false) })
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
     render(<EnvironmentDependencies />)
@@ -514,11 +529,16 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(await screen.findByRole('button', { name: /core:node/ }))
     fireEvent.click(screen.getByText('common.add'))
 
+    // Custom Add sends the recipe exactly as entered — no discovered-runtime
+    // version is grafted onto the request — and uses the dedicated route.
     await waitFor(() =>
-      expect(ipcMocks.installTool).toHaveBeenCalledWith({
-        intent: { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+      expect(ipcMocks.addCustomTool).toHaveBeenCalledWith({
+        name: 'node',
+        tool: 'core:node',
+        requestedVersion: undefined
       })
     )
+    expect(ipcMocks.installTool).not.toHaveBeenCalled()
   })
 
   it('warns before removing an owned managed runtime', async () => {
@@ -544,6 +564,7 @@ describe('EnvironmentDependencies', () => {
       mytool: {
         name: 'mytool',
         intent: { name: 'mytool', tool: 'npm:mytool' },
+        application: { status: 'absent' },
         availability: { source: 'system', path: '/usr/local/bin/mytool' }
       }
     })
@@ -552,27 +573,26 @@ describe('EnvironmentDependencies', () => {
 
     expect(card).toHaveTextContent('settings.dependencies.source.system')
     expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
+    expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
   })
 
-  it('retries an owned preset at its pinned version when the binary is missing', async () => {
+  it('installs an absent fixed preset by name and offers no uninstall', async () => {
     setSnapshots({
       uv: {
         name: 'uv',
-        intent: { name: 'uv', tool: 'uv', requestedVersion: '0.9.0' },
-        availability: { source: 'none' }
+        availability: { source: 'none' },
+        application: { status: 'absent' }
       }
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
 
-    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
+    // A fixed tool that is absent with no external copy offers Install only — there
+    // is nothing applied to uninstall.
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
     fireEvent.click(within(card).getByText('settings.mcp.install'))
-    await waitFor(() =>
-      expect(ipcMocks.installTool).toHaveBeenCalledWith({
-        intent: { name: 'uv', tool: 'uv', requestedVersion: '0.9.0' }
-      })
-    )
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv' }))
   })
 
   it('rejects adding a tool that already exists in the owned snapshots', async () => {
@@ -588,7 +608,7 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(screen.getByText('common.add'))
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.duplicateName'))
-    expect(ipcMocks.installTool).not.toHaveBeenCalled()
+    expect(ipcMocks.addCustomTool).not.toHaveBeenCalled()
   })
 
   it('rejects a reserved Code CLI name even when no CLI snapshot is displayed', async () => {
@@ -603,7 +623,7 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(screen.getByText('common.add'))
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.duplicateName'))
-    expect(ipcMocks.installTool).not.toHaveBeenCalled()
+    expect(ipcMocks.addCustomTool).not.toHaveBeenCalled()
   })
 
   it('shows no mini warning when system core dependencies are available', async () => {
@@ -707,7 +727,14 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('renders an in-flight install when mounting mid-operation', async () => {
-    setSnapshots({ uv: { name: 'uv', availability: { source: 'none' }, operation: { status: 'installing' } } })
+    setSnapshots({
+      uv: {
+        name: 'uv',
+        application: { status: 'absent' },
+        availability: { source: 'none' },
+        operation: { status: 'installing' }
+      }
+    })
     render(<EnvironmentDependencies />)
 
     expect(await screen.findByText('settings.dependencies.installing')).toBeInTheDocument()
@@ -724,5 +751,52 @@ describe('EnvironmentDependencies', () => {
     // Confirm/cancel buttons must be localized, not the component's English defaults.
     expect(screen.getByTestId('confirm-dialog-confirm')).toHaveTextContent('common.delete')
     expect(screen.getByTestId('confirm-dialog-cancel')).toHaveTextContent('common.cancel')
+  })
+
+  it('offers an explicit definition-only fallback when a custom tool cleanup is blocked', async () => {
+    setSnapshots({ mytool: miseSnapshot('mytool', 'npm:mytool', '1.0.0') })
+    ipcMocks.removeTool.mockResolvedValueOnce({
+      status: 'cleanup_blocked',
+      reason: 'cleanup_failed',
+      message: 'Tool is still installed after removal: mytool'
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+
+    await waitFor(() => expect(ipcMocks.removeTool).toHaveBeenCalledWith({ name: 'mytool' }))
+    // The block surfaces a second confirmation that explicitly warns the backend
+    // files remain when only the portable definition is removed.
+    await waitFor(() =>
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(
+        'settings.dependencies.removeDefinitionOnlyConfirmTitle'
+      )
+    )
+    const fallback = screen.getByRole('alertdialog')
+    expect(fallback).toHaveTextContent('settings.dependencies.removeDefinitionOnlyConfirmMessage')
+
+    fireEvent.click(within(fallback).getByTestId('confirm-dialog-confirm'))
+    await waitFor(() => expect(ipcMocks.removeTool).toHaveBeenCalledWith({ name: 'mytool', definitionOnly: true }))
+  })
+
+  it('shows an error with no definition fallback when a fixed tool cleanup is blocked', async () => {
+    setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0') })
+    ipcMocks.removeTool.mockResolvedValueOnce({
+      status: 'cleanup_blocked',
+      reason: 'conflict',
+      message: 'gh resolves to a conflicting installation and cannot be safely removed'
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+
+    await screen.findByText('gh resolves to a conflicting installation and cannot be safely removed')
+    // A fixed tool has no definition to drop — only the error, never a fallback.
+    expect(ipcMocks.removeTool).toHaveBeenCalledTimes(1)
+    expect(ipcMocks.removeTool).not.toHaveBeenCalledWith({ name: 'gh', definitionOnly: true })
   })
 })

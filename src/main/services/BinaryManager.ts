@@ -27,8 +27,11 @@ import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type {
   BinaryApplication,
   BinaryAvailability,
+  BinaryInstallByNameRequest,
   BinaryInstallRequest,
   BinaryOperation,
+  BinaryRemoveRequest,
+  BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
@@ -178,13 +181,22 @@ export class BinaryManager extends BaseService {
   // state that belongs to the request already running or waiting.
   private readonly activeMutations = new Map<
     string,
+    // `install` is the legacy recipe-carrying primitive (Phase 2 test-only). The
+    // live routes are `installByName` (dedupe by one-shot target), `addCustom`
+    // (dedupe by exact definition), and `remove` (dedupe by definition-only flag).
     | { action: 'install'; request: BinaryInstallRequest; promise: Promise<{ version: string }> }
-    | {
-        action: 'remove'
-        promise: Promise<void>
-      }
+    | { action: 'installByName'; targetVersion?: string; promise: Promise<void> }
+    | { action: 'addCustom'; definition: BinaryManifestEntry; promise: Promise<void> }
+    | { action: 'remove'; definitionOnly: boolean; promise: Promise<BinaryRemoveResult> }
   >()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
+  // Monotonic counter bumped on every mutation that can change backend state or
+  // durable definitions (add / install / update / remove / definition-only). A
+  // forced latest-versions batch captures it before its slow `mise latest`
+  // queries and discards its result if the count moved — replacing the former
+  // manifest-fingerprint race guard, which only saw definition changes and was
+  // blind to backend-only installs and removals.
+  private mutationRevision = 0
 
   // Set the first time onAllReady fires (once per instance). Distinguishes an
   // initial-bootstrap onInit (before onAllReady) from a post-restart onInit
@@ -304,15 +316,19 @@ export class BinaryManager extends BaseService {
    */
   public async getToolSnapshots(requestedNames: string[]): Promise<Record<string, BinaryToolSnapshot>> {
     const manifest = this.getManifest()
+    const customManifest = manifest.filter((definition) => !FIXED_CATALOG.has(definition.name))
     const operations = application.get('CacheService').getShared('feature.binary.install_states') ?? {}
-    const intentsByName = new Map(manifest.map((intent) => [intent.name, intent]))
+    const intentsByName = new Map(customManifest.map((intent) => [intent.name, intent]))
     const candidates = new Map<string, string>()
     const addCandidate = (name: string, tool: string) => {
       if (!candidates.has(name)) candidates.set(name, tool)
     }
 
-    for (const intent of manifest) addCandidate(intent.name, intent.tool)
+    // Code-owned fixed definitions are authoritative. A stale fixed-name entry
+    // written by an older build is neither exposed as custom intent nor allowed
+    // to replace the recipe used to derive application state.
     for (const [name, definition] of FIXED_CATALOG) addCandidate(name, definition.tool)
+    for (const intent of customManifest) addCandidate(intent.name, intent.tool)
     for (const [name, operation] of Object.entries(operations)) {
       if (operation.status === 'failed' && operation.action === 'install' && operation.intent) {
         addCandidate(name, operation.intent.tool)
@@ -813,16 +829,36 @@ export class BinaryManager extends BaseService {
     this.invalidateManifestViews()
   }
 
-  private manifestFingerprint(manifest = this.getManifest()): string {
-    return manifest
-      .map((entry) => `${entry.name}\u0000${entry.tool}\u0000${entry.requestedVersion ?? ''}`)
-      .sort()
-      .join('\u0001')
+  /**
+   * Record a mutation that can change backend state or durable definitions.
+   * Bumps the revision a forced latest-versions batch guards on and clears the
+   * now-stale latest-versions cache. Backend-only mutations (a name-only install
+   * over a fixed tool, a fixed remove) call this directly; definition changes
+   * reach it through {@link invalidateManifestViews}.
+   */
+  private bumpMutationRevision() {
+    this.mutationRevision++
+    try {
+      application.get('CacheService').deleteShared('feature.binary.latest_versions')
+    } catch (err) {
+      // Cache is derived session state. A failed invalidation must not turn an
+      // already-committed backend/Preference mutation into a false failure.
+      logger.warn('Failed to clear binary latest-version cache', { error: this.errorMessage(err) })
+    }
+  }
+
+  private broadcastAvailabilityChanged() {
+    try {
+      application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
+    } catch (err) {
+      // The next snapshot is authoritative; notification failure is recoverable.
+      logger.warn('Failed to broadcast binary availability change', { error: this.errorMessage(err) })
+    }
   }
 
   private invalidateManifestViews() {
-    application.get('CacheService').deleteShared('feature.binary.latest_versions')
-    application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
+    this.bumpMutationRevision()
+    this.broadcastAvailabilityChanged()
   }
 
   /**
@@ -862,7 +898,7 @@ export class BinaryManager extends BaseService {
       delete operations[name]
     }
     cacheService.setShared('feature.binary.install_states', operations)
-    application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
+    this.broadcastAvailabilityChanged()
   }
 
   /** Resolve the code-owned fixed definition for a name, if the app ships one. */
@@ -870,6 +906,45 @@ export class BinaryManager extends BaseService {
     return FIXED_CATALOG.get(name)
   }
 
+  /**
+   * Resolve the recipe a name-only install applies. The code-owned fixed catalog
+   * is authoritative — it wins over any stale same-name Preference entry left by a
+   * prior version. A custom name resolves only from the persisted manifest.
+   */
+  private resolveDefinition(name: string): BinaryManifestEntry | undefined {
+    return this.resolveFixedDefinition(name) ?? this.getManifest().find((entry) => entry.name === name)
+  }
+
+  /**
+   * Drop runtime entries whose exact recipe is not applied locally before a
+   * backend apply. A persist-first custom definition (or a stale pin) is a mere
+   * intent, not proof the runtime is installed — so a package backend must fall
+   * back to its default RUNTIME_DEPS runtime rather than adopt an unapplied one.
+   * Uses the exact live application fact, never desired state or mere availability.
+   */
+  private async appliedRuntimeManifest(manifest: BinaryManifestEntry[]): Promise<BinaryManifestEntry[]> {
+    const runtimeNames = manifest.filter((entry) => isRuntimeDependency(entry.tool)).map((entry) => entry.name)
+    if (runtimeNames.length === 0) return manifest
+
+    const snapshots = await this.getToolSnapshots(runtimeNames)
+    return manifest.flatMap((entry) => {
+      if (!isRuntimeDependency(entry.tool)) return [entry]
+      const application = snapshots[entry.name]?.application
+      // Package installs may inherit only a proven exact runtime application and
+      // must use its live active version, never the portable definition default.
+      return application?.status === 'applied' && application.version
+        ? [{ ...entry, requestedVersion: application.version }]
+        : []
+    })
+  }
+
+  /**
+   * @deprecated Phase 2 compatibility primitive: it accepts a caller-supplied
+   * recipe and writes the resolved intent to Preference. The live routes are
+   * {@link installByName} (fixed/custom recipe resolved in main, never persisted)
+   * and {@link addCustomTool} (persist-first Custom Add). Retained only for the
+   * existing service tests; Phase 2(c) deletes it. Do not add new callers.
+   */
   installTool(request: BinaryInstallRequest): Promise<{ version: string }> {
     try {
       this.validateInstallRequest(request)
@@ -973,6 +1048,7 @@ export class BinaryManager extends BaseService {
           throw new Error(`Tool specification ${intent.tool} is already owned as ${conflictingOwner.name}`)
         }
 
+        this.bumpMutationRevision()
         const { version, definition } = await this.applyDefinition(intent, targetVersion, manifest)
         await this.upsertManifest(definition)
         return { version }
@@ -987,6 +1063,245 @@ export class BinaryManager extends BaseService {
         intent
       })
       throw err
+    }
+  }
+
+  /**
+   * Name-only install. Main resolves the fixed/custom recipe from its code-owned
+   * catalog or the current manifest and applies it against the live application
+   * fact — it never writes Preference (a fixed recipe is code-owned; a custom
+   * recipe was already persisted by Custom Add). An unknown name, a foreign
+   * conflict, or an unreadable backend reject without mutating; an already-applied
+   * tool is a no-op (or a one-shot version update when a target is given); an
+   * externally satisfied tool (bundled/system) is a logged no-op so a race
+   * converges. A backend failure records a failed operation and rejects.
+   */
+  installByName(request: BinaryInstallByNameRequest): Promise<void> {
+    const { name, targetVersion } = request
+    if (targetVersion && !TOOL_KEY_RE.test(targetVersion)) {
+      return Promise.reject(new Error(`Invalid tool version: ${targetVersion}`))
+    }
+    if (!this.resolveDefinition(name)) {
+      return Promise.reject(new Error(`Unknown tool: ${name}`))
+    }
+    const active = this.activeMutations.get(name)
+    if (active) {
+      // Dedupe compares name (map key), action, and one-shot target.
+      if (active.action === 'installByName' && active.targetVersion === targetVersion) return active.promise
+      return Promise.reject(
+        new Error(
+          active.action === 'remove' ? `Tool ${name} is already removing` : `Tool ${name} is already installing`
+        )
+      )
+    }
+    if (!this.miseBin) {
+      const error = new Error('Binary backend not available')
+      this.setOperation(name, { status: 'failed', action: 'install', error: error.message })
+      return Promise.reject(error)
+    }
+
+    // Publish before queuing on the global mutex so every renderer can render the
+    // operation while another tool holds mise's process-wide lock.
+    this.setOperation(name, { status: 'installing' })
+    const promise = this.installByNameImpl(name, targetVersion)
+    this.activeMutations.set(name, { action: 'installByName', targetVersion, promise })
+    void promise
+      .finally(() => {
+        if (this.activeMutations.get(name)?.promise === promise) this.activeMutations.delete(name)
+      })
+      .catch(() => undefined)
+    return promise
+  }
+
+  private async installByNameImpl(name: string, targetVersion: string | undefined): Promise<void> {
+    const outcome = await this.mutationMutex.runExclusive(
+      async (): Promise<{ kind: 'done' } | { kind: 'reject' | 'failed'; error: string }> => {
+        const definition = this.resolveDefinition(name)
+        if (!definition) return { kind: 'reject', error: `Unknown tool: ${name}` }
+
+        const snapshot = (await this.getToolSnapshots([name]))[name]
+        const status = snapshot.application?.status
+        const source = snapshot.availability.source
+
+        // conflict/unknown: the exact recipe is not proven absent, and installing
+        // over a foreign shim or an unreadable backend could shadow an existing
+        // tool — reject without mutating.
+        if (status === 'conflict')
+          return { kind: 'reject', error: `Tool ${name} resolves to a conflicting installation` }
+        if (status === 'unknown') {
+          const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
+          return { kind: 'reject', error: `Cannot determine ${name} state: ${reason}` }
+        }
+        // applied: nothing to do unless a one-shot target update is requested.
+        if (status === 'applied' && !targetVersion) return { kind: 'done' }
+        // absent + an external copy: a race already satisfied it — never lay down a
+        // managed shadow copy over a bundled/system binary.
+        if (status === 'absent' && (source === 'bundled' || source === 'system')) {
+          logger.info('Skipping managed install; tool already available from an external source', { name, source })
+          return { kind: 'done' }
+        }
+
+        // absent+none, broken, or applied+target → apply the exact recipe. The
+        // returned concrete pin is intentionally ignored: name-only installs never
+        // write Preference.
+        try {
+          const manifest = await this.appliedRuntimeManifest(this.getManifest())
+          // Invalidate before invoking mise: a failed command may still have made a
+          // partial backend change, which must also stale any in-flight latest batch.
+          this.bumpMutationRevision()
+          await this.applyDefinition(definition, targetVersion, manifest)
+          return { kind: 'done' }
+        } catch (err) {
+          return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }
+        }
+      }
+    )
+
+    if (outcome.kind === 'done') {
+      this.setOperation(name, null)
+      return
+    }
+    if (outcome.kind === 'failed') {
+      this.setOperation(name, { status: 'failed', action: 'install', error: outcome.error })
+      throw new Error(outcome.error)
+    }
+    // reject: conflict/unknown/unknown-name — no failed operation, just clear the
+    // transient installing state and surface the error to the caller.
+    this.setOperation(name, null)
+    throw new Error(outcome.error)
+  }
+
+  /**
+   * Custom Add — the only route that accepts an arbitrary recipe. Validates
+   * grammar, runtime canonicality, and collisions against the fixed catalog and
+   * the custom manifest, then persists the definition BEFORE any backend work so
+   * the tool stays durably owned even if the install fails. A Preference write
+   * failure aborts before touching the backend and rejects. Once persisted the
+   * route resolves in every case — an applied or externally-satisfied tool is a
+   * no-op, an absent one is installed, and a conflict / unreadable backend /
+   * install failure becomes a failed operation the card can retry — so the Add
+   * modal can always close. The persisted definition is never rewritten with a
+   * resolved/installed version.
+   */
+  addCustomTool(definition: BinaryManifestEntry): Promise<void> {
+    try {
+      this.validateCustomDefinition(definition, this.getManifest())
+    } catch (err) {
+      return Promise.reject(err)
+    }
+    const active = this.activeMutations.get(definition.name)
+    if (active) {
+      if (active.action === 'addCustom' && this.sameDefinition(active.definition, definition)) return active.promise
+      return Promise.reject(
+        new Error(
+          active.action === 'remove'
+            ? `Tool ${definition.name} is already removing`
+            : `Tool ${definition.name} is already installing`
+        )
+      )
+    }
+
+    this.setOperation(definition.name, { status: 'installing' })
+    const promise = this.addCustomToolImpl(definition)
+    this.activeMutations.set(definition.name, { action: 'addCustom', definition, promise })
+    void promise
+      .finally(() => {
+        if (this.activeMutations.get(definition.name)?.promise === promise) this.activeMutations.delete(definition.name)
+      })
+      .catch(() => undefined)
+    return promise
+  }
+
+  private async addCustomToolImpl(definition: BinaryManifestEntry): Promise<void> {
+    let persisted = false
+    try {
+      const result = await this.mutationMutex.runExclusive(
+        async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+          // Re-validate against the current manifest under the lock.
+          this.validateCustomDefinition(definition, this.getManifest())
+          // Persist-first: ownership is durable before any backend command runs, so
+          // a later install failure still leaves a removable, retry-able entry.
+          await this.upsertManifest(definition)
+          persisted = true
+
+          const snapshot = (await this.getToolSnapshots([definition.name]))[definition.name]
+          const status = snapshot.application?.status
+          const source = snapshot.availability.source
+          if (status === 'applied') return { ok: true }
+          if (status === 'absent' && (source === 'bundled' || source === 'system')) {
+            logger.info('Custom tool already available from an external source; no managed copy', {
+              name: definition.name,
+              source
+            })
+            return { ok: true }
+          }
+          if (status === 'conflict') {
+            return { ok: false, error: `Tool ${definition.name} resolves to a conflicting installation` }
+          }
+          if (status === 'unknown') {
+            const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
+            return { ok: false, error: `Cannot determine ${definition.name} state: ${reason}` }
+          }
+          // absent+none or broken → apply the exact recipe. Concrete pin ignored:
+          // the custom definition is never rewritten with a resolved version.
+          try {
+            const manifest = await this.appliedRuntimeManifest(this.getManifest())
+            // Persistence already invalidated earlier batches; bump again before
+            // backend work so a batch started after that write cannot survive a
+            // partial or successful mise mutation.
+            this.bumpMutationRevision()
+            await this.applyDefinition(definition, undefined, manifest)
+            return { ok: true }
+          } catch (err) {
+            return { ok: false, error: err instanceof Error ? err.message : String(err) }
+          }
+        }
+      )
+      this.setOperation(
+        definition.name,
+        result.ok ? null : { status: 'failed', action: 'install', error: result.error, intent: definition }
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (persisted) {
+        // Post-persistence failure (e.g. an unreadable backend while deciding):
+        // keep ownership, record the failure, and still resolve so the modal closes.
+        this.setOperation(definition.name, { status: 'failed', action: 'install', error: message, intent: definition })
+        return
+      }
+      // Validation or the Preference write failed — no backend mutation happened,
+      // so the route rejects and the transient operation is cleared.
+      this.setOperation(definition.name, null)
+      throw err
+    }
+  }
+
+  private sameDefinition(a: BinaryManifestEntry, b: BinaryManifestEntry): boolean {
+    return a.name === b.name && a.tool === b.tool && a.requestedVersion === b.requestedVersion
+  }
+
+  /**
+   * Validate a Custom Add definition. Beyond the shared grammar/runtime checks it
+   * enforces the fixed/custom boundary: a built-in name is reserved, an identical
+   * same-name definition may retry but a divergent one is rejected, and the exact
+   * recipe may not collide with a fixed definition or another custom name.
+   */
+  private validateCustomDefinition(definition: BinaryManifestEntry, manifest: BinaryManifestEntry[]) {
+    this.validateIntentSpec(definition)
+    if (this.resolveFixedDefinition(definition.name)) {
+      throw new Error(`Tool ${definition.name} is a built-in tool and cannot be added as a custom tool`)
+    }
+    const sameName = manifest.find((entry) => entry.name === definition.name)
+    if (sameName && !this.sameDefinition(sameName, definition)) {
+      throw new Error(`Tool ${definition.name} is already defined with a different specification`)
+    }
+    const fixedOwner = [...FIXED_CATALOG.values()].find((entry) => entry.tool === definition.tool)
+    if (fixedOwner) {
+      throw new Error(`Tool specification ${definition.tool} is already provided by ${fixedOwner.name}`)
+    }
+    const customOwner = manifest.find((entry) => entry.name !== definition.name && entry.tool === definition.tool)
+    if (customOwner) {
+      throw new Error(`Tool specification ${definition.tool} is already owned as ${customOwner.name}`)
     }
   }
 
@@ -1027,9 +1342,9 @@ export class BinaryManager extends BaseService {
   }
 
   /**
-   * Latest available registry version for each mise-managed tool (name → version).
-   * On demand only — never during boot — because `mise latest` for
-   * github: backends hits the rate-limited GitHub releases API. Runs with a
+   * Latest available registry version for each *applied* managed tool
+   * (name → version). On demand only — never during boot — because `mise latest`
+   * for github: backends hits the rate-limited GitHub releases API. Runs with a
    * small worker pool; tools whose lookup fails are omitted.
    *
    * Stored in shared CacheService state for the current app session. A non-force
@@ -1051,15 +1366,32 @@ export class BinaryManager extends BaseService {
   }
 
   private async fetchLatestVersions(): Promise<Record<string, string>> {
-    const manifest = this.getManifest()
     const result: Record<string, string> = {}
     if (!this.miseBin) return result
 
-    const fingerprint = this.manifestFingerprint(manifest)
+    // Capture the mutation revision before the slow queries; if any add / install
+    // / update / remove lands while they run, the batch is stale and discarded.
+    const revision = this.mutationRevision
+
+    // Candidate recipes: every code-owned fixed definition plus the custom
+    // manifest, with a fixed name winning over a stale same-name custom entry.
+    // Ownership is never inferred from Preference — only the live application fact
+    // decides which recipes are eligible below.
+    const candidates = new Map<string, BinaryManifestEntry>()
+    for (const [name, definition] of FIXED_CATALOG) candidates.set(name, definition)
+    for (const entry of this.getManifest()) if (!candidates.has(entry.name)) candidates.set(entry.name, entry)
+
+    const names = [...candidates.keys()]
+    const snapshots = await this.getToolSnapshots(names)
+    // Only an exactly-applied recipe has a meaningful managed "latest": bundled /
+    // system-only, absent, broken, conflict, and unknown are all excluded.
+    const applied = names.filter((name) => snapshots[name]?.application?.status === 'applied')
+
     let cursor = 0
-    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, manifest.length) }, async () => {
-      while (cursor < manifest.length) {
-        const { name, tool } = manifest[cursor++]
+    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, applied.length) }, async () => {
+      while (cursor < applied.length) {
+        const name = applied[cursor++]
+        const { tool } = candidates.get(name)!
         try {
           const { stdout } = await this.runMise(['latest', tool])
           const version = stdout.trim().split(/\r?\n/)[0]?.trim()
@@ -1068,39 +1400,64 @@ export class BinaryManager extends BaseService {
           logger.warn('Failed to query latest version', {
             name,
             tool,
-            error: err instanceof Error ? err.message : String(err)
+            error: this.errorMessage(err)
           })
         }
       }
     })
     await Promise.all(workers)
 
-    if (manifest.length > 0 && Object.keys(result).length === 0) {
-      throw new Error('Failed to query latest versions for all managed tools')
+    if (applied.length > 0 && Object.keys(result).length === 0) {
+      throw new Error('Failed to query latest versions for all applied tools')
     }
 
     return this.mutationMutex.runExclusive(async () => {
-      if (this.manifestFingerprint() !== fingerprint) return {}
+      if (this.mutationRevision !== revision) return {}
       application.get('CacheService').setShared('feature.binary.latest_versions', result)
       return result
     })
   }
 
-  removeTool(toolName: string): Promise<void> {
-    const active = this.activeMutations.get(toolName)
+  /**
+   * Remove a tool by name. A fixed tool is cleaned from the backend but keeps its
+   * code-owned catalog identity (no Preference change); a custom tool is cleaned
+   * and its durable definition dropped. `definitionOnly` drops just a custom
+   * definition without touching the backend. The typed {@link BinaryRemoveResult}
+   * lets the renderer branch on a fail-closed `cleanup_blocked` without parsing
+   * text — nothing was removed and, for a custom tool, its definition is retained.
+   */
+  removeTool(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
+    const { name, definitionOnly = false } = request
+    const fixed = this.resolveFixedDefinition(name)
+    const custom = this.getManifest().find((entry) => entry.name === name)
+    // An unknown name addresses nothing removable.
+    if (!fixed && !custom) {
+      return Promise.reject(new Error(`Unknown tool: ${name}`))
+    }
+    // A fixed tool is code-owned: it has no durable definition to drop, so a
+    // definition-only remove is a caller error, not a silent no-op.
+    if (definitionOnly && fixed) {
+      return Promise.reject(new Error(`Tool ${name} is a built-in tool and has no removable definition`))
+    }
+
+    const active = this.activeMutations.get(name)
     if (active) {
-      if (active.action === 'remove') return active.promise
-      return Promise.reject(new Error(`Tool ${toolName} is already installing`))
+      if (active.action === 'remove' && active.definitionOnly === definitionOnly) return active.promise
+      return Promise.reject(
+        new Error(
+          active.action === 'remove' ? `Tool ${name} is already removing` : `Tool ${name} is already installing`
+        )
+      )
     }
 
     // As with installs, expose removal before waiting for a mutation of another
     // tool. The active-mutation guard makes this state exclusively ours.
-    this.setOperation(toolName, { status: 'removing' })
-    const promise = this.removeToolImpl(toolName)
-    this.activeMutations.set(toolName, { action: 'remove', promise })
+    this.setOperation(name, { status: 'removing' })
+    const promise = this.removeToolImpl(name, definitionOnly)
+    this.activeMutations.set(name, { action: 'remove', definitionOnly, promise })
     void promise
       .finally(() => {
-        if (this.activeMutations.get(toolName)?.promise === promise) this.activeMutations.delete(toolName)
+        if (this.activeMutations.get(name)?.promise === promise) this.activeMutations.delete(name)
       })
       .catch(() => undefined)
     return promise
@@ -1146,43 +1503,128 @@ export class BinaryManager extends BaseService {
     return [...dependents].sort()
   }
 
-  private async removeToolImpl(toolName: string): Promise<void> {
-    return this.mutationMutex.runExclusive(async () => {
-      const manifest = this.getManifest()
-      const intent = manifest.find((entry) => entry.name === toolName)
-      if (!intent) {
-        this.setOperation(toolName, null)
-        return
+  private async removeToolImpl(name: string, definitionOnly: boolean): Promise<BinaryRemoveResult> {
+    return this.mutationMutex.runExclusive(async (): Promise<BinaryRemoveResult> => {
+      const fixed = this.resolveFixedDefinition(name)
+      const definition = fixed ?? this.getManifest().find((entry) => entry.name === name)
+      const isCustom = !fixed
+      // Guarded in removeTool, but the manifest can shift before the lock: a name
+      // that lost both its fixed and custom definition is already removed.
+      if (!definition) {
+        this.setOperation(name, null)
+        return { status: 'removed' }
       }
+
+      // Definition-only: drop the custom definition, never touch the backend.
+      // (A fixed definition-only request was rejected in removeTool.)
+      if (definitionOnly) {
+        return this.deleteToolDefinition(name)
+      }
+
+      // A full remove chooses its cleanup path from the live application fact —
+      // never the desired manifest — so it fails closed when the backend cannot
+      // be read and never uninstalls over a foreign shim.
+      const snapshot = (await this.getToolSnapshots([name]))[name]
+      const application = snapshot.application
+
+      // Backend unreadable / unavailable: nothing removed, definition retained.
+      // Every blocked branch carries a human `message` so the renderer can show it
+      // without parsing text — it branches on `reason`/`dependents`, never strings.
+      if (application?.status === 'unknown') {
+        this.setOperation(name, null)
+        return {
+          status: 'cleanup_blocked',
+          reason: application.reason,
+          message: `Cannot determine ${name} state to remove it (${application.reason})`
+        }
+      }
+      // A foreign shim mise still resolves — uninstalling would shadow it.
+      if (application?.status === 'conflict') {
+        this.setOperation(name, null)
+        return {
+          status: 'cleanup_blocked',
+          reason: 'conflict',
+          message: `${name} resolves to a conflicting installation and cannot be safely removed`
+        }
+      }
+      // Backend already clean: a fixed tool leaves Preference untouched; a custom
+      // tool drops its definition. A Preference failure rejects with a failed op —
+      // the next attempt re-enters here (backend still clean) and converges.
+      if (application?.status === 'absent') {
+        if (isCustom) return this.deleteToolDefinition(name)
+        this.setOperation(name, null)
+        return { status: 'removed' }
+      }
+
+      // applied or broken → the exact recipe is present; clean it up and verify.
+      let dependents: string[]
       try {
-        if (!this.miseBin) throw new Error('Binary backend not available')
-
-        const wasAbsent = await this.isMiseToolAbsent(intent.tool)
-        if (!wasAbsent) {
-          // Runtime removal safety scans complete mise state, not just the
-          // manifest, and fails before any destructive command.
-          const dependents = await this.installedRuntimeDependents(intent, manifest)
-          if (dependents.length > 0) {
-            throw new Error(`Cannot remove ${toolName} while installed tools depend on it: ${dependents.join(', ')}`)
-          }
-
-          await this.runMise(['unuse', '-g', intent.tool])
-          await this.runMise(['uninstall', '--all', intent.tool])
-        }
-        // Run even for an already-absent tool: a prior uninstall may have
-        // succeeded before reshim failed, leaving a stale shim to clean up.
-        await this.runMise(['reshim'])
-        if (!wasAbsent && !(await this.isMiseToolAbsent(intent.tool))) {
-          throw new Error(`Tool is still installed after removal: ${toolName}`)
-        }
-        await this.removeManifest(toolName)
-        this.setOperation(toolName, null)
+        dependents = await this.installedRuntimeDependents(definition, this.getManifest())
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        logger.warn('Failed to remove mise tool', { name: toolName, error: error.message })
-        this.setOperation(toolName, { status: 'failed', action: 'remove', error: error.message })
-        throw error
+        // Fail-closed: an unreadable dependent scan must never permit removal.
+        this.setOperation(name, null)
+        return { status: 'cleanup_blocked', reason: 'query_failed', message: this.errorMessage(err) }
       }
+      if (dependents.length > 0) {
+        this.setOperation(name, null)
+        return {
+          status: 'cleanup_blocked',
+          reason: 'dependency_blocked',
+          dependents,
+          message: `Cannot remove ${name} while installed tools depend on it: ${dependents.join(', ')}`
+        }
+      }
+
+      try {
+        // Invalidate before destructive commands because a later failure can leave
+        // the backend partially changed.
+        this.bumpMutationRevision()
+        await this.runMise(['unuse', '-g', definition.tool])
+        await this.runMise(['uninstall', '--all', definition.tool])
+        await this.runMise(['reshim'])
+        if (!(await this.isMiseToolAbsent(definition.tool))) {
+          this.setOperation(name, null)
+          return {
+            status: 'cleanup_blocked',
+            reason: 'cleanup_failed',
+            message: `Tool is still installed after removal: ${name}`
+          }
+        }
+      } catch (err) {
+        const message = this.errorMessage(err)
+        logger.warn('Failed to clean up mise tool', { name, error: message })
+        this.setOperation(name, null)
+        return { status: 'cleanup_blocked', reason: 'cleanup_failed', message }
+      }
+
+      // Backend cleaned. Drop the custom definition; a fixed tool keeps its
+      // code-owned catalog identity. The backend mutation was recorded before the
+      // destructive command sequence.
+      if (isCustom) return this.deleteToolDefinition(name)
+      this.setOperation(name, null)
+      return { status: 'removed' }
     })
+  }
+
+  /**
+   * Drop a custom tool's durable definition and clear its operation. A Preference
+   * write failure rejects with a failed remove operation left in place — the next
+   * remove re-enters the absent branch (backend already clean) and converges.
+   */
+  private async deleteToolDefinition(name: string): Promise<BinaryRemoveResult> {
+    try {
+      await this.removeManifest(name)
+    } catch (err) {
+      const message = this.errorMessage(err)
+      logger.warn('Failed to remove tool definition', { name, error: message })
+      this.setOperation(name, { status: 'failed', action: 'remove', error: message })
+      throw err
+    }
+    this.setOperation(name, null)
+    return { status: 'removed' }
+  }
+
+  private errorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err)
   }
 }

@@ -256,9 +256,15 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
           resolveProviderMeta,
-          onInstall: () => void install(selectedCliTool, versionStatus.intent),
-          onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest, versionStatus.intent),
-          onRemove: versionStatus.owned ? () => removeDialog.requestRemove(selectedCliTool) : undefined,
+          onInstall: () => void install(selectedCliTool),
+          onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
+          // Uninstall authority is the live application fact, not durable ownership:
+          // a fixed CLI carries no intent, so offer removal whenever its exact
+          // recipe is applied or broken.
+          onRemove:
+            versionStatus.applicationStatus === 'applied' || versionStatus.applicationStatus === 'broken'
+              ? () => removeDialog.requestRemove(selectedCliTool)
+              : undefined,
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),

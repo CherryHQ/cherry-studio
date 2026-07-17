@@ -89,22 +89,24 @@ if (command === 'use') {
   it('installs, snapshots, and removes through the production process runner', async () => {
     const service = createService()
 
-    await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).resolves.toEqual({ version: '1.2.3' })
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
-      { name: 'fd', tool: 'fd' }
-    ])
-    await expect(service.getToolSnapshots(['fd'])).resolves.toEqual({
-      fd: {
-        name: 'fd',
-        intent: { name: 'fd', tool: 'fd' },
-        availability: { source: 'mise', tool: 'fd', path: path.join(tempDir, 'shims', 'fd'), version: '1.2.3' },
+    await expect(service.installByName({ name: 'opencode' })).resolves.toBeUndefined()
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
+    await expect(service.getToolSnapshots(['opencode'])).resolves.toEqual({
+      opencode: {
+        name: 'opencode',
+        availability: {
+          source: 'mise',
+          tool: 'opencode',
+          path: path.join(tempDir, 'shims', 'opencode'),
+          version: '1.2.3'
+        },
         application: { status: 'applied', version: '1.2.3' }
       }
     })
 
-    await expect(service.removeTool('fd')).resolves.toBeUndefined()
+    await expect(service.removeTool({ name: 'opencode' })).resolves.toEqual({ status: 'removed' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
-    expect(fs.existsSync(path.join(tempDir, 'shims', 'fd'))).toBe(false)
+    expect(fs.existsSync(path.join(tempDir, 'shims', 'opencode'))).toBe(false)
 
     const shimsDir = path.join(tempDir, 'shims')
     fs.mkdirSync(shimsDir, { recursive: true })
@@ -123,10 +125,28 @@ if (command === 'use') {
       { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
     ])
 
+    // Custom Add commits the portable definition before probing the backend. A
+    // malformed listing therefore becomes a retryable failed operation, not a
+    // rolled-back Add.
     fs.writeFileSync(path.join(tempDir, 'fake-installed-tools.json'), 'not json')
-    await expect(service.installTool({ intent: { name: 'rg', tool: 'rg' } })).rejects.toThrow()
+    await expect(service.addCustomTool({ name: 'mytool', tool: 'mytool' })).resolves.toBeUndefined()
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
+      { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' },
+      { name: 'mytool', tool: 'mytool' }
+    ])
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toMatchObject({
+      mytool: { status: 'failed', action: 'install' }
+    })
+
+    fs.writeFileSync(
+      path.join(tempDir, 'fake-installed-tools.json'),
+      JSON.stringify({ 'core:node': [{ version: '22.23.1', active: true }] })
+    )
+    await expect(service.installByName({ name: 'mytool' })).resolves.toBeUndefined()
+    await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
       { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
     ])
+    expect(fs.existsSync(path.join(tempDir, 'shims', 'mytool'))).toBe(false)
   })
 })

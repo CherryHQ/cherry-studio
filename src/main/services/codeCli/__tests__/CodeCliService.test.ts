@@ -3,7 +3,7 @@ import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({
-  installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
+  installByName: vi.fn(() => Promise.resolve()),
   removeTool: vi.fn(() => Promise.resolve()),
   getToolSnapshots: vi.fn()
 }))
@@ -133,7 +133,7 @@ describe('CodeCliService', () => {
         ])
       )
     )
-    binaryManagerMock.installTool.mockResolvedValue({ version: 'latest' })
+    binaryManagerMock.installByName.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -452,7 +452,7 @@ describe('CodeCliService', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(binaryManagerMock.installTool).not.toHaveBeenCalled()
+      expect(binaryManagerMock.installByName).not.toHaveBeenCalled()
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['claude'])
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)
       expect(launchCall).toBeDefined()
@@ -483,16 +483,14 @@ describe('CodeCliService', () => {
       expect(launchArgs).not.toContain('"/tmp/$(touch pwned)')
     })
 
-    it('preserves a pinned owned intent when lazily recovering a missing CLI', async () => {
-      const intent = { name: 'claude', tool: 'claude', requestedVersion: '1.0.0' }
+    it('lazily recovers a missing CLI by name only, writing no Preference', async () => {
       binaryManagerMock.getToolSnapshots
         .mockResolvedValueOnce({
-          claude: { name: 'claude', intent, availability: { source: 'none' } }
+          claude: { name: 'claude', availability: { source: 'none' } }
         })
         .mockResolvedValueOnce({
           claude: {
             name: 'claude',
-            intent,
             availability: { source: 'mise', tool: 'claude', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
           }
         })
@@ -505,7 +503,9 @@ describe('CodeCliService', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(binaryManagerMock.installTool).toHaveBeenCalledWith({ intent })
+      // Name-only lazy install: main resolves the Code CLI's fixed recipe and
+      // writes no Preference — the renderer/service never supplies a recipe.
+      expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'claude' })
     })
 
     it('launches a managed npm CLI with Cherry shims first and no ambient MISE settings', async () => {

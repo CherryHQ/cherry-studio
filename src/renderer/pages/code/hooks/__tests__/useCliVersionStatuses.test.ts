@@ -112,7 +112,9 @@ describe('useCliVersionStatuses', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
-  it('reports unowned mise availability without granting upgrade ownership', async () => {
+  it('queries latest for an applied mise CLI even without durable ownership', async () => {
+    // A fixed CLI carries no intent, so latest authority is the application fact,
+    // not ownership — an applied-but-unowned CLI is still checked for updates.
     setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0', false) })
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
@@ -121,9 +123,10 @@ describe('useCliVersionStatuses', () => {
     expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({
       source: 'mise',
       owned: false,
+      applicationStatus: 'applied',
       canUpgrade: false
     })
-    expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
+    expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false)
   })
 
   it('does not treat a system OpenClaw as installed because its service requires the mise binary', async () => {

@@ -53,7 +53,9 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const removing = status.operation?.status === 'removing'
   const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
   const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
-  const retryUnownedInstall = failedInstall && !status.owned
+  const retryInstall =
+    !failedRemoval && !!onInstall && ((failedInstall && !status.owned) || status.applicationStatus === 'broken')
+  const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
 
@@ -122,7 +124,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
-          {status.owned && onRemove && (
+          {canRemove && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -139,7 +141,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
-          {retryUnownedInstall && (
+          {retryInstall && (
             <Button
               type="button"
               variant="outline"
@@ -184,7 +186,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           ) : (
             !failedRemoval &&
-            !retryUnownedInstall && (
+            !retryInstall && (
               <Button
                 type="button"
                 variant="outline"

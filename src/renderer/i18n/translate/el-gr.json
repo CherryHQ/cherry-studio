@@ -6149,6 +6149,8 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
       "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
       "runtimeDependency": "[to be translated]:Runtime",
       "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",

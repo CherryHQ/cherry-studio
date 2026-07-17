@@ -391,7 +391,10 @@ export class CodeCliService extends BaseService {
     if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        await binaryManager.installTool({ intent: snapshot.intent ?? spec })
+        // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
+        // recipe itself and writes no Preference — the CLI is a code-owned tool,
+        // not a user-added custom one.
+        await binaryManager.installByName({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)

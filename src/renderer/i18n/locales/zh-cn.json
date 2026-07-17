@@ -6163,6 +6163,8 @@
       "remove": "移除工具",
       "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
       "removeConfirmTitle": "移除工具",
+      "removeDefinitionOnlyConfirmMessage": "Cherry 无法安全清理 \"{{name}}\"。仅移除定义会隐藏该卡片，但后端文件仍会保留。是否继续？",
+      "removeDefinitionOnlyConfirmTitle": "仅移除定义？",
       "removeRuntimeConfirmMessage": "确定要移除 \"{{name}}\" 吗？卸载此运行时可能导致依赖它的 npm 或 pip 工具无法使用。",
       "runtimeDependency": "运行时依赖",
       "runtimeDependencyHint": "npm/pip 工具使用的运行时",

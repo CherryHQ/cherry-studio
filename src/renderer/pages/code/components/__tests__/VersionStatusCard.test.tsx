@@ -210,6 +210,31 @@ describe('VersionStatusCard', () => {
     expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
   })
 
+  it('offers repair for a broken fixed copy even when an external CLI remains runnable', () => {
+    const onInstall = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{
+          installed: true,
+          source: 'system',
+          owned: false,
+          applicationStatus: 'broken',
+          canUpgrade: false
+        }}
+        onInstall={onInstall}
+        onRemove={vi.fn()}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(onInstall).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'settings.dependencies.remove' })).toBeInTheDocument()
+  })
+
   it('keeps removal available for an owned unavailable tool and never offers install retry after removal fails', () => {
     render(
       <VersionStatusCard
@@ -219,6 +244,7 @@ describe('VersionStatusCard', () => {
           installed: false,
           source: 'none',
           owned: true,
+          applicationStatus: 'broken',
           canUpgrade: false,
           operation: { status: 'failed', action: 'remove', error: 'mise uninstall failed' }
         }}
@@ -237,7 +263,14 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: true, source: 'mise', owned: true, canUpgrade: true, operation: { status: 'removing' } }}
+        status={{
+          installed: true,
+          source: 'mise',
+          owned: true,
+          applicationStatus: 'applied',
+          canUpgrade: true,
+          operation: { status: 'removing' }
+        }}
         onUpgrade={vi.fn()}
         onRemove={vi.fn()}
         onLaunch={vi.fn()}

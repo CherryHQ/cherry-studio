@@ -6163,6 +6163,8 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
       "removeRuntimeConfirmMessage": "確定要移除「{{name}}」嗎？解除安裝此執行時可能導致依賴它的 npm 或 pip 工具無法使用。",
       "runtimeDependency": "執行時依賴",
       "runtimeDependencyHint": "npm/pip 工具使用的執行時",

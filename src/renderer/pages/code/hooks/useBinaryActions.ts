@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
 import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
@@ -19,8 +18,9 @@ export function useBinaryActions() {
   const [installingTools, setInstallingTools] = useState<Set<string>>(() => new Set())
   const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
 
-  // install and upgrade share one body — both run the same `binary.install_tool`
-  // request; they differ only in the busy Set, the success toast, and the log
+  // install and upgrade share one body — both run the same name-only
+  // `binary.install_tool` request; main resolves the Code CLI's fixed recipe
+  // itself. They differ only in the busy Set, the success toast, and the log
   // label. Failures are not toasted here: the main process tracks them in the
   // install-state map and the version card renders a persistent failure row.
   const runInstallTool = useCallback(
@@ -28,17 +28,12 @@ export function useBinaryActions() {
       toolId: CodeCli,
       setBusy: Dispatch<SetStateAction<Set<string>>>,
       messages: { successKey: string; logLabel: string },
-      intent?: BinaryManifestEntry,
       targetVersion?: string
     ) => {
       try {
         setBusy((prev) => new Set(prev).add(toolId))
-        const cliPreset = CODE_CLI_TOOL_PRESET_MAP[toolId]
         await ipcApi.request('binary.install_tool', {
-          intent: intent ?? {
-            name: cliPreset.executable,
-            tool: cliPreset.miseTool
-          },
+          name: CODE_CLI_TOOL_PRESET_MAP[toolId].executable,
           ...(targetVersion ? { targetVersion } : {})
         })
         toast.success(t(messages.successKey))
@@ -56,21 +51,16 @@ export function useBinaryActions() {
   )
 
   const install = useCallback(
-    (toolId: CodeCli, intent?: BinaryManifestEntry) =>
-      runInstallTool(
-        toolId,
-        setInstallingTools,
-        {
-          successKey: 'code.install_success',
-          logLabel: 'Failed to install:'
-        },
-        intent
-      ),
+    (toolId: CodeCli) =>
+      runInstallTool(toolId, setInstallingTools, {
+        successKey: 'code.install_success',
+        logLabel: 'Failed to install:'
+      }),
     [runInstallTool]
   )
 
   const upgrade = useCallback(
-    (toolId: CodeCli, latestVersion?: string, intent?: BinaryManifestEntry) =>
+    (toolId: CodeCli, latestVersion?: string) =>
       runInstallTool(
         toolId,
         setUpgradingTools,
@@ -78,7 +68,6 @@ export function useBinaryActions() {
           successKey: 'code.upgrade_success',
           logLabel: 'Failed to upgrade:'
         },
-        intent,
         latestVersion
       ),
     [runInstallTool]
@@ -87,7 +76,16 @@ export function useBinaryActions() {
   const remove = useCallback(
     async (toolId: CodeCli): Promise<boolean> => {
       try {
-        await ipcApi.request('binary.remove_tool', CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
+        const result = await ipcApi.request('binary.remove_tool', {
+          name: CODE_CLI_TOOL_PRESET_MAP[toolId].executable
+        })
+        // A Code CLI is a fixed tool: it has no removable definition, so a
+        // fail-closed cleanup_blocked has no definition-only fallback — surface it
+        // as an error the user resolves (e.g. stop a dependent) before retrying.
+        if (result.status === 'cleanup_blocked') {
+          toast.error(result.message ?? t('common.delete_failed'))
+          return false
+        }
         toast.success(t('common.delete_success'))
         return true
       } catch (error) {

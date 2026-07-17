@@ -18,6 +18,9 @@ const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, 
     installed: view.installed,
     source: view.source,
     owned: view.owned,
+    // Backend-application fact drives update/uninstall authority (fixed identity
+    // comes from the preset, not durable ownership).
+    ...(view.applicationStatus ? { applicationStatus: view.applicationStatus } : {}),
     ...(intent ? { intent } : {}),
     ...(view.installedVersion !== undefined ? { current: view.installedVersion } : {}),
     ...(view.source === 'mise' ? { latest } : {}),
@@ -47,14 +50,17 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
       if (cancelled || !snapshots) return
 
       for (const toolId of tools) {
-        if (!snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.intent) delete latestRef.current[toolId]
+        // Latest applies only to an exactly-applied fixed snapshot — not durable
+        // intent, which a fixed CLI never carries.
+        if (snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.application?.status !== 'applied') {
+          delete latestRef.current[toolId]
+        }
       }
-      const hasManagedCli = tools.some((toolId) => {
-        const snapshot = snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]
-        return snapshot?.intent && snapshot.availability.source === 'mise'
-      })
+      const hasAppliedCli = tools.some(
+        (toolId) => snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.application?.status === 'applied'
+      )
       let latestVersions: Record<string, string> = {}
-      if (hasManagedCli) {
+      if (hasAppliedCli) {
         latestVersions = await ipcApi.request('binary.get_latest_versions', false).catch((error) => {
           logger.error('Failed to read latest-version cache', error as Error)
           return {}
@@ -63,10 +69,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
           const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
           const snapshot = snapshots[binaryName]
           return (
-            !!snapshot?.intent &&
-            snapshot.availability.source === 'mise' &&
-            !latestVersions[binaryName] &&
-            !latestRef.current[toolId]
+            snapshot?.application?.status === 'applied' && !latestVersions[binaryName] && !latestRef.current[toolId]
           )
         })
         if (needsLatest) {

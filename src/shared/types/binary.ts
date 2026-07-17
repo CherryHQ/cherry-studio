@@ -8,11 +8,57 @@ export type BinaryOperation =
 
 export type BinaryOperations = Record<string, BinaryOperation>
 
-/** An install command separates durable user intent from a one-shot version target. */
+/**
+ * Legacy install command separating durable user intent from a one-shot version
+ * target.
+ *
+ * @deprecated Phase 2 compatibility only. The IPC install route now carries a
+ * bare name ({@link BinaryInstallByNameRequest}); main resolves the fixed/custom
+ * recipe itself. This shape survives solely for the internal `installTool`
+ * primitive still exercised by service tests — Phase 2(c) removes it.
+ */
 export type BinaryInstallRequest = {
   intent: BinaryManifestEntry
   targetVersion?: string
 }
+
+/**
+ * Name-only install command. Main resolves the recipe from its code-owned fixed
+ * catalog or the custom manifest — the renderer never supplies a recipe on this
+ * route (arbitrary recipes go through the Custom Add route instead).
+ */
+export type BinaryInstallByNameRequest = {
+  name: string
+  targetVersion?: string
+}
+
+/**
+ * Remove command addressed by name. `definitionOnly` drops just a custom tool's
+ * durable definition without touching the backend — valid only for a custom
+ * tool (a fixed tool has no removable definition, so the route rejects it).
+ */
+export type BinaryRemoveRequest = {
+  name: string
+  definitionOnly?: boolean
+}
+
+/**
+ * Typed outcome of a remove. `removed` is the success terminal for every branch
+ * (fixed cleanup, custom cleanup + definition delete, definition-only delete, or
+ * an already-absent no-op). `cleanup_blocked` is a fail-closed non-error the
+ * renderer branches on: the backend could not be safely cleaned, so nothing was
+ * removed and — for a custom tool — its definition is retained. The renderer
+ * never parses the message; it branches on `reason` and may surface `message` /
+ * `dependents` for display.
+ */
+export type BinaryRemoveResult =
+  | { status: 'removed' }
+  | {
+      status: 'cleanup_blocked'
+      reason: 'backend_unavailable' | 'query_failed' | 'conflict' | 'dependency_blocked' | 'cleanup_failed'
+      message?: string
+      dependents?: string[]
+    }
 
 /** Runtime availability independently observed by BinaryManager. */
 export type BinaryAvailability =

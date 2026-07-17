@@ -437,7 +437,7 @@ function mockCodeCliState({
 }
 
 function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, unknown>>> = {}) {
-  const base = { installed: true, source: 'mise', owned: true, canUpgrade: false }
+  const base = { installed: true, source: 'mise', owned: true, applicationStatus: 'applied', canUpgrade: false }
   return {
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },

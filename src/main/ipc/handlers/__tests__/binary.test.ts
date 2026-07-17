@@ -6,7 +6,8 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 import { binaryHandlers } from '../binary'
 
 const binaryManager = {
-  installTool: vi.fn(),
+  installByName: vi.fn(),
+  addCustomTool: vi.fn(),
   removeTool: vi.fn(),
   getToolSnapshots: vi.fn(),
   searchRegistry: vi.fn(),
@@ -26,31 +27,48 @@ const unmanagedCtx: { senderId: string | null } = { senderId: null }
 
 describe('binaryHandlers', () => {
   it('install_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
-    const request = { intent: { name: 'fd', tool: 'github:sharkdp/fd' } }
+    const request = { name: 'fd' }
     await expect(binaryHandlers['binary.install_tool'](request, unmanagedCtx)).rejects.toThrow(
       'binary.install_tool requires a managed window'
     )
-    expect(binaryManager.installTool).not.toHaveBeenCalled()
+    expect(binaryManager.installByName).not.toHaveBeenCalled()
+  })
+
+  it('add_custom_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
+    const definition = { name: 'mytool', tool: 'npm:mytool' }
+    await expect(binaryHandlers['binary.add_custom_tool'](definition, unmanagedCtx)).rejects.toThrow(
+      'binary.add_custom_tool requires a managed window'
+    )
+    expect(binaryManager.addCustomTool).not.toHaveBeenCalled()
   })
 
   it('remove_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
-    await expect(binaryHandlers['binary.remove_tool']('fd', unmanagedCtx)).rejects.toThrow(
+    await expect(binaryHandlers['binary.remove_tool']({ name: 'fd' }, unmanagedCtx)).rejects.toThrow(
       'binary.remove_tool requires a managed window'
     )
     expect(binaryManager.removeTool).not.toHaveBeenCalled()
   })
 
-  it('install_tool forwards the tool spec and returns the install result', async () => {
-    binaryManager.installTool.mockResolvedValue({ version: '1.2.3' })
-    const request = { intent: { name: 'fd', tool: 'github:sharkdp/fd' } }
-    const result = await binaryHandlers['binary.install_tool'](request, ctx)
-    expect(binaryManager.installTool).toHaveBeenCalledWith(request)
-    expect(result).toEqual({ version: '1.2.3' })
+  it('install_tool forwards the name-only request to the manager', async () => {
+    binaryManager.installByName.mockResolvedValue(undefined)
+    const request = { name: 'fd', targetVersion: '10.0.0' }
+    await binaryHandlers['binary.install_tool'](request, ctx)
+    expect(binaryManager.installByName).toHaveBeenCalledWith(request)
   })
 
-  it('remove_tool forwards the tool name', async () => {
-    await binaryHandlers['binary.remove_tool']('fd', ctx)
-    expect(binaryManager.removeTool).toHaveBeenCalledWith('fd')
+  it('add_custom_tool forwards the full recipe to the manager', async () => {
+    binaryManager.addCustomTool.mockResolvedValue(undefined)
+    const definition = { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
+    await binaryHandlers['binary.add_custom_tool'](definition, ctx)
+    expect(binaryManager.addCustomTool).toHaveBeenCalledWith(definition)
+  })
+
+  it('remove_tool forwards the request and returns the typed result', async () => {
+    binaryManager.removeTool.mockResolvedValue({ status: 'removed' })
+    const request = { name: 'fd', definitionOnly: true }
+    const result = await binaryHandlers['binary.remove_tool'](request, ctx)
+    expect(binaryManager.removeTool).toHaveBeenCalledWith(request)
+    expect(result).toEqual({ status: 'removed' })
   })
 
   it('get_tool_snapshots forwards names and returns the manager snapshots', async () => {

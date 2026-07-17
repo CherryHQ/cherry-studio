@@ -41,7 +41,7 @@ import {
   validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
-import type { BinaryAvailability, BinaryOperation, BinaryToolSnapshot } from '@shared/types/binary'
+import type { BinaryApplication, BinaryAvailability, BinaryOperation, BinaryToolSnapshot } from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -91,16 +91,6 @@ const getInstallRecoveryIntent = (snapshot: BinaryToolSnapshot): BinaryManifestE
     ? snapshot.operation.intent
     : undefined
 
-const toManifestIntent = (snapshot: BinaryToolSnapshot): BinaryManifestEntry => {
-  if (snapshot.intent) return snapshot.intent
-  const recoveryIntent = getInstallRecoveryIntent(snapshot)
-  if (recoveryIntent) return recoveryIntent
-  return {
-    name: snapshot.name,
-    tool: snapshot.availability.source === 'mise' ? snapshot.availability.tool : snapshot.name
-  }
-}
-
 interface EnvironmentDependenciesProps {
   mini?: boolean
 }
@@ -112,10 +102,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean; custom: boolean } | null>(null)
   const [installError, setInstallError] = useState<{ name: string; message: string } | null>(null)
+  // A custom tool whose backend cleanup was blocked: dropping just its definition
+  // is a separate, explicit choice the user confirms here before it is sent.
+  const [definitionFallback, setDefinitionFallback] = useState<{ name: string } | null>(null)
   // Retain the last target so the confirm dialog keeps its message during the close animation.
-  const deleteTargetRef = useRef<{ name: string; runtime: boolean }>({ name: '', runtime: false })
+  const deleteTargetRef = useRef<{ name: string; runtime: boolean; custom: boolean }>({
+    name: '',
+    runtime: false,
+    custom: false
+  })
   if (deleteTarget) deleteTargetRef.current = deleteTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -197,18 +194,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     [snapshots]
   )
   // Operation status is part of each snapshot, so a window mounted mid-mutation
-  // renders the same state as the window that initiated it.
-  const installTool = async (
-    intent: BinaryManifestEntry,
-    { surfaceErrorDialog = false, targetVersion }: { surfaceErrorDialog?: boolean; targetVersion?: string } = {}
-  ): Promise<boolean> => {
+  // renders the same state as the window that initiated it. Install/update are
+  // name-only: main resolves the fixed/custom recipe and never persists a recipe
+  // the renderer supplied. Card-level failures surface through the operation
+  // state (BinaryInstallFailureRow), not a dialog.
+  const installTool = async (name: string, targetVersion?: string): Promise<void> => {
     try {
-      await ipcApi.request('binary.install_tool', { intent, ...(targetVersion ? { targetVersion } : {}) })
-      return true
+      await ipcApi.request('binary.install_tool', { name, ...(targetVersion ? { targetVersion } : {}) })
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      if (surfaceErrorDialog) setInstallError({ name: intent.name, message: formatErrorMessage(error) })
-      return false
     } finally {
       await refreshState()
     }
@@ -232,29 +226,55 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    const discoveredRuntime = inventorySnapshots.find(
-      (snapshot) =>
-        !snapshot.intent &&
-        snapshot.name === tool.name &&
-        snapshot.availability.source === 'mise' &&
-        isRuntimeDependency(snapshot.availability.tool)
-    )
-    const requestedVersion =
-      tool.requestedVersion ||
-      (discoveredRuntime?.availability.source === 'mise' ? discoveredRuntime.availability.version : undefined)
-    const claimedTool = requestedVersion ? { ...tool, requestedVersion } : tool
-    if (!(await installTool(claimedTool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
+    try {
+      // Custom Add is the only route that carries an arbitrary recipe. Main persists
+      // the definition before any backend work and authoritatively rejects fixed-name
+      // and recipe collisions, so the recipe is sent exactly as entered — no
+      // discovered-runtime version pin is grafted on.
+      await ipcApi.request('binary.add_custom_tool', tool)
+    } catch (error) {
+      logger.error('Failed to add custom tool', error as Error)
+      setInstallError({ name: tool.name, message: formatErrorMessage(error) })
+      throw error
+    } finally {
+      await refreshState()
+    }
   }
 
-  // BinaryManager removes the physical binary and its manifest ownership together.
-  const handleRemoveTool = async (toolName: string) => {
+  // BinaryManager cleans the physical binary from the backend and, for a custom
+  // tool, drops its durable definition. A fail-closed cleanup_blocked removes
+  // nothing: a custom tool can still drop just its definition after an explicit
+  // second confirmation; a fixed tool has none, so its block is only an error.
+  const handleRemoveTool = async (target: { name: string; custom: boolean }) => {
     try {
-      await ipcApi.request('binary.remove_tool', toolName)
-      await refreshState()
-      setDeleteTarget(null)
+      const result = await ipcApi.request('binary.remove_tool', { name: target.name })
+      if (result.status === 'cleanup_blocked') {
+        if (target.custom) {
+          setDefinitionFallback({ name: target.name })
+        } else {
+          setInstallError({ name: target.name, message: result.message ?? t('common.delete_failed') })
+        }
+        return
+      }
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
       toast.error(formatErrorMessage(error))
+    } finally {
+      setDeleteTarget(null)
+      await refreshState()
+    }
+  }
+
+  // Second stage: drop only the custom definition (the backend stays as-is).
+  const handleRemoveDefinition = async (name: string) => {
+    try {
+      await ipcApi.request('binary.remove_tool', { name, definitionOnly: true })
+    } catch (error) {
+      logger.error('Failed to remove tool definition', error as Error)
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setDefinitionFallback(null)
+      await refreshState()
     }
   }
 
@@ -335,26 +355,21 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const snapshot = snapshots[tool.name]
           const latestVersion = latestVersions?.[tool.name]
           const view = interpretBinarySnapshot(snapshot, { latest: latestVersion })
-          const managedIntent = snapshot?.intent
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={view.source}
-              owned={view.owned}
+              applicationStatus={view.applicationStatus}
               systemPath={view.systemPath}
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot?.operation}
               onShowError={(message) => setInstallError({ name: tool.name, message })}
-              onInstall={() =>
-                installTool(
-                  managedIntent ?? { name: tool.name, tool: tool.tool, requestedVersion: tool.requestedVersion }
-                )
-              }
-              onUpdate={() => managedIntent && installTool(managedIntent, { targetVersion: latestVersion ?? 'latest' })}
+              onInstall={() => installTool(tool.name)}
+              onUpdate={() => installTool(tool.name, latestVersion ?? 'latest')}
               onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
-              onRemove={() => setDeleteTarget({ name: tool.name, runtime: false })}
+              onRemove={() => setDeleteTarget({ name: tool.name, runtime: false, custom: false })}
             />
           )
         })}
@@ -385,10 +400,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot.operation}
               onShowError={(message) => setInstallError({ name: snapshot.name, message })}
-              onInstall={() => installTool(toManifestIntent(snapshot))}
-              onUpdate={() => installTool(toManifestIntent(snapshot), { targetVersion: latestVersion ?? 'latest' })}
+              onInstall={() => installTool(snapshot.name)}
+              onUpdate={() => installTool(snapshot.name, latestVersion ?? 'latest')}
               onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
-              onRemove={() => setDeleteTarget({ name: snapshot.name, runtime })}
+              onRemove={() => setDeleteTarget({ name: snapshot.name, runtime, custom: true })}
             />
           )
         })}
@@ -415,7 +430,20 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         cancelText={t('common.cancel')}
         destructive
         onConfirm={async () => {
-          if (deleteTarget) await handleRemoveTool(deleteTarget.name)
+          if (deleteTarget) await handleRemoveTool({ name: deleteTarget.name, custom: deleteTarget.custom })
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!definitionFallback}
+        onOpenChange={(open) => !open && setDefinitionFallback(null)}
+        title={t('settings.dependencies.removeDefinitionOnlyConfirmTitle')}
+        description={t('settings.dependencies.removeDefinitionOnlyConfirmMessage', { name: definitionFallback?.name })}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={async () => {
+          if (definitionFallback) await handleRemoveDefinition(definitionFallback.name)
         }}
       />
     </div>
@@ -425,7 +453,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
-  owned: boolean
+  applicationStatus?: BinaryApplication['status']
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
@@ -438,7 +466,7 @@ const BinaryToolPresetCard: FC<{
 }> = ({
   tool,
   source,
-  owned,
+  applicationStatus,
   systemPath,
   installedVersion,
   latestVersion,
@@ -459,6 +487,14 @@ const BinaryToolPresetCard: FC<{
   const failedInstall = operation?.status === 'failed' && operation.action === 'install'
   const failedRemove = operation?.status === 'failed' && operation.action === 'remove'
   const busy = installing || removing
+  // Backend control authority is the live application fact, never durable
+  // ownership (a fixed tool carries no intent). `applied` exposes Update +
+  // Uninstall; `broken` exposes Retry + Uninstall; an `absent`+`none` tool offers
+  // Install; an externally satisfied (bundled/system) absent tool stays read-only.
+  const applied = applicationStatus === 'applied'
+  const broken = applicationStatus === 'broken'
+  const backendControllable = applied || broken
+  const canInstall = (applicationStatus === 'absent' && source === 'none') || broken || failedInstall
 
   return (
     <div
@@ -509,9 +545,9 @@ const BinaryToolPresetCard: FC<{
           </div>
         </div>
 
-        {owned && (
+        {backendControllable && (
           <div className="flex shrink-0 items-center gap-1">
-            {present && (
+            {applied && (
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -573,7 +609,7 @@ const BinaryToolPresetCard: FC<{
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {(source === 'none' || (failedInstall && !owned)) && !failedRemove && (
+      {canInstall && !failedRemove && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -585,7 +621,7 @@ const BinaryToolPresetCard: FC<{
             {!installing && <Download className="size-3.5" />}
             {installing
               ? t('settings.dependencies.installing')
-              : failedInstall
+              : failedInstall || broken
                 ? t('common.retry')
                 : t('settings.mcp.install')}
           </Button>
@@ -638,6 +674,13 @@ const CustomToolCard: FC<{
   const failedInstall = operation?.status === 'failed' && operation.action === 'install'
   const failedRemove = operation?.status === 'failed' && operation.action === 'remove'
   const busy = installing || removing
+  const applicationStatus = tool.application?.status
+  const canUpdate = owned && applicationStatus === 'applied'
+  const canInstall =
+    !readOnly &&
+    (applicationStatus === 'broken' ||
+      (applicationStatus === 'absent' && tool.availability.source === 'none') ||
+      failedInstall)
 
   return (
     <div
@@ -688,7 +731,7 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {owned && installed && !readOnly && (
+          {canUpdate && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -729,7 +772,7 @@ const CustomToolCard: FC<{
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {(!installed || (failedInstall && !owned)) && !readOnly && !failedRemove && (
+      {canInstall && !failedRemove && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
