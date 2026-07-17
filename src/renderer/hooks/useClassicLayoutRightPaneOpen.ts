@@ -11,8 +11,8 @@ type ClassicLayoutPaneOpenSetter = (open: boolean, options?: { force?: boolean }
 /**
  * Classic-layout right-pane open state, cached per surface so the assistant (`'chat'`) and agent
  * surfaces never bleed into each other (mirrors the `ui.chat.*` vs `ui.agent.*` split used elsewhere).
- * The cache survives AgentChat draft→persistent remounts (each branch mounts its own Shell) and
- * app/page re-entry. In modern layout the pane is derived closed and the setter is a no-op, so the
+ * The cache seeds the stable AgentChat shell and survives app/page re-entry. In modern layout the pane
+ * is derived closed and the setter is a no-op, so the
  * stored value is only ever written from classic layout.
  */
 export function useClassicLayoutRightPaneOpen(

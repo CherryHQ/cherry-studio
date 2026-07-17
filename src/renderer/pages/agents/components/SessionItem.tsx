@@ -4,7 +4,7 @@ import type {
   SessionActionContext,
   SessionExportMenuOptions
 } from '@renderer/components/chat/actions/sessionItemActions'
-import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
+import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceList,
   useResourceListActions,
@@ -76,8 +76,8 @@ const SessionItem = ({
   sessionMenuActions
 }: SessionItemProps) => {
   const { t } = useTranslation()
-  const shellState = useOptionalShellState()
-  const shellActions = useOptionalShellActions()
+  const rightPanelState = useOptionalRightPanelState()
+  const rightPanelActions = useOptionalRightPanelActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
@@ -219,10 +219,10 @@ const SessionItem = ({
         handleOpenInNewTab()
         return
       }
-      if (shellState?.maximized) shellActions?.minimize()
+      if (rightPanelState?.maximized) rightPanelActions?.minimize()
       onPress(session.id)
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, session.id, shellActions, shellState?.maximized]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, rightPanelActions, rightPanelState?.maximized, session.id]
   )
 
   const handleAuxClick = useCallback(
