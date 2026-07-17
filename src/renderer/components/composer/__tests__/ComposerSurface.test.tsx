@@ -1355,6 +1355,45 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('toggles a launcher panel closed by its declared panelSymbol, not its id', async () => {
+    // Knowledge Base opens the '#' panel; the toggle must compare against panelSymbol.
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '#'
+    mocks.quickPanelTriggerInfo = { type: 'button', position: 0 }
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'knowledge-base',
+            kind: 'panel',
+            label: 'Knowledge Base',
+            icon: 'kb',
+            sources: ['popover'],
+            panelSymbol: '#'
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button
+            type="button"
+            aria-label="open kb panel"
+            onClick={() => unifiedPanelControl?.open({ launcherId: 'knowledge-base' })}>
+            kb
+          </button>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open kb panel' }))
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('toggle')
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+  })
+
   it('closes a button-opened unified panel when the same control is clicked again', async () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelSymbol = 'thinking'

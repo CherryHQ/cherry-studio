@@ -410,7 +410,6 @@ export interface NewTopic {
   isNameManuallyEdited: boolean
   assistantId: string | null
   activeNodeId: string | null
-  groupId: string | null
   orderKey: string
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -455,8 +454,7 @@ export interface NewMessage {
  * | isNameManuallyEdited | isNameManuallyEdited | Direct copy |
  * | assistantId | assistantId | FK to assistant table (validated) |
  * | (computed) | activeNodeId | Last message ID |
- * | (none) | groupId | null (new field) |
- * | (none) | orderKey | placeholder; stamped post-stream by the migrator |
+ * | (none) | orderKey | placeholder; stamped globally post-stream by the migrator |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
@@ -473,7 +471,6 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
-    groupId: null, // New field, no migration source
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
     createdAt: parseTimestamp(oldTopic.createdAt),
     updatedAt: parseTimestamp(oldTopic.updatedAt)

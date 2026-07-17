@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useCache, usePersistCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -71,12 +70,13 @@ import {
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
+import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -1367,11 +1367,6 @@ type TopicStreamState = {
   isPending: boolean
 }
 
-type TopicStreamStatusSnapshot = {
-  signature: string
-  value: TopicStreamState
-}
-
 const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
   isFulfilled: false,
   isPending: false
@@ -1382,9 +1377,10 @@ const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses
 const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as const
 
-const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnapshot => {
-  const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-  const lastSeenCompletion = cacheService.getShared(getTopicStreamLastSeenCompletionCacheKey(topicId))
+const selectTopicStreamState = (
+  values: readonly [TopicStatusSnapshotEntry | null | undefined, number | null | undefined]
+): TopicStreamState => {
+  const [statusEntry, lastSeenCompletion] = values
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const streamStatus = {
@@ -1392,49 +1388,16 @@ const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnaps
     isPending: status === 'pending' || status === 'streaming'
   }
 
-  return {
-    signature: `${topicId}:${status ?? ''}:${lastCompletedAt ?? ''}:${lastSeenCompletion ?? ''}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`,
-    value: streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
-  }
+  // Normalize the idle case to a module constant; the non-idle object is
+  // rebuilt per run and bails out via the default shallowEqual.
+  return streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
 }
 
-const subscribeTopicStreamStatus = (topicId: string, onStoreChange: () => void): (() => void) => {
-  const unsubscribes = [
-    cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange),
-    cacheService.subscribe(getTopicStreamLastSeenCompletionCacheKey(topicId), onStoreChange)
-  ]
-
-  return () => {
-    for (const unsubscribe of unsubscribes) {
-      unsubscribe()
-    }
-  }
-}
-
-const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
-  const snapshotRef = useRef<TopicStreamStatusSnapshot>({
-    signature: '',
-    value: EMPTY_TOPIC_STREAM_STATE
-  })
-
-  const getSnapshot = useCallback(() => {
-    const nextSnapshot = buildTopicStreamStatusSnapshot(topicId)
-
-    if (snapshotRef.current.signature === nextSnapshot.signature) {
-      return snapshotRef.current.value
-    }
-
-    snapshotRef.current = nextSnapshot
-    return nextSnapshot.value
-  }, [topicId])
-
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => subscribeTopicStreamStatus(topicId, onStoreChange),
-    [topicId]
+const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
+  useSharedCacheSelector(
+    [getTopicStreamStatusCacheKey(topicId), getTopicStreamLastSeenCompletionCacheKey(topicId)],
+    selectTopicStreamState
   )
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
 
 interface TopicListBodyProps {
   activeTopic?: Topic
