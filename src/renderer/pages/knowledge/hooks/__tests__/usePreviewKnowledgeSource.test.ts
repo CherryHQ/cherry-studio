@@ -19,6 +19,14 @@ const mockIpcRequest = vi.hoisted(() => vi.fn())
 const previewFileMock = vi.fn()
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: mockIpcRequest
@@ -70,6 +78,31 @@ describe('usePreviewKnowledgeSource', () => {
     })
     expect(mockOpenPath).not.toHaveBeenCalled()
     expect(mockOpenExternal).not.toHaveBeenCalled()
+  })
+
+  it('discards an older file preview request when a newer one is started', async () => {
+    const firstRequest = createDeferred<string>()
+    const secondRequest = createDeferred<string>()
+    mockIpcRequest.mockReturnValueOnce(firstRequest.promise).mockReturnValueOnce(secondRequest.promise)
+    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
+
+    let firstPreview!: Promise<void>
+    let secondPreview!: Promise<void>
+    act(() => {
+      firstPreview = result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/first.pdf' }))
+      secondPreview = result.current.previewSource(createFileItem({ id: 'file-2', source: '/Users/me/second.pdf' }))
+    })
+
+    secondRequest.resolve('/knowledge/base-1/raw/second.pdf')
+    await act(async () => secondPreview)
+    firstRequest.resolve('/knowledge/base-1/raw/first.pdf')
+    await act(async () => firstPreview)
+
+    expect(previewFileMock).toHaveBeenCalledTimes(1)
+    expect(previewFileMock).toHaveBeenCalledWith({
+      fileName: 'second.pdf',
+      filePath: '/knowledge/base-1/raw/second.pdf'
+    })
   })
 
   it('opens directory sources through the file path API', async () => {

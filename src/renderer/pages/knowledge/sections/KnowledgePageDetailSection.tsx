@@ -12,18 +12,20 @@ import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
 import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
-import type { KnowledgeFilePreviewTarget } from '../types'
-
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
   const {
     selectedBase,
     selectedBaseId,
     selectedItemId,
+    filePreview,
+    baseNavigationVersion,
     isRagConfigDrawerOpen,
     isRecallTestDrawerOpen,
     openItemChunks,
     closeItemChunks,
+    openFilePreview,
+    closeFilePreview,
     openAddSourceDialog,
     openRagConfigDrawer,
     openRecallTestDrawer,
@@ -35,14 +37,12 @@ const KnowledgePageDetailSection = () => {
   // Directory drill-down: the stack holds the directory items descended into (empty = base root).
   // The current directory's id becomes the item-list's `groupId`, listing that folder's children.
   const [directoryStack, setDirectoryStack] = useState<KnowledgeItemOf<'directory'>[]>([])
-  const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
   const currentDirectory = directoryStack.at(-1) ?? null
 
-  // A different base has its own tree and preview context, so return to its root source list.
+  // Every base selection starts from that base's root, including re-selecting the current base.
   useEffect(() => {
     setDirectoryStack([])
-    setFilePreview(null)
-  }, [selectedBaseId])
+  }, [baseNavigationVersion])
 
   const drillIntoDirectory = useCallback((item: KnowledgeItemOf<'directory'>) => {
     setDirectoryStack((prev) => [...prev, item])
@@ -92,7 +92,7 @@ const KnowledgePageDetailSection = () => {
                     size="icon-sm"
                     aria-label={t('common.back')}
                     className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
-                    onClick={() => setFilePreview(null)}>
+                    onClick={closeFilePreview}>
                     <ArrowLeft className="size-3.5" />
                   </Button>
                   <span className="min-w-0 flex-1 truncate text-foreground text-sm">{filePreview.fileName}</span>
@@ -110,7 +110,7 @@ const KnowledgePageDetailSection = () => {
             onLoadMore={loadMoreItems}
             updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
-            onPreviewFile={setFilePreview}
+            onPreviewFile={openFilePreview}
             onItemClick={openItemChunks}
             onDrillIntoDirectory={drillIntoDirectory}
             currentDirectory={currentDirectory}

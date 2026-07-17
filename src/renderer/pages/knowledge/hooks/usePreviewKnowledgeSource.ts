@@ -6,7 +6,7 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { getKnowledgeItemDisplayTitle, type KnowledgeItem } from '@shared/data/types/knowledge'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
@@ -28,9 +28,18 @@ const sanitizeHttpUrl = (source: string): string | null => {
 
 export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFilePreviewTarget) => void) => {
   const { t } = useTranslation()
+  const requestVersionRef = useRef(0)
+
+  useEffect(() => {
+    return () => {
+      requestVersionRef.current += 1
+    }
+  }, [])
 
   const previewSource = useCallback(
     async (item: KnowledgeItem): Promise<void> => {
+      const requestVersion = ++requestVersionRef.current
+      const isCurrentRequest = () => requestVersionRef.current === requestVersion
       const source = item.data.source.trim()
 
       if (!source) {
@@ -41,6 +50,7 @@ export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFileP
       try {
         if (item.type === 'file' || (item.type === 'url' && item.data.relativePath)) {
           const physicalPath = await ipcApi.request('knowledge.get_file_path', { itemId: item.id })
+          if (!isCurrentRequest()) return
           onPreviewFile({
             fileName: getKnowledgeItemDisplayTitle(item),
             filePath: normalizeFilePreviewPath(physicalPath)
@@ -61,6 +71,7 @@ export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFileP
 
         await window.api.file.openPath(source)
       } catch (error) {
+        if (!isCurrentRequest()) return
         const previewError = normalizeKnowledgeError(error)
 
         logger.error('Failed to preview knowledge source', previewError, {

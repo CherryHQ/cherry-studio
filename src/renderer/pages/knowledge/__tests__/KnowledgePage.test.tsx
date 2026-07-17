@@ -28,6 +28,7 @@ const mockUseDeleteKnowledgeItem = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
 const mockDetailHeaderRender = vi.fn()
+const mockDataSourcePanelRender = vi.fn()
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
@@ -157,7 +158,7 @@ vi.mock('../components/navigator', () => ({
     onDeleteBase: (baseId: string) => Promise<void> | void
     onResizeStart: (event: ReactMouseEvent<HTMLButtonElement>) => void
   }) => (
-    <div>
+    <div data-testid="base-navigator">
       <div data-testid="base-count">{bases.length}</div>
       <div data-testid="group-names">{groups.map((group) => group.name).join(',')}</div>
       <div data-testid="navigator-width">{width}</div>
@@ -254,44 +255,48 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     currentDirectory?: KnowledgeItemOf<'directory'> | null
     onDelete: (item: { id: string }) => void | Promise<void>
     onReindex: (item: { id: string }) => void | Promise<void>
-  }) => (
-    <div>
-      <div data-testid="data-source-panel" data-current-directory={currentDirectory?.id ?? 'root'}>
-        {`${items.length}:${isLoading ? 'loading' : 'idle'}`}
-      </div>
-      <button type="button" onClick={onAdd}>
-        Open Add Source
-      </button>
-      {items.map((item) => (
-        <div key={item.id}>
-          {item.type === 'directory' ? (
-            <button type="button" onClick={() => onDrillIntoDirectory?.(item)}>
-              DrillDirectory {item.id}
-            </button>
-          ) : null}
-          <button type="button" onClick={() => onItemClick(item.id)}>
-            OpenChunks {item.id}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              onPreviewFile({
-                fileName: `${item.id}.pdf`,
-                filePath: `/knowledge/${item.id}.pdf` as KnowledgeFilePreviewTarget['filePath']
-              })
-            }>
-            PreviewFile {item.id}
-          </button>
-          <button type="button" onClick={() => void onDelete(item)}>
-            DeleteItem {item.id}
-          </button>
-          <button type="button" onClick={() => void onReindex(item)}>
-            Reindex {item.id}
-          </button>
+  }) => {
+    mockDataSourcePanelRender({ onPreviewFile })
+
+    return (
+      <div>
+        <div data-testid="data-source-panel" data-current-directory={currentDirectory?.id ?? 'root'}>
+          {`${items.length}:${isLoading ? 'loading' : 'idle'}`}
         </div>
-      ))}
-    </div>
-  )
+        <button type="button" onClick={onAdd}>
+          Open Add Source
+        </button>
+        {items.map((item) => (
+          <div key={item.id}>
+            {item.type === 'directory' ? (
+              <button type="button" onClick={() => onDrillIntoDirectory?.(item)}>
+                DrillDirectory {item.id}
+              </button>
+            ) : null}
+            <button type="button" onClick={() => onItemClick(item.id)}>
+              OpenChunks {item.id}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onPreviewFile({
+                  fileName: `${item.id}.pdf`,
+                  filePath: `/knowledge/${item.id}.pdf` as KnowledgeFilePreviewTarget['filePath']
+                })
+              }>
+              PreviewFile {item.id}
+            </button>
+            <button type="button" onClick={() => void onDelete(item)}>
+              DeleteItem {item.id}
+            </button>
+            <button type="button" onClick={() => void onReindex(item)}>
+              Reindex {item.id}
+            </button>
+          </div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => ({
@@ -891,11 +896,16 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/knowledge/item-1.pdf')
     expect(screen.getByText('item-1.pdf')).toBeInTheDocument()
     expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('base-navigator')).not.toBeInTheDocument()
+    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
+    expect(screen.getByRole('button', { name: 'OpenRagConfig' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'OpenRecallTest' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
 
     expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    expect(screen.getByTestId('base-navigator')).toBeInTheDocument()
   })
 
   it('returns from an embedded preview to the current directory', async () => {
@@ -953,13 +963,89 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
     expect(screen.getByTestId('file-preview')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-2')
+    })
 
     await waitFor(() => {
       expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
     })
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     expect(screen.getByRole('button', { name: 'PreviewFile item-2' })).toBeInTheDocument()
+  })
+
+  it('ignores a deferred preview result after switching knowledge bases', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: [createKnowledgeItem({ id: baseId === 'base-1' ? 'item-1' : 'item-2' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    render(<KnowledgePage />)
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1'))
+    const stalePreviewCallback = mockDataSourcePanelRender.mock.lastCall?.[0].onPreviewFile as (
+      target: KnowledgeFilePreviewTarget
+    ) => void
+    let resolvePreview!: () => void
+    const deferredPreview = new Promise<void>((resolve) => {
+      resolvePreview = resolve
+    })
+    void deferredPreview.then(() => {
+      stalePreviewCallback({
+        fileName: 'item-1.pdf',
+        filePath: '/knowledge/item-1.pdf' as KnowledgeFilePreviewTarget['filePath']
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
+    await act(async () => {
+      resolvePreview()
+      await deferredPreview
+    })
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
+    expect(screen.getByRole('button', { name: 'PreviewFile item-2' })).toBeInTheDocument()
+  })
+
+  it('closes the preview when the current knowledge base is selected again', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'PreviewFile item-1' }))
+    expect(screen.getByTestId('file-preview')).toBeInTheDocument()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-1')
+    })
+
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
   })
 
   it('keeps the chunk detail panel visible behind the RAG drawer when opened', async () => {
