@@ -45,6 +45,11 @@ import { admitArchive } from './admitArchive'
 import { BackupRestoreJobQuiesce } from './BackupRestoreJobQuiesce'
 import { contributorManager } from './contributors'
 import {
+  collectRestoredKnowledgeBaseIds,
+  enqueueKnowledgeReindexAfterRestore,
+  knowledgeRootRelativeToUserData
+} from './enqueueKnowledgeReindexAfterRestore'
+import {
   BackupArchiveCorruptError,
   BackupCancelledError,
   BackupIntegrityError,
@@ -194,6 +199,41 @@ export class BackupService extends BaseService {
       notesRoot: () => this.pendingNotesRoot,
       stripper: new SqliteBackupStripper()
     })
+  }
+
+  /**
+   * After a completed restore promotion + relaunch: enqueue KB vector rebuilds for
+   * bases whose `index.sqlite` was excluded from the archive (R1). Runs in onAllReady
+   * so JobManager knowledge handlers are registered. Empty/missing index does not
+   * auto-rebuild — this is the explicit enqueue the PRD requires.
+   */
+  protected async onAllReady(): Promise<void> {
+    await this.enqueueKnowledgeReindexIfRestoreCompleted()
+  }
+
+  private async enqueueKnowledgeReindexIfRestoreCompleted(): Promise<void> {
+    const read = readRestoreJournal()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') {
+      return
+    }
+    const userData = application.getPath('app.userdata')
+    const knowledgeRoot = application.getPath('feature.knowledgebase.data')
+    const relRoot = knowledgeRootRelativeToUserData(userData, knowledgeRoot)
+    const baseIds = collectRestoredKnowledgeBaseIds(read.journal.fileResources, relRoot)
+    if (baseIds.length === 0) {
+      return
+    }
+    try {
+      const knowledgeService = application.get('KnowledgeService')
+      await enqueueKnowledgeReindexAfterRestore(baseIds, {
+        reindexItems: (baseId, rootItemIds) => knowledgeService.reindexItems(baseId, rootItemIds)
+      })
+    } catch (error) {
+      logger.error('Failed to enqueue knowledge reindex after restore', error as Error, {
+        restoreId: read.journal.restoreId,
+        baseIds
+      })
+    }
   }
 
   /**

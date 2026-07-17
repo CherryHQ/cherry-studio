@@ -147,6 +147,33 @@ describe('SqliteFileStager', () => {
     }
   })
 
+  it('stageKnowledge excludes .cherry/index.sqlite{,-wal,-shm} but keeps raw/ and other .cherry files', async () => {
+    const kbRoot = await mkdtemp(join(tmpdir(), 'cs-stager-kb-idx-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-idx-'))
+    try {
+      await mkdir(join(kbRoot, 'kb1', '.cherry'), { recursive: true })
+      await mkdir(join(kbRoot, 'kb1', 'raw'), { recursive: true })
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite'), 'INDEX')
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-wal'), 'WAL')
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-shm'), 'SHM')
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'keep-me.txt'), 'meta')
+      await writeFile(join(kbRoot, 'kb1', 'raw', 'source.md'), 'doc')
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), kbRoot, '/unused')
+      const r = await stager.stageKnowledge(new Set(['kb1']), dest)
+
+      expect(r.bases).toEqual(['kb1'])
+      expect(existsSync(join(dest, 'kb1', 'raw', 'source.md'))).toBe(true)
+      expect(existsSync(join(dest, 'kb1', '.cherry', 'keep-me.txt'))).toBe(true)
+      expect(existsSync(join(dest, 'kb1', '.cherry', 'index.sqlite'))).toBe(false)
+      expect(existsSync(join(dest, 'kb1', '.cherry', 'index.sqlite-wal'))).toBe(false)
+      expect(existsSync(join(dest, 'kb1', '.cherry', 'index.sqlite-shm'))).toBe(false)
+    } finally {
+      await rm(kbRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
   it('stageSkillDirs copies skill folders and skips missing dirs without a missing list', async () => {
     const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))

@@ -303,7 +303,13 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       const notesRoot = await mkdtemp(join(tmpdir(), 'cs-notes-root-'))
       await writeFile(join(filesRoot, 'f1.txt'), 'hello')
       await mkdir(join(kbRoot, 'kb1'), { recursive: true })
+      await mkdir(join(kbRoot, 'kb1', '.cherry'), { recursive: true })
+      await mkdir(join(kbRoot, 'kb1', 'raw'), { recursive: true })
       await writeFile(join(kbRoot, 'kb1', 'source.md'), 'doc')
+      await writeFile(join(kbRoot, 'kb1', 'raw', 'kept.md'), 'raw-body')
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite'), 'INDEX')
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-wal'), 'WAL')
+      await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-shm'), 'SHM')
       // Seed Notes markdown bodies (PREFERENCES file resource) — one at root, one
       // nested, one with an uppercase .MD ext — to exercise recursive collect,
       // sub-dir-preserving stage, and case-insensitive ext matching (Notes UI treats
@@ -361,6 +367,9 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       try {
         expect(entries).toContain('files/f1')
         expect(entries).toContain('knowledge/kb1/source.md')
+        expect(entries).toContain('knowledge/kb1/raw/kept.md')
+        // R1: derived vector index (+ WAL sidecars) must not enter the archive.
+        expect(entries.some((e) => e.includes('index.sqlite'))).toBe(false)
         expect(entries).toContain('notes/note1.md')
         expect(entries).toContain('notes/sub/note2.md')
 

@@ -10,7 +10,7 @@
 //   - feature.knowledgebase.data (per-base dirs: <baseId>/)
 
 import { copyFile, cp, mkdir, realpath, rm, stat } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
@@ -19,6 +19,22 @@ import { isPathInside } from '@main/utils/file'
 import { and, inArray, isNull } from 'drizzle-orm'
 
 const logger = loggerService.withContext('backup/FileStager')
+
+/**
+ * Derived per-base vector index (+ WAL sidecars). Excluded from full export so a
+ * concurrent WAL write cannot tear the archive; restore rebuilds via explicit
+ * `knowledge.index-documents` enqueue (empty index does not auto-rebuild).
+ */
+export const KNOWLEDGE_INDEX_SQLITE_BASENAMES = new Set([
+  'index.sqlite',
+  'index.sqlite-wal',
+  'index.sqlite-shm'
+])
+
+/** True when `sourcePath`'s basename is an excluded knowledge index file. */
+export function isExcludedKnowledgeIndexBasename(sourcePath: string): boolean {
+  return KNOWLEDGE_INDEX_SQLITE_BASENAMES.has(basename(sourcePath))
+}
 
 /** True if `e` is a Node fs error with the given code (e.g. 'ENOENT' = source gone). */
 const isErrnoCode = (e: unknown, code: string): boolean => (e as NodeJS.ErrnoException | undefined)?.code === code
@@ -209,13 +225,15 @@ export class SqliteFileStager implements FileStager {
       }
       const dest = join(destDir, baseId)
       await mkdir(dest, { recursive: true })
-      // TODO(knowledge-index-consistency): raw `cp` of a WAL-mode .cherry/index.sqlite
-      // can capture the main DB and -wal/-shm from different moments, so a restored
-      // base may carry a stale/corrupt index. Land a checkpoint or a SQLite backup-API
-      // copy under the knowledge-base mutation lock (or exclude + rebuild on restore)
-      // before this path serves users who index while exporting.
+      // R1: exclude derived `.cherry/index.sqlite{,-wal,-shm}` (exact basenames). Raw
+      // materials under `raw/` are retained; restore rebuilds the index via explicit
+      // `knowledge.index-documents` enqueue after promotion/relaunch (empty index does
+      // not auto-rebuild — see KnowledgeVectorStoreService.reportInvisibleIndexContents).
       try {
-        await cp(src, dest, { recursive: true })
+        await cp(src, dest, {
+          recursive: true,
+          filter: (sourcePath) => !isExcludedKnowledgeIndexBasename(sourcePath)
+        })
       } catch (e) {
         // ENOENT = source gone mid-copy → missing. EACCES/EPERM is ambiguous
         // (unreadable source vs dest permission) — re-stat to disambiguate. On a

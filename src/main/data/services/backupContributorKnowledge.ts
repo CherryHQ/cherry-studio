@@ -13,9 +13,9 @@
 // fileRefSourcePolicies. Knowledge file blobs are collected via collectFileResources
 // (filesystem {baseId}/ directory), not via FileManager refs.
 //
-// renamable:false — the {baseId}/ directory + .cherry/index.sqlite must stay
-// consistent with the base id; a RENAME clone cannot guarantee that, so RENAME
-// degrades to SKIP (architecture §3.5).
+// renamable:false — the {baseId}/ directory must stay consistent with the base id;
+// a RENAME clone cannot guarantee that, so RENAME degrades to SKIP (architecture §3.5).
+// The derived `.cherry/index.sqlite` is rebuildable and excluded from export (R1).
 //
 // Preset: full only (lite-excluded — knowledge bases are large).
 
@@ -27,10 +27,11 @@ import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 
 /**
  * Collect knowledge_base ids — each base owns a `{baseId}/` directory under
- * feature.knowledgebase.data (raw source files + .cherry/index.sqlite). These
- * are directory-shaped resources (not file_entry blobs), so the orchestrator
- * routes them to `knowledge/<baseId>/` at stage time (distinct from
- * `files/<fileId>`); a base whose directory is missing is skipped, not fatal.
+ * feature.knowledgebase.data (raw source files; derived `.cherry/index.sqlite`
+ * is excluded at stage). These are directory-shaped resources (not file_entry
+ * blobs), so the orchestrator routes them to `knowledge/<baseId>/` at stage time
+ * (distinct from `files/<fileId>`); a base whose directory is missing is skipped,
+ * not fatal.
  */
 export async function collectKnowledgeBaseIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
   const rows = await liveDb.select().from(knowledgeBaseTable)
@@ -94,9 +95,11 @@ export const KNOWLEDGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
     ]
   },
   backupPolicy: {},
-  // collectFileResources exports the {baseId}/ directory (raw source files +
-  // .cherry/index.sqlite). restoreResources (copy verbatim, no reindex on restore
-  // since the embedded index is part of the base) lands with the C/D restore track.
+  // collectFileResources exports the {baseId}/ directory (raw source files). The
+  // derived `.cherry/index.sqlite{,-wal,-shm}` is excluded at stage (FileStager R1);
+  // restore promotion copies the staged tree, then BackupService.onAllReady enqueues
+  // knowledge reindex for completed items (empty index does not auto-rebuild).
+  // restoreResources lands with the C/D restore track (journal + promotion).
   operations: {
     collectFileResources: async (ctx) =>
       [...(await collectKnowledgeBaseIds(ctx.liveDb))].map((baseId) => ({ kind: 'knowledge-base' as const, baseId }))
