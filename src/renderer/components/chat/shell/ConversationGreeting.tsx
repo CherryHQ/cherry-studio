@@ -22,6 +22,7 @@ export function ConversationGreeting({ avatar, title }: ConversationGreetingProp
 
   return (
     <div
+      data-testid="conversation-greeting"
       className="flex h-full w-full flex-col items-center justify-center gap-4 px-6 text-center"
       style={{ paddingBottom: inset?.contentBottomPadding ?? 0 }}>
       {avatar &&
