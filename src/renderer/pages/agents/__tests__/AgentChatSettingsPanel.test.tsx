@@ -94,22 +94,11 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
-  default: ({
-    placement,
-    main,
-    composer,
-    homeWelcomeText
-  }: {
-    placement: string
-    main: ReactNode
-    composer: ReactNode
-    homeWelcomeText?: string
-  }) => (
+  default: ({ placement, main, composer }: { placement: string; main: ReactNode; composer: ReactNode }) => (
     <div
       data-testid="composer-dock-frame"
       data-placement={placement}
       data-main-visible={String(placement === 'docked')}>
-      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       {main}
       {composer}
     </div>
@@ -348,6 +337,32 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change composer workspace' }))
 
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
+  })
+
+  it('shows the empty-session greeting when the loaded session has no messages', () => {
+    renderAgentChat()
+
+    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
+  })
+
+  it('hides the empty-session greeting once the session has messages', () => {
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' } as any] }
+
+    renderAgentChat()
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
+  })
+
+  it('keeps the greeting hidden while session messages are disabled during the locked/active switch window', () => {
+    // hasLockedSession makes the locked session the snapshot; the active session
+    // pointing elsewhere means sessionMessagesEnabled=false — the transition
+    // window where messages are force-empty but the conversation is not empty.
+    renderAgentChat({
+      lockedSession: { id: 'session-locked', agentId: 'agent-1', accessiblePaths: [] } as any,
+      activeSession: { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+    })
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
   })
 
   it('does not allow switching the workspace while the empty session is pending', () => {

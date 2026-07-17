@@ -8,6 +8,7 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
@@ -360,7 +361,11 @@ const AgentChatSessionCenter = ({
   workspaceChanging
 }: AgentChatSessionCenterProps) => {
   const { hasOlder, isLoading, uiMessages } = runtime
-  const isEmptyConversation = !isLoading && !runtime.isPending && !hasOlder && uiMessages.length === 0
+  // `sessionMessagesEnabled` guards the locked/active session transition window,
+  // where messages are force-disabled (empty + not loading) and would otherwise
+  // read as an empty conversation.
+  const isEmptyConversation =
+    sessionMessagesEnabled && !isLoading && !runtime.isPending && !hasOlder && uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
 
   const composer = (
@@ -382,28 +387,36 @@ const AgentChatSessionCenter = ({
     />
   )
   const main = (
-    <AgentChatMain
-      placement="docked"
-      sessionMessagesEnabled={sessionMessagesEnabled}
-      agentId={agentId}
-      sessionId={runtime.sessionId}
-      messages={runtime.uiMessages}
-      activeAgent={activeAgent}
-      partsByMessageId={runtime.partsByMessageId}
-      streamingLayers={runtime.streamingLayers}
-      optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-      isLoading={runtime.isLoading}
-      hasOlder={runtime.hasOlder}
-      loadOlder={runtime.loadOlder}
-      onOpenCitationsPanel={onOpenCitationsPanel}
-      deleteMessage={runtime.deleteMessage}
-      respondToolApproval={runtime.respondToolApproval}
-    />
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {isEmptyConversation && (
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <ConversationGreeting
+            avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            title={homeWelcomeText ?? ''}
+          />
+        </div>
+      )}
+      <AgentChatMain
+        placement="docked"
+        sessionMessagesEnabled={sessionMessagesEnabled}
+        agentId={agentId}
+        sessionId={runtime.sessionId}
+        messages={runtime.uiMessages}
+        activeAgent={activeAgent}
+        partsByMessageId={runtime.partsByMessageId}
+        streamingLayers={runtime.streamingLayers}
+        optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
+        isLoading={runtime.isLoading}
+        hasOlder={runtime.hasOlder}
+        loadOlder={runtime.loadOlder}
+        onOpenCitationsPanel={onOpenCitationsPanel}
+        deleteMessage={runtime.deleteMessage}
+        respondToolApproval={runtime.respondToolApproval}
+      />
+    </div>
   )
 
-  return (
-    <ConversationStageCenter placement="docked" main={main} composer={composer} homeWelcomeText={homeWelcomeText} />
-  )
+  return <ConversationStageCenter placement="docked" main={main} composer={composer} />
 }
 
 function AgentChatLayout({
