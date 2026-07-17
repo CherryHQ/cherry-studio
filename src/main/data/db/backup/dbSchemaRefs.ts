@@ -510,7 +510,6 @@ export const DB_COLUMNS_BY_TABLE = {
     },
     { name: 'assistantId', dbName: 'assistantId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'activeNodeId', dbName: 'activeNodeId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'groupId', dbName: 'groupId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'traceId', dbName: 'traceId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -766,10 +765,7 @@ export const DB_FOREIGN_KEYS = {
     { columns: ['sourceId'], targetTable: 'user_provider', targetColumns: ['providerId'], onDelete: 'cascade' }
   ],
   tag: [],
-  topic: [
-    { columns: ['assistantId'], targetTable: 'assistant', targetColumns: ['id'], onDelete: 'set null' },
-    { columns: ['groupId'], targetTable: 'group', targetColumns: ['id'], onDelete: 'set null' }
-  ],
+  topic: [{ columns: ['assistantId'], targetTable: 'assistant', targetColumns: ['id'], onDelete: 'set null' }],
   translate_history: [
     {
       columns: ['sourceLanguage'],
@@ -907,5 +903,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-14T04:11:35.907Z'
+  generatedAt: '2026-07-17T16:17:00.057Z'
 } as const
