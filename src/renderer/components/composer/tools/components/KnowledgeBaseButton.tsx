@@ -196,6 +196,8 @@ const useKnowledgeBaseToolController = ({
         active: isEnabled,
         showInActiveControls: false,
         disabled: isDisabled,
+        // action opens the '#' knowledge-base panel, whose symbol differs from the launcher id.
+        panelSymbol: ComposerPanelSymbol.KnowledgeBase,
         action: openKnowledgeBasePanel
       }
     ])

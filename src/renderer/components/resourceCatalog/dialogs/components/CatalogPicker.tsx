@@ -30,6 +30,7 @@ export interface CatalogItem {
   statusBadgeClassName?: string
   disableToggle?: boolean
   disabledReason?: ReactNode
+  action?: ReactNode
 }
 
 function CatalogBadges({ item }: { item: CatalogItem }) {
@@ -105,23 +106,30 @@ export const CatalogToggleGrid: FC<{
 
         if (variant === 'checkbox') {
           return (
-            <label
+            <div
               key={item.id}
               className={cn(
                 'flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
                 checked ? 'border-primary/40 bg-accent/30' : 'border-border/50 hover:bg-accent/20',
-                toggleDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                toggleDisabled && 'opacity-50'
               )}>
-              <Checkbox
-                size="sm"
-                checked={checked}
-                disabled={toggleDisabled}
-                onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked === true)}
-                aria-label={item.name}
-                className="shrink-0"
-              />
-              {info}
-            </label>
+              <label
+                className={cn(
+                  'flex min-w-0 flex-1 items-center gap-3',
+                  toggleDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
+                )}>
+                <Checkbox
+                  size="sm"
+                  checked={checked}
+                  disabled={toggleDisabled}
+                  onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked === true)}
+                  aria-label={item.name}
+                  className="shrink-0"
+                />
+                {info}
+              </label>
+              {item.action}
+            </div>
           )
         }
 

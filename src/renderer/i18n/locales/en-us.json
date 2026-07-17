@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "Current model does not support adjustable reasoning"
       },
+      "toolbar": {
+        "customize": "Customize toolbar",
+        "drag": {
+          "cancelled": "Reordering cancelled for {{name}}.",
+          "dropped": "{{name}} dropped.",
+          "instructions": "To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "{{name}} moved over {{over}}.",
+          "picked_up": "Picked up {{name}}."
+        },
+        "drag_handle": "Drag to reorder {{name}}",
+        "restore_default": "Restore default"
+      },
       "tools": {
         "collapse": "Collapse",
         "collapse_in": "Collapse",
@@ -3484,8 +3496,10 @@
       "title": "Library"
     },
     "skill_add": {
+      "add": "Add Skill",
       "local_import": "Local import",
-      "online_search": "Online search"
+      "online_search": "Online search",
+      "system_search": "System search"
     },
     "skill_detail": {
       "created_at": "Created",
@@ -3513,6 +3527,19 @@
       "updated": "Sort by updated"
     },
     "subtitle": "Manage your assistants, agents and skills",
+    "system_skill": {
+      "conflict": "Name conflict",
+      "description": "Import skills already installed on this system.",
+      "empty_description": "No importable skills were found in other coding tools on this device.",
+      "empty_title": "No skills available to import",
+      "enable_success": "Enabled {{name}}",
+      "enabled": "Enabled",
+      "import": "Import",
+      "import_success": "Imported {{name}}",
+      "imported": "Imported",
+      "search_placeholder": "Search system skills...",
+      "title": "System skills"
+    },
     "tag_picker": {
       "no_tags": "No tags yet",
       "placeholder": "New tag name..."
@@ -7722,6 +7749,8 @@
   },
   "tab": {
     "close": "Close Tab",
+    "close_others": "Close Other Tabs",
+    "close_to_right": "Close Tabs to the Right",
     "move_to_first": "Move to First",
     "new": "New Tab",
     "open_in_new_window": "Open in New Window",

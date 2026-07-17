@@ -2,17 +2,21 @@ import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
 const logger = loggerService.withContext('KnowledgeItemChunkDetailPanel')
+const CHUNK_ESTIMATED_HEIGHT = 92
+const CHUNK_ITEM_CONTAINER_STYLE = { paddingBottom: 8 }
+const estimateChunkSize = () => CHUNK_ESTIMATED_HEIGHT
 
 interface KnowledgeItemChunkDetailPanelProps {
   baseId: string
@@ -40,6 +44,8 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
     </div>
   )
 }
+
+const renderChunk = (chunk: KnowledgeItemChunk) => <KnowledgeItemChunkCard chunk={chunk} />
 
 const KnowledgeItemChunkState = ({ children }: { children: ReactNode }) => (
   <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-foreground-muted text-sm leading-5">
@@ -72,6 +78,7 @@ const KnowledgeItemChunkDetailPanel = ({
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
   const chunksCountMeta = t('knowledge.data_source.chunks_count', { count: chunks.length })
+  const getChunkKey = useCallback((index: number) => chunks[index]?.id ?? index, [chunks])
 
   useEffect(() => {
     let isActive = true
@@ -137,28 +144,32 @@ const KnowledgeItemChunkDetailPanel = ({
         </div>
       </div>
 
-      <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
-        {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
-        {!isItemLoading && !isLoading && !itemError && error ? (
-          <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
-        ) : null}
-        {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
-          <EmptyState
-            preset="no-file"
-            title={t('knowledge.data_source.empty_description')}
-            compact
-            className="h-full"
-          />
-        ) : null}
-        {!isItemLoading && !isLoading && !itemError && chunks.length > 0 ? (
-          <div className="space-y-2">
-            {chunks.map((chunk) => (
-              <KnowledgeItemChunkCard key={chunk.id} chunk={chunk} />
-            ))}
-          </div>
-        ) : null}
-      </Scrollbar>
+      {!isItemLoading && !isLoading && !itemError && !error && chunks.length > 0 ? (
+        <DynamicVirtualList
+          list={chunks}
+          getItemKey={getChunkKey}
+          estimateSize={estimateChunkSize}
+          itemContainerStyle={CHUNK_ITEM_CONTAINER_STYLE}
+          className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {renderChunk}
+        </DynamicVirtualList>
+      ) : (
+        <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
+          {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
+          {!isItemLoading && !isLoading && !itemError && error ? (
+            <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
+          ) : null}
+          {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
+            <EmptyState
+              preset="no-file"
+              title={t('knowledge.data_source.empty_description')}
+              compact
+              className="h-full"
+            />
+          ) : null}
+        </Scrollbar>
+      )}
     </div>
   )
 }
