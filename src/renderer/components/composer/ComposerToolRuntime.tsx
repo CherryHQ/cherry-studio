@@ -26,7 +26,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
@@ -340,15 +340,32 @@ interface ComposerToolMenuProps {
   unifiedPanelControl?: ComposerUnifiedPanelControl
 }
 
+// Ids the pinned toolbar bar (ComposerToolbarShortcuts) is already rendering. The variant
+// publishes them so ComposerActiveToolControls can drop those launchers (they'd otherwise
+// double-render) — and, since the pinned bar is now their persistent home, an unpinned but
+// active tool falls back into the active-controls chips.
+const ComposerPinnedToolsContext = createContext<readonly string[]>([])
+
+export const ComposerPinnedToolsProvider = ComposerPinnedToolsContext.Provider
+
+export function useComposerPinnedTools() {
+  return use(ComposerPinnedToolsContext)
+}
+
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const pinnedIds = useComposerPinnedTools()
   const activeLaunchers = useMemo(
     () =>
       getLaunchers('popover').filter(
         (launcher) =>
-          launcher.active && launcher.showInActiveControls !== false && !launcher.disabled && !launcher.hidden
+          launcher.active &&
+          launcher.showInActiveControls !== false &&
+          !launcher.disabled &&
+          !launcher.hidden &&
+          !pinnedIds.includes(launcher.id)
       ),
-    [getLaunchers]
+    [getLaunchers, pinnedIds]
   )
 
   if (activeLaunchers.length === 0) return null

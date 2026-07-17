@@ -887,6 +887,10 @@
           "description": "Gère le planificateur intégré à l'application",
           "label": "Planificateur"
         },
+        "CherryGenerateImage": {
+          "description": "Génère une image à partir d'un texte de description en utilisant votre modèle de peinture configuré",
+          "label": "Générer une image"
+        },
         "CherryKbManage": {
           "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
           "label": "Gérer les connaissances"
@@ -1397,7 +1401,7 @@
         "title": "Mis en file d’attente ({{count}})"
       },
       "generate_image": "Générer une image",
-      "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
+      "generate_image_no_model": "Configurez un modèle de peinture dans Paramètres › Modèle par défaut",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Le modèle actuel ne prend pas en charge le raisonnement ajustable"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Réduire",
         "collapse_in": "Ajouter à la réduction",
         "collapse_out": "Retirer de la réduction",
         "expand": "Développer",
         "file_not_found": "Fichier introuvable : {{path}}",
+        "generate_image": {
+          "failed": "La génération d'image a échoué",
+          "generating": "Génération de l'image…",
+          "title": "Image générée"
+        },
         "open_file": "Ouvrir le fichier",
         "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
         "reveal_in_finder": "Afficher dans le Finder"
@@ -2779,6 +2800,7 @@
           "title": "Importer une seule page web"
         }
       },
+      "back_to_parent": "Retour",
       "bulk": {
         "delete": "Supprimer",
         "delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
@@ -2806,6 +2828,7 @@
         "title": "Téléchargez votre première source de données"
       },
       "empty_description": "Aucune source de données pour l'instant",
+      "empty_folder": "Ce dossier est vide",
       "filters": {
         "all": "Tout",
         "directory": "Dossiers",
@@ -2838,9 +2861,9 @@
           "type": "Type",
           "updated_at": "Mis à jour"
         },
+        "open_row": "Ouvrir {{title}}",
         "select_all": "Tout sélectionner",
-        "select_row": "Sélectionner la ligne",
-        "view_chunks_row": "Afficher les fragments pour {{title}}"
+        "select_row": "Sélectionner la ligne"
       },
       "toolbar": {
         "add": "Ajouter une source de données"
@@ -2851,6 +2874,8 @@
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
+    "empty_action": "Créer une base de connaissances",
+    "empty_description": "Vous n'avez pas encore de bases de connaissances. Créez-en une pour commencer à organiser et rechercher vos documents.",
     "error": {
       "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
       "failed_base_unknown": "Cette base de connaissances a échoué lors de la migration. Reconstruisez-la et choisissez un nouveau modèle d'embedding.",
@@ -6830,6 +6855,8 @@
       },
       "more_actions": "Plus d'actions pour la liste des modèles",
       "not_enabled_models": "Désactivés",
+      "painting_model": "Modèle de peinture",
+      "painting_model_description": "Modèle utilisé pour la génération d'images",
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
       "provider_key_add_failed_by_empty_data": "Échec de l'ajout de la clé API du fournisseur, les données sont vides",

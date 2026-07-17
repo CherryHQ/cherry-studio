@@ -11,6 +11,7 @@
 import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -28,17 +29,24 @@ export const CHERRY_BUILTIN_MCP_SERVER = 'cherry-tools'
 export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${CHERRY_BUILTIN_MCP_SERVER}__${toolName}`
 
 /**
- * cherry-tools that mutate the user's knowledge bases (add / delete / refresh sources) and therefore
- * MUST go through per-call user approval — never auto-approved, even for agent/assistant sessions.
+ * cherry-tools that MUST go through per-call user approval — never auto-approved, even for
+ * agent/assistant sessions:
+ * - kb_manage mutates the user's knowledge bases (add / delete / refresh sources);
+ * - generate_image calls a user-configured external provider (which may bill) and persists a
+ *   FileEntry into the user's library, so — unlike the read-only lookups — an autonomous agent
+ *   (including headless / channel turns) must not run it unattended.
  */
-export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [KB_MANAGE_TOOL_NAME]
+export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [
+  KB_MANAGE_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME
+]
 
 /**
  * cherry-tools that only read (web/kb lookups), record a declaration (report_artifacts), or drive
  * the agent's own in-app autonomy (cron/notify/config — auto-approved since they shipped as the
  * blanket-allowed standalone `cherry` server; their side effects stay inside the app: scheduling
  * the agent's tasks, notifying the user's channels, managing the agent's own config). Excludes the
- * mutating tools above.
+ * approval-required tools above.
  */
 export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   WEB_SEARCH_TOOL_NAME,

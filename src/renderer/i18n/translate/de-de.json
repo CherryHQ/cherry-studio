@@ -887,6 +887,10 @@
           "description": "Verwaltet den In-App-Planer",
           "label": "Scheduler"
         },
+        "CherryGenerateImage": {
+          "description": "Erzeugt ein Bild aus einem Textprompt unter Verwendung Ihres konfigurierten Malmodells",
+          "label": "Bild generieren"
+        },
         "CherryKbManage": {
           "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
           "label": "Wissen verwalten"
@@ -1397,7 +1401,7 @@
         "title": "In Warteschlange ({{count}})"
       },
       "generate_image": "Bild generieren",
-      "generate_image_not_supported": "Modell unterstützt keine Bildgenerierung",
+      "generate_image_no_model": "Konfigurieren Sie ein Malmodell unter Einstellungen › Standardmodell",
       "knowledge_base": "Wissensdatenbank",
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Falten",
         "collapse_in": "Zum Falten hinzufügen",
         "collapse_out": "Aus Falten entfernen",
         "expand": "Ausklappen",
         "file_not_found": "Datei nicht gefunden: {{path}}",
+        "generate_image": {
+          "failed": "Bildgenerierung fehlgeschlagen",
+          "generating": "Bild wird generiert…",
+          "title": "Generiertes Bild"
+        },
         "open_file": "Datei öffnen",
         "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
         "reveal_in_finder": "Im Finder anzeigen"
@@ -2779,6 +2800,7 @@
           "title": "Importiere eine einzelne Webseite"
         }
       },
+      "back_to_parent": "Zurück",
       "bulk": {
         "delete": "Löschen",
         "delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",
@@ -2806,6 +2828,7 @@
         "title": "Laden Sie Ihre erste Datenquelle hoch"
       },
       "empty_description": "Noch keine Datenquellen",
+      "empty_folder": "Dieser Ordner ist leer",
       "filters": {
         "all": "Alle",
         "directory": "Ordner",
@@ -2838,9 +2861,9 @@
           "type": "Typ",
           "updated_at": "Aktualisiert"
         },
+        "open_row": "{{title}} öffnen",
         "select_all": "Alle auswählen",
-        "select_row": "Zeile auswählen",
-        "view_chunks_row": "Abschnitte anzeigen für {{title}}"
+        "select_row": "Zeile auswählen"
       },
       "toolbar": {
         "add": "Datenquelle hinzufügen"
@@ -2851,6 +2874,8 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
+    "empty_action": "Wissensdatenbank erstellen",
+    "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
       "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
@@ -6830,6 +6855,8 @@
       },
       "more_actions": "Weitere Aktionen für die Modellliste",
       "not_enabled_models": "Deaktiviert",
+      "painting_model": "Malermodell",
+      "painting_model_description": "Modell für die Bildgenerierung",
       "provider_id": "Dienstanbieter-ID",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
       "provider_key_add_failed_by_empty_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Daten sind leer",

@@ -398,6 +398,7 @@ const ASSISTANT: Assistant = {
     maxToolCalls: 20,
     enableMaxToolCalls: true,
     enableWebSearch: false,
+    enableGenerateImage: false,
     customParameters: []
   },
   modelId: 'provider::old-model',

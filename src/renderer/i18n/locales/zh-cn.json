@@ -887,6 +887,10 @@
           "description": "管理应用内的定时调度",
           "label": "定时任务"
         },
+        "CherryGenerateImage": {
+          "description": "使用你配置的绘画模型根据文本提示生成图片",
+          "label": "生成图片"
+        },
         "CherryKbManage": {
           "description": "添加、删除或刷新知识库中的文档",
           "label": "知识库管理"
@@ -1397,7 +1401,7 @@
         "title": "排队中 ({{count}})"
       },
       "generate_image": "生成图片",
-      "generate_image_not_supported": "模型不支持生成图片",
+      "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "当前模型不支持调整推理强度"
       },
+      "toolbar": {
+        "customize": "自定义工具栏",
+        "drag": {
+          "cancelled": "已取消对 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空格或回车拿起工具，用方向键移动，再按空格或回车放下，按 Esc 取消。",
+          "over": "{{name}} 移动到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖动以重新排序 {{name}}",
+        "restore_default": "恢复默认"
+      },
       "tools": {
         "collapse": "折叠",
         "collapse_in": "加入折叠",
         "collapse_out": "移出折叠",
         "expand": "展开",
         "file_not_found": "文件不存在: {{path}}",
+        "generate_image": {
+          "failed": "图片生成失败",
+          "generating": "正在生成图片…",
+          "title": "已生成图片"
+        },
         "open_file": "打开文件",
         "open_file_error": "无法打开文件: {{path}}",
         "reveal_in_finder": "在文件管理器中显示"
@@ -2431,6 +2452,72 @@
       "reasoning_truncated": "思维链无法分块，已截断"
     },
     "user": "用户"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "此 HTML 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "HTML 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 HTML 文件。",
+        "title": "文件过大"
+      }
+    },
+    "invalid_path": {
+      "description": "文件预览需要有效的本地绝对路径。",
+      "title": "无法预览此文件"
+    },
+    "load_error": {
+      "description": "无法加载此文件的预览内容。",
+      "title": "预览失败"
+    },
+    "loading": "正在加载预览...",
+    "markdown": {
+      "empty": {
+        "description": "此 Markdown 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "Markdown 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 Markdown 文件。",
+        "title": "文件过大"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "此文本文件没有内容。",
+        "title": "文件为空"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的文本文件。",
+        "title": "文件过大"
+      }
+    },
+    "unsupported": {
+      "action": "用默认应用打开",
+      "description": "此文件类型暂不支持预览。",
+      "open_error": "无法打开此文件",
+      "title": "暂不支持预览"
+    }
   },
   "files": {
     "actions": "操作",
@@ -3475,8 +3562,10 @@
       "title": "资源库"
     },
     "skill_add": {
+      "add": "添加 Skill",
       "local_import": "本地导入",
-      "online_search": "在线搜索"
+      "online_search": "在线搜索",
+      "system_search": "系统搜索"
     },
     "skill_detail": {
       "created_at": "创建时间",
@@ -3504,6 +3593,19 @@
       "updated": "按更新时间"
     },
     "subtitle": "管理你的助手、智能体与技能",
+    "system_skill": {
+      "conflict": "名称冲突",
+      "description": "导入系统中已经安装的 skill",
+      "empty_description": "未在这台设备的其他编程工具中找到可导入的 Skill。",
+      "empty_title": "没有可导入的 Skill",
+      "enable_success": "已启用 {{name}}",
+      "enabled": "已启用",
+      "import": "导入",
+      "import_success": "已导入 {{name}}",
+      "imported": "已导入",
+      "search_placeholder": "搜索系统 Skill...",
+      "title": "系统 Skill"
+    },
     "tag_picker": {
       "no_tags": "暂无标签",
       "placeholder": "新标签名..."
@@ -6834,6 +6936,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已禁用",
+      "painting_model": "绘画模型",
+      "painting_model_description": "图像生成使用的模型",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",
@@ -7714,6 +7818,8 @@
   },
   "tab": {
     "close": "关闭标签页",
+    "close_others": "关闭其他标签页",
+    "close_to_right": "关闭右侧标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
     "open_in_new_window": "从新窗口打开",

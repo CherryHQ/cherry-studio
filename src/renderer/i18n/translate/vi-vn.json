@@ -887,6 +887,10 @@
           "description": "Quản lý trình lên lịch trong ứng dụng",
           "label": "Trình lập lịch"
         },
+        "CherryGenerateImage": {
+          "description": "Tạo hình ảnh từ lời nhắc văn bản bằng cách sử dụng mô hình vẽ được cấu hình của bạn",
+          "label": "Tạo hình ảnh"
+        },
         "CherryKbManage": {
           "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
           "label": "Quản lý kiến thức"
@@ -1397,7 +1401,7 @@
         "title": "Đã xếp hàng ({{count}})"
       },
       "generate_image": "Tạo hình ảnh",
-      "generate_image_not_supported": "Mô hình không hỗ trợ tạo hình ảnh.",
+      "generate_image_no_model": "Cấu hình mô hình vẽ trong Cài đặt › Mô hình mặc định",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
       "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Thu gọn",
         "collapse_in": "Thu gọn",
         "collapse_out": "Gỡ khỏi trạng thái thu gọn",
         "expand": "Mở rộng",
         "file_not_found": "Không tìm thấy tệp: {{path}}",
+        "generate_image": {
+          "failed": "Tạo hình ảnh thất bại",
+          "generating": "Đang tạo hình ảnh…",
+          "title": "Hình ảnh đã tạo"
+        },
         "open_file": "Mở Tệp",
         "open_file_error": "Không mở được tệp: {{path}}",
         "reveal_in_finder": "Hiển thị trong Finder"
@@ -2779,6 +2800,7 @@
           "title": "Nhập một trang web duy nhất"
         }
       },
+      "back_to_parent": "Quay lại",
       "bulk": {
         "delete": "Xóa",
         "delete_confirm_description": "Xóa {{count}} nguồn dữ liệu đã chọn? Thao tác này không thể hoàn tác.",
@@ -2806,6 +2828,7 @@
         "title": "Tải lên Nguồn Dữ liệu Đầu tiên của Bạn"
       },
       "empty_description": "Chưa có nguồn dữ liệu nào",
+      "empty_folder": "Thư mục này trống",
       "filters": {
         "all": "Tất cả",
         "directory": "Thư mục",
@@ -2838,9 +2861,9 @@
           "type": "Kiểu",
           "updated_at": "Đã cập nhật"
         },
+        "open_row": "Mở {{title}}",
         "select_all": "Chọn tất cả",
-        "select_row": "Chọn hàng",
-        "view_chunks_row": "Xem các phần cho {{title}}"
+        "select_row": "Chọn hàng"
       },
       "toolbar": {
         "add": "Thêm Nguồn Dữ Liệu"
@@ -2851,6 +2874,8 @@
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
+    "empty_action": "Tạo Cơ sở Kiến thức",
+    "empty_description": "Bạn chưa có cơ sở kiến thức nào. Hãy tạo một cơ sở kiến thức để bắt đầu tổ chức và tìm kiếm tài liệu của bạn.",
     "error": {
       "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",
       "failed_base_unknown": "Cơ sở kiến thức này đã thất bại trong quá trình di chuyển. Hãy xây dựng lại và chọn một mô hình embedding mới.",
@@ -6830,6 +6855,8 @@
       },
       "more_actions": "Thêm hành động cho danh sách mô hình",
       "not_enabled_models": "Đã tắt",
+      "painting_model": "Mô hình vẽ tranh",
+      "painting_model_description": "Mô hình được sử dụng để tạo hình ảnh",
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
       "provider_key_add_failed_by_empty_data": "Không thể thêm khóa API của nhà cung cấp, dữ liệu trống",

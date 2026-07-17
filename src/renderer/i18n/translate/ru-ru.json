@@ -887,6 +887,10 @@
           "description": "Управляет встроенным планировщиком",
           "label": "Планировщик"
         },
+        "CherryGenerateImage": {
+          "description": "Генерирует изображение из текстового запроса с использованием настроенной модели рисования",
+          "label": "Сгенерировать изображение"
+        },
         "CherryKbManage": {
           "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
           "label": "Управление знаниями"
@@ -1397,7 +1401,7 @@
         "title": "В очереди ({{count}})"
       },
       "generate_image": "Сгенерировать изображение",
-      "generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
+      "generate_image_no_model": "Настройте модель для рисования в разделе Настройки › Модель по умолчанию",
       "knowledge_base": "База знаний",
       "knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
       "knowledge_base_unavailable": "Выберите модель с поддержкой инструментов или включите использование инструментов в запросе",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Текущая модель не поддерживает регулируемое рассуждение"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Свернуть",
         "collapse_in": "Свернуть",
         "collapse_out": "Развернуть",
         "expand": "Развернуть",
         "file_not_found": "Файл не найден: {{path}}",
+        "generate_image": {
+          "failed": "Ошибка генерации изображения",
+          "generating": "Генерация изображения…",
+          "title": "Сгенерированное изображение"
+        },
         "open_file": "Открыть файл",
         "open_file_error": "Не удалось открыть файл: {{path}}",
         "reveal_in_finder": "Показать в Finder"
@@ -2779,6 +2800,7 @@
           "title": "Импортировать одну веб-страницу"
         }
       },
+      "back_to_parent": "Назад",
       "bulk": {
         "delete": "Удалить",
         "delete_confirm_description": "Удалить {{count}} выбранных источников данных? Это действие нельзя отменить.",
@@ -2806,6 +2828,7 @@
         "title": "Загрузите свой первый источник данных"
       },
       "empty_description": "Источников данных пока нет",
+      "empty_folder": "Эта папка пуста",
       "filters": {
         "all": "Все",
         "directory": "Папки",
@@ -2838,9 +2861,9 @@
           "type": "Тип",
           "updated_at": "Обновлено"
         },
+        "open_row": "Открыть {{title}}",
         "select_all": "Выбрать все",
-        "select_row": "Выбрать строку",
-        "view_chunks_row": "Просмотр фрагментов для {{title}}"
+        "select_row": "Выбрать строку"
       },
       "toolbar": {
         "add": "Добавить источник данных"
@@ -2851,6 +2874,8 @@
     "embedding_model": "Модель встраивания",
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
+    "empty_action": "Создать базу знаний",
+    "empty_description": "У вас пока нет баз знаний. Создайте одну, чтобы начать организовывать и искать ваши документы.",
     "error": {
       "directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
       "failed_base_unknown": "Эта база знаний не удалась при миграции. Пересоберите её и выберите новую модель встраивания.",
@@ -6830,6 +6855,8 @@
       },
       "more_actions": "Дополнительные действия со списком моделей",
       "not_enabled_models": "Отключены",
+      "painting_model": "Модель живописи",
+      "painting_model_description": "Модель, используемая для генерации изображений",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",

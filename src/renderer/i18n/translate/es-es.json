@@ -887,6 +887,10 @@
           "description": "Gestiona el programador dentro de la aplicación",
           "label": "Planificador"
         },
+        "CherryGenerateImage": {
+          "description": "Genera una imagen a partir de un texto descriptivo utilizando tu modelo de pintura configurado",
+          "label": "Generar Imagen"
+        },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
           "label": "Gestionar conocimiento"
@@ -1397,7 +1401,7 @@
         "title": "En cola ({{count}})"
       },
       "generate_image": "Generar imagen",
-      "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
+      "generate_image_no_model": "Configura un modelo de pintura en Configuración › Modelo predeterminado",
       "knowledge_base": "Base de conocimientos",
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "El modelo actual no admite razonamiento ajustable"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Contraer",
         "collapse_in": "Agregar a la contracción",
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
         "file_not_found": "Archivo no encontrado: {{path}}",
+        "generate_image": {
+          "failed": "La generación de la imagen falló",
+          "generating": "Generando imagen…",
+          "title": "Imagen generada"
+        },
         "open_file": "Abrir archivo",
         "open_file_error": "Error al abrir el archivo: {{path}}",
         "reveal_in_finder": "Mostrar en el Finder"
@@ -2779,6 +2800,7 @@
           "title": "Importar una sola página web"
         }
       },
+      "back_to_parent": "Atrás",
       "bulk": {
         "delete": "Eliminar",
         "delete_confirm_description": "¿Eliminar {{count}} fuentes de datos seleccionadas? Esta acción no se puede deshacer.",
@@ -2806,6 +2828,7 @@
         "title": "Carga tu primera fuente de datos"
       },
       "empty_description": "Aún no hay fuentes de datos",
+      "empty_folder": "Esta carpeta está vacía",
       "filters": {
         "all": "Todo",
         "directory": "Carpetas",
@@ -2838,9 +2861,9 @@
           "type": "Tipo",
           "updated_at": "Actualizado"
         },
+        "open_row": "Abrir {{title}}",
         "select_all": "Seleccionar todo",
-        "select_row": "Seleccionar fila",
-        "view_chunks_row": "Ver fragmentos para {{title}}"
+        "select_row": "Seleccionar fila"
       },
       "toolbar": {
         "add": "Agregar fuente de datos"
@@ -2851,6 +2874,8 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
+    "empty_action": "Crear Base de Conocimientos",
+    "empty_description": "Aún no tienes ninguna base de conocimientos. Crea una para empezar a organizar y buscar tus documentos.",
     "error": {
       "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
       "failed_base_unknown": "Esta base de conocimientos falló durante la migración. Reconstrúyela y elige un nuevo modelo de incrustación.",
@@ -6830,6 +6855,8 @@
       },
       "more_actions": "Más acciones de la lista de modelos",
       "not_enabled_models": "Deshabilitados",
+      "painting_model": "Modelo de pintura",
+      "painting_model_description": "Modelo utilizado para la generación de imágenes",
       "provider_id": "ID del proveedor",
       "provider_key_add_confirm": "¿Desea agregar una clave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Error al agregar la clave API del proveedor: los datos están vacíos",

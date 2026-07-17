@@ -887,6 +887,10 @@
           "description": "管理應用內的定時排程",
           "label": "定時任務"
         },
+        "CherryGenerateImage": {
+          "description": "使用你設定的繪圖模型根據文字提示生成圖片",
+          "label": "生成圖片"
+        },
         "CherryKbManage": {
           "description": "新增、刪除或重新整理知識庫中的文件",
           "label": "知識庫管理"
@@ -1397,7 +1401,7 @@
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
-      "generate_image_not_supported": "模型不支援產生圖片",
+      "generate_image_no_model": "請在 設定 › 預設模型 中設定繪圖模型",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "目前模型不支援可調整的推理"
       },
+      "toolbar": {
+        "customize": "自訂工具列",
+        "drag": {
+          "cancelled": "已取消對 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空白鍵或 Enter 拿起工具，用方向鍵移動，再按空白鍵或 Enter 放下，按 Esc 取消。",
+          "over": "{{name}} 移動到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖曳以重新排序 {{name}}",
+        "restore_default": "還原預設"
+      },
       "tools": {
         "collapse": "折疊",
         "collapse_in": "加入折疊",
         "collapse_out": "移出折疊",
         "expand": "展開",
         "file_not_found": "檔案不存在: {{path}}",
+        "generate_image": {
+          "failed": "圖片產生失敗",
+          "generating": "正在產生圖片…",
+          "title": "已產生圖片"
+        },
         "open_file": "開啟檔案",
         "open_file_error": "無法開啟檔案: {{path}}",
         "reveal_in_finder": "在檔案管理器中顯示"
@@ -3475,8 +3496,10 @@
       "title": "圖書館"
     },
     "skill_add": {
+      "add": "新增 Skill",
       "local_import": "本機匯入",
-      "online_search": "線上搜尋"
+      "online_search": "線上搜尋",
+      "system_search": "系統搜尋"
     },
     "skill_detail": {
       "created_at": "建立時間",
@@ -3504,6 +3527,19 @@
       "updated": "依更新時間"
     },
     "subtitle": "管理你的助手、智能體與技能",
+    "system_skill": {
+      "conflict": "名稱衝突",
+      "description": "匯入系統中已安裝的 Skill。",
+      "empty_description": "未在這台裝置的其他程式開發工具中找到可匯入的 Skill。",
+      "empty_title": "沒有可匯入的 Skill",
+      "enable_success": "已啟用 {{name}}",
+      "enabled": "已啟用",
+      "import": "匯入",
+      "import_success": "已匯入 {{name}}",
+      "imported": "已匯入",
+      "search_placeholder": "搜尋系統 Skill...",
+      "title": "系統 Skill"
+    },
     "tag_picker": {
       "no_tags": "尚無標籤",
       "placeholder": "新標籤名稱..."
@@ -6834,6 +6870,8 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已停用",
+      "painting_model": "繪圖模型",
+      "painting_model_description": "圖像生成使用的模型",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",

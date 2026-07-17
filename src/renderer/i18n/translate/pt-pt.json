@@ -887,6 +887,10 @@
           "description": "Gerencia o agendador dentro do aplicativo",
           "label": "Agendador"
         },
+        "CherryGenerateImage": {
+          "description": "Gera uma imagem a partir de um prompt de texto usando o modelo de pintura configurado",
+          "label": "Gerar Imagem"
+        },
         "CherryKbManage": {
           "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
           "label": "Gerenciar Conhecimento"
@@ -1397,7 +1401,7 @@
         "title": "Na fila ({{count}})"
       },
       "generate_image": "Gerar imagem",
-      "generate_image_not_supported": "Modelo não suporta geração de imagem",
+      "generate_image_no_model": "Configure um modelo de pintura em Configurações › Modelo Padrão",
       "knowledge_base": "Base de conhecimento",
       "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
       "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "O modelo atual não suporta raciocínio ajustável"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "Recolher",
         "collapse_in": "Incluir no recolhimento",
         "collapse_out": "Remover do recolhimento",
         "expand": "Expandir",
         "file_not_found": "Arquivo não encontrado: {{path}}",
+        "generate_image": {
+          "failed": "Falha na geração de imagem",
+          "generating": "Gerando imagem…",
+          "title": "Imagem gerada"
+        },
         "open_file": "Abrir Arquivo",
         "open_file_error": "Falha ao abrir o arquivo: {{path}}",
         "reveal_in_finder": "Revelar no Finder"
@@ -2779,6 +2800,7 @@
           "title": "Importar uma única página da web"
         }
       },
+      "back_to_parent": "Voltar",
       "bulk": {
         "delete": "Apagar",
         "delete_confirm_description": "Excluir {{count}} fontes de dados selecionadas? Isso não pode ser desfeito.",
@@ -2806,6 +2828,7 @@
         "title": "Carregue sua primeira fonte de dados"
       },
       "empty_description": "Ainda sem fontes de dados",
+      "empty_folder": "Esta pasta está vazia",
       "filters": {
         "all": "Todos",
         "directory": "Pastas",
@@ -2838,9 +2861,9 @@
           "type": "Tipo",
           "updated_at": "Atualizado"
         },
+        "open_row": "Abrir {{title}}",
         "select_all": "Selecionar todos",
-        "select_row": "Selecionar linha",
-        "view_chunks_row": "Ver chunks para {{title}}"
+        "select_row": "Selecionar linha"
       },
       "toolbar": {
         "add": "Adicionar Fonte de Dados"
@@ -2851,6 +2874,8 @@
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
+    "empty_action": "Criar Base de Conhecimento",
+    "empty_description": "Você ainda não tem nenhuma base de conhecimento. Crie uma para começar a organizar e pesquisar seus documentos.",
     "error": {
       "directory_not_migrated": "Falha na migração da pasta. Por favor, exclua-a e faça o upload novamente.",
       "failed_base_unknown": "Esta base de conhecimento falhou durante a migração. Reconstrua-a e escolha um novo modelo de incorporação.",
@@ -6830,6 +6855,8 @@
       },
       "more_actions": "Mais ações da lista de modelos",
       "not_enabled_models": "Desativados",
+      "painting_model": "Modelo de Pintura",
+      "painting_model_description": "Modelo utilizado para geração de imagens",
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Falha ao adicionar chave API do provedor: dados vazios",
