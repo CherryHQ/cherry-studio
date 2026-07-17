@@ -8157,13 +8157,6 @@
         "pie": "[to be translated]:Pie",
         "stack": "[to be translated]:Stack"
       },
-      "costBackfill": {
-        "action": "補算歷史成本",
-        "available": "有 {{count}} 筆歷史用量缺少成本，可按目前價格補算。",
-        "confirm": "將寫入 {{count}} 筆記錄，預估成本：{{cost}}。",
-        "noPricing": "設定模型價格後才能補算歷史成本。",
-        "success": "已補算 {{count}} 筆歷史成本。"
-      },
       "empty": {
         "description": "使用記錄會在 AI 請求建立帳本項目後出現。",
         "title": "尚無使用記錄"

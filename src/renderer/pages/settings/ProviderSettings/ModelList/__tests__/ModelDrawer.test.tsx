@@ -9,9 +9,6 @@ const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const updateModelMock = vi.fn()
-const dataApiGetMock = vi.fn()
-const dataApiPostMock = vi.fn()
-const invalidateCacheMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
 
@@ -67,17 +64,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     WarnTooltip: () => <span>warn</span>
   }
 })
-
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    get: (...args: any[]) => dataApiGetMock(...args),
-    post: (...args: any[]) => dataApiPostMock(...args)
-  }
-}))
-
-vi.mock('@data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => invalidateCacheMock
-}))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: {
@@ -154,15 +140,6 @@ describe('Model drawers', () => {
     )
 
     useModelsMock.mockReturnValue({ models: [] })
-    dataApiGetMock.mockResolvedValue({
-      scannedCount: 0,
-      recalculableCount: 0,
-      skippedNoPricingCount: 0,
-      skippedProviderCostCount: 0,
-      estimatedCostByCurrency: []
-    })
-    dataApiPostMock.mockResolvedValue({ updatedCount: 0 })
-    invalidateCacheMock.mockResolvedValue(undefined)
   })
 
   it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
@@ -358,69 +335,6 @@ describe('Model drawers', () => {
         name: 'Claude 4 Sonnet Updated'
       })
     )
-  })
-
-  it('shows a cost backfill CTA after auto-saving model pricing and runs the backfill on click', async () => {
-    dataApiGetMock.mockResolvedValue({
-      scannedCount: 3,
-      recalculableCount: 3,
-      skippedNoPricingCount: 0,
-      skippedProviderCostCount: 0,
-      estimatedCostByCurrency: [{ currency: 'USD', cost: 0.42 }]
-    })
-    dataApiPostMock.mockResolvedValue({ updatedCount: 3 })
-    useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
-    })
-
-    render(
-      <EditModelDrawer
-        providerId="openai"
-        open
-        onClose={vi.fn()}
-        model={
-          {
-            id: 'openai::claude-4-sonnet',
-            providerId: 'openai',
-            name: 'claude-4-sonnet',
-            group: 'Anthropic',
-            capabilities: [],
-            supportsStreaming: true,
-            pricing: {
-              input: { perMillionTokens: 0, currency: 'USD' },
-              output: { perMillionTokens: 0, currency: 'USD' }
-            }
-          } as any
-        }
-      />
-    )
-
-    await act(async () => {
-      const inputPrice = screen.getByLabelText('models.price.input')
-      fireEvent.change(inputPrice, {
-        target: { value: '3' }
-      })
-      fireEvent.blur(inputPrice)
-    })
-
-    expect(dataApiGetMock).toHaveBeenCalledWith('/usage-ledger/cost-backfill/preview', {
-      query: { modelId: 'openai::claude-4-sonnet' }
-    })
-    expect(await screen.findByText('settings.usage.costBackfill.available')).toBeInTheDocument()
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /settings\.usage\.costBackfill\.action/i }))
-    })
-
-    expect(dataApiPostMock).toHaveBeenCalledWith('/usage-ledger/cost-backfill/run', {
-      body: { modelId: 'openai::claude-4-sonnet' }
-    })
-    expect(invalidateCacheMock).toHaveBeenCalledWith([
-      '/usage-ledger/entries',
-      '/usage-ledger/stats',
-      '/usage-ledger/timeline'
-    ])
-    expect(toastSuccessMock).toHaveBeenCalledWith('settings.usage.costBackfill.success')
   })
 
   it('serializes edit auto-saves and keeps the latest form snapshot', async () => {

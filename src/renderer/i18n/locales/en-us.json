@@ -8157,13 +8157,6 @@
         "pie": "Pie",
         "stack": "Stack"
       },
-      "costBackfill": {
-        "action": "Backfill historical cost",
-        "available": "{{count}} historical usage records are missing cost and can be calculated with current pricing.",
-        "confirm": "Will update {{count}} records. Estimated cost: {{cost}}.",
-        "noPricing": "Set model pricing before backfilling historical cost.",
-        "success": "Backfilled {{count}} historical cost records."
-      },
       "empty": {
         "description": "Usage appears after AI requests create ledger entries.",
         "title": "No usage yet"

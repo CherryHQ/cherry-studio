@@ -7,16 +7,13 @@ produced the usage.
 
 - Table: `usage_ledger` (`src/main/data/db/schemas/usageLedger.ts`)
 - Service: `usageLedgerService` (`src/main/data/services/UsageLedgerService.ts`)
-- API:
+- API (read-only):
   - `GET /usage-ledger/entries`
   - `GET /usage-ledger/stats`
   - `GET /usage-ledger/timeline`
-  - `GET /usage-ledger/cost-backfill/preview`
-  - `POST /usage-ledger/cost-backfill/run`
 
-Normal ledger rows are written only by the main process. The renderer-facing
-write API is limited to explicit maintenance operations, currently historical
-cost backfill after the user changes model pricing.
+Ledger rows are written only by the main process; the renderer-facing API is
+read-only.
 
 ---
 
@@ -94,19 +91,13 @@ not recalculate historical cost on every render.
     UsageLedgerMigrator projects existing chat and agent-session messages
     into usage_ledger during migration
 
-  Model settings maintenance
-    pricing save -> preview missing historical cost
-    user CTA -> run cost backfill
-
   -------------------------------------------------------------------------
                      usage_ledger (SQLite, no foreign keys)
   -------------------------------------------------------------------------
-  DataApi:
+  DataApi (read-only):
     GET  /usage-ledger/entries
     GET  /usage-ledger/stats
     GET  /usage-ledger/timeline
-    GET  /usage-ledger/cost-backfill/preview
-    POST /usage-ledger/cost-backfill/run
 ```
 
 Design rules:
@@ -119,8 +110,7 @@ Design rules:
    `MessageService.update` hook upsert the same row. Stateless requests use a
    generated request id.
 3. **Keep cost stable.** Cost is persisted with `costBreakdown` and
-   `pricingSnapshot`. Updating model pricing later does not change old rows
-   unless the user explicitly runs cost backfill.
+   `pricingSnapshot`. Updating model pricing later does not change old rows.
 4. **Keep lifecycle independent.** All references are snapshots. There are no
    `references()` from `usage_ledger` to business tables.
 5. **Do not block user flows.** Live ledger writes are best-effort and are
@@ -133,10 +123,10 @@ Design rules:
 | --- | --- | --- |
 | Purpose | Per-message source data for UI and persistence | Billing/analytics record with attribution and stable history |
 | Lifecycle | Dies with the message/topic | Survives deletion of messages, topics, providers, keys, assistants, and agents |
-| Writes | Stream persistence and migration | Request hooks, post-commit hooks, migration, explicit maintenance |
+| Writes | Stream persistence and migration | Request hooks, post-commit hooks, migration |
 | Cost | Enriched before message persistence when possible | Stores the persisted/enriched cost snapshot |
 | Timings | Per-message timings | Projected timings for request table metrics (`TTFT`, `TPS`) |
-| Recalculation | Not recalculated by UI | Not recalculated by UI; backfill is explicit |
+| Recalculation | Not recalculated by UI | Not recalculated by UI |
 
 ---
 
@@ -227,28 +217,6 @@ chat messages plus agent-session messages into `usage_ledger`.
 - Image rows are not inferred from old message stats; the migrator backfills
   historical language usage from message and agent-session tables.
 
-### Explicit cost backfill
-
-After users save model pricing in the model settings drawer, the renderer calls
-`GET /usage-ledger/cost-backfill/preview` for that model. If there are rows
-that can be calculated, the drawer shows a CTA. Clicking it calls
-`POST /usage-ledger/cost-backfill/run`.
-
-Backfill rules:
-
-- only rows for the requested `modelId`;
-- optional `from` / `to` time range;
-- only `modality IN ('language', 'embedding')`;
-- only `cost IS NULL`;
-- requires usable model pricing;
-- never overwrites rows that already have cost;
-- never overwrites `costSource = provider`;
-- writes in chunks through `DbService.withWriteTx()`;
-- refreshes Usage queries after success.
-
-Usage page open, filter changes, and stats queries do not trigger cost
-backfill.
-
 ---
 
 ## 5. Write paths
@@ -262,7 +230,6 @@ backfill.
 | `TemporaryChatService.persist` | Temp chats the user keeps | Raw insert path bypasses `MessageService.update`, so it explicitly records kept messages and topic context |
 | `AgentSessionMessageService.saveMessage(s)` | Claude Code agent-session messages | Post-commit `recordRequest`; agent sessions use a separate message table and bypass the chat funnel |
 | `UsageLedgerMigrator` | Historical chat and agent-session messages during v2 migration | Bulk projection into `usage_ledger` with `onConflictDoNothing` |
-| Cost backfill API | Historical rows missing cost | Explicit user-triggered maintenance, not live request capture |
 
 `recordRequest` is a no-op unless:
 
@@ -331,22 +298,6 @@ Returned totals include tokens, cache buckets, cost, and request count. The
 timeline's `totalCost` is a simple numeric sum for chart shape; the renderer
 uses cost mode only when the selected window is effectively single-currency.
 
-### Cost backfill endpoints
-
-```
-GET /usage-ledger/cost-backfill/preview?modelId=provider::model&from&to
-POST /usage-ledger/cost-backfill/run
-```
-
-Both return:
-
-- `scannedCount`;
-- `recalculableCount`;
-- `skippedNoPricingCount`;
-- `skippedProviderCostCount`;
-- `estimatedCostByCurrency`.
-
-`run` also returns `updatedCount`.
 
 ---
 
@@ -420,8 +371,8 @@ paginated; breakdown rows are aggregate views.
   final message stats it receives. The fix belongs upstream in the stream
   pipeline.
 - **Cost does not drift with pricing edits**: changing model pricing does not
-  recalculate old rows automatically. Users must run explicit cost backfill,
-  and the first version only fills missing cost.
+  recalculate old rows. Historical rows keep the cost snapshot captured at
+  request/migration time.
 - **Cross-currency timeline cost**: timeline cost is a simple charting sum.
   Detailed cost reporting must use stats buckets where `costCurrency` is part
   of the grouping key.
@@ -438,7 +389,7 @@ paginated; breakdown rows are aggregate views.
 | `src/shared/data/types/usageLedger.ts` | Entity schema and ledger enums |
 | `src/shared/data/api/schemas/usageLedger.ts` | Query schemas, response types, route table |
 | `src/main/data/api/handlers/usageLedger.ts` | DataApi handlers and boundary validation |
-| `src/main/data/services/UsageLedgerService.ts` | Record/upsert, attribution, list, stats, timeline, cost backfill |
+| `src/main/data/services/UsageLedgerService.ts` | Record/upsert, attribution, list, stats, timeline |
 | `src/main/data/services/utils/costEnrichment.ts` | Shared cost enrichment and pricing snapshots |
 | `src/shared/utils/cost.ts` | Pure token/image cost math and provider-cost extraction |
 | `src/main/ai/AiService.ts` | Billing funnel plus embedding/image direct record sites |
@@ -447,6 +398,6 @@ paginated; breakdown rows are aggregate views.
 | `src/main/data/services/AgentSessionMessageService.ts` | Agent-session capture hook |
 | `src/main/data/migration/v2/migrators/UsageLedgerMigrator.ts` | Migration-time historical ledger fill |
 | `src/renderer/pages/settings/UsageSettings/index.tsx` | Usage analytics UI |
-| `src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/EditModelDrawer.tsx` | Model-pricing save and cost-backfill CTA |
-| `src/main/data/services/__tests__/UsageLedgerService.test.ts` | Service coverage for record/list/stats/timeline/backfill |
+| `src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/EditModelDrawer.tsx` | Model-pricing save |
+| `src/main/data/services/__tests__/UsageLedgerService.test.ts` | Service coverage for record/list/stats/timeline |
 | `src/main/data/migration/v2/migrators/__tests__/UsageLedgerMigrator.test.ts` | Migration coverage |

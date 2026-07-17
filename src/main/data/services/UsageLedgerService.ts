@@ -34,13 +34,9 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { topicTable } from '@data/db/schemas/topic'
 import { type UsageLedgerRow, usageLedgerTable } from '@data/db/schemas/usageLedger'
-import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type {
-  UsageLedgerCostBackfillPreviewResponse,
-  UsageLedgerCostBackfillQuery,
-  UsageLedgerCostBackfillRunResponse,
   UsageLedgerListQuery,
   UsageLedgerListResponse,
   UsageLedgerStatsBucket,
@@ -49,8 +45,8 @@ import type {
   UsageLedgerTimelineQuery,
   UsageLedgerTimelineResponse
 } from '@shared/data/api/schemas/usageLedger'
-import type { Message, MessageStats } from '@shared/data/types/message'
-import { parseUniqueModelId, type RuntimeModelPricing, type UniqueModelId } from '@shared/data/types/model'
+import type { Message } from '@shared/data/types/message'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type {
   UsageLedgerAttribution,
   UsageLedgerEntry,
@@ -59,10 +55,10 @@ import type {
 } from '@shared/data/types/usageLedger'
 import { maskApiKeyForSnapshot } from '@shared/utils/api'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
 
 import { providerService } from './ProviderService'
-import { computeStatsCostSnapshot, enrichStatsWithCost } from './utils/costEnrichment'
+import { enrichStatsWithCost } from './utils/costEnrichment'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:UsageLedgerService')
@@ -231,66 +227,6 @@ function statsToColumns(stats: NonNullable<Message['stats']>) {
     timeCompletionMs: stats.timeCompletionMs ?? null,
     timeThinkingMs: stats.timeThinkingMs ?? null
   }
-}
-
-type CostBackfillRow = Pick<
-  UsageLedgerRow,
-  | 'id'
-  | 'inputTokens'
-  | 'outputTokens'
-  | 'totalTokens'
-  | 'reasoningTokens'
-  | 'noCacheTokens'
-  | 'cacheReadTokens'
-  | 'cacheWriteTokens'
->
-
-type CostBackfillUpdate = {
-  id: string
-  cost: number
-  costCurrency: NonNullable<MessageStats['costCurrency']>
-  costBreakdown: NonNullable<MessageStats['costBreakdown']>
-  pricingSnapshot: NonNullable<MessageStats['pricingSnapshot']>
-}
-
-interface CostBackfillPlan extends UsageLedgerCostBackfillPreviewResponse {
-  updates: CostBackfillUpdate[]
-}
-
-function buildStatsFromLedgerRow(row: CostBackfillRow): MessageStats {
-  const inputTokenDetails: NonNullable<MessageStats['inputTokenDetails']> = {}
-  if (row.noCacheTokens != null) inputTokenDetails.noCacheTokens = row.noCacheTokens
-  if (row.cacheReadTokens != null) inputTokenDetails.cacheReadTokens = row.cacheReadTokens
-  if (row.cacheWriteTokens != null) inputTokenDetails.cacheWriteTokens = row.cacheWriteTokens
-
-  const outputTokenDetails: NonNullable<MessageStats['outputTokenDetails']> = {}
-  if (row.reasoningTokens != null) outputTokenDetails.reasoningTokens = row.reasoningTokens
-
-  return {
-    ...(row.inputTokens != null ? { inputTokens: row.inputTokens } : {}),
-    ...(row.outputTokens != null ? { outputTokens: row.outputTokens } : {}),
-    ...(row.totalTokens != null ? { totalTokens: row.totalTokens } : {}),
-    ...(Object.keys(inputTokenDetails).length > 0 ? { inputTokenDetails } : {}),
-    ...(Object.keys(outputTokenDetails).length > 0 ? { outputTokenDetails } : {})
-  }
-}
-
-function buildCostBackfillBaseConditions(query: UsageLedgerCostBackfillQuery): SQL[] {
-  const conditions: SQL[] = [
-    eq(usageLedgerTable.modelId, query.modelId),
-    inArray(usageLedgerTable.modality, ['language', 'embedding'])
-  ]
-  if (query.from !== undefined) conditions.push(gte(usageLedgerTable.createdAt, query.from))
-  if (query.to !== undefined) conditions.push(lte(usageLedgerTable.createdAt, query.to))
-  return conditions
-}
-
-function addEstimatedCost(
-  totals: Map<string, number>,
-  currency: NonNullable<MessageStats['costCurrency']>,
-  cost: number
-): void {
-  totals.set(currency, (totals.get(currency) ?? 0) + cost)
 }
 
 export interface RecordRequestInput {
@@ -494,129 +430,6 @@ export class UsageLedgerService {
       logger.debug('resolveKeyAttribution: provider lookup failed', { providerId, err })
       return { attribution: 'none' }
     }
-  }
-
-  private async readPricingForBackfill(modelId: UniqueModelId): Promise<RuntimeModelPricing | undefined> {
-    const [row] = await application
-      .get('DbService')
-      .getDb()
-      .select({ pricing: userModelTable.pricing })
-      .from(userModelTable)
-      .where(eq(userModelTable.id, modelId))
-      .limit(1)
-
-    return row?.pricing ?? undefined
-  }
-
-  private async collectCostBackfill(query: UsageLedgerCostBackfillQuery): Promise<CostBackfillPlan> {
-    const db = application.get('DbService').getDb()
-    const baseConditions = buildCostBackfillBaseConditions(query)
-    const [rows, [{ count: providerCostCount }], pricing] = await Promise.all([
-      db
-        .select({
-          id: usageLedgerTable.id,
-          inputTokens: usageLedgerTable.inputTokens,
-          outputTokens: usageLedgerTable.outputTokens,
-          totalTokens: usageLedgerTable.totalTokens,
-          reasoningTokens: usageLedgerTable.reasoningTokens,
-          noCacheTokens: usageLedgerTable.noCacheTokens,
-          cacheReadTokens: usageLedgerTable.cacheReadTokens,
-          cacheWriteTokens: usageLedgerTable.cacheWriteTokens
-        })
-        .from(usageLedgerTable)
-        .where(and(...baseConditions, isNull(usageLedgerTable.cost))),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(usageLedgerTable)
-        .where(and(...baseConditions, eq(usageLedgerTable.costSource, 'provider'))),
-      this.readPricingForBackfill(query.modelId)
-    ])
-
-    if (!pricing) {
-      return {
-        scannedCount: rows.length,
-        recalculableCount: 0,
-        skippedNoPricingCount: rows.length,
-        skippedProviderCostCount: providerCostCount,
-        estimatedCostByCurrency: [],
-        updates: []
-      }
-    }
-
-    const capturedAt = new Date().toISOString()
-    const totals = new Map<string, number>()
-    const updates: CostBackfillUpdate[] = []
-    let skippedNoPricingCount = 0
-
-    for (const row of rows) {
-      const computed = computeStatsCostSnapshot(buildStatsFromLedgerRow(row), pricing, capturedAt)
-      if (!computed) {
-        skippedNoPricingCount++
-        continue
-      }
-
-      addEstimatedCost(totals, computed.costCurrency, computed.cost)
-      updates.push({
-        id: row.id,
-        cost: computed.cost,
-        costCurrency: computed.costCurrency,
-        costBreakdown: computed.costBreakdown,
-        pricingSnapshot: computed.pricingSnapshot
-      })
-    }
-
-    return {
-      scannedCount: rows.length,
-      recalculableCount: updates.length,
-      skippedNoPricingCount,
-      skippedProviderCostCount: providerCostCount,
-      estimatedCostByCurrency: [...totals.entries()].map(([currency, cost]) => ({ currency, cost })),
-      updates
-    }
-  }
-
-  async previewCostBackfill(query: UsageLedgerCostBackfillQuery): Promise<UsageLedgerCostBackfillPreviewResponse> {
-    const plan = await this.collectCostBackfill(query)
-    return {
-      scannedCount: plan.scannedCount,
-      recalculableCount: plan.recalculableCount,
-      skippedNoPricingCount: plan.skippedNoPricingCount,
-      skippedProviderCostCount: plan.skippedProviderCostCount,
-      estimatedCostByCurrency: plan.estimatedCostByCurrency
-    }
-  }
-
-  async runCostBackfill(query: UsageLedgerCostBackfillQuery): Promise<UsageLedgerCostBackfillRunResponse> {
-    const { updates, ...preview } = await this.collectCostBackfill(query)
-    if (updates.length === 0) {
-      return { ...preview, updatedCount: 0 }
-    }
-
-    let updatedCount = 0
-    const CHUNK_SIZE = 100
-    application.get('DbService').withWriteTx((tx) => {
-      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
-        for (const update of updates.slice(i, i + CHUNK_SIZE)) {
-          const updatedRows = tx
-            .update(usageLedgerTable)
-            .set({
-              cost: update.cost,
-              costCurrency: update.costCurrency,
-              costSource: 'computed',
-              costBreakdown: update.costBreakdown,
-              pricingSnapshot: update.pricingSnapshot,
-              updatedAt: Date.now()
-            })
-            .where(and(eq(usageLedgerTable.id, update.id), isNull(usageLedgerTable.cost)))
-            .returning({ id: usageLedgerTable.id })
-            .all()
-
-          updatedCount += updatedRows.length
-        }
-      }
-    })
-
-    return { ...preview, updatedCount }
   }
 
   async list(query: UsageLedgerListServiceQuery): Promise<UsageLedgerListResponse> {

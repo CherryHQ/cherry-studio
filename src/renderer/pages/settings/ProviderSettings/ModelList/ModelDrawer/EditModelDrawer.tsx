@@ -9,19 +9,15 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
-import { loggerService } from '@logger'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import type { UsageLedgerCostBackfillPreviewResponse } from '@shared/data/api/schemas/usageLedger'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
-import { ChevronDown, ChevronUp, CircleHelp, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,8 +37,6 @@ import { ModelBasicFields } from './ModelBasicFields'
 import { ModelCapabilityToggles } from './ModelCapabilityToggles'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
-
-const logger = loggerService.withContext('EditModelDrawer')
 
 interface EditModelDrawerProps {
   providerId: string
@@ -70,8 +64,6 @@ interface AutoSaveQueueItem {
   providerId: string
   modelId: string
   patch: Partial<Model>
-  /** When true, run a cost-backfill preview after the save lands (pricing changed). */
-  previewCostBackfill?: boolean
 }
 
 type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
@@ -93,27 +85,10 @@ const symbolToCurrency = (symbol: string): ModelDrawerCurrency | undefined => CU
 const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefined =>
   CURRENCY_CODE_TO_SYMBOL[currency as ModelDrawerCurrency]
 
-function hasBillableTokenPricing(pricing: Model['pricing'] | undefined): boolean {
-  return [pricing?.input, pricing?.output, pricing?.cacheRead, pricing?.cacheWrite].some(
-    (tier) => (tier?.perMillionTokens ?? 0) > 0
-  )
-}
-
-function formatBackfillCost(value: number, currency: string): string {
-  const symbol = currency.toUpperCase() === 'CNY' ? '¥' : '$'
-  const fractionDigits = value > 0 && value < 1 ? 4 : 2
-  return `${symbol}${value.toFixed(fractionDigits)}`
-}
-
-function formatBackfillEstimate(preview: UsageLedgerCostBackfillPreviewResponse): string {
-  return preview.estimatedCostByCurrency.map((item) => formatBackfillCost(item.cost, item.currency)).join(' / ')
-}
-
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { updateModel } = useModelMutations()
-  const invalidateCache = useInvalidateCache()
   // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
   // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
@@ -135,9 +110,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
-  const [costBackfillPreview, setCostBackfillPreview] = useState<UsageLedgerCostBackfillPreviewResponse | null>(null)
-  const [isCostBackfillPreviewing, setIsCostBackfillPreviewing] = useState(false)
-  const [isCostBackfillRunning, setIsCostBackfillRunning] = useState(false)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
@@ -170,37 +142,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
-    setCostBackfillPreview(null)
   }, [model, open])
 
-  const previewCostBackfill = useCallback(
-    async (pricing: Model['pricing'] | undefined) => {
-      if (!model || !hasBillableTokenPricing(pricing)) {
-        setCostBackfillPreview(null)
-        return null
-      }
-
-      setIsCostBackfillPreviewing(true)
-      try {
-        const preview = await dataApiService.get('/usage-ledger/cost-backfill/preview', {
-          query: { modelId: model.id }
-        })
-        const nextPreview = preview.recalculableCount > 0 ? preview : null
-        setCostBackfillPreview(nextPreview)
-        return nextPreview
-      } catch (error) {
-        logger.warn('Cost backfill preview failed', { modelId: model.id, error })
-        setCostBackfillPreview(null)
-        return null
-      } finally {
-        setIsCostBackfillPreviewing(false)
-      }
-    },
-    [model]
-  )
-
   const handleUpdateModel = useCallback(
-    async ({ providerId, modelId, patch, previewCostBackfill: shouldPreview }: AutoSaveQueueItem) => {
+    async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
       await updateModel(providerId, modelId, {
         name: patch.name,
         group: patch.group,
@@ -212,14 +157,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         maxOutputTokens: patch.maxOutputTokens,
         pricing: patch.pricing
       })
-
-      if (shouldPreview) {
-        return await previewCostBackfill(patch.pricing)
-      }
-
-      return null
     },
-    [previewCostBackfill, updateModel]
+    [updateModel]
   )
 
   const buildPatch = useCallback(
@@ -305,7 +244,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }, [handleUpdateModel, t])
 
   const autoSave = useCallback(
-    (overrides?: BuildPatchOverrides, options?: { previewCostBackfill?: boolean }) => {
+    (overrides?: BuildPatchOverrides) => {
       if (!model) {
         return
       }
@@ -314,8 +253,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
-        patch: buildPatch(overrides),
-        previewCostBackfill: options?.previewCostBackfill
+        patch: buildPatch(overrides)
       }
       autoSavePendingItemsRef.current.set(`${item.providerId}/${item.modelId}`, item)
       void processAutoSaveQueue()
@@ -345,27 +283,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setHasUserModified(false)
     autoSave({ caps: new Set(savedCaps) })
   }, [autoSave, savedCaps])
-
-  const runCostBackfill = useCallback(async () => {
-    if (!model || !costBackfillPreview || costBackfillPreview.recalculableCount <= 0) {
-      return
-    }
-
-    setIsCostBackfillRunning(true)
-    try {
-      const result = await dataApiService.post('/usage-ledger/cost-backfill/run', {
-        body: { modelId: model.id }
-      })
-      setCostBackfillPreview(null)
-      await invalidateCache(['/usage-ledger/entries', '/usage-ledger/stats', '/usage-ledger/timeline'])
-      toast.success(t('settings.usage.costBackfill.success', { count: result.updatedCount }))
-    } catch (error) {
-      logger.warn('Cost backfill run failed', { modelId: model.id, error })
-      toast.error(t('common.error'))
-    } finally {
-      setIsCostBackfillRunning(false)
-    }
-  }, [costBackfillPreview, invalidateCache, model, t])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -496,7 +413,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         }
 
                         setCurrencySymbol(nextValue)
-                        autoSave({ currencySymbol: nextValue }, { previewCostBackfill: true })
+                        autoSave({ currencySymbol: nextValue })
                       }}>
                       <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
                         <SelectValue />
@@ -525,7 +442,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       onChange={(event) => {
                         setInputPrice(event.target.value)
                       }}
-                      onBlur={() => autoSave({ inputPrice }, { previewCostBackfill: true })}
+                      onBlur={() => autoSave({ inputPrice })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}
@@ -546,7 +463,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       onChange={(event) => {
                         setOutputPrice(event.target.value)
                       }}
-                      onBlur={() => autoSave({ outputPrice }, { previewCostBackfill: true })}
+                      onBlur={() => autoSave({ outputPrice })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}
@@ -567,43 +484,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       onChange={(event) => {
                         setCacheReadPrice(event.target.value)
                       }}
-                      onBlur={() => autoSave({ cacheReadPrice }, { previewCostBackfill: true })}
+                      onBlur={() => autoSave({ cacheReadPrice })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}
                     </span>
                   </div>
                 </ProviderField>
-
-                {costBackfillPreview ? (
-                  <div className="mt-3 flex flex-col gap-2 border-border border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.usage.costBackfill.available', {
-                          count: costBackfillPreview.recalculableCount
-                        })}
-                      </div>
-                      <div className="text-muted-foreground text-xs">
-                        {t('settings.usage.costBackfill.confirm', {
-                          count: costBackfillPreview.recalculableCount,
-                          cost: formatBackfillEstimate(costBackfillPreview)
-                        })}
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="shrink-0"
-                      disabled={isCostBackfillRunning || isCostBackfillPreviewing}
-                      onClick={() => void runCostBackfill()}>
-                      <RefreshCw
-                        aria-hidden
-                        className={`size-4 shrink-0 text-current ${isCostBackfillRunning ? 'animate-spin' : ''}`}
-                      />
-                      {t('settings.usage.costBackfill.action')}
-                    </Button>
-                  </div>
-                ) : null}
               </div>
             </div>
           </ProviderSection>

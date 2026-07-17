@@ -15,7 +15,6 @@
 
 import * as z from 'zod'
 
-import { UniqueModelIdSchema } from '../../types/model'
 import { type UsageLedgerAttribution, type UsageLedgerEntry } from '../../types/usageLedger'
 import type { OffsetPaginationParams, OffsetPaginationResponse } from '../types'
 
@@ -79,14 +78,6 @@ export const UsageLedgerTimelineQuerySchema = z.object(TimeRangeFields).strict()
 /** Parsed query parameters for usage ledger daily timeline. */
 export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySchema>
 
-export const UsageLedgerCostBackfillQuerySchema = z
-  .object({
-    modelId: UniqueModelIdSchema,
-    ...TimeRangeFields
-  })
-  .strict()
-export type UsageLedgerCostBackfillQuery = z.infer<typeof UsageLedgerCostBackfillQuerySchema>
-
 // ============================================================================
 // Responses
 // ============================================================================
@@ -145,23 +136,6 @@ export interface UsageLedgerTimelineResponse {
   buckets: UsageLedgerTimelineBucket[]
 }
 
-export interface UsageLedgerCostBackfillCurrencyTotal {
-  currency: string
-  cost: number
-}
-
-export interface UsageLedgerCostBackfillPreviewResponse {
-  scannedCount: number
-  recalculableCount: number
-  skippedNoPricingCount: number
-  skippedProviderCostCount: number
-  estimatedCostByCurrency: UsageLedgerCostBackfillCurrencyTotal[]
-}
-
-export interface UsageLedgerCostBackfillRunResponse extends UsageLedgerCostBackfillPreviewResponse {
-  updatedCount: number
-}
-
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -188,22 +162,6 @@ export type UsageLedgerSchemas = {
     GET: {
       query?: UsageLedgerTimelineQuery
       response: UsageLedgerTimelineResponse
-    }
-  }
-
-  '/usage-ledger/cost-backfill/preview': {
-    /** Preview historical usage rows whose missing cost can be computed from current pricing */
-    GET: {
-      query: UsageLedgerCostBackfillQuery
-      response: UsageLedgerCostBackfillPreviewResponse
-    }
-  }
-
-  '/usage-ledger/cost-backfill/run': {
-    /** Fill missing historical usage costs using current pricing for one model */
-    POST: {
-      body: UsageLedgerCostBackfillQuery
-      response: UsageLedgerCostBackfillRunResponse
     }
   }
 }

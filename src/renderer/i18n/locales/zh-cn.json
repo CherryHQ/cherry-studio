@@ -8157,13 +8157,6 @@
         "pie": "饼图",
         "stack": "分段"
       },
-      "costBackfill": {
-        "action": "补算历史成本",
-        "available": "有 {{count}} 条历史用量缺少成本，可按当前价格补算。",
-        "confirm": "将写入 {{count}} 条记录，预计成本：{{cost}}。",
-        "noPricing": "设置模型价格后才能补算历史成本。",
-        "success": "已补算 {{count}} 条历史成本。"
-      },
       "empty": {
         "description": "有 AI 请求产生用量后，这里会显示记录。",
         "title": "暂无使用"
