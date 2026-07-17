@@ -51,6 +51,7 @@ function WizardFooter({
   stepIndex,
   isLast,
   isSubmitting,
+  isPolishing,
   onCancel,
   onBack,
   onNext,
@@ -60,6 +61,7 @@ function WizardFooter({
   stepIndex: number
   isLast: boolean
   isSubmitting: boolean
+  isPolishing: boolean
   onCancel: () => void
   onBack: () => void
   onNext: () => void
@@ -68,6 +70,7 @@ function WizardFooter({
   const { t } = useTranslation()
   const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
   const submitting = isSubmitting || form.formState.isSubmitting
+  const navigationLocked = submitting || isPolishing
   const rootError = form.formState.errors.root?.message
   const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
   const canProceed = stepIndex !== 0 || basicValid
@@ -79,16 +82,16 @@ function WizardFooter({
         {t('common.cancel')}
       </Button>
       {stepIndex > 0 ? (
-        <Button type="button" variant="outline" disabled={submitting} onClick={onBack}>
+        <Button type="button" variant="outline" disabled={navigationLocked} onClick={onBack}>
           {t('library.config.dialogs.create.back')}
         </Button>
       ) : null}
       {isLast ? (
-        <Button type="button" loading={submitting} disabled={!basicValid} onClick={onCreate}>
+        <Button type="button" loading={submitting} disabled={!basicValid || navigationLocked} onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
       ) : (
-        <Button type="button" disabled={!canProceed} onClick={onNext}>
+        <Button type="button" disabled={!canProceed || navigationLocked} onClick={onNext}>
           {t('library.config.dialogs.create.next')}
         </Button>
       )}
@@ -125,6 +128,7 @@ export function ResourceCreateWizard({
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
+  const [isPromptPolishing, setIsPromptPolishing] = useState(false)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
@@ -151,6 +155,7 @@ export function ResourceCreateWizard({
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
+    setIsPromptPolishing(false)
   }, [form, kind, open])
 
   // Preference/model hydration may finish after the dialog opens. Seed only an
@@ -188,13 +193,17 @@ export function ResourceCreateWizard({
   const isLast = stepIndex === steps.length - 1
 
   const goNext = () => {
+    if (isPromptPolishing) return
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()
       if (!(name.trim().length > 0 && modelId)) return
     }
     setStepIndex((index) => Math.min(index + 1, steps.length - 1))
   }
-  const goBack = () => setStepIndex((index) => Math.max(index - 1, 0))
+  const goBack = () => {
+    if (isPromptPolishing) return
+    setStepIndex((index) => Math.max(index - 1, 0))
+  }
 
   const runPendingCloseAction = useCallback(() => {
     const action = pendingCloseActionRef.current
@@ -228,6 +237,7 @@ export function ResourceCreateWizard({
   }, [open, runPendingCloseAction])
 
   const handleCreate = form.handleSubmit(async (values) => {
+    if (isPromptPolishing) return
     if (!values.modelId) return
     form.clearErrors('root')
     try {
@@ -275,7 +285,7 @@ export function ResourceCreateWizard({
                 {steps.map((step, index) => {
                   const done = index < stepIndex
                   const active = index === stepIndex
-                  const clickable = index < stepIndex
+                  const clickable = index < stepIndex && !isPromptPolishing
                   return (
                     <li key={step.id}>
                       <button
@@ -323,7 +333,11 @@ export function ResourceCreateWizard({
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (
-                  <PersonaStep form={form} portalContainer={dialogContentElement} />
+                  <PersonaStep
+                    form={form}
+                    portalContainer={dialogContentElement}
+                    onPolishingChange={setIsPromptPolishing}
+                  />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
                   <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
@@ -339,6 +353,7 @@ export function ResourceCreateWizard({
               stepIndex={stepIndex}
               isLast={isLast}
               isSubmitting={isSubmitting}
+              isPolishing={isPromptPolishing}
               onCancel={() => onOpenChange(false)}
               onBack={goBack}
               onNext={goNext}

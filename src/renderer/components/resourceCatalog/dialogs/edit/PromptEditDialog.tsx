@@ -9,6 +9,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
+import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { Braces } from 'lucide-react'
@@ -32,6 +33,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPolishing, setIsPolishing] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
@@ -53,11 +55,12 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
       })
     } else {
       setIsSubmitting(false)
+      setIsPolishing(false)
     }
   }, [open, prompt])
 
   const handleOk = useCallback(async () => {
-    if (!canSave) {
+    if (!canSave || isPolishing) {
       return
     }
 
@@ -72,7 +75,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     } finally {
       setIsSubmitting(false)
     }
-  }, [canSave, formData, onSave])
+  }, [canSave, formData, isPolishing, onSave])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -103,17 +106,26 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   }, [appendVariable, variablePlaceholder])
 
   const promptActions = (
-    <Tooltip content={t('library.config.prompt.insert_variable')}>
-      <Button
-        type="button"
-        variant="ghost"
-        aria-label={t('library.config.prompt.insert_variable')}
-        onClick={handleInsertVariable}
+    <>
+      <PromptPolishActions
+        value={formData.content}
+        fallbackSource={formData.title}
+        onChange={(content) => setFormData((current) => ({ ...current, content }))}
+        onPolishingChange={setIsPolishing}
         disabled={isSaving}
-        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-        <Braces size={10} />
-      </Button>
-    </Tooltip>
+      />
+      <Tooltip content={t('library.config.prompt.insert_variable')}>
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t('library.config.prompt.insert_variable')}
+          onClick={handleInsertVariable}
+          disabled={isSaving}
+          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+          <Braces size={10} />
+        </Button>
+      </Tooltip>
+    </>
   )
 
   return (
@@ -148,7 +160,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           <Button variant="outline" onClick={onCancel} disabled={isSaving}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
+          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving || isPolishing}>
             {t('common.confirm')}
           </Button>
         </DialogFooter>

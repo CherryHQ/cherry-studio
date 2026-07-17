@@ -35,7 +35,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
@@ -54,6 +54,7 @@ import {
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AgentEditDialogProps = EditDialogBaseProps<AgentDetail> & {
   resource: AgentDetail | null
@@ -207,6 +208,7 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [isPromptPolishing, setIsPromptPolishing] = useState(false)
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
@@ -263,6 +265,7 @@ function AgentEditDialogContent({
     setActiveTab('basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
+    setIsPromptPolishing(false)
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, open, resource])
@@ -314,7 +317,7 @@ function AgentEditDialogContent({
   // baseline moves, but the values are unchanged, so this never re-fires from our
   // own save (prevents a save→refetch→save loop).
   const flush = useDebouncedAutoSave({
-    enabled: open,
+    enabled: open && !isPromptPolishing,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
@@ -323,6 +326,7 @@ function AgentEditDialogContent({
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
+    if (!next && isPromptPolishing) return
     if (next || !canPersist) {
       onOpenChange(next)
       return
@@ -367,7 +371,11 @@ function AgentEditDialogContent({
           forceMount
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField form={form} portalContainer={dialogContentElement} />
+          <AgentPromptField
+            form={form}
+            portalContainer={dialogContentElement}
+            onPolishingChange={setIsPromptPolishing}
+          />
         </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
@@ -595,12 +603,15 @@ function HeartbeatSettingsField({
 
 function AgentPromptField({
   form,
-  portalContainer
+  portalContainer,
+  onPolishingChange
 }: {
   form: UseFormReturn<AgentEditFormValues>
   portalContainer: HTMLElement | null
+  onPolishingChange: (polishing: boolean) => void
 }) {
   const { t } = useTranslation()
+  const name = useWatch({ control: form.control, name: 'name' })
 
   return (
     <FormField
@@ -619,6 +630,14 @@ function AgentPromptField({
           onChange={field.onChange}
           placeholder={t('library.config.agent.field.instructions.placeholder')}
           fill
+          actions={
+            <PromptPolishActions
+              value={field.value}
+              fallbackSource={name}
+              onChange={field.onChange}
+              onPolishingChange={onPolishingChange}
+            />
+          }
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />

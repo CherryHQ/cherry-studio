@@ -66,6 +66,33 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   default: MockPromptEditorField
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions', () => ({
+  PromptPolishActions: ({
+    fallbackSource,
+    onChange,
+    onPolishingChange,
+    disabled
+  }: {
+    fallbackSource?: string
+    onChange: (value: string) => void
+    onPolishingChange?: (polishing: boolean) => void
+    disabled?: boolean
+  }) => (
+    <>
+      <button
+        type="button"
+        data-fallback-source={fallbackSource}
+        disabled={disabled}
+        onClick={() => onChange('Polished library prompt')}>
+        library.config.prompt.polish
+      </button>
+      <button type="button" onClick={() => onPolishingChange?.(true)}>
+        start prompt polishing
+      </button>
+    </>
+  )
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: (props: ComponentProps<'button'> & { loading?: boolean; variant?: string; size?: string }) => {
     const { children, type = 'button', ...buttonProps } = props
@@ -148,6 +175,7 @@ describe('PromptEditDialog', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'library.config.prompt.generate' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toBeInTheDocument()
     expect(screen.getByText((content) => content.startsWith('library.config.prompt.tokens_label'))).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.preview' })).toBeInTheDocument()
 
@@ -162,6 +190,95 @@ describe('PromptEditDialog', () => {
         content: 'Updated content'
       })
     })
+  })
+
+  it('writes the polished prompt into the saved library prompt', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Old title',
+          content: 'Old content',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+
+    expect(screen.getByLabelText('prompt-editor')).toHaveValue('Polished library prompt')
+
+    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith({
+        title: 'Old title',
+        content: 'Polished library prompt'
+      })
+    })
+  })
+
+  it('uses the prompt title as the blank-content generation fallback', () => {
+    render(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Old title',
+          content: '',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toHaveAttribute(
+      'data-fallback-source',
+      'Old title'
+    )
+  })
+
+  it('disables prompt polishing while saving', () => {
+    render(
+      <PromptEditDialog open saving prompt={null} onSave={vi.fn().mockResolvedValue(undefined)} onCancel={vi.fn()} />
+    )
+
+    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toBeDisabled()
+  })
+
+  it('disables saving while prompt polishing is in flight', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Old title',
+          content: 'Old content',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'start prompt polishing' }))
+
+    expect(screen.getByRole('button', { name: 'common.confirm' })).toBeDisabled()
   })
 
   it('inserts variables at the current prompt editor selection', async () => {

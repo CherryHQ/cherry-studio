@@ -314,6 +314,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.generate': 'Generate prompt',
           'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
+          'library.config.prompt.polish': 'Polish prompt',
+          'library.config.prompt.polish_failed_description': 'Check or change the default model, then try again.',
+          'library.config.prompt.polish_failed_title': 'Failed to polish prompt',
+          'library.config.prompt.polish_variables_changed_description': 'Prompt variables changed.',
+          'library.config.prompt.polish_variables_changed_title': 'Could not apply polished prompt',
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_description':
             'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
@@ -706,6 +711,72 @@ describe('edit dialogs', () => {
           model: MODEL.id,
           instructions: 'Updated instructions'
         })
+      })
+    )
+  })
+
+  it('polishes agent instructions and auto-saves the polished value', async () => {
+    fetchGenerateMock.mockResolvedValue('Polished agent instructions')
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+
+    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
+    expect(fetchGenerateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Original instructions',
+        throwOnError: true
+      })
+    )
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ instructions: 'Polished agent instructions' })
+      })
+    )
+  })
+
+  it('generates agent instructions from the agent name when instructions are blank', async () => {
+    fetchGenerateMock.mockResolvedValue('Generated agent instructions')
+    render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
+    expect(polishButton).toBeEnabled()
+    fireEvent.click(polishButton)
+
+    await waitFor(() =>
+      expect(fetchGenerateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Alpha Agent',
+          throwOnError: true
+        })
+      )
+    )
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated agent instructions')
+  })
+
+  it('pauses agent auto-save while prompt polishing is in flight', async () => {
+    let resolvePolish: (value: string) => void = () => undefined
+    fetchGenerateMock.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolvePolish = resolve
+      })
+    )
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Draft changed instructions' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    await act(async () => resolvePolish('Polished changed instructions'))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ instructions: 'Polished changed instructions' })
       })
     )
   })

@@ -66,10 +66,24 @@ vi.mock('../steps/BasicInfoStep', async () => {
   }
 })
 vi.mock('../steps/PersonaStep', () => ({
-  PersonaStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
-    <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
-      fill persona
-    </button>
+  PersonaStep: ({
+    form,
+    onPolishingChange
+  }: {
+    form: { setValue: (name: string, value: unknown) => void }
+    onPolishingChange: (polishing: boolean) => void
+  }) => (
+    <>
+      <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
+        fill persona
+      </button>
+      <button type="button" onClick={() => onPolishingChange(true)}>
+        start polishing
+      </button>
+      <button type="button" onClick={() => onPolishingChange(false)}>
+        finish polishing
+      </button>
+    </>
   )
 }))
 vi.mock('../steps/KnowledgeStep', () => ({
@@ -208,6 +222,21 @@ describe('ResourceCreateWizard', () => {
 
     await user.click(screen.getByRole('button', { name: CANCEL }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('keeps persona navigation disabled while prompt polishing is in flight', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'start polishing' }))
+
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'library.config.dialogs.create.back' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'finish polishing' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
   })
 
   it('shows the capability step (not knowledge) for the agent kind', async () => {
