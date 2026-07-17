@@ -47,12 +47,12 @@ describe('VersionStatusCard', () => {
 
     expect(screen.getByText('settings.dependencies.source.system')).toHaveAttribute('title', '/usr/local/bin/claude')
     // Cherry uses the system binary in place — never an uninstall, never a shadow copy.
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
   })
 
-  it('keeps a bundled tool read-only with no install-copy or remove action', () => {
+  it('keeps a bundled tool read-only with no install or uninstall action', () => {
     render(
       <VersionStatusCard
         toolId="claude-code"
@@ -65,7 +65,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
   })
 

@@ -16,9 +16,13 @@ Cherry manages two disjoint sets of tools. **Fixed tools** — every Dependencie
 
 Only the main process writes `feature.binary.tools`, through `BinaryManager.addCustomTool()` (persist-first Custom Add) and `BinaryManager.removeTool()`. `installByName()` never writes Preference — it resolves the fixed/custom recipe in main and applies it. The renderer sends commands and renders snapshots; it never writes definitions directly. There is no `state.json` or startup reconcile, so a restored custom registry does not automatically mutate the filesystem. A missing executable remains recoverable through the normal install path, while a custom definition remains removable. At `onAllReady` a one-time `normalizeCustomDefinitions()` pass rewrites the registry to the canonical shape (dropping fixed-name entries, malformed entries, fixed-spec aliases, and duplicates, and mapping a legacy string `version` to `requestedVersion`) — schema hygiene only: it never installs, reconciles, or touches the filesystem.
 
-mise is an availability backend, not a definition store. An executable visible to mise can have no custom definition; conversely, a defined custom tool can be unavailable after external deletion. A failed registry write after mise succeeds therefore leaves a runnable binary and a failed install operation, rather than fabricating a definition.
+mise is an availability backend, not a definition store. An executable visible to mise can have no custom definition; conversely, a defined custom tool can be unavailable after external deletion. Custom Add writes the definition first: if that write fails, no backend work starts; if backend application fails afterward, the definition remains and the snapshot carries a retryable failed operation.
 
 Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
+
+### Portable definitions and machine-local state
+
+Backup and restore transport `feature.binary.tools` as portable custom definitions only. Restoring them can recreate custom cards and requested version pins on another machine, but it never installs tools, recreates backend application, or copies operation/latest-version state. Fixed definitions come from the running Cherry Studio build and are not backup data. After restore, each machine derives `application` and `availability` from its own mise state, bundled files, and system PATH.
 
 ## Snapshots
 
@@ -35,6 +39,27 @@ A snapshot obtains live mise data with one `mise ls --json` query and reports a 
 
 Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The custom registry, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and drive update/uninstall/repair from `application`, never from `availability` alone.
 
+### Application and action matrix
+
+`availability` authorizes execution; `application` authorizes backend mutation. System and bundled executables are external to BinaryManager and are never updated or removed.
+
+| Definition kind | Application / availability | UI actions |
+| --- | --- | --- |
+| Fixed | `applied` | Update, Uninstall; the fixed card remains after Uninstall |
+| Fixed | `broken` | Retry, Uninstall |
+| Fixed | `absent` + `none` | Install |
+| Fixed | `absent` + bundled/system | Read-only; Code CLI may Launch |
+| Fixed | `conflict` | No backend mutation; Code CLI may Launch the verified executable |
+| Fixed | `unknown` | Retry/probe only; never Uninstall |
+| Custom | `applied` | Update, Remove |
+| Custom | `broken` | Retry, Remove |
+| Custom | `absent` + `none` | Install, Remove |
+| Custom | `absent` + bundled/system | Remove definition; never install a shadow copy |
+| Custom | `conflict` | Remove flow only; cleanup must fail closed before definition-only fallback |
+| Custom | `unknown` | Retry/probe or Remove flow; never assume backend cleanup is safe |
+
+Remove is one custom-tool product flow: it first attempts verified backend cleanup, then deletes the definition. Only after a typed `cleanup_blocked` result may the UI offer a second, explicit definition-only confirmation warning that backend files may remain. Fixed tools have no definition-only fallback.
+
 ## Mutation behavior
 
 Install and remove mutations are serialized with the custom registry and mise process operations. Per-tool active-operation guards deduplicate an identical install and reject conflicting install/remove requests before they overwrite each other's state.
@@ -48,6 +73,18 @@ Removal publishes `removing` and chooses its cleanup path from the live `applica
 Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, an install adopts it at its observed version rather than reinstalling. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime.
 
 Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph.
+
+### Failure outcomes
+
+| Failure point | Authoritative outcome |
+| --- | --- |
+| Custom definition write during Add | Add stops before backend work; no card is created |
+| Backend application after Custom Add | Definition remains; failed operation exposes Retry |
+| Fixed/custom Install or Update | Recipe source is unchanged; failed operation exposes Retry where safe |
+| Backend query/conflict during Remove | `cleanup_blocked`; backend and custom definition remain unchanged |
+| Backend cleanup fails verification | `cleanup_blocked`; custom definition remains until retry or explicit definition-only removal |
+| Custom definition delete fails after verified cleanup | Definition remains; the now-absent backend state makes Remove safely retryable |
+| Latest-cache deletion or availability broadcast fails after mutation | The committed backend/Preference mutation remains successful; derived state refreshes later |
 
 ### Availability without a definition is used in place
 
