@@ -59,6 +59,12 @@ export abstract class LocalModelDownloadService {
     }
   }
 
+  /**
+   * Cheap synchronous probe of the files on disk. About to act on `ready`
+   * (insert a row referencing the model, start an inference)? Use
+   * {@link checkStatus} instead — `ready` here only promises the files exist,
+   * while DB state a subclass derives from them may lag the disk.
+   */
   getStatus(): LocalModelStatus {
     // Unconditional on Intel Mac — the cards hide instead of offering a
     // download that would fail once it reaches the inference worker.

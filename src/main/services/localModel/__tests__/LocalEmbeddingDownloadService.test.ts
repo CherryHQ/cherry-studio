@@ -213,6 +213,29 @@ describe('LocalEmbeddingDownloadService', () => {
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
     })
 
+    it('suppresses the checkStatus self-heal while the weights are being deleted', async () => {
+      unregisterMock.mockResolvedValue({ removed: true })
+      readdirSync.mockReturnValue([fileEntry(READY_FILE)]) // weights still on disk mid-removal
+      let releaseRm!: () => void
+      rm.mockImplementation(() => new Promise<void>((resolve) => (releaseRm = resolve)))
+
+      const removal = localEmbeddingDownloadService.remove()
+      await vi.waitFor(() => expect(rm).toHaveBeenCalled())
+
+      // The row is already unregistered; a concurrent probe re-creating it here
+      // would leave it pointing at weights that vanish when the rm completes.
+      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('not_downloaded')
+      expect(registerLocalEmbeddingModel).not.toHaveBeenCalled()
+
+      releaseRm()
+      await expect(removal).resolves.toEqual({ removed: true })
+
+      // Window closed — the self-heal works again (the mock keeps the weights
+      // "on disk", standing in for a later re-download).
+      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('ready')
+      expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
+    })
+
     it('re-registers the model when deleting the weights fails, so files and DB stay consistent', async () => {
       unregisterMock.mockResolvedValue({ removed: true })
       rm.mockRejectedValue(new Error('EBUSY')) // e.g. a Windows lock survives the unlink

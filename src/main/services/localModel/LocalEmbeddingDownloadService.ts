@@ -52,6 +52,13 @@ function containsFile(dir: string, fileName: string): boolean {
 class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   protected readonly kind: LocalModelKind = 'embedding'
 
+  /** True while {@link remove} is past its successful unregister but the weights
+   * are still on disk (worker teardown + rm in flight). {@link checkStatus}'s
+   * self-heal must not run in this window — it would re-create the user_model
+   * row that remove() just deleted, leaving a row pointing at weights that
+   * vanish moments later (the exact FK trap the heal exists to prevent). */
+  private removing = false
+
   /** The dedicated cache root for this one model (`models/qwen3-embedding`). Cleanup
    * and removal target this rather than the nested repo dir so no empty
    * `onnx-community/` parent chain is left behind. */
@@ -69,13 +76,18 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
 
   override async checkStatus(): Promise<LocalModelStatus> {
     const status = this.getStatus()
+    if (status !== 'ready') return status
+    // Mid-removal the weights still read as ready but the row is already gone
+    // by design — report the state the removal is converging to instead of
+    // healing against it.
+    if (this.removing) return 'not_downloaded'
     // The download/remove paths keep "weights on disk ⟺ user_model row" in
     // sync, but the DB can be reset underneath the weights (a factory reset
     // keeps Runtime/Toolchain, a restored backup may predate the download).
     // Re-registering is idempotent and cheap, and it runs before `ready` is
     // reported — so a consumer acting on `ready` (the KB dialog inserts the
     // fixed model id as an embeddingModelId FK) always finds the row.
-    if (status === 'ready') await registerLocalEmbeddingModel()
+    await registerLocalEmbeddingModel()
     return status
   }
 
@@ -123,6 +135,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
       // re-index / add-document (or forcing a surprise 600MB re-download).
       return { removed: false }
     }
+    this.removing = true
     try {
       // Unload the worker first so the weights file isn't held open while we delete it.
       // terminateThen also blocks a request queued behind it from respawning a worker
@@ -142,6 +155,8 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
       )
       await registerLocalEmbeddingModel()
       throw error
+    } finally {
+      this.removing = false
     }
     return { removed: true }
   }
