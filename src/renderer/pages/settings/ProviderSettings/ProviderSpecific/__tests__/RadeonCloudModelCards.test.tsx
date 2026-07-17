@@ -24,6 +24,8 @@ describe('RadeonCloudModelCards', () => {
     expect(screen.getByRole('link', { name: 'AMD GPU Cloud Model APIs' })).toHaveAttribute('href', MODELS_URL)
     expect(screen.getAllByTestId('radeon-cloud-model-link')).toHaveLength(7)
     expect(screen.getAllByTestId('radeon-cloud-model-icon')).toHaveLength(7)
+    expect(screen.getAllByText(/AMD MI Cloud/)).toHaveLength(5)
+    expect(screen.queryByText(/Fireworks/)).not.toBeInTheDocument()
 
     for (const modelName of MODEL_NAMES) {
       expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('href', MODELS_URL)

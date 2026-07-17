@@ -7,7 +7,7 @@ const RADEON_CLOUD_MODELS_URL = 'https://developer.amd.com.cn/radeon/modelapis'
 interface RadeonCloudModelCard {
   name: string
   publisher: string
-  service: 'Radeon Cloud' | 'Fireworks'
+  service: 'Radeon Cloud' | 'AMD MI Cloud'
   type: 'LLM (Text)' | 'VLM (Vision)'
   icon: IconRef
 }
@@ -32,35 +32,35 @@ const RADEON_CLOUD_MODELS: readonly RadeonCloudModelCard[] = [
   {
     name: 'DeepSeek-V4-Pro',
     publisher: 'DeepSeek',
-    service: 'Fireworks',
+    service: 'AMD MI Cloud',
     type: 'LLM (Text)',
     icon: providerIconRef('deepseek')
   },
   {
     name: 'GLM 5.1',
     publisher: 'Z.ai',
-    service: 'Fireworks',
+    service: 'AMD MI Cloud',
     type: 'LLM (Text)',
     icon: providerIconRef('z-ai')
   },
   {
     name: 'GLM 5.2',
     publisher: 'Z.ai',
-    service: 'Fireworks',
+    service: 'AMD MI Cloud',
     type: 'LLM (Text)',
     icon: providerIconRef('z-ai')
   },
   {
     name: 'OpenAI gpt-oss-120b',
     publisher: 'OpenAI',
-    service: 'Fireworks',
+    service: 'AMD MI Cloud',
     type: 'LLM (Text)',
     icon: modelIconRef('gpt-oss-120b')
   },
   {
     name: 'Kimi K2.6',
     publisher: 'Moonshot',
-    service: 'Fireworks',
+    service: 'AMD MI Cloud',
     type: 'VLM (Vision)',
     icon: modelIconRef('kimi')
   }
