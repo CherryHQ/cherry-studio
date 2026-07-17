@@ -82,6 +82,76 @@ describe('resolveModelIconRef — pattern boundaries (#10, #11, #12)', () => {
   })
 })
 
+describe('resolveModelIconRef — dedicated model marks', () => {
+  const gptCases = [
+    ['openai/gpt-5.6-luna-pro', 'gpt-5-6-luna'],
+    ['gpt-5.5-pro', 'gpt-5-5-pro'],
+    ['gpt-5.4-mini', 'gpt-5-4-mini'],
+    ['gpt-5.3-codex-spark', 'gpt-5-3-codex'],
+    ['gpt-5.2-chat-latest', 'gpt-5-2-chat-latest'],
+    ['gpt-5.1-codex-max', 'gpt-5-1-codex-max'],
+    ['gpt-4o-mini-search-preview', 'gpt-4o-mini-search-preview'],
+    ['gpt-4.1-nano', 'gpt-4-1-nano'],
+    ['gpt-4-turbo-preview', 'gpt-4-turbo-preview'],
+    ['gpt-3.5-turbo', 'gpt-3-5-turbo'],
+    ['gpt-image-2', 'gpt-image-2'],
+    ['gpt-image-1-mini', 'gpt-image-1-mini'],
+    ['gpt-audio-mini', 'gpt-audio-mini'],
+    ['gpt-realtime-2.1', 'gpt-realtime-2-1'],
+    ['dall-e-3', 'dalle']
+  ] as const
+
+  it.each(gptCases)('routes %s to %s', (modelId, key) => {
+    expect(resolveModelIconRef(modelId)?.key).toBe(key)
+  })
+
+  const familyCases = [
+    ['google/nano-banana-pro', 'nanobanana'],
+    ['deepseek-v4-pro', 'deepseek'],
+    ['meta/llama-3.3-70b', 'meta'],
+    ['nousresearch/hermes-4-405b', 'nousresearch'],
+    ['mistral/mixtral-8x22b', 'mistral'],
+    ['minimax-m2.1', 'minimax'],
+    ['ai21-labs/jamba-1.5-large', 'ai21'],
+    ['cohere/command-r-plus', 'cohere'],
+    ['nvidia/nemotron-3-super', 'nvidia'],
+    ['voyage-3.5', 'voyage'],
+    ['upstage/solar-pro-3', 'upstage'],
+    ['baai/bge-m3', 'baai'],
+    ['deepcogito/cogito-v2.1-671b', 'deepcogito'],
+    ['inception/mercury-2', 'inception'],
+    ['relace/relace-search', 'relace'],
+    ['jina-embeddings-v3', 'jina'],
+    ['perplexity/sonar-pro', 'perplexity'],
+    ['black-forest-labs/flux.1-dev', 'flux'],
+    ['ideogram-v3', 'ideogram'],
+    ['stable-diffusion-xl', 'stability'],
+    ['kling-v2.1', 'kling'],
+    ['kwai-kolors', 'kolors'],
+    ['suno-v4.5', 'suno'],
+    ['longcat-flash-chat', 'longcat'],
+    ['chatglm-4-air', 'chatglm'],
+    ['cogview-4', 'cogview'],
+    ['glm-4.6v-flash', 'glmv'],
+    ['baichuan-4', 'baichuan'],
+    ['internvl-3', 'internlm'],
+    ['01-ai/yi-large', 'yi'],
+    ['baidu/ernie-4.5', 'wenxin'],
+    ['stepfun/step-3.5-flash', 'stepfun']
+  ] as const
+
+  it.each(familyCases)('routes %s to %s', (modelId, key) => {
+    expect(resolveModelIconRef(modelId)?.key).toBe(key)
+  })
+
+  it('keeps broad family names token-bounded', () => {
+    expect(resolveModelIconRef('metadata-embedding')?.key).not.toBe('meta')
+    expect(resolveModelIconRef('influxdb-query')?.key).not.toBe('flux')
+    expect(resolveModelIconRef('sonarqube-code')?.key).not.toBe('perplexity')
+    expect(resolveModelIconRef('sparkling-image')?.key).not.toBe('kling')
+  })
+})
+
 describe('vendor-pattern parity with VENDOR_PATTERNS (icon routing drift)', () => {
   it('lyria routes to the Gemini model icon (namespaced OpenRouter id)', () => {
     expect(resolveModelIconRef('google/lyria-3-pro-preview')?.key).toBe('gemini')
@@ -110,9 +180,12 @@ describe('vendor-pattern parity with VENDOR_PATTERNS (icon routing drift)', () =
     expect(resolveModelIconRef('hybrid-model')?.key).not.toBe('hunyuan')
   })
 
-  it('novel gpt-* families route to the OpenAI provider icon', () => {
+  it('uses dedicated GPT media icons and keeps unknown GPT families on the OpenAI provider icon', () => {
     expect(resolveIconRef('gpt-audio', 'openrouter')).toEqual(
-      expect.objectContaining({ kind: 'provider', key: 'openai' })
+      expect.objectContaining({ kind: 'model', key: 'gpt-audio' })
+    )
+    expect(resolveIconRef('gpt-realtime-2.1', 'openrouter')).toEqual(
+      expect.objectContaining({ kind: 'model', key: 'gpt-realtime-2-1' })
     )
     expect(resolveIconRef('gpt-chat-latest', 'openrouter')).toEqual(
       expect.objectContaining({ kind: 'provider', key: 'openai' })
@@ -138,9 +211,9 @@ describe('resolveIconRef — full fallback chain', () => {
     )
   })
 
-  it('falls back to the provider inferred from the model id', () => {
+  it('prefers a dedicated family model icon over its provider icon', () => {
     expect(resolveIconRef('deepseek-chat', 'unknown-provider')).toEqual(
-      expect.objectContaining({ kind: 'provider', key: 'deepseek' })
+      expect.objectContaining({ kind: 'model', key: 'deepseek' })
     )
   })
 
