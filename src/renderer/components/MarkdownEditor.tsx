@@ -1,7 +1,7 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 import 'katex/dist/katex.min.css'
 
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import type { FC } from 'react'
 import React, { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,9 +45,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
         autoFocus={autoFocus}
       />
       <div className="markdown flex-1 overflow-auto bg-background p-3">
-        <Markdown id={markdownId} plugins={{ cjk: defaultMarkdownPlugins.cjk, math: withMath() }}>
+        <StaticMarkdown id={markdownId}>
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
-        </Markdown>
+        </StaticMarkdown>
       </div>
     </div>
   )

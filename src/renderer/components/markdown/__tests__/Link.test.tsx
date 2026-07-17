@@ -1,3 +1,4 @@
+import { MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -151,5 +152,72 @@ describe('Link', () => {
     const anchor = container.querySelector('a') as HTMLAnchorElement
     expect(anchor).not.toBeNull()
     expect(anchor.hasAttribute('href')).toBe(false)
+  })
+
+  it('should route a file-path link to the host opener, keeping its text and not navigating', () => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+    mocks.parseJSON.mockReturnValue(undefined)
+    const openFilePath = vi.fn()
+    const onParentClick = vi.fn()
+
+    const { container } = render(
+      <MarkdownHostContext value={{ openFilePath }}>
+        <div onClick={onParentClick}>
+          <Link href=".agents/skills/gh-create-pr/SKILL.md">the skill file</Link>
+        </div>
+      </MarkdownHostContext>
+    )
+
+    // Not a web link: no Hyperlink wrapper, no new-window target.
+    expect(screen.queryByTestId('hyperlink')).toBeNull()
+    const anchor = container.querySelector('a') as HTMLAnchorElement
+    expect(anchor).toHaveTextContent('the skill file')
+    expect(anchor.getAttribute('target')).toBeNull()
+
+    fireEvent.click(anchor)
+    expect(openFilePath).toHaveBeenCalledWith('.agents/skills/gh-create-pr/SKILL.md')
+    expect(onParentClick).not.toHaveBeenCalled()
+  })
+
+  it('should not intercept web links even when a file opener is available', () => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+    mocks.parseJSON.mockReturnValue(undefined)
+    const openFilePath = vi.fn()
+
+    render(
+      <MarkdownHostContext value={{ openFilePath }}>
+        <Link href="https://domain.com/path">Open</Link>
+      </MarkdownHostContext>
+    )
+
+    expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
+    expect(openFilePath).not.toHaveBeenCalled()
+  })
+
+  it('should treat a file-path href as a normal link when no host opener is provided', () => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+    mocks.parseJSON.mockReturnValue(undefined)
+
+    render(<Link href="docs/guide.md">Guide</Link>)
+
+    // No host → the existing Hyperlink behavior is preserved (no regression).
+    expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
+  })
+
+  it('should hand a relative file-path link to the opener to join with the workspace', () => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+    mocks.parseJSON.mockReturnValue(undefined)
+    const openFilePath = vi.fn()
+
+    const { container } = render(
+      <MarkdownHostContext value={{ openFilePath }}>
+        <Link href="./DESIGN.md">Design</Link>
+      </MarkdownHostContext>
+    )
+
+    expect(screen.queryByTestId('hyperlink')).toBeNull()
+    fireEvent.click(container.querySelector('a') as HTMLAnchorElement)
+    // The opener (workspace-aware) receives the raw relative path.
+    expect(openFilePath).toHaveBeenCalledWith('./DESIGN.md')
   })
 })

@@ -2,6 +2,7 @@ import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystu
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -33,6 +34,7 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -419,20 +421,33 @@ function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
   const model = useAgentFileTreeModel()
   const shellState = useShellState()
+  // Make inline file paths inside a previewed markdown file clickable, routed to
+  // open in this same right pane. The preview is not inside a MessageListProvider,
+  // so ClickableFilePath gets its open handler via `onOpen` instead of context.
+  const markdownHost = useMemo<MarkdownHost>(
+    () => ({
+      codeFancyBlock: true,
+      openFilePath: actions.openArtifactFile,
+      renderInlineFilePath: (path) => <ClickableFilePath path={path} onOpen={actions.openArtifactFile} />
+    }),
+    [actions.openArtifactFile]
+  )
   return (
-    <ArtifactPaneView
-      workspacePath={state.workspacePath}
-      previewFileSelection={state.previewFileSelection}
-      onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={shellState.pdfLayoutPending}
-      pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
-      enableFileSearch
-      model={model}
-      selectedFile={state.selectedFile}
-      onSelectedFileChange={actions.setSelectedFile}
-      searchKeyword={state.fileTreeSearchKeyword}
-      onSearchKeywordChange={actions.setFileTreeSearchKeyword}
-    />
+    <MarkdownHostContext value={markdownHost}>
+      <ArtifactPaneView
+        workspacePath={state.workspacePath}
+        previewFileSelection={state.previewFileSelection}
+        onPreviewClose={actions.closeFilePreview}
+        pdfLayoutPending={shellState.pdfLayoutPending}
+        pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
+        enableFileSearch
+        model={model}
+        selectedFile={state.selectedFile}
+        onSelectedFileChange={actions.setSelectedFile}
+        searchKeyword={state.fileTreeSearchKeyword}
+        onSearchKeywordChange={actions.setFileTreeSearchKeyword}
+      />
+    </MarkdownHostContext>
   )
 }
 

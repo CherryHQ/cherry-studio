@@ -1,14 +1,13 @@
 import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { useMarkdownHost } from '@renderer/hooks/useMarkdownHost'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Node } from 'unist'
-
-import { useOptionalMessageListActions } from '../MessageListProvider'
 
 const logger = loggerService.withContext('Table')
 
@@ -25,20 +24,20 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const mdCtx = useMarkdownBlockContext()
-  const actions = useOptionalMessageListActions()
-  const canCopyTable = !!actions?.copyRichContent
-  const canExportExcel = !!actions?.exportTableAsExcel
+  const { copyRichContent, exportTableAsExcel, notifySuccess, notifyError } = useMarkdownHost()
+  const canCopyTable = !!copyRichContent
+  const canExportExcel = !!exportTableAsExcel
 
   const handleCopyTable = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
-      actions?.notifyError?.(t('message.error.table.invalid'))
+      notifyError?.(t('message.error.table.invalid'))
       return
     }
 
     try {
       const tableHtml = convertMarkdownTableToHtml(tableMarkdown)
-      await actions?.copyRichContent?.(
+      await copyRichContent?.(
         {
           plainText: tableMarkdown,
           html: tableHtml
@@ -48,27 +47,27 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       setCopied(true)
     } catch (error) {
       logger.error('Failed to copy table to clipboard', { error })
-      actions?.notifyError?.(t('message.copy.failed'))
+      notifyError?.(t('message.copy.failed'))
     }
-  }, [actions, blockId, node?.position, setCopied, t, mdCtx?.content])
+  }, [copyRichContent, notifyError, blockId, node?.position, setCopied, t, mdCtx?.content])
 
   const handleExportExcel = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
-      actions?.notifyError?.(t('message.error.table.invalid'))
+      notifyError?.(t('message.error.table.invalid'))
       return
     }
 
     try {
-      const result = await actions?.exportTableAsExcel?.(tableMarkdown)
+      const result = await exportTableAsExcel?.(tableMarkdown)
       if (result) {
-        actions?.notifySuccess?.(t('message.success.excel.export'))
+        notifySuccess?.(t('message.success.excel.export'))
       }
     } catch (error) {
       logger.error('Failed to export table to Excel', { error })
-      actions?.notifyError?.(t('message.error.excel.export'))
+      notifyError?.(t('message.error.excel.export'))
     }
-  }, [actions, blockId, node?.position, t, mdCtx?.content])
+  }, [exportTableAsExcel, notifySuccess, notifyError, blockId, node?.position, t, mdCtx?.content])
 
   return (
     <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full hover:[&_.table-toolbar]:opacity-100">
