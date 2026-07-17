@@ -43,11 +43,7 @@ const SettingsPage: FC = () => {
   const go = (path: string) => navigate({ to: path })
 
   return (
-    <div
-      className={cn(
-        'flex min-h-0 flex-1 flex-col',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
-      )}>
+    <div className={cn('flex min-h-0 flex-1 flex-col', isMacTransparentWindow ? 'bg-transparent' : 'bg-background')}>
       <div className="flex min-h-0 flex-1 flex-row">
         <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('title.settings')} />
