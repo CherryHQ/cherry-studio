@@ -4,7 +4,7 @@ import { createContext, use, useMemo } from 'react'
 
 import { useHealthCheck } from './useHealthCheck'
 
-interface ModelListHealthContextValue {
+interface ModelListHealthRunContextValue {
   isHealthChecking: boolean
   availableApiKeys: string[]
   healthCheckOpen: boolean
@@ -12,11 +12,15 @@ interface ModelListHealthContextValue {
   closeHealthCheck: () => void
   resetHealthCheckRun: () => void
   startHealthCheck: (config: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => Promise<void>
+}
+
+interface ModelListHealthResultsContextValue {
   modelStatusMap: Map<string, ModelWithStatus>
   modelStatuses: ModelWithStatus[]
 }
 
-const ModelListHealthContext = createContext<ModelListHealthContextValue | null>(null)
+const ModelListHealthRunContext = createContext<ModelListHealthRunContextValue | null>(null)
+const ModelListHealthResultsContext = createContext<ModelListHealthResultsContextValue | null>(null)
 
 export function ModelListHealthProvider({ providerId, children }: { providerId: string; children: ReactNode }) {
   const {
@@ -29,7 +33,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
     resetHealthCheckRun,
     startHealthCheck
   } = useHealthCheck(providerId)
-  const value = useMemo(
+  const runValue = useMemo(
     () => ({
       isHealthChecking,
       availableApiKeys,
@@ -37,27 +41,47 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       openHealthCheck,
       closeHealthCheck,
       resetHealthCheckRun,
-      startHealthCheck,
-      modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status])),
-      modelStatuses
+      startHealthCheck
     }),
     [
       availableApiKeys,
       closeHealthCheck,
       healthCheckOpen,
       isHealthChecking,
-      modelStatuses,
       openHealthCheck,
       resetHealthCheckRun,
       startHealthCheck
     ]
   )
+  const resultsValue = useMemo(
+    () => ({
+      modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status])),
+      modelStatuses
+    }),
+    [modelStatuses]
+  )
 
-  return <ModelListHealthContext value={value}>{children}</ModelListHealthContext>
+  return (
+    <ModelListHealthRunContext value={runValue}>
+      <ModelListHealthResultsContext value={resultsValue}>{children}</ModelListHealthResultsContext>
+    </ModelListHealthRunContext>
+  )
+}
+
+export function useModelListHealthRun() {
+  const context = use(ModelListHealthRunContext)
+
+  if (!context) {
+    throw new Error('useModelListHealthRun must be used within ModelListHealthProvider')
+  }
+
+  return context
 }
 
 export function useModelListHealth() {
-  const context = use(ModelListHealthContext)
+  const run = useModelListHealthRun()
+  const results = use(ModelListHealthResultsContext)
+  const context = useMemo(() => (results ? { ...run, ...results } : null), [results, run])
 
   if (!context) {
     throw new Error('useModelListHealth must be used within ModelListHealthProvider')
