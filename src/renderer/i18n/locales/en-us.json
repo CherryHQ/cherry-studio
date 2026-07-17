@@ -193,7 +193,7 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
-      "welcome_title": "What shall we talk about today?"
+      "welcome_title": "What should we work on today?"
     },
     "icon": {
       "type": "Agent Icon"
@@ -1369,7 +1369,7 @@
       "view_full_content": "View Full Content"
     },
     "home": {
-      "welcome_title": "What shall we talk about today?"
+      "welcome_title": "What should we talk about today?"
     },
     "input": {
       "auto_resize": "Auto resize height",
