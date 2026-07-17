@@ -53,11 +53,11 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 /** Session counterpart to {@link useAssistantTopicsSource}. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useAgentSessionStats({ enabled })
-  const loadLatestSession = useCallback(async (agentId?: string) => {
+  const loadLatestSession = useCallback(async (agentId?: string | null) => {
     const result =
       agentId === undefined
         ? await dataApiService.get('/agent-sessions/latest')
-        : await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
     return result.session
   }, [])
   const loadSessionReuseCandidates = useCallback(async (agentId: string): Promise<AgentSessionListItem[]> => {

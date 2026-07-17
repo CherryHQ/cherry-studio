@@ -15,7 +15,7 @@ interface AgentSidePanelProps {
   activeSessionId: string | null
   historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
-  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+  onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>

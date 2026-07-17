@@ -11,6 +11,7 @@ import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { useTopicSessionSortPreference } from '@renderer/hooks/useTopicSessionSortPreference'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -23,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
+  buildResourceOwnerFallbackIds,
   type ConversationResourceMenuItem,
   renderAgentEntityIcon,
   ResourceList,
@@ -55,11 +57,10 @@ type AgentResourceListProps = {
   onShowMissingAgentSelection?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
-   * Called after the currently-active agent is deleted so the classic-layout page can
-   * settle (select the latest remaining session / clear). This is the classic
-   * layout's reset.
+   * Called after the active agent is deleted. Candidate ids preserve the
+   * owner rail's pre-removal display order.
    */
-  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+  onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
 }
 
 export function AgentResourceList({
@@ -81,7 +82,7 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
+  const [sessionSortBy, setSessionSortBy] = useTopicSessionSortPreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     stats: sessionStats,
@@ -217,10 +218,14 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
+        const fallbackAgentIds = buildResourceOwnerFallbackIds(
+          items.map((item) => item.id),
+          agentId
+        )
         const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
         closeConversationTabs('agents', result.deletedSessionIds ?? [])
         if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId)
+          await onActiveAgentDeleted?.(agentId, fallbackAgentIds)
         }
 
         await refetchAgents()
@@ -233,7 +238,17 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [activeAgentId, closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
+    [
+      activeAgentId,
+      closeConversationTabs,
+      deleteAgent,
+      deletingAgentId,
+      items,
+      onActiveAgentDeleted,
+      refetchAgents,
+      reload,
+      t
+    ]
   )
 
   const getContextMenuActions = useCallback(

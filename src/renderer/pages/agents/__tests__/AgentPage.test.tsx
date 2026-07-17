@@ -45,6 +45,7 @@ const agentPageMocks = vi.hoisted(() => ({
     },
     orderKey: 'p0',
     createdAt: '2026-01-03T00:00:00.000Z',
+    lastActivityAt: '2026-01-03T00:00:00.000Z',
     updatedAt: '2026-01-03T00:00:00.000Z'
   },
   agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }] as Array<{
@@ -92,6 +93,7 @@ const agentPageMocks = vi.hoisted(() => ({
     name: string
     isNameManuallyEdited?: boolean
     createdAt?: string
+    lastActivityAt?: string
     updatedAt: string
     workspaceId?: string
     workspace?: { type?: string }
@@ -101,11 +103,8 @@ const agentPageMocks = vi.hoisted(() => ({
   isLatestSessionLoading: false,
   // `undefined` → derive the latest from `resourceLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
-  latestSessionOverride: undefined as { id: string; updatedAt: string } | null | undefined,
-  // Controls the imperative `/agent-sessions/latest` seed lookup (`agentSessionsSource.loadLatestSession`),
-  // which `handleActiveAgentDeleted` reads AFTER the active agent is deleted. `undefined` → first
-  // classic-layout session (default); `null` → no session remains post-deletion; a session → that exact
-  // session.
+  latestSessionOverride: undefined as { id: string; lastActivityAt?: string; updatedAt: string } | null | undefined,
+  // Controls the imperative scoped `/agent-sessions/latest` lookup used by owner fallback.
   loadLatestSessionOverride: undefined as
     | (Record<string, unknown> & { id: string; updatedAt: string })
     | null
@@ -144,13 +143,20 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
       isStatsLoading: agentPageMocks.sessionsLoadingAll,
       hasMore: false,
       stats: { total: sessions.length, pinnedCount: 0, byAgent, byWorkspace: [] },
-      loadLatestSession: vi.fn(async (agentId?: string) =>
-        agentId !== undefined
-          ? (sessions.find((session) => session.agentId === agentId) ?? null)
-          : agentPageMocks.loadLatestSessionOverride === undefined
-            ? (sessions[0] ?? null)
-            : agentPageMocks.loadLatestSessionOverride
-      ),
+      loadLatestSession: vi.fn(async (agentId?: string) => {
+        if (agentId !== undefined) {
+          if (
+            agentPageMocks.loadLatestSessionOverride !== undefined &&
+            agentPageMocks.loadLatestSessionOverride?.agentId === agentId
+          ) {
+            return agentPageMocks.loadLatestSessionOverride
+          }
+          return sessions.find((session) => session.agentId === agentId) ?? null
+        }
+        return agentPageMocks.loadLatestSessionOverride === undefined
+          ? (sessions[0] ?? null)
+          : agentPageMocks.loadLatestSessionOverride
+      }),
       loadSessionReuseCandidates: vi.fn(async (agentId: string) =>
         sessions.filter((session) => session.agentId === agentId)
       )
@@ -271,7 +277,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', async () => {
-  const { findLatestUpdated } = await import('@renderer/utils/resourceEntity')
+  const { compareResourceActivityOrder } = await import('@renderer/utils/chat/resourceListBase')
 
   return {
     useSession: () => ({
@@ -279,7 +285,7 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
       isLoading: false
     }),
     useLatestSession: (options?: { enabled?: boolean }) => {
-      const derived = findLatestUpdated(agentPageMocks.resourceLayoutSessions)
+      const derived = [...agentPageMocks.resourceLayoutSessions].sort(compareResourceActivityOrder)[0]
       const latest =
         agentPageMocks.latestSessionOverride === undefined
           ? derived
@@ -581,6 +587,7 @@ vi.mock('../AgentSidePanel', () => {
               workspace: agentPageMocks.workspace,
               orderKey: 'next',
               createdAt: '2026-01-02T00:00:00.000Z',
+              lastActivityAt: '2026-01-02T00:00:00.000Z',
               updatedAt: '2026-01-02T00:00:00.000Z'
             })
           }}>
@@ -635,7 +642,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
-    onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectEmptyAgent?: (agentId: string) => void
     onSelectSession?: (sessionId: string, session: Record<string, unknown>) => void
@@ -655,7 +662,17 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
         <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
           Open history records
         </button>
-        <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
+        <button
+          type="button"
+          onClick={() => {
+            const activeId = activeAgentId ?? ''
+            const candidateIds = Array.from(
+              new Set(
+                agentPageMocks.resourceLayoutSessions.flatMap((session) => (session.agentId ? [session.agentId] : []))
+              )
+            ).filter((agentId) => agentId !== activeId)
+            void onActiveAgentDeleted?.(activeId, candidateIds)
+          }}>
           Delete active agent
         </button>
         <button
@@ -1310,12 +1327,12 @@ describe('AgentPage', () => {
       {
         ...agentPageMocks.persistedSession,
         id: 'session-older',
-        updatedAt: '2026-01-01T00:00:00.000Z'
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
       },
       {
         ...agentPageMocks.persistedSession,
         id: 'session-latest',
-        updatedAt: '2026-01-03T00:00:00.000Z'
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
       }
     ]
 
@@ -1331,8 +1348,8 @@ describe('AgentPage', () => {
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.routeSearch = {}
     agentPageMocks.resourceLayoutSessions = [
-      { ...agentPageMocks.persistedSession, id: 'session-older', updatedAt: '2026-01-01T00:00:00.000Z' },
-      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+      { ...agentPageMocks.persistedSession, id: 'session-older', lastActivityAt: '2026-01-01T00:00:00.000Z' },
+      { ...agentPageMocks.persistedSession, id: 'session-latest', lastActivityAt: '2026-01-03T00:00:00.000Z' }
     ]
 
     render(<AgentPage />)
@@ -1349,8 +1366,8 @@ describe('AgentPage', () => {
     agentPageMocks.sessionsFirstPageLoading = true
     agentPageMocks.sessionsLoadingAll = true
     agentPageMocks.resourceLayoutSessions = [
-      { ...agentPageMocks.persistedSession, id: 'session-older', updatedAt: '2026-01-01T00:00:00.000Z' },
-      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+      { ...agentPageMocks.persistedSession, id: 'session-older', lastActivityAt: '2026-01-01T00:00:00.000Z' },
+      { ...agentPageMocks.persistedSession, id: 'session-latest', lastActivityAt: '2026-01-03T00:00:00.000Z' }
     ]
 
     render(<AgentPage />)
@@ -1363,14 +1380,18 @@ describe('AgentPage', () => {
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.routeSearch = {}
     // The loaded page holds only other sessions; the dedicated latest query surfaces the true latest,
-    // proving first-entry restore reads the query, not `findLatestUpdated` over the paged list.
+    // proving first-entry restore reads the query, not the paged list's local activity ordering.
     agentPageMocks.resourceLayoutSessions = [
-      { ...agentPageMocks.persistedSession, id: 'session-on-page', updatedAt: '2026-01-01T00:00:00.000Z' }
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-on-page',
+        lastActivityAt: '2026-01-01T00:00:00.000Z'
+      }
     ]
     agentPageMocks.latestSessionOverride = {
       ...agentPageMocks.persistedSession,
       id: 'session-off-page',
-      updatedAt: '2026-01-09T00:00:00.000Z'
+      lastActivityAt: '2026-01-09T00:00:00.000Z'
     }
 
     render(<AgentPage />)
@@ -1454,9 +1475,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
   })
 
-  it('clears the active session when the fallback create fails after deleting the active agent', async () => {
-    // The deleted agent's last session is the active one; if the replacement create rejects, the active
-    // session id must be cleared rather than left pointing at a session of the just-deleted agent.
+  it('clears the active session without creating a replacement after deleting the only active agent', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-a' }
     agentPageMocks.agents = [
@@ -1465,22 +1484,19 @@ describe('AgentPage', () => {
     ]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-    // Only agent-a has a session, so deleting agent-a leaves no neighbour and forces a fallback create.
+    // Only agent-a has a session, so deleting it leaves no eligible owner.
     agentPageMocks.resourceLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a', updatedAt: '2026-01-02T00:00:00.000Z' }
     ]
-    // The deleted agent's only session is the active one; post-deletion `/agent-sessions/latest` is empty,
-    // so the handler falls through to the fallback create (which rejects below).
     agentPageMocks.loadLatestSessionOverride = null
-    agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
 
     render(<AgentPage />)
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
 
-    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {
@@ -1568,6 +1584,7 @@ describe('AgentPage', () => {
         agentId: 'agent-b',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       },
@@ -1577,6 +1594,7 @@ describe('AgentPage', () => {
         agentId: 'agent-b',
         name: 'Real session',
         createdAt: '2026-01-01T00:00:00.000Z',
+        lastActivityAt: '2026-01-01T01:00:00.000Z',
         updatedAt: '2026-01-01T01:00:00.000Z',
         workspace: { type: 'system' }
       }
@@ -1605,6 +1623,7 @@ describe('AgentPage', () => {
         name: '',
         isNameManuallyEdited: false,
         createdAt: '2026-01-03T03:00:00.000Z',
+        lastActivityAt: '2026-01-03T03:00:00.000Z',
         updatedAt: '2026-01-03T03:00:00.000Z',
         workspace: { type: 'system' }
       },
@@ -1614,6 +1633,7 @@ describe('AgentPage', () => {
         name: '',
         isNameManuallyEdited: false,
         createdAt: '2026-01-03T02:00:00.000Z',
+        lastActivityAt: '2026-01-03T02:00:00.000Z',
         updatedAt: '2026-01-03T02:00:00.000Z',
         workspace: { type: 'system' }
       },
@@ -1623,6 +1643,7 @@ describe('AgentPage', () => {
         name: '',
         isNameManuallyEdited: false,
         createdAt: '2026-01-03T01:00:00.000Z',
+        lastActivityAt: '2026-01-03T01:00:00.000Z',
         updatedAt: '2026-01-03T01:00:00.000Z',
         workspaceId: 'workspace-b',
         workspace: { type: 'user' }
@@ -1659,6 +1680,7 @@ describe('AgentPage', () => {
         agentId: 'agent-b',
         name: '',
         createdAt: 'not-a-date',
+        lastActivityAt: 'not-a-date',
         updatedAt: 'not-a-date',
         workspace: { type: 'system' }
       },
@@ -1667,6 +1689,7 @@ describe('AgentPage', () => {
         agentId: 'agent-b',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       }
@@ -1698,6 +1721,7 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-a',
         workspace: { type: 'user' }
@@ -1733,6 +1757,7 @@ describe('AgentPage', () => {
         name: '',
         isNameManuallyEdited: false,
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T02:00:00.000Z',
         updatedAt: '2026-01-03T02:00:00.000Z',
         workspaceId: undefined,
         workspace: undefined
@@ -1743,6 +1768,7 @@ describe('AgentPage', () => {
         name: '',
         isNameManuallyEdited: false,
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T01:00:00.000Z',
         updatedAt: '2026-01-03T01:00:00.000Z',
         workspaceId: undefined,
         workspace: undefined
@@ -1790,6 +1816,7 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-b',
         workspace: { type: 'user' }
@@ -1878,6 +1905,7 @@ describe('AgentPage', () => {
         agentId: 'agent-a',
         name: '',
         createdAt: '2026-01-01T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-a',
         workspace: { type: 'user' }
@@ -1925,6 +1953,7 @@ describe('AgentPage', () => {
       name: '',
       isNameManuallyEdited: false,
       createdAt: '2026-01-01T00:00:00.000Z',
+      lastActivityAt: `2026-01-03T00:00:${String(index).padStart(2, '0')}.000Z`,
       updatedAt: `2026-01-03T00:00:${String(index).padStart(2, '0')}.000Z`,
       workspaceId: 'workspace-a',
       workspace: { type: 'user' }
@@ -2133,22 +2162,14 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
   })
 
-  it('creates a default empty session when history clears the active session', async () => {
+  it('leaves the session selection empty when history deletes the last active session', async () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear history session' }))
 
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-        body: {
-          agentId: 'agent-a',
-          name: '',
-          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        }
-      })
-    )
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {
@@ -2488,6 +2509,7 @@ describe('AgentPage', () => {
         name: '',
         isNameManuallyEdited: false,
         createdAt: '2026-01-04T00:00:00.000Z',
+        lastActivityAt: '2026-01-04T00:00:00.000Z',
         updatedAt: '2026-01-04T00:00:00.000Z',
         workspace: { type: 'system' }
       }

@@ -46,7 +46,7 @@ import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated } from '@renderer/utils/resourceEntity'
+import { findLatestCreated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
@@ -104,7 +104,7 @@ function findReusableEmptyTopic<
     activeNodeId?: string
     name: string
     isNameManuallyEdited?: boolean
-    updatedAt?: string
+    createdAt?: string
   }
 >(topics: readonly T[], assistantId: string | null | undefined): T | undefined {
   // `undefined` → no reuse target (e.g. runtime fallback with no assistants). `null` → the
@@ -113,8 +113,8 @@ function findReusableEmptyTopic<
   // "no assistant" encoding (undefined / null / '').
   if (assistantId === undefined) return undefined
   const matchesTarget = (topic: T) => (assistantId === null ? !topic.assistantId : topic.assistantId === assistantId)
-  // `findLatestUpdated` only ranks the already-confirmed-empty matches; it never decides emptiness.
-  return findLatestUpdated(topics.filter((topic) => matchesTarget(topic) && isReusableEmptyTopic(topic)))
+  // Creation time only ranks the already-confirmed-empty matches; it never decides emptiness.
+  return findLatestCreated(topics.filter((topic) => matchesTarget(topic) && isReusableEmptyTopic(topic)))
 }
 
 function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTopic?: Topic): Topic[] {
@@ -136,6 +136,7 @@ const HomePage: FC = () => {
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
+  const ownerFallbackRequestIdRef = useRef(0)
   const initialTopicStartStateRef = useRef<InitialTopicStartState>({ firstLaunchStarted: false })
   // Guards the classic-layout topic-create paths against re-entry: a rapid double-click would
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
@@ -171,7 +172,7 @@ const HomePage: FC = () => {
   // Shared topic facts plus bounded seed lookups for rails, restore, and empty-topic reuse.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
   const { stats: topicStats, loadLatestTopic, loadTopicReuseCandidates } = assistantTopicsSource
-  // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
+  // First-entry selection resumes the most-recently-active topic. A dedicated `lastActivityAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
   // depends on either independently paged `/topics` stream or its visible ordering.
   const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
@@ -262,6 +263,10 @@ const HomePage: FC = () => {
       : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
   const visibleTopicId = visibleTopic?.id
   const visibleTopicAssistantId = visibleTopic?.assistantId
+  const activeTopicSelectionRef = useRef<Topic | undefined>(visibleTopic)
+  useEffect(() => {
+    activeTopicSelectionRef.current = visibleTopic
+  }, [visibleTopic])
   useEffect(() => {
     if (!visibleTopicId) return
     setRightPaneAssistantScopeId(visibleTopicAssistantId ?? null)
@@ -452,6 +457,7 @@ const HomePage: FC = () => {
 
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
+      activeTopicSelectionRef.current = topic
       closeSurface()
       setRightPaneAssistantScopeId(topic.assistantId ?? null)
       setIsSelectedAssistantScopeEmpty(false)
@@ -462,6 +468,7 @@ const HomePage: FC = () => {
   )
   const clearActiveTopicInSelectedScope = useCallback(
     (assistantId?: string | null) => {
+      activeTopicSelectionRef.current = undefined
       closeSurface()
       setRightPaneAssistantScopeId((current) =>
         assistantId !== undefined ? assistantId : current !== undefined ? current : (visibleTopic?.assistantId ?? null)
@@ -611,7 +618,7 @@ const HomePage: FC = () => {
     if (activeTopic || isActiveTopicLoading) return
     if (!isLatestTopicReady) return
 
-    // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
+    // Resume the globally most-recently-active topic as soon as `/latest` resolves — the chat center
     // fetches its own assistant by id, so it does not need the assistants list to paint (mirrors the agent
     // page). A deep link that pins an assistant (`routeAssistantId`) skips resume and opens a fresh topic
     // for that assistant instead.
@@ -643,36 +650,33 @@ const HomePage: FC = () => {
     state?.topic
   ])
 
-  // Classic-layout reset after deleting the active assistant: select the latest
-  // remaining topic (across other assistants). Filter by the deleted id so this
-  // is correct even before the topic cache refetches. If nothing remains, create
-  // a real empty topic with another available assistant.
+  // Owner removal/emptying uses the pre-removal rail order supplied by the
+  // concrete surface, then verifies each candidate through scoped `/latest`.
   const handleActiveAssistantDeleted = useCallback(
-    async (deletedAssistantId: string) => {
+    async (deletedAssistantId: string, candidateAssistantIds: readonly string[], reason: 'deleted' | 'emptied') => {
+      const requestId = ++ownerFallbackRequestIdRef.current
+      const isCurrent = () =>
+        ownerFallbackRequestIdRef.current === requestId &&
+        activeTopicSelectionRef.current?.assistantId === deletedAssistantId
+
       setRightPaneAssistantScopeId(undefined)
       setIsSelectedAssistantScopeEmpty(false)
-      const nextTopic = await loadLatestTopic()
-      if (lastUsedAssistantId === deletedAssistantId) {
+      if (reason === 'deleted' && lastUsedAssistantId === deletedAssistantId) {
         setLastUsedAssistantId(null)
       }
-      if (nextTopic && setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))) {
-        return
+
+      for (const assistantId of candidateAssistantIds) {
+        const nextTopic = await loadLatestTopic(assistantId)
+        if (!isCurrent()) return
+        if (nextTopic && setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))) return
       }
-      const created = await createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
-      // Creation failed → don't leave the view on a topic that belonged to the deleted assistant.
-      if (!created) {
-        setIsSelectedAssistantScopeEmpty(true)
-        clearActiveTopic()
-      }
+
+      if (!isCurrent()) return
+      activeTopicSelectionRef.current = undefined
+      setIsSelectedAssistantScopeEmpty(true)
+      clearActiveTopic()
     },
-    [
-      clearActiveTopic,
-      createAndActivateEmptyTopic,
-      lastUsedAssistantId,
-      loadLatestTopic,
-      setActiveTopicAndCloseResourceView,
-      setLastUsedAssistantId
-    ]
+    [clearActiveTopic, lastUsedAssistantId, loadLatestTopic, setActiveTopicAndCloseResourceView, setLastUsedAssistantId]
   )
 
   // "去对话" from the assistant library (after adding a preset): create/open a real empty topic
@@ -718,13 +722,15 @@ const HomePage: FC = () => {
     (topic: Topic | null) => {
       closeHistoryRecords()
       if (!topic) {
-        void createAndActivateEmptyTopic()
+        activeTopicSelectionRef.current = undefined
+        setIsSelectedAssistantScopeEmpty(true)
+        clearActiveTopic()
         return
       }
 
       handleHistoryTopicSelect(topic)
     },
-    [closeHistoryRecords, createAndActivateEmptyTopic, handleHistoryTopicSelect]
+    [clearActiveTopic, closeHistoryRecords, handleHistoryTopicSelect]
   )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)

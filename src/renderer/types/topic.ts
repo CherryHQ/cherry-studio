@@ -16,6 +16,8 @@ export type Topic = {
    */
   assistantId: string | undefined
   name: string
+  /** Transitional v1 callers may not project this yet; DataApi Topic entities always do. */
+  lastActivityAt?: string
   createdAt: string
   updatedAt: string
   /**

@@ -15,7 +15,6 @@
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import type { DataApiRefreshTarget } from '@data/hooks/useDataApi'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -39,6 +38,7 @@ import type {
   TopicStatsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -50,8 +50,8 @@ const logger = loggerService.withContext('useTopic')
 const EMPTY_TOPICS: readonly TopicListItem[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
 
-/** Canonical topic-list write refresh: reset the cursor chain and refresh stats. */
-const TOPIC_LIST_REFRESH: DataApiRefreshTarget[] = [{ path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+/** Canonical topic-list write refresh. */
+const TOPIC_LIST_REFRESH: ConcreteApiPaths[] = ['/topics', '/topics/stats']
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -69,6 +69,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     id: t.id,
     assistantId: t.assistantId,
     name: t.name ?? '',
+    lastActivityAt: t.lastActivityAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     activeNodeId: t.activeNodeId,
@@ -220,7 +221,7 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
  * `pinned=true` selects the newest-pin-first stream. `pinned=false`
  * selects the ordinary stream — `'createdAt'` (default) for creation order,
- * `'updatedAt'` for activity order, or `'orderKey'` for manual order — and
+ * `'lastActivityAt'` for activity order, or `'orderKey'` for manual order — and
  * excludes pinned rows. The `assistantId` owner scope
  * (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
  * `loadNext()`.
@@ -255,23 +256,10 @@ export function useTopics(opts: {
     return built
   }, [opts.assistantId, opts.pinned, q, searchScope, sortBy])
   const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
-  const continuityKey = useMemo(
-    () =>
-      JSON.stringify({
-        assistantId: opts.assistantId,
-        mode: isPinnedStream ? 'pinned' : 'flat',
-        pinned: opts.pinned,
-        q,
-        searchScope
-      }),
-    [isPinnedStream, opts.assistantId, opts.pinned, q, searchScope]
-  )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
-    continuityKey,
     query,
     limit: pageSize,
-    enabled: opts.enabled,
-    resetOnLocalWrite: '/topics'
+    enabled: opts.enabled
   })
   const topics = useInfiniteFlatItems(pages)
   return {
@@ -320,14 +308,14 @@ export function useTopicById(topicId: string | undefined) {
 }
 
 /**
- * The globally most-recently-updated topic, for first-entry restore.
+ * The globally most-recently-active topic, for first-entry restore.
  *
- * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
- * last-touched conversation without waiting for the full topic history to
+ * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
+ * most-recently-active conversation without waiting for the full topic history to
  * paginate in and without depending on either `/topics` list stream's order.
  *
- * `/topics/latest` is a global MAX(updatedAt) aggregate, so keeping its cache
- * coherent would mean every updatedAt-bumping write invalidating it (an
+ * `/topics/latest` is a global `lastActivityAt DESC, id ASC` selector, so keeping its cache
+ * coherent would mean every activity-bearing write invalidating it (an
  * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
  * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
  * wait for the on-mount revalidation to settle rather than trust a stale cache.

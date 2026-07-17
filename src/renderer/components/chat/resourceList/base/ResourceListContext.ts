@@ -32,6 +32,8 @@ export type ResourceListRemoteGroupState = {
   totalCount: number
   /** Whether another cursor page exists after the loaded group window. */
   hasMore: boolean
+  /** Whether an anchored window has pages toward the list head. */
+  hasPrevious?: boolean
   status: ResourceListStatus
 }
 
@@ -49,6 +51,7 @@ export type ResourceListRemoteData = {
   /** Load an unopened group and return its first item id when header selection should navigate. */
   loadGroup?: (groupId: string) => Promise<string | null | void>
   loadMoreGroup?: (groupId: string) => Promise<void>
+  loadPreviousGroup?: (groupId: string) => Promise<void>
   /** Ensure an unloaded item is present and report whether it still exists. */
   revealItem?: (request: ResourceListRevealRequest) => Promise<boolean>
   onRevealError?: (failure: ResourceListRemoteRevealFailure, request: ResourceListRevealRequest) => void
@@ -129,6 +132,7 @@ export type ResourceListActionMap = {
   selectGroupHeaderItem: (id: string) => void
   selectGroupHeader: (groupId: string) => Promise<boolean>
   showMoreInGroup: (groupId: string) => Promise<void>
+  loadPreviousInGroup: (groupId: string) => Promise<void>
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
@@ -199,6 +203,7 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   totalCount: number
   visibleCount: number
   hasMore: boolean
+  hasPrevious: boolean
   canCollapseToDefault: boolean
   collapsed: boolean
   status: ResourceListStatus

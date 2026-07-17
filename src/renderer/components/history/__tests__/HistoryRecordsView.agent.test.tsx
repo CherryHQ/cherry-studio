@@ -298,6 +298,7 @@ function createSession(overrides: Partial<AgentSessionListItem> = {}): AgentSess
     orderKey: 'a',
     pinId: null,
     pinned: false,
+    lastActivityAt: '2026-05-14T08:00:00.000Z',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides,
@@ -370,9 +371,7 @@ function setupAgentHistory({
         if (ownerScope && session.agentId !== ownerScope) return false
         if (!normalizedQuery) return true
         const agentName = session.agentId ? agents.find((agent) => agent.id === session.agentId)?.name : undefined
-        return [session.name, session.description, agentName].some((value) =>
-          value?.toLowerCase().includes(normalizedQuery)
-        )
+        return [session.name, agentName].some((value) => value?.toLowerCase().includes(normalizedQuery))
       })
       .sort((left, right) => {
         if (sortBy !== 'orderKey') {
@@ -507,7 +506,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    // Rows are single-line: the session description is searchable but not rendered.
+    // Rows are single-line, and task descriptions are neither rendered nor searched.
     expect(screen.queryByText('Planning notes')).not.toBeInTheDocument()
     expect(screen.getAllByText('Agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
@@ -651,10 +650,15 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument()
   })
 
-  it('searches locally by session name, description, and agent name', () => {
+  it('searches by session and live-agent name without matching the session description', () => {
     setupAgentHistory()
 
     fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'runbook' } })
+
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'beta session' } })
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -1070,7 +1074,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(onRecordSelect).toHaveBeenCalledWith(null)
   })
 
-  it('keeps the active session unchanged when history deletion fails', async () => {
+  it('rolls back the optimistic active-session fallback when history deletion fails', async () => {
     hookMocks.deleteSession.mockResolvedValueOnce(false)
     const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
@@ -1086,6 +1090,7 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onRecordSelect).toHaveBeenNthCalledWith(1, 'session-beta')
+    expect(onRecordSelect).toHaveBeenLastCalledWith('session-alpha')
   })
 })

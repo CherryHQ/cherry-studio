@@ -158,6 +158,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
         totalCount,
         visibleCount: items.length,
         hasMore: remoteState?.hasMore ?? false,
+        hasPrevious: remoteState?.hasPrevious ?? false,
         canCollapseToDefault: false,
         collapsed: false,
         status: remoteState?.status ?? (totalCount === 0 ? 'empty' : 'idle')
@@ -200,6 +201,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
       totalCount,
       visibleCount: collapsed ? 0 : visibleCount,
       hasMore,
+      hasPrevious: !collapsed && (remoteState?.hasPrevious ?? false),
       canCollapseToDefault,
       collapsed,
       status: remoteState?.status ?? (totalCount === 0 ? 'empty' : 'idle')
@@ -264,6 +266,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
           items: [],
           visibleCount: 0,
           hasMore: false,
+          hasPrevious: false,
           canCollapseToDefault: false
         }))
       : groups
@@ -289,6 +292,7 @@ function buildSectionStateGroups<T extends ResourceListItemBase>(
     totalCount: section.totalCount,
     visibleCount: section.collapsed ? 0 : section.groups.reduce((count, group) => count + group.visibleCount, 0),
     hasMore: false,
+    hasPrevious: false,
     canCollapseToDefault: false,
     collapsed: section.collapsed,
     status: section.groups.some((group) => group.status === 'error')
@@ -682,12 +686,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         onCollapsedStateChange?.(nextCollapsedIds)
       }
       handledRevealRequestRef.current = requestKey
-      if (remoteData && revealRequest.clearQuery) remoteData.onQueryChange('')
 
       dispatch({
         type: 'revealItem',
         clearFilters: revealRequest.clearFilters,
-        clearQuery: revealRequest.clearQuery,
+        // Remote membership is authoritative. Its resolver clears the query
+        // only after the backend proves that the target is excluded.
+        clearQuery: remoteData ? false : revealRequest.clearQuery,
         groupIds: revealIds,
         itemId: revealRequest.itemId,
         requestId: revealRequest.requestId,
@@ -963,6 +968,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         } catch {
           return false
         }
+      },
+      loadPreviousInGroup: async (groupId: string) => {
+        if (!remoteData?.loadPreviousGroup) return
+        const group = viewGroupsRef.current.find((candidate) => candidate.group.id === groupId)
+        if (!group?.hasPrevious || pendingGroupLoadsRef.current.has(groupId)) return
+        await runRemoteGroupLoad(groupId, () => remoteData.loadPreviousGroup?.(groupId) ?? Promise.resolve())
       },
       showMoreInGroup: async (groupId: string) => {
         if (!remoteData) {

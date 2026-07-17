@@ -6,7 +6,6 @@
  * configuration) lives here, not on sessions.
  */
 
-import type { DataApiRefreshTarget } from '@renderer/data/hooks/useDataApi'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
@@ -15,6 +14,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,9 +29,9 @@ type Result<T> = { success: true; data: T } | { success: false; error: Error }
  * do not declare `DELETE /agents/:agentId` with a hand-rolled `refresh`
  * list elsewhere.
  */
-const AGENT_DELETE_REFRESH: DataApiRefreshTarget[] = [
+const AGENT_DELETE_REFRESH: ConcreteApiPaths[] = [
   '/agents',
-  { path: '/agent-sessions', strategy: 'reset-cursor' },
+  '/agent-sessions',
   '/agent-sessions/stats',
   '/agent-workspaces',
   '/pins',
@@ -132,7 +132,7 @@ export const useUpdateAgent = () => {
     refresh: ({ args }) => [
       '/agents',
       `/agents/${args?.params?.agentId}`,
-      ...(args?.body?.name !== undefined ? ([{ path: '/agent-sessions', strategy: 'reset-cursor' }] as const) : [])
+      ...(args?.body?.name !== undefined ? (['/agent-sessions'] as const) : [])
     ]
   })
 

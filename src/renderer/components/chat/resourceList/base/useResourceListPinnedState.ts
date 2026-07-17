@@ -73,7 +73,7 @@ export function useResourceListPinnedState({
     const ids = sourcePinnedIds.filter((id) => optimisticPinnedById[id] !== false)
     for (const [id, pinned] of Object.entries(optimisticPinnedById)) {
       if (pinned && !sourcePinnedIdSet.has(id)) {
-        ids.push(id)
+        ids.unshift(id)
       }
     }
     return ids
@@ -185,10 +185,25 @@ export function useResourceListPinnedItems<T extends ResourceListPinnableItem>({
       if (!byId.has(id)) byId.set(id, item)
     }
 
-    return [...byId.values()].map((item) => {
+    const projectedItems = [...byId.values()].map((item) => {
       const pinned = isPinned(item.id)
       return pinned === item.pinned ? item : { ...item, pinned }
     })
+    const newlyPinnedIds = Object.entries(pendingItemsById)
+      .filter(([, item]) => !item.pinned && isPinned(item.id))
+      .map(([id]) => id)
+      .reverse()
+    if (newlyPinnedIds.length === 0) return projectedItems
+
+    const newlyPinnedIdSet = new Set(newlyPinnedIds)
+    const itemById = new Map(projectedItems.map((item) => [item.id, item]))
+    return [
+      ...newlyPinnedIds.flatMap((id) => {
+        const item = itemById.get(id)
+        return item ? [item] : []
+      }),
+      ...projectedItems.filter((item) => !newlyPinnedIdSet.has(item.id))
+    ]
   }, [isPinned, pendingItemsById, sourceItemsById])
 
   const togglePinned = useCallback(

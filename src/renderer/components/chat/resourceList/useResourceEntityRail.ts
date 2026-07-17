@@ -22,7 +22,7 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   onPickResource: (resource: TResource) => void
   /** Keep the selected owner scope visible when its latest lookup confirms no resource. */
   onEmptyResource?: (entity: TEntity) => void
-  /** Load the entity's most-recently-updated resource before navigating. */
+  /** Load the entity's most-recently-active resource before navigating. */
   loadResourceForEntity: (entityId: string) => Promise<TResource | null>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>

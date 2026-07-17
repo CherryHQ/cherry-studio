@@ -24,6 +24,7 @@ const virtualMocks = vi.hoisted(() => ({
         size: 40
       })),
     getTotalSize: () => options.count * 40,
+    getVirtualIndexes: () => Array.from({ length: options.count }, (_, index) => index),
     measureElement: vi.fn(),
     scrollElement: null,
     scrollToIndex: virtualMocks.scrollToIndex
@@ -1886,6 +1887,42 @@ describe('ResourceList', () => {
     expect(onEndReached).toHaveBeenCalledTimes(2)
   })
 
+  it('loads preceding pages when a non-leading anchored group reaches its own start', async () => {
+    const loadPreviousGroup = vi.fn().mockResolvedValue(undefined)
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        remoteData={{
+          query: '',
+          groupStates: {
+            session: { totalCount: 2, hasMore: false, status: 'idle' },
+            topic: { totalCount: 2, hasMore: false, hasPrevious: true, status: 'idle' }
+          },
+          onQueryChange: vi.fn(),
+          loadPreviousGroup
+        }}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const viewport = screen.getByRole('listbox')
+    Object.defineProperty(viewport, 'scrollTop', { configurable: true, value: 650, writable: true })
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => expect(loadPreviousGroup).toHaveBeenCalledWith('topic'))
+  })
+
   it('limits each group to the default visible count and expands the group independently', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
@@ -2120,7 +2157,7 @@ describe('ResourceList', () => {
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('remote-first')
   })
 
-  it('resolves a remote reveal outside the loaded window and clears the controlled query', async () => {
+  it('lets the remote reveal resolver clear an incompatible controlled query', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const revealItem = vi.fn()
 
@@ -2143,6 +2180,7 @@ describe('ResourceList', () => {
             onQueryChange: setQuery,
             revealItem: async (request) => {
               revealItem(request)
+              setQuery('')
               setItems([{ id: 'outside-window', name: 'Outside window', kind: 'topic', updatedAt: 1 }])
               return true
             }
@@ -2161,6 +2199,29 @@ describe('ResourceList', () => {
         collapsedGroups: []
       })
     )
+  })
+
+  it('preserves a remote query when the requested item already belongs to its result', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onQueryChange = vi.fn()
+
+    render(
+      <Provider
+        items={[{ id: 'matching', name: 'Matching', kind: 'topic', updatedAt: 1 }]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        revealRequest={{ itemId: 'matching', requestId: 1, clearQuery: true }}
+        remoteData={{
+          query: 'match',
+          groupStates: { remote: { totalCount: 1, hasMore: false, status: 'idle' } },
+          onQueryChange
+        }}>
+        <Inspector />
+      </Provider>
+    )
+
+    expect(onQueryChange).not.toHaveBeenCalled()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
   })
 
   it('reports a missing remote reveal without clearing the controlled query', async () => {

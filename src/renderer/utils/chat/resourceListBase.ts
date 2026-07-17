@@ -27,6 +27,19 @@ export type ResourceListGroupReorderPayload = {
   targetIndex: number
 }
 
+/**
+ * Preserve the owner's pre-removal display order, then try owners below it
+ * before walking back upward. The caller still performs authoritative scoped
+ * latest lookups because a candidate may have become empty concurrently.
+ */
+export function buildResourceOwnerFallbackIds(orderedOwnerIds: readonly string[], removedOwnerId: string): string[] {
+  const uniqueOwnerIds = [...new Set(orderedOwnerIds)]
+  const removedIndex = uniqueOwnerIds.indexOf(removedOwnerId)
+  if (removedIndex < 0) return uniqueOwnerIds.filter((ownerId) => ownerId !== removedOwnerId)
+
+  return [...uniqueOwnerIds.slice(removedIndex + 1), ...uniqueOwnerIds.slice(0, removedIndex).reverse()]
+}
+
 type GroupRankResolver<T> = (item: T) => number
 
 export async function runResourceListLoadsWithConcurrency(
@@ -129,8 +142,16 @@ export function compareResourceCreationOrder<T extends { createdAt: string; id: 
   return compareResourceTimestampOrder(a.createdAt, b.createdAt, a.id, b.id)
 }
 
-export function compareResourceUpdatedOrder<T extends { updatedAt: string; id: string }>(a: T, b: T): number {
-  return compareResourceTimestampOrder(a.updatedAt, b.updatedAt, a.id, b.id)
+export function compareResourceActivityOrder<T extends { lastActivityAt?: string; createdAt?: string; id: string }>(
+  a: T,
+  b: T
+): number {
+  return compareResourceTimestampOrder(
+    a.lastActivityAt ?? a.createdAt ?? '',
+    b.lastActivityAt ?? b.createdAt ?? '',
+    a.id,
+    b.id
+  )
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }

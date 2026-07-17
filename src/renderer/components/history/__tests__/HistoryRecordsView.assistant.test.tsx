@@ -334,6 +334,7 @@ function createTopic(overrides: Partial<TopicListItem> = {}): TopicListItem {
     orderKey: 'a',
     pinId: null,
     pinned: false,
+    lastActivityAt: '2026-05-14T08:00:00.000Z',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides
@@ -563,7 +564,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('shows an error and keeps the active topic when bulk delete rejects', async () => {
+  it('shows an error and rolls back the optimistic active topic when bulk delete rejects', async () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
       error: undefined,
@@ -593,7 +594,8 @@ describe('HistoryRecordsView assistant mode', () => {
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
     expect(toast.error).toHaveBeenCalledWith('Bulk delete failed')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onRecordSelect).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'topic-beta' }))
+    expect(onRecordSelect).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
   })
 
   it('switches to the previous survivor when bulk deleting the last active topics', async () => {
@@ -1402,7 +1404,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
-  it('keeps the active topic unchanged when history deletion fails', async () => {
+  it('rolls back the optimistic active-topic fallback when history deletion fails', async () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1434,7 +1436,8 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onRecordSelect).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'topic-beta' }))
+    expect(onRecordSelect).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
   })
 })
 

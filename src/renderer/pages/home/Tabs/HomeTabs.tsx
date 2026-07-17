@@ -16,7 +16,11 @@ interface Props {
   activeTopic?: Topic
   historyRecordsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
-  onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+  onActiveAssistantDeleted?: (
+    assistantId: string,
+    candidateAssistantIds: readonly string[],
+    reason: 'deleted' | 'emptied'
+  ) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onClearActiveTopic?: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>

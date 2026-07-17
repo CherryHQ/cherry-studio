@@ -22,11 +22,11 @@ export const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string>
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
-const SESSION_SORT_OPTIONS: TopicSessionSortBy[] = ['updatedAt', 'createdAt', 'orderKey']
+const SESSION_SORT_OPTIONS: TopicSessionSortBy[] = ['lastActivityAt', 'createdAt', 'orderKey']
 const SESSION_SORT_LABEL_KEYS: Record<TopicSessionSortBy, string> = {
   createdAt: 'common.sort.created_at',
-  orderKey: 'common.sort.manual_order',
-  updatedAt: 'common.sort.updated_at'
+  lastActivityAt: 'common.sort.updated_at',
+  orderKey: 'common.sort.manual_order'
 }
 const ACTIVE_MENU_ITEM_CLASS = 'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground'
 

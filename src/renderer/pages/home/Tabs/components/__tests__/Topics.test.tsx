@@ -343,7 +343,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.title') return 'Conversations'
         if (key === 'chat.topics.list') return 'Conversation List'
         if (key === 'chat.topics.display.title') return 'Display mode'
-        if (key === 'chat.topics.display.time') return 'Time'
+        if (key === 'chat.topics.display.time') return 'Conversation'
         if (key === 'chat.topics.display.assistant') return 'Assistant'
         if (key === 'common.list_options') return 'List options'
         if (key === 'common.sort.title') return 'Sort order'
@@ -493,6 +493,7 @@ function createApiTopic(overrides: Partial<ApiTopic> = {}) {
     isNameManuallyEdited: false,
     assistantId: 'assistant-1',
     orderKey: 'a',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
@@ -1009,7 +1010,7 @@ describe('Topics', () => {
     )
   })
 
-  it('keeps the pin-order stream independent when the topic sort changes', () => {
+  it('migrates the legacy updatedAt sort while keeping the pin-order stream independent', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'updatedAt')
 
@@ -1021,12 +1022,15 @@ describe('Topics', () => {
     )
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',
-      expect.objectContaining({ query: { pinned: false, sortBy: 'updatedAt' }, limit: 50, enabled: true })
+      expect.objectContaining({ query: { pinned: false, sortBy: 'lastActivityAt' }, limit: 50, enabled: true })
     )
+    await vi.waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.sort_type' as never)).toBe('lastActivityAt')
+    })
   })
 
   it('includes topic sorting in grouped cursor requests and cache identity', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'updatedAt')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'lastActivityAt')
     applyTopicStats(createDefaultTopicFixture())
     const getSpy = vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [] } as never)
 
@@ -1034,7 +1038,7 @@ describe('Topics', () => {
       renderTopicList()
 
       expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
-        expect.objectContaining({ sortBy: 'updatedAt' })
+        expect.objectContaining({ sortBy: 'lastActivityAt' })
       )
       expect(JSON.parse(cursorGroupWindowMocks.options?.continuityKey ?? '{}')).toEqual({
         mode: 'assistant',
@@ -1045,7 +1049,7 @@ describe('Topics', () => {
       expect(getSpy).toHaveBeenCalledWith(
         '/topics',
         expect.objectContaining({
-          query: expect.objectContaining({ assistantId: 'assistant-1', pinned: false, sortBy: 'updatedAt' })
+          query: expect.objectContaining({ assistantId: 'assistant-1', pinned: false, sortBy: 'lastActivityAt' })
         })
       )
     } finally {
@@ -1780,6 +1784,33 @@ describe('Topics', () => {
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
   })
 
+  it('updates a topic title immediately while rename persistence is pending', async () => {
+    let resolveUpdate: ((topic: ApiTopic) => void) | undefined
+    topicDataMocks.updateTopic.mockImplementationOnce(
+      () =>
+        new Promise<ApiTopic>((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
+    renderTopicList()
+
+    fireEvent.doubleClick(screen.getByText('Alpha topic'))
+    const input = screen.getByLabelText('Edit conversation name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+      isNameManuallyEdited: true,
+      name: 'Renamed topic'
+    })
+
+    await act(async () => {
+      resolveUpdate?.(createApiTopic({ id: 'topic-a', name: 'Renamed topic' }))
+      await Promise.resolve()
+    })
+  })
+
   it('confirms topic deletion from the shared context menu before deleting', async () => {
     const { getByText } = renderTopicList()
 
@@ -1982,6 +2013,8 @@ describe('Topics', () => {
       fireEvent.click(deleteButton)
     })
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+    await vi.waitFor(() => expect(screen.queryByText('A1 Second')).not.toBeInTheDocument())
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
 
     const refreshedTopics = topics.filter((topic) => topic.id !== 'topic-a1-second')
     Object.assign(assistantTopicsSource, {
@@ -1999,28 +2032,66 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it("clears the active topic without jumping owners when deleting its owner's last topic", async () => {
+  it('restores the deleted topic and active selection when optimistic deletion fails', async () => {
+    const topics = [
+      createApiTopic({ id: 'topic-a1-first', name: 'A1 First', assistantId: 'assistant-1', orderKey: 'a' }),
+      createApiTopic({ id: 'topic-a1-second', name: 'A1 Second', assistantId: 'assistant-1', orderKey: 'b' })
+    ]
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
+    let rejectDelete: ((error: Error) => void) | undefined
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject
+        })
+    )
+    const { setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
+      assistantTopicsSource
+    })
+
+    const deleteButton = within(getTopicRow('A1 Second')).getByLabelText('Delete')
+    await act(async () => fireEvent.click(deleteButton))
+    await act(async () => fireEvent.click(deleteButton))
+
+    await vi.waitFor(() => expect(screen.queryByText('A1 Second')).not.toBeInTheDocument())
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
+
+    await act(async () => {
+      rejectDelete?.(new Error('delete failed'))
+      await Promise.resolve()
+    })
+
+    await vi.waitFor(() => expect(screen.getByText('A1 Second')).toBeInTheDocument())
+    expect(setActiveTopic).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'topic-a1-second' }))
+    expect(toast.error).toHaveBeenCalled()
+  })
+
+  it("activates the next owner's latest topic when deleting the active owner's last topic", async () => {
+    const topics = [
+      createApiTopic({
+        id: 'topic-a1',
+        name: 'A1 Only',
+        assistantId: 'assistant-1',
+        orderKey: 'a',
+        createdAt: '2026-01-02T01:00:00.000Z',
+        lastActivityAt: '2026-01-02T01:00:00.000Z',
+        updatedAt: '2026-01-02T01:00:00.000Z'
+      }),
+      createApiTopic({
+        id: 'topic-b1',
+        name: 'B1 Only',
+        assistantId: 'assistant-2',
+        orderKey: 'b',
+        createdAt: '2026-01-01T01:00:00.000Z',
+        lastActivityAt: '2026-01-01T01:00:00.000Z',
+        updatedAt: '2026-01-01T01:00:00.000Z'
+      })
+    ]
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
-          items: [
-            createApiTopic({
-              id: 'topic-a1',
-              name: 'A1 Only',
-              assistantId: 'assistant-1',
-              orderKey: 'a',
-              createdAt: '2026-01-02T01:00:00.000Z',
-              updatedAt: '2026-01-02T01:00:00.000Z'
-            }),
-            createApiTopic({
-              id: 'topic-b1',
-              name: 'B1 Only',
-              assistantId: 'assistant-2',
-              orderKey: 'b',
-              createdAt: '2026-01-01T01:00:00.000Z',
-              updatedAt: '2026-01-01T01:00:00.000Z'
-            })
-          ]
+          items: topics
         }
       ],
       isLoading: false,
@@ -2032,9 +2103,14 @@ describe('Topics', () => {
       reset: vi.fn(),
       mutate: vi.fn()
     })
+    const assistantTopicsSource = {
+      ...createAssistantTopicsSource(topics),
+      loadLatestTopic: vi.fn(async (assistantId: string | null) => (assistantId === 'assistant-2' ? topics[1] : null))
+    } as AssistantTopicsSource
 
     const { onClearActiveTopic, onNewTopic, setActiveTopic } = renderTopicList({
-      activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' })
+      activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' }),
+      assistantTopicsSource
     })
 
     const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
@@ -2048,8 +2124,52 @@ describe('Topics', () => {
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
     await vi.waitFor(() => expect(onClearActiveTopic).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b1' })))
     expect(onNewTopic).not.toHaveBeenCalled()
-    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b1' }))
+  })
+
+  it('skips the unlinked pseudo-owner when falling back from the last live owner', async () => {
+    const topicA = createApiTopic({
+      id: 'topic-a-only',
+      name: 'A Only',
+      assistantId: 'assistant-1',
+      orderKey: 'a'
+    })
+    const topicB = createApiTopic({
+      id: 'topic-b-only',
+      name: 'B Only',
+      assistantId: 'assistant-2',
+      orderKey: 'b'
+    })
+    const unlinkedTopic = createApiTopic({
+      id: 'topic-unlinked',
+      name: 'Unlinked Only',
+      assistantId: undefined,
+      orderKey: 'c'
+    })
+    const topics = [topicA, topicB, unlinkedTopic]
+    setTopicInfiniteQueryPages(topics)
+    const loadLatestTopic = vi.fn(async (assistantId: string | null) => {
+      if (assistantId === 'assistant-1') return topicA
+      if (assistantId === null) return unlinkedTopic
+      return null
+    })
+    const assistantTopicsSource = {
+      ...createAssistantTopicsSource(topics),
+      loadLatestTopic
+    } as AssistantTopicsSource
+
+    const { setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: topicB.id, assistantId: topicB.assistantId, name: topicB.name }),
+      assistantTopicsSource
+    })
+
+    const deleteButton = within(getTopicRow('B Only')).getByLabelText('Delete')
+    await act(async () => fireEvent.click(deleteButton))
+    await act(async () => fireEvent.click(deleteButton))
+
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: topicA.id })))
+    expect(loadLatestTopic).not.toHaveBeenCalledWith(null)
   })
 
   it("shows the scoped empty state after deleting the active owner's last topic in the right panel", async () => {
@@ -2115,8 +2235,8 @@ describe('Topics', () => {
     })
 
     const deleteButton = within(getTopicRow('A Only')).getByLabelText('Delete')
-    act(() => fireEvent.click(deleteButton))
-    act(() => fireEvent.click(deleteButton))
+    await act(async () => fireEvent.click(deleteButton))
+    await act(async () => fireEvent.click(deleteButton))
     await vi.waitFor(() => expect(loadLatestTopic).toHaveBeenCalledWith('assistant-1'))
 
     rerenderTopicList(
@@ -2131,7 +2251,7 @@ describe('Topics', () => {
     })
 
     expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(onClearActiveTopic).not.toHaveBeenCalled()
+    expect(onClearActiveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('keeps topic rows compact and only renders the title field in the sidebar list', () => {
@@ -2517,7 +2637,7 @@ describe('Topics', () => {
     // The display submenu offers the time and assistant modes; assistant is the stored mode.
     expect(within(optionsMenu).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
 
-    fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Time' }))
+    fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Conversation' }))
     await vi.waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
     })
@@ -2537,7 +2657,7 @@ describe('Topics', () => {
     fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Updated time' }))
 
     await vi.waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('topic.sort_type' as never)).toBe('updatedAt')
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.sort_type' as never)).toBe('lastActivityAt')
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
     })
   })
@@ -3061,7 +3181,9 @@ describe('Topics', () => {
         query: { deleteTopics: true }
       })
     )
-    await vi.waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    await vi.waitFor(() =>
+      expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1', expect.any(Array), 'deleted')
+    )
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(toast.success).toHaveBeenCalledWith('Deleted')
   })
@@ -3318,7 +3440,7 @@ describe('Topics', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'updatedAt')
+    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'lastActivityAt')
 
     renderTopicList()
 

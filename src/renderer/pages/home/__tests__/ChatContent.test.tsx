@@ -37,10 +37,7 @@ type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['
 const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
   current: undefined as ToolApprovalOverridesOptions | undefined
 }))
-type RefreshTarget = string | { path: string; strategy: 'reset-cursor' }
-const mockInvalidateCache = vi.fn<(keys?: RefreshTarget | RefreshTarget[] | boolean) => Promise<void>>(
-  async () => undefined
-)
+const mockInvalidateCache = vi.fn<(keys?: string | string[] | boolean) => Promise<void>>(async () => undefined)
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
   | undefined
@@ -463,10 +460,7 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(mockInvalidateCache).toHaveBeenCalledWith([
-        { path: '/topics', strategy: 'reset-cursor' },
-        '/topics/topic-1'
-      ])
+      expect(mockInvalidateCache).toHaveBeenCalledWith(['/topics', '/topics/topic-1'])
     })
   })
 

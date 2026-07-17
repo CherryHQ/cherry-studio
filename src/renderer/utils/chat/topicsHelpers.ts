@@ -2,10 +2,10 @@ import type { Topic } from '@renderer/types/topic'
 import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
+  compareResourceActivityOrder,
   compareResourceCreationOrder,
   compareResourceIds,
   compareResourceOrderKey,
-  compareResourceUpdatedOrder,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   moveResourceListStringGroupAfterDrop,
@@ -231,14 +231,14 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
 }
 
 export function sortTopicsForDisplayGroups<
-  T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'orderKey' | 'pinned' | 'updatedAt'>
+  T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'lastActivityAt' | 'orderKey' | 'pinned'>
 >(topics: readonly T[], options: TopicDisplaySortOptions): T[] {
   const isPinned = (topic: T) => topic.pinned === true
   const compareWithinGroup =
     options.sortBy === 'createdAt'
       ? compareResourceCreationOrder
-      : options.sortBy === 'updatedAt'
-        ? compareResourceUpdatedOrder
+      : options.sortBy === 'lastActivityAt'
+        ? compareResourceActivityOrder
         : (a: T, b: T) => compareResourceOrderKey(a.orderKey, b.orderKey) || compareResourceIds(a.id, b.id)
 
   if (options.mode === 'assistant') {

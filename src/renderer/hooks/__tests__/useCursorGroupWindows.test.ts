@@ -1,18 +1,7 @@
-import { publishDataApiCursorRevision } from '@renderer/data/hooks/useDataApiCursorRevision'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCursorGroupWindows } from '../useCursorGroupWindows'
-
-const dataApiMocks = vi.hoisted(() => ({
-  subscribe: vi.fn(() => vi.fn())
-}))
-
-vi.mock('@renderer/data/DataApiService', () => ({
-  dataApiService: {
-    subscribe: dataApiMocks.subscribe
-  }
-}))
 
 type Item = { id: string; name: string }
 
@@ -40,8 +29,7 @@ describe('useCursorGroupWindows', () => {
         fetchPage,
         getItemId: (item) => item.id,
         initialGroupIds: [],
-        queryKey: 'query-a',
-        resourcePath: '/topics'
+        queryKey: 'query-a'
       })
     )
 
@@ -83,8 +71,7 @@ describe('useCursorGroupWindows', () => {
         fetchPage,
         getItemId: (item) => item.id,
         initialGroupIds: [],
-        queryKey: 'query-a',
-        resourcePath: '/topics'
+        queryKey: 'query-a'
       })
     )
 
@@ -103,47 +90,6 @@ describe('useCursorGroupWindows', () => {
     ])
   })
 
-  it('resets windows from the shared resource revision without subscribing to Main', async () => {
-    let phase: 'old' | 'new' = 'old'
-    const fetchPage = vi.fn(async (_groupId: string, cursor?: string) => {
-      if (phase === 'new') return { items: [{ id: 'new-a', name: 'New A' }] }
-      return cursor
-        ? { items: [{ id: 'old-b', name: 'Old B' }] }
-        : { items: [{ id: 'old-a', name: 'Old A' }], nextCursor: 'old-cursor' }
-    })
-    const { result } = renderHook(() =>
-      useCursorGroupWindows<Item>({
-        enabled: true,
-        fetchPage,
-        getItemId: (item) => item.id,
-        initialGroupIds: [],
-        queryKey: 'query-a',
-        resourcePath: '/topics'
-      })
-    )
-
-    await act(async () => {
-      await result.current.loadGroup('group-a')
-    })
-    await act(async () => {
-      await result.current.loadMoreGroup('group-a')
-    })
-    expect(fetchPage).toHaveBeenLastCalledWith('group-a', 'old-cursor')
-
-    phase = 'new'
-    act(() => {
-      publishDataApiCursorRevision('/topics')
-    })
-    await waitFor(() => expect(result.current.windows).toEqual({}))
-
-    await act(async () => {
-      await result.current.loadGroup('group-a')
-    })
-    expect(fetchPage).toHaveBeenLastCalledWith('group-a', undefined)
-    expect(result.current.items).toEqual([{ id: 'new-a', name: 'New A' }])
-    expect(dataApiMocks.subscribe).not.toHaveBeenCalled()
-  })
-
   it('ignores a stale page after the query key changes', async () => {
     const page = deferred<{ items: Item[] }>()
     const fetchPage = vi.fn(() => page.promise)
@@ -154,8 +100,7 @@ describe('useCursorGroupWindows', () => {
           fetchPage,
           getItemId: (item) => item.id,
           initialGroupIds: [],
-          queryKey,
-          resourcePath: '/agent-sessions'
+          queryKey
         }),
       { initialProps: { queryKey: 'query-a' } }
     )
@@ -189,8 +134,7 @@ describe('useCursorGroupWindows', () => {
           getItemId: (item) => item.id,
           groupIds: ['group-a'],
           initialGroupIds: [],
-          queryKey,
-          resourcePath: '/topics'
+          queryKey
         }),
       { initialProps: { queryKey: 'created-at' } }
     )
@@ -217,40 +161,6 @@ describe('useCursorGroupWindows', () => {
     expect(result.current.items).toEqual([{ id: 'new-a', name: 'New A' }])
   })
 
-  it('retains visible groups across a resource revision and refreshes expanded groups independently', async () => {
-    const refreshedPage = deferred<{ items: Item[] }>()
-    const fetchPage = vi
-      .fn()
-      .mockResolvedValueOnce({ items: [{ id: 'old-a', name: 'Old A' }], nextCursor: 'old-cursor' })
-      .mockImplementationOnce(() => refreshedPage.promise)
-    const { result } = renderHook(() =>
-      useCursorGroupWindows<Item>({
-        continuityKey: 'same-collection',
-        enabled: true,
-        fetchPage,
-        getItemId: (item) => item.id,
-        groupIds: ['group-a'],
-        initialGroupIds: ['group-a'],
-        queryKey: 'query-a',
-        resourcePath: '/agent-sessions'
-      })
-    )
-
-    await waitFor(() => expect(result.current.items).toEqual([{ id: 'old-a', name: 'Old A' }]))
-    act(() => {
-      publishDataApiCursorRevision('/agent-sessions')
-    })
-
-    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2))
-    expect(result.current.items).toEqual([{ id: 'old-a', name: 'Old A' }])
-    expect(result.current.windows['group-a']?.nextCursor).toBeUndefined()
-
-    await act(async () => {
-      refreshedPage.resolve({ items: [{ id: 'new-a', name: 'New A' }] })
-    })
-    await waitFor(() => expect(result.current.items).toEqual([{ id: 'new-a', name: 'New A' }]))
-  })
-
   it('prunes a removed group without clearing retained sibling windows', async () => {
     const fetchPage = vi.fn(async (groupId: string) => ({ items: [{ id: `item-${groupId}`, name: groupId }] }))
     const { result, rerender } = renderHook(
@@ -262,8 +172,7 @@ describe('useCursorGroupWindows', () => {
           getItemId: (item) => item.id,
           groupIds,
           initialGroupIds: [],
-          queryKey,
-          resourcePath: '/topics'
+          queryKey
         }),
       { initialProps: { groupIds: ['group-a', 'group-b'], queryKey: 'groups-a-b' } }
     )

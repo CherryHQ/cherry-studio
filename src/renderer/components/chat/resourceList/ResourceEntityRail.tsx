@@ -63,7 +63,7 @@ function getEntityRailTagGroupingRank(item: ResourceEntityRailItem) {
   return item.tag ? 2 : 1
 }
 
-function sortEntityRailItemsForTagGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
+export function sortEntityRailItemsForTagGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
   return items
     .map((item, index) => ({ item, index, rank: getEntityRailTagGroupingRank(item) }))
     .sort((a, b) => a.rank - b.rank || a.index - b.index)

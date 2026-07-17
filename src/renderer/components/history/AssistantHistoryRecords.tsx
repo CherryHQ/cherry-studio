@@ -31,7 +31,7 @@ import type { TopicListItem } from '@shared/data/api/schemas/topics'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
@@ -53,6 +53,7 @@ const SEARCH_DEBOUNCE_MS = 300
 const logger = loggerService.withContext('AssistantHistoryRecords')
 
 type HistoryTopicItem = TopicListItem & { assistantId: string | undefined }
+type OptimisticHistoryTopicPatch = Partial<Pick<HistoryTopicItem, 'assistantId' | 'name'>>
 
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
@@ -152,6 +153,39 @@ const AssistantHistoryRecords = ({
     onTogglePin: commitTopicPin,
     resetKey: bandContinuityKey
   })
+  const [optimisticallyRemovedTopicIds, setOptimisticallyRemovedTopicIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const [optimisticTopicPatches, setOptimisticTopicPatches] = useState<Record<string, OptimisticHistoryTopicPatch>>({})
+  const projectedBandTopicById = useMemo(
+    () => new Map(projectedBandTopics.map((topic) => [topic.id, topic])),
+    [projectedBandTopics]
+  )
+
+  useEffect(() => {
+    setOptimisticallyRemovedTopicIds(new Set())
+    setOptimisticTopicPatches({})
+  }, [bandContinuityKey])
+
+  useEffect(() => {
+    setOptimisticallyRemovedTopicIds((current) => {
+      const next = new Set([...current].filter((id) => projectedBandTopicById.has(id)))
+      return next.size === current.size ? current : next
+    })
+    setOptimisticTopicPatches((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const [id, patch] of Object.entries(current)) {
+        const source = projectedBandTopicById.get(id)
+        if (!source) continue
+        if (Object.entries(patch).every(([key, value]) => source[key as keyof HistoryTopicItem] === value)) {
+          delete next[id]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [projectedBandTopicById])
   const renamingTopicIdSet = useMemo(
     () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
     [renamingTopics]
@@ -159,12 +193,20 @@ const AssistantHistoryRecords = ({
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
 
   const topics = useMemo<HistoryTopicItem[]>(() => {
-    const projected = projectedBandTopics.map((topic) => ({
-      ...topic,
-      assistantId: topic.assistantId
-    }))
+    const projected = projectedBandTopics
+      .filter((topic) => !optimisticallyRemovedTopicIds.has(topic.id))
+      .map((topic) => ({
+        ...topic,
+        ...optimisticTopicPatches[topic.id],
+        assistantId: optimisticTopicPatches[topic.id]?.assistantId ?? topic.assistantId
+      }))
+      .filter((topic) => {
+        if (!ownerScope) return true
+        if (ownerScope === 'unlinked') return topic.assistantId == null
+        return topic.assistantId === ownerScope
+      })
     return [...projected.filter((topic) => topic.pinned), ...projected.filter((topic) => !topic.pinned)]
-  }, [projectedBandTopics])
+  }, [optimisticTopicPatches, optimisticallyRemovedTopicIds, ownerScope, projectedBandTopics])
   const isTopicsLoadingMore = topics.length > 0 && isBandLoadingMore
   const topicById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics])
   const isTopicPinned = useCallback((topicId: string) => topicById.get(topicId)?.pinned === true, [topicById])
@@ -183,6 +225,17 @@ const AssistantHistoryRecords = ({
     (topic: ApiTopic): RendererTopic =>
       rendererTopicById.get(topic.id) ?? { ...mapApiTopicToRendererTopic(topic), pinned: isTopicPinned(topic.id) },
     [isTopicPinned, rendererTopicById]
+  )
+  const activeRecordIdRef = useRef(activeRecordId)
+  useEffect(() => {
+    activeRecordIdRef.current = activeRecordId
+  }, [activeRecordId])
+  const selectActiveTopic = useCallback(
+    (topic: RendererTopic | null) => {
+      activeRecordIdRef.current = topic?.id ?? null
+      onRecordSelect?.(topic)
+    },
+    [onRecordSelect]
   )
 
   // The unlinked pseudo-source exists when any topic has no live assistant —
@@ -224,16 +277,54 @@ const AssistantHistoryRecords = ({
       const title = topic.name || t('chat.default.topic.name')
       if (conversationNav.openConversationTab(topic.id, title, { forceNew: true })) return
 
-      onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
+      selectActiveTopic(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
       onClose()
     },
-    [conversationNav, onClose, onRecordSelect, rendererTopicById, t]
+    [conversationNav, onClose, rendererTopicById, selectActiveTopic, t]
   )
 
   const updateTopic = useCallback(
     (topic: RendererTopic) =>
       patchTopic(topic.id, { name: topic.name, isNameManuallyEdited: topic.isNameManuallyEdited }),
     [patchTopic]
+  )
+  const hideTopicsOptimistically = useCallback((ids: readonly string[]) => {
+    setOptimisticallyRemovedTopicIds((current) => {
+      const next = new Set(current)
+      for (const id of ids) next.add(id)
+      return next
+    })
+  }, [])
+  const restoreOptimisticallyHiddenTopics = useCallback((ids: readonly string[]) => {
+    setOptimisticallyRemovedTopicIds((current) => {
+      const next = new Set(current)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+  }, [])
+  const patchTopicsOptimistically = useCallback((ids: readonly string[], patch: OptimisticHistoryTopicPatch) => {
+    setOptimisticTopicPatches((current) => {
+      const next = { ...current }
+      for (const id of ids) next[id] = { ...next[id], ...patch }
+      return next
+    })
+  }, [])
+  const clearOptimisticTopicPatch = useCallback(
+    (ids: readonly string[], keys: readonly (keyof OptimisticHistoryTopicPatch)[]) => {
+      setOptimisticTopicPatches((current) => {
+        const next = { ...current }
+        for (const id of ids) {
+          const currentPatch = next[id]
+          if (!currentPatch) continue
+          const remainingPatch = { ...currentPatch }
+          for (const key of keys) delete remainingPatch[key]
+          if (Object.keys(remainingPatch).length > 0) next[id] = remainingPatch
+          else delete next[id]
+        }
+        return next
+      })
+    },
+    []
   )
 
   const handlePinTopic = useCallback(
@@ -255,49 +346,92 @@ const AssistantHistoryRecords = ({
     async (topic: RendererTopic) => {
       if (topic.pinned) return
 
+      const wasActive = activeRecordIdRef.current === topic.id
+      const nextTopic = wasActive
+        ? findAdjacentHistoryRecordAfterBulkDelete(topics, [topic.id], topic.id, (candidate) => candidate.id)
+        : undefined
+      const optimisticActiveId = nextTopic?.id ?? null
+      hideTopicsOptimistically([topic.id])
+      if (wasActive) selectActiveTopic(nextTopic ? getRendererTopic(nextTopic) : null)
+
       try {
         await deleteTopicById(topic.id)
       } catch (err) {
+        restoreOptimisticallyHiddenTopics([topic.id])
+        if (wasActive && activeRecordIdRef.current === optimisticActiveId) selectActiveTopic(topic)
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
         toast.error(message)
-        return
-      }
-
-      if (topic.id === activeRecordId) {
-        const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
-          topics,
-          [topic.id],
-          topic.id,
-          (candidate) => candidate.id
-        )
-        onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, topics]
+    [
+      deleteTopicById,
+      getRendererTopic,
+      hideTopicsOptimistically,
+      restoreOptimisticallyHiddenTopics,
+      selectActiveTopic,
+      t,
+      topics
+    ]
   )
 
   const handleBulkDeleteTopics = useCallback(
     async (ids: string[]): Promise<readonly string[] | undefined> => {
+      const activeTopic = activeRecordIdRef.current ? topicById.get(activeRecordIdRef.current) : undefined
+      const wasActive = !!activeTopic && ids.includes(activeTopic.id)
+      const optimisticNextTopic = wasActive
+        ? findAdjacentHistoryRecordAfterBulkDelete(topics, ids, activeTopic.id, (candidate) => candidate.id)
+        : undefined
+      const optimisticActiveId = optimisticNextTopic?.id ?? null
+      hideTopicsOptimistically(ids)
+      if (wasActive) selectActiveTopic(optimisticNextTopic ? getRendererTopic(optimisticNextTopic) : null)
+
       try {
         const result = await deleteTopics(ids)
+        const deletedIdSet = new Set(result.deletedIds)
+        const failedIds = ids.filter((id) => !deletedIdSet.has(id))
+        restoreOptimisticallyHiddenTopics(failedIds)
+        if (
+          wasActive &&
+          activeTopic &&
+          !deletedIdSet.has(activeTopic.id) &&
+          activeRecordIdRef.current === optimisticActiveId
+        ) {
+          selectActiveTopic(getRendererTopic(activeTopic))
+        }
         return result.deletedIds
       } catch (err) {
+        restoreOptimisticallyHiddenTopics(ids)
+        if (wasActive && activeTopic && activeRecordIdRef.current === optimisticActiveId) {
+          selectActiveTopic(getRendererTopic(activeTopic))
+        }
         logger.error('Failed to bulk delete topics from history records', { ids, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
         toast.error(message)
         return undefined
       }
     },
-    [deleteTopics, t]
+    [
+      deleteTopics,
+      getRendererTopic,
+      hideTopicsOptimistically,
+      restoreOptimisticallyHiddenTopics,
+      selectActiveTopic,
+      t,
+      topicById,
+      topics
+    ]
   )
 
   const handleBulkMoveTopics = useCallback(
     async (targetAssistantId: string, ids: string[]): Promise<readonly string[] | undefined> => {
+      patchTopicsOptimistically(ids, { assistantId: targetAssistantId })
       try {
         const results = await batchUpdateTopics(ids.map((id) => ({ id, dto: { assistantId: targetAssistantId } })))
         const movedIds = ids.filter((_, index) => results[index]?.status === 'fulfilled')
+        const failedIds = ids.filter((_, index) => results[index]?.status === 'rejected')
         const failedResults = results.filter((result) => result.status === 'rejected')
+        clearOptimisticTopicPatch(failedIds, ['assistantId'])
 
         if (failedResults.length === 0) {
           toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
@@ -321,13 +455,14 @@ const AssistantHistoryRecords = ({
         toast.error(message)
         return movedIds
       } catch (err) {
+        clearOptimisticTopicPatch(ids, ['assistantId'])
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
         const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
         toast.error(message)
         return undefined
       }
     },
-    [batchUpdateTopics, t]
+    [batchUpdateTopics, clearOptimisticTopicPatch, patchTopicsOptimistically, t]
   )
 
   const handleClearMessages = useCallback((topic: RendererTopic) => {
@@ -360,16 +495,18 @@ const AssistantHistoryRecords = ({
       const trimmedName = name.trim()
       if (!topic || !trimmedName || trimmedName === topic.name) return
 
+      patchTopicsOptimistically([topicId], { name: trimmedName })
       try {
         await updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
         toast.success(t('common.saved'))
       } catch (err) {
+        clearOptimisticTopicPatch([topicId], ['name'])
         logger.error('Failed to rename topic from history records', { topicId, err })
         const message = err instanceof Error ? err.message : t('common.save_failed')
         toast.error(message)
       }
     },
-    [rendererTopicById, t, updateTopic]
+    [clearOptimisticTopicPatch, patchTopicsOptimistically, rendererTopicById, t, updateTopic]
   )
 
   const getTopicActionContext = useCallback(
@@ -410,8 +547,8 @@ const AssistantHistoryRecords = ({
 
   const getId = useCallback((topic: HistoryTopicItem) => topic.id, [])
   const onActiveRecordChange = useCallback(
-    (topic: HistoryTopicItem | null) => onRecordSelect?.(topic ? getRendererTopic(topic) : null),
-    [getRendererTopic, onRecordSelect]
+    (topic: HistoryTopicItem | null) => selectActiveTopic(topic ? getRendererTopic(topic) : null),
+    [getRendererTopic, selectActiveTopic]
   )
   const rowDescriptor = useMemo(
     () => ({

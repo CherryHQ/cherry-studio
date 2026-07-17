@@ -5,9 +5,9 @@
  * `refetch` when opening a pin-aware surface that needs fresh state.
  */
 
-import type { DataApiRefreshTarget } from '@data/hooks/useDataApi'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
@@ -20,16 +20,16 @@ const logger = loggerService.withContext('usePins')
  *
  * Topic and session lists expose independent pinned and ordinary cursor
  * streams, so pin-state changes move a row between `/topics` /
- * `/agent-sessions` query families: both cursor chains must be reset and their
- * stats refreshed, not just `/pins` membership. Other entity types group
+ * `/agent-sessions` query families: both query families and their stats must
+ * be refreshed, not just `/pins` membership. Other entity types group
  * pinned rows client-side, so refreshing `/pins` alone is enough.
  */
-function pinRefreshTargets(entityType: EntityType): DataApiRefreshTarget[] {
+function pinRefreshTargets(entityType: EntityType): ConcreteApiPaths[] {
   switch (entityType) {
     case 'topic':
-      return ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+      return ['/pins', '/topics', '/topics/stats']
     case 'session':
-      return ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+      return ['/pins', '/agent-sessions', '/agent-sessions/stats']
     default:
       return ['/pins']
   }

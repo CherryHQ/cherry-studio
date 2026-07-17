@@ -258,22 +258,22 @@ describe('usePinMutations', () => {
     return { postTrigger, deleteTrigger, refreshByCall }
   }
 
-  it('resets the /topics cursor chain and refreshes stats on topic pin writes', () => {
+  it('refreshes topic lists and stats on topic pin writes', () => {
     const { refreshByCall } = wireRecordingMutations()
 
     renderHook(() => usePinMutations('topic'))
 
-    const expected = ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+    const expected = ['/pins', '/topics', '/topics/stats']
     expect(refreshByCall.get('POST /pins')).toEqual(expected)
     expect(refreshByCall.get('DELETE /pins/:id')).toEqual(expected)
   })
 
-  it('resets the /agent-sessions cursor chain and refreshes stats on session pin writes', () => {
+  it('refreshes session lists and stats on session pin writes', () => {
     const { refreshByCall } = wireRecordingMutations()
 
     renderHook(() => usePinMutations('session'))
 
-    const expected = ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+    const expected = ['/pins', '/agent-sessions', '/agent-sessions/stats']
     expect(refreshByCall.get('POST /pins')).toEqual(expected)
     expect(refreshByCall.get('DELETE /pins/:id')).toEqual(expected)
   })

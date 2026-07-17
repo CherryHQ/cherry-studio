@@ -285,10 +285,10 @@ describe('Topics helpers', () => {
 
   it('uses the selected timestamp within each assistant without changing assistant rank', () => {
     const topics = [
-      createTopic({ id: 'assistant-b-new', assistantId: 'assistant-b', updatedAt: localIso(2026, 5, 20) }),
-      createTopic({ id: 'assistant-a-old', assistantId: 'assistant-a', updatedAt: localIso(2026, 5, 1) }),
-      createTopic({ id: 'assistant-b-old', assistantId: 'assistant-b', updatedAt: localIso(2026, 5, 2) }),
-      createTopic({ id: 'assistant-a-new', assistantId: 'assistant-a', updatedAt: localIso(2026, 5, 21) })
+      createTopic({ id: 'assistant-b-new', assistantId: 'assistant-b', lastActivityAt: localIso(2026, 5, 20) }),
+      createTopic({ id: 'assistant-a-old', assistantId: 'assistant-a', lastActivityAt: localIso(2026, 5, 1) }),
+      createTopic({ id: 'assistant-b-old', assistantId: 'assistant-b', lastActivityAt: localIso(2026, 5, 2) }),
+      createTopic({ id: 'assistant-a-new', assistantId: 'assistant-a', lastActivityAt: localIso(2026, 5, 21) })
     ]
 
     expect(
@@ -298,7 +298,7 @@ describe('Topics helpers', () => {
           ['assistant-b', 1]
         ]),
         mode: 'assistant',
-        sortBy: 'updatedAt'
+        sortBy: 'lastActivityAt'
       }).map((topic) => topic.id)
     ).toEqual(['assistant-a-new', 'assistant-a-old', 'assistant-b-new', 'assistant-b-old'])
   })

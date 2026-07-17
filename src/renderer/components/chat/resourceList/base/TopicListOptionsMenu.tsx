@@ -21,11 +21,11 @@ const TOPIC_DISPLAY_LABEL_KEYS: Record<TopicDisplayMode, string> = {
   assistant: 'chat.topics.display.assistant',
   time: 'chat.topics.display.time'
 }
-const TOPIC_SORT_OPTIONS: TopicSessionSortBy[] = ['updatedAt', 'createdAt', 'orderKey']
+const TOPIC_SORT_OPTIONS: TopicSessionSortBy[] = ['lastActivityAt', 'createdAt', 'orderKey']
 const TOPIC_SORT_LABEL_KEYS: Record<TopicSessionSortBy, string> = {
   createdAt: 'common.sort.created_at',
-  orderKey: 'common.sort.manual_order',
-  updatedAt: 'common.sort.updated_at'
+  lastActivityAt: 'common.sort.updated_at',
+  orderKey: 'common.sort.manual_order'
 }
 const ACTIVE_MENU_ITEM_CLASS = 'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground'
 

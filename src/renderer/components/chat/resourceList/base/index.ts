@@ -69,6 +69,7 @@ export type { ResourceListOrderAnchor } from '@renderer/utils/chat/resourceListB
 export {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
+  buildResourceOwnerFallbackIds,
   compareResourceOrderKey,
   moveResourceListStringGroupAfterDrop
 } from '@renderer/utils/chat/resourceListBase'

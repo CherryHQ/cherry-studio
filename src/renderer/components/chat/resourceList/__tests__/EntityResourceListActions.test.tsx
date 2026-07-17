@@ -459,7 +459,9 @@ describe('classic layout entity resource list actions', () => {
     )
     // Classic layout resets via the dedicated callback (page settles to the latest
     // remaining topic) and must NOT open the modern layout draft compose.
-    await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    await waitFor(() =>
+      expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1', ['assistant-2'], 'deleted')
+    )
     expect(onCreateTopic).not.toHaveBeenCalled()
   })
 
@@ -556,7 +558,7 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps the default assistant visible in the classic assistant rail without a create action', () => {
+  it('does not expose the unlinked pseudo-owner in the classic assistant rail', () => {
     assistantDataMocks.topics = [
       { id: 'topic-default', name: 'Default topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
@@ -565,23 +567,12 @@ describe('classic layout entity resource list actions', () => {
 
     render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={onCreateTopic} />)
 
-    const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
 
-    expect(defaultAssistantRegion).toBeInTheDocument()
     expect(assistantRegion).toBeInTheDocument()
-    expect(
-      assistantRegion.compareDocumentPosition(defaultAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.edit.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent(
-      'assistants.clear.menu_title'
-    )
-
-    // The default group is a display-only bucket for legacy assistant-less topics: no "new topic"
-    // action, since a null-assistant create can't reuse an empty placeholder and would stack blanks.
-    expect(within(defaultAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'chat.default.name' })).toBeNull()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
+    expect(onCreateTopic).not.toHaveBeenCalled()
   })
 
   it('clears the active topic after clearing the only classic assistant topics', async () => {
@@ -688,7 +679,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.updated_at' }))
 
     await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'updatedAt')
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'lastActivityAt')
     })
   })
 
@@ -770,7 +761,7 @@ describe('classic layout entity resource list actions', () => {
       })
     )
     // Classic layout resets via the dedicated callback, never the draft compose.
-    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
+    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1', []))
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
@@ -843,7 +834,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.updated_at' }))
 
     await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'updatedAt')
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'lastActivityAt')
     })
   })
 

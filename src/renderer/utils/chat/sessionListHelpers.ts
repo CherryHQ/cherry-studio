@@ -1,10 +1,10 @@
 import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
+  compareResourceActivityOrder,
   compareResourceCreationOrder,
   compareResourceIds,
   compareResourceOrderKey,
-  compareResourceUpdatedOrder,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   moveResourceListStringGroupAfterDrop,
@@ -364,8 +364,8 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   const compareWithinGroup =
     options.sortBy === 'createdAt'
       ? compareResourceCreationOrder
-      : options.sortBy === 'updatedAt'
-        ? compareResourceUpdatedOrder
+      : options.sortBy === 'lastActivityAt'
+        ? compareResourceActivityOrder
         : (a: T, b: T) => compareResourceOrderKey(a.orderKey, b.orderKey) || compareResourceIds(a.id, b.id)
 
   if (options.mode === 'time') {
@@ -419,7 +419,6 @@ export function buildSessionAgentGroupDropAnchor(
 }
 
 export function canDropSessionItemInDisplayGroup({
-  mode,
   sourceGroupId,
   targetGroupId
 }: {
@@ -427,7 +426,7 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  return sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(

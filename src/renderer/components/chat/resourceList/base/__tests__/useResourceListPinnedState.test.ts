@@ -229,6 +229,30 @@ describe('useResourceListPinnedItems', () => {
     expect(result.current.items).toEqual([{ ...alpha, pinned: true }])
   })
 
+  it('places a newly pinned row first while the authoritative pin order catches up', async () => {
+    let resolveToggle: () => void = () => {}
+    const onTogglePin = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveToggle = resolve
+        })
+    )
+    const pinned: Item = { id: 'pinned', name: 'Pinned', pinned: true }
+    const { result } = renderHook(() => useResourceListPinnedItems({ items: [pinned, alpha], onTogglePin }))
+
+    let promise = Promise.resolve()
+    await act(async () => {
+      promise = result.current.togglePinned(alpha)
+    })
+
+    expect(result.current.items).toEqual([{ ...alpha, pinned: true }, pinned])
+
+    await act(async () => {
+      resolveToggle()
+      await promise
+    })
+  })
+
   it('removes the retained row and rolls pin state back when the mutation fails', async () => {
     const onTogglePin = vi.fn(async () => {
       throw new Error('pin failed')

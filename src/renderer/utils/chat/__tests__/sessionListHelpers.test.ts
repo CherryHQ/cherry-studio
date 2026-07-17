@@ -59,6 +59,7 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
     workspaceId: 'ws-/Users/jd/project-a',
     workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     pinned: false,
@@ -480,10 +481,10 @@ describe('SessionList helpers', () => {
 
   it('uses the selected timestamp within each agent without changing agent rank', () => {
     const sessions = [
-      createSession({ id: 'agent-b-new', agentId: 'agent-b', updatedAt: localIso(2026, 5, 20) }),
-      createSession({ id: 'agent-a-old', agentId: 'agent-a', updatedAt: localIso(2026, 5, 1) }),
-      createSession({ id: 'agent-b-old', agentId: 'agent-b', updatedAt: localIso(2026, 5, 2) }),
-      createSession({ id: 'agent-a-new', agentId: 'agent-a', updatedAt: localIso(2026, 5, 21) })
+      createSession({ id: 'agent-b-new', agentId: 'agent-b', lastActivityAt: localIso(2026, 5, 20) }),
+      createSession({ id: 'agent-a-old', agentId: 'agent-a', lastActivityAt: localIso(2026, 5, 1) }),
+      createSession({ id: 'agent-b-old', agentId: 'agent-b', lastActivityAt: localIso(2026, 5, 2) }),
+      createSession({ id: 'agent-a-new', agentId: 'agent-a', lastActivityAt: localIso(2026, 5, 21) })
     ]
 
     expect(
@@ -493,7 +494,7 @@ describe('SessionList helpers', () => {
           ['agent-b', 1]
         ]),
         mode: 'agent',
-        sortBy: 'updatedAt'
+        sortBy: 'lastActivityAt'
       }).map((session) => session.id)
     ).toEqual(['agent-a-new', 'agent-a-old', 'agent-b-new', 'agent-b-old'])
   })

@@ -14,7 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
-import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
@@ -111,12 +111,51 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     onTogglePin: commitSessionPin,
     resetKey: bandContinuityKey
   })
+  const [optimisticallyRemovedSessionIds, setOptimisticallyRemovedSessionIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const [optimisticSessionNames, setOptimisticSessionNames] = useState<Record<string, string>>({})
+  const projectedBandSessionById = useMemo(
+    () => new Map(projectedBandSessions.map((session) => [session.id, session])),
+    [projectedBandSessions]
+  )
+
+  useEffect(() => {
+    setOptimisticallyRemovedSessionIds(new Set())
+    setOptimisticSessionNames({})
+  }, [bandContinuityKey])
+
+  useEffect(() => {
+    setOptimisticallyRemovedSessionIds((current) => {
+      const next = new Set([...current].filter((id) => projectedBandSessionById.has(id)))
+      return next.size === current.size ? current : next
+    })
+    setOptimisticSessionNames((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const [id, name] of Object.entries(current)) {
+        if (projectedBandSessionById.get(id)?.name === name) {
+          delete next[id]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [projectedBandSessionById])
   const sessions = useMemo(
     () => [
-      ...projectedBandSessions.filter((session) => session.pinned),
-      ...projectedBandSessions.filter((session) => !session.pinned)
+      ...projectedBandSessions
+        .filter((session) => !optimisticallyRemovedSessionIds.has(session.id) && session.pinned)
+        .map((session) =>
+          optimisticSessionNames[session.id] ? { ...session, name: optimisticSessionNames[session.id] } : session
+        ),
+      ...projectedBandSessions
+        .filter((session) => !optimisticallyRemovedSessionIds.has(session.id) && !session.pinned)
+        .map((session) =>
+          optimisticSessionNames[session.id] ? { ...session, name: optimisticSessionNames[session.id] } : session
+        )
     ],
-    [projectedBandSessions]
+    [optimisticSessionNames, optimisticallyRemovedSessionIds, projectedBandSessions]
   )
 
   const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
@@ -128,6 +167,17 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   }, [isSessionsLoading, isSessionsLoadingMore, loadMoreBandSessions, sessionError])
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
+  const activeRecordIdRef = useRef(activeRecordId)
+  useEffect(() => {
+    activeRecordIdRef.current = activeRecordId
+  }, [activeRecordId])
+  const selectActiveSession = useCallback(
+    (sessionId: string | null) => {
+      activeRecordIdRef.current = sessionId
+      onRecordSelect?.(sessionId)
+    },
+    [onRecordSelect]
+  )
 
   const unlinkedAgentLabel = t('agent.session.group.unknown_agent')
   const hasUnlinkedAgent = useMemo(
@@ -150,37 +200,119 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
         })),
     [agentById, agentSources]
   )
+  const hideSessionsOptimistically = useCallback((ids: readonly string[]) => {
+    setOptimisticallyRemovedSessionIds((current) => {
+      const next = new Set(current)
+      for (const id of ids) next.add(id)
+      return next
+    })
+  }, [])
+  const restoreOptimisticallyHiddenSessions = useCallback((ids: readonly string[]) => {
+    setOptimisticallyRemovedSessionIds((current) => {
+      const next = new Set(current)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+  }, [])
 
   const handleSessionSelect = useCallback(
     (session: SessionListItem) => {
       const title = session.name || t('common.unnamed')
       if (conversationNav.openConversationTab(session.id, title, { forceNew: true })) return
 
-      onRecordSelect?.(session.id)
+      selectActiveSession(session.id)
       onClose()
     },
-    [conversationNav, onClose, onRecordSelect, t]
+    [conversationNav, onClose, selectActiveSession, t]
   )
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
       if (isSessionPinned(id)) return
 
-      const success = await deleteSession(id)
-      if (success && activeRecordId === id) {
-        const nextSession = findAdjacentHistoryRecordAfterBulkDelete(sessionItems, [id], id, (session) => session.id)
-        onRecordSelect?.(nextSession?.id ?? null)
+      const session = sessionById.get(id)
+      if (!session) return
+      const wasActive = activeRecordIdRef.current === id
+      const nextSession = wasActive
+        ? findAdjacentHistoryRecordAfterBulkDelete(sessionItems, [id], id, (candidate) => candidate.id)
+        : undefined
+      const optimisticActiveId = nextSession?.id ?? null
+      hideSessionsOptimistically([id])
+      if (wasActive) selectActiveSession(optimisticActiveId)
+
+      let success = false
+      try {
+        success = await deleteSession(id)
+      } catch (err) {
+        logger.error('Failed to delete session from history records', { err, sessionId: id })
+        toast.error(t('agent.session.delete.error.failed'))
+      }
+      if (!success) {
+        restoreOptimisticallyHiddenSessions([id])
+        if (wasActive && activeRecordIdRef.current === optimisticActiveId) selectActiveSession(id)
       }
     },
-    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, sessionItems]
+    [
+      deleteSession,
+      hideSessionsOptimistically,
+      isSessionPinned,
+      restoreOptimisticallyHiddenSessions,
+      selectActiveSession,
+      sessionById,
+      sessionItems,
+      t
+    ]
   )
 
   const handleBulkDeleteSessions = useCallback(
     async (ids: string[]): Promise<readonly string[] | undefined> => {
-      const result = await deleteSessions(ids)
-      return result ? result.deletedIds : undefined
+      const activeSession = activeRecordIdRef.current ? sessionById.get(activeRecordIdRef.current) : undefined
+      const wasActive = !!activeSession && ids.includes(activeSession.id)
+      const optimisticNextSession = wasActive
+        ? findAdjacentHistoryRecordAfterBulkDelete(sessionItems, ids, activeSession.id, (session) => session.id)
+        : undefined
+      const optimisticActiveId = optimisticNextSession?.id ?? null
+      hideSessionsOptimistically(ids)
+      if (wasActive) selectActiveSession(optimisticActiveId)
+
+      let result: Awaited<ReturnType<typeof deleteSessions>>
+      try {
+        result = await deleteSessions(ids)
+      } catch (err) {
+        logger.error('Failed to bulk delete sessions from history records', { err, ids })
+        toast.error(t('agent.session.delete.error.failed'))
+        result = null
+      }
+      if (!result) {
+        restoreOptimisticallyHiddenSessions(ids)
+        if (wasActive && activeSession && activeRecordIdRef.current === optimisticActiveId) {
+          selectActiveSession(activeSession.id)
+        }
+        return undefined
+      }
+
+      const deletedIdSet = new Set(result.deletedIds)
+      const failedIds = ids.filter((id) => !deletedIdSet.has(id))
+      restoreOptimisticallyHiddenSessions(failedIds)
+      if (
+        wasActive &&
+        activeSession &&
+        !deletedIdSet.has(activeSession.id) &&
+        activeRecordIdRef.current === optimisticActiveId
+      ) {
+        selectActiveSession(activeSession.id)
+      }
+      return result.deletedIds
     },
-    [deleteSessions]
+    [
+      deleteSessions,
+      hideSessionsOptimistically,
+      restoreOptimisticallyHiddenSessions,
+      selectActiveSession,
+      sessionById,
+      sessionItems,
+      t
+    ]
   )
 
   const handleRenameSession = useCallback(
@@ -189,12 +321,26 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await updateSession(
-        { id, name: trimmedName, isNameManuallyEdited: true },
-        { showSuccessToast: false }
-      )
+      setOptimisticSessionNames((current) => ({ ...current, [id]: trimmedName }))
+      let updatedSession: Awaited<ReturnType<typeof updateSession>>
+      try {
+        updatedSession = await updateSession(
+          { id, name: trimmedName, isNameManuallyEdited: true },
+          { showSuccessToast: false }
+        )
+      } catch (err) {
+        logger.error('Failed to rename session from history records', { err, sessionId: id })
+        toast.error(t('agent.session.update.error.failed'))
+        updatedSession = undefined
+      }
       if (updatedSession) {
         toast.success(t('common.saved'))
+      } else {
+        setOptimisticSessionNames((current) => {
+          const next = { ...current }
+          delete next[id]
+          return next
+        })
       }
     },
     [sessions, t, updateSession]
@@ -237,8 +383,8 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
 
   const getId = useCallback((session: SessionListItem) => session.id, [])
   const onActiveRecordChange = useCallback(
-    (session: SessionListItem | null) => onRecordSelect?.(session?.id ?? null),
-    [onRecordSelect]
+    (session: SessionListItem | null) => selectActiveSession(session?.id ?? null),
+    [selectActiveSession]
   )
   const rowDescriptor = useMemo(
     () => ({

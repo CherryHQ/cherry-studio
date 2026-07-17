@@ -308,6 +308,46 @@ function getVirtualRowIndex<T extends ResourceListItemBase>(
   return rows.findIndex((row) => row.type === 'item' && getItemId(row.item.item) === itemId)
 }
 
+function useLoadPreviousAtStart<T extends ResourceListItemBase>(
+  virtualListRef: RefObject<DynamicVirtualListRef | null>,
+  virtualRows: ResourceListVirtualRow<T>[],
+  view: ResourceListContextValue<T>['view']
+) {
+  const actions = useResourceListActions()
+  const pendingGroupRef = useRef<string | null>(null)
+
+  return useCallback(
+    (element: HTMLDivElement) => {
+      if (pendingGroupRef.current) return
+      const virtualIndexes = virtualListRef.current?.getVirtualIndexes() ?? []
+      const groupId = view.groups.find((entry) => {
+        if (!entry.hasPrevious) return false
+        const firstGroupRowIndex = virtualRows.findIndex(
+          (row) => !isSectionVirtualGroup(row.group) && row.group.id === entry.group.id
+        )
+        return firstGroupRowIndex >= 0 && virtualIndexes.includes(firstGroupRowIndex)
+      })?.group.id
+      if (!groupId) return
+
+      pendingGroupRef.current = groupId
+      const previousScrollHeight = element.scrollHeight
+      const previousScrollTop = element.scrollTop
+      void actions
+        .loadPreviousInGroup(groupId)
+        .then(() => {
+          window.requestAnimationFrame(() => {
+            const addedHeight = element.scrollHeight - previousScrollHeight
+            if (addedHeight > 0) element.scrollTop = previousScrollTop + addedHeight
+          })
+        })
+        .finally(() => {
+          if (pendingGroupRef.current === groupId) pendingGroupRef.current = null
+        })
+    },
+    [actions, view.groups, virtualListRef, virtualRows]
+  )
+}
+
 function clampVirtualItemIndex(index: number, itemCount: number) {
   return Math.min(itemCount - 1, Math.max(0, index))
 }
@@ -535,6 +575,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
     thresholdPx: END_REACHED_THRESHOLD,
     onEndReached
   })
+  const loadPreviousAtStart = useLoadPreviousAtStart(virtualListRef, virtualRows, view)
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -546,9 +587,10 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const handleListScroll = useCallback(
     (event: ReactUIEvent<HTMLDivElement>) => {
       handleScroll()
+      loadPreviousAtStart(event.currentTarget)
       checkEndReached(event.currentTarget)
     },
-    [checkEndReached, handleScroll]
+    [checkEndReached, handleScroll, loadPreviousAtStart]
   )
   const estimateVirtualItemSize = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
@@ -668,6 +710,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     thresholdPx: END_REACHED_THRESHOLD,
     onEndReached
   })
+  const loadPreviousAtStart = useLoadPreviousAtStart(virtualListRef, virtualRows, view)
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -679,9 +722,10 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   const handleListScroll = useCallback(
     (event: ReactUIEvent<HTMLDivElement>) => {
       handleScroll()
+      loadPreviousAtStart(event.currentTarget)
       checkEndReached(event.currentTarget)
     },
-    [checkEndReached, handleScroll]
+    [checkEndReached, handleScroll, loadPreviousAtStart]
   )
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
   const getVirtualItemId = useCallback(

@@ -1,69 +1,63 @@
 import { describe, expect, it } from 'vitest'
 
-import { findLatestUpdated, isUntouchedSinceCreation, pickNeighbourAfterRemoval } from '../resourceEntity'
+import { findLatestCreated, isUntouchedSinceCreation, pickNeighbourAfterRemoval } from '../resourceEntity'
 
 describe('resourceEntity', () => {
   describe('isUntouchedSinceCreation', () => {
-    it('is true only when updatedAt equals a present createdAt', () => {
+    it('is true only when lastActivityAt equals a present createdAt', () => {
       expect(
-        isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' })
+        isUntouchedSinceCreation({
+          createdAt: '2024-01-01T00:00:00.000Z',
+          lastActivityAt: '2024-01-01T00:00:00.000Z'
+        })
       ).toBe(true)
     })
 
-    it('is false once updatedAt has moved past createdAt (chatted-in, even with a blank name)', () => {
+    it('is false once lastActivityAt has moved past createdAt (chatted-in, even with a blank name)', () => {
       expect(
-        isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-02T00:00:00.000Z' })
-      ).toBe(false)
-    })
-
-    it('tolerates the ~1ms insert straddle of the two Date.now() timestamp defaults', () => {
-      // createdAt and updatedAt are filled by independent Date.now() calls, so a fresh row can land
-      // 1ms apart across a boundary; that must still read as untouched/reusable.
-      expect(
-        isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.001Z' })
-      ).toBe(true)
-      // A real bump (here a couple of ms, in practice far more) is still touched.
-      expect(
-        isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.500Z' })
+        isUntouchedSinceCreation({
+          createdAt: '2024-01-01T00:00:00.000Z',
+          lastActivityAt: '2024-01-02T00:00:00.000Z'
+        })
       ).toBe(false)
     })
 
     it('treats a row missing either timestamp as touched (not reusable)', () => {
-      expect(isUntouchedSinceCreation({ updatedAt: '2024-01-01T00:00:00.000Z' })).toBe(false)
+      expect(isUntouchedSinceCreation({ lastActivityAt: '2024-01-01T00:00:00.000Z' })).toBe(false)
       expect(isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z' })).toBe(false)
       expect(isUntouchedSinceCreation({})).toBe(false)
     })
   })
 
-  describe('findLatestUpdated', () => {
+  describe('findLatestCreated', () => {
     it('should return undefined for an empty list', () => {
-      expect(findLatestUpdated([])).toBeUndefined()
+      expect(findLatestCreated([])).toBeUndefined()
     })
 
     it('should return the only item for a single-item list', () => {
-      const item = { id: 'a', updatedAt: '2024-01-01T00:00:00.000Z' }
-      expect(findLatestUpdated([item])).toBe(item)
+      const item = { id: 'a', createdAt: '2024-01-01T00:00:00.000Z' }
+      expect(findLatestCreated([item])).toBe(item)
     })
 
-    it('should pick the item with the most recent updatedAt', () => {
-      const older = { id: 'older', updatedAt: '2024-01-01T00:00:00.000Z' }
-      const newest = { id: 'newest', updatedAt: '2024-03-01T00:00:00.000Z' }
-      const middle = { id: 'middle', updatedAt: '2024-02-01T00:00:00.000Z' }
-      expect(findLatestUpdated([older, newest, middle])).toBe(newest)
+    it('should pick the item with the most recent createdAt', () => {
+      const older = { id: 'older', createdAt: '2024-01-01T00:00:00.000Z' }
+      const newest = { id: 'newest', createdAt: '2024-03-01T00:00:00.000Z' }
+      const middle = { id: 'middle', createdAt: '2024-02-01T00:00:00.000Z' }
+      expect(findLatestCreated([older, newest, middle])).toBe(newest)
     })
 
-    it('should sort missing or unparseable updatedAt as oldest', () => {
-      const missing = { id: 'missing', updatedAt: undefined }
-      const empty = { id: 'empty', updatedAt: '' }
-      const unparseable = { id: 'unparseable', updatedAt: 'not-a-date' }
-      const dated = { id: 'dated', updatedAt: '2024-01-01T00:00:00.000Z' }
-      expect(findLatestUpdated([missing, empty, unparseable, dated])).toBe(dated)
+    it('should sort missing or unparseable createdAt as oldest', () => {
+      const missing = { id: 'missing', createdAt: undefined }
+      const empty = { id: 'empty', createdAt: '' }
+      const unparseable = { id: 'unparseable', createdAt: 'not-a-date' }
+      const dated = { id: 'dated', createdAt: '2024-01-01T00:00:00.000Z' }
+      expect(findLatestCreated([missing, empty, unparseable, dated])).toBe(dated)
     })
 
     it('should keep the first item encountered on a tie', () => {
-      const first = { id: 'first', updatedAt: '2024-01-01T00:00:00.000Z' }
-      const second = { id: 'second', updatedAt: '2024-01-01T00:00:00.000Z' }
-      expect(findLatestUpdated([first, second])).toBe(first)
+      const first = { id: 'first', createdAt: '2024-01-01T00:00:00.000Z' }
+      const second = { id: 'second', createdAt: '2024-01-01T00:00:00.000Z' }
+      expect(findLatestCreated([first, second])).toBe(first)
     })
   })
 

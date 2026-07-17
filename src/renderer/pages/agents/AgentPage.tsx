@@ -111,12 +111,12 @@ async function sessionHasNoMessages(sessionId: string): Promise<boolean> {
   return page.items.length === 0
 }
 
-function sortLatestSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[] {
+function sortNewestSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[] {
   return [...sessions].sort((left, right) => {
-    const leftUpdatedAt = Date.parse(left.updatedAt)
-    const rightUpdatedAt = Date.parse(right.updatedAt)
-    const leftMs = Number.isFinite(leftUpdatedAt) ? leftUpdatedAt : Number.NEGATIVE_INFINITY
-    const rightMs = Number.isFinite(rightUpdatedAt) ? rightUpdatedAt : Number.NEGATIVE_INFINITY
+    const leftCreatedAt = Date.parse(left.createdAt)
+    const rightCreatedAt = Date.parse(right.createdAt)
+    const leftMs = Number.isFinite(leftCreatedAt) ? leftCreatedAt : Number.NEGATIVE_INFINITY
+    const rightMs = Number.isFinite(rightCreatedAt) ? rightCreatedAt : Number.NEGATIVE_INFINITY
     return rightMs - leftMs
   })
 }
@@ -125,7 +125,7 @@ async function findReusableEmptySessions(
   sessions: readonly AgentSessionEntity[],
   isMatch: (session: AgentSessionEntity) => boolean
 ): Promise<AgentSessionEntity[]> {
-  const candidates = sortLatestSessions(
+  const candidates = sortNewestSessions(
     sessions.filter((session) => isMatch(session) && isUntitledPlaceholderSession(session))
   )
   const reusableSessions: AgentSessionEntity[] = []
@@ -155,7 +155,7 @@ async function findReusableEmptySessions(
     if (session) reusableSessions.push(session)
   }
 
-  return sortLatestSessions(reusableSessions)
+  return sortNewestSessions(reusableSessions)
 }
 
 const AgentPage = () => {
@@ -173,7 +173,7 @@ const AgentPage = () => {
   // Shared session facts plus bounded seed lookups for rails, restore, and placeholder reuse.
   const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
   const { stats: sessionStats, loadLatestSession, loadSessionReuseCandidates } = agentSessionsSource
-  // First-entry selection resumes the most-recently-updated session. A dedicated `updatedAt DESC LIMIT 1`
+  // First-entry selection resumes the most-recently-active session. A dedicated `lastActivityAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full session history to paginate in nor
   // depends on either independently paged `/agent-sessions` stream or its visible ordering.
   const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({ enabled: !isMessageOnlyView })
@@ -224,6 +224,7 @@ const AgentPage = () => {
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
+  const ownerFallbackRequestIdRef = useRef(0)
   const initialEmptySessionEvaluatedRef = useRef(false)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
@@ -253,6 +254,10 @@ const AgentPage = () => {
       : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleSessionId = visibleSession?.id
   const visibleSessionAgentId = visibleSession?.agentId
+  const activeSessionSelectionRef = useRef<AgentSessionEntity | null>(visibleSession)
+  useEffect(() => {
+    activeSessionSelectionRef.current = visibleSession
+  }, [visibleSession])
   useEffect(() => {
     if (!visibleSessionId || !visibleSessionAgentId) return
     setRightPaneAgentScopeId(visibleSessionAgentId)
@@ -669,7 +674,9 @@ const AgentPage = () => {
       setPendingLocateMessageId(messageId)
 
       if (!sessionId) {
-        void createDefaultEmptySession()
+        activeSessionSelectionRef.current = null
+        setIsSelectedAgentScopeEmpty(true)
+        selectSession(null, null)
         return
       }
 
@@ -683,7 +690,7 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [closeSurface, createDefaultEmptySession, selectSession, setResourceListOpen, setSessionPaneOpen]
+    [closeSurface, selectSession, setResourceListOpen, setSessionPaneOpen]
   )
   const closeHistoryRecords = useCallback(() => {
     closeSurface()
@@ -739,7 +746,7 @@ const AgentPage = () => {
       return
     }
 
-    // Resume the globally most-recently-updated session — both layouts, so switching layout never
+    // Resume the globally most-recently-active session — both layouts, so switching layout never
     // changes what you land on. Only a genuinely empty list falls through.
     if (!isLatestSessionReady) return
 
@@ -780,6 +787,7 @@ const AgentPage = () => {
 
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
+      activeSessionSelectionRef.current = session ?? null
       closeSurface()
       if (sessionId) {
         if (session?.agentId) setRightPaneAgentScopeId(session.agentId)
@@ -817,26 +825,32 @@ const AgentPage = () => {
     },
     [closeSurface, selectSession]
   )
-  // After deleting the active agent, select the latest remaining session, or create
-  // a real empty session for another agent. Filter by the deleted id so this is
-  // correct even before the session cache refetches.
+  // Preserve the deleting surface's owner order and verify each fallback owner
+  // through scoped `/latest`; a superseded lookup cannot replace a newer pick.
   const handleActiveAgentDeleted = useCallback(
-    async (deletedAgentId: string) => {
+    async (deletedAgentId: string, candidateAgentIds: readonly string[]) => {
+      const requestId = ++ownerFallbackRequestIdRef.current
+      const isCurrent = () =>
+        ownerFallbackRequestIdRef.current === requestId && activeSessionSelectionRef.current?.agentId === deletedAgentId
+
       setRightPaneAgentScopeId(undefined)
       setIsSelectedAgentScopeEmpty(false)
-      const nextSession = await loadLatestSession()
-      if (nextSession) {
-        setActiveSessionAndClearTransient(nextSession.id, nextSession)
-        return
+
+      for (const agentId of candidateAgentIds) {
+        const nextSession = await loadLatestSession(agentId)
+        if (!isCurrent()) return
+        if (nextSession) {
+          setActiveSessionAndClearTransient(nextSession.id, nextSession)
+          return
+        }
       }
-      const created = await createDefaultEmptySession({ excludedAgentIds: [deletedAgentId] })
-      // Creation failed → don't leave the view on a session that belonged to the deleted agent.
-      if (!created) {
-        setIsSelectedAgentScopeEmpty(true)
-        setActiveSessionId(null)
-      }
+
+      if (!isCurrent()) return
+      activeSessionSelectionRef.current = null
+      setIsSelectedAgentScopeEmpty(true)
+      setActiveSessionId(null)
     },
-    [createDefaultEmptySession, loadLatestSession, setActiveSessionAndClearTransient, setActiveSessionId]
+    [loadLatestSession, setActiveSessionAndClearTransient, setActiveSessionId]
   )
   const replaceSessionWorkspace = useCallback(
     async (workspaceId: string | null) => {

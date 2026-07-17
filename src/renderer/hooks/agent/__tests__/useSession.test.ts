@@ -84,6 +84,7 @@ const createSession = (overrides: Partial<AgentSessionListItem> = {}): AgentSess
   orderKey: 'a0',
   pinId: null,
   pinned: false,
+  lastActivityAt: '2024-01-01T00:00:00Z',
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   ...overrides,
@@ -335,12 +336,11 @@ describe('useSessions', () => {
         pinned: false,
         q: 'needle',
         searchScope: 'name-or-owner',
-        sortBy: 'updatedAt'
+        sortBy: 'lastActivityAt'
       })
     )
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
-      continuityKey: '{"agentId":"unlinked","mode":"flat","pinned":false,"q":"needle","searchScope":"name-or-owner"}',
       enabled: undefined,
       limit: 20,
       query: {
@@ -348,9 +348,8 @@ describe('useSessions', () => {
         pinned: false,
         q: 'needle',
         searchScope: 'name-or-owner',
-        sortBy: 'updatedAt'
+        sortBy: 'lastActivityAt'
       },
-      resetOnLocalWrite: '/agent-sessions',
       swrOptions: undefined
     })
   })
@@ -363,14 +362,13 @@ describe('useSessions', () => {
         pinned: true,
         q: 'needle',
         searchScope: 'name',
-        sortBy: 'updatedAt'
+        sortBy: 'lastActivityAt'
       })
     )
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/agent-sessions',
       expect.objectContaining({
-        continuityKey: '{"agentId":"agent-1","mode":"pinned","pinned":true,"q":"needle","searchScope":"name"}',
         query: {
           agentId: 'agent-1',
           pinned: true,
@@ -600,11 +598,7 @@ describe('useUpdateSession', () => {
         args: { params: { sessionId: 'session-1' }, body: { name: 'Renamed session' } },
         result: createSession()
       })
-    ).toEqual([
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/stats',
-      '/agent-sessions/session-1'
-    ])
+    ).toEqual(['/agent-sessions', '/agent-sessions/stats', '/agent-sessions/session-1'])
   })
 
   it('refreshes workspaces through the dedicated workspace mutation', async () => {
@@ -630,7 +624,7 @@ describe('useUpdateSession', () => {
       args: { params: { sessionId: string } }
     }) => unknown[]
     expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions',
       '/agent-sessions/stats',
       '/agent-sessions/session-1',
       '/agent-workspaces'
@@ -692,7 +686,7 @@ describe('useSessionMutations', () => {
     expect(session).toBe(created)
     await waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith([
-        { path: '/agent-sessions', strategy: 'reset-cursor' },
+        '/agent-sessions',
         '/agent-sessions/stats',
         '/agent-workspaces',
         '/agent-sessions/session-created'
@@ -711,7 +705,7 @@ describe('useSessionMutations', () => {
     expect(dataApiService.delete).toHaveBeenCalledWith('/agent-sessions', { query: { ids: 's1,s2' } })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', ['s1', 's2'])
     expect(invalidate).toHaveBeenCalledWith([
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
+      '/agent-sessions',
       '/agent-sessions/stats',
       '/agent-workspaces',
       '/agent-sessions/s1',
@@ -747,10 +741,6 @@ describe('useAgentSessionAutoRenameSync', () => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })
 
-    expect(invalidate).toHaveBeenCalledWith([
-      { path: '/agent-sessions', strategy: 'reset-cursor' },
-      '/agent-sessions/stats',
-      '/agent-sessions/session-1'
-    ])
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/stats', '/agent-sessions/session-1'])
   })
 })

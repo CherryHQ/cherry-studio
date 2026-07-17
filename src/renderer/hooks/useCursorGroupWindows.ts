@@ -1,4 +1,3 @@
-import { useDataApiCursorRevision } from '@renderer/data/hooks/useDataApiCursorRevision'
 import { runResourceListLoadsWithConcurrency } from '@renderer/utils/chat/resourceListBase'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -26,7 +25,6 @@ type UseCursorGroupWindowsOptions<T> = {
   groupIds?: readonly string[]
   initialGroupIds: readonly string[]
   queryKey: string
-  resourcePath: '/topics' | '/agent-sessions'
 }
 
 const INITIAL_GROUP_LOAD_CONCURRENCY = 3
@@ -38,13 +36,10 @@ export function useCursorGroupWindows<T>({
   getItemId,
   groupIds,
   initialGroupIds,
-  queryKey,
-  resourcePath
+  queryKey
 }: UseCursorGroupWindowsOptions<T>) {
-  const resourceRevision = useDataApiCursorRevision(resourcePath)
-  const resourceRevisionToken = `${resourcePath}:${resourceRevision}`
   const resolvedContinuityKey = continuityKey ?? queryKey
-  const requestKey = `${queryKey}\u0000${resourceRevisionToken}`
+  const requestKey = queryKey
   const [state, setState] = useState<CursorGroupWindowsState<T>>({
     continuityKey: resolvedContinuityKey,
     requestKey,
@@ -54,6 +49,7 @@ export function useCursorGroupWindows<T>({
   const stateRef = useRef(state)
   const requestKeyRef = useRef(requestKey)
   const generationRef = useRef(0)
+  const groupGenerationRef = useRef(new Map<string, number>())
   const pendingByGroupRef = useRef(new Map<string, Promise<string | null>>())
   const groupIdsKey = groupIds?.join('\u0000')
   const allowedGroupIds = useMemo(() => (groupIds ? new Set(groupIds) : undefined), [groupIds])
@@ -67,6 +63,7 @@ export function useCursorGroupWindows<T>({
 
   const reset = useCallback(() => {
     generationRef.current += 1
+    groupGenerationRef.current.clear()
     pendingByGroupRef.current.clear()
     setState((current) => {
       const next = {
@@ -85,6 +82,7 @@ export function useCursorGroupWindows<T>({
     if (current.requestKey === requestKey && current.continuityKey === resolvedContinuityKey) return
 
     generationRef.current += 1
+    groupGenerationRef.current.clear()
     pendingByGroupRef.current.clear()
     setState((previous) => {
       const canRetain = continuityKey !== undefined && previous.continuityKey === resolvedContinuityKey
@@ -122,6 +120,7 @@ export function useCursorGroupWindows<T>({
       }
 
       const generation = generationRef.current
+      const groupGeneration = groupGenerationRef.current.get(groupId) ?? 0
       const request = (async () => {
         setState((previous) => ({
           continuityKey: resolvedContinuityKey,
@@ -143,7 +142,13 @@ export function useCursorGroupWindows<T>({
 
         try {
           const page = await fetchPage(groupId, append && currentIsResolved ? current?.nextCursor : undefined)
-          if (generationRef.current !== generation || requestKeyRef.current !== requestKey) return null
+          if (
+            generationRef.current !== generation ||
+            (groupGenerationRef.current.get(groupId) ?? 0) !== groupGeneration ||
+            requestKeyRef.current !== requestKey
+          ) {
+            return null
+          }
 
           const previousItems = append ? (current?.items ?? []) : []
           const byId = new Map(previousItems.map((item) => [getItemId(item), item]))
@@ -165,7 +170,11 @@ export function useCursorGroupWindows<T>({
           }))
           return items[0] ? getItemId(items[0]) : null
         } catch (error) {
-          if (generationRef.current === generation && requestKeyRef.current === requestKey) {
+          if (
+            generationRef.current === generation &&
+            (groupGenerationRef.current.get(groupId) ?? 0) === groupGeneration &&
+            requestKeyRef.current === requestKey
+          ) {
             setState((previous) => ({
               continuityKey: resolvedContinuityKey,
               requestKey,
@@ -205,6 +214,89 @@ export function useCursorGroupWindows<T>({
     },
     [loadPage]
   )
+  const refillGroup = useCallback(
+    async (groupId: string, loadedWindowSize: number): Promise<T[]> => {
+      if (!enabled || (allowedGroupIds && !allowedGroupIds.has(groupId))) return []
+
+      const generation = generationRef.current
+      const groupGeneration = (groupGenerationRef.current.get(groupId) ?? 0) + 1
+      groupGenerationRef.current.set(groupId, groupGeneration)
+      pendingByGroupRef.current.delete(groupId)
+      setState((previous) => ({
+        continuityKey: resolvedContinuityKey,
+        requestKey,
+        revision: previous.revision,
+        windows: {
+          ...(previous.continuityKey === resolvedContinuityKey ? previous.windows : {}),
+          [groupId]: {
+            items: previous.continuityKey === resolvedContinuityKey ? (previous.windows[groupId]?.items ?? []) : [],
+            resolvedRequestKey: previous.windows[groupId]?.resolvedRequestKey,
+            status: 'loading'
+          }
+        }
+      }))
+
+      try {
+        const byId = new Map<string, T>()
+        let cursor: string | undefined
+        let nextCursor: string | undefined
+        const targetSize = Math.max(loadedWindowSize, 1)
+
+        do {
+          const page = await fetchPage(groupId, cursor)
+          if (
+            generationRef.current !== generation ||
+            (groupGenerationRef.current.get(groupId) ?? 0) !== groupGeneration ||
+            requestKeyRef.current !== requestKey
+          ) {
+            return []
+          }
+          for (const item of page.items) byId.set(getItemId(item), item)
+          nextCursor = page.nextCursor
+          cursor = page.nextCursor
+        } while (byId.size < targetSize && cursor)
+
+        const items = [...byId.values()]
+        setState((previous) => ({
+          continuityKey: resolvedContinuityKey,
+          requestKey,
+          revision: previous.revision,
+          windows: {
+            ...(previous.continuityKey === resolvedContinuityKey ? previous.windows : {}),
+            [groupId]: {
+              items,
+              nextCursor,
+              resolvedRequestKey: requestKey,
+              status: items.length === 0 ? 'empty' : 'idle'
+            }
+          }
+        }))
+        return items
+      } catch (error) {
+        if (
+          generationRef.current === generation &&
+          (groupGenerationRef.current.get(groupId) ?? 0) === groupGeneration &&
+          requestKeyRef.current === requestKey
+        ) {
+          setState((previous) => ({
+            continuityKey: resolvedContinuityKey,
+            requestKey,
+            revision: previous.revision,
+            windows: {
+              ...(previous.continuityKey === resolvedContinuityKey ? previous.windows : {}),
+              [groupId]: {
+                items: previous.continuityKey === resolvedContinuityKey ? (previous.windows[groupId]?.items ?? []) : [],
+                resolvedRequestKey: previous.windows[groupId]?.resolvedRequestKey,
+                status: 'error'
+              }
+            }
+          }))
+        }
+        throw error
+      }
+    },
+    [allowedGroupIds, enabled, fetchPage, getItemId, requestKey, resolvedContinuityKey]
+  )
   const initialGroupIdsKey = initialGroupIds.join('\u0000')
 
   useEffect(() => {
@@ -221,5 +313,5 @@ export function useCursorGroupWindows<T>({
   }, [allowedGroupIds, continuityKey, requestKey, resolvedContinuityKey, state])
   const items = useMemo(() => Object.values(windows).flatMap((window) => window.items), [windows])
 
-  return { items, loadGroup, loadMoreGroup, reset, windows }
+  return { items, loadGroup, loadMoreGroup, refillGroup, reset, windows }
 }

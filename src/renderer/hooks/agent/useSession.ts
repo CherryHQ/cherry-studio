@@ -9,7 +9,6 @@
 
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
-import type { DataApiRefreshTarget } from '@renderer/data/hooks/useDataApi'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -44,10 +43,8 @@ const logger = loggerService.withContext('useSession')
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 
-/** Cursor-chain reset for the session list — include it in every membership/order-changing write. */
-const SESSION_LIST_RESET = { path: '/agent-sessions', strategy: 'reset-cursor' } as const
-/** Canonical session-list write refresh: reset the cursor chain and refresh stats. */
-const SESSION_LIST_REFRESH: DataApiRefreshTarget[] = [SESSION_LIST_RESET, '/agent-sessions/stats']
+/** Canonical session-list write refresh. */
+const SESSION_LIST_REFRESH: ConcreteApiPaths[] = ['/agent-sessions', '/agent-sessions/stats']
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
@@ -88,14 +85,14 @@ export const useSession = (sessionId: string | null) => {
 }
 
 /**
- * The globally most-recently-updated session, for first-entry restore.
+ * The globally most-recently-active session, for first-entry restore.
  *
- * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
- * last-touched session without waiting for the full session history to paginate
+ * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
+ * most-recently-active session without waiting for the full session history to paginate
  * in and without depending on either `/agent-sessions` list stream's order.
  *
- * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
- * cache coherent would mean every updatedAt-bumping write invalidating it (an
+ * `/agent-sessions/latest` is a global `lastActivityAt DESC, id ASC` selector, so keeping its
+ * cache coherent would mean every activity-bearing write invalidating it (an
  * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
  * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
  * wait for the on-mount revalidation to settle rather than trust a stale cache.
@@ -191,7 +188,7 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
  * Cursor-paginated session list. With `agentId` undefined / null the result
  * spans every agent (the global session view); pass an id to scope the
  * listing. Flat sort profiles include immutable creation order (`createdAt`),
- * activity order (`updatedAt`), and manual order (`orderKey`). Consumers page
+ * activity order (`lastActivityAt`), and manual order (`orderKey`). Consumers page
  * explicitly with `loadMore()`; grouped sidebars own independent per-group
  * cursor windows.
  */
@@ -225,29 +222,13 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     return built
   }, [agentId, effectiveSortBy, pinned, q, searchScope, workspaceId])
 
-  const continuityKey = useMemo(
-    () =>
-      JSON.stringify({
-        agentId,
-        mode: isPinnedStream ? 'pinned' : 'flat',
-        pinned,
-        q,
-        searchScope,
-        workspaceId
-      }),
-    [agentId, isPinnedStream, pinned, q, searchScope, workspaceId]
-  )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    continuityKey,
     query,
     limit: pageSize,
-    enabled,
-    resetOnLocalWrite: '/agent-sessions'
+    enabled
   })
   // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions', {
-    refreshStrategy: 'reset-cursor'
-  })
+  const { applyReorderedList } = useReorder('/agent-sessions')
 
   const sessions = useInfiniteFlatItems(pages)
   const pinIdBySessionId = useMemo(
@@ -341,7 +322,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
-    refresh: [SESSION_LIST_RESET]
+    refresh: ['/agent-sessions']
   })
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
