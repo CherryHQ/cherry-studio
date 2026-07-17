@@ -557,6 +557,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
+    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -581,6 +582,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
+      'CHERRY_STUDIO_SKILLS_DIR',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',

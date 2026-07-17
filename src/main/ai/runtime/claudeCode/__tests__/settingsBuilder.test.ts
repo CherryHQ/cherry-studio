@@ -1085,6 +1085,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
       // Non-mac (platform mock has no isMac): reuse the user's real config dir from the login shell.
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/home/me/.claude')
+      // The Cherry skill library path is injected unconditionally, so it survives external-CLI
+      // stripping — skill authoring keeps a stable target even when CLAUDE_CONFIG_DIR is redirected.
+      expect(settings.env!.CHERRY_STUDIO_SKILLS_DIR).toBe('/app/feature.agents.skills')
     })
 
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
@@ -1123,6 +1126,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
 
       expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
+      // CLAUDE_CONFIG_DIR is dropped on macOS login, but the Cherry skill library path stays
+      // injected, so skill authoring still resolves to a stable, Cherry-owned directory.
+      expect(settings.env!.CHERRY_STUDIO_SKILLS_DIR).toBe('/app/feature.agents.skills')
     })
 
     it('blocks a reserved agent env_var override but passes through non-reserved keys', async () => {

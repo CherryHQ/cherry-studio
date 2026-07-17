@@ -142,13 +142,13 @@ npx skills add <owner/repo@skill> -y
 
 # 2) move the installed skill folder into Cherry's managed skills directory.
 #    The CLI prints where it installed the skill — use that path as <install-path>.
-mkdir -p "$CLAUDE_CONFIG_DIR/skills"
-cp -r <install-path> "$CLAUDE_CONFIG_DIR/skills/"
+mkdir -p "$CHERRY_STUDIO_SKILLS_DIR"
+cp -r <install-path> "$CHERRY_STUDIO_SKILLS_DIR/"
 ```
 
 The user-confirmation step above is what ensures the install was actually reviewed
 and approved, so it must happen first. Once the folder is under
-`$CLAUDE_CONFIG_DIR/skills`, Cherry's skill sync detects it, absorbs it into its
+`$CHERRY_STUDIO_SKILLS_DIR`, Cherry's skill sync detects it, registers it in its
 managed library, and lists it in the app — no registration step.
 
 ## Common Skill Categories
