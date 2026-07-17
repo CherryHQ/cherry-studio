@@ -5,13 +5,16 @@ exports[`ImageToolbar > should match snapshot 1`] = `
   <div
     aria-label="preview.label"
     class="preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1"
+    data-ui="preview.image.toolbar.element.div id:uee521d3"
     role="toolbar"
   >
     <div
       class="flex w-full justify-center gap-1"
+      data-ui="preview.image.toolbar.element.div id:u3928f73"
     >
       <div
         class="flex-1"
+        data-ui="preview.image.toolbar.element.div id:u0b67958"
       />
       <button
         aria-label="preview.pan_up"
@@ -38,6 +41,7 @@ exports[`ImageToolbar > should match snapshot 1`] = `
     </div>
     <div
       class="flex w-full justify-center gap-1"
+      data-ui="preview.image.toolbar.element.div id:u123be45"
     >
       <button
         aria-label="preview.pan_left"
@@ -75,6 +79,7 @@ exports[`ImageToolbar > should match snapshot 1`] = `
     </div>
     <div
       class="flex w-full justify-center gap-1"
+      data-ui="preview.image.toolbar.element.div id:ubccfce4"
     >
       <button
         aria-label="preview.zoom_out"
