@@ -13,10 +13,10 @@ import { app, dialog } from 'electron'
 const logger = loggerService.withContext('FactoryResetGate')
 
 /**
- * How many destructive passes a single marker may trigger. Retrying forever
- * would re-wipe data the user created after a pass that looked complete
- * enough to boot on; giving up after the cap and logging loudly is the
- * lesser evil.
+ * How many destructive passes a single marker may trigger. A failed pass
+ * relaunches straight back into preboot (no writable app in between — see
+ * the failure branch in the gate), so the cap's job is to bound that
+ * relaunch loop when a failure is persistent rather than transient.
  */
 const MAX_WIPE_ATTEMPTS = 2
 
@@ -158,9 +158,12 @@ export const OWNED_MANIFEST_EXTRAS = [
  * - The wipe mode is decided once, recorded in the marker by the same
  *   durable write, and reused on retries — see {@link decideWipeMode} for
  *   why re-deriving it per pass is wrong.
- * - Deletion failures on entries outside USER_DATA_KEEP are critical: the
- *   marker is left pending (with its incremented count) so the next boot
- *   retries.
+ * - Deletion failures on entries outside USER_DATA_KEEP are critical. With
+ *   attempts left, the gate relaunches straight back into preboot to retry
+ *   — a pending marker must never coexist with a writable app, or the
+ *   retry pass would delete data the user created in between. At the cap
+ *   it gives up: marker cleared, failure surfaced in a dialog, boot
+ *   continues over whatever remains.
  * - After a clean pass the marker is cleared via a HARD persist. If that
  *   write fails the gate quits the app instead of booting: continuing
  *   would let the user create data that the still-pending marker wipes on
@@ -200,6 +203,7 @@ export function runFactoryResetGate(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
+      showIncompleteResetWarning()
       return
     }
 
@@ -253,9 +257,26 @@ export function runFactoryResetGate(): void {
     wipeNonCriticalExtras()
 
     if (failures.length > 0) {
-      logger.error('Factory reset pass had critical failures — marker kept pending for a retry on next boot', {
+      // Never boot into a writable state on a pending marker: data the user
+      // creates in a half-wiped app would be deleted by the retry pass on
+      // the next start (#17138 review).
+      if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
+        logger.error('Factory reset pass had critical failures — relaunching to retry in preboot', { failures })
+        // app.relaunch + app.exit (not application.*): no before-quit
+        // handlers may write files after the wipe.
+        app.relaunch()
+        app.exit(1)
+        return
+      }
+      // Out of attempts: give up NOW instead of leaving the marker pending.
+      // The clear rides flush() — a lost write is re-cleared by the cap
+      // path on the next boot without another destructive pass.
+      logger.error('Factory reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
+      resetBootConfigToDefaults()
+      bootConfigService.flush()
+      showIncompleteResetWarning()
       return
     }
 
@@ -331,6 +352,21 @@ function decideWipeMode(userData: string): WipeMode {
   // boot-config.json — the marker included — down with it.
   if (normalized === path.resolve(CHERRY_HOME)) return 'owned-manifest'
   return 'tree'
+}
+
+/**
+ * Tell the user the reset gave up with data left behind. Shown
+ * synchronously before any window exists — Electron supports showErrorBox
+ * pre-ready. Hardcoded English like the gate's other dialog: preboot runs
+ * before main-process i18n is initialized.
+ */
+function showIncompleteResetWarning(): void {
+  dialog.showErrorBox(
+    'Factory Reset Incomplete',
+    'Cherry Studio could not remove some of its data during the factory reset.\n\n' +
+      'The app will start with whatever remains. ' +
+      'Please check file permissions (or antivirus locks) and run Factory Reset again from Settings.'
+  )
 }
 
 /** Reset every BootConfig key to its default except the data-dir location. */

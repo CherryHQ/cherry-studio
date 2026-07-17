@@ -144,7 +144,10 @@ preboot/
 │                        (cap 2; a pass never runs on unrecorded accounting,
 │                        and retries reuse the recorded mode because the pass
 │                        deletes the sentinel it derives from), critical
-│                        delete failures keep it pending, and the
+│                        delete failures relaunch straight back into preboot
+│                        to retry — never a writable app on a pending marker
+│                        — with the cap turning that into give-up: marker
+│                        cleared, user warned, boot continues. The
 │                        completed-wipe marker clear is a HARD persist — if
 │                        that write fails the gate quits rather than arm a
 │                        re-wipe of freshly created data.

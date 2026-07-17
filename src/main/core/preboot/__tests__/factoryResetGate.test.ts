@@ -19,6 +19,7 @@ const APP_TEMP = '/mock/tmp/CherryStudio'
 const OVMS_DIR = `${CHERRY_HOME}/ovms/ovms`
 
 const appExitMock = vi.fn()
+const appRelaunchMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const rmSyncMock = vi.fn()
 const mkdirSyncMock = vi.fn()
@@ -42,7 +43,8 @@ function stubElectron(userData: string = USER_DATA) {
     __esModule: true,
     app: {
       getPath: vi.fn((key: string) => (key === 'userData' ? userData : '/mock/unknown')),
-      exit: appExitMock
+      exit: appExitMock,
+      relaunch: appRelaunchMock
     },
     dialog: { showErrorBox: showErrorBoxMock }
   }))
@@ -246,7 +248,7 @@ describe('runFactoryResetGate', () => {
     expect(appExitMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the marker pending (attempts incremented) when a critical entry fails to delete', async () => {
+  it('relaunches into a preboot retry (marker pending, never a writable app) when a critical entry fails to delete', async () => {
     const store = stubBootConfig(pendingMarker())
     stubFs(FULL_LISTINGS)
     rmSyncMock.mockImplementation((target: string) => {
@@ -261,6 +263,29 @@ describe('runFactoryResetGate', () => {
     // (the durable attempt increment), never for a completion the pass didn't earn.
     expect(store['app.disable_hardware_acceleration']).toBe(true)
     expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+    // Booting on would open a data-loss window: anything the user creates in
+    // the half-wiped app gets deleted by the retry pass (#17138 review).
+    expect(appRelaunchMock).toHaveBeenCalled()
+    expect(appExitMock).toHaveBeenCalledWith(1)
+  })
+
+  it('gives up at the attempt cap on a failing pass: marker cleared, user warned, no relaunch', async () => {
+    const store = stubBootConfig(pendingMarker({ attempts: 1, mode: 'tree' }))
+    stubFs(FULL_LISTINGS)
+    rmSyncMock.mockImplementation((target: string) => {
+      if (target === `${USER_DATA}/cherrystudio.sqlite`) throw new Error('EPERM: operation not permitted')
+    })
+
+    const run = await importGate()
+    run()
+
+    // The final allowed pass failed — relaunching again would only make the
+    // next boot's cap check give up anyway, so give up here and say so.
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(appExitMock).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(store['temp.factory_reset']).toBeNull()
+    expect(bootConfigFlushMock).toHaveBeenCalled()
   })
 
   it('treats a failed OVMS registry removal as critical — the marker stays pending', async () => {
@@ -278,6 +303,7 @@ describe('runFactoryResetGate', () => {
     // boot still loads the user's model setup (#17138 review).
     expect(store['temp.factory_reset']).toEqual(pendingMarker({ attempts: 1, mode: 'tree' }))
     expect(store['app.disable_hardware_acceleration']).toBe(true)
+    expect(appRelaunchMock).toHaveBeenCalled()
   })
 
   it('skips the destructive pass entirely when the attempt count cannot be durably recorded', async () => {
@@ -310,7 +336,7 @@ describe('runFactoryResetGate', () => {
     expect(store['temp.factory_reset']).toBeNull()
   })
 
-  it('abandons a marker at the attempt cap without wiping again', async () => {
+  it('abandons a marker at the attempt cap without wiping again, warning the user', async () => {
     const store = stubBootConfig(pendingMarker({ attempts: 2 }))
     stubFs(FULL_LISTINGS)
 
@@ -320,6 +346,9 @@ describe('runFactoryResetGate', () => {
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(store['temp.factory_reset']).toBeNull()
     expect(bootConfigFlushMock).toHaveBeenCalled()
+    // A crash-mid-pass lands here on the next boot — the user asked for a
+    // reset and must hear that it gave up, not infer it from leftover data.
+    expect(showErrorBoxMock).toHaveBeenCalled()
   })
 
   it('quits instead of booting when the marker cannot be durably cleared after a clean wipe', async () => {
