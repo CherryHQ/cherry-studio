@@ -14,7 +14,7 @@ interface ClassicLayoutRightPaneOpenOptions {
 type ClassicLayoutPaneOpenSetter = (open: boolean, options?: { force?: boolean }) => void
 
 /**
- * Classic-layout right-pane state, cached independently for Chat and Agent. A null value delegates
+ * Classic-layout right-pane state, cached independently for Chat and Agent. A null override delegates
  * to the page's position-derived default; an explicit boolean preserves the user's choice across page
  * re-entry. Outside classic layout the pane is derived closed and normal writes are ignored.
  */
@@ -22,13 +22,13 @@ export function useClassicLayoutRightPaneOpen(
   surface: 'chat' | 'agent',
   { enabled, defaultOpen }: ClassicLayoutRightPaneOpenOptions
 ): readonly [boolean, ClassicLayoutPaneOpenSetter] {
-  const [stored, setStored] = usePersistCache(RIGHT_PANE_OPEN_CACHE_KEY[surface])
-  const paneOpen = enabled && (stored ?? defaultOpen)
+  const [storedOverride, setStoredOverride] = usePersistCache(RIGHT_PANE_OPEN_CACHE_KEY[surface])
+  const paneOpen = enabled && (storedOverride ?? defaultOpen)
   const setPaneOpen = useCallback<ClassicLayoutPaneOpenSetter>(
     (open, options) => {
-      if (enabled || options?.force) setStored(open)
+      if (enabled || options?.force) setStoredOverride(open)
     },
-    [enabled, setStored]
+    [enabled, setStoredOverride]
   )
 
   return [paneOpen, setPaneOpen] as const
