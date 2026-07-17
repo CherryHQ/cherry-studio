@@ -4,6 +4,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
+import { uiTokens } from '@renderer/utils/uiContract'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -322,6 +323,11 @@ const MessageGroup = ({
       const messageContent = (
         <MessageWrapper
           id={`message-${message.id}`}
+          data-ui={uiTokens('chat.message', {
+            modes: [multiModelMessageStyle],
+            scopes: [`message:${message.id}`, `topic:${topic.id}`],
+            states: [message.role, message.status, message.id === selectedMessageId && 'selected']
+          })}
           key={message.id}
           className={classNames([
             {
@@ -344,6 +350,11 @@ const MessageGroup = ({
             trigger={gridPopoverTrigger}
             content={
               <MessageWrapper
+                data-ui={uiTokens('chat.message', {
+                  modes: [multiModelMessageStyle, 'popover'],
+                  scopes: [`message:${message.id}`, `topic:${topic.id}`],
+                  states: [message.role, message.status, message.id === selectedMessageId && 'selected']
+                })}
                 className={classNames([
                   'in-popover',
                   {
@@ -381,6 +392,11 @@ const MessageGroup = ({
   return (
     <GroupContainer
       id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
+      data-ui={uiTokens('chat.message.group', {
+        modes: [multiModelMessageStyle],
+        scopes: [`group:${messages[0].parentId ?? messages[0].id}`, `topic:${topic.id}`],
+        states: [isGrouped && 'grouped', isMultiSelectMode && 'multi-select']
+      })}
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
         $count={messageLength}

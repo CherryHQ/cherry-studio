@@ -1,0 +1,145 @@
+import { resolve } from 'node:path'
+
+import type { Plugin } from 'vite'
+
+import { readRegistry, reconcileRegistry, registryNodeMap, serializeRegistry } from './registry'
+import { isUiSourceFile, scanUiSources, windowNameFromHtml } from './scan'
+import { normalizeSourceFile } from './semanticId'
+import { transformHtml, transformJsx } from './transform'
+import { UI_CONTRACT_VERSION, type UiContractManifest, type UiContractManifestNode } from './types'
+
+export interface UiContractPluginOptions {
+  manifestFileName?: string
+  root?: string
+}
+
+export function uiContractPlugin(options: UiContractPluginOptions = {}): Plugin {
+  const root = resolve(options.root ?? process.cwd())
+  const manifestFileName = options.manifestFileName ?? 'ui-contract.json'
+  let command: 'build' | 'serve' = 'serve'
+  let contractByAnchor = new Map<string, { id: string; semanticId: string }>()
+  let warnedAboutProvisionalId = false
+  const manifestNodes = new Map<string, UiContractManifestNode>()
+
+  return {
+    name: 'cherry-ui-contract',
+    enforce: 'pre',
+    configResolved(config) {
+      command = config.command
+    },
+    async buildStart() {
+      const previous = await readRegistry(root)
+      contractByAnchor = registryNodeMap(previous)
+      if (command === 'serve') return
+
+      const descriptors = await scanUiSources(root)
+      const expected = reconcileRegistry(previous, descriptors)
+      contractByAnchor = registryNodeMap(expected)
+
+      if (serializeRegistry(previous) !== serializeRegistry(expected)) {
+        const message = 'UI contract registry is stale. Run `pnpm ui:contract:sync` and commit the result.'
+        this.error(message)
+      }
+    },
+    transform(source, id) {
+      const file = id.split('?')[0]
+      if (!isUiSourceFile(file) || !/\.(?:jsx|tsx)$/.test(file)) return null
+      const sourceFile = normalizeSourceFile(root, file)
+      if (sourceFile.startsWith('../')) return null
+
+      const result = transformJsx(source, {
+        contractForDescriptor: (descriptor) => {
+          const registered = contractByAnchor.get(descriptor.anchorHash)
+          if (registered) return registered
+          if (!warnedAboutProvisionalId) {
+            this.warn('New UI nodes are using provisional IDs. Run `pnpm ui:contract:sync` before committing.')
+            warnedAboutProvisionalId = true
+          }
+          return {
+            id: `u${descriptor.anchorHash.slice(0, 7)}`,
+            semanticId: descriptor.semanticId
+          }
+        },
+        sourceFile
+      })
+      for (const descriptor of result.descriptors) {
+        const contract = contractByAnchor.get(descriptor.anchorHash)
+        if (contract) {
+          manifestNodes.set(descriptor.anchorHash, {
+            ...descriptor,
+            id: contract.id,
+            semanticId: contract.semanticId
+          })
+        }
+      }
+      return { code: result.code, map: result.map }
+    },
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html, context) {
+        if (!context.filename) return html
+        const sourceFile = normalizeSourceFile(root, context.filename)
+        const result = transformHtml(html, {
+          contractForDescriptor: (descriptor) => {
+            const registered = contractByAnchor.get(descriptor.anchorHash)
+            if (registered) return registered
+            if (!warnedAboutProvisionalId) {
+              this.warn('New UI nodes are using provisional IDs. Run `pnpm ui:contract:sync` before committing.')
+              warnedAboutProvisionalId = true
+            }
+            return {
+              id: `u${descriptor.anchorHash.slice(0, 7)}`,
+              semanticId: descriptor.semanticId
+            }
+          },
+          sourceFile,
+          windowName: windowNameFromHtml(sourceFile)
+        })
+        for (const descriptor of result.descriptors) {
+          const contract = contractByAnchor.get(descriptor.anchorHash)
+          if (contract) {
+            manifestNodes.set(descriptor.anchorHash, {
+              ...descriptor,
+              id: contract.id,
+              semanticId: contract.semanticId
+            })
+          }
+        }
+        return result.code
+      }
+    },
+    generateBundle() {
+      const nodes = [...manifestNodes.values()].sort((left, right) => left.id.localeCompare(right.id))
+      const components = [...new Set(nodes.map((node) => node.component))].sort()
+      const elements = [...new Set(nodes.map((node) => node.element))].sort()
+      const semantics = [...new Set(nodes.map((node) => node.semanticId))].sort()
+      const sources = [...new Set(nodes.map((node) => node.sourceFile))].sort()
+      const componentIndex = new Map(components.map((value, index) => [value, index]))
+      const elementIndex = new Map(elements.map((value, index) => [value, index]))
+      const semanticIndex = new Map(semantics.map((value, index) => [value, index]))
+      const sourceIndex = new Map(sources.map((value, index) => [value, index]))
+      const manifest: UiContractManifest = {
+        columns: ['id', 'semantic', 'element', 'source', 'offset', 'component', 'kind'],
+        components,
+        elements,
+        nodes: nodes.map((node) => [
+          node.id,
+          semanticIndex.get(node.semanticId)!,
+          elementIndex.get(node.element)!,
+          sourceIndex.get(node.sourceFile)!,
+          node.sourceOffset,
+          componentIndex.get(node.component)!,
+          node.kind === 'html' ? 0 : 1
+        ]),
+        semantics,
+        sources,
+        version: UI_CONTRACT_VERSION
+      }
+      this.emitFile({
+        fileName: manifestFileName,
+        source: JSON.stringify(manifest),
+        type: 'asset'
+      })
+    }
+  }
+}

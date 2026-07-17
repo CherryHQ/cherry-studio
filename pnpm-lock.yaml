@@ -881,6 +881,9 @@ importers:
       macos-release:
         specifier: ^3.4.0
         version: 3.4.0
+      magic-string:
+        specifier: 0.30.21
+        version: 0.30.21
       markdown-it:
         specifier: ^14.1.1
         version: 14.1.1
