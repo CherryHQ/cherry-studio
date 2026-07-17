@@ -2,6 +2,7 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import {
@@ -20,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
+import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport } from './PdfFileRangeTransport'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -43,12 +45,6 @@ interface PdfPageChangingEvent {
 
 interface PdfScaleChangingEvent {
   scale?: number
-}
-
-function toUint8Array(data: Uint8Array | ArrayBuffer | ArrayBufferView): Uint8Array {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
 }
 
 function isEffectiveBackground(value: string): boolean {
@@ -212,7 +208,23 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
 
   useEffect(() => {
     let cancelled = false
+    let failed = false
     let loadingTask: PDFDocumentLoadingTask | null = null
+    let rangeTransport: PdfFileRangeTransport | null = null
+
+    const failLoad = (error: unknown) => {
+      if (cancelled || failed) return
+      failed = true
+      rangeTransport?.abort()
+      if (loadingTask) {
+        destroyLoadingTask(loadingTask, filePath)
+        loadingTask = null
+      }
+      const normalized = error instanceof Error ? error : new Error(String(error))
+      logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
+      setDocumentProxy(null)
+      setStatus('error')
+    }
 
     setDocumentProxy(null)
     setStatus('loading')
@@ -222,28 +234,30 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
 
     void (async () => {
       try {
-        const pdfData = toUint8Array(await window.api.fs.read(filePath))
+        const handle = createFilePathHandle(filePath)
+        const metadata = await window.api.file.getMetadata(handle)
         if (cancelled) return
 
-        loadingTask = getDocument({ data: pdfData })
+        rangeTransport = new PdfFileRangeTransport(handle, metadata.size, failLoad)
+        loadingTask = getDocument({
+          range: rangeTransport,
+          rangeChunkSize: PDF_RANGE_CHUNK_SIZE_BYTES,
+          disableAutoFetch: true,
+          disableStream: true
+        })
         const nextDocument = await loadingTask.promise
-        if (cancelled) return
+        if (cancelled || failed) return
 
         setDocumentProxy(nextDocument)
       } catch (error) {
-        if (cancelled) return
-        if (loadingTask) {
-          destroyLoadingTask(loadingTask, filePath)
-          loadingTask = null
-        }
-        const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
-        setStatus('error')
+        failLoad(error)
       }
     })()
 
     return () => {
       cancelled = true
+      rangeTransport?.abort()
+      rangeTransport = null
       if (loadingTask) {
         destroyLoadingTask(loadingTask, filePath)
         loadingTask = null
