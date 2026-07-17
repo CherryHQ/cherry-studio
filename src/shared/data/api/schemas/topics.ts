@@ -8,8 +8,8 @@
 import * as z from 'zod'
 
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
-import type { CursorPaginationResponse } from '../types'
-import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
+import type { AnchorWindowResponse, CursorPaginationResponse } from '../types'
+import { ConcreteOrderRequestSchema, type OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -42,14 +42,12 @@ export const UpdateTopicSchema = TopicSchema.pick({
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
- * Move a topic to a new owner and (optionally) a new position in the one global
- * topic order. `order` is optional — omit it to change ownership only (the
- * existing `orderKey` is preserved). For a `before`/`after` anchor the
- * referenced topic must already belong to the target `assistantId`.
+ * Atomically move a topic to a live Assistant at one concrete visible-neighbour
+ * position. Ownership-only changes continue to use `PATCH /topics/:id`.
  */
 export const MoveTopicSchema = z.strictObject({
-  assistantId: z.uuidv4().nullable(),
-  order: OrderRequestSchema.optional()
+  assistantId: z.uuidv4(),
+  order: ConcreteOrderRequestSchema
 })
 export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
@@ -66,10 +64,10 @@ export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
  * Sort profiles for `GET /topics`. Direction is derived
  * server-side from the profile — there is no caller-controlled `sortOrder`:
  * - `createdAt` → creation order (`createdAt DESC, id ASC`)
- * - `updatedAt` → activity order (`updatedAt DESC, id ASC`)
+ * - `lastActivityAt` → activity order (`lastActivityAt DESC, id ASC`)
  * - `orderKey` → manual drag order (`orderKey ASC, id ASC`)
  */
-export const TopicSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
+export const TopicSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
 export type TopicSortBy = z.infer<typeof TopicSortBySchema>
 
 /**
@@ -87,8 +85,8 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  * Query parameters for `GET /topics`.
  *
  * Two independent streams that never mix in one response or cursor:
- * - `pinned=true` → pin-owned stream ordered by `pin.orderKey DESC, id ASC`,
- *   so newly appended pins appear first; `sortBy` is ignored on this path.
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
+ *   PinService inserts new pins first and `sortBy` is ignored on this path.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
  *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
@@ -106,14 +104,17 @@ export const ListTopicsQuerySchema = z.strictObject({
   searchScope: TopicSearchScopeSchema.optional(),
   /** Sort profile for the ordinary stream; defaults to `createdAt`. Ignored when `pinned=true`. */
   sortBy: TopicSortBySchema.optional(),
-  /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */
+  /** Owner scope: concrete live assistant id, or 'unlinked' (no live assistant). */
   assistantId: TopicOwnerScopeSchema.optional(),
   /** true → pin-owned stream; false → ordinary stream excluding pinned rows. */
-  pinned: z.boolean(),
-  /** Bounded explicit id filter for locating known topic rows. */
-  ids: z.array(z.string().min(1)).min(1).max(200).optional()
+  pinned: z.boolean()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+export const TopicWindowQuerySchema = ListTopicsQuerySchema.omit({ cursor: true, pinned: true }).extend({
+  anchorId: z.string().min(1)
+})
+export type TopicWindowQuery = z.infer<typeof TopicWindowQuerySchema>
 
 /** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
 export const LatestTopicQuerySchema = z.strictObject({
@@ -201,10 +202,12 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the most-recently-updated topic in the requested scope, or `null`. */
+/** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {
   topic: Topic | null
 }
+
+export type TopicWindowResponse = AnchorWindowResponse<TopicListItem>
 
 const DeleteTopicsIdsQueryValueSchema = z
   .string()
@@ -245,7 +248,7 @@ export type TopicSchemas = {
      * List topics with cursor pagination + optional name search.
      *
      * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
-     * pages the pin-owned band by `pin.orderKey DESC, id ASC`; `pinned=false`
+     * pages the pin-owned band by `pin.orderKey ASC, id ASC`; `pinned=false`
      * pages the ordinary band by `sortBy` (default `createdAt`) with a
      * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
      */
@@ -272,9 +275,9 @@ export type TopicSchemas = {
   }
 
   /**
-   * Most-recently-updated topic, globally or within one owner scope.
+   * Most-recently-active topic, globally or within one owner scope.
    *
-   * First-entry restore reads this to resume the last-touched conversation.
+   * First-entry restore reads this to resume the most-recently-active conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `latest` is never mistaken for a topic id. Omitting `assistantId` proves
    * global latest; a concrete id or `unlinked` restricts the lookup.
@@ -285,6 +288,13 @@ export type TopicSchemas = {
     GET: {
       query?: LatestTopicQuery
       response: LatestTopicResponse
+    }
+  }
+
+  '/topics/window': {
+    GET: {
+      query: TopicWindowQuery
+      response: TopicWindowResponse
     }
   }
 

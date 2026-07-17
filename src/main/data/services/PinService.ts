@@ -84,8 +84,8 @@ export class PinService {
    * (entityType, entityId) return the same row; two concurrent calls also
    * converge to one row without leaking a UNIQUE violation to the caller.
    *
-   * Strategy: fast-path SELECT first; if nothing is there, INSERT with scoped
-   * orderKey. Under concurrency the INSERT may race a peer's INSERT and hit
+   * Strategy: fast-path SELECT first; if nothing is there, INSERT first in the
+   * scoped order. Under concurrency the INSERT may race a peer's INSERT and hit
    * the UNIQUE(entityType, entityId) index — in that case classify the error
    * as `unique` and re-SELECT to return the winner's row. Any non-UNIQUE
    * error is re-thrown unchanged.
@@ -111,6 +111,7 @@ export class PinService {
           { entityType: dto.entityType, entityId: dto.entityId },
           {
             pkColumn: pinTable.id,
+            position: 'first',
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )

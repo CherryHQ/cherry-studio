@@ -37,6 +37,13 @@ export const OrderRequestSchema = z.union([
 ])
 export type OrderRequest = z.infer<typeof OrderRequestSchema>
 
+/** Concrete visible-neighbour placement used by atomic cross-owner moves. */
+export const ConcreteOrderRequestSchema = z.union([
+  z.object({ before: z.string().min(1) }).strict(),
+  z.object({ after: z.string().min(1) }).strict()
+])
+export type ConcreteOrderRequest = z.infer<typeof ConcreteOrderRequestSchema>
+
 /**
  * Body shape for batch reorder endpoints.
  * Each move pairs a target item id with an `OrderRequest` anchor.

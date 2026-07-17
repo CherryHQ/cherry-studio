@@ -261,9 +261,25 @@ export interface OffsetPaginationResponse<T> {
 export interface CursorPaginationResponse<T> {
   /** Items for current page */
   items: T[]
+  /** Previous cursor (undefined means the window starts at the list head). */
+  previousCursor?: string
   /** Next cursor (undefined means no more data) */
   nextCursor?: string
 }
+
+export type ResourceListBand = 'pinned' | 'ordinary'
+
+export type AnchorWindowResponse<T> =
+  | {
+      status: 'FOUND'
+      items: T[]
+      anchorIndex: number
+      band: ResourceListBand
+      previousCursor?: string
+      nextCursor?: string
+    }
+  | { status: 'ANCHOR_OUTSIDE_QUERY' }
+  | { status: 'RECORD_UNAVAILABLE' }
 
 // ----- Type Utilities -----
 

@@ -26,6 +26,8 @@ import type {
   TopicSortBy,
   TopicStats,
   TopicStatsQuery,
+  TopicWindowQuery,
+  TopicWindowResponse,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -65,6 +67,7 @@ function rowToTopic(row: TopicRow): Topic {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -167,17 +170,11 @@ function topicCursorFamily(query: ListTopicsQuery, stream: 'pinned' | 'ordinary'
     sortBy: stream === 'ordinary' ? sortBy : undefined,
     q: query.q?.trim() || undefined,
     searchScope: query.searchScope ?? 'name',
-    assistantId: query.assistantId,
-    ids: query.ids ? [...query.ids].sort() : undefined
+    assistantId: query.assistantId
   })
 }
 
-function buildRecordFilters(query: {
-  q?: string
-  searchScope?: TopicSearchScope
-  assistantId?: string
-  ids?: string[]
-}): SQL[] {
+function buildRecordFilters(query: { q?: string; searchScope?: TopicSearchScope; assistantId?: string }): SQL[] {
   const filters: SQL[] = [isNull(topicTable.deletedAt)]
   const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
   if (search) filters.push(search)
@@ -188,7 +185,6 @@ function buildRecordFilters(query: {
     // Concrete owner scope matches live assistants only.
     filters.push(eq(assistantTable.id, query.assistantId))
   }
-  if (query.ids !== undefined) filters.push(inArray(topicTable.id, query.ids))
   return filters
 }
 
@@ -211,14 +207,14 @@ export class TopicService {
   }
 
   /**
-   * The single most-recently-updated non-deleted topic in the requested owner
+   * The single most-recently-active non-deleted topic in the requested owner
    * scope, or `null` when that scope is empty. Omitting the scope is global.
    *
-   * First-entry restore resumes the last-touched conversation. It cannot read the
+   * First-entry restore resumes the most-recently-active conversation. It cannot read the
    * regular first page of `listByCursor` for this because list order and pin
    * membership are independent of latest activity.
    */
-  getLatestUpdated(query: LatestTopicQuery = {}): Topic | null {
+  getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
     const filters = buildRecordFilters(query)
 
@@ -227,11 +223,50 @@ export class TopicService {
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
 
     return row ? rowToTopic(row.topic) : null
+  }
+
+  /** Monotonically advance a topic's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+    const updated = tx
+      .update(topicTable)
+      .set({ lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})` })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
+  }
+
+  /** Restore the exact activity invariant after content deletion or copying. */
+  recomputeLastActivityAtTx(tx: DbOrTx, topicId: string): void {
+    const [topic] = tx
+      .select({ createdAt: topicTable.createdAt })
+      .from(topicTable)
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+
+    const [activity] = tx
+      .select({
+        timestamp: sql<number | null>`max(case
+          when ${messageTable.role} = 'user' then ${messageTable.createdAt}
+          when ${messageTable.role} = 'assistant' then max(${messageTable.createdAt}, coalesce(${messageTable.terminalAt}, ${messageTable.createdAt}))
+          else null
+        end)`
+      })
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .all()
+
+    tx.update(topicTable)
+      .set({ lastActivityAt: activity?.timestamp ?? topic.createdAt })
+      .where(eq(topicTable.id, topicId))
+      .run()
   }
 
   ensureTraceId(topicId: string): string {
@@ -275,8 +310,14 @@ export class TopicService {
           scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
+      const [initializedTopicRow] = tx
+        .update(topicTable)
+        .set({ lastActivityAt: topicRow.createdAt })
+        .where(eq(topicTable.id, topicRow.id))
+        .returning()
+        .all()
       messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
+      return initializedTopicRow
     })
 
     logger.info('Created empty topic', { id: row.id })
@@ -315,6 +356,10 @@ export class TopicService {
           scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
+      tx.update(topicTable)
+        .set({ lastActivityAt: newTopicRow.createdAt })
+        .where(eq(topicTable.id, newTopicRow.id))
+        .run()
 
       // New topic is a creation path → create its virtual root before copying the path
       // (copyPathRowsTx reparents the copied head onto it).
@@ -327,6 +372,7 @@ export class TopicService {
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
+      this.recomputeLastActivityAtTx(tx, newTopicRow.id)
 
       const [updatedTopicRow] = tx
         .update(topicTable)
@@ -389,13 +435,8 @@ export class TopicService {
   }
 
   /**
-   * Move a topic: always updates ownership from `assistantId`; `order` is
-   * optional. With a `before`/`after` anchor the referenced topic must already
-   * belong to the target `assistantId`, and the row is repositioned in the one
-   * global `orderKey` sequence. Without `order` (e.g. a drop into an empty
-   * assistant group or with no concrete neighbor) only ownership changes and the
-   * existing `orderKey` is preserved. Everything runs in one write transaction,
-   * so a validation or ordering failure rolls back both ownership and order.
+   * Atomic cross-Assistant move with a required concrete visible-neighbour
+   * anchor. Ownership-only changes use the ordinary Topic PATCH contract.
    */
   move(id: string, dto: MoveTopicDto): void {
     return withSqliteErrors(
@@ -409,41 +450,36 @@ export class TopicService {
             .all()
           if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
-          if (dto.assistantId !== null) {
-            assertActiveAssistantTx(tx, dto.assistantId)
-          }
+          assertActiveAssistantTx(tx, dto.assistantId)
 
           // A concrete anchor must already own the same assistant as the move
           // target — the global order stays consistent with ownership.
-          if (dto.order && ('before' in dto.order || 'after' in dto.order)) {
-            const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
-            const [anchor] = tx
-              .select({ assistantId: topicTable.assistantId })
-              .from(topicTable)
-              .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
-              .limit(1)
-              .all()
-            if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
-            if (anchor.assistantId !== dto.assistantId) {
-              const message = 'move: anchor topic must belong to the target assistant'
-              throw DataApiErrorFactory.validation({ order: [message] }, message)
-            }
+          const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+          if (anchorId === id) {
+            const message = 'move: anchor topic must differ from the moved topic'
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
+          }
+          const [anchor] = tx
+            .select({ assistantId: topicTable.assistantId })
+            .from(topicTable)
+            .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
+          if (anchor.assistantId !== dto.assistantId) {
+            const message = 'move: anchor topic must belong to the target assistant'
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
           }
 
           tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
-          if (dto.order) {
-            applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
-              pkColumn: topicTable.id,
-              scope: TOPIC_ORDER_SCOPE
-            })
-          }
+          applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+            pkColumn: topicTable.id,
+            scope: TOPIC_ORDER_SCOPE
+          })
         }),
       {
         ...defaultHandlersFor('Topic', id),
-        foreignKey: () =>
-          dto.assistantId === null
-            ? DataApiErrorFactory.notFound('Topic', id)
-            : DataApiErrorFactory.notFound('Assistant', dto.assistantId)
+        foreignKey: () => DataApiErrorFactory.notFound('Assistant', dto.assistantId)
       } satisfies SqliteErrorHandlers
     )
   }
@@ -561,11 +597,11 @@ export class TopicService {
    * Two independent list streams — pinned and ordinary rows never mix in one
    * response or cursor:
    *
-   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey DESC,
-   *   topic.id ASC`, so newly appended pins appear first. This order is
+   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
+   *   topic.id ASC`. New pins are inserted at the front of that order. This is
    *   independent of `sortBy` (ignored on this path).
    * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
-   *   (`createdAt`/`updatedAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
+   *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
    *
    * Omitting `sortBy` defaults to `createdAt` — there is no legacy composite
@@ -578,18 +614,114 @@ export class TopicService {
     return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
   }
 
+  /** Return a real ordered window around one anchor without injecting an out-of-band row. */
+  getWindow(query: TopicWindowQuery): TopicWindowResponse {
+    const db = application.get('DbService').getDb()
+    const [anchor] = db
+      .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
+      .from(topicTable)
+      .leftJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
+      .where(and(eq(topicTable.id, query.anchorId), isNull(topicTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!anchor) return { status: 'RECORD_UNAVAILABLE' }
+
+    const [included] = db
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...buildRecordFilters(query), eq(topicTable.id, query.anchorId)))
+      .limit(1)
+      .all()
+    if (!included) return { status: 'ANCHOR_OUTSIDE_QUERY' }
+
+    const { anchorId: _anchorId, ...membership } = query
+    void _anchorId
+    const band = anchor.pinId ? 'pinned' : 'ordinary'
+    const sortBy = query.sortBy ?? 'createdAt'
+    const pageLimit = Math.max(1, (query.limit ?? DEFAULT_LIMIT) - 1)
+    const listQuery: ListTopicsQuery = { ...membership, limit: pageLimit, pinned: band === 'pinned' }
+    const family = topicCursorFamily(listQuery, band, band === 'ordinary' ? sortBy : undefined)
+    const anchorKey =
+      band === 'pinned'
+        ? anchor.pinOrderKey!
+        : sortBy === 'createdAt'
+          ? anchor.topic.createdAt
+          : sortBy === 'lastActivityAt'
+            ? anchor.topic.lastActivityAt
+            : anchor.topic.orderKey
+    const fetch = (direction: 'next' | 'previous') =>
+      band === 'pinned'
+        ? this.listPinnedByCursor({
+            ...listQuery,
+            cursor: encodeFamilyCursor(family, anchorKey, anchor.topic.id, direction)
+          })
+        : this.listOrdinaryByCursor(
+            {
+              ...listQuery,
+              cursor: encodeFamilyCursor(family, anchorKey, anchor.topic.id, direction)
+            },
+            sortBy
+          )
+    const beforePage = fetch('previous')
+    const afterPage = fetch('next')
+
+    const surroundingLimit = Math.max(0, (query.limit ?? DEFAULT_LIMIT) - 1)
+    let beforeCount = Math.min(beforePage.items.length, Math.floor(surroundingLimit / 2))
+    const afterCount = Math.min(afterPage.items.length, surroundingLimit - beforeCount)
+    beforeCount = Math.min(beforePage.items.length, surroundingLimit - afterCount)
+    const beforeItems = beforeCount > 0 ? beforePage.items.slice(-beforeCount) : []
+    const afterItems = afterPage.items.slice(0, afterCount)
+    const anchorItem = toTopicListItem(rowToTopic(anchor.topic), anchor.pinId)
+    const items = [...beforeItems, anchorItem, ...afterItems]
+
+    const hasPrevious = beforePage.items.length > beforeCount || beforePage.previousCursor !== undefined
+    const hasNext = afterPage.items.length > afterCount || afterPage.nextCursor !== undefined
+    const boundaryKey = (item: TopicListItem): string | number => {
+      if (band === 'ordinary') {
+        return sortBy === 'createdAt'
+          ? Date.parse(item.createdAt)
+          : sortBy === 'lastActivityAt'
+            ? Date.parse(item.lastActivityAt)
+            : item.orderKey
+      }
+      if (item.id === anchor.topic.id) return anchor.pinOrderKey!
+      const [pin] = db
+        .select({ orderKey: pinTable.orderKey })
+        .from(pinTable)
+        .where(and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, item.id)))
+        .limit(1)
+        .all()
+      if (!pin) throw DataApiErrorFactory.notFound('Pin', item.id)
+      return pin.orderKey
+    }
+    const first = items[0]
+    const last = items[items.length - 1]
+
+    return {
+      status: 'FOUND',
+      items,
+      anchorIndex: beforeItems.length,
+      band,
+      previousCursor: hasPrevious ? encodeFamilyCursor(family, boundaryKey(first), first.id, 'previous') : undefined,
+      nextCursor: hasNext ? encodeFamilyCursor(family, boundaryKey(last), last.id) : undefined
+    }
+  }
+
   /**
-   * Pinned-only page. Reverse-scans the persisted pin order so newly appended
-   * pins appear first, and deliberately ignores `query.sortBy`.
+   * Pinned-only page in persisted manual order. New pins are inserted first by
+   * PinService, and this read deliberately ignores `query.sortBy`.
    */
   private listPinnedByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const filters = buildRecordFilters(query)
     const family = topicCursorFamily(query, 'pinned')
-    const { where, orderBy } = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'desc', tie: 'asc' })
+    const forward = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const backward = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'desc', tie: 'desc' })
     const cursor = decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-pinned')
-    if (cursor) filters.push(where(cursor))
+    const ordering = cursor?.direction === 'previous' ? backward : forward
+    if (cursor) filters.push(ordering.where(cursor))
 
     const rows = db
       .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
@@ -597,26 +729,32 @@ export class TopicService {
       .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(...orderBy)
+      .orderBy(...ordering.orderBy)
       .limit(limit + 1)
       .all()
 
     const hasMore = rows.length > limit
     const pageRows = rows.slice(0, limit)
+    if (cursor?.direction === 'previous') pageRows.reverse()
+    const first = pageRows[0]
     const last = pageRows[pageRows.length - 1]
+    const hasPrevious = cursor?.direction === 'previous' ? hasMore : cursor !== null
+    const hasNext = cursor?.direction === 'previous' ? cursor !== null : hasMore
 
     return {
       items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
-      nextCursor: hasMore ? encodeFamilyCursor(family, last.pinOrderKey, last.topic.id) : undefined
+      previousCursor:
+        hasPrevious && first ? encodeFamilyCursor(family, first.pinOrderKey, first.topic.id, 'previous') : undefined,
+      nextCursor: hasNext && last ? encodeFamilyCursor(family, last.pinOrderKey, last.topic.id) : undefined
     }
   }
 
   /**
    * Flat single-stream page: `createdAt` → immutable creation
-   * order, `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey`
+   * order, `lastActivityAt` → activity order (both `DESC, id ASC`), and `orderKey`
    * → manual order (`ASC, id ASC`). Cursor is the shared `(sortValue, id)`
    * tuple codec; a value cursor stays valid when its anchor row is deleted.
-   * Mutating `updatedAt` or `orderKey` between page requests may move a row
+   * Mutating `lastActivityAt` or `orderKey` between page requests may move a row
    * across the boundary; callers restart pagination after local mutations that
    * affect either sort key.
    */
@@ -629,15 +767,19 @@ export class TopicService {
     filters.push(notInArray(topicTable.id, pinnedSubquery))
 
     const family = topicCursorFamily(query, 'ordinary', sortBy)
-    const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'
-    const timestampColumn = sortBy === 'createdAt' ? topicTable.createdAt : topicTable.updatedAt
-    const { where, orderBy } = isTimestampSort
+    const isTimestampSort = sortBy === 'createdAt' || sortBy === 'lastActivityAt'
+    const timestampColumn = sortBy === 'createdAt' ? topicTable.createdAt : topicTable.lastActivityAt
+    const forward = isTimestampSort
       ? keysetOrdering(timestampColumn, topicTable.id, { major: 'desc', tie: 'asc' })
       : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const backward = isTimestampSort
+      ? keysetOrdering(timestampColumn, topicTable.id, { major: 'asc', tie: 'desc' })
+      : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'desc', tie: 'desc' })
     const cursor = isTimestampSort
       ? decodeFamilyCursor(query.cursor, family, asNumericKey, 'topics-flat')
       : decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-flat')
-    if (cursor) filters.push(where(cursor))
+    const ordering = cursor?.direction === 'previous' ? backward : forward
+    if (cursor) filters.push(ordering.where(cursor))
 
     const rows = db
       .select({ topic: topicTable, pinId: pinTable.id })
@@ -645,27 +787,30 @@ export class TopicService {
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(...orderBy)
+      .orderBy(...ordering.orderBy)
       .limit(limit + 1)
       .all()
 
     const hasMore = rows.length > limit
     const pageRows = rows.slice(0, limit)
+    if (cursor?.direction === 'previous') pageRows.reverse()
+    const first = pageRows[0]
     const last = pageRows[pageRows.length - 1]
-    const nextCursor = hasMore
-      ? encodeFamilyCursor(
-          family,
-          sortBy === 'createdAt'
-            ? last.topic.createdAt
-            : sortBy === 'updatedAt'
-              ? last.topic.updatedAt
-              : last.topic.orderKey,
-          last.topic.id
-        )
-      : undefined
+    const hasPrevious = cursor?.direction === 'previous' ? hasMore : cursor !== null
+    const hasNext = cursor?.direction === 'previous' ? cursor !== null : hasMore
+    const getSortValue = (row: (typeof pageRows)[number]) =>
+      sortBy === 'createdAt'
+        ? row.topic.createdAt
+        : sortBy === 'lastActivityAt'
+          ? row.topic.lastActivityAt
+          : row.topic.orderKey
+    const previousCursor =
+      hasPrevious && first ? encodeFamilyCursor(family, getSortValue(first), first.topic.id, 'previous') : undefined
+    const nextCursor = hasNext && last ? encodeFamilyCursor(family, getSortValue(last), last.topic.id) : undefined
 
     return {
       items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
+      previousCursor,
       nextCursor
     }
   }

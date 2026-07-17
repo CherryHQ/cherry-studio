@@ -46,24 +46,16 @@ describe('UpdateTopicSchema', () => {
 })
 
 describe('MoveTopicSchema', () => {
-  it('requires an owner but allows order to be omitted (ownership-only move)', () => {
-    expect(MoveTopicSchema.parse({ assistantId: null, order: { before: 'topic-2' } })).toEqual({
-      assistantId: null,
+  it('requires a live-owner id and one concrete visible-neighbour anchor', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(MoveTopicSchema.parse({ assistantId, order: { before: 'topic-2' } })).toEqual({
+      assistantId,
       order: { before: 'topic-2' }
     })
-    // order is optional — omitting it changes ownership only and preserves orderKey.
-    expect(MoveTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
-    // assistantId is still required.
-    expect(() => MoveTopicSchema.parse({ order: { position: 'first' } })).toThrow()
-  })
-
-  it('accepts UUID owners and rejects malformed owner ids', () => {
-    const assistantId = '11111111-1111-4111-8111-111111111111'
-    expect(MoveTopicSchema.parse({ assistantId, order: { position: 'last' } })).toEqual({
-      assistantId,
-      order: { position: 'last' }
-    })
-    expect(() => MoveTopicSchema.parse({ assistantId: 'assistant-1', order: { position: 'last' } })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId: null, order: { before: 'topic-2' } })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId, order: { position: 'last' } })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId: 'assistant-1', order: { after: 'topic-2' } })).toThrow()
   })
 })
 
@@ -77,9 +69,13 @@ describe('ListTopicsQuerySchema', () => {
     expect(() => ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toThrow()
   })
 
-  it.each([{ assistantId: 'unlinked' }, { ids: ['t1'] }])('accepts record filter %j without sortBy', (filter) => {
+  it.each([{ assistantId: 'unlinked' }])('accepts record filter %j without sortBy', (filter) => {
     expect(ListTopicsQuerySchema.parse({ pinned: false, ...filter })).toMatchObject(filter)
-    expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
+    expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', ...filter })).toMatchObject(filter)
+  })
+
+  it('rejects the removed bounded-id filter', () => {
+    expect(() => ListTopicsQuerySchema.parse({ pinned: false, ids: ['t1'] })).toThrow(/unrecognized/i)
   })
 
   it('accepts immutable creation order and rejects an unknown sortBy value or non-uuid owner scope', () => {
@@ -89,7 +85,7 @@ describe('ListTopicsQuerySchema', () => {
     })
     expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'name' })).toThrow()
     expect(() =>
-      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'updatedAt', assistantId: 'not-a-uuid' })
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', assistantId: 'not-a-uuid' })
     ).toThrow()
   })
 
@@ -104,7 +100,9 @@ describe('ListTopicsQuerySchema', () => {
   })
 
   it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
-    expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'updatedAt', [key]: 1 })).toThrow(/unrecognized/i)
+    expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', [key]: 1 })).toThrow(
+      /unrecognized/i
+    )
     expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
@@ -113,8 +111,8 @@ describe('ListTopicsQuerySchema', () => {
       pinned: true,
       assistantId: 'unlinked'
     })
-    expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', pinned: true })).toEqual({
-      sortBy: 'updatedAt',
+    expect(ListTopicsQuerySchema.parse({ sortBy: 'lastActivityAt', pinned: true })).toEqual({
+      sortBy: 'lastActivityAt',
       pinned: true
     })
     expect(() => ListTopicsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
@@ -139,7 +137,7 @@ describe('TopicStatsQuerySchema', () => {
   it('rejects cursor/limit/sortBy/pinned — stats take record filters only', () => {
     expect(() => TopicStatsQuerySchema.parse({ cursor: 'x' })).toThrow()
     expect(() => TopicStatsQuerySchema.parse({ limit: 10 })).toThrow()
-    expect(() => TopicStatsQuerySchema.parse({ sortBy: 'updatedAt' })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ sortBy: 'lastActivityAt' })).toThrow()
     expect(() => TopicStatsQuerySchema.parse({ pinned: true })).toThrow()
   })
 

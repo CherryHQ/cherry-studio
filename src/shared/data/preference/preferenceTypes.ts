@@ -84,7 +84,7 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
-export type TopicSessionSortBy = 'updatedAt' | 'createdAt' | 'orderKey'
+export type TopicSessionSortBy = 'lastActivityAt' | 'createdAt' | 'orderKey'
 
 export type TopicTabPosition = 'left' | 'right'
 

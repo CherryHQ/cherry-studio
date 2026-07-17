@@ -12,7 +12,7 @@ import {
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
-import type { CursorPaginationResponse } from '../types'
+import type { AnchorWindowResponse, CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import {
   type AgentSessionWorkspaceSource,
@@ -103,8 +103,9 @@ export const AgentSessionEntitySchema = z.strictObject({
   /** Container-level OTel trace id — one trace tree per session. */
   traceId: TraceIdSchema.optional(),
   orderKey: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string()
+  lastActivityAt: z.iso.datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
@@ -154,11 +155,11 @@ export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceSco
 /**
  * Sort profiles for `GET /agent-sessions`. Direction is derived
  * server-side: `createdAt` → creation order (`createdAt DESC, id ASC`),
- * `updatedAt` → activity (`updatedAt DESC, id ASC`), `orderKey` → manual drag
+ * `lastActivityAt` → activity (`lastActivityAt DESC, id ASC`), `orderKey` → manual drag
  * order (`orderKey ASC, id ASC`). A pinned-only query uses the independent
- * `pin.orderKey DESC, id ASC` order instead, so newly appended pins appear first.
+ * `pin.orderKey ASC, id ASC` order instead; PinService inserts new pins first.
  */
-export const AgentSessionSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
+export const AgentSessionSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
 export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 
 /**
@@ -174,8 +175,8 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * Query for `GET /agent-sessions`.
  *
  * Two independent streams that never mix in one response or cursor:
- * - `pinned=true` → pin-owned stream ordered by `pin.orderKey DESC, id ASC`,
- *   so newly appended pins appear first; `sortBy` is ignored on this path.
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
+ *   PinService inserts new pins first and `sortBy` is ignored on this path.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
  *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
@@ -184,7 +185,7 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * stable workspace id; path remains presentation metadata.
  */
 export const ListAgentSessionsQuerySchema = z.strictObject({
-  /** Owner scope: concrete agent id, or 'unlinked' (`agentId IS NULL`). */
+  /** Owner scope: concrete live agent id, or 'unlinked' (no live agent). */
   agentId: AgentSessionOwnerScopeSchema.optional(),
   /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
   cursor: z.string().optional(),
@@ -198,17 +199,21 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
   searchScope: AgentSessionSearchScopeSchema.optional(),
   /** true → pin-owned stream; false → ordinary stream excluding pinned rows. */
   pinned: z.boolean(),
-  /** Bounded explicit id filter for locating known session rows. */
-  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
   workspaceId: AgentSessionWorkspaceScopeSchema.optional()
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
-/** Optional concrete owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
+export const AgentSessionWindowQuerySchema = ListAgentSessionsQuerySchema.omit({ cursor: true, pinned: true }).extend({
+  anchorId: z.string().min(1)
+})
+export type AgentSessionWindowQueryParams = z.input<typeof AgentSessionWindowQuerySchema>
+export type AgentSessionWindowQuery = z.output<typeof AgentSessionWindowQuerySchema>
+
+/** Optional live or unlinked owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
-  agentId: z.uuidv4().optional()
+  agentId: AgentSessionOwnerScopeSchema.optional()
 })
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 
@@ -242,10 +247,12 @@ export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
-/** Response for `GET /agent-sessions/latest` — the most-recently-updated session in the requested scope, or `null`. */
+/** Response for `GET /agent-sessions/latest` — the most-recently-active session in the requested scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
+
+export type AgentSessionWindowResponse = AnchorWindowResponse<AgentSessionListItem>
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
 
@@ -293,18 +300,25 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Most-recently-updated session, globally or within one live agent scope.
+   * Most-recently-active session, globally or within one live/unlinked agent scope.
    *
-   * First-entry restore reads this to resume the last-touched session. Declared
+   * First-entry restore reads this to resume the most-recently-active session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`; passing `agentId` restricts the lookup to that
-   * live agent.
+   * `lastActivityAt DESC LIMIT 1`; passing `agentId` restricts the lookup to that
+   * live agent or the unlinked pseudo-owner scope.
    */
   '/agent-sessions/latest': {
     GET: {
       query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
+    }
+  }
+
+  '/agent-sessions/window': {
+    GET: {
+      query: AgentSessionWindowQueryParams
+      response: AgentSessionWindowResponse
     }
   }
 

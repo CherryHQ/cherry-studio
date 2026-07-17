@@ -387,6 +387,6 @@ Resource design (API shape, consumer-side `groupId` linkage) is documented on `G
 
 ## 10. Pin Ordering
 
-`pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. Fresh pins append to the scope's persisted order. The raw `/pins` list reads that order ascending; Topic and Agent Session `pinned=true` streams intentionally scan it descending so a newly pinned row appears on the first page. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
+`pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. Fresh Topic and Agent Session pins are inserted first in the persisted sequence, and pinned list streams read that sequence ascending. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
 
 Resource design (polymorphic `(entityType, entityId)` shape, idempotent concurrent-safe `pin()`, `purgeForEntityTx` delete contract, hard-delete-on-unpin) is documented on `pin.ts` schema and `PinService` — not here.

@@ -25,6 +25,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { messageService } from './MessageService'
+import { getMessageActivityTimestamp, resolveResponseTerminalAt } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -37,27 +38,32 @@ const ACCEPTED_STATUSES: readonly MessageStatus[] = ['success', 'error', 'paused
  * DB's `integer()` column type. Converted to ISO strings at the service
  * boundary so callers see `Topic` / `Message` contract unchanged.
  */
-type TemporaryTopicRow = Omit<Topic, 'createdAt' | 'updatedAt'> & {
+type TemporaryTopicRow = Omit<Topic, 'createdAt' | 'lastActivityAt' | 'updatedAt'> & {
   createdAt: number
+  lastActivityAt: number
   updatedAt: number
 }
 
 type TemporaryMessageRow = Omit<Message, 'createdAt' | 'updatedAt'> & {
   createdAt: number
+  terminalAt: number | null
   updatedAt: number
 }
 
 function rowToTopic(row: TemporaryTopicRow): Topic {
   return {
     ...row,
+    lastActivityAt: new Date(row.lastActivityAt).toISOString(),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString()
   }
 }
 
 function rowToMessage(row: TemporaryMessageRow): Message {
+  const { terminalAt: _terminalAt, ...message } = row
+  void _terminalAt
   return {
-    ...row,
+    ...message,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString()
   }
@@ -78,6 +84,7 @@ export class TemporaryChatService {
       // In-memory store has no real ordering — temp topics are scoped per
       // session and never reordered or paginated like persistent ones.
       orderKey: '',
+      lastActivityAt: now,
       createdAt: now,
       updatedAt: now
     }
@@ -120,6 +127,7 @@ export class TemporaryChatService {
       messageSnapshot: dto.messageSnapshot ?? null,
       stats: dto.stats ?? null,
       createdAt: now,
+      terminalAt: resolveResponseTerminalAt({ role: dto.role, status: dto.status ?? 'success', timestamp: now }),
       updatedAt: now
     }
     // Race: deleteTopic between the topics.has check above and this line
@@ -130,6 +138,10 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     list.push(row)
+    const topic = this.topics.get(topicId)
+    if (topic && (row.role === 'user' || row.role === 'assistant')) {
+      topic.lastActivityAt = Math.max(topic.lastActivityAt, now)
+    }
     return rowToMessage(row)
   }
 
@@ -173,9 +185,9 @@ export class TemporaryChatService {
     try {
       const db = application.get('DbService').getDb()
       db.transaction((tx) => {
-        // 2. Insert topic with the same id. Timestamps / defaults are filled by
-        // Drizzle's $defaultFn; we do not pass createdAt / updatedAt manually
-        // because the TS-side ISO strings don't match the DB's integer column.
+        // 2. Insert the topic with its original in-memory timestamps. Persisting
+        // is storage conversion, not conversation activity, so it must not make
+        // the topic appear newly created or recently active.
         //
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
         // topic lands at the tail of the global live-topic order. The
@@ -188,13 +200,16 @@ export class TemporaryChatService {
           {
             id: topic.id,
             name: topic.name ?? undefined,
-            assistantId
+            assistantId,
+            createdAt: topic.createdAt,
+            updatedAt: topic.updatedAt
           },
           {
             pkColumn: topicTable.id,
             scope: isNull(topicTable.deletedAt)
           }
         )
+        let lastActivityAt = topic.createdAt
 
         // 3. Create the topic's virtual root, then linearize buffered messages under it:
         // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
@@ -209,19 +224,28 @@ export class TemporaryChatService {
               role: m.role,
               data: m.data,
               status: m.status,
+              terminalAt: m.terminalAt,
               siblingsGroupId: 0,
               modelId: m.modelId ?? undefined,
               messageSnapshot: m.messageSnapshot ?? undefined,
-              stats: m.stats ?? undefined
+              stats: m.stats ?? undefined,
+              createdAt: m.createdAt,
+              updatedAt: m.updatedAt
             })
             .run()
+          const activityAt = getMessageActivityTimestamp(m)
+          if (activityAt !== null) lastActivityAt = Math.max(lastActivityAt, activityAt)
           prevId = m.id
         }
 
         // 4. Set activeNodeId to the last real message (still the root → no messages, leave null).
-        if (prevId !== rootId) {
-          tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, topic.id)).run()
-        }
+        tx.update(topicTable)
+          .set({
+            activeNodeId: prevId !== rootId ? prevId : null,
+            lastActivityAt
+          })
+          .where(eq(topicTable.id, topic.id))
+          .run()
       })
     } catch (err) {
       // Transaction failed: restore the snapshot so the user can retry.

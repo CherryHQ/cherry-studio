@@ -38,8 +38,9 @@ const assistantTopicsDeleteHandler = {
   '/assistants/:assistantId/topics': { DELETE: ok }
 } satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics'>
 const topicMoveHandler = {
-  '/topics/:id/move': { POST: ok }
-} satisfies Pick<HandlersFor<TopicSchemas>, '/topics/:id/move'>
+  '/topics/:id/move': { POST: ok },
+  '/topics/window': { GET: ok }
+} satisfies Pick<HandlersFor<TopicSchemas>, '/topics/:id/move' | '/topics/window'>
 
 // ============================================================================
 // P1 — POSITIVE: a fully-covered, correctly-typed handler compiles under both

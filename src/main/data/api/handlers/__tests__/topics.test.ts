@@ -7,7 +7,7 @@ const {
   deleteMock,
   duplicateMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   listByCursorMock,
   moveMock,
   reorderBatchMock,
@@ -22,7 +22,7 @@ const {
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   listByCursorMock: vi.fn(),
   moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock('@data/services/TopicService', () => ({
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     listByCursor: listByCursorMock,
     move: moveMock,
     reorder: reorderMock,
@@ -110,22 +110,22 @@ describe('topicHandlers', () => {
   describe('/topics/latest', () => {
     it('wraps the latest topic from TopicService', async () => {
       const topic = { id: 'topic-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(topic)
+      getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
-      expect(getLatestUpdatedMock).toHaveBeenCalledWith({})
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
     })
 
     it('forwards an owner scope', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await topicHandlers['/topics/latest'].GET({ query: { assistantId: 'unlinked' } } as never)
 
-      expect(getLatestUpdatedMock).toHaveBeenCalledWith({ assistantId: 'unlinked' })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ assistantId: 'unlinked' })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
     })

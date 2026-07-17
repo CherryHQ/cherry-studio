@@ -4,7 +4,7 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   statsMock,
   updateMock,
   setWorkspaceMock,
@@ -19,7 +19,7 @@ const {
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   statsMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     stats: statsMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
@@ -108,23 +108,23 @@ describe('agentSessionHandlers', () => {
   describe('/agent-sessions/latest', () => {
     it('wraps the latest session from AgentSessionService', async () => {
       const session = { id: 'session-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(session)
+      getLatestActiveMock.mockReturnValueOnce(session)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
-      expect(getLatestUpdatedMock).toHaveBeenCalledWith({})
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
     })
 
     it('forwards a concrete agent scope', async () => {
       const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId } } as never)
 
-      expect(getLatestUpdatedMock).toHaveBeenCalledWith({ agentId })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ agentId })
     })
 
     it('returns { session: null } when there are no sessions', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
     })

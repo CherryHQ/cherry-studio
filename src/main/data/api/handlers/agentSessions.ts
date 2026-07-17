@@ -15,6 +15,7 @@ import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   AgentSessionStatsQuerySchema,
+  AgentSessionWindowQuerySchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
   LatestAgentSessionQuerySchema,
@@ -54,7 +55,15 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = LatestAgentSessionQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return { session: agentSessionService.getLatestUpdated(parsed.data) }
+      return { session: agentSessionService.getLatestActive(parsed.data) }
+    }
+  },
+
+  '/agent-sessions/window': {
+    GET: async ({ query }) => {
+      const parsed = AgentSessionWindowQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.getWindow(parsed.data)
     }
   },
 
