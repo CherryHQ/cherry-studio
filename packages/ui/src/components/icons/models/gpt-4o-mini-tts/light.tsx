@@ -11,14 +11,14 @@ const Gpt4oMiniTtsLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="0 0 12 12"
+      viewBox="0 0 24 24"
       {...props}>
       <g clipPath={`url(#${iconId}-gpt4ominittslight__a)`}>
-        <path fill={`url(#${iconId}-gpt4ominittslight__b)`} d="M0 0H12V12H0z" />
+        <path fill={`url(#${iconId}-gpt4ominittslight__b)`} d="M0 0H24V24H0z" />
       </g>
       <defs>
         <clipPath id={`${iconId}-gpt4ominittslight__a`}>
-          <path fill="#fff" d="M0 0H12V12H0z" />
+          <path fill="#fff" d="M0 0H24V24H0z" />
         </clipPath>
         <pattern id={`${iconId}-gpt4ominittslight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-gpt4ominittslight__c`} transform="scale(.00781)" />

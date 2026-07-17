@@ -5,73 +5,68 @@ const KlingLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 12 12" {...props}>
-      <g clipPath={`url(#${iconId}-klinglight__a)`}>
-        <path
-          fill={`url(#${iconId}-klinglight__b)`}
-          d="M2.70602 6.63751C2.95972 5.86193 3.29458 5.11529 3.70502 4.41001C5.29002 1.66401 7.60252 0.0315115 8.87002 0.763012C6.01902 -0.882988 2.29902 0.222012 0.56102 3.23201C0.353593 3.59113 0.180012 3.96875 0.0425202 4.36001C-0.0869798 4.72951 0.0885203 5.12701 0.42752 5.32301L2.70602 6.63801V6.63751Z"
-        />
-        <path
-          fill={`url(#${iconId}-klinglight__c)`}
-          d="M9.29402 4.83202C9.04017 5.60762 8.70515 6.35426 8.29452 7.05952C6.70952 9.80552 4.39702 11.4385 3.12952 10.7065C5.98102 12.353 9.70102 11.2475 11.439 8.23752C11.6464 7.87854 11.82 7.50109 11.9575 7.11002C12.087 6.74102 11.9115 6.34302 11.5725 6.14752L9.29402 4.83252V4.83202Z"
-        />
-        <path
-          fill={`url(#${iconId}-klinglight__d)`}
-          d="M8.29502 7.06002C9.88002 4.31402 10.138 1.49502 8.87002 0.763017C7.60352 0.0315172 5.29102 1.66502 3.70502 4.41002C4.74202 2.61502 6.60952 1.75252 7.87702 2.48402C9.14402 3.21602 9.33102 5.26402 8.29452 7.05952L8.29502 7.06002Z"
-        />
-        <path
-          fill={`url(#${iconId}-klinglight__e)`}
-          d="M3.70499 4.41002C2.11999 7.15602 1.86199 9.97502 3.12999 10.7065C4.39699 11.4385 6.70949 9.80552 8.29499 7.05952C7.25799 8.85502 5.39049 9.71752 4.12299 8.98552C2.85599 8.25402 2.66899 6.20552 3.70549 4.41052L3.70499 4.41002Z"
-        />
-      </g>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
+      <path
+        fill={`url(#${iconId}-klinglight__a)`}
+        d="M7.60816 12.8497C7.94642 11.8157 8.39288 10.8202 8.94012 9.87983C11.0534 6.21861 14.1366 4.04201 15.8266 5.01732C12.0254 2.82272 7.06551 4.29601 4.74825 8.30921C4.47169 8.78802 4.24025 9.2915 4.05694 9.81317C3.88427 10.3058 4.11827 10.8358 4.57025 11.0971L7.60816 12.8504V12.8497Z"
+      />
+      <path
+        fill={`url(#${iconId}-klinglight__b)`}
+        d="M16.3918 10.4425C16.0534 11.4766 15.6067 12.4721 15.0592 13.4124C12.9459 17.0736 9.86268 19.2509 8.17273 18.2749C11.9746 20.4702 16.9345 18.9962 19.2517 14.983C19.5282 14.5044 19.7596 14.0012 19.943 13.4797C20.1157 12.9878 19.8817 12.4571 19.4297 12.1965L16.3918 10.4432V10.4425Z"
+      />
+      <path
+        fill={`url(#${iconId}-klinglight__c)`}
+        d="M15.0599 13.4131C17.1732 9.75185 17.5172 5.9933 15.8266 5.01733C14.138 4.04203 11.0547 6.21996 8.94012 9.87984C10.3227 7.48658 12.8127 6.33662 14.5026 7.31192C16.1919 8.28789 16.4412 11.0185 15.0593 13.4124L15.0599 13.4131Z"
+      />
+      <path
+        fill={`url(#${iconId}-klinglight__d)`}
+        d="M8.94005 9.87985C6.82678 13.5411 6.48279 17.2996 8.17341 18.2749C9.86269 19.2509 12.9459 17.0736 15.0599 13.4124C13.6772 15.8063 11.1873 16.9563 9.49737 15.9803C7.80809 15.005 7.55876 12.2738 8.94072 9.88052L8.94005 9.87985Z"
+      />
       <defs>
+        <radialGradient
+          id={`${iconId}-klinglight__a`}
+          cx={0}
+          cy={0}
+          r={1}
+          gradientTransform="matrix(4.985 -8.33988 11.42878 6.83132 7.449 12.758)"
+          gradientUnits="userSpaceOnUse">
+          <stop offset={0.095} stopColor="#FFF959" />
+          <stop offset={0.326} stopColor="#0DF35E" />
+          <stop offset={0.64} stopColor="#0BF2F9" />
+          <stop offset={1} stopColor="#04A6F0" />
+        </radialGradient>
         <radialGradient
           id={`${iconId}-klinglight__b`}
           cx={0}
           cy={0}
           r={1}
-          gradientTransform="matrix(3.73886 -6.2551 8.57184 5.12364 2.587 6.569)"
+          gradientTransform="matrix(-4.985 8.33988 -11.4288 -6.83131 16.55 10.534)"
           gradientUnits="userSpaceOnUse">
           <stop offset={0.095} stopColor="#FFF959" />
           <stop offset={0.326} stopColor="#0DF35E" />
           <stop offset={0.64} stopColor="#0BF2F9" />
           <stop offset={1} stopColor="#04A6F0" />
         </radialGradient>
-        <radialGradient
+        <linearGradient
           id={`${iconId}-klinglight__c`}
-          cx={0}
-          cy={0}
-          r={1}
-          gradientTransform="rotate(120.868 3.316 5.12)scale(7.28735 9.9864)"
+          x1={14.385}
+          x2={16.041}
+          y1={4.865}
+          y2={10.241}
           gradientUnits="userSpaceOnUse">
-          <stop offset={0.095} stopColor="#FFF959" />
-          <stop offset={0.326} stopColor="#0DF35E" />
-          <stop offset={0.64} stopColor="#0BF2F9" />
-          <stop offset={1} stopColor="#04A6F0" />
-        </radialGradient>
+          <stop stopColor="#003EFF" />
+          <stop offset={1} stopColor="#0BFFE7" />
+        </linearGradient>
         <linearGradient
           id={`${iconId}-klinglight__d`}
-          x1={7.789}
-          x2={9.031}
-          y1={0.649}
-          y2={4.681}
+          x1={9.615}
+          x2={7.959}
+          y1={18.428}
+          y2={13.052}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#003EFF" />
           <stop offset={1} stopColor="#0BFFE7" />
         </linearGradient>
-        <linearGradient
-          id={`${iconId}-klinglight__e`}
-          x1={4.211}
-          x2={2.969}
-          y1={10.821}
-          y2={6.79}
-          gradientUnits="userSpaceOnUse">
-          <stop stopColor="#003EFF" />
-          <stop offset={1} stopColor="#0BFFE7" />
-        </linearGradient>
-        <clipPath id={`${iconId}-klinglight__a`}>
-          <path fill="#fff" d="M0 0H12V12H0z" />
-        </clipPath>
       </defs>
     </svg>
   )

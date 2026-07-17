@@ -5,7 +5,7 @@ const DashscopeLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <path
         fill={`url(#${iconId}-dashscopelight__a)`}
         d="M60.3441 40.9414L92.9991 59.7535L92.4061 63.662L60.3746 45.2076L60.3441 40.9414Z"

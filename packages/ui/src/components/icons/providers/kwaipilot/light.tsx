@@ -5,7 +5,7 @@ const KwaipilotLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <path
         fill={`url(#${iconId}-kwaipilotlight__a)`}
         d="M59.5003 27.0054C41.5524 27.0054 27 41.5575 27 59.5052C27 69.3037 31.3388 78.0888 38.1945 84.0498L54.2723 51.081H72.2579L52.6554 91.2775C54.8652 91.7518 57.1503 92 59.5003 92C77.4483 92 92.0006 77.4474 92.0006 59.4998C92.0006 41.5521 77.4483 27 59.5003 27V27.0054Z"

@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const BailianLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path fill="#1C54E3" d="M45.4547 52.1572V68.8473L59.9047 60.4967L45.4574 52.1599L45.4547 52.1572Z" />
     <path
       fill="#AA9AFF"

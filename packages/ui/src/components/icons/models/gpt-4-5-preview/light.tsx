@@ -11,14 +11,14 @@ const Gpt45PreviewLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="0 0 12 12"
+      viewBox="0 0 24 24"
       {...props}>
       <g clipPath={`url(#${iconId}-gpt45previewlight__a)`}>
-        <path fill={`url(#${iconId}-gpt45previewlight__b)`} d="M0 0H12V12H0z" />
+        <path fill={`url(#${iconId}-gpt45previewlight__b)`} d="M0 0H24V24H0z" />
       </g>
       <defs>
         <clipPath id={`${iconId}-gpt45previewlight__a`}>
-          <path fill="#fff" d="M0 0H12V12H0z" />
+          <path fill="#fff" d="M0 0H24V24H0z" />
         </clipPath>
         <pattern id={`${iconId}-gpt45previewlight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-gpt45previewlight__c`} transform="scale(.00781)" />

@@ -11,7 +11,7 @@ const XiaoyiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
       <path fill={`url(#${iconId}-xiaoyilight__a)`} d="M25 25H95V95H25z" />
       <defs>

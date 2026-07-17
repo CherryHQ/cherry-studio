@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const ApplicationLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
       fill="#2BA471"
       d="M48.8929 27H34.9643C31.118 27 28 30.118 28 33.9643V47.8929C28 51.7391 31.118 54.8571 34.9643 54.8571H48.8929C52.7391 54.8571 55.8571 51.7391 55.8571 47.8929V33.9643C55.8571 30.118 52.7391 27 48.8929 27Z"

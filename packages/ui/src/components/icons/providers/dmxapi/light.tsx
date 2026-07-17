@@ -11,7 +11,7 @@ const DmxapiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
       <path fill={`url(#${iconId}-dmxapilight__a)`} d="M27 27H92V92H27z" />
       <defs>

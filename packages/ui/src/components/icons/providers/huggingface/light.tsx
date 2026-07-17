@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const HuggingfaceLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
       fill="#FF9D0B"
       d="M31.692 58.1732C31.692 48.1068 37.1491 38.8086 46.0042 33.774C50.3681 31.3003 55.2987 30 60.3149 30C65.3312 30 70.2617 31.3003 74.6256 33.774C83.4807 38.8086 88.9379 48.1068 88.9379 58.1732C88.9379 73.7323 76.1237 86.3456 60.3164 86.3456C44.5091 86.3456 31.692 73.7294 31.692 58.1732Z"

@@ -11,7 +11,7 @@ const DangbeiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
       <mask
         id={`${iconId}-dangbeilight__a`}

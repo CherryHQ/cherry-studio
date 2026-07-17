@@ -1,26 +1,15 @@
-import { type SVGProps, useId } from 'react'
+import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
-const SunoDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
-  const iconId = useId()
-
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 12 12" {...props}>
-      <g clipPath={`url(#${iconId}-sunodark__a)`}>
-        <path
-          fill="#fff"
-          fillRule="evenodd"
-          d="M8.25 0C10.321 0 12 2.6865 12 6H7.5C7.5 9.3135 5.821 12 3.75 12C1.679 12 0 9.3135 0 6H4.5C4.5 2.6865 6.179 0 8.25 0Z"
-          clipRule="evenodd"
-        />
-      </g>
-      <defs>
-        <clipPath id={`${iconId}-sunodark__a`}>
-          <path fill="#fff" d="M0 0H12V12H0z" />
-        </clipPath>
-      </defs>
-    </svg>
-  )
-}
+const SunoDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
+    <path
+      fill="#fff"
+      fillRule="evenodd"
+      d="M15 4C17.7613 4 20 7.582 20 12H14C14 16.418 11.7613 20 9 20C6.23867 20 4 16.418 4 12H10C10 7.582 12.2387 4 15 4Z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
 export { SunoDark }
 export default SunoDark

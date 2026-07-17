@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const TogetherLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
       fill="#EF2CC1"
       d="M90.8203 38.1072C86.3341 30.3592 76.3968 27.7047 68.6264 32.1774C63.6272 35.0552 60.7426 40.1438 60.5156 45.4981L76.7528 45.5187L76.7509 46.907H60.5146C60.6194 49.4375 61.3209 51.9592 62.6787 54.3047C67.1649 62.0527 77.1021 64.7074 84.8735 60.2337C92.6448 55.761 95.3072 45.8552 90.8203 38.1072Z"

@@ -5,29 +5,24 @@ const StepfunLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 12 12" {...props}>
-      <g clipPath={`url(#${iconId}-stepfunlight__a)`}>
-        <path
-          fill={`url(#${iconId}-stepfunlight__b)`}
-          fillRule="evenodd"
-          d="M11.006 0H11.522V0.4635H12V0.9475H11.522V1.89H11.006V0.948H10.067V0.463H11.006V0ZM1.3 6.1855V0.935H1.7845V6.186H1.2995L1.3 6.1855ZM6.5115 6.5155H11.9865V6.9745H8.8825V11.764H6.5115V6.515V6.5155ZM2.8145 1.6665V7.8445H0V10.0995H5.193V4H10.4295L10.428 1.666L2.8145 1.6665Z"
-          clipRule="evenodd"
-        />
-      </g>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
+      <path
+        fill={`url(#${iconId}-stepfunlight__a)`}
+        fillRule="evenodd"
+        d="M18.6747 4H19.3627V4.6304H20V5.28868H19.3627V6.57055H18.6747V5.28936H17.4227V4.62972H18.6747V4ZM5.73333 12.4128V5.27168H6.37933V12.4135H5.73267L5.73333 12.4128ZM12.682 12.8616H19.982V13.4859H15.8433V20H12.682V12.8609V12.8616ZM7.75267 6.26658V14.6692H4V17.7361H10.924V9.44033H17.906L17.904 6.2659L7.75267 6.26658Z"
+        clipRule="evenodd"
+      />
       <defs>
         <linearGradient
-          id={`${iconId}-stepfunlight__b`}
-          x1={0.823}
-          x2={9.171}
-          y1={0.958}
-          y2={11.046}
+          id={`${iconId}-stepfunlight__a`}
+          x1={5.097}
+          x2={16.491}
+          y1={5.303}
+          y2={18.8}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#01A9FF" />
           <stop offset={1} stopColor="#0160FF" />
         </linearGradient>
-        <clipPath id={`${iconId}-stepfunlight__a`}>
-          <path fill="#fff" d="M0 0H12V12H0z" />
-        </clipPath>
       </defs>
     </svg>
   )

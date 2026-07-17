@@ -2,12 +2,13 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const TrinityLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0.5 12 12" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
     <path
       stroke="#000"
       strokeLinejoin="round"
       strokeMiterlimit={10}
-      d="M6 2L11 11H1L6 2ZM6 2V8.06316M6 8.06316L1.01231 11M6 8.06316L10.9877 11"
+      strokeWidth={0.93}
+      d="M12 5L20 19H4L12 5ZM12 5V14.4316M12 14.4316L4.01969 19M12 14.4316L19.9803 19"
     />
   </svg>
 )

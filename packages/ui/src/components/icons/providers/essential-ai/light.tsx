@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const EssentialAiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
       fill="#35058E"
       d="M28 55.3676C31.0643 55.3676 34.1287 55.3676 37.2858 55.3676C37.4591 56.3581 37.6293 57.3455 37.8089 58.367C38.9974 64.5419 41.613 70.0515 46.8222 73.8618C52.2483 77.4089 58.2778 78.9689 64.7252 77.8794C71.2036 76.471 76.419 72.9425 80.0591 67.402C82.2846 63.6381 83.0429 59.6452 83.7146 55.3676C86.7789 55.3676 89.8432 55.3676 93 55.3676C93 64.8824 89.5398 72.5153 82.9841 79.3435C76.1653 85.8744 67.5512 87.9948 58.3831 87.9544C49.5956 87.6139 41.8543 83.4137 35.8341 77.1303C30.467 70.9058 28 63.4927 28 55.3676Z"

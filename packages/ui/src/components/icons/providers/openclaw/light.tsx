@@ -5,7 +5,7 @@ const OpenclawLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <path
         fill={`url(#${iconId}-openclawlight__a)`}
         d="M59.5001 32.5385C42.3573 32.5385 33.7859 46.8241 33.7859 58.2527C33.7859 69.6812 42.3573 81.1097 50.9287 83.9668V89.681H56.643V83.9668C56.643 83.9668 59.5001 85.1097 62.3572 83.9668V89.681H68.0715V83.9668C76.6428 81.1097 85.2142 69.6812 85.2142 58.2527C85.2142 46.8241 76.6428 32.5385 59.5001 32.5385Z"

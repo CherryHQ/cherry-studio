@@ -2,10 +2,10 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const ArceeLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 12 12" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
     <path
       fill="#008C8C"
-      d="M6.70234 2.15991L1.39303 11H0L6.00709 1L6.70234 2.15991ZM8.50198 5.16386L3.63778 11H2.09132L7.85433 4.08398L8.50198 5.16337V5.16386ZM12 11H7.11452L11.3711 9.95037L12 11ZM10.2682 8.11023L6.29673 10.999H4.29505L9.66107 7.09672L10.2682 8.11023Z"
+      d="M12.9365 6.62387L5.85737 19H4L12.0095 5L12.9365 6.62387ZM15.336 10.8294L8.85037 19H6.78842L14.4724 9.31757L15.336 10.8287V10.8294ZM20 19H13.486L19.1614 17.5305L20 19ZM17.6909 14.9543L12.3956 18.9986H9.72673L16.8814 13.5354L17.6909 14.9543Z"
     />
   </svg>
 )

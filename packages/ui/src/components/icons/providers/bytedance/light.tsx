@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const BytedanceLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
       fill="#00C8D2"
       d="M69.1986 78.0514L64.1641 76.7367V52.7107L69.5531 51.3456C72.5076 50.5952 74.9894 49.9835 75.1075 50.0072C75.2021 50.0072 75.273 56.6106 75.273 64.6971V79.3898L74.753 79.3659C74.4458 79.3659 71.9403 78.7576 69.1986 78.0514Z"
