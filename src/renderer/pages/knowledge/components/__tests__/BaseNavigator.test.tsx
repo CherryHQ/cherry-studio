@@ -543,6 +543,17 @@ describe('BaseNavigator', () => {
     expect(screen.queryByText('无结果')).toBeNull()
   })
 
+  it('names the empty list state when bases are cleared but groups remain', () => {
+    // buildKnowledgeBaseGroupSections keeps the default group and all empty
+    // known groups when the search is empty, so sections is non-empty here —
+    // the global empty state must still win over a row of hollow group headers.
+    render(<BaseNavigator {...baseProps} bases={[]} groups={[createGroup({ id: 'group-1', name: 'Research' })]} />)
+
+    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.queryByText('Research')).toBeNull()
+    expect(screen.queryByText('无结果')).toBeNull()
+  })
+
   it('shows a no-results hint when the search filters out every base', () => {
     render(<BaseNavigator {...baseProps} bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]} />)
 

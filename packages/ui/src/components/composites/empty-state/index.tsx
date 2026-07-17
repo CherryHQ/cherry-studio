@@ -131,14 +131,14 @@ export function EmptyState({
         />
       )}
       {title && (
-        <p
+        <h3
           className={cn(
-            'text-muted-foreground',
+            'font-normal text-muted-foreground',
             compact ? 'text-xs' : 'text-sm',
             description ? 'mb-1.5' : actionLabel || secondaryLabel ? (compact ? 'mb-3' : 'mb-5') : ''
           )}>
           {title}
-        </p>
+        </h3>
       )}
       {description && (
         <p

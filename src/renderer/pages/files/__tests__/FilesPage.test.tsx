@@ -357,7 +357,7 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
   })
 
-  it('renders no empty state while the file list is still loading', () => {
+  it('shows loading feedback instead of an empty state while the file list is loading', () => {
     mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
     mockUseInfiniteQuery.mockImplementation(() => ({
       pages: [],
@@ -372,6 +372,7 @@ describe('FilesPage keyboard rename', () => {
     }))
     render(<FilesPage />)
 
+    expect(screen.getByText('common.loading')).toBeInTheDocument()
     expect(screen.queryByText('files.empty.title')).toBeNull()
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
   })
