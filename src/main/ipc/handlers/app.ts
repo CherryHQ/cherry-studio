@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { bootConfigService } from '@main/data/bootConfig'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -34,6 +35,18 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.set_spell_check_enabled': async (isEnable) => {
     webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
+  },
+  // Stage a factory reset (#17131) and relaunch; the preboot factoryResetGate
+  // wipes on the next boot. persist() (not flush) so a failed write rejects
+  // the request instead of relaunching without a staged marker.
+  'app.factory_reset.request': async () => {
+    bootConfigService.set('temp.factory_reset', {
+      status: 'pending',
+      userDataPath: application.getPath('app.userdata'),
+      requestedAt: new Date().toISOString()
+    })
+    bootConfigService.persist()
+    application.relaunch()
   },
   // Trigger only — results reach the renderer via the app.updater.* broadcast events.
   'app.updater.check_for_update': async () => {

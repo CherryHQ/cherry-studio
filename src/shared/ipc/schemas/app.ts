@@ -33,6 +33,13 @@ export const appRequestSchemas = {
     output: z.number()
   }),
   'app.set_spell_check_enabled': defineRoute({ input: z.boolean(), output: z.void() }),
+  // Factory reset (#17131): durably stages the BootConfig `temp.factory_reset`
+  // marker, then relaunches; the preboot gate performs the wipe on the next
+  // boot. The relaunch usually kills this process before a response is
+  // delivered, so callers must not rely on the resolved value — but a
+  // *rejection* is meaningful: the marker could not be persisted and no
+  // relaunch was triggered.
+  'app.factory_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   // Trigger-only: kicks off the update check; the result (available / not / error) arrives
   // via the app.updater.* broadcast events below, so the caller reads no return value.
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
