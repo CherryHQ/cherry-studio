@@ -6860,6 +6860,7 @@
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
       "empty": "No models found",
+      "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",
       "filter": {
