@@ -4809,6 +4809,7 @@
     "install": "安装",
     "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
+    "manage_skills": "管理技能",
     "name": "名称",
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何技能",
@@ -7358,6 +7359,7 @@
         "autoEmpty": "暂无已启用的 MCP 服务器",
         "description": "查看当前 MCP 服务器状态",
         "disabled": "当前助手已禁用 MCP",
+        "open_config": "配置 MCP 服务器",
         "unknownServer": "未知 MCP 服务器"
       },
       "multiple": "多选",

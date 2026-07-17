@@ -181,7 +181,14 @@ function createAgentPatcher(form: UseFormReturn<AgentEditFormValues>, resource: 
   }
 }
 
-export function AgentEditDialog({ resource, open, onOpenChange, onSaved, modelFilter }: AgentEditDialogProps) {
+export function AgentEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  onSaved,
+  modelFilter,
+  initialTab
+}: AgentEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -191,6 +198,7 @@ export function AgentEditDialog({ resource, open, onOpenChange, onSaved, modelFi
       onOpenChange={onOpenChange}
       onSaved={onSaved}
       modelFilter={modelFilter}
+      initialTab={initialTab}
     />
   )
 }
@@ -200,10 +208,11 @@ function AgentEditDialogContent({
   open,
   onOpenChange,
   onSaved,
-  modelFilter
+  modelFilter,
+  initialTab
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('basic')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
@@ -260,12 +269,12 @@ function AgentEditDialogContent({
 
     form.reset(defaultValues)
     form.clearErrors()
-    setActiveTab('basic')
+    setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
-  }, [defaultValues, form, open, resource])
+  }, [defaultValues, form, initialTab, open, resource])
 
   useEffect(() => {
     if (!open || skillsLoading || baselineSkillAgentId === resource.id) return

@@ -15,10 +15,20 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({ mcpServers: [] })
 }))
 
+const editDialogMocks = vi.hoisted(() => ({ openResourceEditDialog: vi.fn() }))
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  openResourceEditDialog: editDialogMocks.openResourceEditDialog
+}))
+
 import type { Assistant } from '@renderer/types/assistant'
 
 import { TopicType } from '../../types'
-import { buildMcpStatusItems, createMcpStatusLauncher } from '../mcpStatusTool'
+import {
+  buildMcpConfigFooterItem,
+  buildMcpStatusItems,
+  createMcpStatusLauncher,
+  resolveMcpConfigTarget
+} from '../mcpStatusTool'
 
 const translations: Record<string, string> = {
   'settings.mcp.runtimeStatus.connected': 'Connected',
@@ -235,5 +245,32 @@ describe('mcpStatusTool', () => {
     })
     expect(launcher.action).toBeUndefined()
     expect(launcher.suffix).toBeUndefined()
+  })
+
+  it('resolves the MCP config target from the conversation scope', () => {
+    expect(resolveMcpConfigTarget({ scope: TopicType.Session, agentId: 'agent-1' })).toEqual({
+      kind: 'agent',
+      id: 'agent-1',
+      initialTab: 'tools.mcp'
+    })
+    expect(resolveMcpConfigTarget({ scope: TopicType.Chat, assistantId: 'assistant-1' })).toEqual({
+      kind: 'assistant',
+      id: 'assistant-1',
+      initialTab: 'tools.mcp'
+    })
+    // Session ignores the assistant id and vice versa; missing id yields no target.
+    expect(resolveMcpConfigTarget({ scope: TopicType.Session, assistantId: 'assistant-1' })).toBeNull()
+    expect(resolveMcpConfigTarget({ scope: TopicType.Chat })).toBeNull()
+  })
+
+  it('builds a pinned MCP config footer that opens the edit dialog', () => {
+    expect(buildMcpConfigFooterItem(null, t)).toBeNull()
+
+    const target = { kind: 'agent', id: 'agent-1', initialTab: 'tools.mcp' } as const
+    const footer = buildMcpConfigFooterItem(target, t)
+    expect(footer).toMatchObject({ id: 'mcp-status:open-config', fixedToBottom: true })
+
+    footer?.action?.({} as any)
+    expect(editDialogMocks.openResourceEditDialog).toHaveBeenCalledWith(target)
   })
 })

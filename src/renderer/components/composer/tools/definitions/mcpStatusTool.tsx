@@ -2,6 +2,10 @@ import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import {
+  openResourceEditDialog,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -10,7 +14,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
-import { Cable } from 'lucide-react'
+import { Cable, Settings2 } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
@@ -124,6 +128,31 @@ export function buildMcpStatusItems({
   return buildBoundServerItems(assistantMcpIds, serverById, mcpStatuses, t)
 }
 
+export function resolveMcpConfigTarget(options: {
+  scope: TopicType.Chat | TopicType.Session
+  assistantId?: string
+  agentId?: string
+}): ResourceEditDialogTarget | null {
+  if (options.scope === TopicType.Session) {
+    return options.agentId ? { kind: 'agent', id: options.agentId, initialTab: 'tools.mcp' } : null
+  }
+  return options.assistantId ? { kind: 'assistant', id: options.assistantId, initialTab: 'tools.mcp' } : null
+}
+
+export function buildMcpConfigFooterItem(
+  target: ResourceEditDialogTarget | null,
+  t: TFunction
+): QuickPanelListItem | null {
+  if (!target) return null
+  return {
+    id: 'mcp-status:open-config',
+    label: t('settings.quickPanel.mcp.open_config', 'Configure MCP servers'),
+    icon: <Settings2 />,
+    fixedToBottom: true,
+    action: () => openResourceEditDialog(target)
+  }
+}
+
 function clearMcpStatusInputQuery(
   inputAdapter: QuickPanelInputAdapter | undefined,
   queryAnchor: number | undefined,
@@ -185,18 +214,28 @@ const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }
   const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const mode = scope === TopicType.Chat ? (assistant?.settings?.mcpMode ?? 'disabled') : undefined
 
-  const items = useMemo(
+  const configTarget = useMemo<ResourceEditDialogTarget | null>(
     () =>
-      buildMcpStatusItems({
-        assistant,
-        agent,
-        mcpServers,
-        mcpStatuses,
+      resolveMcpConfigTarget({
         scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
-        t
+        assistantId: assistant?.id,
+        agentId: session?.agentId
       }),
-    [agent, assistant, mcpServers, mcpStatuses, scope, t]
+    [assistant?.id, scope, session?.agentId]
   )
+
+  const items = useMemo(() => {
+    const statusItems = buildMcpStatusItems({
+      assistant,
+      agent,
+      mcpServers,
+      mcpStatuses,
+      scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
+      t
+    })
+    const footer = buildMcpConfigFooterItem(configTarget, t)
+    return footer ? [...statusItems, footer] : statusItems
+  }, [agent, assistant, configTarget, mcpServers, mcpStatuses, scope, t])
 
   const mcpStatusLauncher = useMemo(() => createMcpStatusLauncher(items, t, mode), [items, mode, t])
 

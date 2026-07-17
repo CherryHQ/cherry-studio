@@ -24,6 +24,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -1261,6 +1262,7 @@ const ChatComposerInner = ({
       {displayAssistant && runtimeModel && (
         <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       )}
+      <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           text={text}

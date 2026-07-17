@@ -372,7 +372,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         close edit dialog
       </button>
     </div>
-  )
+  ),
+  ResourceEditDialogEventHost: () => null,
+  openResourceEditDialog: vi.fn()
 }))
 
 vi.mock('@renderer/utils/model', () => ({

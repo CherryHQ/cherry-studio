@@ -329,7 +329,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
-      if (ctx.readOnly) return
+      // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
+      // like "open config" which are the panel's one intentional affordance.
+      if (ctx.readOnly && !item.fixedToBottom) return
       if (item.disabled) return
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
