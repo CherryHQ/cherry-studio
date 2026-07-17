@@ -349,13 +349,11 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
     placement,
     main,
     composer,
-    homeWelcomeText,
     composerElevated
   }: {
     placement: string
     main: ReactNode
     composer: ReactNode
-    homeWelcomeText?: string
     composerElevated?: boolean
   }) => (
     <div
@@ -363,7 +361,6 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
       data-placement={placement}
       data-main-visible={String(placement === 'docked')}
       data-composer-elevated={String(Boolean(composerElevated))}>
-      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       {main}
       {composer}
     </div>
@@ -814,7 +811,6 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
-    expect(screen.getByTestId('composer-dock-home-header')).toBeEmptyDOMElement()
     expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))

@@ -21,7 +21,6 @@ interface ComposerDockTransitionFrameProps {
   placement: ComposerDockPlacement
   main: ReactNode
   composer: ReactNode
-  homeHeader?: ReactNode
   mainVisible?: boolean
   /** Lift the composer above a full-area overlay (e.g. a maximized side pane). */
   composerElevated?: boolean
@@ -39,7 +38,6 @@ export default function ComposerDockTransitionFrame({
   placement,
   main,
   composer,
-  homeHeader,
   mainVisible = placement === 'docked',
   composerElevated = false,
   overlay
@@ -168,7 +166,6 @@ export default function ComposerDockTransitionFrame({
             : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
         )}>
         <div className="pointer-events-auto w-full">
-          {!isDocked && homeHeader ? <div className="mb-6 flex justify-center">{homeHeader}</div> : null}
           <div
             ref={composerRef}
             data-composer-dock-surface=""
