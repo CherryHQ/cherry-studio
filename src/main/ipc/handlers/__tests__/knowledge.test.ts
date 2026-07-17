@@ -111,8 +111,17 @@ describe('knowledgeHandlers', () => {
 
     const result = await knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'hello' }, ctx)
 
-    expect(knowledgeService.search).toHaveBeenCalledWith('base-1', 'hello')
+    // Third arg is the optional per-call topK; undefined here → the service uses the base default.
+    expect(knowledgeService.search).toHaveBeenCalledWith('base-1', 'hello', undefined)
     expect(result).toBe(matches)
+  })
+
+  it('search forwards an explicit topK to the service', async () => {
+    knowledgeService.search.mockResolvedValue([])
+
+    await knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'hello', topK: 20 }, ctx)
+
+    expect(knowledgeService.search).toHaveBeenCalledWith('base-1', 'hello', 20)
   })
 
   it('list_item_chunks forwards baseId and itemId and returns the chunks', async () => {

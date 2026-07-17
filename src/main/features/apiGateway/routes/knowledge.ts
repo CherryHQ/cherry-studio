@@ -46,7 +46,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .post(
     '/search',
     async ({ body }) => {
-      const { query, knowledge_base_ids, document_count = 5 } = body
+      const { query, knowledge_base_ids, document_count } = body
 
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]
@@ -86,7 +86,9 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const resultsPerBase = await Promise.all(
         targetBases.map(async (base) => {
           try {
-            const searchResults = await orchestrator.search(base.id, query)
+            // Pass document_count as the per-base topK (same method + precedence as the kb_search
+            // tool and IPC route): document_count ?? base.documentCount ?? 10. Undefined → base default.
+            const searchResults = await orchestrator.search(base.id, query, document_count)
             return {
               base,
               results: searchResults.map((result) => ({
@@ -118,10 +120,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const warnings = resultsPerBase
         .filter((r) => r.error)
         .map((r) => `Knowledge base "${r.base.name}" search failed: ${r.error}`)
-      const sortedResults = resultsPerBase
-        .flatMap((r) => r.results)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, document_count)
+      const mergedResults = resultsPerBase.flatMap((r) => r.results).sort((a, b) => b.score - a.score)
+      // Each base is already trimmed to its per-base count inside search. document_count adds a final
+      // cross-base cap ONLY when the caller asked for one; omitted → return the merged union (matches
+      // the kb_search tool, which never caps across bases). This flat-list cap is gateway-specific.
+      const sortedResults = document_count != null ? mergedResults.slice(0, document_count) : mergedResults
 
       return {
         query,

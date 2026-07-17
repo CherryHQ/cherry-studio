@@ -125,8 +125,8 @@ const HANDLERS: Record<string, ToolHandler> = {
     description: KNOWLEDGE_SEARCH_DESCRIPTION,
     inputSchema: kbSearchInputSchema,
     run: async (args) => {
-      const { query, baseIds } = kbSearchInputSchema.parse(args)
-      return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS))
+      const { query, baseIds, topK } = kbSearchInputSchema.parse(args)
+      return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS, topK))
     }
   },
   // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.

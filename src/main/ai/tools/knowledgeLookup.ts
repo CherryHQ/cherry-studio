@@ -78,7 +78,7 @@ Use this when:
 
 Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. On your first search, pass the user's full question verbatim — hybrid retrieval works best on complete natural-language questions; only if the first results are insufficient, refine with keyword rewrites, synonyms, or sub-questions. You may call this multiple times with refined queries or different baseIds.
 
-Coverage: when a question spans multiple entities, or asks for a project-level roundup or an exhaustive answer ("all", "which projects", "each …"), first list the entities or sub-questions it requires, then search for each one separately until every one has evidence or you have confirmed the knowledge base does not cover it — do not stop at the first batch of relevant results.
+Coverage: when a question spans multiple entities, or asks for a project-level roundup or an exhaustive answer ("all", "which projects", "each …"), first list the entities or sub-questions it requires, then search for each one separately until every one has evidence or you have confirmed the knowledge base does not cover it — do not stop at the first batch of relevant results. You can also raise \`topK\` to return more results per search when a single query is expected to hit many relevant documents.
 
 Cite sources by [id] in your final answer.`
 
@@ -149,7 +149,8 @@ function isConceptLookupError(output: object): output is KnowledgeLookupError {
 export async function searchKnowledge(
   query: string,
   baseIds: string[],
-  allowedIds: readonly string[]
+  allowedIds: readonly string[],
+  topK?: number | null
 ): Promise<KnowledgeSearchResultOrError> {
   const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
 
@@ -166,7 +167,7 @@ export async function searchKnowledge(
   const perBase = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
-        return { ok: true as const, results: await knowledgeService.search(baseId, query) }
+        return { ok: true as const, results: await knowledgeService.search(baseId, query, topK) }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         logger.warn('KnowledgeService.search failed', { baseId, query, error: message })

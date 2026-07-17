@@ -12,6 +12,7 @@ import {
   kbManageInputSchema,
   kbManageStrictInputSchema,
   kbSearchInputSchema,
+  kbSearchStrictInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
@@ -65,6 +66,27 @@ describe('builtin tool contracts', () => {
     // `.nullable()` to satisfy the strict path broke this — hence the separate strict variant.)
     expect(kbListInputSchema.safeParse({}).success).toBe(true)
     expect(kbListInputSchema.safeParse({ query: 'recipes' }).success).toBe(true)
+  })
+
+  it('lets the MCP kb_search path omit topK but bounds it when present', () => {
+    // The MCP / renderer path parses raw args with kbSearchInputSchema; topK is optional, so an
+    // agent may omit it (→ base default) or pass a bounded value.
+    expect(kbSearchInputSchema.safeParse({ query: 'topic', baseIds: ['b1'] }).success).toBe(true)
+    expect(kbSearchInputSchema.safeParse({ query: 'topic', baseIds: ['b1'], topK: 25 }).success).toBe(true)
+    expect(kbSearchInputSchema.safeParse({ query: 'topic', baseIds: ['b1'], topK: 0 }).success).toBe(false)
+    expect(kbSearchInputSchema.safeParse({ query: 'topic', baseIds: ['b1'], topK: 51 }).success).toBe(false)
+    expect(kbSearchInputSchema.safeParse({ query: 'topic', baseIds: ['b1'], topK: 3.5 }).success).toBe(false)
+  })
+
+  it('keeps kb_search strict-path topK in `required` (nullable) so strict providers accept the schema', () => {
+    // Regression mirror of kb_list: the AI-SDK path (KnowledgeSearchTool) runs strict:true, so the
+    // optional topK is expressed as `.nullable()` to stay in `required` with a null option. null means
+    // "use the base default"; omitting topK entirely must fail (the field is required in this variant).
+    const json = z.toJSONSchema(kbSearchStrictInputSchema) as { required?: unknown }
+
+    expect(json.required).toEqual(expect.arrayContaining(['query', 'baseIds', 'topK']))
+    expect(kbSearchStrictInputSchema.safeParse({ query: 'topic', baseIds: ['b1'], topK: null }).success).toBe(true)
+    expect(kbSearchStrictInputSchema.safeParse({ query: 'topic', baseIds: ['b1'] }).success).toBe(false)
   })
 
   it('keeps kb_manage strict-path fields in `required` so strict providers accept the schema', () => {

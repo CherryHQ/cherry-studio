@@ -190,9 +190,18 @@ describe('cherryBuiltinTools', () => {
 
     const result = await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1', 'b2'] }, signal)
 
-    expect(kbSearch).toHaveBeenCalledWith('b1', 'topic')
-    expect(kbSearch).toHaveBeenCalledWith('b2', 'topic')
+    // Third arg is the per-call topK; undefined (omitted) → the service falls back to the base default.
+    expect(kbSearch).toHaveBeenCalledWith('b1', 'topic', undefined)
+    expect(kbSearch).toHaveBeenCalledWith('b2', 'topic', undefined)
     expect(JSON.parse(textOf(result))[0]).toMatchObject({ id: 1, content: 'doc' })
+  })
+
+  it('forwards an explicit kb_search topK to the orchestrator', async () => {
+    kbSearch.mockResolvedValue([{ pageContent: 'doc', score: 0.9 }])
+
+    await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1'], topK: 30 }, signal)
+
+    expect(kbSearch).toHaveBeenCalledWith('b1', 'topic', 30)
   })
 
   it('clamps kb_search scores into the [0,1] contract range', async () => {

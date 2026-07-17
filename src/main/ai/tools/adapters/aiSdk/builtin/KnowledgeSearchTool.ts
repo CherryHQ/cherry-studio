@@ -9,7 +9,7 @@
  * bridge runs identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { KB_SEARCH_TOOL_NAME, kbSearchInputSchema, kbSearchOutputSchema } from '@shared/ai/builtinTools'
+import { KB_SEARCH_TOOL_NAME, kbSearchOutputSchema, kbSearchStrictInputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -29,12 +29,12 @@ const knowledgeSearchResultSchema = z.union([kbSearchOutputSchema, knowledgeLook
 
 const kbSearchTool = tool({
   description: KNOWLEDGE_SEARCH_DESCRIPTION,
-  inputSchema: kbSearchInputSchema,
+  inputSchema: kbSearchStrictInputSchema,
   outputSchema: knowledgeSearchResultSchema,
   strict: true,
-  execute: async ({ query, baseIds }, options) => {
+  execute: async ({ query, baseIds, topK }, options) => {
     const { request } = getToolCallContext(options)
-    return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [])
+    return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [], topK)
   },
   toModelOutput: ({ output }) => knowledgeSearchModelOutput(output)
 })

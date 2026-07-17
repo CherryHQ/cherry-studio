@@ -118,28 +118,59 @@ export type KbListOutput = z.infer<typeof kbListOutputSchema>
 
 export const KB_SEARCH_TOOL_NAME = 'kb_search'
 
+// kb_search is consumed by two paths with conflicting schema needs (same split as kb_list): the MCP /
+// renderer path parses raw args with kbSearchInputSchema (topK `.optional()`, so an agent may omit it),
+// while the AI-SDK path (KnowledgeSearchTool) runs with `strict: true` — which requires every property
+// in `required` — so kbSearchStrictInputSchema expresses the same optionality with `.nullable()`. query
+// and baseIds are identical across both, so they live in shared field schemas (one home for the guidance).
+const kbSearchQueryField = z
+  .string()
+  .trim()
+  .min(2, 'Query must be at least 2 characters')
+  .max(500, 'Query is too long — keep it under 500 characters')
+  .describe(
+    "Search query. On the FIRST search for a question, use the user's full question verbatim — " +
+      'hybrid retrieval (semantic + keyword) works best on complete natural-language questions. ' +
+      'Only if the first results are insufficient, follow up with keyword rewrites, synonyms, or ' +
+      'sub-questions. MUST be self-contained: no pronouns ("it", "their") or context-dependent ' +
+      'references — expand the topic from earlier messages when the user asks a follow-up. ' +
+      'Examples: ✓ "How does Cherry Studio invalidate its MCP cache?" (verbatim first), ' +
+      '✓ "Cherry Studio MCP cache invalidation" (keyword follow-up), ✗ "its cache".'
+  )
+
+const kbSearchBaseIdsField = z
+  .array(z.string().trim().min(1))
+  .min(1)
+  .describe(
+    'IDs of the knowledge bases to search, picked from the result of kb_list. ' +
+      'At least one is required; pass multiple to fan out across related bases.'
+  )
+
+// Shared topK guidance; each schema appends its own null/omit note. Bounds 1–50 keep the candidate
+// over-fetch bounded (KnowledgeService caps the pool anyway); omit → base default (documentCount ?? 10).
+const KB_SEARCH_TOP_K_DESCRIPTION =
+  'How many results to return from each targeted base (1–50). Omit to use the base default. ' +
+  'Raise it when a question needs broad coverage — multiple entities, a project-level roundup, ' +
+  'or an exhaustive answer — so a single search surfaces enough evidence.'
+
 export const kbSearchInputSchema = z.object({
-  query: z
-    .string()
-    .trim()
-    .min(2, 'Query must be at least 2 characters')
-    .max(500, 'Query is too long — keep it under 500 characters')
-    .describe(
-      "Search query. On the FIRST search for a question, use the user's full question verbatim — " +
-        'hybrid retrieval (semantic + keyword) works best on complete natural-language questions. ' +
-        'Only if the first results are insufficient, follow up with keyword rewrites, synonyms, or ' +
-        'sub-questions. MUST be self-contained: no pronouns ("it", "their") or context-dependent ' +
-        'references — expand the topic from earlier messages when the user asks a follow-up. ' +
-        'Examples: ✓ "How does Cherry Studio invalidate its MCP cache?" (verbatim first), ' +
-        '✓ "Cherry Studio MCP cache invalidation" (keyword follow-up), ✗ "its cache".'
-    ),
-  baseIds: z
-    .array(z.string().trim().min(1))
+  query: kbSearchQueryField,
+  baseIds: kbSearchBaseIdsField,
+  topK: z.number().int().min(1).max(50).optional().describe(KB_SEARCH_TOP_K_DESCRIPTION)
+})
+
+export const kbSearchStrictInputSchema = z.object({
+  query: kbSearchQueryField,
+  baseIds: kbSearchBaseIdsField,
+  // `.nullable()` (not `.optional()`) keeps topK in `required` for the strict AI-SDK path; searchKnowledge
+  // treats null like undefined ("use the base default").
+  topK: z
+    .number()
+    .int()
     .min(1)
-    .describe(
-      'IDs of the knowledge bases to search, picked from the result of kb_list. ' +
-        'At least one is required; pass multiple to fan out across related bases.'
-    )
+    .max(50)
+    .nullable()
+    .describe(`${KB_SEARCH_TOP_K_DESCRIPTION} Pass null to use the base default.`)
 })
 
 export const kbSearchOutputItemSchema = z.object({
