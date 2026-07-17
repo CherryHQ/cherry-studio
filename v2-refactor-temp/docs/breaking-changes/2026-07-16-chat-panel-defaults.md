@@ -12,7 +12,7 @@ In the classic Chat and Agent layouts, placing conversations or tasks on the rig
 
 ## Why this matters to the user
 
-The initial right-pane state now follows the configured list position. Manual open/closed choices continue to persist independently for Chat and Agent after the user changes them.
+Existing v2 environments will have their cached right-pane open/closed choice reset once because the previous cache could not distinguish the old system default from an explicit manual close. After that reset, new manual open/closed choices continue to persist independently for Chat and Agent.
 
 ## What the user should do
 
