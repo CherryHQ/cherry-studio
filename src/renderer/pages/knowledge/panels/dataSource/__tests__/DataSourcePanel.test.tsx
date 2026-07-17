@@ -4,10 +4,18 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import DataSourcePanel from '../DataSourcePanel'
+import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
+const defaultOnPreviewFile = vi.fn()
+
+type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onPreviewFile'> &
+  Partial<Pick<DataSourcePanelProps, 'onPreviewFile'>>
+
+const DataSourcePanel = ({ onPreviewFile = defaultOnPreviewFile, ...props }: TestDataSourcePanelProps) => (
+  <DataSourcePanelComponent {...props} onPreviewFile={onPreviewFile} />
+)
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
@@ -627,7 +635,7 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
-  it('opens the source with the system tool on a url row click', () => {
+  it('dispatches a URL row click to source preview', () => {
     const onItemClick = vi.fn()
     const item = createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
 

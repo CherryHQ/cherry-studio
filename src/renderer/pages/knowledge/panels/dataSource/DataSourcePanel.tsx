@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
+import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
@@ -25,6 +26,7 @@ export interface DataSourcePanelProps {
   onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
+  onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
   /** View a non-directory item's chunks in-app (note left-click + the row's context menu). */
   onItemClick?: (itemId: string) => void
   /** Drill into a directory item to list its children. */
@@ -79,6 +81,7 @@ const DataSourcePanel = ({
   onLoadMore = () => undefined,
   updatedAt,
   onAdd,
+  onPreviewFile,
   onItemClick,
   onDrillIntoDirectory,
   currentDirectory,
@@ -87,7 +90,7 @@ const DataSourcePanel = ({
   onReindex
 }: DataSourcePanelProps) => {
   const { t } = useTranslation()
-  const { previewSource } = usePreviewKnowledgeSource()
+  const { previewSource } = usePreviewKnowledgeSource(onPreviewFile)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -103,8 +106,8 @@ const DataSourcePanel = ({
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
-  // Left-click dispatch by item type: a directory drills in, a file/url opens with the system
-  // tool (`previewSource` toasts its own errors), and a note falls back to the in-app chunk view.
+  // Left-click dispatch by item type: a directory drills in, files and captured URLs open in the
+  // embedded preview, uncaptured URLs open in the system browser, and notes show their chunks.
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {

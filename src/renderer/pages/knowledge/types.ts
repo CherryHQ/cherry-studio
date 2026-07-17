@@ -1,10 +1,16 @@
 import type { KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/types/file'
 
 export type KnowledgeTabKey = 'data' | 'rag' | 'recall'
 
 export interface KnowledgeSelectOption {
   label: string
   value: string
+}
+
+export interface KnowledgeFilePreviewTarget {
+  fileName: string
+  filePath: FilePath
 }
 
 export interface KnowledgeRagConfigFormValues {

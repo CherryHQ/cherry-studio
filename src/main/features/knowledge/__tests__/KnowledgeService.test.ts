@@ -1783,6 +1783,71 @@ describe('KnowledgeService', () => {
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
+  it('resolves a file preview to the knowledge-managed source copy', () => {
+    const service = new KnowledgeService()
+    const item = createFileItem('file-1', 'kb-1', '/external/report.pdf', 'completed')
+    knowledgeItemGetByIdMock.mockReturnValue({
+      ...item,
+      data: {
+        ...item.data,
+        relativePath: 'stored-report.pdf',
+        indexedRelativePath: 'stored-report.md'
+      }
+    })
+
+    expect(service.getFilePath('file-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/stored-report.pdf')
+  })
+
+  it('resolves a URL preview to the captured knowledge snapshot', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue({
+      id: 'url-1',
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'url',
+      data: {
+        source: 'https://example.com/product-docs',
+        url: 'https://example.com/product-docs',
+        relativePath: 'Product Docs.md'
+      },
+      status: 'completed',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    })
+
+    expect(service.getFilePath('url-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/Product Docs.md')
+  })
+
+  it('rejects URL preview path resolution before a snapshot is captured', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue({
+      id: 'url-1',
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'url',
+      data: {
+        source: 'https://example.com/product-docs',
+        url: 'https://example.com/product-docs'
+      },
+      status: 'processing',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    })
+
+    expect(() => service.getFilePath('url-1')).toThrow("Knowledge URL item 'url-1' has no captured snapshot to preview")
+  })
+
+  it('rejects preview path resolution for unsupported item types', () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
+
+    expect(() => service.getFilePath('note-1')).toThrow(
+      "Knowledge item 'note-1' must be a file or URL to preview its source"
+    )
+  })
+
   it('searches embedding-backed bases with hybrid retrieval and keeps ranking scores', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())

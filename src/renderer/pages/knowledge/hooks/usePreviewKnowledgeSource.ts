@@ -1,11 +1,14 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import { getKnowledgeItemDisplayTitle, type KnowledgeItem } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
+import type { KnowledgeFilePreviewTarget } from '../types'
 import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
@@ -21,7 +24,7 @@ const sanitizeHttpUrl = (source: string): string | null => {
   }
 }
 
-export const usePreviewKnowledgeSource = () => {
+export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFilePreviewTarget) => void) => {
   const { t } = useTranslation()
 
   const previewSource = useCallback(
@@ -34,6 +37,15 @@ export const usePreviewKnowledgeSource = () => {
       }
 
       try {
+        if (item.type === 'file' || (item.type === 'url' && item.data.relativePath)) {
+          const physicalPath = await ipcApi.request('knowledge.get_file_path', { itemId: item.id })
+          onPreviewFile({
+            fileName: getKnowledgeItemDisplayTitle(item),
+            filePath: normalizeFilePreviewPath(physicalPath)
+          })
+          return
+        }
+
         if (item.type === 'url' || item.type === 'note') {
           const previewUrl = sanitizeHttpUrl(source)
           if (!previewUrl) {
@@ -57,7 +69,7 @@ export const usePreviewKnowledgeSource = () => {
         toast.error(formatErrorMessageWithPrefix(previewError, t('knowledge.data_source.preview.failed')))
       }
     },
-    [t]
+    [onPreviewFile, t]
   )
 
   return {

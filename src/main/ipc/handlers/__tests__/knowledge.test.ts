@@ -14,6 +14,7 @@ const knowledgeService = {
   reindexItems: vi.fn(),
   enableEmbeddingModel: vi.fn(),
   search: vi.fn(),
+  getFilePath: vi.fn(),
   listItemChunks: vi.fn()
 }
 
@@ -113,6 +114,15 @@ describe('knowledgeHandlers', () => {
 
     expect(knowledgeService.search).toHaveBeenCalledWith('base-1', 'hello')
     expect(result).toBe(matches)
+  })
+
+  it('get_file_path forwards itemId and returns the managed file path', async () => {
+    knowledgeService.getFilePath.mockReturnValue('/knowledge/base-1/raw/report.pdf')
+
+    const result = await knowledgeHandlers['knowledge.get_file_path']({ itemId: 'i1' }, ctx)
+
+    expect(knowledgeService.getFilePath).toHaveBeenCalledWith('i1')
+    expect(result).toBe('/knowledge/base-1/raw/report.pdf')
   })
 
   it('list_item_chunks forwards baseId and itemId and returns the chunks', async () => {

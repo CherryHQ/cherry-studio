@@ -1,6 +1,8 @@
-import { PageSidePanel } from '@cherrystudio/ui'
+import { Button, PageSidePanel } from '@cherrystudio/ui'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { ArrowLeft } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,6 +12,7 @@ import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
 import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
+import type { KnowledgeFilePreviewTarget } from '../types'
 
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
@@ -32,11 +35,13 @@ const KnowledgePageDetailSection = () => {
   // Directory drill-down: the stack holds the directory items descended into (empty = base root).
   // The current directory's id becomes the item-list's `groupId`, listing that folder's children.
   const [directoryStack, setDirectoryStack] = useState<KnowledgeItemOf<'directory'>[]>([])
+  const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
   const currentDirectory = directoryStack.at(-1) ?? null
 
   // A different base has its own tree, so start each base back at its root.
   useEffect(() => {
     setDirectoryStack([])
+    setFilePreview(null)
   }, [selectedBaseId])
 
   const drillIntoDirectory = useCallback((item: KnowledgeItemOf<'directory'>) => {
@@ -73,6 +78,28 @@ const KnowledgePageDetailSection = () => {
       <div className="min-h-0 flex-1 overflow-hidden bg-background">
         {selectedItemId ? (
           <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
+        ) : filePreview ? (
+          <section
+            aria-label={filePreview.fileName}
+            className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+            <FilePreview
+              filePath={filePreview.filePath}
+              header={
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('common.back')}
+                    className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                    onClick={() => setFilePreview(null)}>
+                    <ArrowLeft className="size-3.5" />
+                  </Button>
+                  <span className="min-w-0 flex-1 truncate text-foreground text-sm">{filePreview.fileName}</span>
+                </>
+              }
+            />
+          </section>
         ) : (
           <DataSourcePanel
             items={selectedBaseItems}
@@ -83,6 +110,7 @@ const KnowledgePageDetailSection = () => {
             onLoadMore={loadMoreItems}
             updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
+            onPreviewFile={setFilePreview}
             onItemClick={openItemChunks}
             onDrillIntoDirectory={drillIntoDirectory}
             currentDirectory={currentDirectory}
