@@ -888,7 +888,9 @@ describe('ResourceCardMenu group binding', () => {
     await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
     await user.click(screen.getByRole('menuitem', { name: 'beta' }))
 
-    expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-beta' })
+    await waitFor(() => {
+      expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-beta' })
+    })
   })
 
   it('does not expose group management for agent, skill, or prompt resources', async () => {

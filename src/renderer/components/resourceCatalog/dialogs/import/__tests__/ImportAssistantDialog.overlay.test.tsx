@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const importMocks = vi.hoisted(() => ({
@@ -94,11 +95,12 @@ describe('ImportAssistantDialog', () => {
   })
 
   it('reuses one resolved group for equivalent names within an import batch', async () => {
+    const user = userEvent.setup()
     importMocks.createAssistant.mockRejectedValue(new Error('create failed'))
     render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.clipboard' }))
-    fireEvent.change(screen.getByPlaceholderText('library.import_dialog.clipboard.placeholder'), {
+    await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.clipboard' }))
+    fireEvent.change(await screen.findByPlaceholderText('library.import_dialog.clipboard.placeholder'), {
       target: {
         value: JSON.stringify([
           { name: 'First', prompt: 'first prompt', group: [' work '] },
