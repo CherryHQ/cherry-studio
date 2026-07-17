@@ -113,7 +113,7 @@ function Slider({
 
   const sliderElement = (
     <SliderPrimitive.Root
-      data-slot="slider"
+      data-ui="part:slider"
       data-size={size}
       defaultValue={defaultValue}
       value={value}
@@ -129,19 +129,19 @@ function Slider({
         !marks?.length && className
       )}
       {...props}>
-      <SliderPrimitive.Track data-slot="slider-track" className={sliderTrackVariants({ size })}>
+      <SliderPrimitive.Track data-ui="part:slider-track" className={sliderTrackVariants({ size })}>
         <SliderPrimitive.Range
-          data-slot="slider-range"
+          data-ui="part:slider-range"
           className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
       {localValues.map((val, index) => (
         <SliderPrimitive.Thumb
-          data-slot="slider-thumb"
+          data-ui="part:slider-thumb"
           key={index}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
-            <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>
+            <span data-ui="part:slider-value-label" className={sliderValueLabelVariants({ size })}>
               {formatValueLabel ? formatValueLabel(val) : val}
             </span>
           )}
@@ -156,11 +156,11 @@ function Slider({
 
   return (
     <div
-      data-slot="slider-container"
+      data-ui="part:slider-container"
       className={cn('relative', isVertical ? 'flex h-full items-stretch' : '', className)}>
       {sliderElement}
       <div
-        data-slot="slider-marks"
+        data-ui="part:slider-marks"
         className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
         {marks.map((mark) => {
           const range = max - min
@@ -171,7 +171,7 @@ function Slider({
           return (
             <span
               key={mark.value}
-              data-slot="slider-mark"
+              data-ui="part:slider-mark"
               className={sliderMarkLabelVariants({ size })}
               style={
                 isVertical

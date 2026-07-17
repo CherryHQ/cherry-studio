@@ -53,11 +53,13 @@ function Checkbox({
 }: React.ComponentProps<typeof CheckboxPrimitive.Root> & VariantProps<typeof checkboxVariants>) {
   return (
     <CheckboxPrimitive.Root
-      data-slot="checkbox"
+      data-ui="part:checkbox"
       data-size={size}
       className={cn(checkboxVariants({ size }), className)}
       {...props}>
-      <CheckboxPrimitive.Indicator data-slot="checkbox-indicator" className="grid place-content-center transition-none">
+      <CheckboxPrimitive.Indicator
+        data-ui="part:checkbox-indicator"
+        className="grid place-content-center transition-none">
         <CheckIcon strokeWidth={2.5} className={cn(checkboxIconVariants({ size }), 'text-current')} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>

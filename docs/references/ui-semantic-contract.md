@@ -10,13 +10,14 @@ Internal classes, DOM ancestry, and unmarked SVG drawing primitives are not part
 
 ```html
 <article
-  data-ui="chat.message id:u3976699 scope:message:m_817 scope:topic:t_42 mode:fold state:assistant state:complete"
+  data-ui="chat.message part:message-content id:u3976699 scope:message:m_817 scope:topic:t_42 mode:fold state:assistant state:complete"
 ></article>
 ```
 
 | Token | Meaning | Stability |
 | --- | --- | --- |
 | `chat.message` | Human-readable semantic role | Stable public grouping selector |
+| `part:message-content` | Reusable component structure role | Stable public part selector |
 | `id:u3976699` | Compact exact source node identity | Stable across builds; never reused after retirement |
 | `scope:message:m_817` | Runtime instance identity | Stable for that business entity |
 | `variant:bubble` | Visual/product variant | Changes when the variant changes |
@@ -38,6 +39,11 @@ Use token matching (`~=`), never substring matching:
   outline: 1px solid hotpink;
 }
 
+/* One reusable component part */
+[data-ui~='part:dialog-content'] {
+  border-radius: 8px;
+}
+
 /* One exact source node */
 [data-ui~='id:u7b21d4a'] {
   display: none;
@@ -47,13 +53,13 @@ Use token matching (`~=`), never substring matching:
 ## Build-time contract
 
 The pre-transform Vite plugin parses TSX/JSX with SWC and annotates every intrinsic HTML element plus each `svg` root
-before the React compiler runs. It also annotates component boundaries that explicitly forward DOM markers such as
-`data-slot`, which covers Cherry Studio's Radix/Shadcn primitives. Window HTML is annotated by the same plugin. An
+before the React compiler runs. Reusable component structure, including Cherry Studio's Radix/Shadcn primitives, is
+represented by `part:*` tokens in the same attribute. Window HTML is annotated by the same plugin. An
 explicit `uiTokens(...)` call on any component boundary receives that source node's exact `id:` token without losing
 runtime tokens.
 
 SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
-default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
+default. They enter the public contract only when they carry `data-ui`, `data-testid`, `role`, or an event
 handler. HTML descendants of `foreignObject` are annotated normally. This keeps icons themeable through their stable
 `svg` boundary while avoiding thousands of fragile IDs for generated vector paths; a drawing part that genuinely needs
 independent styling or testing can opt in explicitly.
@@ -61,7 +67,7 @@ independent styling or testing can opt in explicitly.
 Semantic inference uses, in order:
 
 1. an explicit semantic ID passed to `uiTokens` or a static `data-ui` value;
-2. `data-slot`, `data-testid`, stable `id`/`name`/`type`, and event-handler names;
+2. `part:*`, `data-testid`, stable `id`/`name`/`type`, and event-handler names;
 3. source domain, component name, and element role.
 
 Visible text is never an identity input, so localization and copy changes cannot rename the contract. Line numbers,
@@ -102,6 +108,7 @@ import { uiTokens } from '@renderer/utils/uiContract'
 <div
   data-ui={uiTokens('chat.message', {
     scopes: [`message:${message.id}`, `topic:${message.topicId}`],
+    parts: ['message-content'],
     states: [message.role, message.status, selected && 'selected'],
     modes: ['fold']
   })}

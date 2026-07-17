@@ -66,8 +66,8 @@ describe('Dialog primitive', () => {
       </DialogPortalContainerProvider>
     )
 
-    const outerContent = screen.getByText('Outer dialog').closest('[data-slot="dialog-content"]')
-    const innerContent = screen.getByText('Inner dialog').closest('[data-slot="dialog-content"]')
+    const outerContent = screen.getByText('Outer dialog').closest('[data-ui~="part:dialog-content"]')
+    const innerContent = screen.getByText('Inner dialog').closest('[data-ui~="part:dialog-content"]')
 
     expect(outerContent?.parentElement).toBe(pagePortalContainer)
     expect(innerContent?.parentElement).toBe(pagePortalContainer)
@@ -88,7 +88,7 @@ describe('Dialog primitive', () => {
       </Dialog>
     )
 
-    const content = document.querySelector('[data-slot="dialog-content"]')
+    const content = document.querySelector('[data-ui~="part:dialog-content"]')
     expect(content).not.toBeNull()
     expect(content?.className).toContain(`duration-${DIALOG_CLOSE_DURATION_MS}`)
   })
@@ -125,7 +125,7 @@ describe('Dialog primitive', () => {
       </div>
     )
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.pointerDown(overlay!)
@@ -183,7 +183,7 @@ describe('Dialog primitive', () => {
       </Dialog>
     )
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)
@@ -202,7 +202,7 @@ describe('Dialog primitive', () => {
       </Dialog>
     )
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)
@@ -220,7 +220,7 @@ describe('Dialog primitive', () => {
       </Dialog>
     )
 
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     rerender(
@@ -231,7 +231,7 @@ describe('Dialog primitive', () => {
       </Dialog>
     )
 
-    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay)
+    expect(document.querySelector('[data-ui~="part:dialog-overlay"]')).toBe(overlay)
     fireEvent.click(overlay!)
     expect(handleOpenChange).not.toHaveBeenCalled()
 
@@ -243,7 +243,7 @@ describe('Dialog primitive', () => {
       </Dialog>
     )
 
-    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay)
+    expect(document.querySelector('[data-ui~="part:dialog-overlay"]')).toBe(overlay)
     fireEvent.click(overlay!)
     expect(handleOpenChange).toHaveBeenCalledWith(false)
   })

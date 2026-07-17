@@ -66,10 +66,10 @@ describe('DropdownMenuContent', () => {
       </DropdownMenu>
     )
 
-    expect(screen.getByText('Item').closest('[data-slot="dropdown-menu-content"]')).toHaveClass(
+    expect(screen.getByText('Item').closest('[data-ui~="part:dropdown-menu-content"]')).toHaveClass(
       '[-webkit-app-region:no-drag]'
     )
-    expect(screen.getByText('Sub item').closest('[data-slot="dropdown-menu-sub-content"]')).toHaveClass(
+    expect(screen.getByText('Sub item').closest('[data-ui~="part:dropdown-menu-sub-content"]')).toHaveClass(
       '[-webkit-app-region:no-drag]'
     )
   })
@@ -92,7 +92,7 @@ describe('DropdownMenuContent', () => {
       </DropdownMenu>
     )
 
-    const item = screen.getByText('Delete').closest('[data-slot="dropdown-menu-item"]')
+    const item = screen.getByText('Delete').closest('[data-ui~="part:dropdown-menu-item"]')
     expect(item).toHaveClass("data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!")
     expect(item).not.toHaveClass('data-[variant=destructive]:*:[svg]:text-destructive!')
   })

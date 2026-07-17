@@ -12,7 +12,7 @@ export interface ErrorStateProps extends Omit<ComponentProps<'div'>, 'title'> {
 export function ErrorState({ action, className, description, icon, title, ...props }: ErrorStateProps) {
   return (
     <Alert
-      data-slot="chat-error-state"
+      data-ui="part:chat-error-state"
       type="error"
       showIcon
       icon={icon}

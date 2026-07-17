@@ -87,25 +87,25 @@ function Alert({
     <div
       ref={ref}
       role={alertRole}
-      data-slot="alert"
+      data-ui="part:alert"
       data-type={type}
       className={cn(alertVariants({ type }), className)}
       {...props}>
       {showIcon && (
-        <span data-slot="alert-icon" data-type={type} className={alertIconContainerVariants({ type })}>
+        <span data-ui="part:alert-icon" data-type={type} className={alertIconContainerVariants({ type })}>
           {icon ?? <Icon size={16} className={cn('lucide-custom', alertIconVariants({ type }))} />}
         </span>
       )}
-      <div data-slot="alert-content" className="min-w-0 flex-1">
+      <div data-ui="part:alert-content" className="min-w-0 flex-1">
         {children ?? (
           <>
             {message && (
-              <div data-slot="alert-message" className="font-medium">
+              <div data-ui="part:alert-message" className="font-medium">
                 {message}
               </div>
             )}
             {description && (
-              <div data-slot="alert-description" className="mt-1 text-xs leading-5 opacity-90">
+              <div data-ui="part:alert-description" className="mt-1 text-xs leading-5 opacity-90">
                 {description}
               </div>
             )}
@@ -113,7 +113,7 @@ function Alert({
         )}
       </div>
       {action && (
-        <div data-slot="alert-action" className="ml-2 flex shrink-0 items-center">
+        <div data-ui="part:alert-action" className="ml-2 flex shrink-0 items-center">
           {action}
         </div>
       )}

@@ -66,13 +66,13 @@ describe('SearchInput', () => {
   it('defaults to the h-9 field height', () => {
     const { container } = render(<SearchInput value="" onChange={() => {}} />)
 
-    expect(container.querySelector('[data-slot="input-group"]')).toHaveClass('h-9')
+    expect(container.querySelector('[data-ui~="part:input-group"]')).toHaveClass('h-9')
   })
 
   it('renders the compact h-7 field when size is sm', () => {
     const { container } = render(<SearchInput size="sm" value="" onChange={() => {}} />)
 
-    const group = container.querySelector('[data-slot="input-group"]')
+    const group = container.querySelector('[data-ui~="part:input-group"]')
     expect(group).toHaveClass('h-7')
     expect(group).not.toHaveClass('h-9')
   })

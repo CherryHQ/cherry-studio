@@ -102,11 +102,11 @@ interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.R
 function Switch({ loading = false, size = 'md', className, classNames, ...props }: SwitchProps) {
   return (
     <SwitchPrimitive.Root
-      data-slot="switch"
+      data-ui="part:switch"
       className={cn(switchRootVariants({ size, loading }), className, classNames?.root)}
       {...props}>
       <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
+        data-ui="part:switch-thumb"
         className={cn(switchThumbVariants({ size, loading }), classNames?.thumb)}>
         <svg
           viewBox="0 0 19 19"

@@ -31,9 +31,9 @@ describe('UI contract compiler', () => {
   })
 
   it('preserves a uniquely recoverable ID when a file moves', () => {
-    const original = transformJsx('const CopyButton = () => <button data-slot="copy-button" />', options)
+    const original = transformJsx('const CopyButton = () => <button data-ui="part:copy-button" />', options)
     const first = reconcileRegistry(emptyRegistry(), original.descriptors)
-    const moved = transformJsx('const CopyButton = () => <button data-slot="copy-button" />', {
+    const moved = transformJsx('const CopyButton = () => <button data-ui="part:copy-button" />', {
       ...options,
       sourceFile: 'src/renderer/components/actions/CopyButton.tsx'
     })
@@ -91,7 +91,7 @@ describe('UI contract compiler', () => {
     const result = transformJsx(
       `const Icon = () => (
         <svg>
-          <path data-slot="accent" />
+          <path data-ui="part:accent" />
           <circle data-testid="status-dot" />
           <rect onClick={handleClick} />
           <g />
@@ -115,10 +115,26 @@ describe('UI contract compiler', () => {
       'div',
       'span'
     ])
-    expect(result.code).toContain('<path data-slot="accent" data-ui=')
+    expect(result.code).toContain('<path data-ui="')
+    expect(result.code).toContain('part:accent id:')
     expect(result.code).toContain('<g />')
     expect(result.code).not.toContain('<g data-ui=')
     expect(result.code).toContain('<div data-ui=')
+  })
+
+  it('rejects the obsolete data-slot attribute', () => {
+    expect(() => transformJsx('const Button = () => <button data-slot="save" />', options)).toThrow(
+      'data-slot is obsolete'
+    )
+  })
+
+  it('does not register component boundaries that cannot render DOM', () => {
+    const result = transformJsx(
+      'const Dialog = () => <DialogPrimitive.Root data-ui="part:dialog"><DialogPrimitive.Portal data-ui="part:dialog-portal" /></DialogPrimitive.Root>',
+      options
+    )
+
+    expect(result.descriptors).toHaveLength(0)
   })
 
   it('annotates HTML roots without parsing markup inside scripts', () => {

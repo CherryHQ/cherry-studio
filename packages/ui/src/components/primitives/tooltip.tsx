@@ -42,13 +42,13 @@ export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
 }
 
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
-  return <RadixProvider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
+  return <RadixProvider delayDuration={delayDuration} {...props} />
 }
 
 function TooltipRoot({ delayDuration = 0, ...props }: TooltipRootProps) {
   return (
     <TooltipProvider delayDuration={delayDuration}>
-      <RadixRoot data-slot="tooltip" delayDuration={delayDuration} {...props} />
+      <RadixRoot delayDuration={delayDuration} {...props} />
     </TooltipProvider>
   )
 }
@@ -56,7 +56,7 @@ function TooltipRoot({ delayDuration = 0, ...props }: TooltipRootProps) {
 function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
   return (
     <RadixTrigger
-      data-slot="tooltip-trigger"
+      data-ui="part:tooltip-trigger"
       onFocus={(e) => {
         onFocus?.(e)
         // Radix composeEventHandlers respects defaultPrevented
@@ -88,7 +88,7 @@ function TooltipContent({
   return (
     <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <RadixContent
-        data-slot="tooltip-content"
+        data-ui="part:tooltip-content"
         sideOffset={sideOffset}
         className={cn(contentStyles, className)}
         {...props}>
@@ -173,7 +173,7 @@ export const Tooltip = ({
         </TooltipTrigger>
         <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
           <RadixContent
-            data-slot="tooltip-content"
+            data-ui="part:tooltip-content"
             side={side}
             align={align}
             sideOffset={sideOffset}

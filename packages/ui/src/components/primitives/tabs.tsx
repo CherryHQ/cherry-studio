@@ -22,7 +22,7 @@ function Tabs({
   return (
     <TabsContext value={{ variant, orientation }}>
       <TabsPrimitive.Root
-        data-slot="tabs"
+        data-ui="part:tabs"
         orientation={orientation}
         className={cn('flex flex-col gap-2', orientation === 'vertical' && 'flex-row', className)}
         {...props}
@@ -66,7 +66,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
   const { variant, orientation } = React.use(TabsContext)
   return (
     <TabsPrimitive.List
-      data-slot="tabs-list"
+      data-ui="part:tabs-list"
       className={cn(tabsListVariants({ variant, orientation }), className)}
       {...props}
     />
@@ -155,7 +155,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
   const { variant, orientation } = React.use(TabsContext)
   return (
     <TabsPrimitive.Trigger
-      data-slot="tabs-trigger"
+      data-ui="part:tabs-trigger"
       className={cn(tabsTriggerVariants({ variant, orientation }), className)}
       {...props}
     />
@@ -163,7 +163,9 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
 }
 
 function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
-  return <TabsPrimitive.Content data-slot="tabs-content" className={cn('flex-1 outline-none', className)} {...props} />
+  return (
+    <TabsPrimitive.Content data-ui="part:tabs-content" className={cn('flex-1 outline-none', className)} {...props} />
+  )
 }
 
 export { Tabs, TabsContent, TabsList, TabsTrigger }
