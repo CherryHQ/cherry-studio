@@ -887,6 +887,10 @@
           "description": "Manages the in-app scheduler",
           "label": "Scheduler"
         },
+        "CherryGenerateImage": {
+          "description": "Generates an image from a text prompt using your configured painting model",
+          "label": "Generate Image"
+        },
         "CherryKbManage": {
           "description": "Adds, deletes, or refreshes documents in your knowledge bases",
           "label": "Manage Knowledge"
@@ -1397,7 +1401,7 @@
         "title": "Queued ({{count}})"
       },
       "generate_image": "Generate image",
-      "generate_image_not_supported": "The model does not support generating images.",
+      "generate_image_no_model": "Configure a painting model in Settings › Default Model",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Current model does not support adjustable reasoning"
       },
+      "toolbar": {
+        "customize": "Customize toolbar",
+        "drag": {
+          "cancelled": "Reordering cancelled for {{name}}.",
+          "dropped": "{{name}} dropped.",
+          "instructions": "To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "{{name}} moved over {{over}}.",
+          "picked_up": "Picked up {{name}}."
+        },
+        "drag_handle": "Drag to reorder {{name}}",
+        "restore_default": "Restore default"
+      },
       "tools": {
         "collapse": "Collapse",
         "collapse_in": "Collapse",
         "collapse_out": "Remove from collapse",
         "expand": "Expand",
         "file_not_found": "File not found: {{path}}",
+        "generate_image": {
+          "failed": "Image generation failed",
+          "generating": "Generating image…",
+          "title": "Generated image"
+        },
         "open_file": "Open File",
         "open_file_error": "Failed to open file: {{path}}",
         "reveal_in_finder": "Reveal in Finder"
@@ -3475,8 +3496,10 @@
       "title": "Library"
     },
     "skill_add": {
+      "add": "Add Skill",
       "local_import": "Local import",
-      "online_search": "Online search"
+      "online_search": "Online search",
+      "system_search": "System search"
     },
     "skill_detail": {
       "created_at": "Created",
@@ -3504,6 +3527,19 @@
       "updated": "Sort by updated"
     },
     "subtitle": "Manage your assistants, agents and skills",
+    "system_skill": {
+      "conflict": "Name conflict",
+      "description": "Import skills already installed on this system.",
+      "empty_description": "No importable skills were found in other coding tools on this device.",
+      "empty_title": "No skills available to import",
+      "enable_success": "Enabled {{name}}",
+      "enabled": "Enabled",
+      "import": "Import",
+      "import_success": "Imported {{name}}",
+      "imported": "Imported",
+      "search_placeholder": "Search system skills...",
+      "title": "System skills"
+    },
     "tag_picker": {
       "no_tags": "No tags yet",
       "placeholder": "New tag name..."
@@ -6831,6 +6867,8 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "painting_model": "Painting Model",
+      "painting_model_description": "Model used for image generation",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -7711,6 +7749,8 @@
   },
   "tab": {
     "close": "Close Tab",
+    "close_others": "Close Other Tabs",
+    "close_to_right": "Close Tabs to the Right",
     "move_to_first": "Move to First",
     "new": "New Tab",
     "open_in_new_window": "Open in New Window",

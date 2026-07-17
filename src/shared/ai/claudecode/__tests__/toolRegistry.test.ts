@@ -47,4 +47,10 @@ describe('claudeUserFacingTools', () => {
     expect(byName.get('mcp__cherry-tools__config')?.label).toBe('Configuration')
     expect(byName.has('mcp__cherry-tools__kb_read')).toBe(false) // internal — follows kb capability
   })
+
+  it('exposes generate_image as a user-facing media tool', () => {
+    const tool = byName.get('mcp__cherry-tools__generate_image')
+    expect(tool?.label).toBe('Generate Image')
+    expect(tool?.category).toBe('media')
+  })
 })

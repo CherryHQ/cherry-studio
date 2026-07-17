@@ -1107,12 +1107,12 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: result.threw })
+        logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
       }
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted
           ? errorFromStreamChunk(result.streamErrorText)
-          : serializeError(result.threw)
+          : serializeError(result.threw.error)
       await this.onExecutionError(topicId, modelId, serialized)
       return
     }

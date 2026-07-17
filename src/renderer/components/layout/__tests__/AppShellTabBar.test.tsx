@@ -89,15 +89,17 @@ vi.mock('@renderer/components/command', () => ({
     extraItems
   }: {
     children: ReactNode
-    extraItems?: Array<{ id: string; label: string; onSelect?: () => void }>
+    extraItems?: Array<{ type: string; id?: string; label?: string; onSelect?: () => void }>
   }) => (
     <div>
       {children}
-      {extraItems?.map((item) => (
-        <button key={item.id} type="button" data-testid={`menu-${item.id}`} onClick={item.onSelect}>
-          {item.label}
-        </button>
-      ))}
+      {extraItems
+        ?.filter((item) => item.type === 'item')
+        .map((item) => (
+          <button key={item.id} type="button" data-testid={`menu-${item.id}`} onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ))}
     </div>
   ),
   CommandTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
@@ -134,6 +136,7 @@ describe('AppShellTabBar', () => {
           pinTab={vi.fn()}
           unpinTab={vi.fn()}
           openTab={vi.fn()}
+          closeTabs={vi.fn()}
           {...props}
           closeTab={closeTab}
         />
@@ -160,6 +163,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -169,7 +173,7 @@ describe('AppShellTabBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
-    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad' })
+    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
   it('moves a normal tab to the first slot', async () => {
@@ -187,6 +191,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={reorderTabs}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -201,6 +206,101 @@ describe('AppShellTabBar', () => {
     expect(reorderTabs).toHaveBeenCalledWith('normal', 2, 0)
   })
 
+  it('closes the other normal tabs from the context menu, leaving pinned tabs alone', async () => {
+    const user = userEvent.setup()
+    const closeTabs = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
+      { id: 'c', type: 'route', url: '/app/c', title: 'C' },
+      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="a"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        closeTabs={closeTabs}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    // All four tabs offer the action; the pinned tab renders first in the strip.
+    const closeOthersButtons = screen.getAllByTestId('menu-tab.close-others')
+    expect(closeOthersButtons).toHaveLength(4)
+    await user.click(closeOthersButtons[2])
+
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'c'], 'b')
+  })
+
+  it('clears the whole normal zone when batch-closing from a pinned tab', async () => {
+    const user = userEvent.setup()
+    const closeTabs = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
+      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="a"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        closeTabs={closeTabs}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    // The pinned tab renders first, so its buttons come before the normal tabs'.
+    await user.click(screen.getAllByTestId('menu-tab.close-to-right')[0])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'], 'p')
+
+    closeTabs.mockClear()
+    await user.click(screen.getAllByTestId('menu-tab.close-others')[0])
+    expect(closeTabs).toHaveBeenCalledWith(['a', 'b'], 'p')
+  })
+
+  it('closes the tabs to the right from the context menu', async () => {
+    const user = userEvent.setup()
+    const closeTabs = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+      { id: 'b', type: 'route', url: '/app/b', title: 'B' },
+      { id: 'c', type: 'route', url: '/app/c', title: 'C' }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="a"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        closeTabs={closeTabs}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    // The rightmost tab has nothing to its right, so only two tabs offer it.
+    const closeToRightButtons = screen.getAllByTestId('menu-tab.close-to-right')
+    expect(closeToRightButtons).toHaveLength(2)
+    await user.click(closeToRightButtons[0])
+
+    expect(closeTabs).toHaveBeenCalledWith(['b', 'c'], 'a')
+  })
+
   it('lets the home tab expose menu affordances like a normal tab', () => {
     const tabs: Tab[] = [
       { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
@@ -213,6 +313,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -237,6 +338,7 @@ describe('AppShellTabBar', () => {
         activeTabId="a"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -265,6 +367,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -359,6 +462,7 @@ describe('AppShellTabBar', () => {
         activeTabId="files"
         setActiveTab={setActiveTab}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -384,6 +488,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -396,7 +501,7 @@ describe('AppShellTabBar', () => {
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
   })
 
-  it('allows the last normal tab to close while forbidding direct close on pinned tabs', () => {
+  it('allows both the last normal tab and pinned tabs to close from the menu', () => {
     const tabs: Tab[] = [
       { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
       { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
@@ -408,6 +513,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -416,7 +522,7 @@ describe('AppShellTabBar', () => {
     )
 
     expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(2)
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
+    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
     expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(0)
   })
 
@@ -433,6 +539,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -440,7 +547,7 @@ describe('AppShellTabBar', () => {
       />
     )
 
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
+    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(3)
   })
   it('closes a normal tab on double click or middle click', () => {
     const handleDoubleClick = vi.fn()
@@ -510,7 +617,9 @@ describe('AppShellTabBar', () => {
 })
 
 describe('getTabCapabilities', () => {
-  const ctx = (over?: Partial<{ pinnedCount: number; normalCount: number; canDetach: boolean }>) => ({
+  const ctx = (
+    over?: Partial<{ pinnedCount: number; normalCount: number; canDetach: boolean; normalIndex: number }>
+  ) => ({
     pinnedCount: 1,
     normalCount: 1,
     canDetach: true,
@@ -518,54 +627,81 @@ describe('getTabCapabilities', () => {
   })
 
   it('keeps close, pin, detach, and menu enabled for the last normal tab', () => {
-    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 1 }))).toEqual({
+    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 1, normalIndex: 0 }))).toEqual({
       menu: true,
       reorder: false,
       togglePin: true,
       detach: true,
-      close: true
+      close: true,
+      closeOthers: false,
+      closeToRight: false
     })
   })
 
   it('unlocks every normal action once a second normal tab exists', () => {
-    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2 }))).toEqual({
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, normalIndex: 0 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
       detach: true,
-      close: true
+      close: true,
+      closeOthers: true,
+      closeToRight: true
     })
   })
 
   it('does not treat newly-created chat tabs as the fixed home tab', () => {
-    expect(getTabCapabilities({ id: 'chat', isPinned: false }, ctx({ normalCount: 2 }))).toEqual({
+    expect(getTabCapabilities({ id: 'chat', isPinned: false }, ctx({ normalCount: 2, normalIndex: 1 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
       detach: true,
-      close: true
+      close: true,
+      closeOthers: true,
+      closeToRight: false
     })
   })
 
   it('treats the home tab like any other normal tab when siblings exist', () => {
-    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 3 }))).toEqual({
+    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 3, normalIndex: 0 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
       detach: true,
-      close: true
+      close: true,
+      closeOthers: true,
+      closeToRight: true
     })
   })
 
-  it('lets pinned tabs unpin but never close, reordering only with siblings', () => {
-    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1 }))).toEqual({
+  it('lets pinned tabs unpin and close via menu, batch-closing only the normal zone', () => {
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1, normalCount: 1 }))).toEqual({
       menu: true,
       reorder: false,
       togglePin: true,
       detach: true,
-      close: false
+      close: true,
+      closeOthers: true,
+      closeToRight: true
     })
     expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
+  })
+
+  it('hides batch close on pinned tabs when no normal tabs exist', () => {
+    const caps = getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2, normalCount: 0 }))
+    expect(caps.close).toBe(true)
+    expect(caps.closeOthers).toBe(false)
+    expect(caps.closeToRight).toBe(false)
+  })
+
+  it('offers close-to-right only while normal tabs exist to the right', () => {
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 3, normalIndex: 1 })).closeToRight).toBe(
+      true
+    )
+    expect(getTabCapabilities({ id: 'c', isPinned: false }, ctx({ normalCount: 3, normalIndex: 2 })).closeToRight).toBe(
+      false
+    )
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 3 })).closeToRight).toBe(false)
   })
 
   it('respects window detach support', () => {

@@ -1,5 +1,9 @@
 import { useQuery } from '@data/hooks/useDataApi'
-import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageListState,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -29,6 +33,7 @@ type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApprov
 
 interface MessageLeafCapabilitiesParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,15 +99,27 @@ function formatMessageAttachmentFileName(file: FileMetadata, t: TFunction): stri
 }
 
 export function useMessageLeafCapabilities({
-  partsByMessageId
+  partsByMessageId,
+  streamingLayers
 }: MessageLeafCapabilitiesParams): MessageLeafActions & MessageLeafState {
   const { t } = useTranslation()
   const { preview } = useAttachment()
   const platformActions = useMessagePlatformActions()
-  const hasMcpToolParts = useMemo(
-    () => Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart)),
-    [partsByMessageId]
+  const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId
+  const historyHasMcpToolParts = useMemo(
+    () =>
+      historyPartsByMessageId
+        ? Object.values(historyPartsByMessageId).some((parts) => parts.some(isMcpToolPart))
+        : false,
+    [historyPartsByMessageId]
   )
+  const hasMcpToolParts = useMemo(() => {
+    if (!streamingLayers) {
+      return Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart))
+    }
+    if (historyHasMcpToolParts) return true
+    return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
+  }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
   const { data: externalApps } = useExternalApps()
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
