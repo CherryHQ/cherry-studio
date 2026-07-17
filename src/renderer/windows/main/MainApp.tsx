@@ -26,12 +26,7 @@ function useMcpStaleToolsWarning(): void {
   useEffect(() => {
     return ipcApi.on('mcp.server.tools_stale', ({ serverId, serverName, toolCount }) => {
       logger.warn('MCP server tools are stale', { serverId, serverName, toolCount })
-      toast.warning(i18n.t('mcp.warning.toolsStale', { serverName, toolCount }), {
-        action: {
-          label: i18n.t('common.settings'),
-          onClick: () => ipcApi.request('navigation.open_route_in_main', { path: `/settings/mcp/settings/${serverId}` })
-        }
-      })
+      toast.warning(i18n.t('mcp.warning.tools_stale', { serverName, toolCount }))
     })
   }, [])
 }
