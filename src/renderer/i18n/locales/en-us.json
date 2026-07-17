@@ -1523,6 +1523,7 @@
         "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
         "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
         "no_tool": "No matching MCP tool found for {{tool}}",
+        "toolsStale": "MCP server '{{serverName}}' is unreachable — using {{toolCount}} cached tool definition(s). Some tools may be outdated.",
         "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
