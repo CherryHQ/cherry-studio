@@ -121,4 +121,21 @@ describe('useTopicAwaitingApproval', () => {
       expect(refresh).not.toHaveBeenCalled()
     }
   )
+
+  it('does not carry a live edge across topic identities', async () => {
+    const refresh = vi.fn(async () => {})
+    setEntry('streaming')
+    const { rerender } = renderHook(
+      ({ topicId }: { topicId: string }) => useTopicDbRefreshOnAwaitingApproval(topicId, refresh),
+      { initialProps: { topicId: 'topic-1' } }
+    )
+
+    setEntry('awaiting-approval')
+    await act(async () => {
+      rerender({ topicId: 'topic-2' })
+      await Promise.resolve()
+    })
+
+    expect(refresh).not.toHaveBeenCalled()
+  })
 })

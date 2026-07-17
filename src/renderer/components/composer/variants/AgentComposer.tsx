@@ -278,6 +278,7 @@ type Props = {
   canChangeModel?: boolean
   isStreaming: boolean
   sendDisabled?: boolean
+  compactWhenSingleLine?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -301,6 +302,7 @@ const AgentComposerRoot = ({
   canChangeModel = true,
   isStreaming,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   renderControls,
   forceNarrowLayout = false
 }: AgentComposerRootProps) => {
@@ -375,6 +377,7 @@ const AgentComposerRoot = ({
         canChangeModel={canChangeModel}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
+        compactWhenSingleLine={compactWhenSingleLine}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
       />
@@ -401,6 +404,7 @@ interface InnerProps {
   canChangeModel: boolean
   isStreaming: boolean
   sendDisabled: boolean
+  compactWhenSingleLine: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
 }
@@ -759,7 +763,10 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   renderWorkspaceControl?: (args: { side: 'top' | 'bottom'; iconOnly?: boolean }) => React.ReactNode
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type AgentComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
@@ -821,7 +828,18 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
           }
         />
       )
-    }
+    },
+    renderCompactControls: (inputAdapter, unifiedPanelControl) => (
+      <>
+        {props.topBarPortalAvailable
+          ? renderAgentComposerContextControls(props, inputAdapter, {
+              side: 'bottom',
+              iconOnly: props.topBarPortalIconOnly
+            })
+          : null}
+        {props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })}
+      </>
+    )
   }
 }
 
@@ -877,6 +895,7 @@ const AgentComposerInner = ({
   canChangeModel,
   isStreaming,
   sendDisabled,
+  compactWhenSingleLine,
   renderControls,
   forceNarrowLayout = false
 }: InnerProps) => {
@@ -1551,6 +1570,7 @@ const AgentComposerInner = ({
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

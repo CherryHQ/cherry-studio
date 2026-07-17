@@ -218,6 +218,14 @@ describe('PaintingComposer', () => {
     expect(paramsButton()).toHaveTextContent('1024×1024')
   })
 
+  it('localizes the selected size through the shared option label instead of the raw enum', () => {
+    renderComposer({ painting: makePainting({ params: { size: 'auto' } }) })
+    // The summary must route `auto` through resolveOptions/sizeOptionLabel (its
+    // localized labelKey) like the chips and prompt bar — not surface the bare
+    // `auto` enum that deriveChipLabel(value, value) previously leaked here.
+    expect(paramsButton()).toHaveTextContent('paintings.image_size_options.auto')
+  })
+
   it('previews custom dimensions when size is custom', () => {
     renderComposer({
       painting: makePainting({ params: { size: 'custom', customSize_width: 800, customSize_height: 600 } })
