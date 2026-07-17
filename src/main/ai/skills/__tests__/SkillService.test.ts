@@ -826,26 +826,21 @@ describe('SkillService', () => {
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
     })
 
-    it('reconcileSkills absorbs an agent-dropped mirror skill into the managed library', async () => {
-      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('dropped', { name: 'Dropped' }))
-      // Agent authored a skill in place under CLAUDE_CONFIG_DIR/skills (a real dir).
+    it('reconcileSkills leaves a real dir dropped in the mirror untouched (one-way projection)', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // Agents write to the managed library (CHERRY_STUDIO_SKILLS_DIR), not the mirror, so a real
+      // dir dropped under CLAUDE_CONFIG_DIR/skills is neither adopted into the catalog nor pruned.
       const dropped = path.join(mirrorRoot, 'dropped')
       await fs.promises.mkdir(dropped, { recursive: true })
       await fs.promises.writeFile(path.join(dropped, 'SKILL.md'), '# dropped')
 
       await skillService.reconcileSkills()
 
-      // relocated into the managed library
-      await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
-      // mirror entry is now a managed symlink, not the original real dir
-      expect((await fs.promises.lstat(path.join(mirrorRoot, 'dropped'))).isSymbolicLink()).toBe(true)
-      // registered in the catalog
-      const rows = await dbh.db
-        .select()
-        .from(agentGlobalSkillTable)
-        .where(eq(agentGlobalSkillTable.folderName, 'dropped'))
-      expect(rows).toHaveLength(1)
-      expect(rows[0]?.source).toBe('local')
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'dropped'))
+      ).toHaveLength(0)
+      await expect(fs.promises.access(path.join(mirrorRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped'))).rejects.toThrow()
     })
 
     it('reconcileSkills does not prune the catalog when the library root is unreadable', async () => {

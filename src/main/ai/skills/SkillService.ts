@@ -818,18 +818,19 @@ export class SkillService {
   }
 
   /**
-   * Reconcile the skill library, the DB catalog, and the CLAUDE_CONFIG_DIR/skills
-   * mirror. The filesystem is the source of truth; `agent_global_skill` is a cache
-   * reconciled from disk — so a skill an agent authored via native file tools (or one
-   * whose files were removed out-of-band) is picked up without any "register" call.
+   * Reconcile the managed skill library (Data/Skills) with the DB catalog and the
+   * CLAUDE_CONFIG_DIR/skills mirror. The filesystem is the source of truth;
+   * `agent_global_skill` is a cache reconciled from disk — so a skill an agent
+   * authored via native file tools (or one whose files were removed out-of-band) is
+   * picked up without any "register" call. Agents write straight into the managed
+   * library via the CHERRY_STUDIO_SKILLS_DIR env (see `buildEnvironment`), so this
+   * only ever reads the library forward — the mirror is a one-way projection of it,
+   * never a write target.
    *
-   * 1. absorb: real, untracked skill dirs dropped directly under the mirror
-   *    (CLAUDE_CONFIG_DIR/skills — the one skills path agents can write to) are
-   *    relocated into the managed library (Data/Skills).
-   * 2. library → DB: adopt newly-present library skills, refresh changed ones, and
+   * 1. library → DB: adopt newly-present library skills, refresh changed ones, and
    *    prune non-builtin rows whose files have vanished. Pruning is gated on a
    *    successful library scan so a transient read error can't wipe the catalog.
-   * 3. DB → mirror: heal every catalog skill's symlink and drop managed orphans.
+   * 2. DB → mirror: heal every catalog skill's symlink and drop managed orphans.
    *
    * Idempotent. Mutations never happen at session build, so concurrent session
    * builds only read these directories.
@@ -841,52 +842,8 @@ export class SkillService {
       logger.warn('Failed to prepare external CLI skill plugin bridge', { error })
     }
 
-    await this.absorbDroppedSkills()
     await this.reconcileLibraryToDb()
     await this.reconcileMirror()
-  }
-
-  /**
-   * Relocate skill directories dropped directly under CLAUDE_CONFIG_DIR/skills (e.g.
-   * authored in place by an agent) into the managed library. Only real, untracked
-   * directories are absorbed: managed mirror entries are symlinks (a real copy on
-   * Windows) whose folder name is already tracked, so the DB check skips them on
-   * every platform. The original is removed so `reconcileMirror` can replace it with
-   * a symlink; the DB row is created by the library pass that follows.
-   */
-  private async absorbDroppedSkills(): Promise<void> {
-    const mirrorRoot = this.getMirrorRoot()
-    let entries: fs.Dirent[]
-    try {
-      entries = await fs.promises.readdir(mirrorRoot, { withFileTypes: true })
-    } catch {
-      return
-    }
-
-    const tracked = new Set(agentGlobalSkillService.listAll().map((s) => s.folderName))
-    const storageRoot = application.getPath('feature.agents.skills')
-
-    for (const entry of entries) {
-      // Symlinks are managed mirror entries; only real dirs can be agent-dropped.
-      if (!entry.isDirectory()) continue
-      if (tracked.has(entry.name)) continue
-
-      const src = path.join(mirrorRoot, entry.name)
-      if ((await this.readSkillMd(src)) === null) continue
-
-      const dest = path.join(storageRoot, entry.name)
-      try {
-        await fs.promises.mkdir(storageRoot, { recursive: true })
-        await fs.promises.cp(src, dest, { recursive: true, force: true })
-        await fs.promises.rm(src, { recursive: true, force: true })
-        logger.info('Absorbed agent-dropped skill into library', { folderName: entry.name })
-      } catch (error) {
-        logger.warn('Failed to absorb dropped skill', {
-          folderName: entry.name,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    }
   }
 
   /**
