@@ -4,7 +4,7 @@ import { WindowControls } from '@renderer/components/WindowControls'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
+import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -34,6 +34,7 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const { t } = useTranslation()
   const { addApiKey, updateProvider } = useProvider('cherryin')
+  const { syncProviderModels } = useProviderModelSync('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models: enabledModels, isLoading: isModelsLoading } = useModels({ enabled: true })
   const { defaultModel, quickModel, translateModel } = useDefaultModel()
@@ -82,6 +83,12 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
         },
         { oauthServer: CHERRYIN_OAUTH_SERVER }
       )
+      const cherryInModels = await syncProviderModels()
+      if (!cherryInModels.some((model) => model.isEnabled)) {
+        toast.error(t('onboarding.provider_setup.missing_model'))
+        setStep('provider')
+        return
+      }
       toast.success(t('onboarding.toast.connected'))
       setStep('select-model')
     } catch {
@@ -89,7 +96,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     } finally {
       setIsLoggingIn(false)
     }
-  }, [addApiKey, t, updateProvider])
+  }, [addApiKey, syncProviderModels, t, updateProvider])
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">

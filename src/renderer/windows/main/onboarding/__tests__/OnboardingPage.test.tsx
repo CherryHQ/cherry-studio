@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const addApiKeyMock = vi.fn()
 const updateProviderMock = vi.fn()
 const oauthWithCherryInMock = vi.fn()
+const syncProviderModelsMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
 const enabledProvidersMock: Array<{ id: string; isEnabled: boolean }> = []
@@ -51,7 +52,11 @@ vi.mock('@renderer/components/WindowControls', () => ({
 vi.mock('@renderer/pages/settings/ProviderSettings', () => ({
   ProviderSettingsPage: ({ isOnboarding }: { isOnboarding?: boolean }) => (
     <div data-testid="provider-settings" data-onboarding={String(isOnboarding)} />
-  )
+  ),
+  useProviderModelSync: () => ({
+    syncProviderModels: syncProviderModelsMock,
+    isSyncingModels: false
+  })
 }))
 
 vi.mock('@renderer/pages/settings/ModelSettings/ModelSettings', () => ({
@@ -66,6 +71,7 @@ describe('OnboardingPage', () => {
     oauthWithCherryInMock.mockResolvedValue('sk-test')
     addApiKeyMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
+    syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
     enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'openai', isEnabled: true })
     enabledModelsMock.splice(0, enabledModelsMock.length, {
       id: 'openai::gpt-4o-mini',
@@ -173,7 +179,16 @@ describe('OnboardingPage', () => {
     expect(container.querySelector('.drag')).toHaveClass('h-[var(--app-top-chrome-height)]')
   })
 
-  it('stores CherryIN OAuth keys, enables the provider, and moves to model selection', async () => {
+  it('syncs CherryIN models before moving a fresh install to model selection', async () => {
+    enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'cherryai', isEnabled: true })
+    enabledModelsMock.splice(0, enabledModelsMock.length, {
+      id: 'cherryai::qwen',
+      providerId: 'cherryai',
+      isEnabled: true
+    })
+    selectedModelsMock.defaultModel = { id: 'cherryai::qwen' }
+    selectedModelsMock.quickModel = { id: 'cherryai::qwen' }
+    selectedModelsMock.translateModel = { id: 'cherryai::qwen' }
     oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
       await setKey('sk-one, sk-two')
       return 'sk-one, sk-two'
@@ -187,6 +202,25 @@ describe('OnboardingPage', () => {
     expect(addApiKeyMock).toHaveBeenCalledWith('sk-one', 'OAuth')
     expect(addApiKeyMock).toHaveBeenCalledWith('sk-two', 'OAuth')
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
     expect(toastSuccessMock).toHaveBeenCalledWith('onboarding.toast.connected')
+  })
+
+  it('returns to provider setup when CherryIN sync finds no enabled model', async () => {
+    syncProviderModelsMock.mockResolvedValue([])
+    oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
+    expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
+    expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
+    expect(toastSuccessMock).not.toHaveBeenCalled()
   })
 })
