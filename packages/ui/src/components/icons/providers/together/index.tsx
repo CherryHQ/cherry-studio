@@ -9,7 +9,7 @@ const Together = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const TogetherIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Together, {
   Avatar: TogetherAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#EF2CC1'
 })
 
 export default TogetherIcon

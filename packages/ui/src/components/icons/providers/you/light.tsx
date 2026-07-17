@@ -17,16 +17,16 @@ const YouLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         id={`${iconId}-youlight__a`}
         width={65}
         height={65}
-        x={18}
-        y={18}
+        x={27}
+        y={28}
         maskUnits="userSpaceOnUse"
         style={{
           maskType: 'luminance'
         }}>
-        <path fill="#fff" d="M83 18H18V83H83V18Z" />
+        <path fill="#fff" d="M92 28H27V93H92V28Z" />
       </mask>
       <g mask={`url(#${iconId}-youlight__a)`}>
-        <path fill={`url(#${iconId}-youlight__b)`} d="M83 18H18V83H83V18Z" />
+        <path fill={`url(#${iconId}-youlight__b)`} d="M92 28H27V93H92V28Z" />
       </g>
       <defs>
         <pattern id={`${iconId}-youlight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
