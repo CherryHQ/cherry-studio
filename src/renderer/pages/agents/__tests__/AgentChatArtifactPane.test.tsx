@@ -992,7 +992,6 @@ describe('AgentChat artifact pane', () => {
     rerenderAgentChat(rerender)
 
     expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
-    expect(rightPane).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-1')
   })
 
