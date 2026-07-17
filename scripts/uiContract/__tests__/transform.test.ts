@@ -69,6 +69,58 @@ describe('UI contract compiler', () => {
     expect(result.code).toContain('<span data-ui=')
   })
 
+  it('annotates SVG roots but skips internal drawing nodes by default', () => {
+    const result = transformJsx(
+      'const Icon = () => <svg><defs><linearGradient><stop /></linearGradient></defs><path /><circle /></svg>',
+      {
+        ...options,
+        contractForDescriptor: (descriptor) => ({
+          id: `u${descriptor.anchorHash.slice(0, 7)}`,
+          semanticId: descriptor.semanticId
+        })
+      }
+    )
+
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['svg'])
+    expect(result.code).toContain('<svg data-ui=')
+    expect(result.code).toContain('<path />')
+    expect(result.code).not.toContain('<path data-ui=')
+  })
+
+  it('keeps explicitly marked SVG internals and foreignObject HTML in the contract', () => {
+    const result = transformJsx(
+      `const Icon = () => (
+        <svg>
+          <path data-slot="accent" />
+          <circle data-testid="status-dot" />
+          <rect onClick={handleClick} />
+          <g />
+          <foreignObject><div><span /></div></foreignObject>
+        </svg>
+      )`,
+      {
+        ...options,
+        contractForDescriptor: (descriptor) => ({
+          id: `u${descriptor.anchorHash.slice(0, 7)}`,
+          semanticId: descriptor.semanticId
+        })
+      }
+    )
+
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual([
+      'svg',
+      'path',
+      'circle',
+      'rect',
+      'div',
+      'span'
+    ])
+    expect(result.code).toContain('<path data-slot="accent" data-ui=')
+    expect(result.code).toContain('<g />')
+    expect(result.code).not.toContain('<g data-ui=')
+    expect(result.code).toContain('<div data-ui=')
+  })
+
   it('annotates HTML roots without parsing markup inside scripts', () => {
     const result = transformHtml('<body><div id="root"></div><script>const sample = "<span>"</script></body>', {
       ...options,
@@ -83,5 +135,25 @@ describe('UI contract compiler', () => {
     expect(result.descriptors).toHaveLength(2)
     expect(result.code).toContain('scope:window:main boundary:app theme:custom')
     expect(result.code).toContain('const sample = "<span>"')
+  })
+
+  it('applies the same SVG coverage policy to window HTML', () => {
+    const result = transformHtml(
+      '<body><svg><defs><path /></defs><circle data-testid="status-dot" /><foreignObject><div /></foreignObject></svg></body>',
+      {
+        ...options,
+        contractForDescriptor: (descriptor) => ({
+          id: `u${descriptor.anchorHash.slice(0, 7)}`,
+          semanticId: descriptor.semanticId
+        }),
+        sourceFile: 'src/renderer/windows/main/index.html',
+        windowName: 'main'
+      }
+    )
+
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['body', 'svg', 'circle', 'div'])
+    expect(result.code).not.toContain('<path data-ui=')
+    expect(result.code).toContain('<circle data-testid="status-dot" data-ui=')
+    expect(result.code).toContain('<div data-ui=')
   })
 })

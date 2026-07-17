@@ -1,8 +1,8 @@
 # UI Semantic Contract
 
-Cherry Studio exposes every app-owned DOM element through one public, machine-readable `data-ui` attribute. It is the
-stable interface for user themes, end-to-end tests, inspectors, and controlled AI automation. Internal classes and DOM
-ancestry are not part of this contract.
+Cherry Studio exposes app-owned HTML elements and public SVG boundaries through one machine-readable `data-ui`
+attribute. It is the stable interface for user themes, end-to-end tests, inspectors, and controlled AI automation.
+Internal classes, DOM ancestry, and unmarked SVG drawing primitives are not part of this contract.
 
 ## Token protocol
 
@@ -46,10 +46,17 @@ Use token matching (`~=`), never substring matching:
 
 ## Build-time contract
 
-The pre-transform Vite plugin parses TSX/JSX with SWC and annotates every intrinsic DOM/SVG element before the React
-compiler runs. It also annotates component boundaries that explicitly forward DOM markers such as `data-slot`, which
-covers Cherry Studio's Radix/Shadcn primitives. Window HTML is annotated by the same plugin. An explicit `uiTokens(...)`
-call on any component boundary receives that source node's exact `id:` token without losing runtime tokens.
+The pre-transform Vite plugin parses TSX/JSX with SWC and annotates every intrinsic HTML element plus each `svg` root
+before the React compiler runs. It also annotates component boundaries that explicitly forward DOM markers such as
+`data-slot`, which covers Cherry Studio's Radix/Shadcn primitives. Window HTML is annotated by the same plugin. An
+explicit `uiTokens(...)` call on any component boundary receives that source node's exact `id:` token without losing
+runtime tokens.
+
+SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
+default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
+handler. HTML descendants of `foreignObject` are annotated normally. This keeps icons themeable through their stable
+`svg` boundary while avoiding thousands of fragile IDs for generated vector paths; a drawing part that genuinely needs
+independent styling or testing can opt in explicitly.
 
 Semantic inference uses, in order:
 

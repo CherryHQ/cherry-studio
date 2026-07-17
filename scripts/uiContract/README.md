@@ -8,6 +8,9 @@ This directory owns Cherry Studio's build-time `data-ui` protocol.
 - `registry.ts` preserves IDs across builds and uniquely recoverable file moves; retired IDs are never reused.
 - `query.ts` resolves a semantic prefix to exact IDs and source metadata for AI and developer tooling.
 
+Intrinsic HTML elements and `svg` roots are covered automatically. SVG drawing internals are skipped unless they opt in
+with `data-ui`, `data-slot`, `data-testid`, `role`, or an event handler; HTML inside `foreignObject` is covered normally.
+
 Run `pnpm ui:contract:sync` after changing renderer markup. CI and production builds use
 `pnpm ui:contract:check` and fail when the registry has drifted.
 

@@ -8,6 +8,7 @@ import type { UiNodeDescriptor, UiSourceTransform } from './types'
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
 const SKIPPED_HTML_TAGS = new Set(['base', 'head', 'html', 'link', 'meta', 'script', 'style', 'title'])
 const SEMANTIC_ATTRIBUTES = new Set(['data-slot', 'data-testid', 'id', 'name', 'role', 'type'])
+const SVG_OPT_IN_ATTRIBUTES = ['data-slot', 'data-testid', 'role']
 
 type AstRecord = Record<string, unknown> & { span?: Span; type?: string }
 
@@ -22,6 +23,14 @@ interface OpeningElementInfo {
   element: string
   handler?: string
   signature: string
+}
+
+function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
+  return (
+    info.attributes.has('data-ui') ||
+    SVG_OPT_IN_ATTRIBUTES.some((name) => info.attributes.has(name)) ||
+    [...info.attributes.keys()].some((name) => /^on[A-Z]/.test(name))
+  )
 }
 
 function isRecord(value: unknown): value is AstRecord {
@@ -185,7 +194,8 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   function processOpening(
     opening: JSXOpeningElement,
     component: string,
-    parentSemanticId: string | undefined
+    parentSemanticId: string | undefined,
+    insideSvg: boolean
   ): string | undefined {
     const info = openingElementInfo(opening)
     const elementLeaf = info.element.split('.').at(-1) ?? info.element
@@ -195,6 +205,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     const isIntrinsicElement = /^[a-z]/.test(info.element)
     const forwardsDomAttributes = ['data-slot', 'data-testid', 'id', 'role'].some((name) => info.attributes.has(name))
     if (!isIntrinsicElement && !existingDataUi && !forwardsDomAttributes) return parentSemanticId
+    if (insideSvg && info.element !== 'svg' && !hasSvgContractOptIn(info)) return parentSemanticId
     const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
     if (existingDataUi?.dynamic && !dynamicSemanticId) return parentSemanticId
 
@@ -261,24 +272,23 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     return semanticId
   }
 
-  function walk(value: unknown, component: string, parentSemanticId?: string): void {
+  function walk(value: unknown, component: string, parentSemanticId?: string, insideSvg = false): void {
     if (Array.isArray(value)) {
-      for (const item of value) walk(item, component, parentSemanticId)
+      for (const item of value) walk(item, component, parentSemanticId, insideSvg)
       return
     }
     if (!isRecord(value)) return
 
     const nestedComponent = componentNameFromNode(value) ?? component
     if (value.type === 'JSXElement' && isRecord(value.opening) && value.opening.type === 'JSXOpeningElement') {
-      const semanticId = processOpening(
-        value.opening as unknown as JSXOpeningElement,
-        nestedComponent,
-        parentSemanticId
-      )
-      if (Array.isArray(value.children)) walk(value.children, nestedComponent, semanticId)
-      for (const attribute of (value.opening as unknown as JSXOpeningElement).attributes) {
+      const opening = value.opening as unknown as JSXOpeningElement
+      const element = jsxName(opening.name)
+      const semanticId = processOpening(opening, nestedComponent, parentSemanticId, insideSvg)
+      const childrenInsideSvg = element === 'foreignObject' ? false : insideSvg || element === 'svg'
+      if (Array.isArray(value.children)) walk(value.children, nestedComponent, semanticId, childrenInsideSvg)
+      for (const attribute of opening.attributes) {
         if (attribute.type === 'JSXAttribute' && attribute.value?.type === 'JSXExpressionContainer') {
-          walk(attribute.value.expression, nestedComponent, semanticId)
+          walk(attribute.value.expression, nestedComponent, semanticId, childrenInsideSvg)
         }
       }
       return
@@ -286,7 +296,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     for (const [key, child] of Object.entries(value)) {
       if (key === 'span' || key === 'ctxt' || key === 'type') continue
-      walk(child, nestedComponent, parentSemanticId)
+      walk(child, nestedComponent, parentSemanticId, insideSvg)
     }
   }
 
@@ -309,6 +319,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 interface HtmlTagMatch {
   attributes: Record<string, string>
   end: number
+  insideSvg: boolean
   name: string
   source: string
   start: number
@@ -316,13 +327,19 @@ interface HtmlTagMatch {
 
 function htmlTags(source: string): HtmlTagMatch[] {
   const tags: HtmlTagMatch[] = []
+  const svgContext: boolean[] = []
   const parser = new Parser(
     {
       onopentag(name, attributes) {
+        const insideSvg = svgContext.at(-1) ?? false
+        svgContext.push(name === 'foreignobject' ? false : insideSvg || name === 'svg')
         if (SKIPPED_HTML_TAGS.has(name)) return
         const start = parser.startIndex
         const end = parser.endIndex + 1
-        tags.push({ attributes, end, name, source: source.slice(start, end), start })
+        tags.push({ attributes, end, insideSvg, name, source: source.slice(start, end), start })
+      },
+      onclosetag() {
+        svgContext.pop()
       }
     },
     { decodeEntities: false, recognizeSelfClosing: true }
@@ -333,6 +350,14 @@ function htmlTags(source: string): HtmlTagMatch[] {
 
 function htmlAttribute(tag: HtmlTagMatch, name: string): string | undefined {
   return tag.attributes[name.toLowerCase()]
+}
+
+function hasHtmlSvgContractOptIn(tag: HtmlTagMatch): boolean {
+  return (
+    htmlAttribute(tag, 'data-ui') !== undefined ||
+    SVG_OPT_IN_ATTRIBUTES.some((name) => htmlAttribute(tag, name) !== undefined) ||
+    Object.keys(tag.attributes).some((name) => name.startsWith('on'))
+  )
 }
 
 interface TransformHtmlOptions extends TransformJsxOptions {
@@ -346,6 +371,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
   let parentSemanticId: string | undefined
 
   for (const tag of htmlTags(source)) {
+    if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
     const existing = htmlAttribute(tag, 'data-ui')
     const explicitId = existing?.split(/\s+/).find((token) => token && !token.includes(':') && !token.startsWith('id:'))
     const semanticId =
