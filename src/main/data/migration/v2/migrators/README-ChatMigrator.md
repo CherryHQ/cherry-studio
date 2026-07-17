@@ -82,7 +82,6 @@ Topic data is merged from Dexie + Redux before transformation:
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
 | (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
-| (none) | `groupId` | null (new field) |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
 | (none) | `pinnedOrder` | 0 (new field) |

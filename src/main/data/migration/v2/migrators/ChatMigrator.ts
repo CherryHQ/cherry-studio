@@ -76,7 +76,7 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   buildAssistantSnapshot,
@@ -205,7 +205,7 @@ export class ChatMigrator extends BaseMigrator {
   // Count of messages promoted to root because no migrated ancestor was found
   private promotedToRootCount = 0
   // Buffered transformed topics across all streamed batches. Inserted in a
-  // post-stream pass once orderKey can be assigned globally per groupId.
+  // post-stream pass once orderKey can be assigned globally.
   private stagedTopics: PreparedTopicData[] = []
   // chat_message_file_ref backfill state
   private migratedFileEntryIds: Set<string> = new Set()
@@ -424,8 +424,8 @@ export class ChatMigrator extends BaseMigrator {
       // migration runs in preboot, before any `WhenReady` service is up.
       const mappingDeps: ChatMappingDeps = { db: ctx.db, filesDataDir: ctx.paths.filesDataDir }
 
-      // Buffer all topics first; orderKey is stamped post-stream because per-batch
-      // keys would collide across batches sharing a `groupId` partition.
+      // Buffer all topics first; orderKey is stamped post-stream because
+      // independent per-batch sequences would collide in the global order.
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
         logger.debug(`Processing topic batch ${batchIndex + 1}`, { count: topics.length })
 
@@ -1094,7 +1094,7 @@ export class ChatMigrator extends BaseMigrator {
     const sortedTopics = [...this.stagedTopics]
       .sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
       .map((d) => d.topic)
-    const stampedTopics = assignOrderKeysByScope(sortedTopics, (t) => t.groupId)
+    const stampedTopics = assignOrderKeysInSequence(sortedTopics)
     const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
     for (const data of this.stagedTopics) {
       const orderKey = orderKeyById.get(data.topic.id)
