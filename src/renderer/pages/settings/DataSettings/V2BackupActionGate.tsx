@@ -12,7 +12,14 @@ import { useTranslation } from 'react-i18next'
  *
  * BackupService refuses packaged builds (`onInit` early-return + restore reject).
  * Match that fail-closed contract: only expose actions in DEV; otherwise inert.
+ *
+ * Function (not module const) so tests can spy packaged vs DEV readiness.
  */
+export function isV2BackupActionsReady(): boolean {
+  return Boolean(import.meta.env.DEV)
+}
+
+/** @deprecated Prefer {@link isV2BackupActionsReady} — kept for call-site clarity. */
 export const V2_BACKUP_ACTIONS_READY: boolean = import.meta.env.DEV
 
 const V2BackupActionsUnavailableNotice: FC = () => {
@@ -20,8 +27,13 @@ const V2BackupActionsUnavailableNotice: FC = () => {
   return <Alert type="warning" showIcon message={t('settings.data.backup.v2_unavailable')} className="mb-3" />
 }
 
-export const V2BackupActionGate: FC<PropsWithChildren> = ({ children }) => {
-  if (V2_BACKUP_ACTIONS_READY) {
+type GateProps = PropsWithChildren<{
+  /** Test override — production always uses {@link isV2BackupActionsReady}. */
+  ready?: boolean
+}>
+
+export const V2BackupActionGate: FC<GateProps> = ({ children, ready = isV2BackupActionsReady() }) => {
+  if (ready) {
     return <>{children}</>
   }
 

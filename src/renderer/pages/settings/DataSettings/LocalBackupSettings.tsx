@@ -1,8 +1,6 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
-import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -23,7 +21,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupExportV2Popup from './BackupExportV2Popup'
-import { BackupV2DevExport } from './BackupV2DevExport'
 import { LegacyLocalBackupGate } from './LegacyLocalBackupGate'
 import RestoreV2Popup from './RestoreV2Popup'
 import { V2BackupActionGate } from './V2BackupActionGate'
@@ -36,20 +33,11 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
-  const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
-  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
-
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
   }, [])
-
-  useEffect(() => {
-    if (localBackupDir) {
-      void window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
-    }
-  }, [localBackupDir])
 
   const { theme } = useTheme()
 
@@ -111,7 +99,6 @@ const LocalBackupSettings: React.FC = () => {
 
     if (await checkLocalBackupDirValid(value)) {
       await setLocalBackupDir(value)
-      setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
       void startAutoSync(true, 'local')
@@ -180,17 +167,6 @@ const LocalBackupSettings: React.FC = () => {
     )
   }
 
-  const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
-    useLocalBackupModal(resolvedLocalBackupDir)
-
-  const showBackupManager = () => {
-    setBackupManagerVisible(true)
-  }
-
-  const closeBackupManager = () => {
-    setBackupManagerVisible(false)
-  }
-
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
@@ -229,20 +205,6 @@ const LocalBackupSettings: React.FC = () => {
             <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
               <Trash2 size={14} />
               {t('common.clear')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
-              <Save size={14} />
-              {t('settings.data.local.backup.button')}
-            </Button>
-            <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.data.local.restore.button')}
             </Button>
           </RowFlex>
         </SettingRow>
@@ -304,24 +266,7 @@ const LocalBackupSettings: React.FC = () => {
             </SettingRow>
           </>
         )}
-        <>
-          <LocalBackupModal
-            isModalVisible={isModalVisible}
-            handleBackup={handleBackup}
-            handleCancel={handleCancel}
-            backuping={backuping}
-            customFileName={customFileName}
-            setCustomFileName={setCustomFileName}
-          />
-
-          <LocalBackupManager
-            visible={backupManagerVisible}
-            onClose={closeBackupManager}
-            localBackupDir={resolvedLocalBackupDir}
-          />
-        </>
       </LegacyLocalBackupGate>
-      {import.meta.env.DEV && <BackupV2DevExport />}
     </SettingGroup>
   )
 }

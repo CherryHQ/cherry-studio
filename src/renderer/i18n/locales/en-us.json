@@ -5648,11 +5648,23 @@
         "v2": {
           "export": {
             "cancelled": "Backup cancelled.",
+            "cancel_timeout": "Cancel timed out. The backup may still be running.",
             "failure": "Backup failed.",
             "running": "Backing up…",
             "selecting": "Choose where to save the backup…",
             "starting": "Starting backup…",
-            "success": "Backup completed."
+            "success": "Backup completed.",
+            "phase": {
+              "archive": "Creating archive…",
+              "collect": "Collecting data…",
+              "journal": "Writing journal…",
+              "merge": "Merging data…",
+              "preflight": "Checking disk space…",
+              "quiesce": "Quiescing services…",
+              "relaunch": "Relaunching…",
+              "snapshot": "Copying database…",
+              "verify": "Verifying backup…"
+            }
           },
           "preset": {
             "full": "Full backup (all data)",
@@ -5664,9 +5676,11 @@
             "pick_prompt": "Select a .cbu backup archive to restore.",
             "relaunching": "Restore staged. The app is relaunching…",
             "selected": "Selected archive:"
-          }
+          },
+          "file_filter": "Cherry Backup"
         },
-        "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
+        "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon.",
+        "legacy_local_unavailable": "Legacy local backup controls are disabled. Use Backup / Restore above."
       },
       "clear_cache": {
         "button": "Clear Cache",

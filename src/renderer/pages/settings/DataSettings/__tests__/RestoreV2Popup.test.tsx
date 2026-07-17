@@ -104,4 +104,17 @@ describe('RestoreV2Popup', () => {
       expect(screen.getByText('settings.data.backup.v2.restore.failure')).toBeInTheDocument()
     })
   })
+
+  it('shows select failure on idle when no archive was chosen yet', async () => {
+    selectMock.mockRejectedValueOnce(new Error('dialog crashed'))
+
+    await RestoreV2Popup.show()
+    fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.data.backup.v2.restore.failure')).toBeInTheDocument()
+      expect(screen.getByText('dialog crashed')).toBeInTheDocument()
+    })
+    expect(selectMock.mock.calls[0][0].filters[0].name).toBe('settings.data.backup.v2.file_filter')
+  })
 })

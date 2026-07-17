@@ -8,13 +8,16 @@ import { useTranslation } from 'react-i18next'
  *
  * Must NOT share readiness with `BACKUP_V2_READY` — that constant is still the
  * legacy-provider gate for WebDAV / S3 / Nutstore.
+ *
+ * Notice copy is distinct from `v2_unavailable` so packaged builds do not show
+ * two identical "V2 coming soon" alerts above the same page section.
  */
 export const LegacyLocalBackupGate: FC<PropsWithChildren> = ({ children }) => {
   const { t } = useTranslation()
 
   return (
     <>
-      <Alert type="warning" showIcon message={t('settings.data.backup.v2_unavailable')} className="mb-3" />
+      <Alert type="warning" showIcon message={t('settings.data.backup.legacy_local_unavailable')} className="mb-3" />
       <div inert className="pointer-events-none select-none opacity-50">
         {children}
       </div>

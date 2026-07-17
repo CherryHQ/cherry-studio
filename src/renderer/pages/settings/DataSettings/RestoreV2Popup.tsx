@@ -53,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     try {
       const selected = await window.api.file.select({
         properties: ['openFile'],
-        filters: [{ name: 'Cherry Backup', extensions: ['cbu'] }]
+        filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cbu'] }]
       })
       const path = selected?.[0]?.path
       if (!path) {
@@ -65,6 +65,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     } catch (error) {
       logger.error('file.select failed', error as Error)
       setErrorMessage(error instanceof Error ? error.message : String(error))
+      // Keep error visible on idle (no archive yet) as well as ready-with-error.
       setPhase(archivePath ? 'ready-with-error' : 'idle')
     }
   }
@@ -102,6 +103,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     }
   }
 
+  const showPickError = (phase === 'idle' || phase === 'selecting-archive') && Boolean(errorMessage)
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
@@ -117,7 +120,15 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         </DialogHeader>
 
         {(phase === 'idle' || phase === 'selecting-archive') && (
-          <div>{t('settings.data.backup.v2.restore.pick_prompt')}</div>
+          <div className="text-sm">
+            <div>{t('settings.data.backup.v2.restore.pick_prompt')}</div>
+            {showPickError ? (
+              <div className="mt-3 text-destructive">
+                {t('settings.data.backup.v2.restore.failure')}
+                {errorMessage ? <div className="mt-1 break-all">{errorMessage}</div> : null}
+              </div>
+            ) : null}
+          </div>
         )}
 
         {(phase === 'ready' || phase === 'confirming' || phase === 'ready-with-error') && archivePath && (

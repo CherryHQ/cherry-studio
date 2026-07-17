@@ -13,11 +13,15 @@ import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import type { BackupProgressUpdate } from '@shared/types/backup'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('BackupExportV2Popup')
+
+/** If cancel never settles the startBackup promise, unlock the dialog. */
+const CANCEL_TIMEOUT_MS = 15_000
 
 type Props = PopupInjectedProps<Record<string, never>>
 
@@ -32,6 +36,18 @@ type ExportPhase =
   | 'failure'
 
 type Preset = 'full' | 'lite'
+
+const PROGRESS_PHASE_KEYS: Record<BackupProgressUpdate['phase'], string> = {
+  preflight: 'settings.data.backup.v2.export.phase.preflight',
+  collect: 'settings.data.backup.v2.export.phase.collect',
+  snapshot: 'settings.data.backup.v2.export.phase.snapshot',
+  archive: 'settings.data.backup.v2.export.phase.archive',
+  quiesce: 'settings.data.backup.v2.export.phase.quiesce',
+  merge: 'settings.data.backup.v2.export.phase.merge',
+  verify: 'settings.data.backup.v2.export.phase.verify',
+  journal: 'settings.data.backup.v2.export.phase.journal',
+  relaunch: 'settings.data.backup.v2.export.phase.relaunch'
+}
 
 /**
  * V2 export popup. Terminal states are driven by the startBackup promise, never
@@ -51,13 +67,29 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   // Keep the latest cancelBackup/backupId without re-subscribing effects.
   const cancelRef = useRef({ cancelBackup, backupId })
   cancelRef.current = { cancelBackup, backupId }
+  /** Bumped to ignore stale startBackup settle after timeout / remount. */
+  const runIdRef = useRef(0)
+  const cancelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const busy = phase === 'selecting-target' || phase === 'starting' || phase === 'running' || phase === 'cancelling'
   const canClose = !busy
   const canCancelExport = phase === 'running' && Boolean(backupId)
 
+  const clearCancelTimeout = () => {
+    if (cancelTimeoutRef.current !== null) {
+      clearTimeout(cancelTimeoutRef.current)
+      cancelTimeoutRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => clearCancelTimeout()
+  }, [])
+
   useEffect(() => {
     if (!open) return
+    runIdRef.current += 1
+    clearCancelTimeout()
     setPhase('idle')
     setPreset('full')
     setErrorMessage(null)
@@ -78,15 +110,17 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
   const onStart = async () => {
     if (phase !== 'idle') return
+    const runId = ++runIdRef.current
     setPhase('selecting-target')
     setErrorMessage(null)
     try {
       const defaultName = `cherry-studio-backup-${dayjs().format('YYYYMMDDHHmmss')}.cbu`
       const outputPath = await ipcApi.request('file.select_save', {
         defaultPath: defaultName,
-        filters: [{ name: 'Cherry Backup', extensions: ['cbu'] }],
+        filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cbu'] }],
         title: t('backup.confirm.button')
       })
+      if (runId !== runIdRef.current) return
       if (!outputPath) {
         // Dialog cancel: no write, no request — back to idle.
         setPhase('idle')
@@ -96,9 +130,13 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setPhase('starting')
       try {
         const result = await startBackup(preset, outputPath)
+        if (runId !== runIdRef.current) return
+        clearCancelTimeout()
         setArchivePath(result.archivePath)
         setPhase('success')
       } catch (error) {
+        if (runId !== runIdRef.current) return
+        clearCancelTimeout()
         const message = error instanceof Error ? error.message : String(error)
         const code = (error as { code?: string }).code
         const wasCancelled = code === 'BACKUP_CANCELLED' || cancelled || /cancelled/i.test(message)
@@ -107,6 +145,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         setPhase(wasCancelled ? 'cancelled' : 'failure')
       }
     } catch (error) {
+      if (runId !== runIdRef.current) return
       logger.error('file.select_save failed', error as Error)
       setErrorMessage(error instanceof Error ? error.message : String(error))
       setPhase('failure')
@@ -116,17 +155,30 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const onCancelExport = async () => {
     if (!canCancelExport) return
     setPhase('cancelling')
+    clearCancelTimeout()
+    // If startBackup never settles after cancel, unlock so the user is not stuck.
+    cancelTimeoutRef.current = setTimeout(() => {
+      runIdRef.current += 1
+      setErrorMessage(t('settings.data.backup.v2.export.cancel_timeout'))
+      setPhase('failure')
+      cancelTimeoutRef.current = null
+    }, CANCEL_TIMEOUT_MS)
     try {
       await cancelRef.current.cancelBackup()
+      // Stay in cancelling until startBackup rejects/resolves — do not force failure here.
     } catch (error) {
+      // Cancel IPC failed but export may still be running; wait for startBackup settle.
       logger.warn('cancelBackup failed', error as Error)
-      setErrorMessage(error instanceof Error ? error.message : String(error))
-      setPhase('failure')
     }
   }
 
   const progressPercent =
     progress && progress.total > 0 ? Math.min(100, Math.floor((progress.current / progress.total) * 100)) : 0
+
+  const progressLabel =
+    progress != null
+      ? `${t(PROGRESS_PHASE_KEYS[progress.phase])} ${progress.current}/${progress.total}`
+      : t('settings.data.backup.v2.export.running')
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
@@ -149,11 +201,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
               value={preset}
               onValueChange={(value) => setPreset(value as Preset)}
               className="flex flex-col gap-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <label htmlFor="backup-preset-full" className="flex cursor-pointer items-center gap-2 text-sm">
                 <RadioGroupItem value="full" id="backup-preset-full" />
                 {t('settings.data.backup.v2.preset.full')}
               </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <label htmlFor="backup-preset-lite" className="flex cursor-pointer items-center gap-2 text-sm">
                 <RadioGroupItem value="lite" id="backup-preset-lite" />
                 {t('settings.data.backup.v2.preset.lite')}
               </label>
@@ -162,7 +214,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         )}
 
         {(phase === 'selecting-target' || phase === 'starting' || phase === 'running' || phase === 'cancelling') && (
-          <div className="flex flex-col items-center gap-4 py-5 text-center">
+          <div className="flex flex-col items-center gap-4 py-5 text-center" aria-live="polite">
             <CircularProgress
               value={progressPercent}
               size={72}
@@ -173,10 +225,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             <div className="text-sm">
               {phase === 'selecting-target' && t('settings.data.backup.v2.export.selecting')}
               {phase === 'starting' && t('settings.data.backup.v2.export.starting')}
-              {(phase === 'running' || phase === 'cancelling') &&
-                (progress
-                  ? `${progress.phase} ${progress.current}/${progress.total}${progress.message ? ` — ${progress.message}` : ''}`
-                  : t('settings.data.backup.v2.export.running'))}
+              {(phase === 'running' || phase === 'cancelling') && progressLabel}
             </div>
           </div>
         )}

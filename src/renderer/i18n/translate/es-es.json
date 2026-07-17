@@ -5558,11 +5558,23 @@
         "v2": {
           "export": {
             "cancelled": "[to be translated]:Backup cancelled.",
+            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
             "failure": "[to be translated]:Backup failed.",
             "running": "[to be translated]:Backing up…",
             "selecting": "[to be translated]:Choose where to save the backup…",
             "starting": "[to be translated]:Starting backup…",
-            "success": "[to be translated]:Backup completed."
+            "success": "[to be translated]:Backup completed.",
+            "phase": {
+              "archive": "[to be translated]:Creating archive…",
+              "collect": "[to be translated]:Collecting data…",
+              "journal": "[to be translated]:Writing journal…",
+              "merge": "[to be translated]:Merging data…",
+              "preflight": "[to be translated]:Checking disk space…",
+              "quiesce": "[to be translated]:Quiescing services…",
+              "relaunch": "[to be translated]:Relaunching…",
+              "snapshot": "[to be translated]:Copying database…",
+              "verify": "[to be translated]:Verifying backup…"
+            }
           },
           "preset": {
             "full": "[to be translated]:Full backup (all data)",
@@ -5574,9 +5586,11 @@
             "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
             "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
             "selected": "[to be translated]:Selected archive:"
-          }
+          },
+          "file_filter": "[to be translated]:Cherry Backup"
         },
-        "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
+        "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente.",
+        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above."
       },
       "clear_cache": {
         "button": "Limpiar caché",
