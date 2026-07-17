@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-07-17T16:28:09.576Z
- * Total icons: 161
+ * Generated at: 2026-07-17T16:41:58.863Z
+ * Total icons: 160
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -113,7 +113,6 @@ export { NomicIcon as Nomic } from './nomic'
 export { NotebooklmIcon as Notebooklm } from './notebooklm'
 export { NousresearchIcon as Nousresearch } from './nousresearch'
 export { NvidiaIcon as Nvidia } from './nvidia'
-export { O3Icon as O3 } from './o3'
 export { OcoolaiIcon as Ocoolai } from './ocoolai'
 export { OllamaIcon as Ollama } from './ollama'
 export { OpenaiIcon as Openai } from './openai'

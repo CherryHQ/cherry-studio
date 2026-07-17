@@ -4,8 +4,8 @@
  *
  * Loaded exclusively via dynamic import (icons/loader.ts) — never import statically
  *
- * Generated at: 2026-07-17T16:28:09.683Z
- * Total icons: 161
+ * Generated at: 2026-07-17T16:41:58.984Z
+ * Total icons: 160
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -116,7 +116,6 @@ import { NomicIcon } from './nomic'
 import { NotebooklmIcon } from './notebooklm'
 import { NousresearchIcon } from './nousresearch'
 import { NvidiaIcon } from './nvidia'
-import { O3Icon } from './o3'
 import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
 import { OpenaiIcon } from './openai'
@@ -279,7 +278,6 @@ export const PROVIDER_ICON_CATALOG = {
   notebooklm: NotebooklmIcon,
   nousresearch: NousresearchIcon,
   nvidia: NvidiaIcon,
-  o3: O3Icon,
   ocoolai: OcoolaiIcon,
   ollama: OllamaIcon,
   openai: OpenaiIcon,
