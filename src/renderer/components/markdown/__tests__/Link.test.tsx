@@ -1,5 +1,6 @@
+import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
 import { MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -219,5 +220,68 @@ describe('Link', () => {
     fireEvent.click(container.querySelector('a') as HTMLAnchorElement)
     // The opener (workspace-aware) receives the raw relative path.
     expect(openFilePath).toHaveBeenCalledWith('./DESIGN.md')
+  })
+
+  // The link-boundary parser must strip URL hash/query and decode percent-encoding,
+  // and must accept single-segment names that `isInlineFilePath` would reject.
+  it.each([
+    ['./README.md#安装', './README.md'],
+    ['./Meeting%20Notes.md', './Meeting Notes.md'],
+    ['README.md', 'README.md'],
+    ['./src/', './src/']
+  ])('parses file-link href %s → opens %s', (href, expected) => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+    mocks.parseJSON.mockReturnValue(undefined)
+    const openFilePath = vi.fn()
+
+    const { container } = render(
+      <MarkdownHostContext value={{ openFilePath }}>
+        <Link href={href}>link</Link>
+      </MarkdownHostContext>
+    )
+
+    fireEvent.click(container.querySelector('a') as HTMLAnchorElement)
+    expect(openFilePath).toHaveBeenCalledWith(expected)
+  })
+
+  it('routes the parsed path through the host opener: file → preview, directory → file manager, failure → error', async () => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+    mocks.parseJSON.mockReturnValue(undefined)
+
+    const openArtifactFile = vi.fn()
+    const openPath = vi.fn()
+    const onError = vi.fn()
+    const isDirectory = vi.fn().mockResolvedValue(false)
+    const host = {
+      openFilePath: (path: string) => openFileTarget(path, { openArtifactFile, openPath, isDirectory, onError })
+    }
+
+    const { container, rerender } = render(
+      <MarkdownHostContext value={host}>
+        <Link href="./README.md">readme</Link>
+      </MarkdownHostContext>
+    )
+    fireEvent.click(container.querySelector('a') as HTMLAnchorElement)
+    await waitFor(() => expect(openArtifactFile).toHaveBeenCalledWith('./README.md'))
+    expect(openPath).not.toHaveBeenCalled()
+
+    isDirectory.mockResolvedValue(true)
+    rerender(
+      <MarkdownHostContext value={host}>
+        <Link href="./src/">src</Link>
+      </MarkdownHostContext>
+    )
+    fireEvent.click(container.querySelector('a') as HTMLAnchorElement)
+    await waitFor(() => expect(openPath).toHaveBeenCalledWith('./src/'))
+
+    isDirectory.mockResolvedValue(false)
+    openArtifactFile.mockRejectedValueOnce(new Error('boom'))
+    rerender(
+      <MarkdownHostContext value={host}>
+        <Link href="./x.md">x</Link>
+      </MarkdownHostContext>
+    )
+    fireEvent.click(container.querySelector('a') as HTMLAnchorElement)
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
   })
 })
