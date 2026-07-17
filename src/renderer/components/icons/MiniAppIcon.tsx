@@ -2,7 +2,7 @@ import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/m
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
-import { getMiniAppIconDisplayConfig } from './miniAppIcon.config'
+import { getIconDisplayConfig } from './iconDisplayConfig'
 
 interface Props {
   app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
@@ -33,7 +33,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       )
     }
     if (appearance === 'plain' || appearance === 'bare') {
-      const displayConfig = appearance === 'plain' ? getMiniAppIconDisplayConfig(app.logo) : undefined
+      const displayConfig = appearance === 'plain' ? getIconDisplayConfig('mini-app', app.logo) : undefined
       const iconSize = size * (displayConfig?.scale ?? 1)
 
       return (

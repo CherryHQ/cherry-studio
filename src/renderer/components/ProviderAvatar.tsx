@@ -15,6 +15,7 @@ interface ProviderAvatarPrimitiveProps {
   size?: number
   className?: string
   style?: React.CSSProperties
+  iconStyle?: React.CSSProperties
 }
 
 export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = ({
@@ -23,7 +24,8 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   logoSrc,
   size,
   className,
-  style
+  style,
+  iconStyle
 }) => {
   const backgroundColor = generateColorFromChar(providerName)
   const color = providerName ? getForegroundColor(backgroundColor) : 'white'
@@ -51,7 +53,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     return (
       <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
-          <Icon style={{ width: '100%', height: '100%' }} />
+          <Icon style={{ width: '100%', height: '100%', ...iconStyle }} />
         </AvatarFallback>
       </Avatar>
     )

@@ -56,6 +56,23 @@ describe('ProviderAvatarPrimitive', () => {
     expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '100%', height: '100%' })
   })
 
+  it('applies a caller-provided display style to built-in icons', () => {
+    render(
+      <ProviderAvatarPrimitive
+        providerId="custom"
+        providerName="Custom"
+        logo="icon:openai"
+        iconStyle={{ width: '71.42857142857143%', height: '71.42857142857143%', borderRadius: '5px' }}
+      />
+    )
+
+    expect(screen.getByTestId('brand-icon')).toHaveStyle({
+      width: '71.42857142857143%',
+      height: '71.42857142857143%',
+      borderRadius: '5px'
+    })
+  })
+
   it('falls back to the name initial when an `icon:<id>` reference is unknown', () => {
     render(<ProviderAvatarPrimitive providerId="custom" providerName="Zeta" logo="icon:does-not-exist" />)
 
