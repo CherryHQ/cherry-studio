@@ -6191,6 +6191,11 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "更新到最新版本",
       "updateCheckFailed": "檢查更新失敗",
       "updateCheckSuccess": "版本檢查完成",
