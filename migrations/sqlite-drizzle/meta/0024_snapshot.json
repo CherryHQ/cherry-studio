@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7d1187b9-5c86-44dd-a8ca-5a67ab4ff206",
-  "prevId": "fb46843d-760a-443b-b30c-d09fd8d68a5c",
+  "id": "f027ba37-4471-40e1-98d4-89d14b103990",
+  "prevId": "7d1187b9-5c86-44dd-a8ca-5a67ab4ff206",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1045,6 +1045,15 @@
           "tableFrom": "assistant",
           "tableTo": "user_model",
           "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "assistant_group_id_group_id_fk": {
+          "name": "assistant_group_id_group_id_fk",
+          "tableFrom": "assistant",
+          "tableTo": "group",
+          "columnsFrom": ["group_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"

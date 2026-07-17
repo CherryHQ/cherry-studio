@@ -347,14 +347,15 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const tagOptions = useMemo(() => (tags ?? []).map(normalizeTag), [tags])
   const tagColorByName = useMemo(() => new Map(tagOptions.map((tag) => [tag.name, tag.color])), [tagOptions])
   const groupOptions = groups ?? []
+  const activeGroupId = groupOptions.some((group) => group.id === selectedGroupId) ? selectedGroupId : null
 
   const { pinnedItems, unpinnedItems } = useMemo(() => {
     let filtered = items
     if (selectedTagName) {
       filtered = filtered.filter((item) => item.tag === selectedTagName)
     }
-    if (selectedGroupId) {
-      filtered = filtered.filter((item) => item.groupId === selectedGroupId)
+    if (activeGroupId) {
+      filtered = filtered.filter((item) => item.groupId === activeGroupId)
     }
 
     const query = searchValue.trim().toLowerCase()
@@ -370,7 +371,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
-  }, [items, pinnedIds, pinnedSet, searchValue, selectedGroupId, selectedTagName])
+  }, [activeGroupId, items, pinnedIds, pinnedSet, searchValue, selectedTagName])
 
   const sections = useMemo<ResourceSelectorSection<T>[]>(() => {
     const nextSections: ResourceSelectorSection<T>[] = []
@@ -626,7 +627,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           <span className="mr-1 text-[10px] text-muted-foreground">{labels.groupFilter}</span>
         ) : null}
         {groupOptions.map((group) => {
-          const active = selectedGroupId === group.id
+          const active = activeGroupId === group.id
           return (
             <ResourceGroupChip
               key={group.id}

@@ -165,8 +165,15 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1784256691281,
-      "tag": "0023_pretty_maverick",
+      "when": 1784269926969,
+      "tag": "0023_goofy_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784269935242,
+      "tag": "0024_fixed_fixer",
       "breakpoints": true
     }
   ],
