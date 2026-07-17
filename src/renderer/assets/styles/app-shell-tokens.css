@@ -1,0 +1,26 @@
+/**
+ * Renderer App Shell Tokens
+ *
+ * Electron window chrome, native vibrancy, and navigation-glass values belong
+ * to the renderer shell rather than the reusable @cherrystudio/ui package.
+ * Consumers use these `--app-*` properties directly; they are not public theme
+ * aliases for product components.
+ */
+
+:root {
+  --app-nav-item-glass-active-surface: rgba(255, 255, 255, 0.6);
+  --app-nav-item-glass-active-border: rgba(0, 0, 0, 0.08);
+  --app-nav-item-glass-hover-surface: rgba(0, 0, 0, 0.06);
+  --app-nav-item-glass-active-shadow: rgba(255, 255, 255, 0.28);
+  --app-sidebar-glass-shadow: rgba(0, 0, 0, 0.25);
+  --app-sidebar-translucent: color-mix(in srgb, var(--color-sidebar) 70%, transparent);
+  --app-frame-border-translucent: #dadcd6;
+}
+
+.dark {
+  --app-nav-item-glass-active-surface: rgba(255, 255, 255, 0.12);
+  --app-nav-item-glass-active-border: transparent;
+  --app-nav-item-glass-hover-surface: rgba(255, 255, 255, 0.06);
+  --app-nav-item-glass-active-shadow: rgba(255, 255, 255, 0.1);
+  --app-frame-border-translucent: #3c3d35;
+}

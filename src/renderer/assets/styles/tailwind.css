@@ -2,6 +2,7 @@
 @import 'tw-animate-css';
 @import '@cherrystudio/ui/styles/theme.css';
 @import './legacy-vars.css';
+@import './app-shell-tokens.css';
 
 @source '../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
 @source '../../../../node_modules/streamdown/dist/*.js';

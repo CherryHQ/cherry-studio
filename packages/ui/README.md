@@ -122,9 +122,9 @@ To avoid mixing tokens, theme mappings, and runtime overrides, use the following
 
 1. `--cs-*` is the design token namespace, sourced from `tokens/*`
 2. `--color-*`, `--radius-*`, `--font-*`, and `--icon-*` are public theme contracts and should be the default choice for components and external consumers
-3. `--cs-theme-*` is a runtime override input and should only be used for controlled runtime overrides
+3. `--cs-theme-*` is a controlled runtime input; the host writes the accent, readable accent text, and on-accent foreground inputs together
 4. `--primary` is a compatibility alias kept for shadcn / Tailwind ecosystem compatibility and should not be preferred in new code
-5. Tokens from `tokens/colors/component.css` are advanced-CSS override points, but their names are component implementation details and are not compatibility-stable
+5. Tokens from `tokens/colors/component.css` are direct `--cs-*` advanced-CSS override points; they are not mapped into the public Tailwind color registry and are not compatibility-stable
 
 Default consumption rules:
 
@@ -132,6 +132,10 @@ Default consumption rules:
 2. Regular application packages should prefer public contracts such as `--color-*` and should not bind directly to primitive tokens like `--cs-brand-500`
 3. Only design-system-adjacent packages that explicitly need token-level access should depend on `@cherrystudio/ui/styles/tokens.css`
 4. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
+5. Design relationships and color recipes belong in token source CSS; the theme generator only projects those sources into public aliases
+
+For the six in-flight consumer PRs, keep renames and ownership moves aligned with the
+[theme token migration matrix](docs/token-migration-matrix.md).
 
 ## Usage
 

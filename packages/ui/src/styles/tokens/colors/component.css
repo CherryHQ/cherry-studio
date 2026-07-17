@@ -2,14 +2,14 @@
  * Component Slots — INTERNAL, not part of the public theme contract.
  *
  * Color slots owned by a single component (or one piece of window chrome).
- * They exist so palette tweaks live in one place, and they are bridged to
- * `--color-*` for Tailwind utilities — but unlike `semantic.css` tokens they
- * are implementation details: advanced custom CSS may override them, but their
- * names may change whenever the owning component changes. Supported themes
- * should prefer the semantic tokens documented in DESIGN.md.
+ * They exist so palette tweaks live in one place, but they are not bridged to
+ * the public Tailwind color registry. Owning components consume the `--cs-*`
+ * property directly. Advanced custom CSS may override them, but their names may
+ * change whenever the owning component changes.
  *
- * A slot moves to `semantic.css` only when a second, unrelated component
- * legitimately needs the same role.
+ * A slot moves to `semantic.css` only when consumers share one stable product
+ * meaning and must change together; matching values or consumer count alone do
+ * not establish a global semantic role.
  */
 
 :root {
@@ -23,15 +23,9 @@
   --cs-badge-highlight-surface: #c2ec80;
   --cs-badge-highlight-foreground: #2e4d18;
 
-  /* Window-chrome glass tuning — color literals for the macOS-vibrancy
-   * (translucent-window) sidebar drop shadow and floating tab-bar tab surfaces.
-   * These are window-chrome-specific glass values; geometry (offset/blur/spread)
-   * stays inline in the components, only the color slots live here. */
-  --cs-sidebar-glass-shadow: rgba(0, 0, 0, 0.25);
-  --cs-tabbar-glass-surface: rgba(255, 255, 255, 0.6);
-  --cs-tabbar-glass-border: rgba(0, 0, 0, 0.08);
-  --cs-tabbar-glass-hover: rgba(0, 0, 0, 0.06);
-  --cs-tabbar-glass-shadow: rgba(255, 255, 255, 0.28);
+  /* Resizable separator focus fill. It intentionally remains component-owned
+   * even though its current value matches the form-control outline. */
+  --cs-resizable-separator-focus: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
 
   /* Elevated "metallic" CTA (Button default variant) — vertical gradient that
    * flips light-on-dark per mode. The shadow expression itself stays inline in
@@ -53,17 +47,6 @@
   --cs-badge-highlight-border: #a0d958;
   --cs-badge-highlight-surface: #2a4514;
   --cs-badge-highlight-foreground: #c0ec7c;
-
-  /* Window-chrome glass tuning (dark) — see :root note. The sidebar drop-shadow
-   * color is mode-invariant; the active surface is a white frost over the darker
-   * vibrancy (kept clearly above the hover wash so the selected tab/sidebar item
-   * reads on glass) and the active border is dropped entirely (the component keeps
-   * `dark:border-0`, so this is transparent — the inset shadow defines the rim). */
-  --cs-sidebar-glass-shadow: rgba(0, 0, 0, 0.25);
-  --cs-tabbar-glass-surface: rgba(255, 255, 255, 0.12);
-  --cs-tabbar-glass-border: transparent;
-  --cs-tabbar-glass-hover: rgba(255, 255, 255, 0.06);
-  --cs-tabbar-glass-shadow: rgba(255, 255, 255, 0.1);
 
   /* Elevated CTA (dark) — inverted light gradient with dark text. */
   --cs-button-elevated-from: #f5f5f5;

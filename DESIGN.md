@@ -4,7 +4,7 @@
 
 > **Source of truth:** token sources live in `packages/ui/src/styles/tokens/` and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.
 >
-> **Stable contract vs internal slots:** the public `--color-*` aliases generated from `tokens/colors/{semantic,status}.css` (and everything documented here) are the supported theme contract. Aliases generated from `tokens/colors/component.css` are **internal component slots**: advanced custom CSS may override them, but their names are not compatibility-stable and product code outside the owning component must not depend on them.
+> **Stable contract vs internal slots:** public aliases generated from `tokens/colors/{primitive,theme-input,semantic,status}.css` (and everything documented here) are the supported theme contract. Variables in `tokens/colors/component.css` are **internal component slots**: owning components consume their `--cs-*` names directly, no public `--color-*` aliases are generated, and product code outside the owner must not depend on them.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
@@ -27,7 +27,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 
 ## 2. Color Palette & Roles
 
-> Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,semantic,status,component}.css`. This section names what each token is for; refer to the source files for resolved values.
+> Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,theme-input,semantic,status,component}.css`. This section names what each token is for; refer to the source files for resolved values.
 
 ### Palette Philosophy — Neutrals via Alpha, Colors via Steps
 
@@ -46,14 +46,15 @@ When you reach for a value:
 - **Primary Hover**: `var(--color-primary-hover)`
 
 ### Theme Accent
-- **Theme Accent**: `var(--color-theme-accent)` (backed by the runtime input `--cs-theme-accent`) — the user-selected chromatic emphasis shared by features such as links and active controls. It is independent from neutral `--color-primary`.
-- **Theme Accent Soft**: `var(--color-theme-accent-soft)` — the same theme accent at a 60% transparent mix for tinted surfaces.
-- **Theme Accent Foreground**: `var(--color-theme-accent-foreground)` — mode-aware contrast content on a solid theme-accent fill.
+- **Theme Accent**: `var(--color-theme-accent)` — the raw user-selected chromatic accent for fills, borders, progress, and decoration. It is independent from neutral `--color-primary`.
+- **Theme Accent Text**: `var(--color-theme-accent-text)` — the runtime-adjusted accent for readable text and icons on the current page surface.
+- **Theme Accent Foreground**: `var(--color-theme-accent-foreground)` — runtime-selected contrast content on a solid theme-accent fill.
+- The controlled runtime inputs are `--cs-theme-accent`, `--cs-theme-accent-text`, and `--cs-theme-accent-foreground`; product CSS consumes the public role aliases instead of writing them.
 
 ### Control Accent
 - **Control Accent**: `var(--color-control-accent)` — a role alias of Theme Accent for interactive controls whose on/active fill should track the user's theme color. Use this alias in Switch, Slider, Checkbox, and similar controls so component intent remains explicit.
 - **Control Accent Hover / Foreground**: `var(--color-control-accent-hover)` / `var(--color-control-accent-foreground)` — control-specific state aliases derived from the Theme Accent family.
-- The Switch thumb uses the internal component slot `--color-switch-thumb`; product code outside Switch must not consume it.
+- The Switch thumb uses the internal component slot `--cs-switch-thumb`; product code outside Switch must not consume it.
 
 ### Text Colors
 - **Foreground**: `var(--color-foreground)` — primary body text
@@ -86,9 +87,8 @@ When you reach for a value:
 - **Border Muted**: `var(--color-border-muted)` — low-emphasis dividers inside dense lists, tables, and grouped settings
 - **Border Subtle**: `var(--color-border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
 - **Border Hover / Active**: `var(--color-border-hover)` / `var(--color-border-active)`
-- **Border Foreground Muted**: `var(--color-border-foreground-muted)` — a 12% foreground-derived outline for form controls and quiet interactive containers
 - **Frame Border**: `var(--color-frame-border)` — page-level wrapping frames and stronger outer chrome
-- **Input**: `var(--color-input)` — input field borders
+- **Input**: `var(--color-input)` — the 12% foreground-derived outline shared by inputs, textareas, radios, comboboxes, and tree selects
 - **Ring**: `var(--color-ring)` — focus ring
 
 ### Border Token Rules
@@ -118,7 +118,7 @@ Defined in `tokens/colors/status.css`. Use these when a status surface needs mor
 Do not use a page-local chromatic brand color for new UI chrome. `var(--color-brand-*)` exists as a primitive compatibility scale, but new component styling should express action hierarchy through semantic aliases such as `var(--color-primary)` and status through the semantic status tokens.
 
 ### Links
-Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` aliases the user-customizable Theme Accent directly; it does not depend on the control-role alias. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
+Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` resolves through the runtime-adjusted Theme Accent Text role, not through the raw accent or the control-role alias. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
 
 ### Floating Scrims
 No dedicated public `--color-glass`, `--color-glass-border`, `--color-glass-blur`, or `--color-overlay` aliases are exported today. Use the shared primitive defaults first:
@@ -601,11 +601,11 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 | Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
 | Track — on | `bg-control-accent` | `bg-control-accent` |
 | Loading | `bg-control-accent/60!` | `bg-control-accent/60!` |
-| Thumb | `bg-switch-thumb` | `bg-switch-thumb` |
+| Thumb | `bg-(--cs-switch-thumb)` | `bg-(--cs-switch-thumb)` |
 
 **Other rules:**
 - Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb fill is owned by the internal `--color-switch-thumb` component slot. Do not override it from a page.
+- The thumb fill is owned by the internal `--cs-switch-thumb` component slot. Do not override it from a page.
 - `loading` keeps the same control accent at 60% opacity and animates the thumb.
 - Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
 
@@ -845,7 +845,8 @@ Use `var(--icon-stroke)` for standard settings/UI outlines and `var(--icon-strok
 | Primary text | `var(--color-foreground)` | Primary body text |
 | Secondary / muted text | `var(--color-foreground-secondary)` / `var(--color-foreground-muted)` | Helper, placeholder |
 | Primary action | `var(--color-primary)` | Neutral page-level primary actions and selected states |
-| Theme accent | `var(--color-theme-accent)` | User-selected chromatic emphasis; links and active controls derive from it |
+| Theme accent | `var(--color-theme-accent)` | Raw user-selected accent for fills, borders, progress, and decoration |
+| Theme accent text | `var(--color-theme-accent-text)` | Readable user-accent text and icons on normal surfaces; links derive from it |
 | Destructive action | `var(--color-destructive)` | Hover: `var(--color-destructive-hover)`; Text: `var(--color-destructive-foreground)` |
 | Success / Warning / Info | `var(--color-success)` / `var(--color-warning)` / `var(--color-info)` | Single-token semantic accents |
 | Borders | `var(--color-border)` (hover/active variants available) | Neutral hairline |

@@ -1,0 +1,18 @@
+/**
+ * Runtime Theme Inputs
+ *
+ * Controlled override points written by the host application. These are value
+ * inputs, not component roles: semantic.css maps them to links, controls, and
+ * other stable public roles.
+ */
+
+:root {
+  /* Raw user-selected chromatic accent for fills, borders, and decoration. */
+  --cs-theme-accent: var(--cs-primary);
+
+  /* Accent adjusted for readable text and icons on the current page surface. */
+  --cs-theme-accent-text: var(--cs-primary);
+
+  /* Content placed on a solid theme-accent fill. */
+  --cs-theme-accent-foreground: var(--cs-primary-foreground);
+}

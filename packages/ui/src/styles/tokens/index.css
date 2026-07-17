@@ -8,6 +8,7 @@
  *
  * File structure:
  * - colors/primitive.css: Base color palette
+ * - colors/theme-input.css: Controlled runtime theme inputs
  * - colors/semantic.css: Semantic color mappings
  * - colors/status.css: Status colors (Error, Success, Warning)
  * - colors/component.css: Overrideable but compatibility-unstable component slots
@@ -18,6 +19,7 @@
  */
 
 @import './colors/primitive.css';
+@import './colors/theme-input.css';
 @import './colors/semantic.css';
 @import './colors/status.css';
 @import './colors/component.css';

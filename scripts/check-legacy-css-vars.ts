@@ -29,7 +29,6 @@ const AUTO_FIX_REPLACEMENTS: Partial<Record<string, string>> = {
   '--color-text-soft': '--color-foreground-secondary',
   '--color-text-light': '--color-foreground',
   '--color-error': '--color-error-base',
-  '--color-primary-bg': '--color-theme-accent-soft',
   '--color-bg-base': '--color-background',
   '--color-primary-1': '--color-brand-50',
   '--color-primary-6': '--color-theme-accent',

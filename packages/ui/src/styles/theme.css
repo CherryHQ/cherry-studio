@@ -271,11 +271,9 @@
   /* ==================== */
   /* Runtime Theme Inputs */
   /* ==================== */
-  /* --cs-theme-accent is the user-chosen chromatic accent (overridden at runtime
-   * by useUserTheme; the neutral --cs-primary is only the pre-injection default).
-   * Feature roles such as controls and links alias this input explicitly;
-   * --color-primary and --color-ring stay anchored to neutral --cs-primary. */
-  --cs-theme-accent: var(--cs-primary);
+  --color-theme-accent: var(--cs-theme-accent);
+  --color-theme-accent-text: var(--cs-theme-accent-text);
+  --color-theme-accent-foreground: var(--cs-theme-accent-foreground);
 
   /* ==================== */
   /* Compatibility Aliases */
@@ -289,20 +287,14 @@
   /* ==================== */
   --color-primary: var(--cs-primary);
   --color-primary-hover: var(--cs-primary-hover);
-  --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
-  --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
-  --color-theme-accent: var(--cs-theme-accent);
-  --color-theme-accent-soft: color-mix(in srgb, var(--color-theme-accent) 60%, transparent);
-  --color-control-accent: var(--color-theme-accent);
-  --color-control-accent-hover: color-mix(in srgb, var(--color-control-accent) 88%, var(--color-foreground));
-  --color-control-accent-foreground: var(--color-theme-accent-foreground);
-  --color-link: var(--color-theme-accent);
-  --color-theme-accent-foreground: var(--cs-theme-accent-foreground);
+  --color-primary-soft: var(--cs-primary-soft);
+  --color-primary-mute: var(--cs-primary-mute);
+  --color-control-accent: var(--cs-control-accent);
+  --color-control-accent-hover: var(--cs-control-accent-hover);
+  --color-control-accent-foreground: var(--cs-control-accent-foreground);
+  --color-link: var(--cs-link);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
-  --color-success: var(--cs-success);
-  --color-warning: var(--cs-warning);
-  --color-info: var(--cs-info);
   --color-background: var(--cs-background);
   --color-background-subtle: var(--cs-background-subtle);
   --color-foreground: var(--cs-foreground);
@@ -318,8 +310,6 @@
   --color-border-hover: var(--cs-border-hover);
   --color-border-active: var(--cs-border-active);
   --color-frame-border: var(--cs-frame-border);
-  --color-frame-border-translucent: var(--cs-frame-border-translucent);
-  --color-border-foreground-muted: var(--cs-border-foreground-muted);
   --color-icon-muted: var(--cs-icon-muted);
   --color-ring: var(--cs-ring);
   --color-secondary: var(--cs-secondary);
@@ -331,7 +321,6 @@
   --color-ghost-active: var(--cs-ghost-active);
   --color-sidebar: var(--cs-sidebar);
   --color-sidebar-accent: var(--cs-sidebar-accent);
-  --color-sidebar-translucent: var(--cs-sidebar-translucent);
   --color-selected: var(--cs-selected);
   --color-selected-border: var(--cs-selected-border);
   --color-surface-hover-subtle-solid: var(--cs-surface-hover-subtle-solid);
@@ -361,6 +350,7 @@
   --color-error-border-hover: var(--cs-error-border-hover);
   --color-error-active: var(--cs-error-active);
   --color-success-base: var(--cs-success-base);
+  --color-success: var(--cs-success);
   --color-success-text: var(--cs-success-text);
   --color-success-text-hover: var(--cs-success-text-hover);
   --color-success-bg: var(--cs-success-bg);
@@ -369,6 +359,7 @@
   --color-success-border-hover: var(--cs-success-border-hover);
   --color-success-active: var(--cs-success-active);
   --color-warning-base: var(--cs-warning-base);
+  --color-warning: var(--cs-warning);
   --color-warning-text: var(--cs-warning-text);
   --color-warning-text-hover: var(--cs-warning-text-hover);
   --color-warning-bg: var(--cs-warning-bg);
@@ -377,6 +368,7 @@
   --color-warning-border-hover: var(--cs-warning-border-hover);
   --color-warning-active: var(--cs-warning-active);
   --color-info-base: var(--cs-info-base);
+  --color-info: var(--cs-info);
   --color-info-text: var(--cs-info-text);
   --color-info-text-hover: var(--cs-info-text-hover);
   --color-info-bg: var(--cs-info-bg);
@@ -384,29 +376,6 @@
   --color-info-border: var(--cs-info-border);
   --color-info-border-hover: var(--cs-info-border-hover);
   --color-info-active: var(--cs-info-active);
-
-  /* ==================== */
-  /* Component Slots (internal — see tokens/colors/component.css) */
-  /* ==================== */
-  /* Tailwind aliases for implementation slots. Advanced CSS may override them,
-   * but their names are not covered by the stable theme contract. */
-  --color-switch-thumb: var(--cs-switch-thumb);
-  --color-badge-highlight-border: var(--cs-badge-highlight-border);
-  --color-badge-highlight-surface: var(--cs-badge-highlight-surface);
-  --color-badge-highlight-foreground: var(--cs-badge-highlight-foreground);
-  --color-sidebar-glass-shadow: var(--cs-sidebar-glass-shadow);
-  --color-tabbar-glass-surface: var(--cs-tabbar-glass-surface);
-  --color-tabbar-glass-border: var(--cs-tabbar-glass-border);
-  --color-tabbar-glass-hover: var(--cs-tabbar-glass-hover);
-  --color-tabbar-glass-shadow: var(--cs-tabbar-glass-shadow);
-  --color-button-elevated-from: var(--cs-button-elevated-from);
-  --color-button-elevated-to: var(--cs-button-elevated-to);
-  --color-button-elevated-foreground: var(--cs-button-elevated-foreground);
-  --color-button-elevated-shadow: var(--cs-button-elevated-shadow);
-  --color-button-elevated-rim: var(--cs-button-elevated-rim);
-  --color-button-elevated-highlight: var(--cs-button-elevated-highlight);
-  --color-button-elevated-highlight-hover: var(--cs-button-elevated-highlight-hover);
-  --color-button-elevated-inner-shadow: var(--cs-button-elevated-inner-shadow);
 
   /* ==================== */
   /* Spacing */

@@ -29,7 +29,7 @@
   --color-border-mute: color-mix(in srgb, var(--color-border) 30%, transparent);
 
   --color-error: var(--color-error-base);
-  --color-primary-bg: var(--color-theme-accent-soft);
+  --color-primary-bg: color-mix(in srgb, var(--color-theme-accent) 60%, transparent);
   --color-fill-secondary: var(--color-background-soft);
   --color-fill-2: var(--color-background-soft);
   --color-bg-base: var(--color-background);

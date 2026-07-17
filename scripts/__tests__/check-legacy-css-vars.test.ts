@@ -157,11 +157,11 @@ describe('check-legacy-css-vars', () => {
 
     const result = fixLegacyVarsInContent(content)
 
-    expect(result.replacements).toBe(3)
+    expect(result.replacements).toBe(2)
     expect(result.content).toContain('text-(--color-foreground-secondary) bg-(--color-background-soft)')
     expect(result.content).toContain('var(--color-link)')
     expect(result.content).toContain(
-      'const accentStyle = { color: "var(--color-theme-accent)", background: "var(--color-theme-accent-soft)" }'
+      'const accentStyle = { color: "var(--color-theme-accent)", background: "var(--color-primary-bg)" }'
     )
     expect(result.content).toContain('// var(--color-text-1)')
     expect(result.content).toContain('--color-text-1: var(--color-foreground);')

@@ -9,6 +9,7 @@ Runtime styles and design tokens live under `src/styles`:
 - [theme.css](../src/styles/theme.css)
 - [tokens.css](../src/styles/tokens.css)
 - [tokens/colors/primitive.css](../src/styles/tokens/colors/primitive.css)
+- [tokens/colors/theme-input.css](../src/styles/tokens/colors/theme-input.css)
 - [tokens/colors/semantic.css](../src/styles/tokens/colors/semantic.css)
 - [tokens/colors/status.css](../src/styles/tokens/colors/status.css)
 - [tokens/colors/component.css](../src/styles/tokens/colors/component.css)
@@ -16,6 +17,7 @@ Runtime styles and design tokens live under `src/styles`:
 - [tokens/radius.css](../src/styles/tokens/radius.css)
 - [tokens/spacing.css](../src/styles/tokens/spacing.css)
 - [tokens/typography.css](../src/styles/tokens/typography.css)
+- [Token migration matrix](token-migration-matrix.md)
 
 ## Usage Notes
 

@@ -5,19 +5,23 @@
 
 :root {
   /* Theme Colors — primary is neutral (near-black light / near-white dark).
-   * The user-selected chromatic theme accent is injected separately by the
-   * renderer; this file only owns its mode-aware contrast foreground. */
+   * Runtime theme inputs live in theme-input.css; this file maps them to
+   * cross-feature semantic roles. */
   --cs-primary: var(--cs-neutral-900);
   --cs-primary-hover: var(--cs-neutral-800);
-  /* Contrast foreground paired with the runtime --cs-theme-accent input.
-   * Control-specific aliases are composed in theme.css instead of assigning
-   * control ownership to this cross-feature theme role. */
-  --cs-theme-accent-foreground: var(--cs-white);
+  --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 60%, transparent);
+  --cs-primary-mute: color-mix(in srgb, var(--cs-primary) 30%, transparent);
+
+  /* User-accent roles. The raw input remains owner-neutral; consumers choose
+   * a role according to whether the color is fill/decorative, readable text,
+   * or foreground content on a solid fill. */
+  --cs-control-accent: var(--cs-theme-accent);
+  --cs-control-accent-hover: color-mix(in srgb, var(--cs-control-accent) 88%, var(--cs-foreground));
+  --cs-control-accent-foreground: var(--cs-theme-accent-foreground);
+  --cs-link: var(--cs-theme-accent-text);
+
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
-  --cs-success: var(--cs-green-500);
-  --cs-warning: var(--cs-amber-500);
-  --cs-info: var(--cs-blue-500);
 
   /* Background & Foreground */
   --cs-background: #ffffff;
@@ -50,16 +54,6 @@
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
   --cs-frame-border: #eaebe8;
-  /* Frame border on translucent (macOS vibrancy) windows — when the window is
-   * key, the edge must stay clearly legible against the blurred wallpaper, so
-   * this is a solid step darker than the opaque --cs-frame-border (which would
-   * read too faint over glass). */
-  --cs-frame-border-translucent: #dadcd6;
-
-  /* Foreground-derived soft border for form controls (input/select etc.).
-   * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
-   * while still reading as quiet against neutral surfaces. */
-  --cs-border-foreground-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
 
   /* Solid muted icon color — for line icons whose strokes can cross themselves
    * (RotateCcw, RefreshCw, Search, etc.). Foreground-muted uses alpha which
@@ -82,12 +76,6 @@
   /* Sidebar */
   --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
-
-  /* Sidebar glass tint — the opaque sidebar color at partial alpha over native
-   * vibrancy. Kept fairly opaque (70%, matching dark): at a lower alpha the
-   * wallpaper gradient bled through and the sidebar read uneven/disjointed
-   * against the flat content surface. */
-  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
   /* Selected state — tab bar active tab, sidebar active menu item.
    * Paired 0.5px inside-border (--cs-selected-border) for a quiet outline. */
@@ -113,8 +101,9 @@
   --cs-primary-foreground: var(--cs-white);
   --cs-destructive-foreground: var(--cs-white);
 
-  /* Input border — mirrors the app border so input outlines match neighbouring dividers. */
-  --cs-input: var(--cs-border);
+  /* Form-control outline. Slightly stronger than the generic border so inputs,
+   * textareas, radios, comboboxes, and tree selects share one explicit role. */
+  --cs-input: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
 
   /* Sidebar sub-palette — mirrors app-level neutrals so the sidebar zone stays consistent
    * without introducing a separate chromatic scale. */
@@ -131,11 +120,6 @@
   --cs-primary: var(--cs-neutral-100);
   --cs-primary-hover: var(--cs-neutral-200);
   --cs-primary-foreground: var(--cs-neutral-900);
-  /* Theme-accent contrast foreground (dark) — see :root note. */
-  --cs-theme-accent-foreground: var(--cs-neutral-900);
-  --cs-success: var(--cs-green-400);
-  --cs-warning: var(--cs-amber-400);
-  --cs-info: var(--cs-blue-400);
 
   /* Background & Foreground */
   --cs-background: #1515148c; /* #151514 @ 0.55 alpha — alpha lets macOS transparent windows blur the wallpaper through */
@@ -160,14 +144,6 @@
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
   --cs-frame-border: #32332c;
-  /* Translucent-window frame border (dark) — key windows need a clearly legible
-   * edge over the blurred wallpaper, so this sits a step lighter than the opaque
-   * --cs-frame-border. */
-  --cs-frame-border-translucent: #3c3d35;
-
-  /* Foreground-derived soft border (dark) — see :root note. */
-  --cs-border-foreground-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
-
   /* Solid muted icon color (dark) — see :root note. */
   --cs-icon-muted: var(--cs-neutral-500);
 
@@ -188,10 +164,6 @@
    * elevated panel rather than a near-black void. */
   --cs-sidebar: #1c1d1a;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
-
-  /* Sidebar glass tint (dark) — keeps the same 70% opacity as light so the
-   * blurred wallpaper cannot crush sidebar legibility. */
-  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
   /* Selected state (dark) — see :root note. */
   --cs-selected: #1f201d;
