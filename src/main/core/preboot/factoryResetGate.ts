@@ -76,13 +76,25 @@ const OWNERSHIP_SENTINEL = 'cherrystudio.sqlite'
 const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const
 
 /**
- * Fallback manifest for directories that fail the whole-tree safety check:
- * only Cherry-named artifacts are removed, so a shared or mis-pointed
- * directory loses Cherry's data and nothing else. Chromium state (whose
- * entry names are not Cherry-specific and could belong to another Electron
- * app sharing the directory) is deliberately left behind in this mode —
- * an incomplete reset of a pathological configuration beats deleting
- * someone else's data.
+ * How much of userData a destructive pass may remove. Decided once per
+ * marker by {@link decideWipeMode} and recorded in it — see there for why
+ * re-deriving on retries is wrong.
+ */
+type WipeMode = 'tree' | 'owned-manifest' | 'manifest'
+
+const WIPE_MODES: readonly string[] = ['tree', 'owned-manifest', 'manifest'] satisfies readonly WipeMode[]
+
+/**
+ * Strict fallback manifest ('manifest' mode) for directories that fail the
+ * whole-tree safety check AND lack the ownership sentinel: only
+ * Cherry-named artifacts are removed, so a mis-pointed directory that never
+ * hosted the app loses Cherry's data and nothing else. Chromium state
+ * (whose entry names are not Cherry-specific and could belong to another
+ * Electron app sharing the directory) is deliberately left behind — an
+ * incomplete reset of a pathological configuration beats deleting someone
+ * else's data. No sentinel also means no database, hence no v1
+ * migration-status row to lose: the v1-remigration hazard the owned
+ * manifest exists for cannot arise here.
  */
 const USER_DATA_MANIFEST = [
   'cherrystudio.sqlite',
@@ -93,6 +105,27 @@ const USER_DATA_MANIFEST = [
   'restore-journal.json',
   'restore-staging'
 ]
+
+/**
+ * Extra entries wiped in 'owned-manifest' mode — the sentinel proves the
+ * directory hosted Cherry, but its shape (near-root, or ~/.cherrystudio
+ * itself) makes a whole-tree pass too risky. Proven ownership is what makes
+ * these non-Cherry-specific names safe to delete:
+ *
+ * - v1 artifacts `version.log`, `IndexedDB`, `Local Storage`, `config.json`:
+ *   the wipe deletes the migration-status row with the database, so leaving
+ *   these behind would make the next boot re-detect v1 data
+ *   (MigrationPaths.hasV1Data) and migrate the residue back into the freshly
+ *   reset app. `Local Storage` also hosts the v2 renderer persist cache.
+ * - `.claude` ('feature.agents.claude.root', Claude Code config/credentials)
+ *   and `tesseract` ('feature.ocr.tesseract'): user state at the userData
+ *   root that the Cherry-named manifest misses.
+ *
+ * Residual: the rest of Chromium's state (Cookies, Network, Partitions, …)
+ * still survives in this mode — enumerating Chromium's directory zoo is a
+ * losing game, and the common case is handled by 'tree' mode.
+ */
+const OWNED_MANIFEST_EXTRAS = ['version.log', 'IndexedDB', 'Local Storage', 'config.json', '.claude', 'tesseract']
 
 /**
  * Preboot factory-reset gate (#17131). Consumes the BootConfig
@@ -113,6 +146,9 @@ const USER_DATA_MANIFEST = [
  *   pass — a pass never runs on unrecorded accounting, or the cap would be
  *   void whenever boot-config is unwritable. A marker at MAX_WIPE_ATTEMPTS
  *   is abandoned with an error log instead of wiping again.
+ * - The wipe mode is decided once, recorded in the marker by the same
+ *   durable write, and reused on retries — see {@link decideWipeMode} for
+ *   why re-deriving it per pass is wrong.
  * - Deletion failures on entries outside USER_DATA_KEEP are critical: the
  *   marker is left pending (with its incremented count) so the next boot
  *   retries.
@@ -158,10 +194,17 @@ export function runFactoryResetGate(): void {
       return
     }
 
+    // Reuse the mode a previous pass recorded; decide (and record) it only
+    // for the first pass. The marker is hand-editable JSON, so an unknown
+    // recorded value falls back to a fresh decision instead of being trusted.
+    const recordedMode = marker.mode !== undefined && WIPE_MODES.includes(marker.mode) ? marker.mode : undefined
+    const mode = recordedMode ?? decideWipeMode(userData)
+
     logger.info('Factory reset pending — wiping user data', {
       userData,
       requestedAt: marker.requestedAt,
-      attempt: attempts + 1
+      attempt: attempts + 1,
+      mode
     })
 
     // Arm the retry accounting BEFORE the destructive pass, so a crash
@@ -171,8 +214,9 @@ export function runFactoryResetGate(): void {
     // again, destroying whatever the user created in between. If the count
     // cannot be recorded, skip the destructive pass entirely; boot continues
     // and a later start (with a writable boot-config) picks the marker up.
+    // The wipe-mode decision rides the same durable write.
     try {
-      bootConfigService.set('temp.factory_reset', { ...marker, attempts: attempts + 1 })
+      bootConfigService.set('temp.factory_reset', { ...marker, attempts: attempts + 1, mode })
       bootConfigService.persist()
     } catch (error) {
       logger.error('Factory reset skipped: the attempt count could not be durably recorded', {
@@ -182,13 +226,13 @@ export function runFactoryResetGate(): void {
     }
 
     const failures: string[] = []
-    if (isSafeForWholeTreeWipe(userData)) {
+    if (mode === 'tree') {
       wipeDirectoryEntries(userData, (entry) => !USER_DATA_KEEP.has(entry), failures)
     } else {
-      logger.warn('userData failed the whole-tree safety check — falling back to Cherry-artifact manifest wipe', {
-        userData
-      })
-      wipeDirectoryEntries(userData, (entry) => USER_DATA_MANIFEST.includes(entry), failures)
+      logger.warn('userData failed the whole-tree safety check — using a manifest wipe', { userData, mode })
+      const manifest =
+        mode === 'owned-manifest' ? [...USER_DATA_MANIFEST, ...OWNED_MANIFEST_EXTRAS] : USER_DATA_MANIFEST
+      wipeDirectoryEntries(userData, (entry) => manifest.includes(entry), failures)
     }
     wipeDirectoryEntries(CHERRY_HOME, (entry) => CHERRY_HOME_WIPE.includes(entry), failures)
     wipeNonCriticalExtras()
@@ -237,25 +281,41 @@ export function runFactoryResetGate(): void {
 }
 
 /**
- * A userData directory qualifies for a wipe-everything-except-keeps pass
- * only when deleting its children cannot plausibly destroy non-Cherry data:
- * not the user's home directory or an ancestor of it, not a filesystem
- * root or other near-root path, and carrying the ownership sentinel that
- * proves the app actually ran here. Everything else gets the
- * USER_DATA_MANIFEST fallback.
+ * Decide how much of userData a destructive pass may remove. 'tree'
+ * (everything except USER_DATA_KEEP) requires a directory whose children's
+ * deletion cannot plausibly destroy non-Cherry data: not the user's home
+ * directory or an ancestor of it, not a filesystem root or other near-root
+ * path, not ~/.cherrystudio itself, and carrying the ownership sentinel
+ * that proves the app actually ran here. Sentinel-proven directories with
+ * a risky shape degrade to 'owned-manifest'; everything else gets the
+ * strict 'manifest'.
+ *
+ * The decision is recorded in the marker on the first pass and REUSED on
+ * retries (see the caller): the first pass deletes the sentinel this
+ * decision derives from, so re-deriving after a crash mid-wipe would
+ * silently downgrade a tree wipe to a manifest wipe — skipping the
+ * entries the crashed pass never reached — and then declare success.
  */
-function isSafeForWholeTreeWipe(userData: string): boolean {
+function decideWipeMode(userData: string): WipeMode {
   const normalized = path.resolve(userData)
   const home = path.resolve(os.homedir())
-  if (normalized === home) return false
-  if (home.startsWith(normalized + path.sep)) return false
+  // Home and its ancestors never get the owned manifest either, sentinel or
+  // not: entries like 'Data' or '.claude' in a home directory are
+  // overwhelmingly the user's own.
+  if (normalized === home) return 'manifest'
+  if (home.startsWith(normalized + path.sep)) return 'manifest'
+  if (!fs.existsSync(path.join(normalized, OWNERSHIP_SENTINEL))) return 'manifest'
   // Near-root paths (e.g. '/', 'C:\\', '/Users', 'D:\\data') are never
   // tree-wiped even if the app ran there — the blast radius of a mistake
-  // is the whole disk. Portable builds with a shallow data dir fall back
-  // to the manifest wipe.
+  // is the whole disk. Portable builds with a shallow data dir get the
+  // owned manifest instead.
   const segments = normalized.split(path.sep).filter(Boolean)
-  if (segments.length < 3) return false
-  return fs.existsSync(path.join(normalized, OWNERSHIP_SENTINEL))
+  if (segments.length < 3) return 'owned-manifest'
+  // userData pointed at ~/.cherrystudio itself: a tree pass would take the
+  // kept machine artifacts (bin/, binary-manager/, ovms/, install/) and
+  // boot-config.json — the marker included — down with it.
+  if (normalized === path.resolve(CHERRY_HOME)) return 'owned-manifest'
+  return 'tree'
 }
 
 /** Reset every BootConfig key to its default except the data-dir location. */

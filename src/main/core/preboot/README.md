@@ -130,17 +130,24 @@ preboot/
 │                        — before backupRestoreGate, after the single-instance
 │                        lock and the frozen path registry — wiping userData
 │                        (except the process-held logs/ and Crashpad/ and the
-│                        re-downloadable Runtime/ + Toolchain/ model artifacts;
-│                        only Cherry-named artifacts when the directory fails
-│                        the whole-tree safety check) and CHERRY_HOME user state
-│                        (config/, mcp/, trace/ + the OVMS model registry),
-│                        then resetting BootConfig to defaults (keeping
-│                        app.user_data_path). Bounded retry: attempts are
-│                        counted in the marker (cap 2), critical delete
-│                        failures keep it pending, and the completed-wipe
-│                        marker clear is a HARD persist — if that write
-│                        fails the gate quits rather than arm a re-wipe of
-│                        freshly created data.
+│                        re-downloadable Runtime/ + Toolchain/ model artifacts)
+│                        and CHERRY_HOME user state (config/, mcp/, trace/ +
+│                        the OVMS model registry), then resetting BootConfig
+│                        to defaults (keeping app.user_data_path). Directories
+│                        whose shape makes a whole-tree pass too risky degrade
+│                        to a manifest wipe: 'owned-manifest' (sentinel-proven
+│                        near-root / ~/.cherrystudio: Cherry artifacts + v1
+│                        artifacts + .claude/tesseract) or strict 'manifest'
+│                        (no sentinel: Cherry-named artifacts only). Bounded
+│                        retry: attempts AND the wipe-mode decision are
+│                        durably recorded in the marker before each pass
+│                        (cap 2; a pass never runs on unrecorded accounting,
+│                        and retries reuse the recorded mode because the pass
+│                        deletes the sentinel it derives from), critical
+│                        delete failures keep it pending, and the
+│                        completed-wipe marker clear is a HARD persist — if
+│                        that write fails the gate quits rather than arm a
+│                        re-wipe of freshly created data.
 ├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the

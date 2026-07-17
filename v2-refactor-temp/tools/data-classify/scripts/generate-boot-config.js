@@ -81,7 +81,8 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     originalKey: 'factoryReset',
     targetKey: 'temp.factory_reset',
     type:
-      "\n    | { status: 'pending'; userDataPath: string; requestedAt: string; attempts?: number }" + '\n    | null',
+      "\n    | { status: 'pending'; userDataPath: string; requestedAt: string; attempts?: number; mode?: 'tree' | 'owned-manifest' | 'manifest' }" +
+      '\n    | null',
     defaultValue: null,
     jsdoc: [
       'Pending factory reset of the app (issue #17131): on the next boot,',
@@ -110,6 +111,21 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       "retry would re-wipe data the user created after a 'successful' reset.",
       "There's no 'failed' state: per-entry failures on known-locked entries",
       '(logs, Crashpad) are expected and never block startup.',
+      '',
+      "Wipe mode: the gate decides how much of userData may be wiped ('tree',",
+      "'owned-manifest' or 'manifest' — see decideWipeMode) on the first",
+      'destructive pass and records the decision here; retries reuse it. The',
+      'first pass deletes the ownership sentinel the decision derives from,',
+      'so re-deriving after a crash mid-wipe would silently downgrade a tree',
+      'wipe to a manifest wipe and declare success over the leftovers.',
+      '',
+      'Known limit — concurrent instances: boot-config.json is one shared',
+      'file written whole-file, last-writer-wins, with no re-read merge. A',
+      'second instance (dev and packaged coexist) that persists any key',
+      "during the requester's relaunch window can overwrite this marker with",
+      'its stale in-memory snapshot; the reset is then silently lost.',
+      'Fail-safe (nothing is wiped) and only reachable with two instances',
+      'running — re-request the reset rather than adding a merge layer.',
       '',
       'Consumer: src/main/core/preboot/factoryResetGate.ts'
     ]

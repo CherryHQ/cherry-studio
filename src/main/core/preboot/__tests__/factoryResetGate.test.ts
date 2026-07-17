@@ -29,7 +29,13 @@ const bootConfigSetMock = vi.fn()
 const bootConfigFlushMock = vi.fn()
 const bootConfigPersistMock = vi.fn()
 
-type FactoryResetMarker = { status: 'pending'; userDataPath: string; requestedAt: string; attempts?: number } | null
+type FactoryResetMarker = {
+  status: 'pending'
+  userDataPath: string
+  requestedAt: string
+  attempts?: number
+  mode?: 'tree' | 'owned-manifest' | 'manifest'
+} | null
 
 function stubElectron(userData: string = USER_DATA) {
   vi.doMock('electron', () => ({
@@ -227,8 +233,11 @@ describe('runFactoryResetGate', () => {
       expect(options).toMatchObject({ recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
     }
 
-    // Retry accounting armed before the destructive pass…
-    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.factory_reset', expect.objectContaining({ attempts: 1 }))
+    // Retry accounting + the wipe-mode decision armed before the destructive pass…
+    expect(bootConfigSetMock).toHaveBeenCalledWith(
+      'temp.factory_reset',
+      expect.objectContaining({ attempts: 1, mode: 'tree' })
+    )
     // …and the marker cleared plus settings reset (keeping the data-dir location) at the end.
     expect(store['temp.factory_reset']).toBeNull()
     expect(store['app.disable_hardware_acceleration']).toBe(false)
@@ -247,7 +256,7 @@ describe('runFactoryResetGate', () => {
     const run = await importGate()
     run()
 
-    expect(store['temp.factory_reset']).toEqual(pendingMarker({ attempts: 1 }))
+    expect(store['temp.factory_reset']).toEqual(pendingMarker({ attempts: 1, mode: 'tree' }))
     // Settings untouched — the reset is not "done". persist() ran exactly once
     // (the durable attempt increment), never for a completion the pass didn't earn.
     expect(store['app.disable_hardware_acceleration']).toBe(true)
@@ -313,7 +322,7 @@ describe('runFactoryResetGate', () => {
     expect(appExitMock).toHaveBeenCalledWith(1)
   })
 
-  it('falls back to the Cherry-artifact manifest when the ownership sentinel is missing', async () => {
+  it('falls back to the strict Cherry-artifact manifest when the ownership sentinel is missing', async () => {
     stubBootConfig(pendingMarker())
     stubFs(
       { [USER_DATA]: ['cherrystudio.sqlite', 'Data', 'IndexedDB', 'UserPhotos'], [CHERRY_HOME]: ['config'] },
@@ -326,9 +335,108 @@ describe('runFactoryResetGate', () => {
     const targets = rmTargets()
     expect(targets).toContain(`${USER_DATA}/cherrystudio.sqlite`)
     expect(targets).toContain(`${USER_DATA}/Data`)
-    // Non-Cherry-named entries survive in fallback mode.
+    // Non-Cherry-named entries survive in strict manifest mode — without the
+    // ownership sentinel they could belong to another app.
     expect(targets).not.toContain(`${USER_DATA}/IndexedDB`)
     expect(targets).not.toContain(`${USER_DATA}/UserPhotos`)
+    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.factory_reset', expect.objectContaining({ mode: 'manifest' }))
+  })
+
+  it('uses the owned manifest (v1 artifacts + user state included) for a sentinel-proven near-root directory', async () => {
+    const SHALLOW = '/d/CherryData'
+    stubElectron(SHALLOW)
+    stubApplication(SHALLOW)
+    const store = stubBootConfig(pendingMarker({ userDataPath: SHALLOW }))
+    stubFs(
+      {
+        [SHALLOW]: [
+          'cherrystudio.sqlite',
+          'Data',
+          'version.log',
+          'IndexedDB',
+          'Local Storage',
+          'config.json',
+          '.claude',
+          'tesseract',
+          'Cookies'
+        ],
+        [CHERRY_HOME]: ['config']
+      },
+      { sentinel: true }
+    )
+
+    const run = await importGate()
+    run()
+
+    const targets = rmTargets()
+    expect(targets).toContain(`${SHALLOW}/cherrystudio.sqlite`)
+    // The v1 artifacts must go with the database: the migration-status row is
+    // wiped with the sqlite file, so leftover v1 markers would make the next
+    // boot re-detect v1 data and migrate the residue back in (#17138 review).
+    expect(targets).toContain(`${SHALLOW}/version.log`)
+    expect(targets).toContain(`${SHALLOW}/IndexedDB`)
+    expect(targets).toContain(`${SHALLOW}/Local Storage`)
+    expect(targets).toContain(`${SHALLOW}/config.json`)
+    // User state at the userData root the Cherry-named manifest misses.
+    expect(targets).toContain(`${SHALLOW}/.claude`)
+    expect(targets).toContain(`${SHALLOW}/tesseract`)
+    // Documented residual: the rest of Chromium's state survives this mode.
+    expect(targets).not.toContain(`${SHALLOW}/Cookies`)
+    expect(bootConfigSetMock).toHaveBeenCalledWith(
+      'temp.factory_reset',
+      expect.objectContaining({ mode: 'owned-manifest' })
+    )
+    expect(store['temp.factory_reset']).toBeNull()
+  })
+
+  it('never tree-wipes ~/.cherrystudio itself — tool binaries and boot-config.json survive', async () => {
+    stubElectron(CHERRY_HOME)
+    stubApplication(CHERRY_HOME)
+    const store = stubBootConfig(pendingMarker({ userDataPath: CHERRY_HOME }))
+    stubFs({ [CHERRY_HOME]: [...FULL_LISTINGS[CHERRY_HOME], 'cherrystudio.sqlite', 'Data'] }, { sentinel: true })
+
+    const run = await importGate()
+    run()
+
+    const targets = rmTargets()
+    // Cherry artifacts and the user-state subtrees still go…
+    expect(targets).toContain(`${CHERRY_HOME}/cherrystudio.sqlite`)
+    expect(targets).toContain(`${CHERRY_HOME}/Data`)
+    expect(targets).toContain(`${CHERRY_HOME}/config`)
+    // …but a tree pass here would delete the kept machine artifacts and the
+    // boot-config file (the marker included) out from under the gate.
+    expect(targets).not.toContain(`${CHERRY_HOME}/bin`)
+    expect(targets).not.toContain(`${CHERRY_HOME}/binary-manager`)
+    expect(targets).not.toContain(`${CHERRY_HOME}/ovms`)
+    expect(targets).not.toContain(`${CHERRY_HOME}/install`)
+    expect(targets).not.toContain(`${CHERRY_HOME}/boot-config.json`)
+    expect(store['temp.factory_reset']).toBeNull()
+  })
+
+  it('reuses the recorded wipe mode on retry even though the first pass deleted the sentinel', async () => {
+    const store = stubBootConfig(pendingMarker({ attempts: 1, mode: 'tree' }))
+    // Crash-mid-wipe resume: the sentinel is already gone, but the recorded
+    // decision must hold — re-deriving would downgrade to a manifest wipe and
+    // declare success over whatever the crashed pass never reached.
+    stubFs(FULL_LISTINGS, { sentinel: false })
+
+    const run = await importGate()
+    run()
+
+    expect(rmTargets()).toContain(`${USER_DATA}/Local Storage`)
+    expect(store['temp.factory_reset']).toBeNull()
+  })
+
+  it('re-derives the mode when the recorded value is not a known wipe mode', async () => {
+    stubBootConfig(pendingMarker({ mode: 'everything' as unknown as 'tree' }))
+    stubFs(FULL_LISTINGS, { sentinel: false })
+
+    const run = await importGate()
+    run()
+
+    // Unknown hand-edited value → fresh decision (no sentinel → strict manifest).
+    expect(rmTargets()).not.toContain(`${USER_DATA}/Local Storage`)
+    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.factory_reset', expect.objectContaining({ mode: 'manifest' }))
   })
 
   it('never tree-wipes the home directory, sentinel or not', async () => {
