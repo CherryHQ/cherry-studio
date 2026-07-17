@@ -1470,16 +1470,16 @@
         "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Tùy chỉnh thanh công cụ",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Đã hủy sắp xếp lại cho {{name}}.",
+          "dropped": "{{name}} đã bị loại.",
+          "instructions": "Để sắp xếp lại, nhấn Space hoặc Enter để nhặt công cụ, dùng các phím mũi tên để di chuyển nó, sau đó nhấn Space hoặc Enter để thả xuống, hoặc Escape để hủy bỏ.",
+          "over": "{{name}} đã chuyển qua {{over}}.",
+          "picked_up": "Đã nhận {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Kéo để sắp xếp lại {{name}}",
+        "restore_default": "Khôi phục mặc định"
       },
       "tools": {
         "collapse": "Thu gọn",
@@ -3496,8 +3496,10 @@
       "title": "Thư viện"
     },
     "skill_add": {
+      "add": "Thêm Kỹ năng",
       "local_import": "Nhập khẩu nội địa",
-      "online_search": "Tìm kiếm trực tuyến"
+      "online_search": "Tìm kiếm trực tuyến",
+      "system_search": "Tìm kiếm hệ thống"
     },
     "skill_detail": {
       "created_at": "Đã tạo",
@@ -3525,6 +3527,19 @@
       "updated": "Sắp xếp theo cập nhật"
     },
     "subtitle": "Quản lý các trợ lý, tác nhân và kỹ năng của bạn",
+    "system_skill": {
+      "conflict": "Xung đột tên",
+      "description": "Nhập các kỹ năng đã được cài đặt trên hệ thống này.",
+      "empty_description": "Không tìm thấy kỹ năng nào có thể nhập từ các công cụ lập trình khác trên thiết bị này.",
+      "empty_title": "Không có kỹ năng nào có sẵn để nhập",
+      "enable_success": "Đã bật {{name}}",
+      "enabled": "Đã bật",
+      "import": "Nhập khẩu",
+      "import_success": "Đã nhập {{name}}",
+      "imported": "Đã nhập khẩu",
+      "search_placeholder": "Tìm kiếm kỹ năng hệ thống...",
+      "title": "Kỹ năng hệ thống"
+    },
     "tag_picker": {
       "no_tags": "Chưa có thẻ nào",
       "placeholder": "Tên thẻ mới..."

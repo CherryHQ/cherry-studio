@@ -1470,16 +1470,16 @@
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Symbolleiste anpassen",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Die Neuanordnung für {{name}} wurde abgebrochen.",
+          "dropped": "{{name}} ist ausgeschieden.",
+          "instructions": "Zum Neuanordnen drücken Sie die Leertaste oder die Eingabetaste, um ein Werkzeug aufzuheben, verwenden Sie die Pfeiltasten, um es zu verschieben, dann die Leertaste oder die Eingabetaste, um es abzulegen, oder Escape, um abzubrechen.",
+          "over": "{{name}} zog über {{over}} um.",
+          "picked_up": "{{name}} aufgenommen."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Zum Neuanordnen {{name}} ziehen",
+        "restore_default": "Standard wiederherstellen"
       },
       "tools": {
         "collapse": "Falten",
@@ -3496,8 +3496,10 @@
       "title": "Bibliothek"
     },
     "skill_add": {
+      "add": "Fähigkeit hinzufügen",
       "local_import": "Lokaler Import",
-      "online_search": "Online-Suche"
+      "online_search": "Online-Suche",
+      "system_search": "System-Suche"
     },
     "skill_detail": {
       "created_at": "Erstellt",
@@ -3525,6 +3527,19 @@
       "updated": "Nach Aktualisierung sortieren"
     },
     "subtitle": "Verwalten Sie Ihre Assistenten, Agenten und Fähigkeiten",
+    "system_skill": {
+      "conflict": "Namenskonflikt",
+      "description": "Auf diesem System bereits installierte Skills importieren.",
+      "empty_description": "Auf diesem Gerät wurden in anderen Codierungstools keine importierbaren Fähigkeiten gefunden.",
+      "empty_title": "Keine Fähigkeiten zum Importieren verfügbar",
+      "enable_success": "Aktiviert {{name}}",
+      "enabled": "Aktiviert",
+      "import": "Importieren",
+      "import_success": "Importiert {{name}}",
+      "imported": "Importiert",
+      "search_placeholder": "Systemsuche läuft...",
+      "title": "Systemfähigkeiten"
+    },
     "tag_picker": {
       "no_tags": "Noch keine Tags",
       "placeholder": "Neuer Tag-Name..."

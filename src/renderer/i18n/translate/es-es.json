@@ -1470,16 +1470,16 @@
         "unsupported_model": "El modelo actual no admite razonamiento ajustable"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personalizar barra de herramientas",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Reordenación cancelada para {{name}}.",
+          "dropped": "{{name}} eliminado.",
+          "instructions": "Para reordenar, presiona Espacio o Intro para recoger una herramienta, usa las teclas de dirección para moverla, luego Espacio o Intro para soltarla, o Escape para cancelar.",
+          "over": "{{name}} se mudó a {{over}}.",
+          "picked_up": "Recogí a {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Arrastra para reordenar {{name}}",
+        "restore_default": "Restaurar predeterminado"
       },
       "tools": {
         "collapse": "Contraer",
@@ -3496,8 +3496,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
+      "add": "Agregar habilidad",
       "local_import": "Importación local",
-      "online_search": "Búsqueda en línea"
+      "online_search": "Búsqueda en línea",
+      "system_search": "Búsqueda del sistema"
     },
     "skill_detail": {
       "created_at": "Creado",
@@ -3525,6 +3527,19 @@
       "updated": "Ordenar por actualización"
     },
     "subtitle": "Gestiona tus asistentes, agentes y habilidades",
+    "system_skill": {
+      "conflict": "Conflicto de nombres",
+      "description": "Importar habilidades ya instaladas en este sistema.",
+      "empty_description": "No se encontraron habilidades importables en otras herramientas de codificación en este dispositivo.",
+      "empty_title": "No hay habilidades disponibles para importar",
+      "enable_success": "Habilitado {{name}}",
+      "enabled": "Habilitado",
+      "import": "Importar",
+      "import_success": "Importado {{name}}",
+      "imported": "Importado",
+      "search_placeholder": "Buscar habilidades del sistema...",
+      "title": "Habilidades del sistema"
+    },
     "tag_picker": {
       "no_tags": "Aún sin etiquetas",
       "placeholder": "Nuevo nombre de etiqueta..."

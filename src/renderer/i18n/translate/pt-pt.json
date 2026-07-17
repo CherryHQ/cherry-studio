@@ -1470,16 +1470,16 @@
         "unsupported_model": "O modelo atual não suporta raciocínio ajustável"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personalizar barra de ferramentas",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Reordenação cancelada para {{name}}.",
+          "dropped": "{{name}} caiu.",
+          "instructions": "Para reordenar, pressione Espaço ou Enter para pegar uma ferramenta, use as teclas de seta para movê-la, depois Espaço ou Enter para soltá-la, ou Escape para cancelar.",
+          "over": "{{name}} moveu-se para {{over}}.",
+          "picked_up": "Pegou {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Arraste para reordenar {{name}}",
+        "restore_default": "Restaurar padrão"
       },
       "tools": {
         "collapse": "Recolher",
@@ -3496,8 +3496,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
+      "add": "Adicionar Habilidade",
       "local_import": "Importação local",
-      "online_search": "Pesquisa online"
+      "online_search": "Pesquisa online",
+      "system_search": "Pesquisa do sistema"
     },
     "skill_detail": {
       "created_at": "Criado",
@@ -3525,6 +3527,19 @@
       "updated": "Ordenar por atualizado"
     },
     "subtitle": "Gerencie seus assistentes, agentes e habilidades",
+    "system_skill": {
+      "conflict": "Conflito de nomes",
+      "description": "Importar competências já instaladas neste sistema.",
+      "empty_description": "Nenhuma habilidade importável foi encontrada em outras ferramentas de codificação neste dispositivo.",
+      "empty_title": "Nenhuma habilidade disponível para importar",
+      "enable_success": "Ativado {{name}}",
+      "enabled": "Ativado",
+      "import": "Importar",
+      "import_success": "Importado {{name}}",
+      "imported": "Importado",
+      "search_placeholder": "Pesquisar habilidades do sistema...",
+      "title": "Habilidades do sistema"
+    },
     "tag_picker": {
       "no_tags": "Ainda sem tags",
       "placeholder": "Novo nome da tag..."

@@ -1470,16 +1470,16 @@
         "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "ツールバーをカスタマイズ",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "{{name}}の並べ替えがキャンセルされました。",
+          "dropped": "{{name}}をドロップしました。",
+          "instructions": "並び替えるには、SpaceキーまたはEnterキーを押してツールを持ち上げ、矢印キーで移動し、再度SpaceキーまたはEnterキーで置くか、Escapeキーでキャンセルしてください。",
+          "over": "{{name}} が {{over}} に移動しました。",
+          "picked_up": "{{name}}を拾いました。"
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "{{name}}をドラッグして並び替え",
+        "restore_default": "デフォルトに戻す"
       },
       "tools": {
         "collapse": "折りたたむ",
@@ -3496,8 +3496,10 @@
       "title": "図書館"
     },
     "skill_add": {
+      "add": "スキルを追加",
       "local_import": "ローカルインポート",
-      "online_search": "オンライン検索"
+      "online_search": "オンライン検索",
+      "system_search": "システム検索"
     },
     "skill_detail": {
       "created_at": "作成済",
@@ -3525,6 +3527,19 @@
       "updated": "更新日時でソート"
     },
     "subtitle": "アシスタント、エージェント、スキルを管理する",
+    "system_skill": {
+      "conflict": "名称の競合",
+      "description": "このシステムに既にインストールされているスキルをインポート",
+      "empty_description": "このデバイスの他のコーディングツールでインポート可能なスキルが見つかりませんでした。",
+      "empty_title": "インポートできるスキルがありません",
+      "enable_success": "有効化された{{name}}",
+      "enabled": "有効",
+      "import": "インポート",
+      "import_success": "{{name}}をインポートしました",
+      "imported": "輸入品",
+      "search_placeholder": "検索システムのスキル...",
+      "title": "システムスキル"
+    },
     "tag_picker": {
       "no_tags": "まだタグはありません",
       "placeholder": "新しいタグ名..."

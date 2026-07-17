@@ -1470,16 +1470,16 @@
         "unsupported_model": "Το τρέχον μοντέλο δεν υποστηρίζει ρυθμιζόμενη λογική"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Προσαρμογή γραμμής εργαλείων",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Η αναδιάταξη ακυρώθηκε για {{name}}.",
+          "dropped": "{{name}} αποχώρησε.",
+          "instructions": "Για αναδιάταξη, πατήστε Space ή Enter για να πάρετε ένα εργαλείο, χρησιμοποιήστε τα πλήκτρα βέλους για να το μετακινήσετε, μετά Space ή Enter για να το αφήσετε, ή Escape για ακύρωση.",
+          "over": "Ο {{name}} μετακινήθηκε πάνω από {{over}}.",
+          "picked_up": "Παρελήφθηκε το {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Σύρετε για να αναδιατάξετε το {{name}}",
+        "restore_default": "Επαναφορά προεπιλογής"
       },
       "tools": {
         "collapse": "Σύμπτυξη",
@@ -3496,8 +3496,10 @@
       "title": "Βιβλιοθήκη"
     },
     "skill_add": {
+      "add": "Προσθήκη Δεξιότητας",
       "local_import": "Τοπική εισαγωγή",
-      "online_search": "Διαδικτυακή αναζήτηση"
+      "online_search": "Διαδικτυακή αναζήτηση",
+      "system_search": "Αναζήτηση συστήματος"
     },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
@@ -3525,6 +3527,19 @@
       "updated": "Ταξινόμηση κατά ημερομηνία ενημέρωσης"
     },
     "subtitle": "Διαχειριστείτε τους βοηθούς σας, τους πράκτορες και τις δεξιότητές σας",
+    "system_skill": {
+      "conflict": "Σύγκρουση ονομάτων",
+      "description": "Εισαγωγή δεξιοτήτων που είναι ήδη εγκατεστημένες σε αυτό το σύστημα.",
+      "empty_description": "Δεν βρέθηκαν εισαγόμενες δεξιότητες σε άλλα εργαλεία κωδικοποίησης σε αυτήν τη συσκευή.",
+      "empty_title": "Δεν υπάρχουν διαθέσιμες δεξιότητες για εισαγωγή",
+      "enable_success": "Ενεργοποιήθηκε {{name}}",
+      "enabled": "Ενεργοποιημένο",
+      "import": "Εισαγωγή",
+      "import_success": "Εισήχθη {{name}}",
+      "imported": "Εισαγόμενο",
+      "search_placeholder": "Αναζήτηση δεξιοτήτων συστήματος...",
+      "title": "Δεξιότητες συστήματος"
+    },
     "tag_picker": {
       "no_tags": "Δεν υπάρχουν ακόμα ετικέτες",
       "placeholder": "Νέο όνομα ετικέτας..."

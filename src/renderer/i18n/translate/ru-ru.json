@@ -1470,16 +1470,16 @@
         "unsupported_model": "Текущая модель не поддерживает регулируемое рассуждение"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Настроить панель инструментов",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Перемещение отменено для {{name}}.",
+          "dropped": "{{name}} удален.",
+          "instructions": "Чтобы изменить порядок, нажмите Пробел или Enter, чтобы поднять инструмент, используйте клавиши со стрелками для перемещения, затем Пробел или Enter, чтобы опустить, или Escape для отмены.",
+          "over": "{{name}} переместился через {{over}}.",
+          "picked_up": "Подобрал {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Перетащите, чтобы изменить порядок {{name}}",
+        "restore_default": "Восстановить по умолчанию"
       },
       "tools": {
         "collapse": "Свернуть",
@@ -3496,8 +3496,10 @@
       "title": "Библиотека"
     },
     "skill_add": {
+      "add": "Добавить навык",
       "local_import": "Локальный импорт",
-      "online_search": "Онлайн-поиск"
+      "online_search": "Онлайн-поиск",
+      "system_search": "Поиск системы"
     },
     "skill_detail": {
       "created_at": "Создано",
@@ -3525,6 +3527,19 @@
       "updated": "Сортировать по обновлению"
     },
     "subtitle": "Управляйте своими ассистентами, агентами и навыками",
+    "system_skill": {
+      "conflict": "Конфликт имён",
+      "description": "Импортировать навыки, уже установленные в этой системе.",
+      "empty_description": "На этом устройстве в других инструментах кодирования не найдено импортируемых навыков.",
+      "empty_title": "Нет доступных навыков для импорта",
+      "enable_success": "Включено {{name}}",
+      "enabled": "Включено",
+      "import": "Импорт",
+      "import_success": "Импортировано {{name}}",
+      "imported": "Импортировано",
+      "search_placeholder": "Поиск навыков системы...",
+      "title": "Системные навыки"
+    },
     "tag_picker": {
       "no_tags": "Пока нет меток",
       "placeholder": "Новое имя тега..."

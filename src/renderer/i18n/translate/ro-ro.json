@@ -1470,16 +1470,16 @@
         "unsupported_model": "Modelul actual nu acceptă raționament ajustabil"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personalizați bara de instrumente",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Reordonare anulată pentru {{name}}.",
+          "dropped": "{{name}} a renunțat.",
+          "instructions": "Pentru a reordona, apăsați Spațiu sau Enter pentru a ridica un instrument, folosiți tastele săgeată pentru a-l muta, apoi Spațiu sau Enter pentru a-l plasa, sau Escape pentru a anula.",
+          "over": "{{name}} s-a mutat peste {{over}}.",
+          "picked_up": "Am luat {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Trage pentru a reordona {{name}}",
+        "restore_default": "Restaurează implicitul"
       },
       "tools": {
         "collapse": "Restrânge",
@@ -3496,8 +3496,10 @@
       "title": "Bibliotecă"
     },
     "skill_add": {
+      "add": "Adaugă Abilitate",
       "local_import": "Import local",
-      "online_search": "Căutare online"
+      "online_search": "Căutare online",
+      "system_search": "Căutare sistem"
     },
     "skill_detail": {
       "created_at": "Creat",
@@ -3525,6 +3527,19 @@
       "updated": "Sortează după actualizare"
     },
     "subtitle": "Gestionați-vă asistenții, agenții și abilitățile",
+    "system_skill": {
+      "conflict": "Conflict de nume",
+      "description": "Importă abilitățile deja instalate pe acest sistem.",
+      "empty_description": "Nu au fost găsite abilități importabile în alte instrumente de codare de pe acest dispozitiv.",
+      "empty_title": "Nu există abilități disponibile pentru import",
+      "enable_success": "Activat {{name}}",
+      "enabled": "Activat",
+      "import": "Import",
+      "import_success": "Importat {{name}}",
+      "imported": "Importat",
+      "search_placeholder": "Căutare abilități sistem...",
+      "title": "Abilități de sistem"
+    },
     "tag_picker": {
       "no_tags": "Nicio etichetă încă",
       "placeholder": "Nume nou pentru etichetă..."
