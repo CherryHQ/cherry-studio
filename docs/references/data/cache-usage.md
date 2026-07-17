@@ -6,12 +6,13 @@ Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [
 
 Import from `@data/hooks/useCache`.
 
-| Hook                  | Tier    | Signature                                                                            |
-| --------------------- | ------- | ------------------------------------------------------------------------------------ |
-| `useCache`            | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`        |
-| `useSharedCache`      | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`     |
-| `useSharedCacheValue` | Shared  | `(key: SharedCacheKey) => V \| undefined` — read-only observer                        |
-| `usePersistCache`     | Persist | `(key: RendererPersistCacheKey) => [V, (next: V \| ((prev) => V)) => void]`           |
+| Hook                     | Tier    | Signature                                                                            |
+| ------------------------ | ------- | ------------------------------------------------------------------------------------ |
+| `useCache`               | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`        |
+| `useSharedCache`         | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`     |
+| `useSharedCacheValue`    | Shared  | `(key: SharedCacheKey) => V \| undefined` — read-only observer                        |
+| `useSharedCacheSelector` | Shared  | `(keys: SharedCacheKey[], selector: (values) => S, isEqual?) => S` — multi-key read-only aggregate |
+| `usePersistCache`        | Persist | `(key: RendererPersistCacheKey) => [V, (next: V \| ((prev) => V)) => void]`           |
 
 Value type is inferred from the schema. The writable hooks pin the cache entry (refcounted) — the key cannot be `delete`d while any hook is mounted; `useSharedCacheValue` does NOT pin (and never writes a default), so an owner's deletion always passes through. Hooks do **not** accept a TTL option; using TTL under a writable hook logs a warning and is discouraged (see [Design Invariant #4](./cache-overview.md#design-invariants)).
 
@@ -81,12 +82,9 @@ cacheService.getShared(k)
 cacheService.hasShared(k)
 cacheService.hasSharedTTL(k)
 cacheService.deleteShared(k)
-
-// Pure physical read for external-store snapshots (useSyncExternalStore):
-// no TTL evaluation, no lazy eviction, no notification. Imperative logic
-// should keep using the TTL-aware getShared.
-cacheService.getSharedSnapshot(k)
 ```
+
+To observe a shared value reactively, use a hook; for an imperative one-shot read, use the TTL-aware `getShared`. There is no consumer API for TTL-blind physical reads — the hooks' internal snapshot reader is not for business code.
 
 Before the initial sync from Main completes, `getShared()` returns `undefined`. Writes before sync are applied locally and broadcast; Main-priority override applies at sync time (see [Shared Cache Ready State](#shared-cache-ready-state)).
 
@@ -223,6 +221,33 @@ const cached = useSharedCacheValue(key)
 const fallback = useMemo(() => getDefaultStatus(isActive), [isActive])
 return cached ?? fallback // never: cached ?? useMemo(...) — conditional hook call
 ```
+
+### Aggregate multiple main-owned keys (read-only selector)
+
+A dynamic number of keys cannot be observed with per-key hooks (Rules of Hooks
+forbid hooks in loops). When N values must merge into one derived result, use
+`useSharedCacheSelector`: `keys` is both the subscription set and the only
+snapshot read set; the selector receives the matching values tuple (same order,
+`undefined` on miss) and must not touch `cacheService` itself:
+
+```typescript
+const EMPTY_TOOLS: McpTool[] = [] // module-level: reference-stable fallback
+
+function useMcpToolsByServer(serverIds: readonly string[]): Record<string, McpTool[]> {
+  // Derive keys AND the zip source from the same memoized array
+  const uniqueIds = useMemo(() => Array.from(new Set(serverIds)).sort(), [serverIds])
+  return useSharedCacheSelector(
+    uniqueIds.map((id) => `mcp.tools.${id}` as const), // no extra useMemo needed
+    (values) => Object.fromEntries(uniqueIds.map((id, i): [string, McpTool[]] => [id, values[i] ?? EMPTY_TOOLS]))
+  )
+}
+```
+
+`isEqual` (default: `Object.is` plus one level of item-wise comparison for
+arrays/plain objects) gates re-renders at the selection level;
+`Map`/`Set` or domain-value selections need an explicit comparator. Same
+zero-side-effect contract as `useSharedCacheValue`: no default write-back, no
+pin. See the hook's JSDoc in `useCache.ts` for the full consumer discipline.
 
 ### Bounded recent list (Persist)
 

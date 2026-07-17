@@ -7749,6 +7749,8 @@
   },
   "tab": {
     "close": "关闭标签页",
+    "close_others": "关闭其他标签页",
+    "close_to_right": "关闭右侧标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
     "open_in_new_window": "从新窗口打开",
