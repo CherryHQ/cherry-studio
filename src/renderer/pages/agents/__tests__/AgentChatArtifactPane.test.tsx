@@ -974,7 +974,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
     const rightPane = screen.getByTestId('artifact-right-pane')
-    expect(rightPane).toHaveAttribute('data-open', 'true')
+    expect(rightPane).toHaveAttribute('data-open', 'false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
 
     activeSessionMocks.result = {
@@ -992,6 +992,7 @@ describe('AgentChat artifact pane', () => {
     rerenderAgentChat(rerender)
 
     expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-1')
   })
 
