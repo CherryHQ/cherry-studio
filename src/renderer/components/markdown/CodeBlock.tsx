@@ -1,14 +1,12 @@
-import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
+import { useMarkdownHost } from '@renderer/hooks/useMarkdownHost'
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdown'
 import { isWin } from '@renderer/utils/platform'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
-
-import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 
 interface Props {
   children: string
@@ -36,39 +34,40 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStre
         ? 'svg'
         : detectedLanguage
   }, [children, detectedLanguage])
-  const { codeFancyBlock } = useMessageRenderConfig()
+  const { codeFancyBlock, saveCodeBlock, readonly, renderInlineFilePath } = useMarkdownHost()
   const isIncomplete = useIsCodeFenceIncomplete()
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
-  const actions = useOptionalMessageListActions()
-  const ui = useOptionalMessageListUi()
-  const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock && ui?.readonly !== true
+  const canSaveCodeBlock = !!id && !!saveCodeBlock && readonly !== true
 
   const handleSave = useCallback(
     (newContent: string) => {
       if (id != null) {
-        void actions?.saveCodeBlock?.({
+        void saveCodeBlock?.({
           msgBlockId: blockId,
           codeBlockId: id,
           newContent
         })
       }
     },
-    [actions, blockId, id]
+    [saveCodeBlock, blockId, id]
   )
 
   // A plain text fence may be the model's way to present a single generated file or directory path.
+  // The host decides how to render it (e.g. an interactive file link); off-host it falls through
+  // to a normal inline code element.
   if (
     !isWin &&
     (language === null || language === 'text') &&
     typeof children === 'string' &&
-    isInlineFilePath(children)
+    isInlineFilePath(children) &&
+    renderInlineFilePath
   ) {
     return (
       <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
-        <ClickableFilePath path={normalizeInlineFilePath(children)} />
+        {renderInlineFilePath(normalizeInlineFilePath(children))}
       </code>
     )
   }

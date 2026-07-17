@@ -9,12 +9,12 @@ const mocks = vi.hoisted(() => {
     messageBlocksSelectors: {
       selectById: vi.fn()
     },
-    messageListActions: {
+    markdownHost: {
       copyRichContent: vi.fn(),
       exportTableAsExcel: vi.fn(),
       notifySuccess: vi.fn(),
       notifyError: vi.fn()
-    },
+    } as any,
     markdownContext: {
       content: ''
     },
@@ -61,8 +61,8 @@ vi.mock('@cherrystudio/ui', () => ({
   useMarkdownBlockContext: () => mocks.markdownContext
 }))
 
-vi.mock('../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => mocks.messageListActions
+vi.mock('@renderer/hooks/useMarkdownHost', () => ({
+  useMarkdownHost: () => mocks.markdownHost
 }))
 
 describe('Table', () => {
@@ -75,10 +75,10 @@ describe('Table', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.markdownContext.content = defaultTableContent
-    mocks.messageListActions.copyRichContent = vi.fn().mockResolvedValue(undefined)
-    mocks.messageListActions.exportTableAsExcel = vi.fn().mockResolvedValue(true)
-    mocks.messageListActions.notifySuccess = vi.fn()
-    mocks.messageListActions.notifyError = vi.fn()
+    mocks.markdownHost.copyRichContent = vi.fn().mockResolvedValue(undefined)
+    mocks.markdownHost.exportTableAsExcel = vi.fn().mockResolvedValue(true)
+    mocks.markdownHost.notifySuccess = vi.fn()
+    mocks.markdownHost.notifyError = vi.fn()
     vi.useFakeTimers()
   })
 
@@ -260,7 +260,7 @@ Line 4`
       await user.click(copyButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.copyRichContent).toHaveBeenCalledWith(
+        expect(mocks.markdownHost.copyRichContent).toHaveBeenCalledWith(
           {
             plainText: defaultTableContent,
             html: expect.stringContaining('<table>')
@@ -327,7 +327,7 @@ Line 4`
       await user.click(copyButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.notifyError).toHaveBeenCalledWith('message.error.table.invalid')
+        expect(mocks.markdownHost.notifyError).toHaveBeenCalledWith('message.error.table.invalid')
         expect(getCopyIcon()).toBeInTheDocument()
         expect(queryCheckIcon()).not.toBeInTheDocument()
       })
@@ -335,7 +335,7 @@ Line 4`
 
     it('should show error notification when copy action fails', async () => {
       const copyError = new Error('Copy failed')
-      mocks.messageListActions.copyRichContent.mockRejectedValueOnce(copyError)
+      mocks.markdownHost.copyRichContent.mockRejectedValueOnce(copyError)
 
       render(<Table {...defaultProps} />)
 
@@ -344,7 +344,7 @@ Line 4`
 
       await waitFor(() => {
         expect(mocks.logger.error).toHaveBeenCalledWith('Failed to copy table to clipboard', { error: copyError })
-        expect(mocks.messageListActions.notifyError).toHaveBeenCalledWith('message.copy.failed')
+        expect(mocks.markdownHost.notifyError).toHaveBeenCalledWith('message.copy.failed')
       })
     })
   })
@@ -355,10 +355,10 @@ Line 4`
       mocks.exportTableToExcel.mockResolvedValue(true)
       vi.clearAllMocks()
       mocks.markdownContext.content = defaultTableContent
-      mocks.messageListActions.copyRichContent = vi.fn().mockResolvedValue(undefined)
-      mocks.messageListActions.exportTableAsExcel = vi.fn().mockResolvedValue(true)
-      mocks.messageListActions.notifySuccess = vi.fn()
-      mocks.messageListActions.notifyError = vi.fn()
+      mocks.markdownHost.copyRichContent = vi.fn().mockResolvedValue(undefined)
+      mocks.markdownHost.exportTableAsExcel = vi.fn().mockResolvedValue(true)
+      mocks.markdownHost.notifySuccess = vi.fn()
+      mocks.markdownHost.notifyError = vi.fn()
     })
 
     it('should export table to Excel on button click', async () => {
@@ -372,7 +372,7 @@ Cell 1 | Cell 2`
       await user.click(excelButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.exportTableAsExcel).toHaveBeenCalledWith([
+        expect(mocks.markdownHost.exportTableAsExcel).toHaveBeenCalledWith([
           ['Header 1', 'Header 2'],
           ['Cell 1', 'Cell 2']
         ])
@@ -386,13 +386,13 @@ Cell 1 | Cell 2`
       await user.click(excelButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.notifySuccess).toHaveBeenCalledWith('message.success.excel.export')
+        expect(mocks.markdownHost.notifySuccess).toHaveBeenCalledWith('message.success.excel.export')
       })
     })
 
     it('should show error toast and log error on export failure', async () => {
       const exportError = new Error('Export failed')
-      mocks.messageListActions.exportTableAsExcel.mockRejectedValueOnce(exportError)
+      mocks.markdownHost.exportTableAsExcel.mockRejectedValueOnce(exportError)
 
       render(<Table {...defaultProps} />)
 
@@ -401,7 +401,7 @@ Cell 1 | Cell 2`
 
       await waitFor(() => {
         expect(mocks.logger.error).toHaveBeenCalledWith('Failed to export table to Excel', { error: exportError })
-        expect(mocks.messageListActions.notifyError).toHaveBeenCalledWith('message.error.excel.export')
+        expect(mocks.markdownHost.notifyError).toHaveBeenCalledWith('message.error.excel.export')
       })
     })
 
@@ -412,13 +412,13 @@ Cell 1 | Cell 2`
       await user.click(excelButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.notifyError).toHaveBeenCalledWith('message.error.table.invalid')
-        expect(mocks.messageListActions.exportTableAsExcel).not.toHaveBeenCalled()
+        expect(mocks.markdownHost.notifyError).toHaveBeenCalledWith('message.error.table.invalid')
+        expect(mocks.markdownHost.exportTableAsExcel).not.toHaveBeenCalled()
       })
     })
 
     it('should not show error toast when export returns false', async () => {
-      mocks.messageListActions.exportTableAsExcel.mockResolvedValueOnce(false)
+      mocks.markdownHost.exportTableAsExcel.mockResolvedValueOnce(false)
 
       render(<Table {...defaultProps} />)
 
@@ -426,17 +426,17 @@ Cell 1 | Cell 2`
       await user.click(excelButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.exportTableAsExcel).toHaveBeenCalled()
-        expect(mocks.messageListActions.notifySuccess).not.toHaveBeenCalled()
-        expect(mocks.messageListActions.notifyError).not.toHaveBeenCalled()
+        expect(mocks.markdownHost.exportTableAsExcel).toHaveBeenCalled()
+        expect(mocks.markdownHost.notifySuccess).not.toHaveBeenCalled()
+        expect(mocks.markdownHost.notifyError).not.toHaveBeenCalled()
       })
     })
   })
 
   describe('edge cases', () => {
     it('should hide toolbar when provider actions are unavailable', () => {
-      mocks.messageListActions.copyRichContent = undefined as any
-      mocks.messageListActions.exportTableAsExcel = undefined as any
+      mocks.markdownHost.copyRichContent = undefined as any
+      mocks.markdownHost.exportTableAsExcel = undefined as any
 
       const { container } = render(<Table {...defaultProps} />)
 

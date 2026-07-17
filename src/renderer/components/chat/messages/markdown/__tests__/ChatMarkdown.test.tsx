@@ -28,11 +28,17 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false })
+  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false, codeFancyBlock: true }),
+  useOptionalMessageListActions: () => undefined,
+  useOptionalMessageListUi: () => undefined
 }))
 
-vi.mock('../useChatMarkdownComponents', () => ({
-  useChatMarkdownComponents: () => ({})
+vi.mock('@renderer/components/markdown', () => ({
+  useMarkdownComponents: () => ({})
+}))
+
+vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
+  ClickableFilePath: ({ path }: { path: string }) => <span>{path}</span>
 }))
 
 describe('ChatMarkdown', () => {

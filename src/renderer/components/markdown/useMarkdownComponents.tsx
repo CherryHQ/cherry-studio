@@ -1,7 +1,8 @@
 /**
- * Composition hook returning the chat-flavored Streamdown `components` map.
+ * Composition hook returning the app's Streamdown `components` map — the rich
+ * override set shared by chat messages and every off-chat markdown preview.
  *
- * Encapsulates everything that makes chat markdown look like chat markdown:
+ * Encapsulates everything that makes app markdown look the way it does:
  *   - `<a>`   → Link with citation routing (CitationTooltip vs Hyperlink card)
  *   - `<code>`→ CodeBlock with file-path detection + save action
  *   - `<table>`→ Table with copy/Excel export actions
@@ -34,7 +35,7 @@ interface Options {
   isStreaming?: boolean
 }
 
-export function useChatMarkdownComponents({
+export function useMarkdownComponents({
   blockId,
   hasStyleElement = false,
   isStreaming = false

@@ -9,11 +9,9 @@ const mocks = vi.hoisted(() => {
 
   return {
     saveCodeBlock,
-    messageListActions: { saveCodeBlock } as any,
+    markdownHost: { codeFancyBlock: true, readonly: false, saveCodeBlock } as any,
     getCodeBlockId: vi.fn(),
     isCodeFenceIncomplete: false,
-    renderConfig: { codeFancyBlock: true },
-    messageListUi: { readonly: false },
     isWin: false,
     CodeBlockView: vi.fn(({ onSave, children }) => (
       <div>
@@ -35,10 +33,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => mocks.renderConfig,
-  useOptionalMessageListActions: () => mocks.messageListActions,
-  useOptionalMessageListUi: () => mocks.messageListUi
+vi.mock('@renderer/hooks/useMarkdownHost', () => ({
+  useMarkdownHost: () => mocks.markdownHost
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -63,11 +59,6 @@ vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
   default: mocks.HtmlArtifactsCard
 }))
 
-// Mock ClickableFilePath
-vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
-  ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
-}))
-
 describe('CodeBlock', () => {
   const defaultProps = {
     blockId: 'test-msg-block-id',
@@ -85,8 +76,12 @@ describe('CodeBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isWin = false
-    mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
-    mocks.messageListUi = { readonly: false }
+    mocks.markdownHost = {
+      codeFancyBlock: true,
+      readonly: false,
+      saveCodeBlock: mocks.saveCodeBlock,
+      renderInlineFilePath: (path: string) => <span data-testid="clickable-file-path">{path}</span>
+    }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isCodeFenceIncomplete = false
@@ -113,8 +108,8 @@ describe('CodeBlock', () => {
       expect(mocks.CodeBlockView).not.toHaveBeenCalled()
     })
 
-    it('should render without a message list provider', () => {
-      mocks.messageListActions = undefined
+    it('should render without a markdown host', () => {
+      mocks.markdownHost.saveCodeBlock = undefined
 
       expect(() => render(<CodeBlock {...defaultProps} />)).not.toThrow()
       fireEvent.click(screen.getByText('Save'))
@@ -213,7 +208,7 @@ describe('CodeBlock', () => {
     })
 
     it('should pass editable=false for standard code blocks in readonly surfaces', () => {
-      mocks.messageListUi = { readonly: true }
+      mocks.markdownHost.readonly = true
 
       render(<CodeBlock {...defaultProps} />)
 
@@ -226,7 +221,7 @@ describe('CodeBlock', () => {
     })
 
     it('should pass editable=false for standard code blocks when saving is unavailable', () => {
-      mocks.messageListActions = {}
+      mocks.markdownHost.saveCodeBlock = undefined
 
       render(<CodeBlock {...defaultProps} />)
 
@@ -265,7 +260,7 @@ describe('CodeBlock', () => {
     })
 
     it('should pass editable=false for HTML artifacts in readonly surfaces', () => {
-      mocks.messageListUi = { readonly: true }
+      mocks.markdownHost.readonly = true
       const htmlProps = {
         ...defaultProps,
         className: 'language-html',
