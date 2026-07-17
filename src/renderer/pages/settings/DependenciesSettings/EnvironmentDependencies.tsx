@@ -32,13 +32,13 @@ import { toast } from '@renderer/services/toast'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
+import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
   BINARY_INSTALL_PREFERENCE_KEYS,
   type BinaryToolPreset,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
-  validateBinaryManifestEntry
+  validateBinaryToolDefinition
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { BinaryApplication, BinaryAvailability, BinaryOperation, BinaryToolSnapshot } from '@shared/types/binary'
@@ -85,11 +85,6 @@ type ToolSource = BinaryAvailability['source']
 // Code CLIs are installed through BinaryManager too, but have their own
 // management surface (the Code CLI page) — keep them out of this inventory.
 const CODE_CLI_BINARIES = new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
-
-const getInstallRecoveryIntent = (snapshot: BinaryToolSnapshot): BinaryManifestEntry | undefined =>
-  snapshot.operation?.status === 'failed' && snapshot.operation.action === 'install'
-    ? snapshot.operation.intent
-    : undefined
 
 interface EnvironmentDependenciesProps {
   mini?: boolean
@@ -182,15 +177,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void refreshState()
   })
 
+  // Custom tools are exactly the snapshots that carry a user-added definition.
+  // Runtime dependencies mise auto-installs do not appear here unless the user
+  // added them as a custom tool — availability alone never mints a card.
   const inventorySnapshots = useMemo(
-    () =>
-      Object.values(snapshots).filter(
-        (snapshot) =>
-          !CODE_CLI_BINARIES.has(snapshot.name) &&
-          (snapshot.intent ||
-            getInstallRecoveryIntent(snapshot) ||
-            (snapshot.availability.source === 'mise' && isRuntimeDependency(snapshot.availability.tool)))
-      ),
+    () => Object.values(snapshots).filter((snapshot) => !CODE_CLI_BINARIES.has(snapshot.name) && !!snapshot.definition),
     [snapshots]
   )
   // Operation status is part of each snapshot, so a window mounted mid-mutation
@@ -208,9 +199,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }
 
-  const handleAddCustomTool = async (tool: BinaryManifestEntry) => {
+  const handleAddCustomTool = async (tool: CustomToolDefinition) => {
     try {
-      validateBinaryManifestEntry(tool)
+      validateBinaryToolDefinition(tool)
     } catch {
       toast.error(t('settings.dependencies.invalidTool'))
       throw new Error('invalid')
@@ -218,7 +209,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
     const allNames = [
       ...PRESETS_BINARY_TOOLS.map((p) => p.name),
-      ...inventorySnapshots.filter((snapshot) => snapshot.intent).map((snapshot) => snapshot.name),
+      ...inventorySnapshots.map((snapshot) => snapshot.name),
       ...CODE_CLI_BINARIES
     ]
     if (allNames.includes(tool.name)) {
@@ -283,9 +274,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void ipcApi.request('system.shell.open_path', separator > 0 ? binaryPath.slice(0, separator) : binaryPath)
   }
 
-  // One unified inventory: presets first, then everything else BinaryManager
-  // knows about — custom tools and feature-owned entries (Code CLIs stay on
-  // their dedicated page).
+  // One unified inventory: presets first, then the user's custom tools (Code CLIs
+  // stay on their dedicated page).
   const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
   const extraTools = inventorySnapshots.filter((snapshot) => !presetNames.has(snapshot.name))
   const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
@@ -376,26 +366,18 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {extraTools.map((snapshot) => {
           const latestVersion = latestVersions?.[snapshot.name]
           const view = interpretBinarySnapshot(snapshot, { latest: latestVersion })
-          const { availability } = snapshot
-          const recoveryIntent = getInstallRecoveryIntent(snapshot)
-          const toolSpec =
-            snapshot.intent?.tool ??
-            recoveryIntent?.tool ??
-            (availability.source === 'mise' ? availability.tool : snapshot.name)
+          // Every inventory card carries a custom definition, so its recipe is
+          // authoritative — availability never supplies the displayed spec.
+          const toolSpec = snapshot.definition?.tool ?? snapshot.name
           const runtime = isRuntimeDependency(toolSpec)
-          const readOnly = !snapshot.intent && !recoveryIntent
-          // A read-only (unowned) tool hides its system path — Cherry uses it in
-          // place but does not surface it as a managed location.
-          const systemPath = readOnly ? undefined : view.systemPath
           return (
             <CustomToolCard
               key={snapshot.name}
               tool={snapshot}
+              toolSpec={toolSpec}
               runtime={runtime}
-              owned={view.owned}
               available={view.installed}
-              readOnly={readOnly}
-              systemPath={systemPath}
+              systemPath={view.systemPath}
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
               operation={snapshot.operation}
@@ -487,14 +469,15 @@ const BinaryToolPresetCard: FC<{
   const failedInstall = operation?.status === 'failed' && operation.action === 'install'
   const failedRemove = operation?.status === 'failed' && operation.action === 'remove'
   const busy = installing || removing
-  // Backend control authority is the live application fact, never durable
-  // ownership (a fixed tool carries no intent). `applied` exposes Update +
-  // Uninstall; `broken` exposes Retry + Uninstall; an `absent`+`none` tool offers
-  // Install; an externally satisfied (bundled/system) absent tool stays read-only.
+  // Backend control authority is the live application fact — a fixed tool carries
+  // no custom definition. `applied` exposes Update + Uninstall; `broken` exposes
+  // Retry + Uninstall; an `absent`+`none` tool offers Install; an externally
+  // satisfied (bundled/system) absent tool stays read-only.
   const applied = applicationStatus === 'applied'
   const broken = applicationStatus === 'broken'
   const backendControllable = applied || broken
-  const canInstall = (applicationStatus === 'absent' && source === 'none') || broken || failedInstall
+  const canInstall =
+    (applicationStatus === 'absent' && source === 'none') || applicationStatus === 'unknown' || broken || failedInstall
 
   return (
     <div
@@ -621,7 +604,7 @@ const BinaryToolPresetCard: FC<{
             {!installing && <Download className="size-3.5" />}
             {installing
               ? t('settings.dependencies.installing')
-              : failedInstall || broken
+              : failedInstall || broken || applicationStatus === 'unknown'
                 ? t('common.retry')
                 : t('settings.mcp.install')}
           </Button>
@@ -634,10 +617,9 @@ const BinaryToolPresetCard: FC<{
 
 const CustomToolCard: FC<{
   tool: BinaryToolSnapshot
-  owned: boolean
+  toolSpec: string
   available: boolean
   runtime?: boolean
-  readOnly: boolean
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
@@ -649,10 +631,9 @@ const CustomToolCard: FC<{
   onRemove: () => void
 }> = ({
   tool,
-  owned,
+  toolSpec,
   available,
   runtime = false,
-  readOnly,
   systemPath,
   installedVersion,
   latestVersion,
@@ -664,10 +645,6 @@ const CustomToolCard: FC<{
   onRemove
 }) => {
   const { t } = useTranslation()
-  const toolSpec =
-    tool.intent?.tool ??
-    getInstallRecoveryIntent(tool)?.tool ??
-    (tool.availability.source === 'mise' ? tool.availability.tool : tool.name)
   const installed = available
   const installing = operation?.status === 'installing'
   const removing = operation?.status === 'removing'
@@ -675,12 +652,16 @@ const CustomToolCard: FC<{
   const failedRemove = operation?.status === 'failed' && operation.action === 'remove'
   const busy = installing || removing
   const applicationStatus = tool.application?.status
-  const canUpdate = owned && applicationStatus === 'applied'
+  // A custom card always carries a definition, so Remove is always available.
+  // Update needs the exact recipe applied; Install/Retry covers a broken recipe,
+  // an absent recipe with no external copy, and a prior failed install. An
+  // externally satisfied (bundled/system) tool exposes neither — Remove only.
+  const canUpdate = applicationStatus === 'applied'
   const canInstall =
-    !readOnly &&
-    (applicationStatus === 'broken' ||
-      (applicationStatus === 'absent' && tool.availability.source === 'none') ||
-      failedInstall)
+    applicationStatus === 'broken' ||
+    applicationStatus === 'unknown' ||
+    (applicationStatus === 'absent' && tool.availability.source === 'none') ||
+    failedInstall
 
   return (
     <div
@@ -753,18 +734,16 @@ const CustomToolCard: FC<{
               <FolderOpen className="size-3.5" />
             </Button>
           )}
-          {owned && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground-muted hover:text-destructive"
-              aria-label={t('settings.dependencies.remove')}
-              title={t('settings.dependencies.remove')}
-              onClick={onRemove}
-              disabled={busy}>
-              {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-foreground-muted hover:text-destructive"
+            aria-label={t('settings.dependencies.remove')}
+            title={t('settings.dependencies.remove')}
+            onClick={onRemove}
+            disabled={busy}>
+            {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
+          </Button>
         </div>
       </div>
 
@@ -784,7 +763,7 @@ const CustomToolCard: FC<{
             {!installing && <Download className="size-3.5" />}
             {installing
               ? t('settings.dependencies.installing')
-              : failedInstall
+              : failedInstall || applicationStatus === 'broken' || applicationStatus === 'unknown'
                 ? t('common.retry')
                 : t('settings.mcp.install')}
           </Button>
@@ -802,7 +781,7 @@ function AddToolDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (tool: BinaryManifestEntry) => Promise<void>
+  onAdd: (tool: CustomToolDefinition) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')

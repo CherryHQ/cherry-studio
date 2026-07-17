@@ -5,20 +5,14 @@ import { gt as semverGt, valid as semverValid } from 'semver'
  * Normalized, display-ready reading of a raw {@link BinaryToolSnapshot}.
  *
  * Centralizes the rules every management surface needs — which availability
- * source carries a version, when a tool counts as owned, which path to show,
- * and whether a managed update exists — so the Dependencies page and the Code
- * CLI page cannot drift in how they interpret a snapshot.
+ * source carries a version, which path to show, and whether a managed update
+ * exists — so the Dependencies page and the Code CLI page cannot drift in how
+ * they interpret a snapshot.
  */
 export interface InterpretedBinarySnapshot {
   source: BinaryToolSnapshot['availability']['source']
   /** True when the tool resolves to any concrete source (mise/bundled/system). */
   installed: boolean
-  /**
-   * @deprecated Durable manifest intent, not an application fact. Prefer
-   * {@link applicationStatus}/{@link exactApplied}; kept so existing call sites
-   * that read `owned` still compile during the Phase 1 transition.
-   */
-  owned: boolean
   /** Version string only when the source actually reports one (mise/bundled). */
   installedVersion?: string
   /** Executable path when resolved through the system PATH. */
@@ -66,7 +60,6 @@ export function interpretBinarySnapshot(
   // ignoreSystemSource collapses only availability; the application fact below is
   // an independent live truth and is never masked by it.
   const availability = raw.source === 'system' && options.ignoreSystemSource ? { source: 'none' as const } : raw
-  const owned = !!snapshot?.intent
   const application = snapshot?.application
   const applicationStatus = application?.status
   const exactApplied = applicationStatus === 'applied'
@@ -79,15 +72,14 @@ export function interpretBinarySnapshot(
   return {
     source: availability.source,
     installed: availability.source !== 'none',
-    owned,
     installedVersion,
     systemPath: availability.source === 'system' ? availability.path : undefined,
     resolvedPath: availability.source === 'none' ? undefined : availability.path,
     applicationStatus,
     exactApplied,
     applicationVersion,
-    // An update requires the exact recipe to be applied — never mere ownership or
-    // a runnable-but-not-applied conflict/external source.
+    // An update requires the exact recipe to be applied — never a
+    // runnable-but-not-applied conflict or an external source.
     hasUpdate: exactApplied && isNewerVersion(options.latest, applicationVersion)
   }
 }

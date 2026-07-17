@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import { interpretBinarySnapshot } from '../binarySnapshot'
 
-const intent = { name: 'gh', tool: 'gh' }
+const definition = { name: 'gh', tool: 'gh' }
 
 describe('interpretBinarySnapshot', () => {
-  it('reads an absent snapshot as an unowned, not-installed tool', () => {
+  it('reads an absent snapshot as a not-installed tool', () => {
     const view = interpretBinarySnapshot(undefined)
-    expect(view).toMatchObject({ source: 'none', installed: false, owned: false, hasUpdate: false })
+    expect(view).toMatchObject({ source: 'none', installed: false, hasUpdate: false })
     expect(view.installedVersion).toBeUndefined()
     expect(view.systemPath).toBeUndefined()
     expect(view.resolvedPath).toBeUndefined()
@@ -17,15 +17,14 @@ describe('interpretBinarySnapshot', () => {
   it('flags an update only for an exactly-applied tool with a newer release', () => {
     const snapshot: BinaryToolSnapshot = {
       name: 'gh',
-      intent,
-      availability: { source: 'mise', tool: 'gh', path: '/shims/gh', version: '1.0.0' },
+      definition,
+      availability: { source: 'mise', path: '/shims/gh', version: '1.0.0' },
       application: { status: 'applied', version: '1.0.0' }
     }
     const view = interpretBinarySnapshot(snapshot, { latest: '1.1.0' })
     expect(view).toMatchObject({
       source: 'mise',
       installed: true,
-      owned: true,
       installedVersion: '1.0.0',
       resolvedPath: '/shims/gh',
       applicationStatus: 'applied',
@@ -39,8 +38,8 @@ describe('interpretBinarySnapshot', () => {
   it('does not flag an update when the latest version is not newer', () => {
     const snapshot: BinaryToolSnapshot = {
       name: 'gh',
-      intent,
-      availability: { source: 'mise', tool: 'gh', path: '/shims/gh', version: '1.1.0' },
+      definition,
+      availability: { source: 'mise', path: '/shims/gh', version: '1.1.0' },
       application: { status: 'applied', version: '1.1.0' }
     }
     expect(interpretBinarySnapshot(snapshot, { latest: '1.1.0' }).hasUpdate).toBe(false)
@@ -49,7 +48,7 @@ describe('interpretBinarySnapshot', () => {
   it('never flags an update for a tool with no application fact even when a newer version exists', () => {
     const snapshot: BinaryToolSnapshot = {
       name: 'gh',
-      availability: { source: 'mise', tool: 'gh', path: '/shims/gh', version: '1.0.0' }
+      availability: { source: 'mise', path: '/shims/gh', version: '1.0.0' }
     }
     const view = interpretBinarySnapshot(snapshot, { latest: '2.0.0' })
     expect(view.exactApplied).toBe(false)
@@ -57,12 +56,12 @@ describe('interpretBinarySnapshot', () => {
     expect(view.hasUpdate).toBe(false)
   })
 
-  it('never flags an update for an owned tool that is not exactly applied', () => {
-    // Update gates on application=applied, not ownership: an owned entry whose
-    // exact recipe is not applied must not offer an update.
+  it('never flags an update for a tool that is not exactly applied', () => {
+    // Update gates on application=applied: an entry whose exact recipe is not
+    // applied must not offer an update.
     const snapshot: BinaryToolSnapshot = {
       name: 'gh',
-      intent,
+      definition,
       availability: { source: 'system', path: '/usr/bin/gh' },
       application: { status: 'broken', version: '1.0.0' }
     }
@@ -74,7 +73,7 @@ describe('interpretBinarySnapshot', () => {
     // our exact recipe, so it carries no trusted version and cannot update.
     const snapshot: BinaryToolSnapshot = {
       name: 'gh',
-      availability: { source: 'mise', tool: 'gh', path: '/shims/gh' },
+      availability: { source: 'mise', path: '/shims/gh' },
       application: { status: 'conflict' }
     }
     const view = interpretBinarySnapshot(snapshot, { latest: '2.0.0' })

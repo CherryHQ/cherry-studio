@@ -1,6 +1,6 @@
 # BinaryManager Reference
 
-`BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the BinaryManager manifest and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.
+`BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the custom tool registry and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.
 
 > **Why mise, not a custom backend interface?** mise already owns the polyglot tool grammar (`npm:`, `pipx:`, `github:`, `http:`, and its registry). A `BinaryBackend` wrapper would be a shallow abstraction that duplicates those semantics.
 
@@ -10,59 +10,62 @@ BinaryManager is for a single CLI executable that mise can install (`npm:`, `pip
 
 Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
-## Durable ownership and runtime facts
+## Tool definitions and runtime facts
 
-`feature.binary.tools` is the sole durable ownership manifest. Each `BinaryManifestEntry` records the executable name, mise tool specification, and optional requested version. Backups restore it as management intent, not observed local installation state: it means Cherry is allowed to update and remove that tool; it does **not** prove that an executable exists right now.
+Cherry manages two disjoint sets of tools. **Fixed tools** — every Dependencies preset (`PRESETS_BINARY_TOOLS`) and every Code CLI executable — are code-owned: their canonical mise recipe lives in the in-code `FIXED_CATALOG`, and they write **zero** Preference. **Custom tools** are user-added: each is a `CustomToolDefinition` (`{ name, tool, requestedVersion? }`) persisted in the `feature.binary.tools` custom registry. A persisted definition means the user added that tool; it does **not** prove that an executable exists right now.
 
-Only the main process writes this preference, through `BinaryManager.installTool()` and `BinaryManager.removeTool()`. The renderer sends commands and renders snapshots; it never writes manifest entries directly. There is no `state.json` or startup reconcile, so restoring the manifest does not automatically mutate the filesystem. A missing executable remains recoverable through the normal install path, while a manifest entry remains removable.
+Only the main process writes `feature.binary.tools`, through `BinaryManager.addCustomTool()` (persist-first Custom Add) and `BinaryManager.removeTool()`. `installByName()` never writes Preference — it resolves the fixed/custom recipe in main and applies it. The renderer sends commands and renders snapshots; it never writes definitions directly. There is no `state.json` or startup reconcile, so a restored custom registry does not automatically mutate the filesystem. A missing executable remains recoverable through the normal install path, while a custom definition remains removable. At `onAllReady` a one-time `normalizeCustomDefinitions()` pass rewrites the registry to the canonical shape (dropping fixed-name entries, malformed entries, fixed-spec aliases, and duplicates, and mapping a legacy string `version` to `requestedVersion`) — schema hygiene only: it never installs, reconciles, or touches the filesystem.
 
-mise is an availability backend, not an ownership database. An executable visible to mise can be unowned; conversely, an owned manifest entry can be unavailable after external deletion. A failed manifest write after mise succeeds therefore leaves a runnable-but-unowned binary and a failed install operation, rather than silently claiming it.
+mise is an availability backend, not a definition store. An executable visible to mise can have no custom definition; conversely, a defined custom tool can be unavailable after external deletion. A failed registry write after mise succeeds therefore leaves a runnable binary and a failed install operation, rather than fabricating a definition.
 
-Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`; that extraction does not create ownership. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
+Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
 
 ## Snapshots
 
-`getToolSnapshots(names)` is the one availability surface for renderer and main consumers. Each `BinaryToolSnapshot` combines three independent dimensions:
+`getToolSnapshots(names)` is the one availability surface for renderer and main consumers. Each `BinaryToolSnapshot` combines four independent dimensions:
 
-- `intent`: optional durable manifest ownership.
+- `definition`: the user-added `CustomToolDefinition` backing this name; absent for a fixed tool.
+- `application`: the exact-backend-application fact (`applied` / `broken` / `absent` / `conflict` / `unknown`) — whether the exact managed recipe is applied through mise, computed independently of `availability`.
 - `availability`: current `mise`, `bundled`, `system`, or `none` fact, including an executable path when available.
 - `operation`: optional current install/remove state.
 
-The returned record is intentionally a superset of the requested names. It also includes manifest entries, active operation entries, and discovered `node`/`python` runtime dependencies from mise. Predefined BinaryManager and Code CLI specifications provide candidate mappings for their requested names; they do not make unrelated tools appear in every response. This lets a newly mounted settings window render a complete management view without reconstructing ownership from availability.
+The returned record is intentionally a superset of the requested names. It also includes custom registry entries, active operation entries, and discovered `node`/`python` runtime dependencies from mise. Candidate recipes come from the fixed catalog and the custom registry only — an operation-only name carries no recipe and so omits its `application` fact. This lets a newly mounted settings window render a complete management view.
 
 A snapshot obtains live mise data with one `mise ls --json` query and reports a mise executable only after its shim passes the platform-appropriate access check. System discovery uses the raw login-shell environment so Cherry's directories and `MISE_*` settings cannot make a Cherry executable look like a system executable.
 
-Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The manifest, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and never derive durable ownership from `availability`.
+Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The custom registry, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and drive update/uninstall/repair from `application`, never from `availability` alone.
 
 ## Mutation behavior
 
-Install and remove mutations are serialized with the manifest and mise process operations. Per-tool active-operation guards deduplicate an identical install and reject conflicting install/remove requests before they overwrite each other's state.
+Install and remove mutations are serialized with the custom registry and mise process operations. Per-tool active-operation guards deduplicate an identical install and reject conflicting install/remove requests before they overwrite each other's state.
 
-Installation publishes `installing` before waiting for the global mutation lock. Under the lock it validates the intent, runs `mise use -g`, reshims, verifies that the executable is runnable, then writes the manifest. A failure leaves the manifest unchanged and publishes a failed operation with the install intent so the UI can offer recovery.
+There are two install routes. `installByName({ name, targetVersion? })` resolves the code-owned fixed recipe or the persisted custom definition and applies it against the live `application` fact — it never writes Preference. An already-applied tool is a no-op (or a one-shot version update when a target is given); an externally satisfied (bundled/system) tool is a logged no-op so a race converges; a `conflict`/`unknown` state rejects without mutating; a backend failure records a failed operation. `addCustomTool(definition)` is the only route that accepts an arbitrary recipe: it validates grammar and collisions, then persists the definition to the registry **before** any backend work, so the tool stays defined and retry-able even if the install fails. Neither route ever rewrites the persisted definition with a resolved/installed version.
 
-Removal publishes `removing`, removes the mise tool when present, reshims even when it was already absent, verifies removal when applicable, and only then removes the manifest entry. Failure preserves ownership and publishes a failed removal, so the UI cannot accidentally replace a removal failure with an install retry.
+Both publish `installing` before waiting for the global mutation lock and clear or fail the operation under it. A failed operation carries only `{ status, action, error }` — no recipe — because the recipe is always re-resolvable from the fixed catalog or the custom registry.
 
-Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, installation adopts it by writing a pinned manifest entry at its observed version. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime while keeping the durable pin explicit.
+Removal publishes `removing` and chooses its cleanup path from the live `application` fact (never the persisted definition). An absent fixed tool is an idempotent success; an absent custom tool drops only its definition. For an applied or broken exact recipe, BinaryManager removes the mise tool, reshims, verifies absence, and only then drops a custom definition — a fixed tool keeps its catalog identity and writes no Preference. `definitionOnly` drops just a custom definition without touching the backend. A blocked cleanup returns a typed `cleanup_blocked` result and retains the definition, so the UI cannot accidentally replace a removal failure with an install retry.
 
-Removing a runtime is guarded symmetrically. Under the mutation lock, removal of an owned `node` runtime is rejected while any owned `npm:` tool remains in the manifest, and an owned `python` runtime while any owned `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph.
+Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, an install adopts it at its observed version rather than reinstalling. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime.
 
-### Unowned tools are read-only
+Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph.
 
-Ownership is acquired only by installing a tool through Cherry (`install_tool`). There is no separate claim path: a snapshot without an `intent` is displayed read-only regardless of its `availability.source`. A tool visible through `mise`, the system PATH, or a bundled binary is used in place — Cherry never infers ownership from mere availability, and never offers to take over or shadow an existing installation. The one exception lives inside install: when a `node`/`python` runtime is already present at the requested version, `install_tool` adopts and pins that observed version instead of reinstalling (the runtime rule above). Once a snapshot carries an `intent`, the normal update/remove controls apply.
+### Availability without a definition is used in place
 
-`feature.binary.install_states` is a main-owned, session-only operation cache. It is not a renderer storage API; operations reach renderer windows only as part of snapshots. `feature.binary.latest_versions` is likewise a session cache: non-forced reads are cache-only, while a forced lookup runs `mise latest` for manifest entries and writes results only if the manifest did not change during the batch.
+A tool visible through `mise`, the system PATH, or a bundled binary but carrying no custom definition is used in place — Cherry never mints a management card from mere availability, and never offers to take over or shadow an existing installation. A fixed tool is always managed from its catalog entry; a custom tool always carries a definition and so always exposes Remove. The one adoption case lives inside install: when a `node`/`python` runtime is already present at the requested version, the install adopts that observed version instead of reinstalling (the runtime rule above).
+
+`feature.binary.install_states` is a main-owned, session-only operation cache. It is not a renderer storage API; operations reach renderer windows only as part of snapshots. `feature.binary.latest_versions` is likewise a session cache: non-forced reads are cache-only, while a forced lookup runs `mise latest` for the applied fixed/custom recipes and writes results only if no mutation landed during the batch.
 
 ## IPC and events
 
 The request routes and events are the IpcApi schema in `src/shared/ipc/schemas/binary.ts` — the `binaryRequestSchemas` keys (renderer→main routes) and the `BinaryEventSchemas` type (main→renderer events). Read them there rather than a hand-copied list here, which would drift. Their handlers live in `src/main/ipc/handlers/binary.ts`.
 
-The side-effecting routes (`binary.install_tool` / `binary.remove_tool`) refuse a `senderId: null` caller — one that cleared the source-trust gate but is not a WindowManager-managed window — because `install_tool` can run arbitrary package postinstall code (see [IpcApi — Caller Identity](../ipc/ipc-overview.md#caller-identity--ipccontext)). The query routes have no such side effect and are ungated.
+The side-effecting routes (`binary.install_tool` / `binary.add_custom_tool` / `binary.remove_tool`) refuse a `senderId: null` caller — one that cleared the source-trust gate but is not a WindowManager-managed window — because `install_tool` / `add_custom_tool` can run arbitrary package postinstall code (see [IpcApi — Caller Identity](../ipc/ipc-overview.md#caller-identity--ipccontext)). The query routes have no such side effect and are ungated.
 
-`binary.availability_changed` tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route and does not model ownership.
+`binary.availability_changed` tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route.
 
-## Single-owner invariant
+## Custom registry collision invariant
 
-The manifest enforces an exact-tool-spec single-owner rule, checked under the mutation lock before any install writes: a given name may be owned by exactly one tool spec (re-installing the same name with a different `tool` or `requestedVersion` is rejected as "already owned with a different specification"), and a given exact tool spec may be owned by exactly one name (a second name claiming the same `tool` is rejected as "already owned as `<owner>`"). This keeps ownership a bijection between managed names and tool specs, so a snapshot's `intent` is never ambiguous about which name owns a spec.
+`addCustomTool` enforces a bijection within the custom registry, checked under the mutation lock: a built-in fixed name is reserved and rejected; a given custom name maps to exactly one spec (a divergent same-name definition is rejected as "already defined with a different specification"); and a given exact tool spec maps to exactly one provider (a spec that aliases a fixed catalog recipe, or a second custom name claiming a spec already provided by another, is rejected as "already provided by `<name>`"). The same invariants gate the `normalizeCustomDefinitions` hygiene pass, so a snapshot's `definition` is never ambiguous about which name provides a spec.
 
 ## GitHub rate-limit opt-in
 
@@ -90,6 +93,6 @@ To ship a bundled executable, add its platform download/checksum definition to `
 
 ## Consuming a tool
 
-A service that needs to execute a CLI asks `getToolSnapshots([executableName])` and uses the current availability path. It may execute a `mise`, bundled, or system result; availability alone is sufficient for that decision. If availability is `none` and the service has a known canonical install specification, it calls `installTool({ intent })`; that explicit call, not an execution-source guess, declares ownership. Re-read the snapshot after installation before launching.
+A service that needs to execute a CLI asks `getToolSnapshots([executableName])` and uses the current availability path. It may execute a `mise`, bundled, or system result; availability alone is sufficient for that decision. If availability is `none` and the executable is a fixed catalog tool, it calls `installByName({ name: executableName })`; main resolves the canonical recipe. An arbitrary user-supplied recipe goes through `addCustomTool(definition)`. Re-read the snapshot after installation before launching.
 
-Do not recreate mise commands, manifest writes, or binary search paths in a consumer. Use BinaryManager for install/remove and `application.getPath()` for main-process paths. `getBinaryPath()` and `isBinaryExists()` are narrower main-only helpers for Cherry search directories, not substitutes for snapshots when a consumer needs system-path availability.
+Do not recreate mise commands, custom registry writes, or binary search paths in a consumer. Use BinaryManager for install/remove and `application.getPath()` for main-process paths. `getBinaryPath()` and `isBinaryExists()` are narrower main-only helpers for Cherry search directories, not substitutes for snapshots when a consumer needs system-path availability.

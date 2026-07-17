@@ -128,7 +128,7 @@ describe('CodeCliService', () => {
           name,
           {
             name,
-            availability: { source: 'mise', tool: name, path: `/mock/bin/${name}`, version: '1.0.0' }
+            availability: { source: 'mise', path: `/mock/bin/${name}`, version: '1.0.0' }
           }
         ])
       )
@@ -491,7 +491,7 @@ describe('CodeCliService', () => {
         .mockResolvedValueOnce({
           claude: {
             name: 'claude',
-            availability: { source: 'mise', tool: 'claude', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+            availability: { source: 'mise', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
           }
         })
       const { codeCliService } = await loadModules()
@@ -517,7 +517,7 @@ describe('CodeCliService', () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
         claude: {
           name: 'claude',
-          availability: { source: 'mise', tool: 'claude', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+          availability: { source: 'mise', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
         }
       })
       const { spawn } = await import('child_process')

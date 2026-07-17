@@ -54,7 +54,9 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
   const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
   const retryInstall =
-    !failedRemoval && !!onInstall && ((failedInstall && !status.owned) || status.applicationStatus === 'broken')
+    !failedRemoval &&
+    !!onInstall &&
+    (failedInstall || status.applicationStatus === 'broken' || status.applicationStatus === 'unknown')
   const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
   const installing = isInstalling || isUpgrading
   const busy = installing || removing

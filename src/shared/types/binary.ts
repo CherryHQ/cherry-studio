@@ -1,30 +1,16 @@
-import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
+import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 
 /** Transient main-owned operation state, shared across renderer windows. */
 export type BinaryOperation =
   | { status: 'installing' }
   | { status: 'removing' }
-  | { status: 'failed'; action: 'install' | 'remove'; error: string; intent?: BinaryManifestEntry }
+  | { status: 'failed'; action: 'install' | 'remove'; error: string }
 
 export type BinaryOperations = Record<string, BinaryOperation>
 
 /**
- * Legacy install command separating durable user intent from a one-shot version
- * target.
- *
- * @deprecated Phase 2 compatibility only. The IPC install route now carries a
- * bare name ({@link BinaryInstallByNameRequest}); main resolves the fixed/custom
- * recipe itself. This shape survives solely for the internal `installTool`
- * primitive still exercised by service tests — Phase 2(c) removes it.
- */
-export type BinaryInstallRequest = {
-  intent: BinaryManifestEntry
-  targetVersion?: string
-}
-
-/**
  * Name-only install command. Main resolves the recipe from its code-owned fixed
- * catalog or the custom manifest — the renderer never supplies a recipe on this
+ * catalog or the custom registry — the renderer never supplies a recipe on this
  * route (arbitrary recipes go through the Custom Add route instead).
  */
 export type BinaryInstallByNameRequest = {
@@ -62,18 +48,7 @@ export type BinaryRemoveResult =
 
 /** Runtime availability independently observed by BinaryManager. */
 export type BinaryAvailability =
-  | {
-      source: 'mise'
-      /**
-       * @deprecated Phase 1 compatibility field only. It reports the mise recipe
-       * behind a runnable shim, but it must NOT be used to decide whether the
-       * exact managed recipe is applied — read {@link BinaryApplication} for that.
-       * Phase 2/3 consumers still compile against it; do not remove yet.
-       */
-      tool: string
-      path: string
-      version?: string
-    }
+  | { source: 'mise'; path: string; version?: string }
   | { source: 'bundled'; path: string; version?: string }
   | { source: 'system'; path: string }
   | { source: 'none' }
@@ -101,9 +76,10 @@ export type BinaryApplication =
 /** Main-computed runtime facts for one binary. */
 export type BinaryToolSnapshot = {
   name: string
-  intent?: BinaryManifestEntry
-  availability: BinaryAvailability
-  /** Exact-backend-application fact, independent of `availability` (Phase 1: optional). */
+  /** The user-added custom definition backing this name; absent for a fixed tool. */
+  definition?: CustomToolDefinition
+  /** Exact-backend-application fact, independent of `availability`. */
   application?: BinaryApplication
+  availability: BinaryAvailability
   operation?: BinaryOperation
 }

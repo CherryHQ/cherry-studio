@@ -35,8 +35,8 @@ function renderSidebar(
       onSelectTool={vi.fn()}
       toMeta={(tool) => ({ id: tool.value, label: tool.label, icon: tool.icon })}
       statuses={{
-        [CodeCli.CLAUDE_CODE]: { installed: false, source: 'none', owned: false, canUpgrade: false },
-        [CodeCli.OPENAI_CODEX]: { installed: true, source: 'mise', owned: true, current: '1.2.3', canUpgrade: false },
+        [CodeCli.CLAUDE_CODE]: { installed: false, source: 'none', canUpgrade: false },
+        [CodeCli.OPENAI_CODEX]: { installed: true, source: 'mise', current: '1.2.3', canUpgrade: false },
         ...statuses
       }}
       installingTools={new Set()}
@@ -66,7 +66,6 @@ describe('CodeCliSidebar', () => {
       [CodeCli.OPENAI_CODEX]: {
         installed: true,
         source: 'mise',
-        owned: true,
         current: '1.2.3',
         latest: '1.3.0',
         canUpgrade: true

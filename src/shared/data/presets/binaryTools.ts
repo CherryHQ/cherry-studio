@@ -1,5 +1,3 @@
-import type { BinaryManifestEntry } from '../preference/preferenceTypes'
-
 // Tool identity validators, shared so the renderer can reject malformed custom
 // tools before sending the install request — not just
 // the main-process install path.
@@ -32,8 +30,8 @@ export type RuntimeInterpreter = (typeof RUNTIME_INTERPRETERS)[number]
 
 /**
  * Whether a tool spec is a runtime interpreter that mise auto-installs for
- * package backends. Once owned, a runtime stays removable after the UI warns
- * about dependent tools.
+ * package backends. A runtime stays removable after the UI warns about
+ * dependent tools.
  */
 export function isRuntimeDependency(toolSpec: string): boolean {
   const spec = toolSpec.startsWith('core:') ? toolSpec.slice('core:'.length) : toolSpec
@@ -42,7 +40,15 @@ export function isRuntimeDependency(toolSpec: string): boolean {
   return (RUNTIME_INTERPRETERS as readonly string[]).includes(base)
 }
 
-export function validateBinaryManifestEntry(tool: BinaryManifestEntry): void {
+/** Minimal grammar shape the tool-definition validator checks. */
+type BinaryToolGrammar = { name: string; tool: string; requestedVersion?: string }
+
+/**
+ * Validate the grammar of a tool definition — the executable name, mise tool
+ * specification, and optional version pin. Shared by the renderer (to reject a
+ * malformed Custom Add before it is sent) and the main-process install path.
+ */
+export function validateBinaryToolDefinition(tool: BinaryToolGrammar): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)
   }
@@ -54,7 +60,10 @@ export function validateBinaryManifestEntry(tool: BinaryManifestEntry): void {
   }
 }
 
-export interface BinaryToolPreset extends BinaryManifestEntry {
+/** A built-in, code-owned Dependencies preset. Distinct from a custom definition. */
+export interface BinaryToolPreset {
+  name: string
+  tool: string
   displayName: string
   icon?: string
   repoUrl: string

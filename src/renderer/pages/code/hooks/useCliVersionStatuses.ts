@@ -13,15 +13,12 @@ const logger = loggerService.withContext('useCliVersionStatus')
 const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
   const view = interpretBinarySnapshot(snapshot, { latest, ignoreSystemSource: toolId === CodeCli.OPENCLAW })
   const operation = snapshot?.operation
-  const intent = snapshot?.intent
   return {
     installed: view.installed,
     source: view.source,
-    owned: view.owned,
-    // Backend-application fact drives update/uninstall authority (fixed identity
-    // comes from the preset, not durable ownership).
+    // Backend-application fact drives update/uninstall/repair authority; a fixed
+    // CLI's identity comes from the preset, so it carries no custom definition.
     ...(view.applicationStatus ? { applicationStatus: view.applicationStatus } : {}),
-    ...(intent ? { intent } : {}),
     ...(view.installedVersion !== undefined ? { current: view.installedVersion } : {}),
     ...(view.source === 'mise' ? { latest } : {}),
     ...(view.systemPath !== undefined ? { systemPath: view.systemPath } : {}),
@@ -50,8 +47,8 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
       if (cancelled || !snapshots) return
 
       for (const toolId of tools) {
-        // Latest applies only to an exactly-applied fixed snapshot — not durable
-        // intent, which a fixed CLI never carries.
+        // Latest applies only to an exactly-applied fixed snapshot — driven by the
+        // live application fact, not a custom definition (a fixed CLI carries none).
         if (snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.application?.status !== 'applied') {
           delete latestRef.current[toolId]
         }

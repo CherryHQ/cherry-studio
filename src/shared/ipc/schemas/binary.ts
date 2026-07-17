@@ -1,4 +1,4 @@
-import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
+import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
 import type {
   BinaryApplication,
@@ -25,7 +25,7 @@ import { defineRoute } from '../define'
  * packages (postinstall = code execution), so reaching these routes must stay
  * gated by IpcApi's source-trust check (validateSender). install_tool carries a
  * bare name — main resolves the recipe from its code-owned fixed catalog or the
- * custom manifest, so the renderer cannot smuggle a recipe through it. Arbitrary
+ * custom registry, so the renderer cannot smuggle a recipe through it. Arbitrary
  * recipes are confined to add_custom_tool, whose deep grammar/collision
  * validation lives in `BinaryManager.addCustomTool`; the schema only guards the
  * wire shape, per the schema guide.
@@ -36,8 +36,8 @@ const toolNameSchema = z.string().regex(TOOL_NAME_RE)
 
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 
-/** Durable management intent stored in the BinaryManager-owned Preference manifest. */
-const binaryManifestEntrySchema: z.ZodType<BinaryManifestEntry> = z.object({
+/** A user-added custom tool definition stored in the BinaryManager custom registry. */
+const customToolDefinitionSchema: z.ZodType<CustomToolDefinition> = z.object({
   name: z.string(),
   tool: z.string(),
   requestedVersion: z.string().optional()
@@ -67,7 +67,7 @@ const binaryRemoveResultSchema: z.ZodType<BinaryRemoveResult> = z.discriminatedU
 ])
 
 const binaryAvailabilitySchema: z.ZodType<BinaryAvailability> = z.discriminatedUnion('source', [
-  z.object({ source: z.literal('mise'), tool: z.string(), path: z.string(), version: z.string().optional() }),
+  z.object({ source: z.literal('mise'), path: z.string(), version: z.string().optional() }),
   z.object({ source: z.literal('bundled'), path: z.string(), version: z.string().optional() }),
   z.object({ source: z.literal('system'), path: z.string() }),
   z.object({ source: z.literal('none') })
@@ -87,14 +87,13 @@ const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('
   z.object({
     status: z.literal('failed'),
     action: z.enum(['install', 'remove']),
-    error: z.string(),
-    intent: binaryManifestEntrySchema.optional()
+    error: z.string()
   })
 ])
 
 const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
   name: z.string(),
-  intent: binaryManifestEntrySchema.optional(),
+  definition: customToolDefinitionSchema.optional(),
   availability: binaryAvailabilitySchema,
   application: binaryApplicationSchema.optional(),
   operation: binaryOperationSchema.optional()
@@ -104,8 +103,8 @@ const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
 export const binaryRequestSchemas = {
   'binary.install_tool': defineRoute({ input: binaryInstallByNameSchema, output: z.void() }),
   // Custom Add is the only route that accepts an arbitrary recipe; main validates
-  // grammar and collisions against its fixed catalog and the custom manifest.
-  'binary.add_custom_tool': defineRoute({ input: binaryManifestEntrySchema, output: z.void() }),
+  // grammar and collisions against its fixed catalog and the custom registry.
+  'binary.add_custom_tool': defineRoute({ input: customToolDefinitionSchema, output: z.void() }),
   // Remove carries a name plus an optional definition-only flag; the typed result
   // lets the renderer branch on a fail-closed cleanup_blocked without parsing text.
   'binary.remove_tool': defineRoute({ input: binaryRemoveRequestSchema, output: binaryRemoveResultSchema }),

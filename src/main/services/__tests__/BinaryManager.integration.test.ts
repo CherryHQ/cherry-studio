@@ -96,7 +96,6 @@ if (command === 'use') {
         name: 'opencode',
         availability: {
           source: 'mise',
-          tool: 'opencode',
           path: path.join(tempDir, 'shims', 'opencode'),
           version: '1.2.3'
         },
@@ -118,12 +117,16 @@ if (command === 'use') {
     )
     fs.writeFileSync(path.join(shimsDir, 'node'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
 
-    await expect(service.installTool({ intent: { name: 'node', tool: 'core:node' } })).resolves.toEqual({
-      version: '22.23.1'
-    })
+    // node is a custom runtime (not in the fixed catalog). Custom Add persists the
+    // definition and adopts the already-applied runtime without rewriting the
+    // persisted definition with the resolved version, so no requestedVersion is stored.
+    await expect(service.addCustomTool({ name: 'node', tool: 'core:node' })).resolves.toBeUndefined()
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
-      { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+      { name: 'node', tool: 'core:node' }
     ])
+    await expect(service.getToolSnapshots(['node'])).resolves.toMatchObject({
+      node: { application: { status: 'applied', version: '22.23.1' } }
+    })
 
     // Custom Add commits the portable definition before probing the backend. A
     // malformed listing therefore becomes a retryable failed operation, not a
@@ -131,7 +134,7 @@ if (command === 'use') {
     fs.writeFileSync(path.join(tempDir, 'fake-installed-tools.json'), 'not json')
     await expect(service.addCustomTool({ name: 'mytool', tool: 'mytool' })).resolves.toBeUndefined()
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
-      { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' },
+      { name: 'node', tool: 'core:node' },
       { name: 'mytool', tool: 'mytool' }
     ])
     expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toMatchObject({
@@ -145,7 +148,7 @@ if (command === 'use') {
     await expect(service.installByName({ name: 'mytool' })).resolves.toBeUndefined()
     await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
-      { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+      { name: 'node', tool: 'core:node' }
     ])
     expect(fs.existsSync(path.join(tempDir, 'shims', 'mytool'))).toBe(false)
   })

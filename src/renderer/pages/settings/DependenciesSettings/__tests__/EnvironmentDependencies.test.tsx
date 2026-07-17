@@ -30,12 +30,12 @@ const miseSnapshot = (
   name: string,
   tool = name,
   version = '1.0.0',
-  owned = true,
+  custom = true,
   operation?: BinaryToolSnapshot['operation']
 ): BinaryToolSnapshot => ({
   name,
-  ...(owned ? { intent: { name, tool } } : {}),
-  availability: { source: 'mise', tool, path: `/mise/${name}`, version },
+  ...(custom ? { definition: { name, tool } } : {}),
+  availability: { source: 'mise', path: `/mise/${name}`, version },
   application: { status: 'applied', version },
   ...(operation ? { operation } : {})
 })
@@ -238,13 +238,29 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.installTool).not.toHaveBeenCalled()
   })
 
-  it('keeps an unowned mise preset display-only without an install retry', async () => {
+  it('offers a probe retry for an unknown fixed application without granting uninstall authority', async () => {
     setSnapshots({
-      gh: { name: 'gh', availability: { source: 'mise', tool: 'gh', path: '/mise/gh', version: '2.0.0' } }
+      fd: {
+        name: 'fd',
+        application: { status: 'unknown', reason: 'query_failed' },
+        availability: { source: 'system', path: '/usr/local/bin/fd' }
+      }
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
+
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+    fireEvent.click(within(card).getByText('common.retry'))
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'fd' }))
+  })
+
+  it('keeps a mise preset with no application fact display-only without an install retry', async () => {
+    setSnapshots({
+      gh: { name: 'gh', availability: { source: 'mise', path: '/mise/gh', version: '2.0.0' } }
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
-    // A mise-installed but unowned tool is shown read-only — no install retry, no remove.
+    // A mise-runnable tool with no exact-application fact is read-only — no install retry, no remove.
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
@@ -256,32 +272,32 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('shows a remove control for an owned tool', async () => {
+  it('shows a remove control for an applied tool', async () => {
     setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0', true) })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
     expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
   })
 
-  it('renders owned custom tools alongside presets', async () => {
+  it('renders custom tools alongside presets', async () => {
     setSnapshots({ 'my-tool': miseSnapshot('my-tool', 'npm:my-tool', '1.2.3') })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('my-tool')).closest('[role="listitem"]') as HTMLElement
     expect(card).toHaveTextContent('v1.2.3')
   })
 
-  it('renders unowned auto runtimes as display-only', async () => {
+  it('does not render an auto runtime that carries no custom definition', async () => {
+    // A mise-installed runtime without a user-added definition mints no inventory
+    // card — availability alone never surfaces one.
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1', false) })
     render(<EnvironmentDependencies />)
-    const card = (await screen.findAllByText('node'))[0].closest('[role="listitem"]') as HTMLElement
-    expect(card).toHaveTextContent('settings.dependencies.runtimeDependency')
-    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
-    expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
+    await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalled())
+    expect(screen.queryByText('node')).not.toBeInTheDocument()
   })
 
-  it('allows an owned runtime to be removed even when unavailable', async () => {
+  it('allows a runtime with a definition to be removed even when unavailable', async () => {
     setSnapshots({
-      node: { name: 'node', intent: { name: 'node', tool: 'core:node' }, availability: { source: 'none' } }
+      node: { name: 'node', definition: { name: 'node', tool: 'core:node' }, availability: { source: 'none' } }
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
@@ -289,11 +305,11 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.removeRuntimeConfirmMessage')
   })
 
-  it('keeps owned unavailable custom tools removable and installable for recovery', async () => {
+  it('keeps unavailable custom tools removable and installable for recovery', async () => {
     setSnapshots({
       mytool: {
         name: 'mytool',
-        intent: { name: 'mytool', tool: 'npm:mytool' },
+        definition: { name: 'mytool', tool: 'npm:mytool' },
         application: { status: 'absent' },
         availability: { source: 'none' }
       }
@@ -304,11 +320,11 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).getByText('settings.mcp.install')).toBeInTheDocument()
   })
 
-  it('never renders an install retry after an owned tool removal failed', async () => {
+  it('never renders an install retry after a custom tool removal failed', async () => {
     setSnapshots({
       mytool: {
         name: 'mytool',
-        intent: { name: 'mytool', tool: 'npm:mytool' },
+        definition: { name: 'mytool', tool: 'npm:mytool' },
         availability: { source: 'none' },
         operation: { status: 'failed', action: 'remove', error: 'mise uninstall failed' }
       }
@@ -324,10 +340,9 @@ describe('EnvironmentDependencies', () => {
     setSnapshots({
       uv: {
         name: 'uv',
-        intent: { name: 'uv', tool: 'uv' },
         availability: { source: 'none' },
         // Still exactly applied until the in-flight uninstall completes — the fixed
-        // card's backend control authority is the application fact, not ownership.
+        // card's backend control authority is the application fact.
         application: { status: 'applied' },
         operation: { status: 'removing' }
       }
@@ -350,16 +365,15 @@ describe('EnvironmentDependencies', () => {
     expect(await screen.findByText('common.retry')).toBeInTheDocument()
   })
 
-  it('offers ownership retry when a preset install is live but manifest persistence failed', async () => {
+  it('offers retry when a preset is live but an install follow-up failed', async () => {
     setSnapshots({
       uv: {
         name: 'uv',
-        availability: { source: 'mise', tool: 'uv', path: '/mise/uv', version: '1.0.0' },
+        availability: { source: 'mise', path: '/mise/uv', version: '1.0.0' },
         operation: {
           status: 'failed',
           action: 'install',
-          error: 'preference write failed',
-          intent: { name: 'uv', tool: 'uv' }
+          error: 'preference write failed'
         }
       }
     })
@@ -370,23 +384,26 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('renders a failed custom install from operation intent and lets the user retry without ownership', async () => {
+  it('renders a failed custom install from its definition and lets the user retry', async () => {
+    // The definition is persisted before backend work, so a failed custom install
+    // still carries one and renders a retryable card.
     setSnapshots({
       mytool: {
         name: 'mytool',
+        definition: { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' },
         availability: { source: 'none' },
         operation: {
           status: 'failed',
           action: 'install',
-          error: 'offline',
-          intent: { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
+          error: 'offline'
         }
       }
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
     expect(card).toHaveTextContent('npm:mytool')
-    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+    // A custom card always exposes Remove.
+    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
     fireEvent.click(within(card).getByText('common.retry'))
     expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'mytool' })
   })
@@ -401,7 +418,7 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByText('claude')).not.toBeInTheDocument()
   })
 
-  it('uses latest versions for exactly applied tools independently of ownership', async () => {
+  it('uses latest versions for exactly applied tools regardless of a custom definition', async () => {
     setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0'), fd: miseSnapshot('fd', 'fd', '1.0.0', false) })
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0', fd: '2.0.0' })
     render(<EnvironmentDependencies />)
@@ -459,7 +476,7 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.snapshots).toHaveBeenCalledWith(expect.arrayContaining(['uv', 'bun', 'fd']))
   })
 
-  it('updates an owned tool with a one-shot target', async () => {
+  it('updates an applied tool with a one-shot target', async () => {
     setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0') })
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
@@ -517,7 +534,7 @@ describe('EnvironmentDependencies', () => {
     ).toHaveAttribute('type', 'password')
   })
 
-  it('adds an unowned discovered runtime by its exact recipe without pinning its live version', async () => {
+  it('adds a discovered runtime by its exact recipe without pinning its live version', async () => {
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1', false) })
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
     render(<EnvironmentDependencies />)
@@ -541,7 +558,7 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.installTool).not.toHaveBeenCalled()
   })
 
-  it('warns before removing an owned managed runtime', async () => {
+  it('warns before removing a managed runtime', async () => {
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1') })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
@@ -551,7 +568,7 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.removeRuntimeConfirmMessage')
   })
 
-  it('keeps an unavailable unowned runtime absent from the snapshot inventory', async () => {
+  it('keeps an unavailable runtime with no definition absent from the snapshot inventory', async () => {
     setSnapshots({ node: { name: 'node', availability: { source: 'none' } } })
     render(<EnvironmentDependencies />)
     await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalled())
@@ -559,11 +576,11 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByText('node')).not.toBeInTheDocument()
   })
 
-  it('keeps manifest-owned system tools owned and removable', async () => {
+  it('keeps a system-satisfied custom tool removable but not installable', async () => {
     setSnapshots({
       mytool: {
         name: 'mytool',
-        intent: { name: 'mytool', tool: 'npm:mytool' },
+        definition: { name: 'mytool', tool: 'npm:mytool' },
         application: { status: 'absent' },
         availability: { source: 'system', path: '/usr/local/bin/mytool' }
       }
@@ -595,7 +612,7 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv' }))
   })
 
-  it('rejects adding a tool that already exists in the owned snapshots', async () => {
+  it('rejects adding a tool that already exists in the custom snapshots', async () => {
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1') })
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
     render(<EnvironmentDependencies />)
@@ -741,7 +758,7 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
 
-  it('offers removal for an owned preset', async () => {
+  it('offers removal for an applied preset', async () => {
     setSnapshots({ uv: miseSnapshot('uv') })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement

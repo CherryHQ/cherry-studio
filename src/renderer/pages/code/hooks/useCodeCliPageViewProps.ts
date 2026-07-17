@@ -151,7 +151,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
     installed: false,
     source: 'none',
-    owned: false,
     canUpgrade: false
   }
   // Only surface install failures here — the dialog is labeled "install error"
@@ -258,9 +257,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           resolveProviderMeta,
           onInstall: () => void install(selectedCliTool),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
-          // Uninstall authority is the live application fact, not durable ownership:
-          // a fixed CLI carries no intent, so offer removal whenever its exact
-          // recipe is applied or broken.
+          // Uninstall authority is the live application fact: offer removal only
+          // when the fixed CLI's exact recipe is applied or broken.
           onRemove:
             versionStatus.applicationStatus === 'applied' || versionStatus.applicationStatus === 'broken'
               ? () => removeDialog.requestRemove(selectedCliTool)

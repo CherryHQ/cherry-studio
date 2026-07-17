@@ -365,8 +365,8 @@ export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-/** Durable user intent and Cherry ownership for a BinaryManager-managed tool. */
-export type BinaryManifestEntry = {
+/** A user-added custom tool definition persisted in the BinaryManager custom registry. */
+export type CustomToolDefinition = {
   name: string
   tool: string
   requestedVersion?: string

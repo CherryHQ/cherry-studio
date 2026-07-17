@@ -100,7 +100,7 @@ vi.mock('node:util', async (importOriginal) => {
   return { ...(actual as object), promisify: () => mockExecFileAsync }
 })
 
-const { BinaryManager, validateBinaryManifestEntry } = await import('../BinaryManager')
+const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryManager')
 const { application } = await import('@application')
 const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
@@ -243,8 +243,106 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('normalizeCustomDefinitions (Preference hygiene on allReady)', () => {
+    // The persisted custom registry is untrusted runtime input; onAllReady runs a
+    // one-time schema hygiene pass over it before any custom tool is consumed.
+    const setRegistry = (raw: unknown) => {
+      mockPreferenceService.get.mockImplementation((key: string) => (key === 'feature.binary.tools' ? raw : []))
+    }
+
+    it('converts a legacy string version to requestedVersion and rewrites', async () => {
+      setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.2.3' }])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
+        { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.2.3' }
+      ])
+    })
+
+    it('drops an entry whose name is a fixed catalog tool', async () => {
+      setRegistry([{ name: 'gh', tool: 'gh' }])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
+    })
+
+    it('drops a custom entry whose normalized spec aliases a fixed catalog tool', async () => {
+      setRegistry([{ name: 'myuv', tool: 'core:uv' }])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
+    })
+
+    it('drops malformed entries and rebuilds an entry with extra fields to the canonical shape', async () => {
+      setRegistry([
+        { name: 'bad name', tool: 'npm:x' },
+        { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0', foo: 'bar', extra: 42 }
+      ])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
+        { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
+      ])
+    })
+
+    it('dedupes duplicate names and specs, keeping the first valid entry', async () => {
+      setRegistry([
+        { name: 'a', tool: 'foo' },
+        { name: 'a', tool: 'other' },
+        { name: 'b', tool: 'core:foo' }
+      ])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'a', tool: 'foo' }])
+    })
+
+    it('does not rewrite an already-normalized registry', async () => {
+      setRegistry([{ name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it('runs no mise/install commands during normalization', async () => {
+      setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.0.0' }])
+      const service = new BinaryManager()
+
+      await (service as any).onAllReady()
+
+      // Pure schema hygiene: it rewrites Preference but never shells out to mise
+      // or touches binary files.
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      expect(mockFs.existsSync).not.toHaveBeenCalled()
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
+        { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
+      ])
+    })
+
+    it('resolves without throwing when the Preference write fails, so startup is not bricked', async () => {
+      setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.0.0' }])
+      mockPreferenceService.set.mockRejectedValue(new Error('preference write failed'))
+      const service = new BinaryManager()
+
+      await expect((service as any).onAllReady()).resolves.toBeUndefined()
+    })
+  })
+
   describe('getToolSnapshots', () => {
-    it('returns the requested, owned, auto-runtime, and operation names from one manifest and mise refresh', async () => {
+    it('returns the requested, custom-defined, auto-runtime, and operation names from the custom registry and one mise refresh', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -253,8 +351,7 @@ describe('BinaryManager', () => {
         later: {
           status: 'failed',
           action: 'install',
-          error: 'offline',
-          intent: { name: 'later', tool: 'npm:later' }
+          error: 'offline'
         }
       })
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
@@ -295,10 +392,9 @@ describe('BinaryManager', () => {
         },
         myfd: {
           name: 'myfd',
-          intent: { name: 'myfd', tool: 'github:sharkdp/fd', requestedVersion: '10.0.0' },
+          definition: { name: 'myfd', tool: 'github:sharkdp/fd', requestedVersion: '10.0.0' },
           availability: {
             source: 'mise',
-            tool: 'github:sharkdp/fd',
             path: '/mock/feature.binary.data/shims/myfd',
             version: '10.0.0'
           },
@@ -308,21 +404,20 @@ describe('BinaryManager', () => {
           name: 'node',
           availability: {
             source: 'mise',
-            tool: 'node',
             path: '/mock/feature.binary.data/shims/node',
             version: '22.0.0'
           },
           application: { status: 'applied', version: '22.0.0' }
         },
+        // `later` is operation-only (no fixed/custom recipe), so it carries no
+        // application fact — a snapshot can omit application for an unknown name.
         later: {
           name: 'later',
           availability: { source: 'none' },
-          application: { status: 'absent' },
           operation: {
             status: 'failed',
             action: 'install',
-            error: 'offline',
-            intent: { name: 'later', tool: 'npm:later' }
+            error: 'offline'
           }
         }
       })
@@ -344,11 +439,29 @@ describe('BinaryManager', () => {
 
       expect(snapshots.fd).toEqual({
         name: 'fd',
-        availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
+        availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
         application: { status: 'applied', version: '10.0.0' }
       })
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
       expect(mockFsp.access).toHaveBeenCalledWith('/mock/feature.binary.data/shims/fd', mockFs.constants.X_OK)
+    })
+
+    it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({ 'core:uv': [{ version: '0.9.0', active: true }] }),
+        stderr: ''
+      })
+
+      const snapshots = await service.getToolSnapshots(['uv'])
+
+      expect(snapshots.uv).toEqual({
+        name: 'uv',
+        availability: { source: 'mise', path: '/mock/feature.binary.data/shims/uv', version: '0.9.0' },
+        application: { status: 'applied', version: '0.9.0' }
+      })
     })
 
     it('reports broken and falls back externally when a matching mise shim is not executable', async () => {
@@ -377,7 +490,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
-        fd: { status: 'failed', action: 'install', error: 'offline', intent: { name: 'fd', tool: 'fd' } }
+        fd: { status: 'failed', action: 'install', error: 'offline' }
       })
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
       vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
@@ -394,7 +507,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
-        fd: { status: 'failed', action: 'install', error: 'manifest write failed', intent: { name: 'fd', tool: 'fd' } }
+        fd: { status: 'failed', action: 'install', error: 'manifest write failed' }
       })
       mockExecFileAsync.mockResolvedValue({
         stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
@@ -413,7 +526,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
-        bun: { status: 'failed', action: 'install', error: 'offline', intent: { name: 'bun', tool: 'bun' } }
+        bun: { status: 'failed', action: 'install', error: 'offline' }
       })
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
       mockFs.readFileSync.mockImplementation((candidate: string) =>
@@ -463,8 +576,8 @@ describe('BinaryManager', () => {
       mockFsp.access.mockRejectedValue(new Error('ENOENT'))
 
       const snapshots = await service.getToolSnapshots(['bun', 'fd'])
-      expect(snapshots.bun?.intent).toBeUndefined()
-      expect(snapshots.fd?.intent).toBeUndefined()
+      expect(snapshots.bun?.definition).toBeUndefined()
+      expect(snapshots.fd?.definition).toBeUndefined()
       expect(snapshots.bun?.availability).toEqual({ source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' })
       expect(snapshots.fd?.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
       expect(snapshots.gone?.availability).toEqual({ source: 'none' })
@@ -477,7 +590,7 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
       const release = await (service as any).mutationMutex.acquire()
 
-      const pending = service.installTool({ intent: { name: 'fd', tool: 'fd' } })
+      const pending = service.installByName({ name: 'fd' })
       await expect(service.getToolSnapshots([])).resolves.toMatchObject({
         fd: { operation: { status: 'installing' } }
       })
@@ -523,7 +636,7 @@ describe('BinaryManager', () => {
         // elsewhere: runnable (availability=mise, no trusted version) yet not applied.
         expect(snapshots.fd).toEqual({
           name: 'fd',
-          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd' },
+          availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd' },
           application: { status: 'conflict' }
         })
       })
@@ -655,7 +768,7 @@ describe('BinaryManager', () => {
 
         expect(snapshots.fd).toEqual({
           name: 'fd',
-          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd' },
+          availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd' },
           application: { status: 'unknown', reason: 'query_failed' }
         })
       })
@@ -693,7 +806,6 @@ describe('BinaryManager', () => {
         expect(snapshots.fd.application).toEqual({ status: 'applied', version: 'nightly-2026' })
         expect(snapshots.fd.availability).toEqual({
           source: 'mise',
-          tool: 'fd',
           path: '/mock/feature.binary.data/shims/fd',
           version: 'nightly-2026'
         })
@@ -713,10 +825,9 @@ describe('BinaryManager', () => {
 
         expect(snapshots.node).toEqual({
           name: 'node',
-          intent: { name: 'node', tool: 'core:node', requestedVersion: '22.0.0' },
+          definition: { name: 'node', tool: 'core:node', requestedVersion: '22.0.0' },
           availability: {
             source: 'mise',
-            tool: 'core:node',
             path: '/mock/feature.binary.data/shims/node',
             version: '22.0.0'
           },
@@ -750,127 +861,38 @@ describe('BinaryManager', () => {
 
       expect(mockExecFileAsync).not.toHaveBeenCalled()
     })
-
-    it('leaves an installed binary unowned when the manifest write fails', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      mockPreferenceService.set.mockRejectedValueOnce(new Error('preference write failed'))
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow(
-        'preference write failed'
-      )
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['use', '-g', 'fd@latest'])
-      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'fd', tool: 'fd' }])
-      expect(manifestRef.value).toEqual([])
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
-        fd: {
-          status: 'failed',
-          action: 'install',
-          error: 'preference write failed',
-          intent: { name: 'fd', tool: 'fd' }
-        }
-      })
-    })
   })
 
-  describe('manifest mutation safety', () => {
-    it('serializes concurrent manifest writes without dropping either intent', async () => {
+  describe('custom registry mutation safety', () => {
+    it('serializes concurrent custom-tool writes without dropping either definition', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      let manifest: Array<{ name: string; tool: string; requestedVersion?: string }> = []
-      mockPreferenceService.get.mockImplementation((key: string) => (key === 'feature.binary.tools' ? manifest : []))
-      mockPreferenceService.set.mockImplementation(async (key: string, value: typeof manifest) => {
-        if (key === 'feature.binary.tools') manifest = value
-      })
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls')
-          return { stdout: JSON.stringify({ [args[2] ?? 'fd']: [{ version: '1.0.0' }] }), stderr: '' }
+        // Full listing reports both custom specs already installed, so each Add is a
+        // persist-then-adopt no-op — the concurrency under test is the Preference
+        // read-modify-write, not the backend install.
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:mytool': [{ version: '1.0.0', active: true }],
+              'npm:other': [{ version: '1.0.0', active: true }]
+            }),
+            stderr: ''
+          }
+        }
         if (args[0] === 'which') return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
       await Promise.all([
-        service.installTool({ intent: { name: 'fd', tool: 'fd' } }),
-        service.installTool({ intent: { name: 'rg', tool: 'rg' } })
+        service.addCustomTool({ name: 'mytool', tool: 'npm:mytool' }),
+        service.addCustomTool({ name: 'other', tool: 'npm:other' })
       ])
 
-      expect(manifest).toEqual([
-        { name: 'fd', tool: 'fd' },
-        { name: 'rg', tool: 'rg' }
-      ])
-    })
-
-    it('claims an existing runtime with its live version as a durable pin', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await service.installTool({ intent: { name: 'node', tool: 'core:node' } })
-
-      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
-        { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
-      ])
-    })
-
-    it('updates a ready runtime when a different one-shot target is requested', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }]
-      let lsCalls = 0
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
-        if (args[0] === 'ls') {
-          lsCalls += 1
-          const version = lsCalls === 1 ? '22.23.1' : '23.1.0'
-          return { stdout: JSON.stringify({ node: [{ version, active: true }] }), stderr: '' }
-        }
-        return { stdout: '', stderr: '' }
-      })
-
-      await service.installTool({
-        intent: { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' },
-        targetVersion: '23.1.0'
-      })
-
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
-        'use',
-        '-g',
-        'core:node@23.1.0'
-      ])
-      expect(manifestRef.value).toEqual([{ name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }])
-    })
-
-    it('pins the resolved version after installing a new runtime', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      let whichCalls = 0
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'which') {
-          whichCalls += 1
-          return { stdout: whichCalls === 1 ? '' : '/mock/mise/shims/node\n', stderr: '' }
-        }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await service.installTool({ intent: { name: 'node', tool: 'core:node' } })
-
-      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
-        { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+      expect(manifestRef.value).toEqual([
+        { name: 'mytool', tool: 'npm:mytool' },
+        { name: 'other', tool: 'npm:other' }
       ])
     })
   })
@@ -1138,107 +1160,6 @@ describe('BinaryManager', () => {
     })
   })
 
-  describe('installTool', () => {
-    it('throws when mise binary is not available', async () => {
-      const service = new BinaryManager()
-
-      await expect(
-        service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' } })
-      ).rejects.toThrow('Binary backend not available')
-    })
-
-    it('rejects a same-name request with a different durable specification', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      manifestRef.value = [{ name: 'mytool', tool: 'npm:original' }]
-
-      await expect(service.installTool({ intent: { name: 'mytool', tool: 'npm:replacement' } })).rejects.toThrow(
-        'already owned with a different specification'
-      )
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
-      expect(mockPreferenceService.set).not.toHaveBeenCalled()
-    })
-
-    it('rejects a different name that aliases an owned tool specification', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      manifestRef.value = [{ name: 'circleci', tool: 'aqua:CircleCI-Public/circleci-cli' }]
-
-      await expect(
-        service.installTool({ intent: { name: 'circleci-cli', tool: 'aqua:CircleCI-Public/circleci-cli' } })
-      ).rejects.toThrow('already owned as circleci')
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
-      expect(mockPreferenceService.set).not.toHaveBeenCalled()
-    })
-
-    it('installs and returns version', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      mockFs.readFileSync.mockImplementation(() => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
-        .mockResolvedValueOnce({ stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
-        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
-
-      const result = await service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' } })
-
-      expect(result.version).toBe('10.0.0')
-      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
-      expect(mockFs.chmodSync).not.toHaveBeenCalled()
-    })
-
-    it('uses a one-shot update target without pinning a floating manifest intent', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      manifestRef.value = [{ name: 'fd', tool: 'fd' }]
-
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
-        .mockResolvedValueOnce({
-          stdout: JSON.stringify({ fd: [{ version: '9.0.0' }, { version: '10.0.0' }] }),
-          stderr: ''
-        }) // ls --json
-        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
-
-      const result = await service.installTool({ intent: { name: 'fd', tool: 'fd' }, targetVersion: '10.0.0' })
-
-      expect(result.version).toBe('10.0.0')
-      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'fd', tool: 'fd' }])
-    })
-
-    it('throws and does not persist intent when the binary is not runnable after install', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      mockFs.readFileSync.mockImplementation(() => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
-        .mockResolvedValueOnce({ stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // which fd -> empty -> not runnable
-
-      await expect(
-        service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' } })
-      ).rejects.toThrow('not runnable')
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
-    })
-  })
-
   describe('searchRegistry', () => {
     it('returns empty array when mise binary is not available', async () => {
       const service = new BinaryManager()
@@ -1429,7 +1350,7 @@ describe('BinaryManager', () => {
       await service.getLatestVersions(true)
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toEqual({ fd: '10.1.0' })
 
-      await (service as any).upsertManifest({ name: 'mytool', tool: 'npm:mytool' })
+      await (service as any).upsertCustomDefinition({ name: 'mytool', tool: 'npm:mytool' })
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toBeUndefined()
 
       const cached = await service.getLatestVersions()
@@ -1476,7 +1397,7 @@ describe('BinaryManager', () => {
     })
   })
 
-  describe('validateBinaryManifestEntry', () => {
+  describe('validateBinaryToolDefinition', () => {
     it.each([
       ['../etc', 'fd', undefined],
       ['', 'fd', undefined],
@@ -1484,7 +1405,7 @@ describe('BinaryManager', () => {
       ['fd\x00', 'fd', undefined],
       ['123fd', 'fd', undefined]
     ])('rejects invalid tool name=%j', (name, tool, version) => {
-      expect(() => validateBinaryManifestEntry({ name, tool, requestedVersion: version })).toThrow('Invalid tool name')
+      expect(() => validateBinaryToolDefinition({ name, tool, requestedVersion: version })).toThrow('Invalid tool name')
     })
 
     it.each([
@@ -1495,7 +1416,7 @@ describe('BinaryManager', () => {
       ['fd', 'github://evil', undefined],
       ['fd', '--verbose', undefined]
     ])('rejects invalid tool key=%j tool=%j', (name, tool, version) => {
-      expect(() => validateBinaryManifestEntry({ name, tool, requestedVersion: version })).toThrow('Invalid tool key')
+      expect(() => validateBinaryToolDefinition({ name, tool, requestedVersion: version })).toThrow('Invalid tool key')
     })
 
     it.each([
@@ -1503,14 +1424,14 @@ describe('BinaryManager', () => {
       ['fd', 'fd', 'ver sion'],
       ['fd', 'fd', '-rf']
     ])('rejects invalid version=%j', (name, tool, version) => {
-      expect(() => validateBinaryManifestEntry({ name, tool, requestedVersion: version })).toThrow(
+      expect(() => validateBinaryToolDefinition({ name, tool, requestedVersion: version })).toThrow(
         'Invalid tool version'
       )
     })
 
     it('accepts valid tool definitions', () => {
-      expect(() => validateBinaryManifestEntry({ name: 'fd', tool: 'fd', requestedVersion: '10.0.0' })).not.toThrow()
-      expect(() => validateBinaryManifestEntry({ name: 'ntn', tool: 'npm:ntn' })).not.toThrow()
+      expect(() => validateBinaryToolDefinition({ name: 'fd', tool: 'fd', requestedVersion: '10.0.0' })).not.toThrow()
+      expect(() => validateBinaryToolDefinition({ name: 'ntn', tool: 'npm:ntn' })).not.toThrow()
     })
 
     it.each([
@@ -1518,8 +1439,10 @@ describe('BinaryManager', () => {
       [{ name: 'codex', tool: 'npm:attacker-codex' }, 'canonical specification'],
       [{ name: 'node', tool: 'npm:attacker-node' }, 'canonical runtime specification'],
       [{ name: 'node-alt', tool: 'core:node' }, 'canonical runtime specification']
-    ])('rejects reserved or aliased identities: %j', async (intent, message) => {
-      await expect(new BinaryManager().installTool({ intent })).rejects.toThrow(message)
+    ])('rejects reserved or aliased identities: %j', async (definition, message) => {
+      // Custom Add is the only route that accepts an arbitrary recipe, so it is the
+      // route whose validation enforces canonical/runtime identity.
+      await expect(new BinaryManager().addCustomTool(definition)).rejects.toThrow(message)
     })
   })
 
@@ -1621,7 +1544,7 @@ describe('BinaryManager', () => {
 
       const snapshots = await service.getToolSnapshots(['fd'])
 
-      expect(snapshots.fd.intent).toBeUndefined()
+      expect(snapshots.fd.definition).toBeUndefined()
       expect(snapshots.fd.application).toEqual({ status: 'absent' })
       expect(snapshots.fd.availability).toEqual({ source: 'none' })
     })
@@ -1806,6 +1729,13 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([])
     })
 
+    it('rejects a core-prefixed alias of a fixed recipe', async () => {
+      await expect(makeService().addCustomTool({ name: 'myuv', tool: 'core:uv' })).rejects.toThrow(
+        'already provided by uv'
+      )
+      expect(manifestRef.value).toEqual([])
+    })
+
     it('persists the definition and installs it via the default runtime', async () => {
       const service = makeService()
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
@@ -1838,8 +1768,7 @@ describe('BinaryManager', () => {
         mytool: {
           status: 'failed',
           action: 'install',
-          error: expect.stringContaining('network down'),
-          intent: { name: 'mytool', tool: 'npm:mytool' }
+          error: expect.stringContaining('network down')
         }
       })
     })
@@ -2079,19 +2008,21 @@ describe('BinaryManager', () => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
-        .mockResolvedValueOnce({ stdout: JSON.stringify({ 'npm:ntn': [{ version: '1.0.0' }] }), stderr: '' }) // ls --json
-        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/ntn\n', stderr: '' }) // which ntn (ready check)
+      // Custom Add persists then applies via mise, exercising installWithMise.
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mynpmtool\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
 
-      const result = await service.installTool({ intent: { name: 'ntn', tool: 'npm:ntn', requestedVersion: '1.0.0' } })
+      await service.addCustomTool({ name: 'mynpmtool', tool: 'npm:mynpmtool', requestedVersion: '1.0.0' })
 
-      expect(result.version).toBe('1.0.0')
+      expect(manifestRef.value).toEqual([{ name: 'mynpmtool', tool: 'npm:mynpmtool', requestedVersion: '1.0.0' }])
       expect(mockFs.copyFileSync).not.toHaveBeenCalled()
       // Installs may download a runtime (node/python) — they get the long
       // budget, unlike query commands which keep the 120s default.
-      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@22', 'npm:ntn@1.0.0'], {
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@22', 'npm:mynpmtool@1.0.0'], {
         cwd: '/tmp',
         env: {},
         timeout: 900_000
@@ -2109,18 +2040,22 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
       manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '20.19.4' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') {
-          return { stdout: JSON.stringify({ 'npm:ntn': [{ version: '1.0.0' }] }), stderr: '' }
+        // node is applied at its live version, so the package install adopts it.
+        if (args[0] === 'ls' && args[2] === 'npm:mynpmtool') {
+          return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0' }] }), stderr: '' }
         }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/ntn\n', stderr: '' }
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'core:node': [{ version: '20.19.4', active: true }] }), stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
-      await service.installTool({ intent: { name: 'ntn', tool: 'npm:ntn', requestedVersion: '1.0.0' } })
+      await service.addCustomTool({ name: 'mynpmtool', tool: 'npm:mynpmtool', requestedVersion: '1.0.0' })
 
       expect(mockExecFileAsync).toHaveBeenCalledWith(
         '/mock/mise',
-        ['use', '-g', 'core:node@20.19.4', 'npm:ntn@1.0.0'],
+        ['use', '-g', 'core:node@20.19.4', 'npm:mynpmtool@1.0.0'],
         expect.objectContaining({ timeout: 900_000 })
       )
     })
@@ -2131,21 +2066,24 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
       manifestRef.value = [{ name: 'node', tool: 'core:node' }]
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args[2] === 'core:node') {
-          return { stdout: JSON.stringify({ node: [{ version: '20.19.4', active: true }] }), stderr: '' }
+        if (args[0] === 'ls' && args[2] === 'npm:mynpmtool') {
+          return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0', active: true }] }), stderr: '' }
         }
+        // The owned node runtime is unpinned but applied; its live version drives the install.
         if (args[0] === 'ls') {
-          return { stdout: JSON.stringify({ 'npm:ntn': [{ version: '1.0.0', active: true }] }), stderr: '' }
+          return { stdout: JSON.stringify({ 'core:node': [{ version: '20.19.4', active: true }] }), stderr: '' }
         }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/ntn\n', stderr: '' }
+        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
-      await service.installTool({ intent: { name: 'ntn', tool: 'npm:ntn', requestedVersion: '1.0.0' } })
+      await service.addCustomTool({ name: 'mynpmtool', tool: 'npm:mynpmtool', requestedVersion: '1.0.0' })
 
+      // addCustomTool does not rewrite node's persisted definition; only the mise
+      // `use` command's runtime arg is pinned to the live version.
       expect(mockExecFileAsync).toHaveBeenCalledWith(
         '/mock/mise',
-        ['use', '-g', 'core:node@20.19.4', 'npm:ntn@1.0.0'],
+        ['use', '-g', 'core:node@20.19.4', 'npm:mynpmtool@1.0.0'],
         expect.objectContaining({ timeout: 900_000 })
       )
     })
@@ -2185,7 +2123,7 @@ describe('BinaryManager', () => {
   })
 
   describe('state mutex concurrency', () => {
-    it('serializes concurrent installTool calls', async () => {
+    it('serializes concurrent installByName calls', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -2202,6 +2140,7 @@ describe('BinaryManager', () => {
           await new Promise((r) => setTimeout(r, 10))
           callOrder.push(`use:${toolSpec}:end`)
         }
+        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
         if (args[0] === 'ls') {
           const toolKey = args[2]
           const version = toolKey === 'fd' ? '10.0.0' : '15.0.0'
@@ -2213,8 +2152,8 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
 
-      const p1 = service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' } })
-      const p2 = service.installTool({ intent: { name: 'rg', tool: 'rg', requestedVersion: '15.0.0' } })
+      const p1 = service.installByName({ name: 'fd' })
+      const p2 = service.installByName({ name: 'rg' })
 
       await Promise.all([p1, p2])
 
@@ -2238,19 +2177,21 @@ describe('BinaryManager', () => {
       })
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'use') await installStarted
+        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
         if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
-      const first = service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '1.0.0' } })
-      const second = service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '1.0.0' } })
+      // installByName dedupes by target version, so two name-only installs coalesce.
+      const first = service.installByName({ name: 'fd' })
+      const second = service.installByName({ name: 'fd' })
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
       releaseInstall()
 
-      await expect(Promise.all([first, second])).resolves.toEqual([{ version: '1.0.0' }, { version: '1.0.0' }])
+      await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined])
       expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')).toHaveLength(1)
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
     })
@@ -2260,7 +2201,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       const release = await (service as any).mutationMutex.acquire()
-      const install = service.installTool({ intent: { name: 'fd', tool: 'fd' } })
+      const install = service.installByName({ name: 'fd' })
 
       await expect(service.removeTool({ name: 'fd' })).rejects.toThrow('already installing')
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
@@ -2277,7 +2218,7 @@ describe('BinaryManager', () => {
       const release = await (service as any).mutationMutex.acquire()
       const removal = service.removeTool({ name: 'fd' })
 
-      await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow('already removing')
+      await expect(service.installByName({ name: 'fd' })).rejects.toThrow('already removing')
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'removing' }
       })
@@ -2293,7 +2234,7 @@ describe('BinaryManager', () => {
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
     })
 
-    it('rejects conflicting same-name installs without changing the in-flight state', async () => {
+    it('rejects a second same-name install with a different target without changing the in-flight state', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -2303,50 +2244,19 @@ describe('BinaryManager', () => {
       })
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'use') await installStarted
+        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
         if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
-      const first = service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '1.0.0' } })
-      await expect(
-        service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '2.0.0' } })
-      ).rejects.toThrow('already installing with a different specification')
+      const first = service.installByName({ name: 'fd' })
+      await expect(service.installByName({ name: 'fd', targetVersion: '2.0.0' })).rejects.toThrow('already installing')
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
       releaseInstall()
-      await expect(first).resolves.toEqual({ version: '1.0.0' })
-    })
-  })
-
-  describe('installTool validation', () => {
-    it('rejects invalid tool names before calling installWithMise', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      await expect(service.installTool({ intent: { name: '../etc', tool: 'fd' } })).rejects.toThrow('Invalid tool name')
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
-    })
-
-    it('accepts valid tools and calls installWithMise', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      mockFs.readFileSync.mockImplementation(() => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
-        .mockResolvedValueOnce({ stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
-        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
-
-      const result = await service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' } })
-      expect(result.version).toBe('10.0.0')
+      await expect(first).resolves.toBeUndefined()
     })
   })
 
@@ -2368,7 +2278,7 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
       mockSuccessfulInstall('fd', 'fd')
 
-      const pending = service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '1.0.0' } })
+      const pending = service.installByName({ name: 'fd' })
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
@@ -2381,45 +2291,48 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      mockExecFileAsync.mockRejectedValue(Object.assign(new Error('mise use timed out after 900s'), {}))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
+        if (args[0] === 'use') throw new Error('mise use timed out after 900s')
+        return { stdout: '', stderr: '' }
+      })
 
-      await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow('timed out')
+      // installByName's failed operation carries no intent — just action + error.
+      await expect(service.installByName({ name: 'fd' })).rejects.toThrow('timed out')
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
         fd: {
           status: 'failed',
           action: 'install',
-          error: expect.stringContaining('timed out'),
-          intent: { name: 'fd', tool: 'fd' }
+          error: expect.stringContaining('timed out')
         }
       })
 
       // A retry replaces failed with installing before the mutex work starts.
       mockSuccessfulInstall('fd', 'fd')
-      await service.installTool({ intent: { name: 'fd', tool: 'fd', requestedVersion: '1.0.0' } })
+      await service.installByName({ name: 'fd' })
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
     })
 
     it('publishes a failed entry when the mise backend is unavailable', async () => {
       const service = new BinaryManager()
 
-      await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow(
-        'Binary backend not available'
-      )
+      await expect(service.installByName({ name: 'fd' })).rejects.toThrow('Binary backend not available')
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
         fd: {
           status: 'failed',
           action: 'install',
-          error: 'Binary backend not available',
-          intent: { name: 'fd', tool: 'fd' }
+          error: 'Binary backend not available'
         }
       })
     })
 
-    it('does not track state for a spec rejected by validation', async () => {
+    it('does not track state for a request rejected by validation', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
 
-      await expect(service.installTool({ intent: { name: '../etc', tool: 'fd' } })).rejects.toThrow('Invalid tool name')
+      await expect(service.installByName({ name: 'fd', targetVersion: 'bad version' })).rejects.toThrow(
+        'Invalid tool version'
+      )
       // Validation rejects before any state is published — the cache key is never written.
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toBeUndefined()
     })
@@ -2428,8 +2341,12 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      mockExecFileAsync.mockRejectedValue(new Error('boom'))
-      await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow('boom')
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
+        if (args[0] === 'use') throw new Error('boom')
+        return { stdout: '', stderr: '' }
+      })
+      await expect(service.installByName({ name: 'fd' })).rejects.toThrow('boom')
 
       manifestRef.value = [{ name: 'fd', tool: 'fd' }]
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
