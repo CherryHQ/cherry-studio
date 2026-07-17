@@ -3496,8 +3496,10 @@
       "title": "Библиотека"
     },
     "skill_add": {
+      "add": "[to be translated]:Add Skill",
       "local_import": "Локальный импорт",
-      "online_search": "Онлайн-поиск"
+      "online_search": "Онлайн-поиск",
+      "system_search": "[to be translated]:System search"
     },
     "skill_detail": {
       "created_at": "Создано",
@@ -3525,6 +3527,19 @@
       "updated": "Сортировать по обновлению"
     },
     "subtitle": "Управляйте своими ассистентами, агентами и навыками",
+    "system_skill": {
+      "conflict": "[to be translated]:Name conflict",
+      "description": "[to be translated]:Import skills already installed on this system.",
+      "empty_description": "[to be translated]:No importable skills were found in other coding tools on this device.",
+      "empty_title": "[to be translated]:No skills available to import",
+      "enable_success": "[to be translated]:Enabled {{name}}",
+      "enabled": "[to be translated]:Enabled",
+      "import": "[to be translated]:Import",
+      "import_success": "[to be translated]:Imported {{name}}",
+      "imported": "[to be translated]:Imported",
+      "search_placeholder": "[to be translated]:Search system skills...",
+      "title": "[to be translated]:System skills"
+    },
     "tag_picker": {
       "no_tags": "Пока нет меток",
       "placeholder": "Новое имя тега..."
@@ -3765,18 +3780,6 @@
     "processing": "Обрабатывается...",
     "regenerate": {
       "confirm": "Перегенерация заменит текущее сообщение"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Вы уверены, что хотите очистить все данные?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Все данные будут утеряны, хотите продолжить?",
-          "title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!"
-        }
-      },
-      "success": "Данные успешно сброшены"
     },
     "restore": {
       "failed": "Восстановление не удалось",
@@ -5588,6 +5591,13 @@
         "title": "Настройки меню экспорта",
         "yuque": "Экспорт в Yuque"
       },
+      "factory_reset": {
+        "button": "[to be translated]:Factory Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Factory reset this app?",
+        "error": "[to be translated]:Failed to start factory reset",
+        "title": "[to be translated]:Factory Reset"
+      },
       "hour_interval_one": "{{count}} час",
       "hour_interval_other": "{{count}} часов",
       "import_settings": {
@@ -6240,10 +6250,6 @@
       "emoji_picker": "Выбор эмодзи",
       "image_upload": "Загрузка изображений",
       "label": "Общие настройки",
-      "reset": {
-        "button": "Сброс",
-        "title": "Сброс данных"
-      },
       "restore": {
         "button": "Восстановление"
       },
@@ -7734,6 +7740,8 @@
   },
   "tab": {
     "close": "Закрыть вкладку",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "Перейти к первому",
     "new": "Новая вкладка",
     "open_in_new_window": "Открыть в новом окне",

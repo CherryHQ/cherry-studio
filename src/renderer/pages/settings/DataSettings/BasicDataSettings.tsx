@@ -425,22 +425,13 @@ const BasicDataSettings: React.FC = () => {
     })
     if (!confirmed) return
 
-    const doubleConfirmed = await popup.confirm({
-      title: t('settings.data.factory_reset.double_confirm_title'),
-      content: t('settings.data.factory_reset.double_confirm_content'),
-      okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      centered: true,
-      okButtonProps: {
-        danger: true
-      }
-    })
-    if (!doubleConfirmed) return
-
     try {
-      // On success the app relaunches before this resolves — the preboot
-      // factory-reset gate wipes on the next boot. Only rejection (the reset
-      // marker could not be persisted) is observable here.
+      // The final confirmation is a native dialog owned by the main-process
+      // handler (arming a wipe must not hinge on renderer-side UI alone). On
+      // confirm the app relaunches before this resolves — the preboot
+      // factory-reset gate wipes on the next boot; on cancel it resolves
+      // without staging anything. Only rejection (the reset marker could not
+      // be persisted) is observable here.
       await ipcApi.request('app.factory_reset.request')
     } catch (error) {
       toast.error(t('settings.data.factory_reset.error'))

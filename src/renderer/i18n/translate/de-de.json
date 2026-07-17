@@ -3496,8 +3496,10 @@
       "title": "Bibliothek"
     },
     "skill_add": {
+      "add": "[to be translated]:Add Skill",
       "local_import": "Lokaler Import",
-      "online_search": "Online-Suche"
+      "online_search": "Online-Suche",
+      "system_search": "[to be translated]:System search"
     },
     "skill_detail": {
       "created_at": "Erstellt",
@@ -3525,6 +3527,19 @@
       "updated": "Nach Aktualisierung sortieren"
     },
     "subtitle": "Verwalten Sie Ihre Assistenten, Agenten und Fähigkeiten",
+    "system_skill": {
+      "conflict": "[to be translated]:Name conflict",
+      "description": "[to be translated]:Import skills already installed on this system.",
+      "empty_description": "[to be translated]:No importable skills were found in other coding tools on this device.",
+      "empty_title": "[to be translated]:No skills available to import",
+      "enable_success": "[to be translated]:Enabled {{name}}",
+      "enabled": "[to be translated]:Enabled",
+      "import": "[to be translated]:Import",
+      "import_success": "[to be translated]:Imported {{name}}",
+      "imported": "[to be translated]:Imported",
+      "search_placeholder": "[to be translated]:Search system skills...",
+      "title": "[to be translated]:System skills"
+    },
     "tag_picker": {
       "no_tags": "Noch keine Tags",
       "placeholder": "Neuer Tag-Name..."
@@ -3765,18 +3780,6 @@
     "processing": "Wird verarbeitet...",
     "regenerate": {
       "confirm": "Neu generieren überschreibt die aktuelle Nachricht"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Möchten Sie alle Daten wirklich zurücksetzen?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
-          "title": "Datenverlust!!!"
-        }
-      },
-      "success": "Daten-Reset erfolgreich"
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",
@@ -5588,6 +5591,13 @@
         "title": "Export-Menü-Einstellungen",
         "yuque": "Nach Yuque exportieren"
       },
+      "factory_reset": {
+        "button": "[to be translated]:Factory Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Factory reset this app?",
+        "error": "[to be translated]:Failed to start factory reset",
+        "title": "[to be translated]:Factory Reset"
+      },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
       "import_settings": {
@@ -6240,10 +6250,6 @@
       "emoji_picker": "Emoji-Auswahl",
       "image_upload": "Bild-Upload",
       "label": "Allgemeine Einstellungen",
-      "reset": {
-        "button": "Zurücksetzen",
-        "title": "Daten zurücksetzen"
-      },
       "restore": {
         "button": "Wiederherstellen"
       },
@@ -7734,6 +7740,8 @@
   },
   "tab": {
     "close": "Tab schließen",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "open_in_new_window": "In neuem Fenster öffnen",

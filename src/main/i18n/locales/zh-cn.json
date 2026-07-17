@@ -56,6 +56,13 @@
   },
   "dialog": {
     "all_files": "所有文件",
+    "factory_reset": {
+      "cancel": "取消",
+      "confirm": "清除全部数据",
+      "detail": "此操作无法撤销。确认后应用将立即重启，并在启动时清除所有对话、助手、知识库、文件和设置。",
+      "message": "确定要清除全部数据并恢复出厂设置吗？",
+      "title": "恢复出厂设置"
+    },
     "html_files": "HTML 文件",
     "open_file": "打开文件",
     "pdf_files": "PDF 文件",

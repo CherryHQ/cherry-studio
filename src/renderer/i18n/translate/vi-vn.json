@@ -3496,8 +3496,10 @@
       "title": "Thư viện"
     },
     "skill_add": {
+      "add": "[to be translated]:Add Skill",
       "local_import": "Nhập khẩu nội địa",
-      "online_search": "Tìm kiếm trực tuyến"
+      "online_search": "Tìm kiếm trực tuyến",
+      "system_search": "[to be translated]:System search"
     },
     "skill_detail": {
       "created_at": "Đã tạo",
@@ -3525,6 +3527,19 @@
       "updated": "Sắp xếp theo cập nhật"
     },
     "subtitle": "Quản lý các trợ lý, tác nhân và kỹ năng của bạn",
+    "system_skill": {
+      "conflict": "[to be translated]:Name conflict",
+      "description": "[to be translated]:Import skills already installed on this system.",
+      "empty_description": "[to be translated]:No importable skills were found in other coding tools on this device.",
+      "empty_title": "[to be translated]:No skills available to import",
+      "enable_success": "[to be translated]:Enabled {{name}}",
+      "enabled": "[to be translated]:Enabled",
+      "import": "[to be translated]:Import",
+      "import_success": "[to be translated]:Imported {{name}}",
+      "imported": "[to be translated]:Imported",
+      "search_placeholder": "[to be translated]:Search system skills...",
+      "title": "[to be translated]:System skills"
+    },
     "tag_picker": {
       "no_tags": "Chưa có thẻ nào",
       "placeholder": "Tên thẻ mới..."
@@ -3765,18 +3780,6 @@
     "processing": "Đang xử lý...",
     "regenerate": {
       "confirm": "Việc tái tạo sẽ thay thế tin nhắn hiện tại"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Bạn có chắc chắn muốn xóa toàn bộ dữ liệu?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Tất cả dữ liệu sẽ bị mất, bạn có muốn tiếp tục không?",
-          "title": "DỮ LIỆU BỊ MẤT !!!"
-        }
-      },
-      "success": "Đặt lại dữ liệu thành công"
     },
     "restore": {
       "failed": "Khôi phục thất bại",
@@ -5588,6 +5591,13 @@
         "title": "Xuất Cài Đặt Menu",
         "yuque": "Xuất sang Yuque"
       },
+      "factory_reset": {
+        "button": "[to be translated]:Factory Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Factory reset this app?",
+        "error": "[to be translated]:Failed to start factory reset",
+        "title": "[to be translated]:Factory Reset"
+      },
       "hour_interval_one": "{{count}} ora",
       "hour_interval_other": "{{count}} giờ",
       "import_settings": {
@@ -6240,10 +6250,6 @@
       "emoji_picker": "Bộ chọn biểu tượng cảm xúc",
       "image_upload": "Tải lên hình ảnh",
       "label": "Cài đặt chung",
-      "reset": {
-        "button": "Đặt lại",
-        "title": "Đặt lại dữ liệu"
-      },
       "restore": {
         "button": "Khôi phục"
       },
@@ -7734,6 +7740,8 @@
   },
   "tab": {
     "close": "Đóng Tab",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "Di chuyển lên đầu",
     "new": "Thẻ Mới",
     "open_in_new_window": "Mở trong cửa sổ mới",

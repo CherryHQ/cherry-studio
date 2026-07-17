@@ -13,6 +13,9 @@ vi.mock('@application', () => ({
 vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: { set: bootConfigSetMock, persist: bootConfigPersistMock }
 }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+
+import { dialog } from 'electron'
 
 import { appHandlers } from '../app'
 
@@ -51,6 +54,22 @@ describe('appHandlers', () => {
   })
 
   describe('factory_reset.request', () => {
+    beforeEach(() => {
+      // The native confirmation dialog (the arming authority — renderer-side
+      // dialogs don't count for a whole-profile wipe): button 1 is confirm.
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1, checkboxChecked: false })
+    })
+
+    it('resolves without staging anything when the user cancels the native confirmation', async () => {
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+
+      await expect(appHandlers['app.factory_reset.request'](undefined, ctx)).resolves.toBeUndefined()
+
+      expect(bootConfigSetMock).not.toHaveBeenCalled()
+      expect(bootConfigPersistMock).not.toHaveBeenCalled()
+      expect(appRelaunchMock).not.toHaveBeenCalled()
+    })
+
     it('stages the pending marker for the current userData, persists it, then relaunches', async () => {
       appGetPathMock.mockReturnValue('/mock/userData')
 

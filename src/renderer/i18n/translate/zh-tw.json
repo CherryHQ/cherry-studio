@@ -3781,18 +3781,6 @@
     "regenerate": {
       "confirm": "重新產生會覆寫目前訊息"
     },
-    "reset": {
-      "confirm": {
-        "content": "確定要清除所有資料嗎？"
-      },
-      "double": {
-        "confirm": {
-          "content": "所有資料將會被清除，您確定要繼續嗎？",
-          "title": "資料將會遺失！！！"
-        }
-      },
-      "success": "資料重設成功"
-    },
     "restore": {
       "failed": "還原失敗",
       "success": "還原成功"
@@ -5603,6 +5591,13 @@
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
       },
+      "factory_reset": {
+        "button": "[to be translated]:Factory Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Factory reset this app?",
+        "error": "[to be translated]:Failed to start factory reset",
+        "title": "[to be translated]:Factory Reset"
+      },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
       "import_settings": {
@@ -6255,10 +6250,6 @@
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
       "label": "一般設定",
-      "reset": {
-        "button": "重設",
-        "title": "資料重設"
-      },
       "restore": {
         "button": "復原"
       },
@@ -7749,6 +7740,8 @@
   },
   "tab": {
     "close": "關閉分頁",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "open_in_new_window": "在新視窗中開啟",

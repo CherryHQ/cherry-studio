@@ -56,6 +56,13 @@
   },
   "dialog": {
     "all_files": "All Files",
+    "factory_reset": {
+      "cancel": "Cancel",
+      "confirm": "Erase Everything",
+      "detail": "This cannot be undone. The app will relaunch immediately and erase all chats, assistants, knowledge bases, files, and settings on startup.",
+      "message": "Erase all data and factory reset Cherry Studio?",
+      "title": "Factory Reset"
+    },
     "html_files": "HTML Files",
     "open_file": "Open File",
     "pdf_files": "PDF Files",

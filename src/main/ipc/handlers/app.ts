@@ -4,10 +4,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
+import { t } from '@main/i18n'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { app, BrowserWindow, webContents } from 'electron'
+import { app, BrowserWindow, dialog, webContents } from 'electron'
 
 /**
  * App-domain handlers: stateless app info + imperative operations delegated to electron /
@@ -40,6 +41,22 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   // wipes on the next boot. persist() (not flush) so a failed write rejects
   // the request instead of relaunching without a staged marker.
   'app.factory_reset.request': async () => {
+    // Final confirmation lives HERE, in a native dialog, not in the renderer:
+    // the request arms a whole-profile wipe, and a compromised or buggy
+    // renderer must not be able to arm it with a single unconfirmed IPC call.
+    // Declining resolves without staging anything — a silent no-op, since the
+    // user just cancelled.
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      title: t('dialog.factory_reset.title'),
+      message: t('dialog.factory_reset.message'),
+      detail: t('dialog.factory_reset.detail'),
+      buttons: [t('dialog.factory_reset.cancel'), t('dialog.factory_reset.confirm')],
+      defaultId: 0,
+      cancelId: 0
+    })
+    if (response !== 1) return
+
     bootConfigService.set('temp.factory_reset', {
       status: 'pending',
       userDataPath: application.getPath('app.userdata'),
