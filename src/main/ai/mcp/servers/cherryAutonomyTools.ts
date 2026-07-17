@@ -32,6 +32,13 @@ export interface CherryAgentContext {
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
   sourceChannelId?: string
+  /**
+   * Knowledge bases this agent is bound to. Scopes the kb_* tools to these bases;
+   * an empty list means the agent has no knowledge access and the kb_* tools are
+   * not exposed (mirrors the assistant path's per-binding gating). The autonomy
+   * tools ignore this field.
+   */
+  knowledgeBaseIds: string[]
 }
 
 /**

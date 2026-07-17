@@ -109,6 +109,8 @@ export const AgentBaseSchema = z.strictObject({
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
+  /** Ordered knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
+  knowledgeBaseIds: z.array(z.string()).optional(),
   /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
@@ -124,6 +126,7 @@ export const AGENT_MUTABLE_FIELDS = {
   planModel: true,
   smallModel: true,
   mcps: true,
+  knowledgeBaseIds: true,
   disabledTools: true,
   configuration: true
 } as const

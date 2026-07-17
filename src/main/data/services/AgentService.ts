@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -94,11 +94,17 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
-function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string[]): AgentEntity {
+function rowToAgent(
+  row: AgentRow,
+  modelName: string | null = null,
+  mcps: string[],
+  knowledgeBaseIds: string[]
+): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     mcps,
+    knowledgeBaseIds,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
@@ -135,6 +141,31 @@ function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[
   return map
 }
 
+/**
+ * Fetch knowledgeBaseIds for a set of agent IDs from the junction table.
+ * Returns a Map<agentId, string[]>, ordered by createdAt so the binding list is stable.
+ * Accepts both a database instance and a transaction (DbOrTx).
+ */
+function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
+  if (agentIds.length === 0) return new Map()
+  const rows = tx
+    .select({ agentId: agentKnowledgeBaseTable.agentId, knowledgeBaseId: agentKnowledgeBaseTable.knowledgeBaseId })
+    .from(agentKnowledgeBaseTable)
+    .where(inArray(agentKnowledgeBaseTable.agentId, agentIds))
+    .orderBy(asc(agentKnowledgeBaseTable.agentId), asc(agentKnowledgeBaseTable.createdAt))
+    .all()
+  const map = new Map<string, string[]>()
+  for (const row of rows) {
+    const list = map.get(row.agentId)
+    if (list) {
+      list.push(row.knowledgeBaseId)
+    } else {
+      map.set(row.agentId, [row.knowledgeBaseId])
+    }
+  }
+  return map
+}
+
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
@@ -155,6 +186,7 @@ export class AgentService {
     }
     const id = uuidv4()
     const mcps = req.mcps ?? []
+    const knowledgeBaseIds = req.knowledgeBaseIds ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
@@ -198,6 +230,12 @@ export class AgentService {
               .values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
               .run()
           }
+          // Insert junction rows for knowledge base associations
+          if (knowledgeBaseIds.length > 0) {
+            tx.insert(agentKnowledgeBaseTable)
+              .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+              .run()
+          }
           // Enable the selected global skills for the new agent. DB-only: workspace
           // symlinks don't exist yet (no session/workspace at create time) and get
           // reconciled later by SkillService when a workspace appears.
@@ -212,7 +250,7 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps)
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -255,7 +293,8 @@ export class AgentService {
       .all()
     if (!row) return null
     const mcpsMap = fetchMcpsForAgents(database, [id])
-    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [])
+    const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, [id])
+    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
   listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
@@ -318,11 +357,19 @@ export class AgentService {
           : baseQuery.limit(options.limit).all()
         : baseQuery.all()
 
-    // Batch-fetch mcps for all returned agents
+    // Batch-fetch mcps + knowledge bases for all returned agents
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
+    const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
 
-    const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? []))
+    const agents = result.map((row) =>
+      rowToAgent(
+        row.agent,
+        row.modelName || null,
+        mcpsMap.get(row.agent.id) ?? [],
+        knowledgeBasesMap.get(row.agent.id) ?? []
+      )
+    )
 
     return { agents, total: totalResult[0].count }
   }
@@ -384,8 +431,9 @@ export class AgentService {
       updatedAt: Date.now()
     }
 
-    // Handle mcps separately — it lives in the junction table, not the agent row.
+    // Handle mcps + knowledgeBaseIds separately — they live in junction tables, not the agent row.
     const newMcps = updates.mcps
+    const newKnowledgeBaseIds = updates.knowledgeBaseIds
     const newSkillUpdates = updates.skillUpdates
 
     // Same two-step validation as createAgent: pre-check each id outside the write
@@ -406,7 +454,7 @@ export class AgentService {
     // literal NULL when the DTO omits a field would violate the constraint.
     // Skip undefined values so Drizzle preserves the column's current value.
     for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
-      if (field === 'mcps') continue // handled via junction table
+      if (field === 'mcps' || field === 'knowledgeBaseIds') continue // handled via junction tables
       if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
       const value = updates[field as keyof typeof updates]
       if (value === undefined) continue
@@ -423,6 +471,15 @@ export class AgentService {
             if (newMcps.length > 0) {
               tx.insert(agentMcpServerTable)
                 .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+                .run()
+            }
+          }
+          // Replace knowledge base associations if provided
+          if (newKnowledgeBaseIds !== undefined) {
+            tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id)).run()
+            if (newKnowledgeBaseIds.length > 0) {
+              tx.insert(agentKnowledgeBaseTable)
+                .values(newKnowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
                 .run()
             }
           }
@@ -547,8 +604,14 @@ export class AgentService {
       .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
       .all()
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
+    const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
     for (const row of rows) {
-      const agent = rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? [])
+      const agent = rowToAgent(
+        row.agent,
+        row.modelName || null,
+        mcpsMap.get(row.agent.id) ?? [],
+        knowledgeBasesMap.get(row.agent.id) ?? []
+      )
       this._onAgentUpdated.fire({ agentId: agent.id, updates: { mcps: agent.mcps }, agent })
     }
   }

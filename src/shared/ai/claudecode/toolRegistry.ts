@@ -371,6 +371,18 @@ export const CLAUDE_TOOL_DEFS: readonly ClaudeToolDescriptorDef[] = Object.value
 export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServer !== undefined
 
 /**
+ * Runtime names of the in-process knowledge-base tools (kb_search / kb_read / kb_list /
+ * kb_manage). Agents with no bound knowledge base neither get these injected at runtime
+ * (see cherryBuiltinTools' list-time gating) nor see them as toggles in the edit-dialog
+ * catalog — the two surfaces stay in sync off this one set.
+ */
+export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
+  (Object.entries(CLAUDE_TOOL_REGISTRY) as [ClaudeToolKey, ClaudeToolDescriptorDef][])
+    .filter(([key]) => key.startsWith('CherryKb'))
+    .map(([, def]) => def.name)
+)
+
+/**
  * Descriptors for the canUseTool / catalog policy layer: every non-disabled SDK tool.
  * Disabled tools are omitted (they are hard-blocked via disallowedTools and never invoked).
  */

@@ -29,6 +29,8 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
+  knowledgeBaseIds: string[]
   skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
@@ -100,6 +102,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
+    knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
@@ -168,6 +171,10 @@ export function diffAgentUpdate(
   }
   if (!arraysEqual(baseline.mcps, next.mcps)) {
     dto.mcps = next.mcps
+    dirty = true
+  }
+  if (!arraysEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
+    dto.knowledgeBaseIds = next.knowledgeBaseIds
     dirty = true
   }
   const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)

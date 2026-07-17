@@ -143,6 +143,36 @@ describe('buildMcpServers', () => {
     expect(result?.cherry).toBeUndefined()
     expect(result?.exa).toBeUndefined()
   })
+
+  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+    if (!result) throw new Error('buildMcpServers returned no servers')
+    const instance = (
+      result['cherry-tools'] as unknown as {
+        instance: {
+          server: {
+            _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string }> }>>
+          }
+        }
+      }
+    ).instance
+    const listHandler = instance.server._requestHandlers.get('tools/list')
+    if (!listHandler) throw new Error('tools/list handler not registered')
+    const listed = await listHandler({ method: 'tools/list', params: {} }, {})
+    return listed.tools.map((tool) => tool.name)
+  }
+
+  it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
+    const names = await cherryToolNames(buildMcpServers(session, agent, false))
+    expect(names).toContain('web_search')
+    expect(names).not.toContain('kb_search')
+    expect(names).not.toContain('kb_manage')
+  })
+
+  it('exposes the kb_* tools from cherry-tools when the agent is bound to a knowledge base', async () => {
+    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
+    const names = await cherryToolNames(buildMcpServers(session, boundAgent, false))
+    expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
+  })
 })
 
 describe('prepareClaudeCodeWorkspaceDirectory', () => {

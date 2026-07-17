@@ -136,6 +136,16 @@ describe('diffAgentUpdate', () => {
     })
   })
 
+  it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+  })
+
   it('includes skillUpdates when the enabled skill set changes', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent, ['skill-1'])

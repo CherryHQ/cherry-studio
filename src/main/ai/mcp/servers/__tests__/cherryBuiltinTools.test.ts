@@ -54,12 +54,22 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { callCherryBuiltinTool, listCherryBuiltinTools, CherryBuiltinToolsServer } = await import(
-  '../cherryBuiltinTools'
-)
+const {
+  callCherryBuiltinTool: callCherryBuiltinToolRaw,
+  listCherryBuiltinTools: listCherryBuiltinToolsRaw,
+  CherryBuiltinToolsServer
+} = await import('../cherryBuiltinTools')
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 const signal = new AbortController().signal
+
+// The kb_* tools are scoped to the agent's bound knowledge bases. These wrappers default the
+// scope to a non-empty binding so the (unchanged) tool-behaviour tests exercise the scoped path;
+// the gating tests below pass an explicit `[]` to assert the empty-binding behaviour.
+const KB_SCOPE = ['b1', 'b2']
+const callCherryBuiltinTool = (name: string, args: unknown, sig: AbortSignal, allowedIds: string[] = KB_SCOPE) =>
+  callCherryBuiltinToolRaw(name, args, sig, allowedIds)
+const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => listCherryBuiltinToolsRaw(allowedIds)
 
 function webResponse() {
   return {
@@ -112,6 +122,13 @@ describe('cherryBuiltinTools', () => {
       expect(tool.description).toBeTruthy()
       expect((tool.inputSchema as Record<string, unknown>).$schema).toBeUndefined()
     }
+  })
+
+  it('omits the kb_* tools from the listing when the knowledge scope is empty', () => {
+    const names = listCherryBuiltinTools([])
+      .map((t) => t.name)
+      .sort()
+    expect(names).toEqual(['generate_image', 'report_artifacts', 'web_fetch', 'web_search'])
   })
 
   it('routes web_search through WebSearchService and returns mapped json content', async () => {
@@ -203,7 +220,7 @@ describe('cherryBuiltinTools', () => {
     }
   })
 
-  it('runs kb_search unscoped (all model-provided baseIds reach the orchestrator)', async () => {
+  it('runs kb_search over the model-provided baseIds that fall within the bound scope', async () => {
     kbSearch.mockResolvedValue([{ pageContent: 'doc', score: 0.9 }])
 
     const result = await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1', 'b2'] }, signal)
@@ -211,6 +228,24 @@ describe('cherryBuiltinTools', () => {
     expect(kbSearch).toHaveBeenCalledWith('b1', 'topic')
     expect(kbSearch).toHaveBeenCalledWith('b2', 'topic')
     expect(JSON.parse(textOf(result))[0]).toMatchObject({ id: 1, content: 'doc' })
+  })
+
+  it('scopes kb_search to the bound bases, dropping model-provided baseIds outside the binding', async () => {
+    kbSearch.mockResolvedValue([{ pageContent: 'doc', score: 0.9 }])
+
+    // Binding = ['b1'] only; the model asks for b1 + b2 → b2 is out of scope and must not be searched.
+    await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1', 'b2'] }, signal, ['b1'])
+
+    expect(kbSearch).toHaveBeenCalledWith('b1', 'topic')
+    expect(kbSearch).not.toHaveBeenCalledWith('b2', 'topic')
+  })
+
+  it('rejects a direct kb_* call when the agent has no bound knowledge base', async () => {
+    const result = await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1'] }, signal, [])
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('no knowledge base bound')
+    expect(kbSearch).not.toHaveBeenCalled()
   })
 
   it('clamps kb_search scores into the [0,1] contract range', async () => {
@@ -578,7 +613,8 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
     workspaceSource: { type: 'system' as const },
-    workspacePath: '/tmp/workspace'
+    workspacePath: '/tmp/workspace',
+    knowledgeBaseIds: KB_SCOPE
   }
 
   it('exposes the stateless tools plus cron/notify/config', async () => {
@@ -588,5 +624,18 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const names = result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools().map((t) => t.name)))
+  })
+
+  it('hides the kb_* tools when the agent has no bound knowledge base', async () => {
+    const server = new CherryBuiltinToolsServer({ ...agentContext, knowledgeBaseIds: [] })
+    const handlers = (server.mcpServer.server as any)._requestHandlers
+    const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const names = result.tools.map((t: any) => t.name)
+    // Autonomy + stateless builtins stay; only the knowledge tools drop out.
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'web_search', 'generate_image']))
+    expect(names).not.toContain('kb_search')
+    expect(names).not.toContain('kb_read')
+    expect(names).not.toContain('kb_list')
+    expect(names).not.toContain('kb_manage')
   })
 })

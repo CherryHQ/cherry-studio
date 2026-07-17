@@ -9,8 +9,10 @@
  * `…__kb_read`, `…__kb_list`, `…__kb_manage`, `…__report_artifacts`, and
  * `…__generate_image`.
  *
- * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
- * knowledge selection — the agent sees all of the user's knowledge bases. The
+ * KB scope comes from the agent's bound knowledge bases (`CherryAgentContext.
+ * knowledgeBaseIds`), mirroring the assistant path: the kb_* tools are exposed
+ * only when the agent has at least one bound base, and their lookups are scoped
+ * to those bases. An agent with no bound bases sees no kb_* tools at all. The
  * destructive `kb_manage` tool relies on Claude Code's own per-call permission
  * prompt for approval (the AI-SDK path uses the tool's `needsApproval` instead).
  *
@@ -99,11 +101,18 @@ interface ToolHandler {
   inputSchema: z.ZodType
   // `signal` is honoured only by handlers whose core supports cancellation (web → WebSearchService).
   // The kb handlers ignore it: KnowledgeService exposes no AbortSignal plumbing (see knowledgeLookup).
-  run: (args: unknown, signal: AbortSignal) => Promise<ToolModelOutput>
+  // `allowedIds` scopes the kb handlers to the agent's bound knowledge bases (non-kb handlers ignore it).
+  run: (args: unknown, signal: AbortSignal, allowedIds: string[]) => Promise<ToolModelOutput>
 }
 
-// Agents have no per-assistant knowledge scope, so KB lookups run unscoped.
-const KB_ALLOWED_IDS: string[] = []
+// The kb_* tools are scoped/gated by the agent's bound knowledge bases. When the binding is
+// empty they are filtered out at list time (see listCherryBuiltinTools) and rejected at call time.
+const KB_TOOL_NAMES: ReadonlySet<string> = new Set([
+  KB_SEARCH_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME
+])
 
 const HANDLERS: Record<string, ToolHandler> = {
   [WEB_SEARCH_TOOL_NAME]: {
@@ -126,35 +135,35 @@ const HANDLERS: Record<string, ToolHandler> = {
   [KB_SEARCH_TOOL_NAME]: {
     description: KNOWLEDGE_SEARCH_DESCRIPTION,
     inputSchema: kbSearchInputSchema,
-    run: async (args) => {
+    run: async (args, _signal, allowedIds) => {
       const { query, baseIds } = kbSearchInputSchema.parse(args)
-      return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS))
+      return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, allowedIds))
     }
   },
   // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.
   [KB_READ_TOOL_NAME]: {
     description: KNOWLEDGE_READ_DESCRIPTION,
     inputSchema: kbReadInputSchema,
-    run: async (args) => {
+    run: async (args, _signal, allowedIds) => {
       const input = kbReadInputSchema.parse(args)
-      return knowledgeReadModelOutput(await readOrGrepConcept(input, KB_ALLOWED_IDS))
+      return knowledgeReadModelOutput(await readOrGrepConcept(input, allowedIds))
     }
   },
   // kb_list has two modes (list the bases / outline one base); listOrOutlineKnowledge routes by `baseId`.
   [KB_LIST_TOOL_NAME]: {
     description: KNOWLEDGE_LIST_DESCRIPTION,
     inputSchema: kbListInputSchema,
-    run: async (args) => {
+    run: async (args, _signal, allowedIds) => {
       const input = kbListInputSchema.parse(args)
-      return knowledgeListModelOutput(await listOrOutlineKnowledge(input, KB_ALLOWED_IDS), input)
+      return knowledgeListModelOutput(await listOrOutlineKnowledge(input, allowedIds), input)
     }
   },
   [KB_MANAGE_TOOL_NAME]: {
     description: KNOWLEDGE_MANAGE_DESCRIPTION,
     inputSchema: kbManageInputSchema,
-    run: async (args) => {
+    run: async (args, _signal, allowedIds) => {
       const input = kbManageInputSchema.parse(args)
-      return knowledgeManageModelOutput(await manageKnowledge(input, KB_ALLOWED_IDS))
+      return knowledgeManageModelOutput(await manageKnowledge(input, allowedIds))
     }
   },
   // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the
@@ -242,21 +251,39 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
   return { content: [{ type: 'text', text }] }
 }
 
-export function listCherryBuiltinTools(): Tool[] {
-  return Object.entries(resolveHandlers()).map(([name, handler]) => ({
-    name,
-    description: handler.description,
-    inputSchema: toMcpInputSchema(handler.inputSchema)
-  }))
+/**
+ * List the builtin tools available for the given knowledge scope. When `allowedIds`
+ * is empty the agent has no knowledge access, so the kb_* tools are filtered out
+ * (mirrors the assistant path, where an empty binding hides the knowledge tools).
+ */
+export function listCherryBuiltinTools(allowedIds: string[]): Tool[] {
+  const hasKnowledgeScope = allowedIds.length > 0
+  return Object.entries(resolveHandlers())
+    .filter(([name]) => hasKnowledgeScope || !KB_TOOL_NAMES.has(name))
+    .map(([name, handler]) => ({
+      name,
+      description: handler.description,
+      inputSchema: toMcpInputSchema(handler.inputSchema)
+    }))
 }
 
-export async function callCherryBuiltinTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
+export async function callCherryBuiltinTool(
+  name: string,
+  args: unknown,
+  signal: AbortSignal,
+  allowedIds: string[]
+): Promise<CallToolResult> {
   const handler = resolveHandler(name)
   if (!handler) {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
+  // Defense in depth: kb_* tools are hidden from list when the binding is empty,
+  // but reject a direct call too so an unscoped kb lookup can never run.
+  if (KB_TOOL_NAMES.has(name) && allowedIds.length === 0) {
+    return { content: [{ type: 'text', text: `Tool unavailable: ${name} (no knowledge base bound)` }], isError: true }
+  }
   try {
-    return toMcpResult(await handler.run(args ?? {}, signal))
+    return toMcpResult(await handler.run(args ?? {}, signal, allowedIds))
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
     const normalizedError = error instanceof Error ? error : new Error(String(error))
@@ -271,16 +298,18 @@ export class CherryBuiltinToolsServer {
 
   constructor(agentContext: CherryAgentContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
+    // The agent's bound knowledge bases scope + gate the kb_* tools (empty = no kb tools).
+    const allowedIds = agentContext.knowledgeBaseIds
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(), ...autonomy.tools()]
+      tools: [...listCherryBuiltinTools(allowedIds), ...autonomy.tools()]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
       if (autonomy.handles(name)) {
         return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
       }
-      return callCherryBuiltinTool(name, request.params.arguments, extra.signal)
+      return callCherryBuiltinTool(name, request.params.arguments, extra.signal, allowedIds)
     })
   }
 }

@@ -68,3 +68,24 @@ export const agentMcpServerTable = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.agentId, t.mcpServerId] })]
 )
+
+/**
+ * Agent-KnowledgeBase junction table
+ *
+ * Associates agents with knowledge bases. Mirrors assistant_knowledge_base:
+ * the binding scopes the agent's kb_* tools to these bases (empty = no kb tools).
+ * Both sides CASCADE: deleting either removes the association.
+ */
+export const agentKnowledgeBaseTable = sqliteTable(
+  'agent_knowledge_base',
+  {
+    agentId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text()
+      .notNull()
+      .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [primaryKey({ columns: [t.agentId, t.knowledgeBaseId] })]
+)
