@@ -15,15 +15,16 @@ import {
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath, FileType } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
-import { MoreHorizontal, Upload } from 'lucide-react'
+import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,6 +48,12 @@ type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_en
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
 type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.batch_permanent_delete'
+
+interface EmbeddedFilePreview {
+  fileName: string
+  filePath: FilePath
+  refreshKey: number
+}
 
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
 // This is a batching knob, not the schema cap itself; it only needs to stay at
@@ -354,6 +361,11 @@ const FileToolbar = memo(function FileToolbar({
 
 function FilesPage() {
   const { t } = useTranslation()
+  const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
+  // Guards the async open flow: each open bumps the token, and stale physical-path
+  // resolutions (success or failure) are ignored so a slower earlier click can never
+  // overwrite — or error over — the file the user most recently opened.
+  const openRequestTokenRef = useRef(0)
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -567,9 +579,25 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      void safeOpen(createFileEntryHandle(file.id)).catch(() => {
-        toast.error(t('files.preview.error'))
-      })
+      const requestToken = ++openRequestTokenRef.current
+      void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
+        .then((physicalPaths) => {
+          if (openRequestTokenRef.current !== requestToken) return
+          const filePath = physicalPaths[file.id]
+          if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
+          const normalizedPath = normalizeFilePreviewPath(filePath)
+          setEmbeddedPreview((current) => ({
+            fileName: file.name,
+            filePath: normalizedPath,
+            refreshKey: current?.filePath === normalizedPath ? current.refreshKey + 1 : 0
+          }))
+        })
+        .catch((error: unknown) => {
+          if (openRequestTokenRef.current !== requestToken) return
+          const normalized = error instanceof Error ? error : new Error(String(error))
+          logger.error('Failed to open file preview', normalized)
+          toast.error(t('files.preview.error'))
+        })
     },
     [t]
   )
@@ -847,7 +875,7 @@ function FilesPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (renamingId || shouldIgnoreFileShortcut(e)) return
+      if (embeddedPreview || renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         e.preventDefault()
         handleDelete()
@@ -863,7 +891,34 @@ function FilesPage() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [files, selectedIds, handleDelete, renamingId, startInlineRename])
+  }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
+
+  if (embeddedPreview) {
+    return (
+      <section
+        aria-label={embeddedPreview.fileName}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <FilePreview
+          filePath={embeddedPreview.filePath}
+          refreshKey={embeddedPreview.refreshKey}
+          header={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.back')}
+                className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                onClick={() => setEmbeddedPreview(null)}>
+                <ArrowLeft className="size-3.5" />
+              </Button>
+              <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+            </>
+          }
+        />
+      </section>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -976,8 +1031,6 @@ function FilesPage() {
               {isImageGrid ? (
                 <FileGrid
                   files={filteredFiles}
-                  selectedIds={new Set()}
-                  onSelect={() => {}}
                   onOpen={handleOpen}
                   onDelete={(id) => handleDelete(new Set([id]))}
                   isTrash={isTrash}
