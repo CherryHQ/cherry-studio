@@ -17,6 +17,7 @@ import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -89,7 +90,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     experimental_throttle: 50,
     onError: (err) => {
       setIsPreparing(false)
-      setCompletionError(err.message)
+      setCompletionError(getSelectionActionErrorMessage(err, t))
     }
   })
 
@@ -191,6 +192,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
+                successFeedback="icon"
               />
             </div>
           </div>
@@ -208,7 +210,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
             {error}
           </div>
         )}

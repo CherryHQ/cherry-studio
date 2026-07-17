@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "メッセージをクリア"
       },
@@ -5355,7 +5356,7 @@
         "icon": {
           "error": "無効なアイコン名です",
           "label": "アイコン",
-          "placeholder": "Lucideアイコン名を入力",
+          "placeholder": "アイコン名",
           "random": "ランダム選択",
           "tooltip": "例: arrow-right（小文字で入力）",
           "view_all": "全アイコンを表示"

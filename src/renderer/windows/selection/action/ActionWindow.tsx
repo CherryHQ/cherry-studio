@@ -207,10 +207,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           'flex h-8 flex-row items-center px-2 transition-colors duration-300 [-webkit-app-region:drag]',
           isWindowFocus ? 'bg-muted' : 'bg-secondary'
         )}
-        style={isMac ? { paddingLeft: '70px' } : {}}>
+        style={isMac ? { paddingLeft: '78px' } : {}}>
         {action.icon && (
           <div className="ml-1 flex items-center justify-center">
-            <SelectionActionIcon name={action.icon} size={16} className="text-foreground" fallback={() => null} />
+            <SelectionActionIcon name={action.icon} size={14} className="text-foreground" fallback={() => null} />
           </div>
         )}
         <div className="ml-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
@@ -220,13 +220,8 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           <Tooltip
             content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
-            <WindowButton
-              onClick={togglePin}
-              className={isPinned ? 'bg-primary/10 text-primary hover:bg-primary/10' : ''}>
-              <Pin
-                size={14}
-                className={isPinned ? 'rotate-45 text-primary transition-transform' : 'transition-transform'}
-              />
+            <WindowButton onClick={togglePin} className={isPinned ? 'bg-accent text-foreground hover:bg-accent' : ''}>
+              <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-foreground')} />
             </WindowButton>
           </Tooltip>
           <Tooltip
@@ -235,8 +230,8 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             isOpen={showOpacitySlider ? false : undefined}>
             <WindowButton
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
-              className={showOpacitySlider ? 'bg-primary/10 text-primary hover:bg-primary/10' : 'pb-0.5'}>
-              <Droplet size={14} />
+              className={showOpacitySlider ? 'bg-accent text-foreground hover:bg-accent' : 'pb-0.5'}>
+              <Droplet className="size-[13px]" />
             </WindowButton>
           </Tooltip>
           {showOpacitySlider && (
@@ -256,10 +251,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           {!isMac && (
             <>
               <WindowButton onClick={handleMinimize}>
-                <Minus size={16} />
+                <Minus className="size-3.5" />
               </WindowButton>
               <WindowButton onClick={handleClose} className="hover:bg-error-base hover:text-white">
-                <X size={16} />
+                <X className="size-3.5" />
               </WindowButton>
             </>
           )}

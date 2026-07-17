@@ -1755,6 +1755,7 @@
     "thinking_tokens": "約 {{tokens}} tokens",
     "topics": {
       "auto_rename": "自動重新命名對話",
+      "auto_rename_failed": "自動產生對話名稱失敗",
       "clear": {
         "title": "清空訊息"
       },
@@ -4713,6 +4714,7 @@
     "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
+    "revealing": "正在呈現產生的圖片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",
     "seed": "隨機種子",
@@ -5370,7 +5372,7 @@
         "icon": {
           "error": "無效的圖示名稱，請檢查輸入",
           "label": "圖示",
-          "placeholder": "輸入 Lucide 圖示名稱",
+          "placeholder": "圖示名稱",
           "random": "隨機圖示",
           "tooltip": "Lucide 圖示名稱為小寫，如 arrow-right",
           "view_all": "檢視所有圖示"

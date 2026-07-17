@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} jetons",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Effacer le message"
       },
@@ -5355,7 +5356,7 @@
         "icon": {
           "error": "Nom d'icône invalide, veuillez vérifier la saisie",
           "label": "Icône",
-          "placeholder": "Saisir le nom de l'icône Lucide",
+          "placeholder": "Nom de l'icône",
           "random": "Icône aléatoire",
           "tooltip": "Le nom de l'icône Lucide est en minuscules, par exemple arrow-right",
           "view_all": "Voir toutes les icônes"

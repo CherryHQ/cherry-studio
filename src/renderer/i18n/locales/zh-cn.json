@@ -193,7 +193,7 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
-      "welcome_title": "今天想聊点什么？"
+      "welcome_title": "今天想做点什么？"
     },
     "icon": {
       "type": "智能体图标"
@@ -1755,6 +1755,7 @@
     "thinking_tokens": "约 {{tokens}} tokens",
     "topics": {
       "auto_rename": "生成对话名",
+      "auto_rename_failed": "自动生成对话名失败",
       "clear": {
         "title": "清空消息"
       },
@@ -2496,6 +2497,14 @@
       },
       "too_large": {
         "description": "无法预览大于 {{limit}} MiB 的 Markdown 文件。",
+        "title": "文件过大"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "用默认应用打开",
+        "description": "无法预览大于 {{limit}} MiB 的 PDF 文件。",
+        "open_error": "无法打开此文件",
         "title": "文件过大"
       }
     },
@@ -4779,6 +4788,7 @@
     "req_error_text": "服务器繁忙或提示词出现 \"版权词\" 和 \"敏感词\" ，请重试。",
     "req_error_token": "请检查令牌有效性",
     "required_field": "必填项",
+    "revealing": "正在呈现生成的图片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "数值越高过滤越宽松，0 最严格，6 最宽松",
     "seed": "随机种子",
@@ -5436,7 +5446,7 @@
         "icon": {
           "error": "无效的图标名称，请检查输入",
           "label": "图标",
-          "placeholder": "输入 Lucide 图标名称",
+          "placeholder": "图标名称",
           "random": "随机图标",
           "tooltip": "Lucide 图标名称为小写，如 arrow-right",
           "view_all": "查看所有图标"

@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} Tokens",
     "topics": {
       "auto_rename": "Themenname generieren",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Nachrichten leeren"
       },
@@ -5355,7 +5356,7 @@
         "icon": {
           "error": "Ungültiger Symbolname, bitte Eingabe prüfen",
           "label": "Symbol",
-          "placeholder": "Lucide-Symbolnamen eingeben",
+          "placeholder": "Symbolname",
           "random": "Zufälliges Symbol",
           "tooltip": "Lucide-Symbolnamen sind kleingeschrieben, z. B. arrow-right",
           "view_all": "Alle Symbole anzeigen"
