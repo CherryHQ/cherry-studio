@@ -40,6 +40,10 @@ export class DbService extends BaseService {
   private sqlite: Database.Database
   private db: DbType
   private pragmasConfigured = false
+  /** Set by closeForDevReset — subsequent getDb/withWriteTx refuse reopen. */
+  private closedForDevReset = false
+  /** A failed close is fail-closed: the connection state is no longer trusted. */
+  private devResetCloseUncertain = false
 
   constructor() {
     super()
@@ -184,6 +188,13 @@ export class DbService extends BaseService {
    * @throws {Error} If database is not initialized
    */
   public getDb(): DbType {
+    if (this.closedForDevReset || this.devResetCloseUncertain) {
+      throw new Error(
+        this.devResetCloseUncertain
+          ? 'Database close state is uncertain after failed dev reset; refuse access'
+          : 'Database was closed for dev reset and cannot reopen'
+      )
+    }
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
@@ -240,10 +251,55 @@ export class DbService extends BaseService {
    * ```
    */
   public withWriteTx<T>(fn: (tx: DbOrTx) => T): T {
+    if (this.closedForDevReset || this.devResetCloseUncertain) {
+      throw new Error(
+        this.devResetCloseUncertain
+          ? 'Database close state is uncertain after failed dev reset; refuse access'
+          : 'Database was closed for dev reset and cannot reopen'
+      )
+    }
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db.transaction(fn, { behavior: 'immediate' })
+  }
+
+  /**
+   * Synchronous close for `dev.reset_app_data`. Verifies the better-sqlite3
+   * latch (`open === false`) and refuses subsequent getDb/withWriteTx reopen.
+   * Idempotent once closed. Does NOT go through lifecycle onStop (none exists).
+   * On uncertain close proof, latches access immediately and leaves the process
+   * fail-closed for the coordinator to fatal-exit.
+   */
+  public closeForDevReset(): void {
+    // Uncertain wins over the closed latch — never treat a half-closed handle as done.
+    if (this.devResetCloseUncertain) {
+      throw new Error('DbService.closeForDevReset: sqlite close state is uncertain')
+    }
+    if (this.closedForDevReset) {
+      if (this.sqlite.open) {
+        throw new Error('DbService.closeForDevReset: closed latch set but sqlite still open')
+      }
+      return
+    }
+    if (!this.isReady) {
+      throw new Error('DbService.closeForDevReset: database is not ready')
+    }
+    try {
+      this.sqlite.close()
+    } catch (error) {
+      this.devResetCloseUncertain = true
+      // Also latch reopen so getDb/withWriteTx cannot race a half-closed handle.
+      this.closedForDevReset = true
+      throw error
+    }
+    if (this.sqlite.open) {
+      this.devResetCloseUncertain = true
+      this.closedForDevReset = true
+      throw new Error('DbService.closeForDevReset: sqlite.open is still true after close()')
+    }
+    this.closedForDevReset = true
+    logger.info('Database closed for dev reset')
   }
 
   /**
@@ -258,6 +314,39 @@ export class DbService extends BaseService {
       throw new Error('Database is not initialized, please call init() first!')
     }
     snapshotTo(this.sqlite, targetPath)
+  }
+
+  /**
+   * Online page-by-page copy via better-sqlite3 `backup()` on the managed
+   * connection. Used by v2 export (BackupDbCopier). Distinct from
+   * createSnapshot (`VACUUM INTO`, restore merge-base): this API must not open a
+   * second live connection (that bypasses ownership and can force backup restart
+   * when the managed connection writes).
+   */
+  public async backupTo(destPath: string): Promise<void> {
+    this.assertOpenForBackup('backupTo')
+    // Ensure a fresh destination: sqlite's online backup can refuse a stale /
+    // different-format target. Export paths are unique; unlink is defensive.
+    try {
+      fs.unlinkSync(destPath)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT') throw error
+    }
+    await this.sqlite.backup(destPath)
+  }
+
+  private assertOpenForBackup(label: string): void {
+    if (this.closedForDevReset || this.devResetCloseUncertain) {
+      throw new Error(
+        this.devResetCloseUncertain
+          ? `Database close state is uncertain after failed dev reset; refuse ${label}`
+          : `Database was closed for dev reset and cannot ${label}`
+      )
+    }
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
   }
 
   /**
