@@ -11,8 +11,11 @@ import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
+import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 
 const logger = loggerService.withContext('mcpTools')
+
+const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
 
 function resolveActiveServerById(serverId: string): McpServer | undefined {
   // Direct point lookup instead of listing every active server on each tool call.
@@ -129,19 +132,44 @@ export async function syncMcpToolsToRegistry(
   // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
   const refreshedNamespaces = new Set<string>()
   for (const server of targetServers) {
+    let enabledTools: McpTool[] = []
     try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
-      for (const mcpTool of enabledTools) {
-        reg.register(toEntry(mcpTool, server))
-        freshNames.add(mcpTool.id)
-      }
-      refreshedNamespaces.add(`mcp:${server.name}`)
+      enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
     } catch (error) {
-      logger.error('Failed to list MCP tools for server', {
-        serverId: server.id,
-        serverName: server.name,
-        error
-      })
+      // Live fetch failed — fall back to cached tools so a transient failure
+      // doesn't silently drop the server's tools from the registry.
+      const cacheService = application.get('CacheService')
+      const cached = cacheService.getShared(mcpToolsCacheKey(server.id)) as McpTool[] | undefined
+      if (cached && cached.length > 0) {
+        enabledTools = cached
+        logger.warn('MCP server unavailable, using cached tool definitions', {
+          serverId: server.id,
+          serverName: server.name,
+          toolCount: cached.length,
+          error
+        })
+        // Notify renderer that tools are stale so user sees a warning.
+        application.get('IpcApiService').broadcast('mcp.server.tools_stale', {
+          serverId: server.id,
+          serverName: server.name,
+          toolCount: cached.length
+        })
+      } else {
+        logger.error('Failed to list MCP tools for server and no cache available', {
+          serverId: server.id,
+          serverName: server.name,
+          error
+        })
+      }
+    }
+    for (const mcpTool of enabledTools) {
+      reg.register(toEntry(mcpTool, server))
+      freshNames.add(mcpTool.id)
+    }
+    // Only mark as refreshed if we actually got tools (live or cached).
+    // An empty result from a dead server should not count as a successful refresh.
+    if (enabledTools.length > 0) {
+      refreshedNamespaces.add(`mcp:${server.name}`)
     }
   }
 
