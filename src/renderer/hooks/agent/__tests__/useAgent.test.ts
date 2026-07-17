@@ -1,3 +1,4 @@
+import type * as UseCacheModule from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -13,7 +14,10 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@data/hooks/useCache', () => ({
+vi.mock('@data/hooks/useCache', async (importOriginal) => ({
+  // Real hook over the globally mocked cacheService — useAgentTools reads MCP
+  // tool caches through it (physically empty here → misses).
+  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
   useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
 }))
 

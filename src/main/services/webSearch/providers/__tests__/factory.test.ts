@@ -12,6 +12,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: vi.fn() }
+}))
+
 vi.mock('electron', () => ({
   net: {
     fetch: vi.fn()

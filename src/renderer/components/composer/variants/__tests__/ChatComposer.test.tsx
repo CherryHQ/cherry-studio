@@ -230,6 +230,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
   useComposerTokenReconcile: () => mocks.reconcileTokens,
   useComposerToolState: () => ({
     files: mocks.files ?? [],
@@ -437,6 +438,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.toolbar.pinned_tools': ['web-search'],
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
@@ -3611,7 +3613,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toEqual([])
   })
 
-  it('clears selected knowledge bases after sending a draft', async () => {
+  it('keeps selected knowledge bases after sending a draft', async () => {
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -3643,7 +3645,7 @@ describe('ChatComposer', () => {
         userMessageParts: [expect.objectContaining({ type: 'text', text: 'hello' })]
       })
     )
-    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
   })
 
   it('does not render stale knowledge tokens during same-topic assistant switches', () => {

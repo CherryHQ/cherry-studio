@@ -8,6 +8,7 @@ import {
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
+  ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -18,7 +19,6 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -57,7 +57,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, ChevronDown, Globe } from 'lucide-react'
+import { Bot, ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -93,7 +93,9 @@ import {
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, hasUnsyncedComposerAttachments } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
@@ -340,48 +342,6 @@ const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
 }
 
-const ChatComposerPersistentToolShortcuts = ({
-  inputAdapter,
-  webSearchLabel,
-  webSearchLauncher,
-  onWebSearchLauncherClick
-}: {
-  inputAdapter?: ComposerInputAdapter
-  webSearchLabel: string
-  webSearchLauncher?: ComposerToolLauncher
-  onWebSearchLauncherClick: (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => void
-}) => {
-  const webSearchDisabled = !webSearchLauncher || webSearchLauncher.disabled
-  const webSearchTooltip =
-    webSearchDisabled && webSearchLauncher?.disabledReason ? webSearchLauncher.disabledReason : webSearchLabel
-  const webSearchIcon = webSearchLauncher?.icon ?? <Globe size={18} aria-hidden />
-
-  return (
-    <Tooltip content={webSearchTooltip} placement="top">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(
-          COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-          'disabled:pointer-events-none disabled:opacity-40',
-          webSearchLauncher?.active && 'bg-accent'
-        )}
-        aria-label={webSearchLabel}
-        aria-pressed={Boolean(webSearchLauncher?.active)}
-        disabled={webSearchDisabled}
-        data-active={webSearchLauncher?.active || undefined}
-        onClick={() => {
-          if (webSearchLauncher) {
-            onWebSearchLauncherClick(webSearchLauncher, inputAdapter)
-          }
-        }}>
-        {webSearchIcon}
-      </Button>
-    </Tooltip>
-  )
-}
-
 const ChatComposerContextControlsWithAutoFocus = ({
   inputAdapter,
   ...props
@@ -579,6 +539,15 @@ const ChatComposerInner = ({
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const {
+    pinnedIds: pinnedToolIds,
+    setPinnedIds: setPinnedToolIds,
+    resetPinnedIds: resetPinnedToolIds,
+    isDefault: pinnedToolsAtDefault,
+    customizeOpen: customizeToolbarOpen,
+    setCustomizeOpen: setCustomizeToolbarOpen,
+    customizePanelItem
+  } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
@@ -977,6 +946,8 @@ const ChatComposerInner = ({
     ]
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
 
+  const rootPanelCustomizeItems = useMemo(() => [customizePanelItem], [customizePanelItem])
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
@@ -1051,7 +1022,7 @@ const ChatComposerInner = ({
     setText('')
     setDraftTokens(undefined)
     setFiles([])
-    setSelectedKnowledgeBases([])
+    // Knowledge base selection belongs to the conversation scope, not the individual draft.
     // Clearing the composer must also drop the input-history nav state: a
     // recalled draft that gets sent/queued without further edits would otherwise
     // leave useInputHistory pointing at that history entry, so the next
@@ -1059,7 +1030,7 @@ const ChatComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText])
+  }, [resetHistoryIndex, setFiles, setText])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
@@ -1249,28 +1220,33 @@ const ChatComposerInner = ({
     ]
   )
 
-  const webSearchLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'web-search')
-  }, [getLaunchers, toolLaunchersVersion])
-
-  const handleWebSearchShortcutClick = useCallback(
-    (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => {
-      dispatchLauncher(launcher, { source: 'popover', inputAdapter })
-    },
-    [dispatchLauncher]
-  )
-
   const renderPersistentToolShortcuts = useCallback(
-    ({ inputAdapter }: { inputAdapter?: ComposerInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => (
-      <ChatComposerPersistentToolShortcuts
+    ({
+      inputAdapter,
+      unifiedPanelControl
+    }: {
+      inputAdapter?: ComposerInputAdapter
+      unifiedPanelControl?: ComposerUnifiedPanelControl
+    }) => (
+      <ComposerToolbarShortcuts
+        pinnedIds={pinnedToolIds}
+        onPinnedIdsChange={setPinnedToolIds}
+        onResetPinnedIds={resetPinnedToolIds}
+        isDefault={pinnedToolsAtDefault}
+        customizeOpen={customizeToolbarOpen}
+        onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
-        webSearchLabel={t('chat.input.web_search.label')}
-        webSearchLauncher={webSearchLauncher}
-        onWebSearchLauncherClick={handleWebSearchShortcutClick}
+        unifiedPanelControl={unifiedPanelControl}
       />
     ),
-    [handleWebSearchShortcutClick, t, webSearchLauncher]
+    [
+      customizeToolbarOpen,
+      pinnedToolIds,
+      pinnedToolsAtDefault,
+      resetPinnedToolIds,
+      setCustomizeToolbarOpen,
+      setPinnedToolIds
+    ]
   )
 
   if (isMultiSelectMode) return null
@@ -1332,90 +1308,93 @@ const ChatComposerInner = ({
       {displayAssistant && runtimeModel && (
         <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       )}
-      <ComposerSurface
-        text={text}
-        onTextChange={handleTextChange}
-        tokens={tokens}
-        draftTokens={draftTokens}
-        managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
-        onTokensChange={handleTokensChange}
-        resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
-        placeholder={searching ? t('chat.input.translating') : placeholderText}
-        sendDisabled={
-          (text.trim().length === 0 && files.length === 0) ||
-          (loading && !canSteer) ||
-          sendDisabled ||
-          searching ||
-          runtimeModelPending ||
-          !!missingAssistantMessage ||
-          !!missingModelMessage ||
-          !!missingSelectedModelMessage
-        }
-        sendBlockedReason={
-          sendDisabled
-            ? t('common.loading')
-            : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
-        }
-        isLoading={loading}
-        onSendDraft={handleSendDraft}
-        editingState={
-          editingMessageForCurrentTopic
-            ? {
-                messageId: editingMessageForCurrentTopic.message.id,
-                highlightKey: editingMessageForCurrentTopic.editingSessionId,
-                onLocate: handleLocateEditingMessage,
-                onCancel: handleCancelEditing
-              }
-            : undefined
-        }
-        onPause={onPause}
-        queueContent={
-          queuedFollowups.length > 0 ? (
-            <QueuedFollowupsDock
-              items={queuedFollowups}
-              paused={followupPaused}
-              onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={async (id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                // Only drop the item once the send actually succeeds; a failed manual
-                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                const sent = await sendQueuedPayload(item.payload)
-                if (sent) removeFollowup(id)
-                else toast.error(t('chat.input.send_failed'))
-              }}
-              onEdit={(id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                restoreFollowupDraft(item)
-                removeFollowup(id)
-              }}
-              onRemove={removeFollowup}
-              onReorder={reorderFollowups}
-            />
-          ) : undefined
-        }
-        supportedExts={supportedExts}
-        setFiles={setFiles}
-        filesCount={files.length}
-        isExpanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableDragDrop={config.enableDragDrop ?? true}
-        enableSpellCheck={enableSpellCheck}
-        editable={!searching}
-        fontSize={fontSize}
-        narrowMode={forceNarrowLayout || narrowMode}
-        onFocus={() => setSearching(false)}
-        onActionsChange={handleSurfaceActionsChange}
-        onInputHistoryNavigate={handleInputHistoryNavigate}
-        getToolLaunchers={() => getLaunchers()}
-        toolLaunchersVersion={toolLaunchersVersion}
-        rootPanelLeadingItems={rootPanelLeadingItems}
-        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        sendAccessory={sendAccessory}
-        {...controlSlots}
-      />
+      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+        <ComposerSurface
+          text={text}
+          onTextChange={handleTextChange}
+          tokens={tokens}
+          draftTokens={draftTokens}
+          managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
+          onTokensChange={handleTokensChange}
+          resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
+          placeholder={searching ? t('chat.input.translating') : placeholderText}
+          sendDisabled={
+            (text.trim().length === 0 && files.length === 0) ||
+            (loading && !canSteer) ||
+            sendDisabled ||
+            searching ||
+            runtimeModelPending ||
+            !!missingAssistantMessage ||
+            !!missingModelMessage ||
+            !!missingSelectedModelMessage
+          }
+          sendBlockedReason={
+            sendDisabled
+              ? t('common.loading')
+              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+          }
+          isLoading={loading}
+          onSendDraft={handleSendDraft}
+          editingState={
+            editingMessageForCurrentTopic
+              ? {
+                  messageId: editingMessageForCurrentTopic.message.id,
+                  highlightKey: editingMessageForCurrentTopic.editingSessionId,
+                  onLocate: handleLocateEditingMessage,
+                  onCancel: handleCancelEditing
+                }
+              : undefined
+          }
+          onPause={onPause}
+          queueContent={
+            queuedFollowups.length > 0 ? (
+              <QueuedFollowupsDock
+                items={queuedFollowups}
+                paused={followupPaused}
+                onTogglePause={() => setFollowupPaused(!followupPaused)}
+                onSteer={async (id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  // Only drop the item once the send actually succeeds; a failed manual
+                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                  const sent = await sendQueuedPayload(item.payload)
+                  if (sent) removeFollowup(id)
+                  else toast.error(t('chat.input.send_failed'))
+                }}
+                onEdit={(id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  restoreFollowupDraft(item)
+                  removeFollowup(id)
+                }}
+                onRemove={removeFollowup}
+                onReorder={reorderFollowups}
+              />
+            ) : undefined
+          }
+          supportedExts={supportedExts}
+          setFiles={setFiles}
+          filesCount={files.length}
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          quickPanelEnabled={config.enableQuickPanel ?? true}
+          enableDragDrop={config.enableDragDrop ?? true}
+          enableSpellCheck={enableSpellCheck}
+          editable={!searching}
+          fontSize={fontSize}
+          narrowMode={forceNarrowLayout || narrowMode}
+          onFocus={() => setSearching(false)}
+          onActionsChange={handleSurfaceActionsChange}
+          onInputHistoryNavigate={handleInputHistoryNavigate}
+          getToolLaunchers={() => getLaunchers()}
+          toolLaunchersVersion={toolLaunchersVersion}
+          rootPanelLeadingItems={rootPanelLeadingItems}
+          rootPanelAdditionalItems={rootPanelCustomizeItems}
+          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          sendAccessory={sendAccessory}
+          {...controlSlots}
+        />
+      </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )
 }

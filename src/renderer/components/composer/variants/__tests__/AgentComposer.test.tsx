@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   inputAdapterFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
+  pinnedToolIds: ['skills'] as string[],
   toolLaunchers: [] as ComposerToolLauncher[],
   toolLaunchersVersion: 0,
   reconcileTokens: vi.fn(),
@@ -160,31 +161,20 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-function createThinkingLauncher(overrides: Partial<ComposerToolLauncher> = {}): ComposerToolLauncher {
-  return {
-    id: 'thinking',
-    kind: 'group',
-    label: 'assistants.settings.reasoning_effort.label',
-    icon: <span data-testid="thinking-icon" />,
-    sources: ['popover'],
-    submenu: [{ id: 'thinking-high', kind: 'command', label: 'high', icon: 'high', sources: ['popover'] }],
-    ...overrides
-  }
-}
-
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
   }
 }))
 
+// useAgentSessionSlashCommands now observes the shared slash-command catalog via
+// useSharedCacheValue (globally mocked); with no catalog seeded the composer
+// falls back to the builtin list. This inline cacheService only serves the
+// remaining getCasual/setCasual/subscribe consumers.
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
     setCasual: vi.fn(),
-    // useAgentSessionSlashCommands subscribes to the shared slash-command catalog; no catalog here
-    // means the composer falls back to the builtin list.
-    getShared: vi.fn(() => undefined),
     subscribe: vi.fn(() => () => {})
   }
 }))
@@ -307,6 +297,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],
@@ -501,6 +492,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'agent.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : (mocks.sessionLayout ?? 'workdir')
     }
     return [values[key]]
@@ -608,6 +600,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
+    mocks.pinnedToolIds = ['skills']
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
     mocks.setFiles.mockImplementation((value) => {
@@ -991,8 +984,6 @@ describe('AgentComposer', () => {
   })
 
   it('keeps the skill shortcut and removes reasoning effort from the input toolbar', () => {
-    mocks.toolLaunchers = [createThinkingLauncher()]
-
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1015,7 +1006,37 @@ describe('AgentComposer', () => {
     expect(skillButton.querySelector('.lucide-zap')).toBeInTheDocument()
 
     fireEvent.click(skillButton)
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ searchText: 'plugins.skills' })
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ searchText: 'plugins.skills' })
+  })
+
+  it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
+    mocks.pinnedToolIds = ['slash-commands', 'mcp-status']
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const slashCommandsButton = within(leftControls).getByRole('button', {
+      name: 'chat.input.slash_commands.title'
+    })
+    const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
+
+    expect(slashCommandsButton.querySelector('.lucide-terminal')).toBeInTheDocument()
+    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
+    expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
+
+    fireEvent.click(slashCommandsButton)
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ searchText: 'chat.input.slash_commands.title' })
+
+    fireEvent.click(mcpButton)
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
   })
 
   it('hides the empty session action without a handler', () => {

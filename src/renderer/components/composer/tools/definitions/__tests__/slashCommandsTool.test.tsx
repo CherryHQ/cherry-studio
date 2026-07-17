@@ -31,6 +31,7 @@ describe('slashCommandsTool', () => {
         label: '/clear',
         description: 'Clear context',
         sources: ['root-panel'],
+        searchAliases: ['chat.input.slash_commands.title'],
         rootPanelPlacement: 'trailing'
       })
     ])
