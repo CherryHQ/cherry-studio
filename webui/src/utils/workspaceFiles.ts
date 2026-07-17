@@ -6,6 +6,17 @@ export type WebUiWorkspaceTreeNode = WebUiWorkspaceFileEntry & {
 
 const imageExtensions = new Set(['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'])
 const markdownExtensions = new Set(['markdown', 'md', 'mdx'])
+const inlineFilePathLocationPattern = /(?::\d+){1,2}$/
+const pathSegmentPattern = String.raw`[^/\n\r\`"'<>|]+`
+const absoluteUnixPathPattern = new RegExp(String.raw`^/(?!/)(?:${pathSegmentPattern}/)+${pathSegmentPattern}/?$`)
+const absoluteWindowsPathPattern = /^[A-Za-z]:[\\/](?:[^\\/\n\r`"'<>|]+[\\/])*[^\\/\n\r`"'<>|]+\.?[^\\/\n\r`"'<>|]*$/
+const relativeExplicitPathPattern = new RegExp(String.raw`^\.{1,2}/(?:${pathSegmentPattern}/)*${pathSegmentPattern}/?$`)
+const homeRelativeFilePathPattern = new RegExp(
+  String.raw`^~[/\\](?:${pathSegmentPattern}[/\\])*${pathSegmentPattern}/?$`
+)
+const workspaceRelativeFilePathPattern = new RegExp(
+  String.raw`^(?:${pathSegmentPattern}/)+${pathSegmentPattern}\.[^/\`"'<>|.]+$`
+)
 
 const normalizePath = (value: string) => value.trim().replaceAll('\\', '/').replace(/\/+$/g, '')
 
@@ -14,6 +25,44 @@ const sortNodes = <T extends Pick<WebUiWorkspaceTreeNode, 'isDirectory' | 'name'
     if (left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1
     return left.name.localeCompare(right.name)
   })
+
+export const normalizeInlineFilePath = (value: string) =>
+  value
+    .trim()
+    .replace(/^[`("'[]+|[`)"'\],.;:!?]+$/g, '')
+    .replace(inlineFilePathLocationPattern, '')
+
+export const isInlineFilePath = (value: string) => {
+  const normalizedPath = normalizeInlineFilePath(value).replaceAll('\\', '/')
+  return (
+    absoluteUnixPathPattern.test(normalizedPath) ||
+    absoluteWindowsPathPattern.test(normalizeInlineFilePath(value)) ||
+    homeRelativeFilePathPattern.test(normalizeInlineFilePath(value)) ||
+    relativeExplicitPathPattern.test(normalizedPath) ||
+    workspaceRelativeFilePathPattern.test(normalizedPath)
+  )
+}
+
+export const isAbsoluteWorkspaceRequestPath = (value: string) => {
+  const normalized = normalizeInlineFilePath(value)
+  return (
+    normalized.startsWith('/') ||
+    normalized.startsWith('~/') ||
+    normalized.startsWith('~\\') ||
+    /^[A-Za-z]:[\\/]/.test(normalized)
+  )
+}
+
+export const resolveWorkspaceRequestPath = (workspacePath: string | undefined, rawPath: string) => {
+  const candidate = normalizeInlineFilePath(rawPath).replaceAll('\\', '/')
+  if (!candidate) return undefined
+  if (!workspacePath || isAbsoluteWorkspaceRequestPath(candidate)) return candidate
+  const workspace = normalizePath(workspacePath)
+  const comparableWorkspace = /^[A-Za-z]:\//.test(workspace) ? workspace.toLowerCase() : workspace
+  const comparableCandidate = /^[A-Za-z]:\//.test(candidate) ? candidate.toLowerCase() : candidate
+  if (comparableCandidate.startsWith(`${comparableWorkspace}/`)) return candidate.slice(workspace.length + 1)
+  return candidate.replace(/^\/+/, '')
+}
 
 export const getWorkspacePathBasename = (value: string) => {
   const segments = normalizePath(value).split('/').filter(Boolean)

@@ -546,15 +546,31 @@ export const createWebUiApiRouter = ({
           const result = await listWebUiWorkspaceFiles(
             session.workspace.path,
             requestedPath,
-            url.searchParams.get('search') ?? ''
+            url.searchParams.get('search') ?? '',
+            {
+              appRootPath: application.getPath('app.root'),
+              executablePath: process.execPath,
+              homePath: application.getPath('sys.home')
+            }
           )
           return { status: 200, body: result }
         }
         if (workspaceFileMatch) {
-          return { status: 200, body: await readWebUiWorkspaceTextFile(session.workspace.path, requestedPath) }
+          return {
+            status: 200,
+            body: await readWebUiWorkspaceTextFile(session.workspace.path, requestedPath, {
+              appRootPath: application.getPath('app.root'),
+              executablePath: process.execPath,
+              homePath: application.getPath('sys.home')
+            })
+          }
         }
 
-        const preview = await readWebUiWorkspaceBinaryPreview(session.workspace.path, requestedPath)
+        const preview = await readWebUiWorkspaceBinaryPreview(session.workspace.path, requestedPath, {
+          appRootPath: application.getPath('app.root'),
+          executablePath: process.execPath,
+          homePath: application.getPath('sys.home')
+        })
         return {
           status: 200,
           rawBody: preview.bytes,

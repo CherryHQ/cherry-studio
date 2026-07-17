@@ -1,10 +1,11 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  listWebUiWorkspaceFiles,
   readWebUiWorkspaceBinaryPreview,
   readWebUiWorkspaceTextFile,
   resolveWebUiWorkspacePath,
@@ -14,16 +15,19 @@ import {
 describe('WebUI workspace file boundary', () => {
   let workspacePath: string
   let outsidePath: string
+  let appRootPath: string
 
   beforeEach(async () => {
     workspacePath = await mkdtemp(path.join(tmpdir(), 'cherry-webui-workspace-'))
     outsidePath = await mkdtemp(path.join(tmpdir(), 'cherry-webui-outside-'))
+    appRootPath = await mkdtemp(path.join(tmpdir(), 'cherry-webui-app-root-'))
     await mkdir(path.join(workspacePath, 'docs'))
   })
 
   afterEach(async () => {
     await rm(workspacePath, { recursive: true, force: true })
     await rm(outsidePath, { recursive: true, force: true })
+    await rm(appRootPath, { recursive: true, force: true })
   })
 
   it('resolves an existing workspace-relative file', async () => {
@@ -36,22 +40,87 @@ describe('WebUI workspace file boundary', () => {
       await resolveWebUiWorkspacePath(workspacePath, 'docs\\notes.md').then((v) => v.requestedRealPath)
     )
     expect(result.relativePath).toBe('docs/notes.md')
+    expect(result.scope).toBe('workspace')
   })
 
   it.each(['../outside.txt', 'docs/../../outside.txt', '/outside.txt', 'C:/outside.txt'])(
-    'rejects unsafe requested path %s',
+    'rejects unsafe requested path %s when it is handled as a workspace-relative path',
     async (requestedPath) => {
+      if (path.isAbsolute(requestedPath) || /^[A-Za-z]:/.test(requestedPath)) {
+        await expect(resolveWebUiWorkspacePath(workspacePath, requestedPath)).rejects.toMatchObject({
+          status: 404
+        })
+        return
+      }
       await expect(resolveWebUiWorkspacePath(workspacePath, requestedPath)).rejects.toBeInstanceOf(
         WebUiWorkspaceFileError
       )
     }
   )
 
-  it('rejects a symbolic-link escape from the workspace', async () => {
-    await writeFile(path.join(outsidePath, 'secret.txt'), 'secret')
+  it('allows a symbolic-link escape from the workspace when the resolved target is not blocked', async () => {
+    await writeFile(path.join(outsidePath, 'public.txt'), 'public')
     await symlink(outsidePath, path.join(workspacePath, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 
-    await expect(resolveWebUiWorkspacePath(workspacePath, 'escape/secret.txt')).rejects.toMatchObject({
+    await expect(resolveWebUiWorkspacePath(workspacePath, 'escape/public.txt')).resolves.toMatchObject({
+      scope: 'external',
+      relativePath: expect.stringMatching(/cherry-webui-outside-.+\/public\.txt$/)
+    })
+  })
+
+  it('allows read-only preview for non-workspace absolute files', async () => {
+    const filePath = path.join(outsidePath, 'public.txt')
+    await writeFile(filePath, 'outside but readable')
+
+    await expect(readWebUiWorkspaceTextFile(workspacePath, filePath)).resolves.toMatchObject({
+      kind: 'text',
+      content: 'outside but readable',
+      path: expect.stringMatching(/cherry-webui-outside-.+\/public\.txt$/)
+    })
+  })
+
+  it('lists non-workspace directories while filtering blocked children when the directory lister is available', async () => {
+    await writeFile(path.join(outsidePath, 'public.txt'), 'ok')
+    await writeFile(path.join(outsidePath, '.secret'), 'hidden')
+
+    try {
+      const result = await listWebUiWorkspaceFiles(workspacePath, outsidePath, '')
+
+      expect(result.directory).toEqual(expect.stringMatching(/cherry-webui-outside-/))
+      expect(result.entries).toEqual([
+        expect.objectContaining({
+          isDirectory: false,
+          name: 'public.txt',
+          path: expect.stringMatching(/cherry-webui-outside-.+\/public\.txt$/)
+        })
+      ])
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== 'Ripgrep binary not available') throw error
+    }
+  })
+
+  it('rejects hidden files and hidden directories outside the workspace', async () => {
+    await mkdir(path.join(outsidePath, '.ssh'))
+    await writeFile(path.join(outsidePath, '.env'), 'secret')
+    await writeFile(path.join(outsidePath, '.ssh', 'config'), 'secret')
+
+    await expect(readWebUiWorkspaceTextFile(workspacePath, path.join(outsidePath, '.env'))).rejects.toMatchObject({
+      status: 403,
+      code: 'WEBUI_WORKSPACE_PATH_BLOCKED'
+    })
+    await expect(
+      readWebUiWorkspaceTextFile(workspacePath, path.join(outsidePath, '.ssh', 'config'))
+    ).rejects.toMatchObject({
+      status: 403,
+      code: 'WEBUI_WORKSPACE_PATH_BLOCKED'
+    })
+  })
+
+  it('rejects application installation paths', async () => {
+    const filePath = path.join(appRootPath, 'app.asar')
+    await writeFile(filePath, 'app')
+
+    await expect(readWebUiWorkspaceTextFile(workspacePath, filePath, { appRootPath })).rejects.toMatchObject({
       status: 403,
       code: 'WEBUI_WORKSPACE_PATH_BLOCKED'
     })

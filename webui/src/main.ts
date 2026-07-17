@@ -71,6 +71,7 @@ import {
   getWorkspaceFilePreviewKind,
   getWorkspacePathBasename,
   resolveWorkspaceRelativeArtifactPath,
+  resolveWorkspaceRequestPath,
   type WebUiWorkspaceTreeNode
 } from './utils/workspaceFiles'
 
@@ -158,6 +159,12 @@ const textPacks = {
     connected: 'Win11 desktop bridge connected',
     context: 'Context',
     copy: 'Copy',
+    copyMarkdown: 'Copy Markdown',
+    copyPlainText: 'Copy plain text',
+    copyCode: 'Copy code',
+    copied: 'Copied',
+    openPath: 'Open path',
+    pathInputPlaceholder: 'Enter a folder path to browse read-only',
     readAloud: 'Read aloud',
     stopReading: 'Stop reading',
     speechUnavailable: 'Speech is not available in this browser.',
@@ -296,6 +303,12 @@ const textPacks = {
     connected: 'Win11 桌面桥接已连接',
     context: '上下文',
     copy: '复制',
+    copyMarkdown: '复制 Markdown',
+    copyPlainText: '复制纯文本',
+    copyCode: '复制代码',
+    copied: '已复制',
+    openPath: '打开路径',
+    pathInputPlaceholder: '输入文件夹路径进行只读浏览',
     readAloud: '朗读',
     stopReading: '停止朗读',
     speechUnavailable: '当前浏览器不支持朗读。',
@@ -433,6 +446,12 @@ const textPacks = {
     connected: 'Win11 桌面橋接已連線',
     context: '上下文',
     copy: '複製',
+    copyMarkdown: '複製 Markdown',
+    copyPlainText: '複製純文字',
+    copyCode: '複製程式碼',
+    copied: '已複製',
+    openPath: '開啟路徑',
+    pathInputPlaceholder: '輸入資料夾路徑進行唯讀瀏覽',
     readAloud: '朗讀',
     stopReading: '停止朗讀',
     speechUnavailable: '目前瀏覽器不支援朗讀。',
@@ -1065,6 +1084,8 @@ const App = defineComponent({
     const workspaceDirectoryEntries = ref<Readonly<Record<string, readonly WebUiWorkspaceFileEntry[]>>>({})
     const workspaceExpandedDirectories = ref<ReadonlySet<string>>(new Set())
     const workspaceFileSearch = ref('')
+    const workspacePathDraft = ref('')
+    const copiedHint = ref<string>()
     const workspaceSearchEntries = ref<readonly WebUiWorkspaceFileEntry[]>([])
     const workspaceFilesLoading = ref(false)
     const workspaceFilesError = ref('')
@@ -1176,6 +1197,13 @@ const App = defineComponent({
       (contextUsage.value?.categories ?? []).filter((category) => category.tokens > 0).slice(0, 4)
     )
     const workspaceSearchTree = computed(() => buildWorkspaceSearchTree(workspaceSearchEntries.value))
+    const workspaceRootKey = computed(() => workspacePathDraft.value.trim())
+    const workspaceRootPath = computed(
+      () => workspacePathDraft.value.trim() || selectedConversation.value?.workspacePath || ''
+    )
+    const workspaceRootLabel = computed(
+      () => workspacePathDraft.value.trim() || selectedConversation.value?.workspaceLabel || text('files')
+    )
     const themeToggleLabel = computed(() => (themeMode.value === 'dark' ? text('switchToLight') : text('switchToDark')))
     const reasoningOptions = computed(() => selectedModel.value?.reasoningOptions ?? [])
     const reasoningConfigurable = computed(() => reasoningOptions.value.length > 0)
@@ -1217,6 +1245,17 @@ const App = defineComponent({
 
     const localizedErrorMessage = (error: unknown) =>
       isAbortError(error) ? text('requestAborted') : toErrorMessage(error)
+    const showCopiedHint = (label: string) => {
+      copiedHint.value = label
+      window.setTimeout(() => {
+        if (copiedHint.value === label) copiedHint.value = undefined
+      }, 1400)
+    }
+    const markdownToPlainText = (value: string) => {
+      const container = document.createElement('div')
+      container.innerHTML = renderMarkdown(value, { copyCodeLabel: text('copyCode') })
+      return (container.textContent ?? value).trim()
+    }
     const isReadingMessage = (messageId: string) =>
       speechState.value.isSpeaking && speechState.value.messageId === messageId
     const refreshSpeechVoices = () => {
@@ -1403,7 +1442,11 @@ const App = defineComponent({
               ? h('section', { class: 'process-section' }, [
                   h('details', { class: 'reasoning-block' }, [
                     h('summary', text('reasoning')),
-                    h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
+                    h('div', {
+                      class: 'markdown-content',
+                      onClick: handleMarkdownContentClick,
+                      innerHTML: renderMarkdown(message.reasoning, { copyCodeLabel: text('copyCode') })
+                    })
                   ])
                 ])
               : undefined,
@@ -1416,11 +1459,11 @@ const App = defineComponent({
           ])
         : undefined
 
-    const workspaceApiPath = (route: 'files' | 'file' | 'preview', filePath = '', search = '') => {
+    const workspaceApiPath = (route: 'files' | 'file' | 'preview', requestPath = '', search = '') => {
       const conversationId = selectedConversationId.value
       if (!conversationId) return undefined
       const query = new URLSearchParams()
-      if (filePath) query.set('path', filePath)
+      if (requestPath) query.set('path', requestPath)
       if (search) query.set('search', search)
       const suffix = query.size ? `?${query.toString()}` : ''
       return `/api/agent-sessions/${encodeURIComponent(conversationId)}/workspace/${route}${suffix}`
@@ -1450,7 +1493,7 @@ const App = defineComponent({
       }
     }
 
-    const mountWorkspacePptxPreview = async (container: HTMLElement, data: ArrayBuffer, filePath: string) => {
+    const mountWorkspacePptxPreview = async (container: HTMLElement, data: ArrayBuffer, requestPath: string) => {
       releaseWorkspacePptxPreview()
       const controller = new AbortController()
       workspacePptxPreviewController = controller
@@ -1460,7 +1503,7 @@ const App = defineComponent({
           controller.signal.aborted ||
           workspacePptxPreviewController !== controller ||
           workspaceFilePreview.value.status !== 'pptx' ||
-          workspaceFilePreview.value.path !== filePath
+          workspaceFilePreview.value.path !== requestPath
         ) {
           handle.destroy()
           return
@@ -1468,8 +1511,8 @@ const App = defineComponent({
         workspacePptxPreviewDestroy = handle.destroy
       } catch (error) {
         if (controller.signal.aborted || workspacePptxPreviewController !== controller) return
-        if (workspaceFilePreview.value.status === 'pptx' && workspaceFilePreview.value.path === filePath) {
-          workspaceFilePreview.value = { status: 'error', path: filePath, message: text('fileUnavailable') }
+        if (workspaceFilePreview.value.status === 'pptx' && workspaceFilePreview.value.path === requestPath) {
+          workspaceFilePreview.value = { status: 'error', path: requestPath, message: text('fileUnavailable') }
         }
       }
     }
@@ -1483,6 +1526,7 @@ const App = defineComponent({
       workspaceDirectoryEntries.value = {}
       workspaceExpandedDirectories.value = new Set()
       workspaceFileSearch.value = ''
+      workspacePathDraft.value = ''
       workspaceSearchEntries.value = []
       workspaceFilesLoading.value = false
       workspaceFilesError.value = ''
@@ -1490,8 +1534,8 @@ const App = defineComponent({
       workspaceFilePreview.value = { status: 'idle' }
     }
 
-    const loadWorkspaceDirectory = async (directory = '', force = false) => {
-      if (!selectedConversation.value?.workspacePath) {
+    const loadWorkspaceDirectory = async (directory = workspaceRootKey.value, force = false) => {
+      if (!selectedConversationId.value) {
         workspaceFilesError.value = text('filesEmpty')
         return
       }
@@ -1520,8 +1564,8 @@ const App = defineComponent({
     }
 
     const loadWorkspaceSearch = async (query: string) => {
-      const apiPath = workspaceApiPath('files', '', query)
-      if (!apiPath || !selectedConversation.value?.workspacePath || !authRequired.value) {
+      const apiPath = workspaceApiPath('files', workspaceRootKey.value, query)
+      if (!apiPath || !selectedConversationId.value || !authRequired.value) {
         workspaceSearchEntries.value = []
         if (!authRequired.value) workspaceFilesError.value = text('fileAuthRequired')
         return
@@ -1554,7 +1598,15 @@ const App = defineComponent({
       workspaceDirectoryEntries.value = {}
       workspaceSearchEntries.value = []
       if (search) void loadWorkspaceSearch(search)
-      else void loadWorkspaceDirectory('', true)
+      else void loadWorkspaceDirectory(workspaceRootKey.value, true)
+    }
+
+    const openWorkspaceRootPath = () => {
+      workspaceFileSearch.value = ''
+      workspaceExpandedDirectories.value = new Set()
+      closeWorkspaceFilePreview()
+      workspaceDirectoryEntries.value = {}
+      void loadWorkspaceDirectory(workspaceRootKey.value, true)
     }
 
     const toggleWorkspaceDirectory = (directory: string) => {
@@ -1576,15 +1628,17 @@ const App = defineComponent({
     }
 
     const openWorkspaceFile = async (filePath: string) => {
-      const previewKind = getWorkspaceFilePreviewKind(filePath)
+      const requestPath = resolveWorkspaceRequestPath(selectedConversation.value?.workspacePath, filePath)
+      if (!requestPath) return
+      const previewKind = getWorkspaceFilePreviewKind(requestPath)
       const isBinaryPreview =
         previewKind === 'image' || previewKind === 'pdf' || previewKind === 'docx' || previewKind === 'pptx'
-      const apiPath = workspaceApiPath(isBinaryPreview ? 'preview' : 'file', filePath)
+      const apiPath = workspaceApiPath(isBinaryPreview ? 'preview' : 'file', requestPath)
       if (!apiPath) return
 
       releaseWorkspacePreview()
-      selectedWorkspaceFile.value = filePath
-      workspaceFilePreview.value = { status: 'loading', path: filePath }
+      selectedWorkspaceFile.value = requestPath
+      workspaceFilePreview.value = { status: 'loading', path: requestPath }
       const requestGeneration = ++workspacePreviewRequestGeneration
       const conversationId = selectedConversationId.value
       try {
@@ -1604,8 +1658,8 @@ const App = defineComponent({
               return
             workspaceFilePreview.value = {
               status: 'docx',
-              path: filePath,
-              name: getWorkspacePathBasename(filePath),
+              path: requestPath,
+              name: getWorkspacePathBasename(requestPath),
               ...rendered
             }
             return
@@ -1619,16 +1673,16 @@ const App = defineComponent({
               return
             workspaceFilePreview.value = {
               status: 'pptx',
-              path: filePath,
-              name: getWorkspacePathBasename(filePath),
+              path: requestPath,
+              name: getWorkspacePathBasename(requestPath),
               data
             }
             return
           }
           workspaceFilePreview.value = {
             status: previewKind,
-            path: filePath,
-            name: getWorkspacePathBasename(filePath),
+            path: requestPath,
+            name: getWorkspacePathBasename(requestPath),
             url: URL.createObjectURL(blob)
           }
           return
@@ -1639,16 +1693,35 @@ const App = defineComponent({
           return
         workspaceFilePreview.value =
           response.kind === 'text'
-            ? { status: 'text', path: filePath, name: response.name, content: response.content ?? '' }
-            : { status: 'binary', path: filePath, name: response.name }
+            ? { status: 'text', path: requestPath, name: response.name, content: response.content ?? '' }
+            : { status: 'binary', path: requestPath, name: response.name }
       } catch (error) {
         if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value)
           return
         workspaceFilePreview.value = {
           status: 'error',
-          path: filePath,
+          path: requestPath,
           message: getWorkspaceFileErrorMessage(error)
         }
+      }
+    }
+
+    const handleMarkdownContentClick = (event: MouseEvent) => {
+      const target =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-webui-copy-code], [data-webui-file-path]')
+          : null
+      if (!target) return
+      if (target.dataset.webuiCopyCode !== undefined) {
+        const code = target.closest('.markdown-code-block')?.querySelector('pre code')?.textContent ?? ''
+        if (code) void copyText(code).then(() => showCopiedHint(text('copyCode')))
+        return
+      }
+      const filePath = target.dataset.webuiFilePath
+      if (filePath) {
+        event.preventDefault()
+        openFilesPanel()
+        void openWorkspaceFile(filePath)
       }
     }
 
@@ -1657,7 +1730,7 @@ const App = defineComponent({
       statusPreviewOpen.value = false
       statusPanelOpen.value = true
       rightPanelTab.value = 'files'
-      if (!workspaceDirectoryEntries.value['']) void loadWorkspaceDirectory()
+      if (!workspaceDirectoryEntries.value[workspaceRootKey.value]) void loadWorkspaceDirectory(workspaceRootKey.value)
     }
 
     const openWorkspaceArtifact = (artifact: WebUiAgentArtifact) => {
@@ -1965,7 +2038,8 @@ const App = defineComponent({
                         : previewKind === 'markdown'
                           ? h('div', {
                               class: 'workspace-markdown-preview markdown-content',
-                              innerHTML: renderMarkdown(preview.content)
+                              onClick: handleMarkdownContentClick,
+                              innerHTML: renderMarkdown(preview.content, { copyCodeLabel: text('copyCode') })
                             })
                           : h(
                               'pre',
@@ -1980,12 +2054,41 @@ const App = defineComponent({
 
     const renderWorkspaceFilesPanel = () => {
       const search = workspaceFileSearch.value.trim()
-      const rootEntries = (workspaceDirectoryEntries.value[''] ?? []).map((entry) => ({ ...entry }))
+      const rootEntries = (workspaceDirectoryEntries.value[workspaceRootKey.value] ?? []).map((entry) => ({ ...entry }))
       const nodes = search ? workspaceSearchTree.value : rootEntries
       return h('div', { class: 'workspace-files-panel' }, [
         renderWorkspaceFilePreview() ??
           h('div', { class: 'workspace-files-browser' }, [
             h('div', { class: 'workspace-files-toolbar' }, [
+              h('div', { class: 'workspace-file-path-wrap' }, [
+                h('input', {
+                  class: 'workspace-file-path-input',
+                  type: 'text',
+                  value: workspacePathDraft.value,
+                  placeholder: workspaceRootPath.value || text('pathInputPlaceholder'),
+                  'aria-label': text('pathInputPlaceholder'),
+                  onInput: (event: Event) => {
+                    workspacePathDraft.value = (event.target as HTMLInputElement).value
+                  },
+                  onKeydown: (event: KeyboardEvent) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      openWorkspaceRootPath()
+                    }
+                  }
+                }),
+                h(
+                  'button',
+                  {
+                    class: 'workspace-files-refresh',
+                    type: 'button',
+                    title: text('openPath'),
+                    'aria-label': text('openPath'),
+                    onClick: openWorkspaceRootPath
+                  },
+                  renderActionIcon('folder')
+                )
+              ]),
               h('div', { class: 'workspace-file-search-wrap' }, [
                 h('span', { class: 'workspace-file-search-icon', 'aria-hidden': 'true' }, renderActionIcon('search')),
                 h('input', {
@@ -2013,7 +2116,7 @@ const App = defineComponent({
             ]),
             h('div', { class: 'workspace-files-root-label' }, [
               renderActionIcon('folder'),
-              h('span', selectedConversation.value?.workspaceLabel ?? text('files'))
+              h('span', workspaceRootLabel.value)
             ]),
             h('div', { class: 'workspace-file-tree' }, [
               workspaceFilesLoading.value && !nodes.length
@@ -2789,16 +2892,30 @@ const App = defineComponent({
           ? h(
               'button',
               {
-                class: 'message-action-button',
+                class: 'message-action-chip',
                 type: 'button',
-                title: text('copy'),
-                'aria-label': text('copy'),
-                onClick: () => void copyText(message.content)
+                title: text('copyMarkdown'),
+                'aria-label': text('copyMarkdown'),
+                onClick: () => {
+                  void copyText(message.content).then(() => showCopiedHint(text('copyMarkdown')))
+                }
               },
-              h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
-                h('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
-                h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
-              ])
+              'MD'
+            )
+          : undefined,
+        message.content
+          ? h(
+              'button',
+              {
+                class: 'message-action-chip',
+                type: 'button',
+                title: text('copyPlainText'),
+                'aria-label': text('copyPlainText'),
+                onClick: () => {
+                  void copyText(markdownToPlainText(message.content)).then(() => showCopiedHint(text('copyPlainText')))
+                }
+              },
+              'TXT'
             )
           : undefined,
         message.content
@@ -2848,7 +2965,8 @@ const App = defineComponent({
             h('path', { d: 'M10 11v5' }),
             h('path', { d: 'M14 11v5' })
           ])
-        )
+        ),
+        copiedHint.value ? h('span', { class: 'message-copy-hint', role: 'status' }, text('copied')) : undefined
       ])
 
     const copyText = async (value: string) => {
@@ -3498,7 +3616,11 @@ const App = defineComponent({
                               )
                             : undefined,
                           message.content
-                            ? h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.content) })
+                            ? h('div', {
+                                class: 'markdown-content',
+                                onClick: handleMarkdownContentClick,
+                                innerHTML: renderMarkdown(message.content, { copyCodeLabel: text('copyCode') })
+                              })
                             : message.toolCalls?.length
                               ? undefined
                               : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
@@ -5027,6 +5149,41 @@ style.textContent = `
     border-bottom: 1px solid var(--webui-divider);
   }
 
+  .workspace-file-path-wrap {
+    display: flex;
+    min-width: 0;
+    flex: 1.15;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .workspace-file-path-input,
+  .workspace-file-search {
+    width: 100%;
+    height: 32px;
+    color: #334155;
+    font-size: 12px;
+    background: #f8fafc;
+    border: 1px solid #dbe1ea;
+    border-radius: 7px;
+    outline: 0;
+  }
+
+  .workspace-file-path-input {
+    min-width: 0;
+    padding: 0 9px;
+  }
+
+  .workspace-file-search {
+    padding: 0 9px 0 28px;
+  }
+
+  .workspace-file-path-input:focus,
+  .workspace-file-search:focus {
+    background: #ffffff;
+    border-color: #94a3b8;
+  }
+
   .workspace-file-search-wrap {
     position: relative;
     min-width: 0;
@@ -5047,23 +5204,6 @@ style.textContent = `
   .workspace-file-search-icon svg {
     width: 14px;
     height: 14px;
-  }
-
-  .workspace-file-search {
-    width: 100%;
-    height: 32px;
-    padding: 0 9px 0 28px;
-    color: #334155;
-    font-size: 12px;
-    background: #f8fafc;
-    border: 1px solid #dbe1ea;
-    border-radius: 7px;
-    outline: 0;
-  }
-
-  .workspace-file-search:focus {
-    background: #ffffff;
-    border-color: #94a3b8;
   }
 
   .workspace-files-refresh,
@@ -5728,9 +5868,9 @@ style.textContent = `
     place-items: center;
   }
 
-  .message-action-button {
+  .message-action-button,
+  .message-action-chip {
     display: grid;
-    width: 28px;
     height: 28px;
     padding: 0;
     place-items: center;
@@ -5741,6 +5881,18 @@ style.textContent = `
     cursor: pointer;
     opacity: 0.62;
     transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+  }
+
+  .message-action-button {
+    width: 28px;
+  }
+
+  .message-action-chip {
+    min-width: 34px;
+    padding: 0 7px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
   }
 
   .message-action-button svg {
@@ -5755,7 +5907,9 @@ style.textContent = `
   }
 
   .message-action-button:hover,
-  .message-action-button:focus-visible {
+  .message-action-button:focus-visible,
+  .message-action-chip:hover,
+  .message-action-chip:focus-visible {
     background: rgb(15 23 42 / 8%);
     outline: 0;
     opacity: 1;
@@ -5776,7 +5930,9 @@ style.textContent = `
   }
 
   .user-message .message-action-button:hover,
-  .user-message .message-action-button:focus-visible {
+  .user-message .message-action-button:focus-visible,
+  .user-message .message-action-chip:hover,
+  .user-message .message-action-chip:focus-visible {
     background: rgb(255 255 255 / 16%);
   }
 
@@ -5784,10 +5940,12 @@ style.textContent = `
     color: #bfdbfe;
   }
 
-  .message-delete-button:hover,
-  .message-delete-button:focus-visible {
-    color: #b42318;
+  .message-copy-hint {
+    color: #64748b;
+    font-size: 11px;
+    white-space: nowrap;
   }
+
 
   .user-message .message-delete-button:hover,
   .user-message .message-delete-button:focus-visible {
@@ -5906,9 +6064,76 @@ style.textContent = `
     font-weight: 700;
   }
 
-  .markdown-content a {
-    color: #1d4ed8;
+  .markdown-code-block {
+    position: relative;
+    margin: 0.85em 0;
   }
+
+  .markdown-code-block pre {
+    margin: 0;
+    padding-top: 34px;
+  }
+
+  .markdown-code-language {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    z-index: 1;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .markdown-code-copy {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 1;
+    height: 24px;
+    padding: 0 8px;
+    color: #64748b;
+    font-size: 11px;
+    background: rgb(255 255 255 / 86%);
+    border: 1px solid var(--webui-code-border);
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 140ms ease, background 140ms ease, color 140ms ease;
+  }
+
+  .markdown-code-block:hover .markdown-code-copy,
+  .markdown-code-copy:focus-visible {
+    opacity: 1;
+  }
+
+  .markdown-code-copy:hover,
+  .markdown-code-copy:focus-visible {
+    color: #111827;
+    background: #ffffff;
+    outline: 0;
+  }
+
+  .webui-file-link {
+    display: inline-flex;
+    max-width: 100%;
+    padding: 0;
+    color: #1d4ed8;
+    font: inherit;
+    text-align: left;
+    overflow-wrap: anywhere;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .webui-file-link:hover,
+  .webui-file-link:focus-visible {
+    text-decoration: underline;
+    outline: 0;
+  }
+
 
   .markdown-content table {
     display: block;
