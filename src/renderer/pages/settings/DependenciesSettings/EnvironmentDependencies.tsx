@@ -76,7 +76,6 @@ import {
   NPM_REGISTRY_PRESETS,
   PIP_INDEX_PRESETS
 } from './binaryInstallPresets'
-import LocalModelsSection from './LocalModelsSection'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
@@ -419,8 +418,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           )
         })}
       </div>
-
-      {!mini && <LocalModelsSection />}
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
       <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />

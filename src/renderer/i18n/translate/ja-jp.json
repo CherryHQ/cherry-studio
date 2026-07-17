@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "メッセージをクリア"
       },
@@ -5370,7 +5371,7 @@
         "icon": {
           "error": "無効なアイコン名です",
           "label": "アイコン",
-          "placeholder": "Lucideアイコン名を入力",
+          "placeholder": "アイコン名",
           "random": "ランダム選択",
           "tooltip": "例: arrow-right（小文字で入力）",
           "view_all": "全アイコンを表示"
@@ -6156,7 +6157,8 @@
           "downloading": "ダウンロード中…",
           "ready": "準備完了"
         },
-        "title": "ローカルモデル"
+        "title": "ローカルモデル",
+        "unsupported": "このプラットフォームではローカルモデルはサポートされていません。"
       },
       "notInstalled": "インストールされていません",
       "openBinariesDir": "Open binaries directory",
@@ -6643,10 +6645,10 @@
       "user": "ユーザー"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "機能とツール",
+      "automation": "効率",
+      "capabilities": "ツール",
       "models": "モデル",
-      "personal": "個人",
+      "personal": "環境設定",
       "quickAccess": "クイックアクセス",
       "system": "システム"
     },

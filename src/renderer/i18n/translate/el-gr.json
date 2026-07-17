@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} διακριτικά",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Καθαρισμός μηνυμάτων"
       },
@@ -5370,7 +5371,7 @@
         "icon": {
           "error": "Μη έγκυρο όνομα εικονιδίου, ελέγξτε την εισαγωγή",
           "label": "Εικονίδιο",
-          "placeholder": "Εισαγωγή ονόματος εικονιδίου Lucide",
+          "placeholder": "Όνομα εικονιδίου",
           "random": "Τυχαίο εικονίδιο",
           "tooltip": "Το όνομα εικονιδίου Lucide είναι με πεζά, π.χ. arrow-right",
           "view_all": "Προβολή όλων των εικονιδίων"
@@ -6156,7 +6157,8 @@
           "downloading": "Λήψη…",
           "ready": "Έτοιμος"
         },
-        "title": "Τοπικά Μοντέλα"
+        "title": "Τοπικά Μοντέλα",
+        "unsupported": "Τα τοπικά μοντέλα δεν υποστηρίζονται σε αυτήν την πλατφόρμα."
       },
       "notInstalled": "Δεν έχει εγκατασταθεί",
       "openBinariesDir": "Open binaries directory",
@@ -6643,10 +6645,10 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "automation": "Αυτοματοποίηση",
-      "capabilities": "Δυνατότητες & Εργαλεία",
+      "automation": "Αποδοτικότητα",
+      "capabilities": "Εργαλεία",
       "models": "Μοντέλα",
-      "personal": "Προσωπικό",
+      "personal": "Προτιμήσεις",
       "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },

@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Generate conversation name",
+      "auto_rename_failed": "Failed to auto-generate conversation name",
       "clear": {
         "title": "Clear Messages"
       },
@@ -4787,6 +4788,7 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "revealing": "Revealing generated image",
     "safety_tolerance": "Safety Tolerance",
     "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
@@ -5444,7 +5446,7 @@
         "icon": {
           "error": "Invalid icon name, please check your input",
           "label": "Icon",
-          "placeholder": "Enter Lucide icon name",
+          "placeholder": "Icon name",
           "random": "Random Icon",
           "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
           "view_all": "View All Icons"
@@ -6230,7 +6232,8 @@
           "downloading": "Downloading…",
           "ready": "Ready"
         },
-        "title": "Local Models"
+        "title": "Local Models",
+        "unsupported": "Local models are not supported on this platform."
       },
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
@@ -6720,10 +6723,10 @@
       "user": "User"
     },
     "menuGroups": {
-      "automation": "Automation",
-      "capabilities": "Capabilities & Tools",
+      "automation": "Efficiency",
+      "capabilities": "Tools",
       "models": "Models",
-      "personal": "Personal",
+      "personal": "Preferences",
       "quickAccess": "Quick Access",
       "system": "System"
     },

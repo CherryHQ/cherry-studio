@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} токенов",
     "topics": {
       "auto_rename": "Автопереименование",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Очистить сообщения"
       },
@@ -5370,7 +5371,7 @@
         "icon": {
           "error": "Некорректное название",
           "label": "Иконка",
-          "placeholder": "Название иконки Lucide",
+          "placeholder": "Название иконки",
           "random": "Случайная",
           "tooltip": "Названия в lowercase, например arrow-right",
           "view_all": "Все иконки"
@@ -6156,7 +6157,8 @@
           "downloading": "Загрузка…",
           "ready": "Готов"
         },
-        "title": "Локальные модели"
+        "title": "Локальные модели",
+        "unsupported": "Локальные модели не поддерживаются на этой платформе."
       },
       "notInstalled": "Не установлено",
       "openBinariesDir": "Open binaries directory",
@@ -6643,10 +6645,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Автоматизация",
-      "capabilities": "Возможности и инструменты",
+      "automation": "Эффективность",
+      "capabilities": "Инструменты",
       "models": "Модели",
-      "personal": "Личный",
+      "personal": "Предпочтения",
       "quickAccess": "Быстрый доступ",
       "system": "Система"
     },

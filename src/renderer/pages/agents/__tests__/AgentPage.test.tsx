@@ -315,27 +315,6 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => agentPageMocks.routeSearch
 }))
 
-vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
-  default: ({
-    center,
-    pane,
-    paneOpen,
-    topBar
-  }: {
-    center?: { content?: ReactNode }
-    pane?: ReactNode
-    paneOpen?: boolean
-    topBar?: ReactNode
-  }) => (
-    <section data-testid="agent-conversation-page-shell">
-      <output data-testid="resource-pane-open">{String(paneOpen)}</output>
-      {topBar}
-      {pane}
-      {center?.content}
-    </section>
-  )
-}))
-
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   default: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
     <section data-testid="agent-conversation-shell">
@@ -398,6 +377,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../AgentChat', () => ({
   default: ({
+    centerSurface,
     activeSession,
     activeSessionLoading,
     missingAgentSelection,
@@ -419,6 +399,7 @@ vi.mock('../AgentChat', () => ({
     onPaneCollapse,
     onPaneAutoCollapseChange
   }: {
+    centerSurface?: { content?: ReactNode } | null
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
     missingAgentSelection?: boolean
@@ -504,6 +485,12 @@ vi.mock('../AgentChat', () => ({
       )}
       {pane}
       {resourcePane?.node}
+      {centerSurface && (
+        <section data-testid="agent-conversation-page-shell">
+          <output data-testid="resource-pane-open">{String(paneOpen)}</output>
+          {centerSurface.content}
+        </section>
+      )}
     </section>
   )
 }))
@@ -926,7 +913,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.sessionExpansionAgent).toEqual(['session:agent:agent-b', 'session:agent:agent-c'])
   })
 
-  it('renders the agent resource view outside AgentChat runtime', () => {
+  it('renders the agent resource view inside the stable AgentChat shell', () => {
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -935,7 +922,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
   })
 
   it('keeps system skill management available for the built-in Assistant', () => {
@@ -956,7 +943,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('resource-catalog-skill')).toHaveAttribute('data-skill-agent-id', 'agent-a')
   })
 
-  it('renders history records outside AgentChat runtime and toggles them from the sidebar', () => {
+  it('renders history records inside the stable AgentChat shell and toggles them from the sidebar', () => {
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -967,7 +954,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'true')
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
@@ -987,7 +974,7 @@ describe('AgentPage', () => {
 
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
   })
 
   it('keeps the agent resource view open while opening the classic-layout agent create dialog', () => {
@@ -1003,7 +990,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
   })
 
   it('keeps the agent resource view open until the created agent session is ready', async () => {
@@ -1040,7 +1027,7 @@ describe('AgentPage', () => {
     )
     expect(screen.queryByTestId('agent-create-dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
 
     await act(async () => {
       resolveSession({
