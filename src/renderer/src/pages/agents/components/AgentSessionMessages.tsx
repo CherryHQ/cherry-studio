@@ -3,6 +3,7 @@ import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useAutoLoadMore } from '@renderer/hooks/useAutoLoadMore'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -153,17 +154,6 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
-  // Guard: suppress InfiniteScroll triggers during scroll position restoration
-  const isRestoringScrollRef = useRef(true)
-
-  useEffect(() => {
-    isRestoringScrollRef.current = true
-    const timer = setTimeout(() => {
-      isRestoringScrollRef.current = false
-    }, 150)
-    return () => clearTimeout(timer)
-  }, [sessionId])
-
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, AGENT_PAGE_SIZE)
     setDisplayMessages(newDisplayMessages)
@@ -195,7 +185,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   }, [groupedMessages.length, isSessionLoading, session])
 
   const loadMoreMessages = useCallback(() => {
-    if (!hasMore || isLoadingMore || isRestoringScrollRef.current) return
+    if (!hasMore || isLoadingMore) return
 
     setIsLoadingMore(true)
     setTimeoutTimer(
@@ -211,6 +201,14 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       300
     )
   }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
+
+  useAutoLoadMore({
+    containerRef: scrollContainerRef,
+    itemCount: displayMessages.length,
+    hasMore,
+    isLoading: isLoadingMore,
+    loadMore: loadMoreMessages
+  })
 
   const sessionAssistantId = session?.agent_id ?? agentId
   const sessionName = session?.name ?? sessionId

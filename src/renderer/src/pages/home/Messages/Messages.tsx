@@ -3,6 +3,7 @@ import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAutoLoadMore } from '@renderer/hooks/useAutoLoadMore'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
@@ -266,6 +267,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       300
     )
   }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
+
+  useAutoLoadMore({
+    containerRef: scrollContainerRef,
+    itemCount: displayMessages.length,
+    hasMore,
+    isLoading: isLoadingMore,
+    loadMore: loadMoreMessages
+  })
 
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
