@@ -2,12 +2,12 @@
 
 > **Token architecture:** The normative v2 contract for variable layers, Shadcn/Tailwind mappings, compatibility,
 > and migration metadata is
-> [`packages/ui/docs/design-token-system.md`](./packages/ui/docs/design-token-system.md). Existing `--cs-*` values
-> remain the temporary value provider while consumers move to the canonical Shadcn variables.
+> [`packages/ui/docs/design-token-system.md`](./packages/ui/docs/design-token-system.md). Official Shadcn semantics
+> remain unprefixed; approved Cherry Studio product semantics use the `--cs-*` namespace.
 
 ## 1. Visual Theme & Atmosphere
 
-> **Source of truth:** current value providers live in `packages/ui/src/styles/tokens/`, the canonical semantic contract lives in `packages/ui/src/styles/shadcn.css`, and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.
+> **Source of truth:** current value providers and approved `--cs-*` product semantics live in `packages/ui/src/styles/tokens/`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 

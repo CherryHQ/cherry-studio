@@ -16,40 +16,37 @@ The repository currently contains multiple variable families with different resp
 
 | Family | Current role | Target role |
 | --- | --- | --- |
-| `--cs-{palette}-{step}` | Primitive palette | Temporary value provider; unchanged in this PR |
-| existing semantic `--cs-*` | Partially standardized shared semantics | Temporary value provider for the new contract |
+| `--cs-{palette}-{step}` | Primitive palette | Internal value provider; unchanged in this PR |
+| existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Classified as approved product token or migration source |
+| approved product `--cs-*` | Incomplete | Canonical Cherry Studio product API |
 | generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
-| renderer `--app-*` | App-shell values plus duplicated Shadcn roles | App-only concepts; duplicated roles migrate later |
+| renderer `--app-*` | App-shell values plus duplicated Shadcn roles | Compatibility layer; product concepts migrate to `--cs-*` |
 | `legacy-vars.css` | Historical aliases and live literals | Compatibility-only layer, removed after migration |
-| canonical Shadcn variables | Incomplete or missing | The single target semantic API |
+| official Shadcn variables | Incomplete or missing | Canonical ecosystem-compatible API |
 
-The new system does not create another independent palette. It creates a canonical semantic layer over the
+The new system does not create another independent palette. It creates two explicit semantic APIs over the
 values already shipped by Cherry Studio:
 
 ```text
-existing --cs-* values
-        │ temporary provider
-        ▼
-canonical Shadcn variables
-(--background, --primary, --muted-foreground, ...)
-        │
-        ▼
-Tailwind @theme inline adapter
-(--color-background, --color-primary, ...)
-        │
-        ▼
-bg-background / text-muted-foreground / border-border / ...
+existing values
+   ├── official Shadcn semantics ──────────┐
+   │   (--background, --primary, ...)      │
+   │                                      ├── Tailwind @theme inline adapter
+   └── Cherry Studio product semantics ───┘   (--color-background, --color-success, ...)
+       (--cs-success, --cs-{domain}-*, ...)                │
+                                                           ▼
+                                         bg-background / bg-success / ...
 ```
 
-During migration, compatibility variables may point toward this flow. The canonical layer must never point to
-`--color-*`, `--app-*`, or legacy variables.
+During migration, compatibility variables may point toward this flow. Official and product semantic variables
+must never point to `--color-*`, `--app-*`, or legacy variables.
 
 ## 2. Scope of the v2 contract
 
 This contract includes:
 
 1. the complete Shadcn color contract for light and dark modes;
-2. a small set of Cherry Studio semantic extensions;
+2. a `--cs-*` namespace for approved Cherry Studio product semantics;
 3. a canonical `--radius` input and Tailwind radius mappings;
 4. an explicit Tailwind CSS v4 `@theme inline` adapter;
 5. a machine-readable registry for later automated migration;
@@ -70,16 +67,16 @@ DTCG may become a future source format. It is not a prerequisite for having a co
 
 ### 3.1 Existing value layer
 
-The current `--cs-*` variables remain the authored value source during this PR. They may contain primitive values
-or the existing light/dark semantic mappings.
+Existing `--cs-*` variables remain an authored value source during migration. They may contain primitive values,
+approved product semantics, or historical light/dark mappings.
 
-New shared components must not start consuming additional `--cs-*` semantics directly. They should consume the
-canonical variable or its Tailwind utility. This prevents the temporary provider from becoming a second public
-contract.
+The prefix alone does not make an existing variable public. New code may consume only an approved product token
+listed by the generated contract. Primitive and unclassified `--cs-*` variables remain internal migration
+sources.
 
-### 3.2 Canonical semantic layer
+### 3.2 Official Shadcn semantic layer
 
-Unprefixed Shadcn variables are the target public theme API:
+Unprefixed Shadcn variables are the ecosystem-compatible public theme API:
 
 ```css
 --background
@@ -96,11 +93,50 @@ Rules:
 - surface roles use a matching `*-foreground` when content can be placed on the surface;
 - light and dark modes override the same names, never `*-light` or `*-dark` variants;
 - `muted-foreground` is canonical; `foreground-muted` must not be added;
-- canonical variables may temporarily alias `--cs-*` values;
-- canonical variables must not reference Tailwind `--color-*` output;
+- official variables may temporarily alias existing `--cs-*` values;
+- official variables must not reference Tailwind `--color-*` output;
 - runtime customization enters through an approved input and resolves into canonical output.
 
-### 3.3 Tailwind adapter
+### 3.3 Cherry Studio product semantic layer
+
+Product concepts that Shadcn does not define use the `--cs-*` namespace:
+
+```text
+--cs-background-subtle
+--cs-success
+--cs-success-foreground
+--cs-chat-user
+--cs-chat-user-foreground
+--cs-window-titlebar-height
+```
+
+Naming grammar:
+
+```text
+--cs-{domain?}-{role}-{variant?}-{state?}
+```
+
+Rules:
+
+- use a flat role only for product-wide semantics such as `--cs-success`;
+- include a domain for application concepts such as `--cs-chat-user`;
+- preserve surface/foreground pairs;
+- place state last, for example `--cs-chat-user-hover`;
+- reference official Shadcn variables when a product role should follow TweakCN themes;
+- do not encode palette names or add a token for a single use site;
+- new product variables require addition to the explicit generated allowlist.
+
+Example:
+
+```css
+--cs-chat-user: var(--primary);
+--cs-chat-user-foreground: var(--primary-foreground);
+```
+
+TweakCN can change `--primary` without knowing the Cherry-specific variable, and the product role follows it
+automatically.
+
+### 3.4 Tailwind adapter
 
 Tailwind theme variables are generated adapter output:
 
@@ -110,6 +146,7 @@ Tailwind theme variables are generated adapter output:
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--cs-success);
 }
 ```
 
@@ -124,25 +161,28 @@ text-primary-foreground
 text-muted-foreground
 border-border
 ring-ring
+bg-success
+text-success-foreground
 ```
 
 `--color-*` is not a design source and runtime code must not write to it. Existing non-semantic palette utilities
 remain available as compatibility API in this PR, but new shared UI should prefer semantic utilities.
 
-### 3.4 Application layer
+### 3.5 Application domains
 
-Product-only concepts use `--app-*`, for example:
+Application-only concepts use a Cherry Studio domain rather than a second ownership prefix:
 
 ```css
---app-sidebar-glow-color
---app-selection-toolbar-height
---app-window-background
+--cs-sidebar-glow-color
+--cs-selection-toolbar-height
+--cs-window-background
 ```
 
-An `--app-*` variable must represent an application concept. Names such as `--app-card-foreground` and
-`--app-muted-foreground` duplicate the shared contract and are migration targets, not permanent architecture.
+Existing `--app-*` variables are compatibility sources. Names such as `--app-card-foreground` and
+`--app-muted-foreground` duplicate the official Shadcn contract; true product concepts migrate to an approved
+`--cs-{domain}-*` name.
 
-### 3.5 Legacy layer
+### 3.6 Legacy layer
 
 Legacy files may contain aliases while old consumers still exist:
 
@@ -206,33 +246,33 @@ The first implementation preserves current design decisions by using the existin
 Charts are additive because the shared layer currently has no complete chart contract. They use an explicit,
 mode-aware five-color sequence and do not change existing component rendering until consumed.
 
-### 4.3 Cherry Studio color extensions
+### 4.3 Cherry Studio product color extensions
 
 Only repeated product-wide intent that Shadcn does not express belongs in the shared extension set:
 
 ```text
-background-subtle
-border-subtle
-border-strong
+--cs-background-subtle
+--cs-border-subtle
+--cs-border-strong
 ```
 
 The feedback intents are:
 
 ```text
-success
-warning
-info
-error
+--cs-success
+--cs-warning
+--cs-info
+--cs-error
 ```
 
 Each intent has the same shape:
 
 ```text
-{intent}
-{intent}-foreground
-{intent}-subtle
-{intent}-subtle-foreground
-{intent}-border
+--cs-{intent}
+--cs-{intent}-foreground
+--cs-{intent}-subtle
+--cs-{intent}-subtle-foreground
+--cs-{intent}-border
 ```
 
 `destructive` and `error` are distinct. `destructive` styles a dangerous action; `error` communicates system
@@ -286,7 +326,7 @@ without allowing runtime code to mutate `--color-primary` or component variables
 
 Rules:
 
-- every canonical token resolves in every supported mode;
+- every official and product semantic token resolves in every supported mode;
 - a mode cannot define only half of a surface/foreground pair;
 - runtime inputs always have an authored fallback;
 - component code should not add `dark:*` palette substitutions when a semantic token can express the mode;
@@ -315,8 +355,8 @@ Examples:
 | `--color-text-2` | `--muted-foreground` | `contextual` |
 | `--color-text-3` | no universal target | `review` |
 | `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
-| duplicated `--app-{shadcn-role}` | matching canonical variable | `exact` after value parity |
-| chat, navbar, window, and glow variables | matching `--app-*` concept | `preserve` or `contextual` |
+| duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` after value parity |
+| product chat, navbar, window, and glow variables | approved `--cs-{domain}-*` concept | `preserve` or `contextual` |
 
 A future migration plugin must parse CSS and TS/TSX syntax, be idempotent, provide a dry run, skip generated and
 vendor files, change only approved `exact`/`contextual` rules, and report ambiguous or unmapped usage. Regex-only
@@ -324,7 +364,7 @@ mutation is not sufficient.
 
 ## 8. Governance
 
-Adding or changing a canonical variable is a shared API change.
+Adding or changing an official Shadcn variable or approved `--cs-*` product variable is a shared API change.
 
 A proposal must state:
 
@@ -342,7 +382,7 @@ normally inherit `currentColor`; component hover/active states normally stay in 
 The generated contract must validate that:
 
 - all required Shadcn variables exist;
-- every Tailwind semantic color maps to its canonical variable with `@theme inline`;
+- every Tailwind semantic color maps to its official or product semantic variable with `@theme inline`;
 - aliases resolve without cycles;
 - no source addition silently expands the canonical API;
 - generated CSS matches committed output;
@@ -353,7 +393,7 @@ The generated contract must validate that:
 The contract is delivered as independent commits:
 
 1. document the architecture and exact public contract;
-2. add the canonical variables and mode-aware Cherry extensions;
+2. add the official variables and mode-aware `--cs-*` Cherry product extensions;
 3. update the generated Tailwind adapter to `@theme inline` and explicit semantic mappings;
 4. add the migration registry and contract validation.
 

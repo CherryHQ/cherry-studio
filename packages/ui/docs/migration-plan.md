@@ -110,7 +110,7 @@ When submitting PRs, please place components in the correct directory based on t
 
 | Phase | Status | Main Tasks | Description |
 | --- | --- | --- | --- |
-| **Phase 1** | ✅ **Completed** | **Design System Integration** | • Converted design tokens from todocss.css to tokens.css with `--cs-*` namespace<br>• Created theme.css mapping design tokens to Tailwind classes<br>• Added token-level spacing values and an extended radius system; semantic spacing utilities remain intentionally disabled pending the target token migration<br>• Established two usage modes: full override and selective override<br>• Added a renderer bridge for compatibility while the shared shadcn contract is completed |
+| **Phase 1** | ✅ **Completed** | **Design System Integration** | • Converted design values from todocss.css to the token sources<br>• Added the official unprefixed Shadcn contract and the `--cs-*` Cherry Studio product namespace<br>• Generated explicit Tailwind mappings for both contracts<br>• Added token-level spacing values and an extended radius system; semantic spacing utilities remain intentionally disabled<br>• Added a renderer bridge for compatibility during consumer migration |
 | **Phase 2** | ⏳ **To Start** | **Component Migration and Optimization** | • Filter components for migration based on extraction criteria<br>• Remove antd dependencies, replace with shadcn/ui<br>• Remove HeroUI dependencies, replace with shadcn/ui<br>• Remove styled-components, replace with Tailwind CSS + design system variables<br>• Optimize component APIs and type definitions |
 | **Phase 3** | ⏳ **To Start** | **UI Refactoring and Optimization** | • Gradually implement UI refactoring with UI designers<br>• Ensure visual consistency and user experience<br>• Performance optimization and code quality improvement |
 
@@ -135,7 +135,8 @@ When submitting PRs, please place components in the correct directory based on t
 
 ### CSS Variable System
 
-- All design tokens use `--cs-*` namespace (e.g., `--cs-primary`, `--cs-red-500`)
+- Official Shadcn semantics remain unprefixed; approved Cherry Studio product semantics use `--cs-*`
+- Primitive and historical `--cs-*` variables remain internal migration sources unless explicitly allowlisted
 - Complete color palette: 17 colors × 11 shades each
 - Token-level spacing values: `5xs` through `8xl` (16 levels); they are not a public Tailwind utility contract
 - Semantic radius system: `4xs` through `3xl` plus `round` (11 levels)

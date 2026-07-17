@@ -117,20 +117,21 @@ Import only the design tokens and decide which theme mappings your app wants to 
 ### CSS Variable Rules
 
 The normative v2 architecture, Shadcn contract, and migration boundary are defined in
-[Design Token System](./docs/design-token-system.md). Existing `--cs-*` variables remain supported as the value
-provider while consumers migrate to the canonical semantic contract.
+[Design Token System](./docs/design-token-system.md). Official Shadcn variables remain unprefixed; approved
+Cherry Studio product variables use `--cs-*`.
 
 To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
 
-1. `--cs-*` is the existing value-provider namespace, sourced from `tokens/*`
-2. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the canonical semantic contract
-3. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
-4. `--cs-theme-*` is a controlled runtime input and must resolve into the canonical contract
+1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
+2. Approved Cherry Studio product semantics use `--cs-*`, such as `--cs-success` and `--cs-background-subtle`
+3. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
+4. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
+5. `--cs-theme-*` is a controlled runtime input and must resolve into the semantic contract
 
 Default consumption rules:
 
 1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
-2. Components should prefer semantic utilities such as `bg-background` and `text-muted-foreground`; custom CSS may use the matching canonical variable
+2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
 3. Only design-system-adjacent packages that explicitly need token-level access should depend on `@cherrystudio/ui/styles/tokens.css`
 4. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
 
