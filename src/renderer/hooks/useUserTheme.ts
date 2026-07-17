@@ -23,7 +23,8 @@ function getReadableAccentText(accent: ColorInstance, surface: ColorInstance): C
 
   for (let iteration = 0; iteration < 12; iteration += 1) {
     const weight = (insufficientWeight + sufficientWeight) / 2
-    const candidate = accent.mix(readableTarget, weight)
+    // Validate the same 8-bit RGB value that will be serialized into the CSS variable.
+    const candidate = Color(accent.mix(readableTarget, weight).toString())
 
     if (candidate.contrast(surface) >= MIN_TEXT_CONTRAST) {
       readableAccent = candidate
