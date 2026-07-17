@@ -11,10 +11,11 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { ipcApi } from '@renderer/ipc'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { useEffect } from 'react'
+
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
@@ -25,10 +26,12 @@ function useMcpStaleToolsWarning(): void {
   useEffect(() => {
     return ipcApi.on('mcp.server.tools_stale', ({ serverId, serverName, toolCount }) => {
       logger.warn('MCP server tools are stale', { serverId, serverName, toolCount })
-      toast.warning(
-        i18n.t('mcp.warning.toolsStale', { serverName, toolCount }),
-        { action: { label: i18n.t('common.settings'), onClick: () => ipcApi.request('navigation.open_route_in_main', { path: `/settings/mcp/settings/${serverId}` }) } }
-      )
+      toast.warning(i18n.t('mcp.warning.toolsStale', { serverName, toolCount }), {
+        action: {
+          label: i18n.t('common.settings'),
+          onClick: () => ipcApi.request('navigation.open_route_in_main', { path: `/settings/mcp/settings/${serverId}` })
+        }
+      })
     })
   }, [])
 }
