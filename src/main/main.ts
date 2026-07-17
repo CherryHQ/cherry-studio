@@ -42,7 +42,9 @@ const logger = loggerService.withContext('MainEntry')
 const startApp = async () => {
   // Factory-reset gate: consume a pending reset marker (wipe user data,
   // reset BootConfig) before the backup gate or the migration gate read
-  // anything. Never throws; without a marker it is a no-op.
+  // anything. Without a marker it is a no-op. Never throws, but quits the
+  // app when a completed wipe cannot durably clear its marker (booting on
+  // would re-wipe freshly created data on the next start).
   runFactoryResetGate()
 
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2

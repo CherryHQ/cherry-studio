@@ -129,10 +129,17 @@ preboot/
 │                        `temp.factory_reset` marker at the top of startApp()
 │                        — before backupRestoreGate, after the single-instance
 │                        lock and the frozen path registry — wiping userData
-│                        (except logs/) and CHERRY_HOME user state (config/,
-│                        mcp/, trace/), then resetting BootConfig to defaults
-│                        (keeping app.user_data_path). Idempotent: the marker
-│                        is cleared only after a full pass. Never throws.
+│                        (except the process-held logs/ and Crashpad/; only
+│                        Cherry-named artifacts when the directory fails the
+│                        whole-tree safety check) and CHERRY_HOME user state
+│                        (config/, mcp/, trace/ + the OVMS model registry),
+│                        then resetting BootConfig to defaults (keeping
+│                        app.user_data_path). Bounded retry: attempts are
+│                        counted in the marker (cap 2), critical delete
+│                        failures keep it pending, and the completed-wipe
+│                        marker clear is a HARD persist — if that write
+│                        fails the gate quits rather than arm a re-wipe of
+│                        freshly created data.
 ├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the
