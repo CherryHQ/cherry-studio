@@ -22,8 +22,11 @@ import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BackupUnavailableGate } from './BackupUnavailableGate'
+import BackupExportV2Popup from './BackupExportV2Popup'
 import { BackupV2DevExport } from './BackupV2DevExport'
+import { LegacyLocalBackupGate } from './LegacyLocalBackupGate'
+import RestoreV2Popup from './RestoreV2Popup'
+import { V2BackupActionGate } from './V2BackupActionGate'
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
@@ -192,7 +195,23 @@ const LocalBackupSettings: React.FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <BackupUnavailableGate>
+      <V2BackupActionGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={() => BackupExportV2Popup.show()} variant="outline">
+              <Save size={14} />
+              {t('settings.data.local.backup.button')}
+            </Button>
+            <Button onClick={() => RestoreV2Popup.show()} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.data.local.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+      </V2BackupActionGate>
+      <SettingDivider />
+      <LegacyLocalBackupGate>
         <SettingRow>
           <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
@@ -301,7 +320,7 @@ const LocalBackupSettings: React.FC = () => {
             localBackupDir={resolvedLocalBackupDir}
           />
         </>
-      </BackupUnavailableGate>
+      </LegacyLocalBackupGate>
       {import.meta.env.DEV && <BackupV2DevExport />}
     </SettingGroup>
   )

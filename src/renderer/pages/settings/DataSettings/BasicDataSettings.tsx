@@ -21,9 +21,10 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BackupPopup from './BackupPopup'
+import BackupExportV2Popup from './BackupExportV2Popup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
-import RestorePopup from './RestorePopup'
+import RestoreV2Popup from './RestoreV2Popup'
+import { V2BackupActionGate } from './V2BackupActionGate'
 
 /**
  * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
@@ -423,21 +424,23 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <BackupUnavailableGate>
+        <V2BackupActionGate>
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
             <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show()} variant="outline">
+              <Button onClick={() => BackupExportV2Popup.show()} variant="outline">
                 <SaveIcon size={14} />
                 {t('settings.general.backup.button')}
               </Button>
-              <Button onClick={() => RestorePopup.show()} variant="outline">
+              <Button onClick={() => RestoreV2Popup.show()} variant="outline">
                 <FolderOpen size={14} />
                 {t('settings.general.restore.button')}
               </Button>
             </RowFlex>
           </SettingRow>
-          <SettingDivider />
+        </V2BackupActionGate>
+        <SettingDivider />
+        <BackupUnavailableGate>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
             <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
@@ -497,14 +500,16 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
+        {import.meta.env.DEV ? (
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+            <RowFlex className="gap-1.25">
+              <Button onClick={() => void reset()} variant="destructive">
+                {t('settings.general.reset.title')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+        ) : null}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>

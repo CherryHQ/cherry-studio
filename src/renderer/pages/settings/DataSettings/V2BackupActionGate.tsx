@@ -1,0 +1,36 @@
+import { Alert } from '@cherrystudio/ui'
+import type { FC, PropsWithChildren } from 'react'
+import { useTranslation } from 'react-i18next'
+
+/**
+ * Scoped gate for the four migrated Backup/Restore actions (Basic + Local).
+ *
+ * Unlike {@link BackupUnavailableGate} / `BACKUP_V2_READY` (shared by WebDAV /
+ * S3 / Nutstore), this gate only wraps the live v2 action buttons. Flipping or
+ * removing `BACKUP_V2_READY` is forbidden here — that would silently re-enable
+ * v1 provider surfaces.
+ *
+ * BackupService refuses packaged builds (`onInit` early-return + restore reject).
+ * Match that fail-closed contract: only expose actions in DEV; otherwise inert.
+ */
+export const V2_BACKUP_ACTIONS_READY: boolean = import.meta.env.DEV
+
+const V2BackupActionsUnavailableNotice: FC = () => {
+  const { t } = useTranslation()
+  return <Alert type="warning" showIcon message={t('settings.data.backup.v2_unavailable')} className="mb-3" />
+}
+
+export const V2BackupActionGate: FC<PropsWithChildren> = ({ children }) => {
+  if (V2_BACKUP_ACTIONS_READY) {
+    return <>{children}</>
+  }
+
+  return (
+    <>
+      <V2BackupActionsUnavailableNotice />
+      <div inert className="pointer-events-none select-none opacity-50">
+        {children}
+      </div>
+    </>
+  )
+}
