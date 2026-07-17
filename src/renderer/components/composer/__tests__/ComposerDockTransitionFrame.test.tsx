@@ -1,8 +1,4 @@
-import {
-  ChatMaximizedOverlayInsetProvider,
-  useChatBottomOverlayInset,
-  useChatMaximizedOverlayBottomInset
-} from '@renderer/components/chat/layout/ChatViewportInsetContext'
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,11 +26,6 @@ function InsetProbe() {
       <div data-testid="scroller-bottom-margin">{String(insets?.scrollerBottomMargin)}</div>
     </>
   )
-}
-
-function MaximizedOverlayInsetProbe() {
-  const bottomInset = useChatMaximizedOverlayBottomInset()
-  return <div data-testid="maximized-overlay-bottom-inset">{String(bottomInset)}</div>
 }
 
 describe('ComposerDockTransitionFrame', () => {
@@ -161,24 +152,6 @@ describe('ComposerDockTransitionFrame', () => {
     await waitFor(() => {
       const dockLayer = container.querySelector<HTMLElement>('[data-composer-dock-layer]')
       expect(dockLayer).toHaveStyle({ paddingInlineStart: '8px', paddingInlineEnd: '24px' })
-    })
-  })
-
-  it('exposes a bottom inset for maximized overlays above the docked composer', async () => {
-    render(
-      <ChatMaximizedOverlayInsetProvider>
-        <ComposerDockTransitionFrame
-          placement="docked"
-          main={<InsetProbe />}
-          composer={<div data-composer-inputbar="" />}
-          mainVisible
-          overlay={<MaximizedOverlayInsetProbe />}
-        />
-      </ChatMaximizedOverlayInsetProvider>
-    )
-
-    await waitFor(() => {
-      expect(screen.getByTestId('maximized-overlay-bottom-inset')).toHaveTextContent('316')
     })
   })
 

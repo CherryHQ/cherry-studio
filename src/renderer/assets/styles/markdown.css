@@ -355,10 +355,6 @@
   text-decoration: underline;
 }
 
-emoji-picker {
-  --border-size: 0;
-}
-
 .block-wrapper + .block-wrapper {
   margin-top: 1em;
 }

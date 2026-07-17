@@ -186,12 +186,12 @@ describe('ConversationShell', () => {
 
   it('keeps the top-right tool visible while the docked right pane is open when requested', () => {
     const { container } = render(
-      <Shell defaultTab="resources">
+      <Shell defaultTab="files">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
           topRightTool={
             <Shell.TabShortcut
-              tab="resources"
+              tab="files"
               label="对话"
               icon={<span data-testid="resource-shortcut-icon" />}
               openBehavior="toggle-active"
@@ -201,8 +201,8 @@ describe('ConversationShell', () => {
           center={<div />}
         />
         <Shell.Tabs>
-          <Shell.TabList title="对话" showTabs={false}>
-            <Shell.Tab value="resources">对话</Shell.Tab>
+          <Shell.TabList canMaximize title="对话" showTabs={false}>
+            <Shell.Tab value="files">对话</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
       </Shell>
@@ -213,7 +213,7 @@ describe('ConversationShell', () => {
     expect(topBarWrapper).toContainElement(topRightTool)
     expect(topBarWrapper).not.toHaveClass('pr-11')
 
-    fireEvent.click(container.querySelector('[data-shell-tab-shortcut="resources"]') as HTMLElement)
+    fireEvent.click(container.querySelector('[data-shell-tab-shortcut="files"]') as HTMLElement)
 
     expect(screen.getByRole('button', { name: '对话' })).toBeInTheDocument()
     expect(container.querySelector('[data-conversation-shell-topbar-right]')).toBeInTheDocument()
