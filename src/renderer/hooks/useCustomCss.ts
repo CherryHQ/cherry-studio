@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { adaptCommunityThemeCss } from '@renderer/utils/communityThemeCss'
 import { useEffect } from 'react'
 
 const CUSTOM_CSS_ELEMENT_ID = 'user-defined-custom-css'
@@ -33,13 +34,17 @@ export function useCustomCssInjection(cssText: string | undefined): void {
 }
 
 /**
- * Inject the user's `ui.custom_css` preference verbatim. The standard custom-CSS owner
- * for the windows that render the full app chrome (main / subWindow / quickAssistant /
- * selection-action). The selection toolbar does not use this: it strips background
- * declarations first, so it calls `useCustomCssInjection` directly with the filtered
- * CSS.
+ * Inject the user's `ui.custom_css` preference. The standard custom-CSS owner for the windows
+ * that render the full app chrome (main / subWindow / quickAssistant / selection-action). The
+ * selection toolbar does not use this: it strips background declarations first, so it calls
+ * `useCustomCssInjection` directly with the filtered CSS.
+ *
+ * The value is passed through `adaptCommunityThemeCss` so a pasted shadcn/tweakcn theme themes
+ * the app at runtime; ordinary custom CSS is returned unchanged, so this stays a no-op for the
+ * common case. The community bridge is a standard-window concern only — the toolbar keeps its
+ * raw/filtered path.
  */
 export function useCustomCss(): void {
   const [customCss] = usePreference('ui.custom_css')
-  useCustomCssInjection(customCss)
+  useCustomCssInjection(adaptCommunityThemeCss(customCss))
 }
