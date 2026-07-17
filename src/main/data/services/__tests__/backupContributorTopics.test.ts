@@ -173,20 +173,11 @@ describe('TOPICS contributor', () => {
     expect(result.rootRow.activeNodeId).toBeNull() // cleared instead of dangling
   })
 
-  it('primary keys are non-ambiguous (topic uuid-v4; message uuid-v7; chat_message_file_ref uuid-v4)', () => {
-    for (const pk of TOPICS_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
+  it('declares topic as uuid-v4 and message as uuid-v7', () => {
     const topic = TOPICS_CONTRIBUTOR.schema.primaryKeys.find((p) => p.table === 'topic')!
     expect(topic.kind).toBe('uuid-v4')
     const message = TOPICS_CONTRIBUTOR.schema.primaryKeys.find((p) => p.table === 'message')!
     expect(message.kind).toBe('uuid-v7')
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(TOPICS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
   })
 })
 

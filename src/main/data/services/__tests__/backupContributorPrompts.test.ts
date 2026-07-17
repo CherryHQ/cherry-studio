@@ -17,23 +17,15 @@ describe('PROMPTS contributor', () => {
     expect(aggregate.renamable).toBe(false)
   })
 
-  it('prompt primary key is uuid-v4 and non-ambiguous', () => {
+  it('declares the prompt primary key as uuid-v4', () => {
     const primaryKey = PROMPTS_CONTRIBUTOR.schema.primaryKeys.find((fact) => fact.table === 'prompt')
     expect(primaryKey).toBeDefined()
     expect(primaryKey!.kind).toBe('uuid-v4')
-    expect(primaryKey!.ambiguous).toBeFalsy()
   })
 
   it('has no cross-domain references, file-ref policies, or JSON soft-refs', () => {
     expect(PROMPTS_CONTRIBUTOR.schema.references).toEqual([])
     expect(PROMPTS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
     expect(PROMPTS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      // Readonly array push throws once frozen; cast only to satisfy tsc in the test.
-      ;(PROMPTS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
   })
 })

@@ -318,7 +318,7 @@ export class DbService extends BaseService {
 
   /**
    * Online page-by-page copy via better-sqlite3 `backup()` on the managed
-   * connection. Used by v2 export (BackupDbCopier). Distinct from
+   * connection. Used directly by v2 export. Distinct from
    * createSnapshot (`VACUUM INTO`, restore merge-base): this API must not open a
    * second live connection (that bypasses ownership and can force backup restart
    * when the managed connection writes).

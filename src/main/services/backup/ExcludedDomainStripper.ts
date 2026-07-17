@@ -102,11 +102,3 @@ export class SqliteBackupStripper implements BackupStripper {
     }
   }
 }
-
-/** Test double — returns a canned result. No IO. */
-export class StubStripper implements BackupStripper {
-  constructor(private readonly result: readonly StrippedTable[] = []) {}
-  async strip(): Promise<readonly StrippedTable[]> {
-    return this.result
-  }
-}

@@ -65,18 +65,6 @@ describe('KNOWLEDGE contributor', () => {
   it('declares no fileRefSourcePolicies (knowledge_item is not a FileRefSourceType post-#16532)', () => {
     expect(KNOWLEDGE_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
   })
-
-  it('primary keys are non-ambiguous (knowledge_base uuid-v4; knowledge_item uuid-v7)', () => {
-    for (const pk of KNOWLEDGE_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(KNOWLEDGE_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })
 
 // DB-backed tests for collectFileResources — returns knowledge_base ids (each maps to a

@@ -72,12 +72,6 @@ describe('PROVIDERS contributor', () => {
     expect(PROVIDERS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
   })
 
-  it('primary keys are non-ambiguous (user_provider/user_model natural-key)', () => {
-    for (const pk of PROVIDERS_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
-  })
-
   it('declares uniqueMergeRules for user_model by [providerId, modelId]', () => {
     expect(PROVIDERS_CONTRIBUTOR.backupPolicy.uniqueMergeRules).toEqual([
       expect.objectContaining({ table: table('user_model'), uniqueColumns: ['providerId', 'modelId'] })
@@ -100,11 +94,5 @@ describe('PROVIDERS contributor', () => {
         strategy: 'remote-fills-local-empty'
       })
     ])
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(PROVIDERS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
   })
 })

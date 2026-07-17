@@ -70,18 +70,6 @@ describe('PAINTINGS contributor', () => {
   it('declares no jsonSoftReferences', () => {
     expect(PAINTINGS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
   })
-
-  it('primary keys are non-ambiguous (painting uuid-v4; painting_file_ref uuid-v4)', () => {
-    for (const pk of PAINTINGS_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(PAINTINGS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })
 
 // DB-backed tests for collectFileResources — returns painting_file_ref.fileEntryId (deduped).

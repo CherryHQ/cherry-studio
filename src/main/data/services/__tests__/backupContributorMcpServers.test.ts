@@ -16,22 +16,15 @@ describe('MCP_SERVERS contributor', () => {
     expect(aggregate.renamable).toBe(false)
   })
 
-  it('mcp_server primary key is uuid-v4 and non-ambiguous', () => {
+  it('declares the mcp_server primary key as uuid-v4', () => {
     const primaryKey = MCP_SERVERS_CONTRIBUTOR.schema.primaryKeys.find((fact) => fact.table === 'mcp_server')
     expect(primaryKey).toBeDefined()
     expect(primaryKey!.kind).toBe('uuid-v4')
-    expect(primaryKey!.ambiguous).toBeFalsy()
   })
 
   it('has no references, file-ref policies, or JSON soft-refs', () => {
     expect(MCP_SERVERS_CONTRIBUTOR.schema.references).toEqual([])
     expect(MCP_SERVERS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
     expect(MCP_SERVERS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(MCP_SERVERS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
   })
 })

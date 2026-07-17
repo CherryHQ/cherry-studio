@@ -56,10 +56,4 @@ describe('TRANSLATE_HISTORY contributor', () => {
     expect(history.kind).toBe('uuid-v7')
     expect(history.ambiguous).toBeFalsy()
   })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(TRANSLATE_HISTORY_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })

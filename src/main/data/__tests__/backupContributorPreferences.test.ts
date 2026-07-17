@@ -45,12 +45,6 @@ describe('PREFERENCES contributor', () => {
     expect(PREFERENCES_CONTRIBUTOR.backupPolicy.platformSpecificKeys!.length).toBeGreaterThan(0)
   })
 
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(PREFERENCES_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
-
   it('declares collectFileResources (notes markdown file resource)', () => {
     // PREFERENCES owns Notes markdown bodies as a file resource — the hook scans
     // ctx.notesRoot. restoreResources (dir-swap preboot promotion) is the D track.

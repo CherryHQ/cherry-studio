@@ -364,25 +364,3 @@ export class SqliteFileStager implements FileStager {
     return { paths: staged, missing }
   }
 }
-
-/** Test double — records calls + returns canned results. No IO. */
-export class StubFileStager implements FileStager {
-  constructor(
-    private readonly filesResult: StageFilesResult = { total: 0, totalBytes: 0, missing: [] },
-    private readonly knowledgeResult: StageKnowledgeResult = { bases: [], missing: [] },
-    private readonly notesResult: StageNotesResult = { paths: [], missing: [] },
-    private readonly skillsResult: StageSkillDirsResult = { skills: [] }
-  ) {}
-  async stageFiles(): Promise<StageFilesResult> {
-    return this.filesResult
-  }
-  async stageKnowledge(): Promise<StageKnowledgeResult> {
-    return this.knowledgeResult
-  }
-  async stageNotes(): Promise<StageNotesResult> {
-    return this.notesResult
-  }
-  async stageSkillDirs(): Promise<StageSkillDirsResult> {
-    return this.skillsResult
-  }
-}

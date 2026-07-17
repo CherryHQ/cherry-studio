@@ -20,9 +20,8 @@ import Database from 'better-sqlite3'
 import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
-import { SqliteBackupCopier, StubBackupCopier } from '../BackupDbCopier'
 import { contributorManager } from '../contributors/ContributorManager'
-import { SqliteBackupStripper, StubStripper } from '../ExcludedDomainStripper'
+import { SqliteBackupStripper } from '../ExcludedDomainStripper'
 import { ExportOrchestrator } from '../ExportOrchestrator'
 
 /**
@@ -79,16 +78,16 @@ function pathFileBlobs(lookup: Record<string, string>) {
 
 const newOrch = (dir: string, fixture: string) =>
   new ExportOrchestrator({
-    copier: new StubBackupCopier(fixture),
+    dbService: { backupTo: (destPath) => copyFile(fixture, destPath) },
     registry: STUB_REGISTRY,
     tempDir: dir,
     fileBlobs: pathFileBlobs({}),
     knowledgeRoot: join(dir, 'kb-root'),
     skillsRoot: join(dir, 'skills-root'),
     notesRoot: () => join(dir, 'notes-root'),
-    // StubStripper — the STUB_REGISTRY describe never runs lite (lite e2e is in
-    // the real-registry describe below); a stub satisfies the required dep.
-    stripper: new StubStripper()
+    // The STUB_REGISTRY describe never runs lite (lite e2e is below), so stripping
+    // is irrelevant to these isolated pipeline tests.
+    stripper: { strip: async () => [] }
   })
 
 describe('ExportOrchestrator (full-preset DB-only slice)', () => {
@@ -315,16 +314,16 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await writeFile(join(notesRoot, 'note3.MD'), '# note 3')
 
       // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
-      // SqliteBackupCopier; the orchestrator then opens its own read-only handle on
+      // DbService.backupTo; the orchestrator then opens its own read-only handle on
       // the snapshot so collect + stage agree with backup.sqlite.
       const orch = new ExportOrchestrator({
-        copier: new SqliteBackupCopier({
+        dbService: {
           backupTo: async (destPath) => {
             const { unlink } = await import('node:fs/promises')
             await unlink(destPath).catch(() => {})
             await dbh.sqlite.backup(destPath)
           }
-        }),
+        },
         // Real registry: collectFileResources runs the actual contributor hooks
         // (FILE_STORAGE → f1, KNOWLEDGE → kb1, PAINTINGS → none, PREFERENCES → notes)
         // against the snapshot.
@@ -410,13 +409,13 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       ])
 
       const orch = new ExportOrchestrator({
-        copier: new SqliteBackupCopier({
+        dbService: {
           backupTo: async (destPath) => {
             const { unlink } = await import('node:fs/promises')
             await unlink(destPath).catch(() => {})
             await dbh.sqlite.backup(destPath)
           }
-        }),
+        },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
         fileBlobs: pathFileBlobs({ mf1: join(filesRoot, 'mf1.txt') }),
@@ -535,13 +534,13 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       // notesRoot must NOT be evaluated on lite — an unavailable custom Notes path
       // would otherwise abort an export that never stages notes.
       const orch = new ExportOrchestrator({
-        copier: new SqliteBackupCopier({
+        dbService: {
           backupTo: async (destPath) => {
             const { unlink } = await import('node:fs/promises')
             await unlink(destPath).catch(() => {})
             await dbh.sqlite.backup(destPath)
           }
-        }),
+        },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
         fileBlobs: pathFileBlobs({}),
@@ -663,15 +662,15 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
       const fixture = join(dir, 'fixture.db')
       await makeJobScheduleDb(fixture)
       const orch = new ExportOrchestrator({
-        copier: new StubBackupCopier(fixture),
+        dbService: { backupTo: (destPath) => copyFile(fixture, destPath) },
         registry: STUB_REGISTRY_WITH_ROWSCOPES,
         tempDir: dir,
         fileBlobs: pathFileBlobs({}),
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => join(dir, 'notes-root'),
-        // StubStripper — full preset, no LITE_EXCLUDED strip; isolates the rowScopes filter.
-        stripper: new StubStripper()
+        // Full preset has no lite exclusions; a no-op isolates the rowScopes filter.
+        stripper: { strip: async () => [] }
       })
       const out = join(dir, 'rowscopes.cbu')
       await orch.exportBackup({

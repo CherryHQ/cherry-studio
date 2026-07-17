@@ -182,16 +182,4 @@ describe('AGENTS contributor', () => {
   it('declares no fileRefSourcePolicies (no AGENTS-owned FileRefSourceType)', () => {
     expect(AGENTS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
   })
-
-  it('primary keys are non-ambiguous', () => {
-    for (const pk of AGENTS_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(AGENTS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })

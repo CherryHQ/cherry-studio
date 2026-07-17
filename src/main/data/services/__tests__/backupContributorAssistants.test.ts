@@ -95,17 +95,8 @@ describe('ASSISTANTS contributor', () => {
     expect(result.rootRow.name).toBe('a') // non-PK fields preserved by the spread
   })
 
-  it('primary keys are non-ambiguous (assistant uuid-v4; junctions composite)', () => {
-    for (const pk of ASSISTANTS_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
+  it('declares the assistant primary key as uuid-v4', () => {
     const assistant = ASSISTANTS_CONTRIBUTOR.schema.primaryKeys.find((p) => p.table === 'assistant')!
     expect(assistant.kind).toBe('uuid-v4')
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(ASSISTANTS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
   })
 })

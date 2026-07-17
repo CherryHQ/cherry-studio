@@ -145,7 +145,7 @@ describe('SqliteBackupStripper', () => {
     try {
       await seedAll(dbh)
       const copy = join(dir, 'backup.sqlite')
-      await dbh.sqlite.backup(copy) // simulate SqliteBackupCopier producing backup.sqlite
+      await dbh.sqlite.backup(copy) // simulate DbService.backupTo producing backup.sqlite
 
       const stripper = new SqliteBackupStripper()
       const stripped = await stripper.strip(copy, STRIP_TABLES)

@@ -61,10 +61,4 @@ describe('TAGS_GROUPS contributor', () => {
     }
     expect(TAGS_GROUPS_CONTRIBUTOR.operations?.cloneAggregate).toBeUndefined()
   })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(TAGS_GROUPS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })

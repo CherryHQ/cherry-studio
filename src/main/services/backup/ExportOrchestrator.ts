@@ -2,7 +2,7 @@
 //
 // Pipeline (the ExportOrchestrator 5-step pipeline):
 //   1. resolvePreset → topo-sorted domain set
-//   2. copier.copyTo(temp) — online `db.backup()` of live DB → backup.sqlite
+//   2. dbService.backupTo(temp) — online `db.backup()` of live DB → backup.sqlite
 //   2.5. (lite only) stripper.strip — delete excluded-domain rows + CASCADE-prune
 //        junction referrers, so the copy never carries rows the manifest omits
 //   3. (TODO) beforeArchive per domain on the copy — redaction (no contributor
@@ -13,7 +13,7 @@
 //
 // SNAPSHOT CONSISTENCY: collect + stage read from a read-only connection to
 // backup.sqlite (the point-in-time copy), NOT from the live DB. Without this,
-// a row deleted on live between copyTo() and collect would leave backup.sqlite
+// a row deleted on live between backupTo() and collect would leave backup.sqlite
 // referencing a blob that the archive never staged (restore would lose the file).
 // Reading from the snapshot guarantees the collected ids + the archived DB agree.
 //
@@ -39,12 +39,12 @@ import type {
 import { type DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import type { ConflictStrategy } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_PHYSICAL_TABLES } from '@main/data/db/backup/exclusions'
+import type { DbService } from '@main/data/db/DbService'
 import type { BackupProgressUpdate } from '@shared/types/backup'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { assembleArchive } from './archive'
-import type { BackupDbCopier } from './BackupDbCopier'
 import { BackupCancelledError } from './errors'
 import type { BackupStripper } from './ExcludedDomainStripper'
 import { SqliteFileStager } from './FileStager'
@@ -93,8 +93,8 @@ export interface ExportBackupResult {
 
 /** Constructor dependencies (injected for testability). */
 export interface ExportOrchestratorDeps {
-  /** Copies live DB → a temp backup.sqlite (online db.backup(), see BackupDbCopier). */
-  readonly copier: BackupDbCopier
+  /** Copies live DB → a temp backup.sqlite using SQLite's online backup API. */
+  readonly dbService: Pick<DbService, 'backupTo'>
   /** Finalized contributor registry — used for topoSort + collectFileResources. */
   readonly registry: ReadonlyBackupRegistry
   /** Temp dir for the DB-copy + blob staging; the orchestrator removes them after archiving. */
@@ -138,8 +138,8 @@ const logger = loggerService.withContext('backup/ExportOrchestrator')
 
 /**
  * Export orchestrator. Pure class (no lifecycle wiring) — BackupService constructs
- * it in onInit; unit tests construct it directly with a stub copier / (real or stub)
- * registry. Opens a read-only drizzle handle on the snapshot DB itself so collect +
+ * it in onInit; unit tests construct it directly with a fixture DB service / registry.
+ * Opens a read-only drizzle handle on the snapshot DB itself so collect +
  * stage are guaranteed to agree with backup.sqlite.
  */
 export class ExportOrchestrator {
@@ -177,7 +177,7 @@ export class ExportOrchestrator {
       )
     }
 
-    const { copier, registry, tempDir, fileBlobs, knowledgeRoot, skillsRoot, stripper } = this.deps
+    const { dbService, registry, tempDir, fileBlobs, knowledgeRoot, skillsRoot, stripper } = this.deps
     // Notes root is only needed for full-preset PREFERENCES file resources.
     // Resolve lazily below — calling notesRoot() here would abort lite exports when
     // feature.notes.path is set but unavailable, even though lite never stages notes.
@@ -200,7 +200,7 @@ export class ExportOrchestrator {
     let manifest: BackupManifest
     let snapshotDb: Database.Database | undefined
     try {
-      await copier.copyTo(backupDbPath)
+      await dbService.backupTo(backupDbPath)
 
       // 2.5 strip the copy BEFORE opening the readonly snapshot (every preset).
       // resolveStripTables combines two sources:
@@ -228,7 +228,7 @@ export class ExportOrchestrator {
       await this.applyRowScopes(backupDbPath, registry)
 
       // Open a READ-ONLY handle on the SNAPSHOT so collect + stage agree exactly
-      // with backup.sqlite (the archive's DB). Rows deleted on live between copyTo()
+      // with backup.sqlite (the archive's DB). Rows deleted on live between backupTo()
       // and collect cannot desync the archived DB from its blobs.
       snapshotDb = new Database(backupDbPath, { readonly: true })
       const snapshotReadonly = new BackupReadonlyDb(drizzle({ client: snapshotDb, casing: 'snake_case' }))

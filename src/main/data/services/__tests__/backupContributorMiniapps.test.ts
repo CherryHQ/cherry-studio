@@ -53,16 +53,4 @@ describe('MINIAPPS contributor', () => {
   it('declares no jsonSoftReferences', () => {
     expect(MINIAPPS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
   })
-
-  it('primary key is non-ambiguous (mini_app appId natural)', () => {
-    for (const pk of MINIAPPS_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(MINIAPPS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })

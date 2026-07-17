@@ -28,23 +28,16 @@ describe('SKILLS contributor', () => {
     expect(aggregate.renamable).toBe(false)
   })
 
-  it('agent_global_skill primary key is uuid-v4 and non-ambiguous', () => {
+  it('declares the agent_global_skill primary key as uuid-v4', () => {
     const primaryKey = SKILLS_CONTRIBUTOR.schema.primaryKeys.find((fact) => fact.table === 'agent_global_skill')
     expect(primaryKey).toBeDefined()
     expect(primaryKey!.kind).toBe('uuid-v4')
-    expect(primaryKey!.ambiguous).toBeFalsy()
   })
 
   it('has no references, file-ref policies, or JSON soft-refs', () => {
     expect(SKILLS_CONTRIBUTOR.schema.references).toEqual([])
     expect(SKILLS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
     expect(SKILLS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(SKILLS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
   })
 })
 

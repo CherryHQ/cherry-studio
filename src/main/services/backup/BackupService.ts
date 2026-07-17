@@ -42,7 +42,6 @@ import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
 import { admitArchive } from './admitArchive'
-import { SqliteBackupCopier } from './BackupDbCopier'
 import { BackupRestoreJobQuiesce } from './BackupRestoreJobQuiesce'
 import { contributorManager } from './contributors'
 import {
@@ -180,7 +179,7 @@ export class BackupService extends BaseService {
     // opens its own read-only snapshot handle on backup.sqlite so collect + stage
     // agree with the archived DB; the filesystem roots back the blob stager.
     this.orchestrator = new ExportOrchestrator({
-      copier: new SqliteBackupCopier(application.get('DbService')),
+      dbService: application.get('DbService'),
       registry,
       tempDir: application.getPath('feature.backup.temp'),
       fileBlobs: application.get('FileManager'),

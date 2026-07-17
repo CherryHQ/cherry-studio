@@ -26,18 +26,6 @@ describe('FILE_STORAGE contributor', () => {
   it('declares no fileRefSourcePolicies (junctions belong to source domains; sourceTypes deferred)', () => {
     expect(FILE_STORAGE_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
   })
-
-  it('primary key is non-ambiguous (file_entry uuid-v7)', () => {
-    for (const pk of FILE_STORAGE_CONTRIBUTOR.schema.primaryKeys) {
-      expect(pk.ambiguous).toBeFalsy()
-    }
-  })
-
-  it('schema is deep-frozen (mutation throws)', () => {
-    expect(() => {
-      ;(FILE_STORAGE_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
-    }).toThrow()
-  })
 })
 
 // DB-backed tests for collectFileResources — the first contributor hook with live-DB access.

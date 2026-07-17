@@ -31,6 +31,18 @@ describe('CONTRIBUTORS registry — real declarations', () => {
     expect(registry).toBeDefined()
   })
 
+  it('deep-freezes every schema and declares only unambiguous primary keys', () => {
+    for (const contributor of CONTRIBUTORS) {
+      expect(Object.isFrozen(contributor.schema), contributor.domain).toBe(true)
+      expect(Object.isFrozen(contributor.schema.tables), contributor.domain).toBe(true)
+      expect(() => (contributor.schema.tables as unknown as string[]).push('x')).toThrow(TypeError)
+
+      for (const primaryKey of contributor.schema.primaryKeys) {
+        expect(primaryKey.ambiguous, `${contributor.domain}:${primaryKey.table}`).toBe(false)
+      }
+    }
+  })
+
   it('production singleton `contributorManager` is wired with the real barrel', () => {
     // Guards the wiring (P0 from review): a bare `new ContributorManager()` would
     // fail #1 (empty); a synthetic fixture would pass finalize but not expose 14
