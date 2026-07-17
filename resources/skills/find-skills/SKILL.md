@@ -25,9 +25,12 @@ The Skills CLI (`npx skills`) is the package manager for the open agent skills e
 **Key commands:**
 
 - `npx skills find [query] [--owner <owner>]` - Search for skills interactively or by keyword, optionally scoped to a GitHub owner
-- `npx skills add <package>` - Install a skill from GitHub or other sources
 - `npx skills check` - Check for skill updates
 - `npx skills update` - Update all installed skills
+
+Use the CLI only for **discovery** (`find`). For installing inside Cherry, do **not** use
+`npx skills add` — it writes to a home-level directory Cherry doesn't manage. Install by
+cloning the skill straight into `$CHERRY_STUDIO_SKILLS_DIR` instead (see Step 6).
 
 **Browse skills at:** https://skills.sh/
 
@@ -111,8 +114,7 @@ I found a skill that might help! The "react-best-practices" skill provides
 React and Next.js performance optimization guidelines from Vercel Engineering.
 (185K installs)
 
-To install it:
-npx skills add vercel-labs/agent-skills@react-best-practices
+I can install it into Cherry's skill library for you — want me to go ahead?
 
 Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
@@ -129,30 +131,33 @@ Before installing any skill you **MUST**:
    code and will run with full agent permissions.
 2. **Provide a review link** — the skills.sh page (or source repository) so
    the user can review the skill's SKILL.md and any scripts it contains.
-3. **Ask the user for explicit confirmation** — do NOT run `npx skills add`
-   until the user says "yes" or equivalent. Never install silently.
+3. **Ask the user for explicit confirmation** — do NOT install the skill until the
+   user says "yes" or equivalent. Never install silently.
 
-Only after the user confirms, install the skill **into Cherry's skills directory**
-so it shows up in the app. Do NOT use `-g` — the global flag installs into a shared,
-user-level CLI directory that Cherry does not manage, so the skill would never appear.
+Only after the user confirms, fetch the skill **directly into Cherry's managed skills
+directory** (`$CHERRY_STUDIO_SKILLS_DIR`) so it actually takes effect. Do **not** use
+`npx skills add` for the install: that CLI writes into a home-level directory Cherry
+does not scan, so the skill would sit there inert — a skill only loads once its files
+live under `$CHERRY_STUDIO_SKILLS_DIR`.
+
+The search result gives you `owner/repo/skill`. Clone that repo into a throwaway dir and
+copy just the one skill folder in:
 
 ```bash
-# 1) fetch into a throwaway staging dir so the user's current project stays clean.
-#    -y skips the CLI's own prompt; do NOT use -g (that installs into a shared, unmanaged dir).
-STAGING="$(mktemp -d)"
-( cd "$STAGING" && npx skills add <owner/repo@skill> -y )
+TMP="$(mktemp -d)"
+git clone --depth 1 "https://github.com/<owner>/<repo>" "$TMP"
 
-# 2) move the installed skill folder into Cherry's managed skills directory.
-#    The CLI prints where under $STAGING it installed the skill — use that as <install-path>.
+# Locate the skill's directory — the folder containing the SKILL.md for <skill-name>.
+# If the repo bundles several skills, pick the matching one (e.g. `find "$TMP" -iname SKILL.md`).
 mkdir -p "$CHERRY_STUDIO_SKILLS_DIR"
-cp -r <install-path> "$CHERRY_STUDIO_SKILLS_DIR/"
-rm -rf "$STAGING"
+cp -r "$TMP/<path-to-skill-dir>" "$CHERRY_STUDIO_SKILLS_DIR/<skill-name>"
+rm -rf "$TMP"
 ```
 
-The user-confirmation step above is what ensures the install was actually reviewed
-and approved, so it must happen first. Once the folder is under
-`$CHERRY_STUDIO_SKILLS_DIR`, Cherry's skill sync detects it, registers it in its
-managed library, and lists it in the app — no registration step.
+Copy only that one skill's folder, never the whole repo. The user-confirmation step above
+ensures the install was actually reviewed and approved, so it must happen first. Once the
+folder is under `$CHERRY_STUDIO_SKILLS_DIR`, Cherry's skill sync detects it, registers it
+in its managed library, and lists it in the app — nothing is left in your home directory.
 
 ## Common Skill Categories
 
