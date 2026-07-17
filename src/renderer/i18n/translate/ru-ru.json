@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} токенов",
     "topics": {
       "auto_rename": "Автопереименование",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Очистить сообщения"
       },
@@ -5355,7 +5356,7 @@
         "icon": {
           "error": "Некорректное название",
           "label": "Иконка",
-          "placeholder": "Название иконки Lucide",
+          "placeholder": "Название иконки",
           "random": "Случайная",
           "tooltip": "Названия в lowercase, например arrow-right",
           "view_all": "Все иконки"
