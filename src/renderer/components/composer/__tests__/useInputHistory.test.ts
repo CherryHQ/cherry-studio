@@ -99,7 +99,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: false,
         isComposing: false,
-        isCursorAtEnd: false,
+        isCursorAtHistoryBoundary: false,
         isQuickPanelVisible: false,
         key: 'ArrowUp',
         text: ''
@@ -112,7 +112,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: true,
         isComposing: false,
-        isCursorAtEnd: false,
+        isCursorAtHistoryBoundary: false,
         isQuickPanelVisible: false,
         key: 'ArrowDown',
         text: 'draft'
@@ -120,12 +120,12 @@ describe('shouldHandleInputHistoryNavigation', () => {
     ).toBe(true)
   })
 
-  it('handles navigation when the cursor is at the end of non-empty text', () => {
+  it('handles navigation when the cursor is at the history boundary of non-empty text', () => {
     expect(
       shouldHandleInputHistoryNavigation({
         isAllSelected: false,
         isComposing: false,
-        isCursorAtEnd: true,
+        isCursorAtHistoryBoundary: true,
         isQuickPanelVisible: false,
         key: 'ArrowUp',
         text: 'draft'
@@ -138,7 +138,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: false,
         isComposing: false,
-        isCursorAtEnd: false,
+        isCursorAtHistoryBoundary: false,
         isQuickPanelVisible: false,
         key: 'ArrowUp',
         text: '   '
@@ -146,12 +146,12 @@ describe('shouldHandleInputHistoryNavigation', () => {
     ).toBe(true)
   })
 
-  it('handles navigation when all selection and cursor-at-end flags are simultaneously true', () => {
+  it('handles navigation when all selection and history-boundary flags are simultaneously true', () => {
     expect(
       shouldHandleInputHistoryNavigation({
         isAllSelected: true,
         isComposing: false,
-        isCursorAtEnd: true,
+        isCursorAtHistoryBoundary: true,
         isQuickPanelVisible: false,
         key: 'ArrowDown',
         text: 'draft'
@@ -164,7 +164,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: true,
         isComposing: true,
-        isCursorAtEnd: true,
+        isCursorAtHistoryBoundary: true,
         isQuickPanelVisible: false,
         key: 'ArrowUp',
         text: 'draft'
@@ -177,7 +177,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: true,
         isComposing: false,
-        isCursorAtEnd: true,
+        isCursorAtHistoryBoundary: true,
         isQuickPanelVisible: true,
         key: 'ArrowUp',
         text: 'draft'
@@ -190,7 +190,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: true,
         isComposing: false,
-        isCursorAtEnd: true,
+        isCursorAtHistoryBoundary: true,
         isQuickPanelVisible: false,
         key: 'Enter',
         text: 'draft'
@@ -198,12 +198,12 @@ describe('shouldHandleInputHistoryNavigation', () => {
     ).toBe(false)
   })
 
-  it('ignores non-empty text when the cursor is not at the end and text is not selected', () => {
+  it('ignores non-empty text when the cursor is not at the history boundary and text is not selected', () => {
     expect(
       shouldHandleInputHistoryNavigation({
         isAllSelected: false,
         isComposing: false,
-        isCursorAtEnd: false,
+        isCursorAtHistoryBoundary: false,
         isQuickPanelVisible: false,
         key: 'ArrowUp',
         text: 'draft'
@@ -216,7 +216,7 @@ describe('shouldHandleInputHistoryNavigation', () => {
       shouldHandleInputHistoryNavigation({
         isAllSelected: false,
         isComposing: true,
-        isCursorAtEnd: false,
+        isCursorAtHistoryBoundary: false,
         isQuickPanelVisible: false,
         key: 'ArrowUp',
         text: ''
@@ -224,12 +224,12 @@ describe('shouldHandleInputHistoryNavigation', () => {
     ).toBe(false)
   })
 
-  it('prioritizes quick panel visibility guard over an otherwise valid cursor-at-end navigation', () => {
+  it('prioritizes quick panel visibility guard over an otherwise valid history-boundary navigation', () => {
     expect(
       shouldHandleInputHistoryNavigation({
         isAllSelected: false,
         isComposing: false,
-        isCursorAtEnd: true,
+        isCursorAtHistoryBoundary: true,
         isQuickPanelVisible: true,
         key: 'ArrowUp',
         text: 'draft'

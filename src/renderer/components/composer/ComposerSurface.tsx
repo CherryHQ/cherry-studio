@@ -103,6 +103,11 @@ interface ComposerClipboardCopyView {
   }
 }
 
+interface ComposerFocusRestoreSnapshot {
+  activeElement: Element | null
+  pointerDownVersion: number
+}
+
 export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
@@ -494,17 +499,27 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
   return createPromptVariableContent(text)
 }
 
-function getComposerSelectionState(view: EditorView) {
+function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown') {
   const { doc, selection } = view.state
   // ProseMirror positions are token-based: `doc.content.size` is one past the
   // trailing block-close token, so the caret at end-of-text sits at
   // `content.size - 1` for non-empty text. Empty text only has a single
   // selectable position (`1`), which is what `Math.max(1, ...)` normalizes.
   const lastSelectablePosition = Math.max(1, doc.content.size - 1)
+  const isCursorAtEnd = selection.empty && selection.from === lastSelectablePosition
+  let isCursorAtHistoryBoundary = false
+
+  if (isCursorAtEnd) {
+    const topLevelBlockIndex = selection.$head.index(0)
+    const isAtDocumentEdgeBlock =
+      key === 'ArrowUp' ? topLevelBlockIndex === 0 : topLevelBlockIndex === doc.childCount - 1
+    const direction = key === 'ArrowUp' ? 'up' : 'down'
+    isCursorAtHistoryBoundary = isAtDocumentEdgeBlock && view.endOfTextblock(direction)
+  }
 
   return {
     isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
-    isCursorAtEnd: selection.empty && selection.from === lastSelectablePosition
+    isCursorAtHistoryBoundary
   }
 }
 
@@ -562,7 +577,6 @@ export default function ComposerSurface({
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
-  const isEditing = !!editingState
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
@@ -580,7 +594,7 @@ export default function ComposerSurface({
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
   const isExpandedRef = useRef(isExpanded)
-  const isEditingRef = useRef(isEditing)
+  const pointerDownVersionRef = useRef(0)
   const filesCountRef = useRef(filesCount)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
 
@@ -589,7 +603,6 @@ export default function ComposerSurface({
   useLayoutEffect(() => {
     quickPanelRef.current = quickPanel
     isExpandedRef.current = isExpanded
-    isEditingRef.current = isEditing
     filesCountRef.current = filesCount
     sendDisabledRef.current = sendDisabled
     sendBlockedReasonRef.current = sendBlockedReason
@@ -599,7 +612,6 @@ export default function ComposerSurface({
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
-    isEditing,
     isExpanded,
     onInputHistoryNavigate,
     onSendDraft,
@@ -617,6 +629,15 @@ export default function ComposerSurface({
   useEffect(() => {
     tokenByIdRef.current = new Map(tokens.map((token) => [token.id, token]))
   }, [tokens])
+
+  useEffect(() => {
+    const handlePointerDown = () => {
+      pointerDownVersionRef.current += 1
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true)
+  }, [])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) {
@@ -733,6 +754,26 @@ export default function ComposerSurface({
     frameRef,
     isComposing: isEditorComposing
   })
+  const createEditorFocusRestoreSnapshot = useCallback<() => ComposerFocusRestoreSnapshot>(
+    () => ({
+      activeElement: document.activeElement,
+      pointerDownVersion: pointerDownVersionRef.current
+    }),
+    []
+  )
+  const shouldRestoreEditorFocus = useCallback(
+    (snapshot: ComposerFocusRestoreSnapshot) => {
+      if (pointerDownVersionRef.current !== snapshot.pointerDownVersion || !document.hasFocus()) return false
+
+      const activeElement = document.activeElement
+      return (
+        activeElement === snapshot.activeElement ||
+        activeElement === document.body ||
+        (!!activeElement && !!frameRef.current?.contains(activeElement))
+      )
+    },
+    [frameRef]
+  )
   const compactMeasurementInputsRef = useRef({
     draftTokens,
     fontSize,
@@ -1401,7 +1442,7 @@ export default function ComposerSurface({
           !event.altKey &&
           !event.shiftKey &&
           shouldHandleInputHistoryNavigation({
-            ...getComposerSelectionState(view),
+            ...getComposerSelectionState(view, event.key),
             isComposing: event.isComposing,
             isQuickPanelVisible: qp.isVisible,
             key: event.key,
@@ -1436,19 +1477,29 @@ export default function ComposerSurface({
           }
         }
 
-        if (isEditingRef.current && isShiftEnterPressed) {
-          return false
-        }
-
         if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
+          event.preventDefault()
+          if (event.repeat) return true
+
           if (!sendDisabledRef.current && editorRef.current) {
             const draft = serializeComposerDocument(editorRef.current)
-            void Promise.resolve(onSendDraftRef.current(draft)).finally(focusEditor)
+            const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+            void Promise.resolve(onSendDraftRef.current(draft)).finally(() => {
+              if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
+            })
           } else {
             showBlockedSendReason()
           }
-          event.preventDefault()
           return true
+        }
+
+        if (isEnterPressed && view) {
+          const { from, to } = view.state.selection
+          const replacedText = getComposerReplacementText(view, from, to)
+          if (exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
+            event.preventDefault()
+            return true
+          }
         }
 
         if (
@@ -1563,7 +1614,14 @@ export default function ComposerSurface({
         }
       }
     }),
-    [editorElementStyle, focusEditor, hasCustomHeight, showBlockedSendReason]
+    [
+      createEditorFocusRestoreSnapshot,
+      editorElementStyle,
+      focusEditor,
+      hasCustomHeight,
+      shouldRestoreEditorFocus,
+      showBlockedSendReason
+    ]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -1688,10 +1746,11 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
+      const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       setTimeoutTimer(
         'composerSurfaceFocus',
         () => {
-          if (!createdEditor || createdEditor.isDestroyed) return
+          if (!createdEditor || createdEditor.isDestroyed || !shouldRestoreEditorFocus(focusRestoreSnapshot)) return
           createdEditor.commands.focus('end')
         },
         0
@@ -1877,8 +1936,19 @@ export default function ComposerSurface({
       return
     }
     const draft = serializeComposerDocument(editor)
-    void Promise.resolve(onSendDraft(draft)).finally(focusEditor)
-  }, [editor, focusEditor, onSendDraft, sendDisabled, showBlockedSendReason])
+    const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+    void Promise.resolve(onSendDraft(draft)).finally(() => {
+      if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
+    })
+  }, [
+    createEditorFocusRestoreSnapshot,
+    editor,
+    focusEditor,
+    onSendDraft,
+    sendDisabled,
+    shouldRestoreEditorFocus,
+    showBlockedSendReason
+  ])
 
   const handleExpandControlClick = useCallback(() => {
     if (hasCustomHeight) {

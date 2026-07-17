@@ -552,6 +552,7 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [text, setText] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
@@ -614,6 +615,7 @@ const ChatComposerInner = ({
     [resetHistoryIndex]
   )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
+  const editSaveInFlightRef = useRef(false)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
@@ -1070,6 +1072,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        if (editSaveInFlightRef.current) return
+
         const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
         const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
         if (!saveEditedMessage) {
@@ -1082,6 +1086,8 @@ const ChatComposerInner = ({
           return
         }
 
+        editSaveInFlightRef.current = true
+        setIsSavingEdit(true)
         try {
           const editedParts = await buildEditedMessageParts(draft)
           if (!editedParts) return
@@ -1095,6 +1101,9 @@ const ChatComposerInner = ({
         } catch (error) {
           logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
           toast.error(t('message.error.operation_unavailable'))
+        } finally {
+          editSaveInFlightRef.current = false
+          setIsSavingEdit(false)
         }
         return
       }
@@ -1274,6 +1283,7 @@ const ChatComposerInner = ({
           sendDisabled={
             (text.trim().length === 0 && files.length === 0) ||
             (loading && !canSteer) ||
+            isSavingEdit ||
             sendDisabled ||
             searching ||
             runtimeModelPending ||
@@ -1282,7 +1292,7 @@ const ChatComposerInner = ({
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            sendDisabled
+            isSavingEdit || sendDisabled
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }

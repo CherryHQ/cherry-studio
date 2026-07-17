@@ -3208,6 +3208,53 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
+  it('prevents concurrent saves of the same edited message', async () => {
+    let resolveSave: () => void = () => undefined
+    const pendingSave = new Promise<void>((resolve) => {
+      resolveSave = resolve
+    })
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockReturnValue(pendingSave)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    let firstSubmission: void | Promise<void> = undefined
+    act(() => {
+      firstSubmission = mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    })
+    await waitFor(() => {
+      expect(forkAndResend).toHaveBeenCalledTimes(1)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    })
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    })
+    expect(forkAndResend).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveSave()
+      await firstSubmission
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
   it('saves an edited assistant reply without forking and removes derived translation parts', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
