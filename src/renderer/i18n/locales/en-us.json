@@ -7749,6 +7749,8 @@
   },
   "tab": {
     "close": "Close Tab",
+    "close_others": "Close Other Tabs",
+    "close_to_right": "Close Tabs to the Right",
     "move_to_first": "Move to First",
     "new": "New Tab",
     "open_in_new_window": "Open in New Window",
