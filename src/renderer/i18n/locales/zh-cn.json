@@ -3781,18 +3781,6 @@
     "regenerate": {
       "confirm": "重新生成会覆盖当前消息"
     },
-    "reset": {
-      "confirm": {
-        "content": "确定要重置所有数据吗？"
-      },
-      "double": {
-        "confirm": {
-          "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "数据丢失！！！"
-        }
-      },
-      "success": "数据重置成功"
-    },
     "restore": {
       "failed": "恢复失败",
       "success": "恢复成功"
@@ -5603,6 +5591,15 @@
         "title": "导出菜单设置",
         "yuque": "导出到语雀"
       },
+      "factory_reset": {
+        "button": "恢复出厂设置",
+        "confirm_content": "将删除全部聊天记录、助手、知识库、文件和设置，应用会以全新安装状态重启。自定义数据目录位置和已下载的工具会保留。",
+        "confirm_title": "恢复出厂设置？",
+        "double_confirm_content": "此操作无法撤销。确认后应用将立即重启并在启动时清除全部数据。",
+        "double_confirm_title": "全部数据都将丢失！！！",
+        "error": "恢复出厂设置启动失败",
+        "title": "恢复出厂设置"
+      },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
       "import_settings": {
@@ -6255,10 +6252,6 @@
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
       "label": "常规设置",
-      "reset": {
-        "button": "重置",
-        "title": "重置数据"
-      },
       "restore": {
         "button": "恢复"
       },

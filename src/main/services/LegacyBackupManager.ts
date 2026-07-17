@@ -916,21 +916,6 @@ class BackupManager {
   }
 
   /**
-   * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
-   * Avoids races with the SQLite DB / MemoryService / KnowledgeService recreating files
-   * before relaunch.
-   */
-  public async resetData() {
-    // Hand-rolled {userData}/Data — BackupManager bypasses the v2 path
-    // registry entirely. See handleStartupRestore above for the rationale.
-    const dataPath = path.join(app.getPath('userData'), 'Data')
-
-    const dataRestorePath = dataPath + '.restore'
-    await fs.remove(dataRestorePath).catch(() => {})
-    await fs.ensureDir(dataRestorePath)
-  }
-
-  /**
    * Deep compare two WebDAV config objects for equality
    * Only compares core fields that affect client connection, ignores volatile fields like fileName
    * @param cachedConfig - The cached WebDAV configuration

@@ -78,7 +78,6 @@ const api = {
   },
   flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
-  resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {

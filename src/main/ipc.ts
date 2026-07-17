@@ -192,9 +192,6 @@ export async function registerIpc() {
   // Application_Relaunch migrated to IpcApi (`app.relaunch`); preventQuit/allowQuit stay on
   // Application.registerApplicationIpc().
 
-  // Reset all data (factory reset)
-  ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
-
   // zip
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 

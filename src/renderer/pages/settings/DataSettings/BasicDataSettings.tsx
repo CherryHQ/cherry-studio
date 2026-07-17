@@ -11,7 +11,6 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
-import { reset } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -413,6 +412,41 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
+  const handleFactoryReset = async () => {
+    const confirmed = await popup.confirm({
+      title: t('settings.data.factory_reset.confirm_title'),
+      content: t('settings.data.factory_reset.confirm_content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: {
+        danger: true
+      }
+    })
+    if (!confirmed) return
+
+    const doubleConfirmed = await popup.confirm({
+      title: t('settings.data.factory_reset.double_confirm_title'),
+      content: t('settings.data.factory_reset.double_confirm_content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: {
+        danger: true
+      }
+    })
+    if (!doubleConfirmed) return
+
+    try {
+      // On success the app relaunches before this resolves — the preboot
+      // factory-reset gate wipes on the next boot. Only rejection (the reset
+      // marker could not be persisted) is observable here.
+      await ipcApi.request('app.factory_reset.request')
+    } catch (error) {
+      toast.error(t('settings.data.factory_reset.error'))
+    }
+  }
+
   const onSkipBackupFilesChange = (value: boolean) => {
     void setSkipBackupFile(value)
   }
@@ -498,10 +532,10 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.data.factory_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
+            <Button onClick={handleFactoryReset} variant="destructive">
+              {t('settings.data.factory_reset.button')}
             </Button>
           </RowFlex>
         </SettingRow>

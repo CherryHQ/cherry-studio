@@ -3781,18 +3781,6 @@
     "regenerate": {
       "confirm": "Regenerating will replace current message"
     },
-    "reset": {
-      "confirm": {
-        "content": "Are you sure you want to clear all data?"
-      },
-      "double": {
-        "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
-        }
-      },
-      "success": "Data reset successful"
-    },
     "restore": {
       "failed": "Restore failed",
       "success": "Restored successfully"
@@ -5603,6 +5591,15 @@
         "title": "Export Menu",
         "yuque": "Export to Yuque"
       },
+      "factory_reset": {
+        "button": "Factory Reset",
+        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location and downloaded tools are kept.",
+        "confirm_title": "Factory reset this app?",
+        "double_confirm_content": "This cannot be undone. The app will relaunch immediately and erase all data on startup.",
+        "double_confirm_title": "ALL DATA WILL BE LOST!",
+        "error": "Failed to start factory reset",
+        "title": "Factory Reset"
+      },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
       "import_settings": {
@@ -6255,10 +6252,6 @@
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
       "label": "General Settings",
-      "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
-      },
       "restore": {
         "button": "Restore"
       },

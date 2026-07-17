@@ -21,7 +21,6 @@ export enum IpcChannel {
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
   Application_Relaunch = 'application:relaunch',
-  App_ResetData = 'app:reset-data',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
