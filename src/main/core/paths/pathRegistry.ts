@@ -15,7 +15,7 @@ import path from 'node:path'
 import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 
-import { CHERRY_HOME } from './constants'
+import { CHERRY_HOME, LOGS_DIR } from './constants'
 
 /**
  * Build the frozen path registry. Called once during preboot (after
@@ -67,7 +67,7 @@ export function buildPathRegistry() {
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.exe_file': app.getPath('exe'),
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
-    'app.logs': path.join(appUserData, 'logs'),
+    'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory

@@ -47,8 +47,6 @@ export interface MigrationPaths {
 
   /** {userData}/cherrystudio.sqlite */
   readonly databaseFile: string
-  /** {userData}/logs */
-  readonly logsDir: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
   /** {userData}/Data/Files */
@@ -210,7 +208,6 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
     databaseFile: path.join(currentUserData, DB_NAME),
-    logsDir: path.join(currentUserData, 'logs'),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),

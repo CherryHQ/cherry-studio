@@ -355,7 +355,6 @@ describe('userDataRelocationGate', () => {
     await usePromises({ statfs: vi.fn().mockResolvedValue({ bsize: 1, bavail: 4, blocks: 10 }) })
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
-    const { loggerService } = await import('@logger')
 
     expect(fs.existsSync(target)).toBe(false)
     expect(commitMock).not.toHaveBeenCalled()
@@ -364,7 +363,6 @@ describe('userDataRelocationGate', () => {
       error: expect.stringContaining('not enough free space')
     })
     expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
-    expect(loggerService.initializeFileLogging).toHaveBeenCalledWith(path.join(source, 'logs'))
   })
 
   it('keeps failed state until the recovery window explicitly continues on the old path', async () => {
@@ -385,11 +383,9 @@ describe('userDataRelocationGate', () => {
 
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
-    const { loggerService } = await import('@logger')
 
     expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed' })
     expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'failed', error: 'copy failed' }))
-    expect(loggerService.initializeFileLogging).toHaveBeenCalledWith(path.join(source, 'logs'))
 
     restartFromWindow?.()
     expect(relocationState['temp.user_data_relocation']).toBeNull()
@@ -408,12 +404,10 @@ describe('userDataRelocationGate', () => {
 
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
-    const { loggerService } = await import('@logger')
 
     expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
     expect(fs.existsSync(path.join(target, '.cherry-relocation-owner.json'))).toBe(false)
     expect(commitMock).toHaveBeenCalledWith(target)
-    expect(loggerService.initializeFileLogging).toHaveBeenCalledWith(path.join(target, 'logs'))
   })
 
   it('switches to any existing non-empty directory without modifying its files', async () => {

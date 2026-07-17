@@ -37,7 +37,6 @@ export class MockMainLoggerService {
   public withContext(): MockMainLoggerService {
     return this
   }
-  public initializeFileLogging = vi.fn()
   public finish(): void {}
   public setLevel(): void {}
   public getLevel(): string {

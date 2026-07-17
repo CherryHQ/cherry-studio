@@ -131,10 +131,9 @@ export class Application {
    * Tests that need a fresh registry should use `__setPathMapForTesting()`
    * instead, which bypasses this guard for test isolation.
    *
-   * BootConfigService bypasses this registry and reads `BOOT_CONFIG_PATH`
-   * directly via `paths/constants.ts`; LoggerService binds file transports
-   * after relocation is ruled out and the final migration path is resolved.
-   * One-shot startup pipelines (migration, legacy backup restore) carry
+   * LoggerService and BootConfigService bypass this registry and read
+   * paths directly via `paths/constants.ts` (`LOGS_DIR`, `BOOT_CONFIG_PATH`);
+   * one-shot startup pipelines (migration, legacy backup restore) carry
    * their own ad-hoc path logic and do not consume the registry either.
    */
   public initPathRegistry(): void {

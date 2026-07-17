@@ -100,7 +100,6 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
   }
 
   if (relocation.status === 'failed') {
-    loggerService.initializeFileLogging(path.join(relocation.from, 'logs'))
     publish(makeProgress('failed', relocation, 0, 0, relocation.error))
     if (relocationWindow.isUnavailable()) restart()
     return 'handled'
@@ -112,8 +111,20 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
       publish(makeProgress('committing', relocation, 0, 0))
       commitUserDataRelocation(relocation.to)
     })
+    publish(makeProgress('completed', relocation, 0, 0))
+    logger.info('userData relocation completed; waiting to relaunch', {
+      from: relocation.from,
+      to: relocation.to,
+      copy: relocation.copy
+    })
+    if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    logger.error('userData relocation failed; keeping previous location', {
+      from: relocation.from,
+      to: relocation.to,
+      error: message
+    })
     bootConfigService.set('temp.user_data_relocation', {
       status: 'failed',
       taskId: relocation.taskId,
@@ -127,24 +138,8 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
     // must not crash preboot before the recovery window can explain the error.
     bootConfigService.flush()
     publish(makeProgress('failed', relocation, 0, 0, message))
-    loggerService.initializeFileLogging(path.join(relocation.from, 'logs'))
-    logger.error('userData relocation failed; keeping previous location', {
-      from: relocation.from,
-      to: relocation.to,
-      error: message
-    })
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
-    return 'handled'
   }
-
-  loggerService.initializeFileLogging(path.join(relocation.to, 'logs'))
-  publish(makeProgress('completed', relocation, 0, 0))
-  logger.info('userData relocation completed; waiting to relaunch', {
-    from: relocation.from,
-    to: relocation.to,
-    copy: relocation.copy
-  })
-  if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
 
   return 'handled'
 }

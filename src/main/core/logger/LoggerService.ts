@@ -1,5 +1,6 @@
 /* eslint-disable no-restricted-syntax */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
+import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
@@ -63,8 +64,6 @@ export class LoggerService {
   private envShowModules: string[] = []
 
   private logsDir: string = ''
-  private fileLoggingInitialized = false
-  private pendingFileLogs: Array<{ level: LogLevel; message: string; meta: any[] }> = []
 
   private module: string = ''
   private context: Record<string, any> = {}
@@ -73,6 +72,11 @@ export class LoggerService {
     if (!isMainThread) {
       throw new Error('[LoggerService] NOT support worker thread yet, can only be instantiated in main process.')
     }
+
+    // Logs directory comes from the central early-constants module so that
+    // LoggerService, BootConfigService, and pathRegistry all share a single
+    // source of truth (see src/main/core/paths/constants.ts).
+    this.logsDir = LOGS_DIR
 
     // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
     // only affect console output, not affect file output
@@ -102,10 +106,31 @@ export class LoggerService {
       }
     }
 
-    // File transports are installed only after relocation is ruled out and the
-    // final migration path is resolved. The silent transport prevents
-    // Winston's no-transport warning without opening a file that could lock
-    // the source userData tree on Windows.
+    // Configure transports based on environment
+    const transports: winston.transport[] = []
+
+    // Daily rotate file transport for general logs
+    transports.push(
+      new DailyRotateFile({
+        filename: path.join(this.logsDir, 'app.%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '10m',
+        maxFiles: '30d'
+      })
+    )
+
+    // Daily rotate file transport for error logs
+    transports.push(
+      new DailyRotateFile({
+        level: 'warn',
+        filename: path.join(this.logsDir, 'app-error.%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '10m',
+        maxFiles: '60d'
+      })
+    )
+
+    // Configure Winston logger
     this.logger = winston.createLogger({
       // Development: all levels, Production: info and above
       level: DEFAULT_LEVEL,
@@ -117,7 +142,7 @@ export class LoggerService {
         winston.format.json()
       ),
       exitOnError: false,
-      transports: [new winston.transports.Console({ silent: true })]
+      transports
     })
 
     // Handle transport events
@@ -127,49 +152,6 @@ export class LoggerService {
 
     //register ipc handler, for renderer process to log to main process
     this.registerIpcHandler()
-  }
-
-  /**
-   * Bind file logging to the final userData-owned logs directory.
-   * Early preboot records are replayed after the file transports are ready.
-   */
-  public initializeFileLogging(logsDir: string): void {
-    if (this.fileLoggingInitialized) return
-
-    app.setAppLogsPath(logsDir)
-    this.logger.configure({
-      level: this.logger.level,
-      format: winston.format.combine(
-        winston.format.timestamp({
-          format: 'YYYY-MM-DD HH:mm:ss'
-        }),
-        winston.format.errors({ stack: true }),
-        winston.format.json()
-      ),
-      exitOnError: false,
-      transports: [
-        new DailyRotateFile({
-          filename: path.join(logsDir, 'app.%DATE%.log'),
-          datePattern: 'YYYY-MM-DD',
-          maxSize: '10m',
-          maxFiles: '30d'
-        }),
-        new DailyRotateFile({
-          level: 'warn',
-          filename: path.join(logsDir, 'app-error.%DATE%.log'),
-          datePattern: 'YYYY-MM-DD',
-          maxSize: '10m',
-          maxFiles: '60d'
-        })
-      ]
-    })
-    this.logsDir = logsDir
-    this.fileLoggingInitialized = true
-
-    for (const entry of this.pendingFileLogs) {
-      this.logger.log(entry.level, entry.message, ...entry.meta)
-    }
-    this.pendingFileLogs = []
   }
 
   /**
@@ -287,9 +269,6 @@ export class LoggerService {
       meta.push(extra)
     }
 
-    if (!this.fileLoggingInitialized) {
-      this.pendingFileLogs.push({ level, message, meta })
-    }
     this.logger.log(level, message, ...meta)
   }
 
