@@ -26,7 +26,7 @@ describe('TopicService', () => {
       await dbh.db.insert(assistantTable).values({
         id: 'asst-search',
         name: 'Needle Assistant',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0'
       })
@@ -155,14 +155,14 @@ describe('TopicService', () => {
       {
         id: 'assistant-active',
         name: 'Active Assistant',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0'
       },
       {
         id: 'assistant-deleted',
         name: 'Deleted Assistant',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a1',
         deletedAt: 100
@@ -199,7 +199,7 @@ describe('TopicService', () => {
         {
           id: 'asst-1',
           name: 'A',
-          emoji: '🌟',
+          avatarEmoji: '🌟',
           settings: DEFAULT_ASSISTANT_SETTINGS,
           orderKey: 'a0',
           createdAt: 1,
@@ -208,7 +208,7 @@ describe('TopicService', () => {
         {
           id: 'asst-2',
           name: 'B',
-          emoji: '🌟',
+          avatarEmoji: '🌟',
           settings: DEFAULT_ASSISTANT_SETTINGS,
           orderKey: 'a1',
           createdAt: 1,
@@ -586,7 +586,7 @@ describe('TopicService', () => {
       await dbh.db.insert(assistantTable).values({
         id,
         name: id,
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey,
         deletedAt,
@@ -814,7 +814,7 @@ describe('TopicService', () => {
         {
           id: 'assistant-a',
           name: 'Assistant A',
-          emoji: '🌟',
+          avatarEmoji: '🌟',
           settings: DEFAULT_ASSISTANT_SETTINGS,
           orderKey: 'a0',
           createdAt: 1,
@@ -823,7 +823,7 @@ describe('TopicService', () => {
         {
           id: 'assistant-b',
           name: 'Assistant B',
-          emoji: '🌙',
+          avatarEmoji: '🌙',
           settings: DEFAULT_ASSISTANT_SETTINGS,
           orderKey: 'a1',
           createdAt: 2,
@@ -1136,7 +1136,7 @@ describe('TopicService', () => {
       await dbh.db.insert(assistantTable).values({
         id: 'asst',
         name: 'A',
-        emoji: '🌟',
+        avatarEmoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0',
         createdAt: 1,
@@ -1381,7 +1381,7 @@ describe('TopicService', () => {
         {
           id: 'assistant-a',
           name: 'Assistant A',
-          emoji: '🌟',
+          avatarEmoji: '🌟',
           settings: DEFAULT_ASSISTANT_SETTINGS,
           orderKey: 'a0',
           createdAt: 1,
@@ -1390,7 +1390,7 @@ describe('TopicService', () => {
         {
           id: 'assistant-b',
           name: 'Assistant B',
-          emoji: '🌙',
+          avatarEmoji: '🌙',
           settings: DEFAULT_ASSISTANT_SETTINGS,
           orderKey: 'a1',
           createdAt: 2,

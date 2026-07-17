@@ -122,7 +122,18 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       // v1 allowed_tools stored auto-approval preferences; the v2 disabledTools hard-block set starts empty.
       notNullCol('disabled_tools', "'[]'"),
-      notNullCol('configuration', "'{}'"),
+      {
+        name: 'avatar_emoji',
+        expr: "CASE WHEN json_valid(configuration) THEN COALESCE(NULLIF(TRIM(json_extract(configuration, '$.avatar')), ''), '🤖') ELSE '🤖' END",
+        sourceColumn: 'configuration',
+        fallbackExpr: "'🤖'"
+      },
+      {
+        name: 'configuration',
+        expr: "CASE WHEN json_valid(configuration) THEN json_remove(configuration, '$.avatar') ELSE '{}' END",
+        sourceColumn: 'configuration',
+        fallbackExpr: "'{}'"
+      },
       // Placeholder; AgentsMigrator backfills real fractional-indexing keys
       // ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),

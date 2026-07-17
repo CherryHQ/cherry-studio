@@ -70,6 +70,7 @@ describe('agentSessionExport', () => {
           messageSnapshot: {
             id: 'agent-a',
             name: 'Agent A',
+            avatar: { kind: 'emoji', emoji: '🤖' },
             model: { id: 'stored-model', name: 'Stored Model', provider: 'stored-provider' }
           }
         })

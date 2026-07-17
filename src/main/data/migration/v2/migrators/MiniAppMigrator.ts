@@ -217,7 +217,7 @@ export class MiniAppMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         // Insert file_entries first (the ref rows' `file_entry_id` FK needs
         // them), then the owner rows, then the ref rows (whose `source_id` FK
-        // needs the owner) — see logoRef ordering.
+        // needs the owner) — see entityImageRef ordering.
         for (const logoFile of logoFiles) {
           insertPreparedImageEntryTx(tx, logoFile)
         }

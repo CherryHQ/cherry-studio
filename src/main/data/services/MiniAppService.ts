@@ -23,8 +23,13 @@ import { miniAppLogoRef } from '@shared/data/types/file'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
-import { clearSingleFileRefTx, getLogoFileId, type LogoBindInput, reconcileLogoSlotTx } from './utils/logoRef'
-import { resolveLogoSrc } from './utils/logoSrc'
+import {
+  clearSingleFileRefTx,
+  getSingleFileRefId,
+  type LogoBindInput,
+  reconcileLogoSlotTx
+} from './utils/entityImageRef'
+import { resolveEntityImageSrc } from './utils/entityImageSrc'
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -73,7 +78,7 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
     // renderer never reconstructs a disk path.
     logo: clean.logoKey,
-    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(clean.appId))),
+    logoSrc: resolveEntityImageSrc(getSingleFileRefId(logoSlot(clean.appId))),
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),

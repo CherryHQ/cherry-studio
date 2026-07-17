@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  agentAvatarRef,
   allSourceTypes,
+  assistantAvatarRef,
   chatMessageFileRefSchema,
   chatMessageSourceType,
   FileRefSchema,
@@ -24,9 +26,17 @@ describe('FileRefSourceType', () => {
     // Defensive: this assertion locks the currently-registered set. Adding a
     // new variant must also extend the discriminated union and back it with an
     // FK-constrained association table — see ref/index.ts.
-    // The user avatar deliberately has no variant: it is persisted only in the
+    // The user profile avatar deliberately has no variant: it is persisted only in the
     // `app.user.avatar` preference (no ref table).
-    expect([...allSourceTypes]).toEqual(['temp_session', 'chat_message', 'painting', 'provider_logo', 'mini_app_logo'])
+    expect([...allSourceTypes]).toEqual([
+      'temp_session',
+      'chat_message',
+      'painting',
+      'provider_logo',
+      'mini_app_logo',
+      'assistant_avatar',
+      'agent_avatar'
+    ])
   })
 })
 
@@ -101,9 +111,9 @@ describe('paintingFileRefSchema', () => {
   })
 })
 
-describe('single-file ref variants (provider_logo / mini_app_logo)', () => {
-  it('accepts a well-formed roleless logo ref (free-string sourceId)', () => {
-    for (const ref of [providerLogoRef, miniAppLogoRef]) {
+describe('single-file ref variants', () => {
+  it('accepts a well-formed roleless entity-image ref (free-string sourceId)', () => {
+    for (const ref of [providerLogoRef, miniAppLogoRef, assistantAvatarRef, agentAvatarRef]) {
       const parsed = ref.schema.parse({
         id: REF_ID,
         fileEntryId: ENTRY_ID,

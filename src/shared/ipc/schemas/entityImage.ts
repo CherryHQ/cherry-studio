@@ -31,3 +31,10 @@ export const LogoImageIntentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('default') })
 ])
 export type LogoImageIntent = z.infer<typeof LogoImageIntentSchema>
+
+/** Mutually exclusive avatar write intent; there is no implicit/default fallback variant. */
+export const EntityAvatarIntentSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
+  z.strictObject({ kind: z.literal('emoji'), emoji: z.emoji() })
+])
+export type EntityAvatarIntent = z.infer<typeof EntityAvatarIntentSchema>

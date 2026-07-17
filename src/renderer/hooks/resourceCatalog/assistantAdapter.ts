@@ -73,7 +73,7 @@ export function useAssistantMutations() {
         body: {
           name: duplicateName,
           prompt: source.prompt,
-          emoji: source.emoji,
+          avatar: source.avatar.kind === 'emoji' ? source.avatar : { kind: 'image', fileId: source.avatar.fileId },
           description: source.description,
           modelId: source.modelId,
           settings: source.settings,

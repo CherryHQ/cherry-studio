@@ -1,7 +1,8 @@
 import { isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { emojiTabIcon } from '@renderer/utils/tabIcons'
+import { entityAvatarTabIcon } from '@renderer/utils/tabIcons'
 import { buildTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { EntityAvatar } from '@shared/data/types/entityAvatar'
 import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
 import { useEffect } from 'react'
 
@@ -10,7 +11,7 @@ import { useOptionalTabsContext } from './useTabsContext'
 
 export interface TabSelfMetadata {
   title: string
-  emoji?: string | null
+  avatar?: EntityAvatar
   instanceAppId?: TabInstanceAppId
   instanceKey?: string | null
 }
@@ -44,7 +45,7 @@ function isMetadataEqual(
  * the page never touches the tab system or the
  * `Tab` shape. No-op without a TabsProvider / TabIdProvider (tests, detached popups).
  */
-export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }: TabSelfMetadata): void {
+export function useTabSelfMetadata({ title, avatar, instanceAppId, instanceKey }: TabSelfMetadata): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
@@ -53,7 +54,7 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
     if (instanceAppId && !tabBelongsToInstanceApp(currentTab, instanceAppId)) return
-    const icon = emojiTabIcon(emoji)
+    const icon = entityAvatarTabIcon(avatar)
     const metadata = buildTabInstanceMetadata(currentTab.metadata, {
       appId: instanceAppId,
       key: instanceKey
@@ -72,5 +73,5 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
       icon,
       metadata
     })
-  }, [currentTabId, currentTab, updateTab, title, emoji, instanceAppId, instanceKey])
+  }, [currentTabId, currentTab, updateTab, title, avatar, instanceAppId, instanceKey])
 }

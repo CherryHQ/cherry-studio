@@ -16,9 +16,10 @@ const EMPTY_MODEL_LABELS: ModelLabels = { modelId: null, planModelId: null, smal
 type BasicInfoStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
-  fallbackAvatar: string
   modelFilter?: (model: Model) => boolean
   onSettingsNavigate?: (navigate: () => void) => void
+  avatarImageData?: Uint8Array | null
+  onAvatarImageDataChange?: (data: Uint8Array | null) => void
 }
 
 /**
@@ -30,9 +31,10 @@ type BasicInfoStepProps = {
 export function BasicInfoStep({
   form,
   portalContainer,
-  fallbackAvatar,
   modelFilter,
-  onSettingsNavigate
+  onSettingsNavigate,
+  avatarImageData,
+  onAvatarImageDataChange
 }: BasicInfoStepProps) {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
@@ -49,9 +51,10 @@ export function BasicInfoStep({
           form={form}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback={fallbackAvatar}
           portalContainer={portalContainer}
           size="sm"
+          imageData={avatarImageData}
+          onImageDataChange={onAvatarImageDataChange}
         />
         <TextInputField
           form={form}

@@ -5,6 +5,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -86,6 +88,7 @@ describe('AgentService', () => {
       instructions: 'You are a helpful assistant.',
       // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
       model: null,
+      avatarEmoji: '🤖',
       orderKey: 'a0',
       ...rest,
       id
@@ -251,11 +254,11 @@ describe('AgentService', () => {
 
     it('preserves the builtin_role when an update omits it from configuration', async () => {
       const agentId = 'agent_builtin_preserve'
-      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
-      const updated = agentService.updateAgent(agentId, { configuration: { avatar: '🅰️' } })
+      const updated = agentService.updateAgent(agentId, { configuration: { permission_mode: 'plan' } })
       expect(updated?.configuration?.builtin_role).toBe('assistant')
-      expect(updated?.configuration?.avatar).toBe('🅰️')
+      expect(updated?.configuration?.permission_mode).toBe('plan')
     })
 
     it('accepts an update that carries the existing builtin_role unchanged', async () => {
@@ -263,10 +266,10 @@ describe('AgentService', () => {
       await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
       const updated = agentService.updateAgent(agentId, {
-        configuration: { builtin_role: 'assistant', avatar: '🍒' }
+        configuration: { builtin_role: 'assistant', permission_mode: 'default' }
       })
       expect(updated?.configuration?.builtin_role).toBe('assistant')
-      expect(updated?.configuration?.avatar).toBe('🍒')
+      expect(updated?.configuration?.permission_mode).toBe('default')
     })
   })
 
@@ -358,6 +361,36 @@ describe('AgentService', () => {
 
       const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual([])
+    })
+  })
+
+  describe('uploaded avatar', () => {
+    it('keeps image state across unrelated edits and atomically switches back to emoji', async () => {
+      const fileId = '019606a0-0000-7000-8000-0000000000a2'
+      const { id } = await insertAgent()
+      await dbh.db
+        .insert(fileEntryTable)
+        .values({ id: fileId, origin: 'internal', name: 'avatar', ext: 'webp', size: 3 })
+
+      const withAvatar = agentService.setAvatarImage(id, fileId)
+
+      expect(withAvatar.avatar).toEqual({
+        kind: 'image',
+        fileId,
+        src: `file:///mock/files/${fileId}.webp`
+      })
+      expect(agentService.getAgent(id)?.avatar).toEqual(withAvatar.avatar)
+      expect((await dbh.db.select().from(agentTable).where(eq(agentTable.id, id)))[0]?.avatarEmoji).toBeNull()
+      expect(await dbh.db.select().from(agentAvatarFileRefTable)).toHaveLength(1)
+
+      const afterUnrelatedEdit = agentService.updateAgent(id, { description: 'updated' })
+      expect(afterUnrelatedEdit?.avatar).toEqual(withAvatar.avatar)
+      expect(await dbh.db.select().from(agentAvatarFileRefTable)).toHaveLength(1)
+
+      const withEmoji = agentService.setAvatarEmoji(id, '🧠')
+      expect(withEmoji.avatar).toEqual({ kind: 'emoji', emoji: '🧠' })
+      expect(await dbh.db.select().from(agentAvatarFileRefTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, fileId))).toHaveLength(1)
     })
   })
 
@@ -870,14 +903,14 @@ describe('AgentService', () => {
         id: 'agent_search_old',
         name: 'Needle Old Agent',
         description: 'old agent',
-        configuration: { avatar: 'A' },
+        avatarEmoji: 'A',
         updatedAt: 100
       })
       await insertAgent({
         id: 'agent_search_new',
         name: 'Needle New Agent',
         description: 'new agent',
-        configuration: { avatar: 'B' },
+        avatarEmoji: 'B',
         updatedAt: 200
       })
       await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
@@ -890,7 +923,7 @@ describe('AgentService', () => {
           id: 'agent_search_new',
           title: 'Needle New Agent',
           subtitle: 'new agent',
-          emoji: 'B',
+          avatar: { kind: 'emoji', emoji: 'B' },
           updatedAt: '1970-01-01T00:00:00.200Z',
           target: { agentId: 'agent_search_new' }
         },
@@ -899,7 +932,7 @@ describe('AgentService', () => {
           id: 'agent_search_old',
           title: 'Needle Old Agent',
           subtitle: 'old agent',
-          emoji: 'A',
+          avatar: { kind: 'emoji', emoji: 'A' },
           updatedAt: '1970-01-01T00:00:00.100Z',
           target: { agentId: 'agent_search_old' }
         }

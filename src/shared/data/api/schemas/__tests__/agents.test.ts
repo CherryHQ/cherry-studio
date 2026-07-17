@@ -13,7 +13,8 @@ describe('AgentEntitySchema', () => {
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    modelName: null
+    modelName: null,
+    avatar: { kind: 'emoji' as const, emoji: '🤖' }
   }
 
   it('requires service-populated modelName instead of defaulting it in Zod', () => {

@@ -140,7 +140,7 @@ export function AssistantResourceList({
             icon: renderAssistantEntityIcon(
               assistantIconType,
               {
-                emoji: DEFAULT_ASSISTANT_EMOJI
+                avatar: { kind: 'emoji', emoji: DEFAULT_ASSISTANT_EMOJI }
               },
               defaultModelId
             ),
@@ -157,7 +157,7 @@ export function AssistantResourceList({
         const icon = renderAssistantEntityIcon(
           assistantIconType,
           {
-            emoji: assistant.emoji,
+            avatar: assistant.avatar,
             modelId: assistant.modelId,
             modelName: assistant.modelName
           },

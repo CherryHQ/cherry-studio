@@ -20,6 +20,7 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     instructions: '',
     mcps: [],
     configuration: {},
+    avatar: { kind: 'emoji', emoji: '🤖' },
     orderKey: 'k',
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
@@ -58,8 +59,8 @@ describe('buildInitialAgentFormState', () => {
 
   it('lifts configuration sub-keys onto the flat form object', () => {
     const agent = createAgent({
+      avatar: { kind: 'emoji', emoji: '🚀' },
       configuration: {
-        avatar: '🚀',
         permission_mode: 'bypassPermissions',
         heartbeat_enabled: true,
         heartbeat_interval: 15,
@@ -95,7 +96,10 @@ describe('applyAgentFormPatch', () => {
 
   it('keeps other fields untouched when patching permission mode', () => {
     const draft = buildInitialAgentFormState(
-      createAgent({ configuration: { permission_mode: 'bypassPermissions', avatar: '🚀' } })
+      createAgent({
+        avatar: { kind: 'emoji', emoji: '🚀' },
+        configuration: { permission_mode: 'bypassPermissions' }
+      })
     )
     const next = applyAgentFormPatch(draft, { permissionMode: 'default' })
 
@@ -184,18 +188,26 @@ describe('diffAgentUpdate', () => {
 
   it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
     const agent = createAgent({
-      configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
+      configuration: { plugin_state: 'keep-me', max_turns: 10 }
     })
     const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, avatar: '🚀' }
+    const next = { ...baseline, heartbeatEnabled: false }
 
     const result = diffAgentUpdate(baseline, next, agent)
     // plugin_state must be preserved — the library form does not edit it, so
     // it MUST NOT be stripped from the PATCH payload.
     expect(result?.dto.configuration).toEqual({
-      avatar: '🚀',
-      plugin_state: 'keep-me'
+      plugin_state: 'keep-me',
+      heartbeat_enabled: false
     })
+  })
+
+  it('does not include avatar changes in the ordinary agent PATCH', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, avatar: '🚀' }
+
+    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
   })
 
   it('round-trips env_vars through the textarea format', () => {

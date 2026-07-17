@@ -26,7 +26,7 @@ const UI_DEFAULT_MAX_TOOL_CALLS = 20
  * backend tag ids.
  */
 export interface AssistantFormState {
-  // columns
+  // dialog-only avatar draft; persisted through the avatar IPC route
   name: string
   emoji: string
   description: string
@@ -79,7 +79,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
   const settings = assistant.settings ?? ({} as AssistantSettings)
   return {
     name: assistant.name,
-    emoji: assistant.emoji,
+    emoji: assistant.avatar.kind === 'emoji' ? assistant.avatar.emoji : '',
     description: assistant.description,
     modelId: assistant.modelId,
     prompt: assistant.prompt ?? '',
@@ -128,7 +128,7 @@ export type AssistantSaveIntent = {
 /**
  * Compute the minimal Assistant PATCH payload + side-effect hints.
  *
- * - Columns block: when ANY of name/emoji/description/modelId/prompt
+ * - Columns block: when ANY of name/description/modelId/prompt
  *   or any settings field differs, the dto carries all five column
  *   keys + a full `settings` object spread over `assistant.settings`
  *   (preserves unrelated settings keys the UI doesn't surface).
@@ -148,7 +148,6 @@ export function diffAssistantUpdate(
 
   const columnsChanged =
     baseline.name !== form.name ||
-    baseline.emoji !== form.emoji ||
     baseline.description !== form.description ||
     baseline.modelId !== form.modelId ||
     baseline.prompt !== form.prompt ||
@@ -176,7 +175,6 @@ export function diffAssistantUpdate(
     ...(columnsChanged
       ? {
           name: form.name.trim() || assistant.name,
-          emoji: form.emoji,
           description: form.description,
           modelId: form.modelId,
           prompt: form.prompt,

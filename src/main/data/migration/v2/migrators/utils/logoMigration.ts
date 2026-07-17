@@ -22,7 +22,7 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
-import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/logoRef'
+import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/entityImageRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { FileEntryId } from '@shared/data/types/file'

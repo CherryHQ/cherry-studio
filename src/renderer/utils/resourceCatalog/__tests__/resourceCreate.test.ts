@@ -17,7 +17,7 @@ describe('resource create DTO mapping', () => {
   it('maps every assistant-specific field', () => {
     expect(buildCreateAssistantDto(values)).toEqual({
       name: 'Researcher',
-      emoji: '🤖',
+      avatar: { kind: 'emoji', emoji: '🤖' },
       modelId: 'provider::model',
       description: 'Investigates a topic',
       prompt: 'Use cited sources',
@@ -36,9 +36,9 @@ describe('resource create DTO mapping', () => {
       instructions: 'Use cited sources',
       skillIds: ['skill-1'],
       configuration: {
-        avatar: '🤖',
         permission_mode: 'bypassPermissions'
-      }
+      },
+      avatar: { kind: 'emoji', emoji: '🤖' }
     })
   })
 })

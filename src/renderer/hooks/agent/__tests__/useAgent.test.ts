@@ -64,13 +64,14 @@ describe('useAgent', () => {
     )
   })
 
-  it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
+  it('keeps the strict avatar separate and strips the legacy configuration avatar', () => {
     const mockAgent = {
       id: 'agent-1',
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      configuration: { avatar: '🤖' },
+      avatar: { kind: 'emoji', emoji: '🤖' },
+      configuration: { avatar: 'legacy', plugin_state: 'keep' },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -78,8 +79,9 @@ describe('useAgent', () => {
 
     const { result } = renderHook(() => useAgent('agent-1'))
 
-    // Known field preserved; optional fields not explicitly set remain undefined
-    expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.avatar).toEqual({ kind: 'emoji', emoji: '🤖' })
+    expect(result.current.agent?.configuration?.avatar).toBeUndefined()
+    expect(result.current.agent?.configuration?.plugin_state).toBe('keep')
     expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
     expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
@@ -247,7 +249,8 @@ describe('useUpdateAgent', () => {
         name: 'Updated',
         model: 'claude-3',
         type: 'claude-code',
-        configuration: { avatar: '🤖' },
+        avatar: { kind: 'emoji', emoji: '🤖' },
+        configuration: {},
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z'
       }

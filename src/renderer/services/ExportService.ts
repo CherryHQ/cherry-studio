@@ -139,7 +139,7 @@ const getRoleText = async (
   role: string,
   modelName?: string,
   providerId?: string,
-  author?: { name: string; emoji?: string }
+  author?: { name: string; avatar: { kind: 'emoji'; emoji: string } | { kind: 'image' } }
 ): Promise<string> => {
   const { showModelNameInMarkdown, showModelProviderInMarkdown } = await preferenceService.getMultiple({
     showModelNameInMarkdown: 'data.export.markdown.show_model_name',
@@ -150,10 +150,10 @@ const getRoleText = async (
   } else if (role === 'system') {
     return '🤖 System'
   } else {
-    // Prefer the frozen producing author (survives rename/delete); fall back to the generic label.
-    const emoji = author?.emoji || '🤖'
+    // Prefer the frozen producing author (survives rename/delete). Image avatars have no text equivalent.
+    const avatarPrefix = author?.avatar.kind === 'emoji' ? `${author.avatar.emoji} ` : ''
     const authorLabel = author?.name || 'Assistant'
-    let assistantText = `${emoji} `
+    let assistantText = avatarPrefix
     if (showModelNameInMarkdown && modelName) {
       // Author-first (mirrors the on-screen header); model is secondary when the author is known.
       assistantText += author?.name ? `${authorLabel} | ${modelName}` : modelName

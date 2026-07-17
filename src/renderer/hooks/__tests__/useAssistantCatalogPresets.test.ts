@@ -109,7 +109,7 @@ describe('assistant catalog presets', () => {
       name: 'Product Manager',
       prompt: 'You are a product manager.',
       description: 'Plan requirements',
-      emoji: 'PM',
+      avatar: { kind: 'emoji', emoji: 'PM' },
       modelId: 'openai::gpt-4o'
     })
   })

@@ -5,6 +5,7 @@ import type {
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -150,7 +151,9 @@ const AssistantHistoryRecords = ({
       assistants.map((assistant) => ({
         id: assistant.id,
         label: assistant.name || t('common.unnamed'),
-        icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={14} />
+        icon: renderAssistantEntityIcon('emoji', {
+          avatar: assistant.avatar
+        }) ?? <Bot size={14} />
       })),
     [assistants, t]
   )
@@ -365,7 +368,7 @@ const AssistantHistoryRecords = ({
           renderAssistantEntityIcon(
             assistantIconType,
             {
-              emoji: assistant?.emoji ?? DEFAULT_ASSISTANT_EMOJI,
+              avatar: assistant?.avatar ?? { kind: 'emoji', emoji: DEFAULT_ASSISTANT_EMOJI },
               modelId: assistant?.modelId ?? defaultModelId,
               modelName: assistant?.modelName
             },
@@ -434,8 +437,8 @@ const AssistantHistoryRecords = ({
             selectedId ? (
               source?.icon ? (
                 source.icon
-              ) : assistant?.emoji ? (
-                <span aria-hidden>{assistant.emoji}</span>
+              ) : assistant ? (
+                <EntityAvatarIcon avatar={assistant.avatar} size={16} fontSize={12} className="mr-0" />
               ) : (
                 <Bot size={14} />
               )

@@ -184,7 +184,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   if (source.enableWebSearch != null) legacySettings.enableWebSearch = source.enableWebSearch
 
   // Migrator bypasses AssistantService.create(), so it mirrors the same defaults that the
-  // service would supply: '🌟' for emoji, DEFAULT_ASSISTANT_SETTINGS for settings, and the
+  // service would supply: '🌟' for avatarEmoji, DEFAULT_ASSISTANT_SETTINGS for settings, and the
   // DB-default '' for prompt / description. Keeps the migrator's output consistent with
   // every other write path even though we're not going through the service layer.
   //
@@ -199,7 +199,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
       id: assistantId,
       name: source.name || 'Unnamed Assistant',
       prompt: source.prompt ?? '',
-      emoji: source.emoji ?? '🌟',
+      avatarEmoji: source.emoji ?? '🌟',
       description: source.description ?? '',
       modelId: primaryModelId ?? null,
       settings

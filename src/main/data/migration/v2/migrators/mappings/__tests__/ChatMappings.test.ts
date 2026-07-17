@@ -848,7 +848,7 @@ describe('transformMessage', () => {
     expect(result.messageSnapshot).toEqual({
       id: 'asst-1',
       name: 'Translator',
-      emoji: '🌐',
+      avatar: { kind: 'emoji', emoji: '🌐' },
       model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     })
   })

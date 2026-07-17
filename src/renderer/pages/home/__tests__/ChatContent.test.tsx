@@ -976,7 +976,7 @@ describe('ChatContent', () => {
         messageSnapshot: {
           id: 'a1',
           name: 'A',
-          emoji: '',
+          avatar: { kind: 'emoji', emoji: '💬' },
           model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
         },
         status: 'success',

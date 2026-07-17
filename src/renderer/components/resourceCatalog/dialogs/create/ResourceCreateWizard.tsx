@@ -125,6 +125,7 @@ export function ResourceCreateWizard({
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
+  const [avatarImageData, setAvatarImageData] = useState<Uint8Array | null>(null)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
@@ -151,6 +152,7 @@ export function ResourceCreateWizard({
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
+    setAvatarImageData(null)
   }, [form, kind, open])
 
   // Preference/model hydration may finish after the dialog opens. Seed only an
@@ -233,6 +235,7 @@ export function ResourceCreateWizard({
     try {
       await onSubmit({
         avatar: values.avatar,
+        ...(avatarImageData ? { avatarImageData } : {}),
         name: values.name.trim(),
         modelId: values.modelId,
         description: values.description.trim(),
@@ -317,9 +320,10 @@ export function ResourceCreateWizard({
                   <BasicInfoStep
                     form={form}
                     portalContainer={dialogContentElement}
-                    fallbackAvatar={getDefaultAvatar(kind)}
                     modelFilter={modelFilter}
                     onSettingsNavigate={closeBeforeAction}
+                    avatarImageData={avatarImageData}
+                    onAvatarImageDataChange={setAvatarImageData}
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (

@@ -1,13 +1,11 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
+import type { EntityAvatar } from '@shared/data/types/entityAvatar'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
-import { Bot, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { buildResolvedResourceEntityMenuAction } from './resourceEntityActions'
@@ -31,19 +29,9 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
   }
 }
 
-function renderFallbackAssistantIcon(emoji?: string | null) {
-  return emoji ? (
-    <EmojiIcon emoji={emoji} size={24} fontSize={14} className="mr-0" />
-  ) : (
-    <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-      <Bot size={14} />
-    </span>
-  )
-}
-
 export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
-  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
+  assistant: { avatar: EntityAvatar; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null
 ) {
   if (iconType === 'none') return undefined
@@ -51,12 +39,12 @@ export function renderAssistantEntityIcon(
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
 
-  return renderFallbackAssistantIcon(assistant.emoji)
+  return <EntityAvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />
 }
 
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
+  agent: { avatar: EntityAvatar; model?: string | null; modelName?: string | null } | undefined,
   fallbackModelId?: string | null
 ) {
   if (iconType === 'none') return undefined
@@ -64,14 +52,7 @@ export function renderAgentEntityIcon(
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
 
-  return (
-    <EmojiIcon
-      emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
-      size={24}
-      fontSize={14}
-      className="mr-0"
-    />
-  )
+  return agent ? <EntityAvatarIcon avatar={agent.avatar} size={24} fontSize={14} className="mr-0" /> : undefined
 }
 
 export function buildResolvedIconTypeActions(

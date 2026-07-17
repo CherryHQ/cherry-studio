@@ -90,7 +90,7 @@ describe('useResourceLibrary', () => {
           id: 'assistant-1',
           name: 'Assistant',
           description: '',
-          emoji: '💬',
+          avatar: { kind: 'emoji', emoji: '💬' },
           modelName: 'GPT-4o',
           tags: [],
           createdAt: '2026-04-27T00:00:00.000Z',
@@ -115,6 +115,7 @@ describe('useResourceLibrary', () => {
           id: 'agent-1',
           name: 'Agent',
           description: '',
+          avatar: { kind: 'emoji', emoji: '🤖' },
           configuration: {},
           model: 'anthropic::claude-sonnet-4-5',
           modelName: 'Claude Sonnet 4.5',
@@ -138,6 +139,7 @@ describe('useResourceLibrary', () => {
           id: 'agent-1',
           name: 'Cherry Assistant',
           description: '',
+          avatar: { kind: 'emoji', emoji: '🍒' },
           configuration: { builtin_role: 'assistant' },
           model: null,
           modelName: null,
@@ -160,6 +162,7 @@ describe('useResourceLibrary', () => {
           id: 'agent-1',
           name: 'Cherry Assistant',
           description: '',
+          avatar: { kind: 'emoji', emoji: '🍒' },
           configuration: { builtin_role: 'assistant' },
           model: null,
           modelName: null,
@@ -182,6 +185,7 @@ describe('useResourceLibrary', () => {
           id: 'agent-1',
           name: 'Agent',
           description: '',
+          avatar: { kind: 'emoji', emoji: '🤖' },
           configuration: {},
           model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
@@ -196,14 +200,15 @@ describe('useResourceLibrary', () => {
     expect(result.current.allResources[0]?.model).toBeUndefined()
   })
 
-  it('uses the default agent avatar for blank stored agent avatars', () => {
+  it('preserves the strict agent avatar value from DataApi', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([
         {
           id: 'agent-1',
           name: 'Agent',
           description: '',
-          configuration: { avatar: '   ' },
+          avatar: { kind: 'emoji', emoji: '🦞' },
+          configuration: {},
           model: 'anthropic::claude-sonnet-4-5',
           modelName: 'Claude Sonnet 4.5',
           createdAt: '2026-04-27T00:00:00.000Z',
@@ -214,7 +219,7 @@ describe('useResourceLibrary', () => {
 
     const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
-    expect(result.current.allResources[0]?.avatar).toBe('🤖')
+    expect(result.current.allResources[0]?.avatar).toEqual({ kind: 'emoji', emoji: '🦞' })
   })
 
   it('does not use skill source metadata tags for resource cards', () => {
@@ -317,7 +322,7 @@ describe('useResourceLibrary', () => {
           id: 'assistant-1',
           name: 'Assistant',
           description: '',
-          emoji: '💬',
+          avatar: { kind: 'emoji', emoji: '💬' },
           modelName: 'GPT-4o',
           tags: [{ id: 'tag-1', name: 'work', color: '#3b82f6' }],
           createdAt: '2026-04-27T00:00:00.000Z',

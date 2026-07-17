@@ -1,7 +1,9 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import { isEmoji } from '@renderer/utils/naming'
+import type { EntityAvatar } from '@shared/data/types/entityAvatar'
 import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'
 
 export const MESSAGE_AVATAR_SIZE = 30
@@ -19,12 +21,14 @@ export const MessageAvatarFrame = ({ className, ...props }: ComponentPropsWithou
 
 interface MessageAvatarProps extends ComponentPropsWithoutRef<'div'> {
   avatar?: string
+  entityAvatar?: EntityAvatar
   fallback?: ReactNode
   fallbackAvatarStyle?: CSSProperties
 }
 
 const MessageAvatar = ({
   avatar = '',
+  entityAvatar,
   fallback,
   fallbackAvatarStyle,
   className,
@@ -35,7 +39,14 @@ const MessageAvatar = ({
 
   return (
     <MessageAvatarFrame className={cn(clickable && 'cursor-pointer', className)} onClick={onClick} {...props}>
-      {isEmoji(avatar) ? (
+      {entityAvatar ? (
+        <EntityAvatarIcon
+          avatar={entityAvatar}
+          className="mr-0"
+          size={MESSAGE_AVATAR_SIZE}
+          fontSize={MESSAGE_EMOJI_AVATAR_FONT_SIZE}
+        />
+      ) : isEmoji(avatar) ? (
         <EmojiIcon
           emoji={avatar}
           className="mr-0"

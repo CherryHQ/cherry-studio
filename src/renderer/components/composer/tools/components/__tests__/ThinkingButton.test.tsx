@@ -106,7 +106,7 @@ const createModel = (overrides: Record<string, unknown> = {}): Model =>
 const createAssistant = (settings: Partial<Assistant['settings']> = {}): Assistant => ({
   createdAt: new Date().toISOString(),
   description: '',
-  emoji: '',
+  avatar: { kind: 'emoji', emoji: '🤖' },
   id: 'assistant-1',
   knowledgeBaseIds: [],
   mcpServerIds: [],

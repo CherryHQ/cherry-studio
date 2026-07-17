@@ -1,3 +1,4 @@
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -61,6 +62,7 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export function useResourceCatalogController(resourceType: ResourceCatalogControllerType) {
   const { t } = useTranslation()
+  const { setAgentAvatar, setAssistantAvatar } = useEntityAvatar()
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -196,9 +198,13 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       setCreatingResource(true)
       try {
         if (kind === 'assistant') {
-          await createAssistant(buildCreateAssistantDto(values))
+          const created = await createAssistant(buildCreateAssistantDto(values))
+          if (values.avatarImageData) {
+            await setAssistantAvatar(created.id, { kind: 'image', data: values.avatarImageData })
+          }
         } else {
-          await createAgent(buildCreateAgentDto(values))
+          const created = await createAgent(buildCreateAgentDto(values))
+          if (values.avatarImageData) await setAgentAvatar(created.id, { kind: 'image', data: values.avatarImageData })
         }
 
         setCreateDialogOpen(false)
@@ -207,7 +213,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
         setCreatingResource(false)
       }
     },
-    [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
+    [createAgent, createAssistant, createDialogKind, creatingResource, refetch, setAgentAvatar, setAssistantAvatar]
   )
 
   const handleEditDialogOpenChange = useCallback((open: boolean) => {

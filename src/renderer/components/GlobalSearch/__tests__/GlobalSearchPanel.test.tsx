@@ -696,7 +696,7 @@ describe('GlobalSearchPanel', () => {
               type: 'assistant',
               id: 'assistant-1',
               title: 'Writing Assistant',
-              emoji: '🧪',
+              avatar: { kind: 'emoji', emoji: '🧪' },
               updatedAt,
               target: { assistantId: 'assistant-1' }
             }
@@ -2015,7 +2015,7 @@ describe('GlobalSearchPanel', () => {
               type: 'knowledge-base',
               id: 'knowledge-1',
               title: 'Docs',
-              emoji: '📚',
+              avatar: { kind: 'emoji', emoji: '📚' },
               target: { knowledgeBaseId: 'knowledge-1' }
             }
           ]

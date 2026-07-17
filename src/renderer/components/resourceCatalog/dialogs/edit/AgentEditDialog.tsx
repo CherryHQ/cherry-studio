@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
@@ -34,7 +35,7 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -116,7 +117,7 @@ function getLeafTabIds(tabs: EditDialogTab[]) {
 function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
   const form = buildInitialAgentFormState(resource)
   return {
-    avatar: form.avatar || '🤖',
+    avatar: form.avatar,
     name: form.name,
     description: form.description,
     modelId: form.model || null,
@@ -203,10 +204,13 @@ function AgentEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
+  const { setAgentAvatar } = useEntityAvatar()
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [avatarImageData, setAvatarImageData] = useState<Uint8Array | null>(null)
+  const [avatarImageHidden, setAvatarImageHidden] = useState(false)
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
@@ -262,10 +266,45 @@ function AgentEditDialogContent({
     form.clearErrors()
     setActiveTab('basic')
     setEmojiPickerOpen(false)
+    setAvatarImageData(null)
+    setAvatarImageHidden(false)
     setModelLabels(modelLabelsForAgent(resource))
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, open, resource])
+
+  const handleAvatarImageDataChange = useCallback(
+    async (data: Uint8Array | null) => {
+      if (!data) {
+        setAvatarImageData(null)
+        setAvatarImageHidden(true)
+        return
+      }
+      const updated = await setAgentAvatar(resource.id, { kind: 'image', data })
+      setAvatarImageData(data)
+      setAvatarImageHidden(false)
+      try {
+        await onSaved(updated)
+      } catch (error) {
+        logger.warn('Failed to run agent avatar post-save callback', { error, agentId: resource.id })
+      }
+    },
+    [onSaved, resource.id, setAgentAvatar]
+  )
+
+  const handleAvatarEmojiChange = useCallback(
+    async (emoji: string) => {
+      const updated = await setAgentAvatar(resource.id, { kind: 'emoji', emoji })
+      setAvatarImageData(null)
+      setAvatarImageHidden(true)
+      try {
+        await onSaved(updated)
+      } catch (error) {
+        logger.warn('Failed to run agent avatar post-save callback', { error, agentId: resource.id })
+      }
+    },
+    [onSaved, resource.id, setAgentAvatar]
+  )
 
   useEffect(() => {
     if (!open || skillsLoading || baselineSkillAgentId === resource.id) return
@@ -360,6 +399,10 @@ function AgentEditDialogContent({
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
             onSettingsNavigate={closeBeforeAction}
+            avatarImageData={avatarImageData}
+            avatarImageSrc={avatarImageHidden || resource.avatar.kind !== 'image' ? undefined : resource.avatar.src}
+            onAvatarImageDataChange={handleAvatarImageDataChange}
+            onAvatarEmojiChange={handleAvatarEmojiChange}
           />
         </TabsContent>
         <TabsContent
@@ -398,7 +441,11 @@ function AgentBasicFields({
   patchAgentForm,
   emojiPickerOpen,
   setEmojiPickerOpen,
-  onSettingsNavigate
+  onSettingsNavigate,
+  avatarImageData,
+  avatarImageSrc,
+  onAvatarImageDataChange,
+  onAvatarEmojiChange
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: (model: Model) => boolean
@@ -409,6 +456,10 @@ function AgentBasicFields({
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
+  avatarImageData: Uint8Array | null
+  avatarImageSrc?: string
+  onAvatarImageDataChange: (data: Uint8Array | null) => void | Promise<void>
+  onAvatarEmojiChange: (emoji: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
@@ -420,8 +471,11 @@ function AgentBasicFields({
           form={form}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="🤖"
           portalContainer={portalContainer}
+          imageSrc={avatarImageSrc}
+          imageData={avatarImageData}
+          onImageDataChange={onAvatarImageDataChange}
+          onEmojiChange={onAvatarEmojiChange}
         />
         <TextInputField
           form={form}

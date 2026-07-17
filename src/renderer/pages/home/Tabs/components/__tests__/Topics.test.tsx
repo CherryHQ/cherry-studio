@@ -526,7 +526,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
   return {
     id: 'assistant-1',
     name: 'Alpha Assistant',
-    emoji: '🧪',
+    avatar: { kind: 'emoji', emoji: '🧪' },
     orderKey: 'a',
     tags: [{ id: 'tag-work', name: 'Work' }],
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -751,7 +751,7 @@ describe('Topics', () => {
               createAssistant({
                 id: 'assistant-2',
                 name: 'Beta Assistant',
-                emoji: '✍️',
+                avatar: { kind: 'emoji', emoji: '✍️' },
                 orderKey: 'b',
                 tags: [{ id: 'tag-home', name: 'Home' }]
               })
@@ -1254,8 +1254,18 @@ describe('Topics', () => {
           data: {
             items: [
               createAssistant(),
-              createAssistant({ id: 'assistant-2', name: 'Beta Assistant', emoji: '✍️', orderKey: 'b' }),
-              createAssistant({ id: 'assistant-3', name: 'Gamma Assistant', emoji: '🚀', orderKey: 'c' })
+              createAssistant({
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                avatar: { kind: 'emoji', emoji: '✍️' },
+                orderKey: 'b'
+              }),
+              createAssistant({
+                id: 'assistant-3',
+                name: 'Gamma Assistant',
+                avatar: { kind: 'emoji', emoji: '🚀' },
+                orderKey: 'c'
+              })
             ],
             total: 3
           },
@@ -2532,21 +2542,21 @@ describe('Topics', () => {
               {
                 id: 'assistant-1',
                 name: 'Alpha Assistant',
-                emoji: '🧪',
+                avatar: { kind: 'emoji', emoji: '🧪' },
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
               },
               {
                 id: 'assistant-2',
                 name: 'Beta Assistant',
-                emoji: '✍️',
+                avatar: { kind: 'emoji', emoji: '✍️' },
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
               },
               {
                 id: 'assistant-3',
                 name: 'Gamma Assistant',
-                emoji: '🧭',
+                avatar: { kind: 'emoji', emoji: '🧭' },
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
               }
@@ -3147,7 +3157,7 @@ describe('Topics', () => {
               {
                 id: 'assistant-default',
                 name: 'Default Assistant',
-                emoji: '😀',
+                avatar: { kind: 'emoji', emoji: '😀' },
                 orderKey: 'a',
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
@@ -3155,7 +3165,7 @@ describe('Topics', () => {
               {
                 id: 'assistant-2',
                 name: 'Beta Assistant',
-                emoji: '✍️',
+                avatar: { kind: 'emoji', emoji: '✍️' },
                 orderKey: 'b',
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
@@ -3563,7 +3573,7 @@ describe('Topics', () => {
               {
                 id: 'assistant-1',
                 name: 'Alpha Assistant',
-                emoji: '🧪',
+                avatar: { kind: 'emoji', emoji: '🧪' },
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
               }

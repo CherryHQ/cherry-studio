@@ -299,7 +299,7 @@ describe('export', () => {
       message.messageSnapshot = {
         id: 'a1',
         name: 'My Assistant',
-        emoji: '🤖',
+        avatar: { kind: 'emoji', emoji: '🤖' },
         model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
       }
       expect(messagesToPlainText([message])).toContain('My Assistant:')

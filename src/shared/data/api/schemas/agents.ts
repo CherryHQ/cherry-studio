@@ -6,6 +6,7 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
+import { EntityAvatarInputSchema, EntityAvatarSchema } from '@shared/data/types/entityAvatar'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -40,7 +41,6 @@ export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
   .object({
-    avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
     max_turns: z.number().optional(),
@@ -79,14 +79,16 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     return { data: undefined, invalidKeys: ['<root>'] }
   }
-  const parsed = AgentConfigurationSchema.safeParse(raw)
+  const configuration = { ...(raw as Record<string, unknown>) }
+  delete configuration.avatar
+  const parsed = AgentConfigurationSchema.safeParse(configuration)
   if (parsed.success) return { data: parsed.data, invalidKeys: [] }
 
   const invalidKeys = Array.from(
     new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
   )
   const filtered: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(configuration)) {
     if (!invalidKeys.includes(key)) filtered[key] = value
   }
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
@@ -140,7 +142,9 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
    * Human-readable primary model name resolved from `user_model.name` at read
    * time. Edits still go through the `model` UniqueModelId field.
    */
-  modelName: z.string().nullable()
+  modelName: z.string().nullable(),
+  /** Exactly one active avatar representation. */
+  avatar: EntityAvatarSchema
 })
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
@@ -184,6 +188,7 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // ============================================================================
 
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
+  avatar: EntityAvatarInputSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new agent.
    * Writes `agent_skill` join rows in the same create transaction. Builtin

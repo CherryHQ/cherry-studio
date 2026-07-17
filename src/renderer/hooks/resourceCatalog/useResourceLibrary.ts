@@ -1,6 +1,6 @@
 import { useTagList } from '@renderer/hooks/useTags'
 import type { AgentDetail, ResourceItem, ResourceType, SortKey } from '@renderer/types/resourceCatalog'
-import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -119,7 +119,7 @@ export function useResourceLibrary({
       type: 'assistant',
       name: a.name,
       description: a.description || '',
-      avatar: a.emoji || '💬',
+      avatar: a.avatar,
       // Embedded by AssistantService.list via JOIN on user_model; null when the
       // bound model row was removed.
       model: a.modelName ?? undefined,
@@ -137,7 +137,7 @@ export function useResourceLibrary({
         type: 'agent',
         name: a.name ?? '',
         description: getAgentDescriptionForDisplay(a, t),
-        avatar: getAgentAvatarFromConfiguration(a.configuration),
+        avatar: a.avatar,
         model: a.modelName ?? undefined,
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,

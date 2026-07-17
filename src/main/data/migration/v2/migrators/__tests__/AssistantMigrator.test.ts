@@ -261,7 +261,7 @@ describe('AssistantMigrator', () => {
       expect(merged.id).not.toBe('default')
       expect(merged.name).toBe('My Default') // assistants[] wins on populated field
       expect(merged.prompt).toBe('You are helpful') // defaultAssistant fills empty gap
-      expect(merged.emoji).toBe('😀') // defaultAssistant fills missing field
+      expect(merged.avatarEmoji).toBe('😀') // defaultAssistant fills missing field
       expect(merged.modelId).toBe('openai::gpt-4') // assistants[]-only field preserved
     })
 

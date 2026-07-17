@@ -1,11 +1,12 @@
-import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { getModelLogoRef } from '@renderer/utils/model'
-import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils/naming'
+import { isEmoji, removeLeadingEmoji } from '@renderer/utils/naming'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -221,24 +222,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                assistantProfile?.avatar ? (
-                  isEmoji(assistantProfile.avatar) ? (
-                    <EmojiAvatar
-                      className="rounded-full"
-                      size={size}
-                      fontSize={size * 0.6}
-                      style={{
-                        cursor: 'default',
-                        pointerEvents: 'none'
-                      }}>
-                      {assistantProfile.avatar}
-                    </EmojiAvatar>
-                  ) : (
-                    <MessageItemAvatar style={{ width: size, height: size }}>
-                      <AvatarImage src={assistantProfile.avatar} />
-                      <AvatarFallback>{firstLetter(assistantProfile.name ?? '').toUpperCase()}</AvatarFallback>
-                    </MessageItemAvatar>
-                  )
+                assistantProfile?.entityAvatar ? (
+                  <EntityAvatarIcon avatar={assistantProfile.entityAvatar} size={size} fontSize={size * 0.6} />
                 ) : (
                   <AnchorModelAvatar model={model} size={size} />
                 )

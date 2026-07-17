@@ -75,9 +75,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const messageSnapshot = {
       id: agent.id,
       name: agent.name,
-      // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
-      // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
-      emoji: agent.configuration?.avatar?.trim() || '🤖',
+      avatar: agent.avatar,
       model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
     }
 

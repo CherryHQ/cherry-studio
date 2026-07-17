@@ -464,7 +464,7 @@ export function Topics({
       icon: renderAssistantEntityIcon(
         assistantIconType,
         {
-          emoji: assistant.emoji,
+          avatar: assistant.avatar,
           modelId: assistant.modelId,
           modelName: assistant.modelName
         },
@@ -1031,7 +1031,7 @@ export function Topics({
         if (group.label !== defaultAssistant.name) return null
 
         return renderAssistantEntityIcon(assistantIconType, {
-          emoji: defaultAssistant.emoji,
+          avatar: { kind: 'emoji', emoji: defaultAssistant.emoji },
           modelId: defaultModelId
         })
       }
@@ -1041,7 +1041,7 @@ export function Topics({
       if (!assistant) return undefined
 
       return renderAssistantEntityIcon(assistantIconType, {
-        emoji: assistant.emoji,
+        avatar: assistant.avatar,
         modelId: assistant.modelId ?? defaultModelId,
         modelName: assistant.modelName
       })

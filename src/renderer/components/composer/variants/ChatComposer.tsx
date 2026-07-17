@@ -20,7 +20,7 @@ import {
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
@@ -43,9 +43,9 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
-import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { EntityAvatar } from '@shared/data/types/entityAvatar'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -148,7 +148,7 @@ const replaceComposerEditableMessageParts = (
 interface ChatComposerContextControlsProps {
   assistantId: string | null
   assistantName: string
-  assistantEmoji?: string
+  assistantAvatar?: EntityAvatar
   model?: Model
   modelPending?: boolean
   providers: Provider[]
@@ -172,7 +172,7 @@ interface ChatComposerContextControlsProps {
 const ChatComposerContextControls = ({
   assistantId,
   assistantName,
-  assistantEmoji,
+  assistantAvatar,
   model,
   modelPending,
   providers,
@@ -192,7 +192,6 @@ const ChatComposerContextControls = ({
   onMentionedModelMultiSelectModeChange,
   onMentionedModelSelectorRestore
 }: ChatComposerContextControlsProps) => {
-  const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
@@ -227,7 +226,11 @@ const ChatComposerContextControls = ({
 
   const assistantTrigger = (
     <Button variant="ghost" size="sm" className={compactTriggerClassName}>
-      {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
+      {assistantAvatar ? (
+        <EntityAvatarIcon avatar={assistantAvatar} size={20} />
+      ) : iconOnly ? (
+        <Bot size={16} aria-hidden />
+      ) : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
       <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
     </Button>
@@ -1232,7 +1235,7 @@ const ChatComposerInner = ({
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
     assistantName,
-    assistantEmoji: displayAssistant?.emoji,
+    assistantAvatar: displayAssistant?.avatar,
     model: runtimeModel,
     modelPending: runtimeModelPending,
     providers,

@@ -1,6 +1,7 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
@@ -8,10 +9,11 @@ import {
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
+import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import type { Assistant } from '@renderer/types/assistant'
 import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import { Bot, Check, Filter, Plus } from 'lucide-react'
+import { Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -48,6 +50,7 @@ export function AssistantConversationPickerDialog({
   onSelect
 }: AssistantConversationPickerDialogProps) {
   const { t } = useTranslation()
+  const { setAssistantAvatar } = useEntityAvatar()
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<AssistantPickerTab | null>(null)
@@ -61,13 +64,7 @@ export function AssistantConversationPickerDialog({
       assistants.map((assistant) => ({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
-        icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-        ) : (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-            <Bot size={14} />
-          </span>
-        ),
+        icon: <EntityAvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />,
         searchText: assistant.description,
         selection: { type: 'assistant' as const, assistantId: assistant.id }
       })),
@@ -109,6 +106,9 @@ export function AssistantConversationPickerDialog({
         const created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
+        if (values.avatarImageData) {
+          await setAssistantAvatar(created.id, { kind: 'image', data: values.avatarImageData })
+        }
         setCreateDialogOpen(false)
         // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
         // has no topic yet), mirroring picking an existing one.
@@ -118,7 +118,7 @@ export function AssistantConversationPickerDialog({
         throw error
       }
     },
-    [createAssistant, onSelect]
+    [createAssistant, onSelect, setAssistantAvatar]
   )
 
   // null = combined 资源库 + 助手库 (the default "全部" view).

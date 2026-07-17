@@ -172,6 +172,13 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
+vi.mock('@renderer/hooks/useEntityAvatar', () => ({
+  useEntityAvatar: () => ({
+    setAgentAvatar: vi.fn(),
+    setAssistantAvatar: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
   useAgentTools: () => ({
     tools: agentTools,
@@ -336,6 +343,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.edit.knowledge_tab': 'Knowledge',
           'library.config.dialogs.edit.permission_tab': 'Permission',
           'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'settings.general.emoji_picker': 'Choose emoji',
+          'settings.general.image_upload': 'Upload image',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'library.config.dialogs.edit.tools_tab': 'Tools',
           'library.config.knowledge.add': 'Add knowledge base',
@@ -383,7 +392,7 @@ const ASSISTANT: Assistant = {
   id: 'assistant-1',
   name: 'Alpha Assistant',
   prompt: 'Original prompt',
-  emoji: '💬',
+  avatar: { kind: 'emoji', emoji: '💬' },
   description: 'Original assistant description',
   settings: {
     temperature: 1,
@@ -430,10 +439,10 @@ const AGENT: AgentDetail = {
   smallModel: undefined,
   mcps: [],
   configuration: {
-    avatar: '🤖',
     heartbeat_enabled: true,
     heartbeat_interval: 30
   },
+  avatar: { kind: 'emoji', emoji: '🤖' },
   orderKey: 'a0',
   modelName: 'Old Model',
   createdAt: '2024-01-01T00:00:00.000Z',

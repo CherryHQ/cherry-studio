@@ -11,6 +11,10 @@ import {
 
 const userModelLookup = (col: string) =>
   `(SELECT user_model.id FROM user_model WHERE user_model.id = ${col} OR (user_model.provider_id || ':' || user_model.model_id) = ${col} LIMIT 1) AS ${col}`
+const agentAvatarExpr =
+  "CASE WHEN json_valid(configuration) THEN COALESCE(NULLIF(TRIM(json_extract(configuration, '$.avatar')), ''), '🤖') ELSE '🤖' END AS avatar_emoji"
+const agentConfigurationExpr =
+  "CASE WHEN json_valid(configuration) THEN json_remove(configuration, '$.avatar') ELSE '{}' END AS configuration"
 
 describe('AgentsDbMappings', () => {
   it('builds attach/import/detach statements for the legacy agents db', () => {
@@ -39,7 +43,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, avatar_emoji, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, ${agentAvatarExpr}, ${agentConfigurationExpr}, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -69,7 +73,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, avatar_emoji, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, ${agentAvatarExpr}, ${agentConfigurationExpr}, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -301,7 +305,8 @@ describe('AgentsDbMappings', () => {
     expect(agentInsert).not.toContain('accessible_paths')
     expect(agentInsert).toContain("'[]' AS disabled_tools")
     expect(agentInsert).not.toContain('allowed_tools')
-    expect(agentInsert).toContain("COALESCE(configuration, '{}') AS configuration")
+    expect(agentInsert).toContain(agentAvatarExpr)
+    expect(agentInsert).toContain(agentConfigurationExpr)
     expect(agentInsert).toContain("'' AS order_key")
 
     const sessionInsert = find('agent_session')
@@ -338,7 +343,6 @@ describe('AgentsDbMappings', () => {
       agent: {
         description: { defaultExpr: "''" },
         disabled_tools: { defaultExpr: "'[]'" },
-        configuration: { defaultExpr: "'{}'" },
         order_key: { defaultExpr: "''" }
       },
       agent_session: {
