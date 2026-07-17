@@ -50,6 +50,7 @@ interface ShellContextValue {
 
 const ShellStateContext = createContext<ShellState | null>(null)
 const ShellActionsContext = createContext<ShellActions | null>(null)
+const ShellResponsiveCloseContext = createContext<(() => void) | null>(null)
 
 function useShell(): ShellContextValue {
   return {
@@ -78,6 +79,12 @@ export function useOptionalShellState(): ShellState | undefined {
   return use(ShellStateContext) ?? undefined
 }
 
+function useShellResponsiveClose(): () => void {
+  const close = use(ShellResponsiveCloseContext)
+  if (!close) throw new Error('useShellResponsiveClose must be used within <Shell>')
+  return close
+}
+
 function ShellProvider({
   children,
   defaultTab,
@@ -88,9 +95,10 @@ function ShellProvider({
   defaultTab: string
   defaultOpen?: boolean
   /**
-   * Notified whenever the pane opens/closes. Owners that remount this provider across UI branches
-   * (e.g. the agent chat's draft→persistent handoff) use it to persist the open state into
-   * `defaultOpen` so the pane survives the remount instead of snapping shut.
+   * Notified when public actions open/close the pane. Owners that remount this provider across UI
+   * branches (e.g. the agent chat's draft→persistent handoff) use it to persist the open state into
+   * `defaultOpen` so the pane survives the remount instead of snapping shut. Responsive constraint
+   * closures remain internal because they do not represent user intent.
    */
   onOpenChange?: (open: boolean) => void
 }) {
@@ -133,10 +141,10 @@ function ShellProvider({
     }
   }, [defaultOpen, defaultTab, finishClose])
 
-  const close = useCallback((afterClose?: () => void) => {
+  const closePane = useCallback((afterClose?: () => void): boolean => {
     if (!openRef.current) {
       afterClose?.()
-      return
+      return false
     }
     openRef.current = false
     if (afterClose) {
@@ -145,8 +153,17 @@ function ShellProvider({
     setOpen(false)
     setMaximized(false)
     setPdfLayoutPending(false)
-    onOpenChangeRef.current?.(false)
+    return true
   }, [])
+  const close = useCallback(
+    (afterClose?: () => void) => {
+      if (closePane(afterClose)) onOpenChangeRef.current?.(false)
+    },
+    [closePane]
+  )
+  const closeForResponsiveConstraint = useCallback(() => {
+    closePane()
+  }, [closePane])
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
     openRef.current = true
@@ -179,9 +196,11 @@ function ShellProvider({
   )
 
   return (
-    <ShellActionsContext value={actions}>
-      <ShellStateContext value={state}>{children}</ShellStateContext>
-    </ShellActionsContext>
+    <ShellResponsiveCloseContext value={closeForResponsiveConstraint}>
+      <ShellActionsContext value={actions}>
+        <ShellStateContext value={state}>{children}</ShellStateContext>
+      </ShellActionsContext>
+    </ShellResponsiveCloseContext>
   )
 }
 
@@ -191,6 +210,7 @@ function ShellProvider({
 // back in a single reflow rather than animating width frame by frame.
 function ShellHost({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
+  const closeForResponsiveConstraint = useShellResponsiveClose()
   if (state.maximized) return null
 
   return (
@@ -203,7 +223,7 @@ function ShellHost({ children }: { children: ReactNode }) {
       maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
       cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
       reservedCenterWidth={CHAT_CENTER_MIN_USABLE_WIDTH}
-      onReservedSpaceUnavailable={actions.close}
+      onReservedSpaceUnavailable={closeForResponsiveConstraint}
       onOpenAnimationComplete={actions.refreshPdfLayout}
       onCloseAnimationComplete={actions.finishClose}>
       {children}

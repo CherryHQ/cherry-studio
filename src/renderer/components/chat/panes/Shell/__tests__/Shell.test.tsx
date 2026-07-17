@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CHAT_CENTER_MIN_USABLE_WIDTH } from '../../../shell/paneLayout'
@@ -183,6 +183,21 @@ function ShellStateSnapshot() {
 
   return (
     <div data-testid="shell-state">{`${state.open ? 'open' : 'closed'}:${state.activeTab}:${state.maximized}`}</div>
+  )
+}
+
+function PersistedOpenOverrideShell() {
+  const [openOverride, setOpenOverride] = useState<boolean | null>(null)
+
+  return (
+    <Shell defaultTab="files" defaultOpen={openOverride ?? true} onOpenChange={setOpenOverride}>
+      <CloseShellButton />
+      <Shell.Host>
+        <div>files pane</div>
+      </Shell.Host>
+      <ShellStateSnapshot />
+      <output data-testid="shell-open-override">{openOverride === null ? 'null' : String(openOverride)}</output>
+    </Shell>
   )
 }
 
@@ -529,6 +544,10 @@ describe('Shell.TabShortcut', () => {
 })
 
 describe('Shell.Host', () => {
+  beforeEach(() => {
+    rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = false
+  })
+
   it('caps the docked right pane width so the conversation center keeps its minimum usable width', () => {
     render(
       <Shell defaultTab="files">
@@ -589,6 +608,26 @@ describe('Shell.Host', () => {
     await waitFor(() => {
       expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
     })
+  })
+
+  it('keeps a null owner override when responsive constraints close the default-open pane', async () => {
+    rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = true
+
+    render(<PersistedOpenOverrideShell />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    })
+    expect(screen.getByTestId('shell-open-override')).toHaveTextContent('null')
+  })
+
+  it('reports an explicit user close to the owner', () => {
+    render(<PersistedOpenOverrideShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'close shell' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    expect(screen.getByTestId('shell-open-override')).toHaveTextContent('false')
   })
 })
 
