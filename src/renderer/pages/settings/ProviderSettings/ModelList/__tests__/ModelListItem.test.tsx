@@ -86,10 +86,10 @@ describe('ModelListItem', () => {
     )
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
-    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-size', '28')
+    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-size', '26')
     expect(screen.getByTestId('model-icon')).toHaveAttribute('data-shape', 'circle')
     expect(screen.getByTestId('model-icon').parentElement).toHaveClass(
-      'size-7',
+      'size-6.5',
       'overflow-hidden',
       'rounded-full',
       'border',

@@ -299,7 +299,7 @@ export const modelListClasses = {
   row: 'group flex min-h-[42px] items-center gap-2.5 px-4 py-1 text-foreground leading-none',
   rowMain: 'min-w-0 flex-1 items-center gap-2.5 self-center',
   rowAvatar:
-    'inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
+    'inline-flex size-6.5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
   rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',

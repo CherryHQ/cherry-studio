@@ -16,14 +16,12 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { generateMeta } from './codegen'
-import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, tightenSvgViewBox } from './svg-utils'
+import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair } from './svg-utils'
 
 export type IconType = 'icons' | 'providers' | 'models'
 
 const ICON_TYPES: IconType[] = ['icons', 'providers', 'models']
 const HASH_CACHE_FILE = path.join(__dirname, '../.icons-hash.json')
-const LOGO_MINIMUM_FRAME_RATIO = 100 / 120
-
 const SOURCE_DIR_MAP: Record<IconType, string> = {
   icons: path.join(__dirname, '../icons/general'),
   providers: path.join(__dirname, '../icons/providers'),
@@ -206,12 +204,8 @@ function scopeStaticSvgReferences(jsCode: string, componentName: string): string
 /**
  * Run SVGR transform on SVG content, return TSX code.
  */
-async function svgrTransform(
-  svgCode: string,
-  componentName: string,
-  options: { minimumFrameRatio?: number } = {}
-): Promise<string> {
-  const processedSvg = tightenSvgViewBox(ensureViewBox(svgCode), options)
+async function svgrTransform(svgCode: string, componentName: string): Promise<string> {
+  const processedSvg = ensureViewBox(svgCode)
 
   let jsCode = await transform(
     processedSvg,
@@ -309,23 +303,18 @@ async function generateLogoDirDual(
   pair: LightDarkSvgPair,
   outputDir: string,
   dirName: string,
-  componentName: string,
-  options: { minimumFrameRatio?: number } = {}
+  componentName: string
 ): Promise<void> {
   const logoDir = path.join(outputDir, dirName)
   await fs.mkdir(logoDir, { recursive: true })
 
   const lightSvg = await fs.readFile(pair.light, 'utf-8')
-  const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`, {
-    minimumFrameRatio: options.minimumFrameRatio
-  })
+  const lightTsx = await svgrTransform(lightSvg, `${componentName}Light`)
   await fs.writeFile(path.join(logoDir, 'light.tsx'), lightTsx, 'utf-8')
 
   if (pair.dark) {
     const darkSvg = await fs.readFile(pair.dark, 'utf-8')
-    const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`, {
-      minimumFrameRatio: options.minimumFrameRatio
-    })
+    const darkTsx = await svgrTransform(darkSvg, `${componentName}Dark`)
     await fs.writeFile(path.join(logoDir, 'dark.tsx'), darkTsx, 'utf-8')
   } else {
     await fs.rm(path.join(logoDir, 'dark.tsx'), { force: true })
@@ -442,9 +431,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
           continue
         }
 
-        await generateLogoDirDual(pair, outputDir, dirName, componentName, {
-          minimumFrameRatio: type === 'providers' ? LOGO_MINIMUM_FRAME_RATIO : undefined
-        })
+        await generateLogoDirDual(pair, outputDir, dirName, componentName)
         newHashCache[cacheKey] = hash
         generated++
         console.log(`  ${baseFile} -> ${componentName}{Light${pair.dark ? ',Dark' : ''}}`)

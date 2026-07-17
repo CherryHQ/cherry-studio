@@ -165,10 +165,10 @@ describe('ModelListSyncDrawer', () => {
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
     expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
-    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-size') === '28')).toBe(true)
+    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-size') === '26')).toBe(true)
     expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-shape') === 'circle')).toBe(true)
     expect(screen.getAllByTestId('model-icon')[0].parentElement).toHaveClass(
-      'size-7',
+      'size-6.5',
       'overflow-hidden',
       'rounded-full',
       'border',

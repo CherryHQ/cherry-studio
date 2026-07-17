@@ -2,14 +2,22 @@ import { describe, expect, it } from 'vitest'
 
 import {
   colorToLuminance,
+  ensureViewBox,
   isLargeShape,
   isMonochromeSvg,
   isWhiteFill,
   normalizeColor,
   parseSvgPathBounds,
-  parseViewBox,
-  tightenSvgViewBox
+  parseViewBox
 } from '../svg-utils'
+
+describe('ensureViewBox', () => {
+  it('preserves an existing viewBox and its original whitespace', () => {
+    const svg = '<svg viewBox="0 0 120 120"><path d="M20 20H100V100H20Z"/></svg>'
+
+    expect(ensureViewBox(svg)).toBe(svg)
+  })
+})
 
 // ─── colorToLuminance ───────────────────────────────────────────────
 
@@ -172,16 +180,6 @@ describe('parseViewBox', () => {
   it('defaults to 24x24 when no attributes', () => {
     const vb = parseViewBox({})
     expect(vb).toEqual({ x: 0, y: 0, w: 24, h: 24 })
-  })
-})
-
-// ─── tightenSvgViewBox ─────────────────────────────────────────────
-
-describe('tightenSvgViewBox', () => {
-  it('preserves a square source frame for a tall logo', () => {
-    const svg = '<svg viewBox="-30 0 300 300"><path d="M0 0H240V300H0Z"/></svg>'
-
-    expect(tightenSvgViewBox(svg, { minimumFrameRatio: 100 / 120 })).toContain('viewBox="-30 0 300 300"')
   })
 })
 
